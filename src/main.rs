@@ -1,23 +1,24 @@
-use std::{rc::Rc, vec};
+use std::vec;
 
-use components::{simple, Node, Value, VecValue};
+use reactive_gtk::{Button, Label, Node};
 // use components::{Column, ColumnWidth, Columns};
 use futures_signals::{
-    signal::{Mutable, Signal, SignalExt},
+    signal::{Mutable, SignalExt},
     signal_vec::MutableVec,
 };
 use gtk::{
-    gdk::Display, prelude::*, ApplicationWindow, CssProvider, Widget,
-    STYLE_PROVIDER_PRIORITY_APPLICATION,
+    gdk::Display, prelude::*, ApplicationWindow, CssProvider, STYLE_PROVIDER_PRIORITY_APPLICATION,
 };
-use spawner::Handle;
+use shell_bar::create_shell_bar;
 
-mod components;
-mod spawner;
+mod launcher;
+mod reactive_gtk;
+mod shell_bar;
 
 fn activate(application: &gtk::Application) -> ApplicationWindow {
     // Create a normal GTK window however you like
     let window = gtk::ApplicationWindow::new(application);
+    window.set_default_size(-1, 34);
 
     // Before the window is first realized, set it up to be a layer surface
     gtk4_layer_shell::init_for_window(&window);
@@ -28,19 +29,29 @@ fn activate(application: &gtk::Application) -> ApplicationWindow {
     // Push other windows out of the way
     gtk4_layer_shell::auto_exclusive_zone_enable(&window);
 
-    // The margins are the gaps around the window's edges
-    // Margins and anchors can be set like this...
-    // gtk4_layer_shell::set_margin(&window, gtk4_layer_shell::Edge::Left, 40);
-    // gtk4_layer_shell::set_margin(&window, gtk4_layer_shell::Edge::Right, 40);
-    // gtk4_layer_shell::set_margin(&window, gtk4_layer_shell::Edge::Top, 30);
+    let display = gdk::Display::default().expect("Failed to get default display");
+    let monitors = display.monitors();
+
+    let mut target: Option<gdk::Monitor> = None;
+    for m in monitors.iter::<gdk::Monitor>() {
+        let monitor = m.unwrap();
+        let connector = monitor.connector().unwrap();
+        if connector == "eDP-1" {
+            target = Some(monitor);
+        }
+    }
+
+    if let Some(target) = target {
+        gtk4_layer_shell::set_monitor(&window, &target);
+    }
 
     // ... or like this
     // Anchors are if the window is pinned to each edge of the output
     let anchors = [
         (gtk4_layer_shell::Edge::Left, true),
         (gtk4_layer_shell::Edge::Right, true),
-        (gtk4_layer_shell::Edge::Top, false),
-        (gtk4_layer_shell::Edge::Bottom, true),
+        (gtk4_layer_shell::Edge::Top, true),
+        (gtk4_layer_shell::Edge::Bottom, false),
     ];
 
     for (anchor, state) in anchors {
@@ -51,12 +62,14 @@ fn activate(application: &gtk::Application) -> ApplicationWindow {
 }
 
 fn main() {
-    let application = gtk::Application::new(Some("sh.wmww.gtk-layer-example"), Default::default());
+    let application = gtk::Application::new(Some("malpenzibo.a-shell"), Default::default());
+
+    // let mut handlers: Vec<Handler<()>> = vec![];
 
     application.connect_startup(|app| {
         // The CSS "magic" happens here.
         let provider = CssProvider::new();
-        provider.load_from_data(include_str!("style.scss"));
+        provider.load_from_data(grass::include!("./src/style.scss"));
         // We give the CssProvided to the default screen so the CSS rules we added
         // can be applied to our window.
         gtk::style_context_add_provider_for_display(
@@ -68,138 +81,69 @@ fn main() {
         let window = activate(app);
         window.set_css_classes(&["main"]);
 
-        let mut root = create_root2();
+        // let mut root = create_root2();
+        let mut root = create_shell_bar();
 
         root.handlers.clear();
 
         window.set_child(Some(&root.component));
 
         app.connect_activate(move |_| window.present());
-
-        // startup(app);
     });
 
     application.run();
 }
 
-fn create_root() -> Widget {
-    let counter = Mutable::new(0);
-    let just = Mutable::new(0);
+fn compile_scss() -> String {
+    let main_scss = include_str!("style.scss");
+    let options = grass::Options::default().load_path(std::path::Path::new("src"));
 
-    let left = gtk::Box::default();
-    let center = gtk::Box::default();
-    center.set_hexpand(true);
-    let right = gtk::Box::default();
-
-    let counter_label = gtk::Label::new(Some(&format!("{}", counter.get())));
-
-    // Set up a widget
-    let increment = gtk::Button::default();
-    increment.set_label("Increment 1");
-    let counter1 = counter.clone();
-    increment.connect_clicked(move |e| {
-        counter1.replace_with(|c| *c + 1);
-    });
-    left.append(&increment);
-
-    let increment = gtk::Button::default();
-    increment.set_label("Increment 2");
-    let just1 = just.clone();
-    increment.connect_clicked(move |e| {
-        just1.replace_with(|c| *c + 1);
-    });
-    left.append(&increment);
-
-    let decrement = gtk::Button::default();
-    decrement.set_label("Decrement 1");
-    let counter2 = counter.clone();
-    decrement.connect_clicked(move |e| {
-        counter2.replace_with(|c| *c - 1);
-    });
-
-    right.append(&decrement);
-
-    let decrement = gtk::Button::default();
-    decrement.set_label("Decrement 2");
-    let just2 = just.clone();
-    decrement.connect_clicked(move |e| {
-        just2.replace_with(|c| *c - 1);
-    });
-
-    right.append(&decrement);
-
-    // into_dom
-
-    let container = gtk::Box::default();
-    container.set_orientation(gtk::Orientation::Horizontal);
-    container.append(&left);
-    container.append(&center);
-    container.append(&right);
-
-    let elem = counter_label.clone();
-
-    crate::spawner::spawn(just.signal().for_each(move |c| {
-        println!("Just changed to {}", c);
-        elem.set_margin_start(c);
-
-        async {}
-    }));
-
-    let elem = counter_label.clone();
-
-    crate::spawner::spawn(counter.signal().for_each(move |c| {
-        println!("Counter changed to {}", c);
-        elem.set_label(&format!("{}", c));
-
-        async {}
-    }));
-
-    center.append(&counter_label);
-    // gidle_future::spawn(test);
-    // gidle_future::spawn(bb);
-
-    container.into()
+    grass::from_string(main_scss, &options).expect("SCSS compilation failed")
 }
 
 fn create_root2() -> Node {
     let counter = Mutable::new(0);
     let my_vec: MutableVec<Node> = MutableVec::new();
 
-    let increment = gtk::Button::default();
-    increment.set_label("Increment 1");
     let counter1 = counter.clone();
-    increment.connect_clicked(move |e| {
-        counter1.replace_with(|c| *c + 1);
-    });
+    let increment = Button::default()
+        .child(Label::default().text("Increment 1"))
+        .on_click(move || {
+            counter1.replace_with(|c| *c + 1);
+        });
 
-    let decrement = gtk::Button::default();
-    decrement.set_label("Decrement 1");
     let counter2 = counter.clone();
-    decrement.connect_clicked(move |e| {
-        counter2.replace_with(|c| *c - 1);
-    });
+    let decrement = Button::default()
+        .child(Label::default().text("Decrement 1"))
+        .on_click(move || {
+            counter2.replace_with(|c| *c - 1);
+        });
 
-    let remove_label = gtk::Button::default();
-    remove_label.set_label("Remove Label");
     let my_vec1 = my_vec.clone();
-    remove_label.connect_clicked(move |e| {
-        let mut vec = my_vec1.lock_mut();
-        vec.remove(1);
-    });
+    let remove_label = Button::default()
+        .child(Label::default().text("Remove Label"))
+        .on_click(move || {
+            let mut vec = my_vec1.lock_mut();
+            vec.remove(1);
+        });
 
     my_vec.lock_mut().replace_cloned(vec![
         increment.into(),
-        components::Label::default()
-            .text(Value::Signal(
-                counter.signal().map(|c| format!("Counter: {}", c)),
-            ))
+        Label::default()
+            .text_signal(counter.signal().map(|c| format!("Counter: {}", c)))
             .into(),
         decrement.into(),
         remove_label.into(),
     ]);
 
-    components::Box::default()
-        .spacing(simple(10))
-        .children(VecValue::Signal(my_vec.signal_vec_cloned()))
+    reactive_gtk::Box::default()
+        .orientation(reactive_gtk::Orientation::Horizontal)
+        .children(vec![
+            Label::default().text("Hello World!").into(),
+            reactive_gtk::Box::default()
+                .spacing(10)
+                .children_signal(my_vec.signal_vec_cloned())
+                .into(),
+        ])
         .into()
 }

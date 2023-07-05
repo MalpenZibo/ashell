@@ -1,3 +1,17 @@
-.main {
-  background-color: transparent;
+@import "./scss/theme.scss";
+@import "./scss/colors.scss";
+@import "./scss/spacing.scss";
+@import "./scss/typography.scss";
+@import "./scss/borders.scss";
+@import "./scss/common.scss";
+
+.card {
+  background: black;
+  border-radius: 20px;
+  margin: 8px;
+  color: white;
+}
+
+.card > * {
+  padding: 20px;
 }

@@ -1,0 +1,53 @@
+$basicStep: 4px;
+
+$gaps: (
+    'm': 'margin',
+    'p': 'padding'
+);
+
+$directions: (
+    'l': 'left',
+    'r': 'right',
+    't': 'top',
+    'b': 'bottom',
+    'a': 'all',
+    'v': 'vertical',
+    'h': 'horizontal'
+);
+
+$stepsAmount: 12;
+
+@each $gapKey,
+$gapValue in $gaps {
+
+    @each $dirKey,
+    $dirValue in $directions {
+        @for $i from 1 through 12 {
+            @if $dirKey =='a' {
+                .#{$gapKey}-#{$i} {
+                    #{$gapValue}: $i * $basicStep;
+                }
+            }
+
+            @else if $dirKey =='h' {
+                .#{$gapKey}#{$dirKey}-#{$i} {
+                    #{$gapValue}-right: $i * $basicStep;
+                    #{$gapValue}-left: $i * $basicStep;
+                }
+            }
+
+            @else if $dirKey =='v' {
+                .#{$gapKey}#{$dirKey}-#{$i} {
+                    #{$gapValue}-top: $i * $basicStep;
+                    #{$gapValue}-bottom: $i * $basicStep;
+                }
+            }
+
+            @else {
+                .#{$gapKey}#{$dirKey}-#{$i} {
+                    #{$gapValue}-#{$dirValue}: $i * $basicStep;
+                }
+            }
+        }
+    }
+}

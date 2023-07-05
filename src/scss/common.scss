@@ -1,0 +1,91 @@
+* {
+  all: unset;
+  font-size: 14px;
+  font-family: "Cantarell";
+  color: $fg_color;
+}
+
+.interactive:hover {
+  background: $light-1;
+}
+
+.interactive.active {
+  background: $light-2;
+}
+
+.icon {
+  font-size: 16px;
+}
+
+button {
+  background-color: $dark-4;
+}
+
+button.transparent {
+  background-color: transparent;
+}
+
+button:not(.disabled):hover,
+button:not(.disabled):focus {
+  background-color: $light-1;
+}
+
+.disabled {
+  //   background-color: black;
+  opacity: 0.2;
+}
+
+.disabled-bg {
+  background-color: $dark-1;
+}
+
+.divider {
+  padding-top: 1px;
+}
+
+$border_color: rgba(255, 255, 255, 0.002);
+$border_width: 1px;
+$border: $border_width solid $border_color;
+
+.slider-bg {
+  background-color: $dark-4;
+  border-radius: 4px;
+  margin-right: 8px;
+  margin-left: 8px;
+}
+
+trough {
+  border-radius: 4px;
+  border: $border;
+  margin-right: 8px;
+  margin-left: 8px;
+
+  highlight,
+  progress {
+    border-radius: 4px * 0.8;
+    margin-top: 6px;
+    margin-bottom: 6px;
+    background-color: $accent_color;
+  }
+
+  level {
+    background-color: $dark-4;
+  }
+
+  slider {
+    background-color: $fg_color;
+    min-height: 16px;
+    min-width: 16px;
+    border-radius: 8px;
+  }
+}
+
+scrollbar {
+  slider {
+    min-width: 4px;
+  }
+}
+
+// &:hover trough {
+//     background-color: $hover;
+// }
