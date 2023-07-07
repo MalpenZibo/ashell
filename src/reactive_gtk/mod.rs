@@ -7,11 +7,13 @@ use self::spawner::{spawn, Handle};
 
 mod r#box;
 mod button;
+mod centerbox;
 mod label;
 mod overlay;
 pub mod spawner;
 
 pub use self::button::*;
+pub use self::centerbox::*;
 pub use self::label::*;
 pub use self::r#box::*;
 pub use overlay::*;

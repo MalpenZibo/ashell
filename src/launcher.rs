@@ -6,7 +6,6 @@ use std::{
 
 use futures_signals::signal::Mutable;
 use serde::Deserialize;
-use serde_json::json;
 
 pub fn launch_rofi() {
     Command::new("bash")

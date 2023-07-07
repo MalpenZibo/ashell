@@ -75,6 +75,12 @@ impl Box {
         self
     }
 
+    pub fn homogeneous(self, value: bool) -> Self {
+        self.element.set_homogeneous(true);
+
+        self
+    }
+
     pub fn children(mut self, children: Vec<Node>) -> Self {
         for mut child in children {
             self.handlers.extend_from_slice(&child.handlers);
