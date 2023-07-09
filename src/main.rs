@@ -67,7 +67,7 @@ fn activate(application: &gtk::Application) -> ApplicationWindow {
 
 #[tokio::main]
 async fn main() {
-    let application = gtk::Application::new(Some("malpenzibo.a-shell"), Default::default());
+    let application = gtk::Application::new(Some("malpenzibo.ashell"), Default::default());
 
     // let mut handlers: Vec<Handler<()>> = vec![];
 
