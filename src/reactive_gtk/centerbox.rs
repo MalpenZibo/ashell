@@ -1,10 +1,5 @@
-use futures_signals::{
-    signal::{Signal, SignalExt},
-    signal_vec::{SignalVec, SignalVecExt, VecDiff},
-};
-use gtk::traits::{BoxExt, GestureExt, OrientableExt, WidgetExt};
-
-use crate::reactive_gtk::ChildrenState;
+use futures_signals::signal::{Signal, SignalExt};
+use gtk::traits::{GestureExt, OrientableExt, WidgetExt};
 
 use super::{
     spawner::{spawn, Handle},

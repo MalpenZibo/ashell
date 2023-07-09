@@ -12,8 +12,12 @@ use gtk::{
 use shell_bar::create_shell_bar;
 
 mod launcher;
+mod net;
 mod reactive_gtk;
 mod shell_bar;
+mod updates;
+mod utils;
+mod workspaces;
 
 fn activate(application: &gtk::Application) -> ApplicationWindow {
     // Create a normal GTK window however you like
