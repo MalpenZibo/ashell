@@ -11,10 +11,14 @@ use gtk::{
 };
 use shell_bar::create_shell_bar;
 
+mod battery;
+mod clock;
 mod launcher;
 mod net;
 mod reactive_gtk;
 mod shell_bar;
+mod system_info;
+mod title;
 mod updates;
 mod utils;
 mod workspaces;

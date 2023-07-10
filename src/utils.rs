@@ -2,7 +2,10 @@ use std::time::Duration;
 
 use tokio::{spawn, task::JoinHandle, time::sleep};
 
-pub fn poll(f: impl Fn() + Send + Sync + 'static, every: Duration) -> JoinHandle<()> {
+pub fn poll<F>(mut f: F, every: Duration) -> JoinHandle<()>
+where
+    F: FnMut() + Send + Sync + 'static,
+{
     spawn(async move {
         loop {
             f();

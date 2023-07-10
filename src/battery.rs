@@ -1,0 +1,76 @@
+use std::fs::read_to_string;
+
+pub struct BatteryData {
+    pub capacity: i64,
+    pub status: BatteryStatus,
+}
+
+pub enum BatteryStatus {
+    Charging,
+    Discharging,
+}
+
+impl BatteryData {
+    pub fn to_class(&self) -> &str {
+        match self {
+            BatteryData {
+                status: BatteryStatus::Charging,
+                ..
+            } => "fg-green",
+            BatteryData {
+                status: BatteryStatus::Discharging,
+                capacity,
+            } if *capacity < 20 => "fg-red",
+            _ => "",
+        }
+    }
+
+    pub fn to_icon(&self) -> &str {
+        match self {
+            BatteryData {
+                status: BatteryStatus::Charging,
+                ..
+            } => "󰂄",
+            BatteryData {
+                status: BatteryStatus::Discharging,
+                capacity,
+            } if *capacity < 20 => "󰂃",
+            BatteryData {
+                status: BatteryStatus::Discharging,
+                capacity,
+            } if *capacity < 40 => "󰁼",
+            BatteryData {
+                status: BatteryStatus::Discharging,
+                capacity,
+            } if *capacity < 60 => "󰁾",
+            BatteryData {
+                status: BatteryStatus::Discharging,
+                capacity,
+            } if *capacity < 80 => "󰂀",
+            _ => "󰁹",
+        }
+    }
+}
+
+pub fn get_battery_capacity() -> Option<BatteryData> {
+    let power_supply_dir = std::path::Path::new("/sys/class/power_supply/BAT0");
+
+    if let (Ok(capacity), Ok(status)) = (
+        read_to_string(power_supply_dir.join("capacity")),
+        read_to_string(power_supply_dir.join("status")),
+    ) {
+        capacity
+            .trim_end_matches('\n')
+            .parse::<f64>()
+            .map(|c| BatteryData {
+                status: match status.trim_end_matches('\n') {
+                    "Charging" => BatteryStatus::Charging,
+                    _ => BatteryStatus::Discharging,
+                },
+                capacity: c.round() as i64,
+            })
+            .ok()
+    } else {
+        None
+    }
+}
