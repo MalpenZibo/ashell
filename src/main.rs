@@ -11,6 +11,7 @@ use gtk::{
 };
 use shell_bar::create_shell_bar;
 
+mod audio;
 mod battery;
 mod clock;
 mod launcher;
