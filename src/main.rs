@@ -17,6 +17,7 @@ mod clock;
 mod launcher;
 mod net;
 mod reactive_gtk;
+mod screenshare;
 mod shell_bar;
 mod system_info;
 mod title;

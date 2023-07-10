@@ -6,6 +6,7 @@ use crate::{
     clock::clock,
     net::{net_monitor, Vpn},
     reactive_gtk::CenterBox,
+    screenshare::screenshare,
     system_info::system_info,
     title::title,
     updates::update_button,
@@ -137,7 +138,12 @@ pub fn create_shell_bar() -> Node {
             Some(
                 Box::default()
                     .spacing(4)
-                    .children(vec![application_button(), update_button(), worspaces()])
+                    .children(vec![
+                        application_button(),
+                        update_button(),
+                        screenshare(),
+                        worspaces(),
+                    ])
                     .into(),
             ),
             Some(title()),
