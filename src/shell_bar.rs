@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use crate::{
-    audio::{audio_subscribe, Sink},
+    audio::{audio_subscribe, Sink, Source},
     battery::get_battery_capacity,
     clock::clock,
     net::{net_monitor, Vpn},
@@ -54,8 +54,8 @@ fn settings() -> Node {
     net_monitor(active_connection.clone(), vpn_list.clone());
 
     let sinks: Mutable<Vec<Sink>> = Mutable::new(Vec::with_capacity(0));
-    let sources: Mutable<u32> = Mutable::new(0);
-    audio_subscribe(sinks.clone(), sources);
+    let sources: Mutable<Vec<Source>> = Mutable::new(Vec::with_capacity(0));
+    audio_subscribe(sinks.clone(), sources.clone());
 
     Box::default()
         .class(&["bg", "pl-2", "pr-4", "rounded-r-m"])
@@ -86,6 +86,20 @@ fn settings() -> Node {
                         })
                         .unwrap_or_default()
                 }))
+                .into(),
+            Label::default()
+                .text_signal(sources.signal_ref(|s| {
+                    s.iter()
+                        .find_map(|s| {
+                            if s.active {
+                                Some(s.to_icon().to_string())
+                            } else {
+                                None
+                            }
+                        })
+                        .unwrap_or_default()
+                }))
+                .visible_signal(sources.signal_ref(|s| s.iter().any(|s| s.active)))
                 .into(),
             Box::default()
                 .visible_signal(battery.signal_ref(|b| b.is_some()))

@@ -36,9 +36,10 @@ struct RawPort {
 }
 
 #[derive(Deserialize, Debug)]
-struct RawSink {
+struct RawEntry {
     index: u32,
-    active_port: String,
+    active_port: Option<String>,
+    state: String,
     volume: RawVolume,
     balance: f32,
     mute: bool,
@@ -71,6 +72,26 @@ impl Sink {
     }
 }
 
+#[derive(Debug)]
+pub struct Source {
+    pub index: u32,
+    pub name: String,
+    pub description: String,
+    pub volume: u32,
+    pub mute: bool,
+    pub active: bool,
+}
+
+impl Source {
+    pub fn to_icon(&self) -> &str {
+        if self.volume > 0 && !self.mute {
+            "󰍬"
+        } else {
+            "󰍭"
+        }
+    }
+}
+
 fn get_sinks() -> Vec<Sink> {
     let command = Command::new("pactl")
         .args(["-f", "json", "list", "sinks"])
@@ -83,9 +104,9 @@ fn get_sinks() -> Vec<Sink> {
         .expect("Failed to read jc command output");
     let output = String::from_utf8_lossy(&output.stdout);
 
-    let raw_sinks: Vec<RawSink> = serde_json::from_str(&output).unwrap();
+    let raw_entry: Vec<RawEntry> = serde_json::from_str(&output).unwrap();
 
-    let sinks = raw_sinks
+    let sinks = raw_entry
         .iter()
         .flat_map(|s| {
             s.ports
@@ -117,7 +138,7 @@ fn get_sinks() -> Vec<Sink> {
                             as u32
                     },
                     mute: s.mute,
-                    active: s.active_port == p.name,
+                    active: s.active_port.as_ref() == Some(&p.name),
                 })
                 .collect::<Vec<Sink>>()
         })
@@ -128,11 +149,64 @@ fn get_sinks() -> Vec<Sink> {
     sinks
 }
 
-fn get_sources() -> u32 {
-    0
+fn get_sources() -> Vec<Source> {
+    let command = Command::new("pactl")
+        .args(["-f", "json", "list", "sources"])
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("Failed to execute pactl command");
+
+    let output = command
+        .wait_with_output()
+        .expect("Failed to read jc command output");
+    let output = String::from_utf8_lossy(&output.stdout);
+
+    let raw_entry: Vec<RawEntry> = serde_json::from_str(&output).unwrap();
+
+    let sources = raw_entry
+        .iter()
+        .filter(|s| !s.ports.is_empty())
+        .flat_map(|s| {
+            s.ports
+                .iter()
+                .map(|p| Source {
+                    index: s.index,
+                    name: p.name.to_string(),
+                    description: format!("{} - {}", p.description, s.properties.device_description),
+                    volume: {
+                        let left = s
+                            .volume
+                            .front_left
+                            .value_percent
+                            .replace('%', "")
+                            .parse::<u32>()
+                            .unwrap();
+
+                        let right = s
+                            .volume
+                            .front_right
+                            .value_percent
+                            .replace('%', "")
+                            .parse::<u32>()
+                            .unwrap();
+
+                        ((left as f32 * f32::abs((-1. + s.balance) / 2.))
+                            + right as f32 * f32::abs((1. + s.balance) / 2.))
+                            as u32
+                    },
+                    mute: s.mute,
+                    active: s.active_port.as_ref() == Some(&p.name) && s.state == "RUNNING",
+                })
+                .collect::<Vec<Source>>()
+        })
+        .collect();
+
+    println!("Sources: {:?}", sources);
+
+    sources
 }
 
-pub fn audio_subscribe(sinks: Mutable<Vec<Sink>>, sources: Mutable<u32>) {
+pub fn audio_subscribe(sinks: Mutable<Vec<Sink>>, sources: Mutable<Vec<Source>>) {
     sinks.replace(get_sinks());
     sources.replace(get_sources());
 
