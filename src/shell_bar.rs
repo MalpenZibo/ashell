@@ -5,7 +5,7 @@ use crate::{
     battery::get_battery_capacity,
     clock::clock,
     net::{net_monitor, Vpn},
-    reactive_gtk::CenterBox,
+    reactive_gtk::{CenterBox, Context},
     screenshare::screenshare,
     system_info::system_info,
     title::title,
@@ -131,7 +131,7 @@ fn settings() -> Node {
         .into()
 }
 
-pub fn create_shell_bar() -> Node {
+pub fn create_shell_bar(ctx: Context) -> Node {
     CenterBox::default()
         .class(&["text-bold", "ph-1", "pv-1"])
         .children((
@@ -140,7 +140,7 @@ pub fn create_shell_bar() -> Node {
                     .spacing(4)
                     .children(vec![
                         application_button(),
-                        update_button(),
+                        update_button(ctx),
                         screenshare(),
                         worspaces(),
                     ])

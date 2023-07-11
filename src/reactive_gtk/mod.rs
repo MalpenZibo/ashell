@@ -5,6 +5,7 @@ use gtk::{traits::WidgetExt, Widget};
 
 use self::spawner::{spawn, Handle};
 
+mod app;
 mod r#box;
 mod button;
 mod centerbox;
@@ -12,11 +13,12 @@ mod label;
 mod overlay;
 pub mod spawner;
 
-pub use self::button::*;
-pub use self::centerbox::*;
-pub use self::label::*;
-pub use self::r#box::*;
+pub use app::*;
+pub use button::*;
+pub use centerbox::*;
+pub use label::*;
 pub use overlay::*;
+pub use r#box::*;
 
 #[derive(Clone)]
 pub struct T(Handle<()>);
