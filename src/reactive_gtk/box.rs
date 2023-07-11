@@ -91,7 +91,7 @@ impl Box {
         self
     }
 
-    pub fn children_signal<S: SignalVec<Item = Node> + 'static>(mut self, children: S) -> Self {
+    pub fn children_signal_vec<S: SignalVec<Item = Node> + 'static>(mut self, children: S) -> Self {
         let element = self.element.clone();
         let mut state = ChildrenState::default();
 
@@ -146,14 +146,21 @@ impl Box {
         self
     }
 
-    pub fn on_click(self, onclick: impl Fn() + 'static) -> Self {
-        let gesture = gtk::GestureClick::new();
-        gesture.connect_released(move |gesture, _, _, _| {
-            gesture.set_state(gtk::EventSequenceState::Claimed);
+    pub fn children_signal<S: Signal<Item = Vec<Node>> + 'static>(mut self, children: S) -> Self {
+        let element = self.element.clone();
+        let mut state = ChildrenState::default();
 
-            onclick();
-        });
-        self.element.add_controller(gesture);
+        let h = spawn(children.for_each(move |values| {
+            state.replace(
+                values,
+                |child| element.append(child),
+                |child| element.remove(child),
+            );
+
+            async {}
+        }));
+
+        self.handlers.push(h);
 
         self
     }

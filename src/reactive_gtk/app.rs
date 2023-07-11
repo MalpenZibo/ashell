@@ -22,7 +22,11 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn open_surface<F: FnOnce(Context) -> Node>(&self, surface: Surface, declare_node: F) {
+    pub fn open_surface<F: FnOnce(Context) -> Node>(
+        &self,
+        surface: Surface,
+        declare_node: F,
+    ) -> ApplicationWindow {
         let window = surface.build(&self.application);
 
         let mut root = declare_node(Context {
@@ -35,6 +39,8 @@ impl Context {
         window.set_child(Some(&root.component));
 
         window.show();
+
+        window
     }
 }
 

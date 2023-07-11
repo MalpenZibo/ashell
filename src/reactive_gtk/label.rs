@@ -2,7 +2,7 @@ use futures_signals::signal::{Signal, SignalExt};
 
 use super::{
     spawner::{spawn, Handle},
-    AsStr, Component, Node,
+    Align, AsStr, Component, Node,
 };
 
 pub enum Justification {
@@ -19,6 +19,22 @@ impl From<Justification> for gtk::Justification {
             Justification::Right => gtk::Justification::Right,
             Justification::Center => gtk::Justification::Center,
             Justification::Fill => gtk::Justification::Fill,
+        }
+    }
+}
+
+pub enum XAlign {
+    Left,
+    Center,
+    Right,
+}
+
+impl From<XAlign> for f32 {
+    fn from(value: XAlign) -> Self {
+        match value {
+            XAlign::Left => 0.,
+            XAlign::Center => 0.5,
+            XAlign::Right => 1.0,
         }
     }
 }
@@ -104,6 +120,26 @@ impl Label {
 
         let h = spawn(justify.for_each(move |justify| {
             element.set_justify(justify.into());
+
+            async {}
+        }));
+
+        self.handlers.push(h);
+
+        self
+    }
+
+    pub fn xalign(self, value: XAlign) -> Self {
+        self.element.set_xalign(value.into());
+
+        self
+    }
+
+    pub fn xalign_signal<S: Signal<Item = XAlign> + 'static>(mut self, value: S) -> Self {
+        let element = self.element.clone();
+
+        let h = spawn(value.for_each(move |justify| {
+            element.set_xalign(justify.into());
 
             async {}
         }));

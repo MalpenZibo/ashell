@@ -1,7 +1,10 @@
 use std::borrow::Cow;
 
 use futures_signals::signal::{Signal, SignalExt};
-use gtk::{traits::WidgetExt, Widget};
+use gtk::{
+    traits::{GestureExt, WidgetExt},
+    Widget,
+};
 
 use self::spawner::{spawn, Handle};
 
@@ -11,6 +14,8 @@ mod button;
 mod centerbox;
 mod label;
 mod overlay;
+mod scrolled_window;
+mod separator;
 pub mod spawner;
 
 pub use app::*;
@@ -19,6 +24,8 @@ pub use centerbox::*;
 pub use label::*;
 pub use overlay::*;
 pub use r#box::*;
+pub use scrolled_window::*;
+pub use separator::*;
 
 #[derive(Clone)]
 pub struct T(Handle<()>);
@@ -252,6 +259,22 @@ pub trait Component: Sized {
 
         let handlers = self.get_handlers();
         handlers.push(handler);
+
+        self
+    }
+
+    fn on_click(self, onclick: impl Fn() + 'static) -> Self {
+        let gesture = gtk::GestureClick::new();
+
+        gesture.connect_released(move |gesture, _, _, _| {
+            gesture.set_state(gtk::EventSequenceState::Claimed);
+
+            onclick();
+        });
+
+        let widget = self.get_widget();
+
+        widget.add_controller(gesture);
 
         self
     }

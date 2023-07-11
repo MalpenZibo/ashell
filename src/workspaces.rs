@@ -86,7 +86,7 @@ pub fn worspaces() -> Node {
     Box::default()
         .class(&["bg", "ph-3", "rounded-m"])
         .spacing(4)
-        .children_signal(workspaces.signal_vec_cloned().map(|w| {
+        .children_signal_vec(workspaces.signal_vec_cloned().map(|w| {
             Box::default()
                 .class(if w.windows > 0 {
                     &["rounded-l", "interactive", "bg-accent"]

@@ -13,7 +13,7 @@ pub struct Button {
 }
 
 impl Button {
-    pub fn on_click(mut self, onclick: impl Fn() + 'static) -> Self {
+    pub fn on_click(self, onclick: impl Fn() + 'static) -> Self {
         self.element.connect_clicked(move |_| {
             onclick();
         });

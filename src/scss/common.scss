@@ -1,8 +1,12 @@
 * {
-  all: unset;
+  // all: unset;
   font-size: 14px;
   font-family: "Cantarell";
   color: $fg_color;
+}
+
+window.background {
+  background-color: transparent;
 }
 
 .interactive:hover {
@@ -81,6 +85,8 @@ trough {
 }
 
 scrollbar {
+  background-color: transparent;
+
   slider {
     min-width: 4px;
   }
