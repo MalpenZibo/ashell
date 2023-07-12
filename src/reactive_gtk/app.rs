@@ -8,7 +8,7 @@ use gtk::{
     Application, ApplicationWindow, CssProvider, STYLE_PROVIDER_PRIORITY_APPLICATION,
 };
 
-use super::Node;
+use super::{spawner::Handle, Node};
 
 pub struct App {
     name: Option<&'static str>,
@@ -26,18 +26,18 @@ impl Context {
         &self,
         surface: Surface,
         declare_node: F,
-    ) -> ApplicationWindow {
+    ) -> (ApplicationWindow, Node) {
         let window = surface.build(&self.application);
 
         let mut root = declare_node();
 
-        root.handlers.clear();
+        // root.handlers.clear();
 
         window.set_child(Some(&root.component));
 
         window.show();
 
-        window
+        (window, root)
     }
 }
 

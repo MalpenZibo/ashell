@@ -39,7 +39,7 @@ fn check_updates(updates: Mutable<Vec<Update>>) {
 }
 
 pub fn update_button(ctx: Context) -> Node {
-    let menu_open: Mutable<Option<ApplicationWindow>> = Mutable::new(None);
+    let menu_open: Mutable<Option<(ApplicationWindow, Node)>> = Mutable::new(None);
     let updates: Mutable<Vec<Update>> = Mutable::new(Vec::new());
     let updates1 = updates.clone();
 
@@ -52,7 +52,7 @@ pub fn update_button(ctx: Context) -> Node {
 
             if open {
                 menu_open.replace_with(|win| {
-                    if let Some(win) = win {
+                    if let Some((win, _)) = win {
                         win.close();
                     }
 
@@ -90,7 +90,7 @@ pub fn update_button(ctx: Context) -> Node {
 }
 
 pub fn update_menu(
-    menu_open: Mutable<Option<ApplicationWindow>>,
+    menu_open: Mutable<Option<(ApplicationWindow, Node)>>,
     updates: Mutable<Vec<Update>>,
     ctx: Context,
 ) -> impl FnOnce() -> Node {
@@ -105,7 +105,7 @@ pub fn update_menu(
                     .vexpand(true)
                     .on_click(move || {
                         menu_open.replace_with(|win| {
-                            if let Some(win) = win {
+                            if let Some((win, _)) = win {
                                 win.close();
                             }
                             None
