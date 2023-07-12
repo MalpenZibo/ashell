@@ -1,17 +1,14 @@
 use std::{process::Command, time::Duration};
 
 use futures_signals::signal::Mutable;
-use gtk::{
-    ffi::_GtkWindowGroupPrivate,
-    traits::{GtkWindowExt, WidgetExt},
-    ApplicationWindow,
-};
+
+use gtk::{traits::GtkWindowExt, ApplicationWindow};
 use serde::Deserialize;
 
 use crate::{
     reactive_gtk::{
-        spawner::spawn, Align, Box, Component, Context, Label, Node, Orientation, Overlay,
-        PolicyType, ScrolledWindow, Separator, Surface, XAlign,
+        Align, Box, Component, Context, Label, Node, Orientation, Overlay, PolicyType,
+        ScrolledWindow, Separator, Surface, XAlign,
     },
     utils::poll,
 };
@@ -45,36 +42,28 @@ pub fn update_button(ctx: Context) -> Node {
     let menu_open: Mutable<Option<ApplicationWindow>> = Mutable::new(None);
     let updates: Mutable<Vec<Update>> = Mutable::new(Vec::new());
     let updates1 = updates.clone();
+
     check_updates(updates.clone());
 
     Box::default()
         .class(&["rounded-m", "bg", "ph-2", "interactive"])
         .on_click(move || {
-            println!("clicked");
             let open = menu_open.lock_ref().is_some();
 
             if open {
-                menu_open.replace_with(|window| {
-                    if let Some(window) = window {
-                        window.close();
+                menu_open.replace_with(|win| {
+                    if let Some(win) = win {
+                        win.close();
                     }
+
                     None
                 });
-
-                println!("done");
             } else {
-                println!("open window");
-
-                println!("set window");
-
-                menu_open.replace_with(|_| {
-                    Some(ctx.open_surface(
-                        Surface::layer(false, (true, true, true, true), None),
-                        update_menu(menu_open.clone(), updates.clone()),
-                    ))
-                });
-
-                println!("done");
+                let win = ctx.open_surface(
+                    Surface::layer(false, (true, true, true, true), None),
+                    update_menu(menu_open.clone(), updates.clone(), ctx.clone()),
+                );
+                menu_open.replace(Some(win));
             }
         })
         .children(vec![
@@ -103,8 +92,9 @@ pub fn update_button(ctx: Context) -> Node {
 pub fn update_menu(
     menu_open: Mutable<Option<ApplicationWindow>>,
     updates: Mutable<Vec<Update>>,
-) -> impl FnOnce(Context) -> Node {
-    move |ctx: Context| {
+    ctx: Context,
+) -> impl FnOnce() -> Node {
+    move || {
         let update_list_open = Mutable::new(false);
         let update_list_open1 = update_list_open.clone();
 
@@ -114,9 +104,9 @@ pub fn update_menu(
                     .hexpand(true)
                     .vexpand(true)
                     .on_click(move || {
-                        menu_open.replace_with(|window| {
-                            if let Some(window) = window {
-                                window.close();
+                        menu_open.replace_with(|win| {
+                            if let Some(win) = win {
+                                win.close();
                             }
                             None
                         });

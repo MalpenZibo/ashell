@@ -22,17 +22,14 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn open_surface<F: FnOnce(Context) -> Node>(
+    pub fn open_surface<F: FnOnce() -> Node>(
         &self,
         surface: Surface,
         declare_node: F,
     ) -> ApplicationWindow {
         let window = surface.build(&self.application);
 
-        let mut root = declare_node(Context {
-            application: self.application.clone(),
-            window: window.clone(),
-        });
+        let mut root = declare_node();
 
         root.handlers.clear();
 

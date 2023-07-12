@@ -30,7 +30,7 @@ pub use separator::*;
 #[derive(Clone)]
 pub struct T(Handle<()>);
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Node {
     pub component: Widget,
     pub handlers: Vec<Handle<()>>,
