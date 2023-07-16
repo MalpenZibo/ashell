@@ -23,26 +23,34 @@ pub struct Update {
     pub to: String,
 }
 
-fn check_updates(updates: Mutable<Vec<Update>>) {
-    poll(
-        move || {
-            let check_update_cmd = Command::new("bash")
-                .arg("-c")
-                .arg("~/.config/scripts/updates check")
-                .output()
-                .expect("Failed to execute command.");
+fn check_update_now(updates: &Mutable<Vec<Update>>) {
+    let check_update_cmd = Command::new("bash")
+        .arg("-c")
+        .arg("~/.config/scripts/updates check")
+        .output()
+        .expect("Failed to execute command.");
 
-            let new_updates = String::from_utf8_lossy(&check_update_cmd.stdout);
-            let new_updates = serde_json::from_str::<Vec<Update>>(&new_updates).unwrap();
+    let new_updates = String::from_utf8_lossy(&check_update_cmd.stdout);
+    let new_updates = serde_json::from_str::<Vec<Update>>(&new_updates).unwrap();
 
-            updates.replace(new_updates);
-        },
-        Duration::from_secs(600),
-    );
+    updates.replace(new_updates);
 }
 
-pub fn update_button(ctx: Context) -> Node {
-    let menu_open: Mutable<Option<(ApplicationWindow, Node)>> = Mutable::new(None);
+fn check_updates(updates: Mutable<Vec<Update>>) {
+    poll(move || check_update_now(&updates), Duration::from_secs(600));
+}
+
+fn update() {
+    tokio::spawn(async move {
+        Command::new("bash")
+            .arg("-c")
+            .arg("alacritty -e bash -c \"paru; flatpak update; echo Done - Press enter to exit; read\" &")
+            .spawn()
+            .expect("Failed to execute command.");
+    });
+}
+
+pub fn update_button(ctx: Context, menu: Mutable<Option<(ApplicationWindow, Node)>>) -> Node {
     let updates: Mutable<Vec<Update>> = Mutable::new(Vec::new());
     let updates1 = updates.clone();
 
@@ -51,14 +59,14 @@ pub fn update_button(ctx: Context) -> Node {
     Box::default()
         .class(&["rounded-m", "bg", "ph-2", "interactive"])
         .on_click(move || {
-            menu_open.replace_with(|menu| {
-                if let Some((win, _)) = menu {
+            menu.replace_with(|m| {
+                if let Some((win, _)) = m {
                     win.close();
                     None
                 } else {
                     let node = ctx.open_surface(
                         Surface::layer(false, (true, true, true, true), None),
-                        update_menu(menu_open.clone(), updates.clone()),
+                        update_menu(menu.clone(), updates.clone()),
                     );
                     Some((node.0, node.1))
                 }
@@ -88,12 +96,17 @@ pub fn update_button(ctx: Context) -> Node {
 }
 
 pub fn update_menu(
-    menu_open: Mutable<Option<(ApplicationWindow, Node)>>,
+    menu: Mutable<Option<(ApplicationWindow, Node)>>,
     updates: Mutable<Vec<Update>>,
 ) -> impl FnOnce(Context) -> Node {
     move |ctx| {
         let update_list_open = Mutable::new(false);
         let update_list_open1 = update_list_open.clone();
+
+        let updates1 = updates.clone();
+        let menu1 = menu.clone();
+
+        let win = ctx.window.clone();
 
         Overlay::default()
             .children(vec![
@@ -102,7 +115,7 @@ pub fn update_menu(
                     .vexpand(true)
                     .on_click(move || {
                         ctx.window.hide();
-                        menu_open.replace(None);
+                        menu.replace(None);
                     })
                     .into(),
                 Box::default()
@@ -204,7 +217,9 @@ pub fn update_menu(
                             .xalign(XAlign::Left)
                             .class(&["pv-2", "ph-4", "interactive", "rounded-s"])
                             .on_click(move || {
-                                println!("Updating...");
+                                update();
+                                win.hide();
+                                menu1.replace(None);
                             })
                             .into(),
                         Label::default()
@@ -212,7 +227,7 @@ pub fn update_menu(
                             .xalign(XAlign::Left)
                             .class(&["pv-2", "ph-4", "interactive", "rounded-s"])
                             .on_click(move || {
-                                println!("Updating...");
+                                check_update_now(&updates1);
                             })
                             .into(),
                     ])

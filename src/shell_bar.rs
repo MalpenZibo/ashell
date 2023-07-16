@@ -15,6 +15,7 @@ use crate::{
 };
 
 use futures_signals::signal::Mutable;
+use gtk::ApplicationWindow;
 
 use crate::{
     launcher::launch_rofi,
@@ -132,6 +133,7 @@ fn settings() -> Node {
 }
 
 pub fn create_shell_bar(ctx: Context) -> Node {
+    let menu: Mutable<Option<(ApplicationWindow, Node)>> = Mutable::new(None);
     CenterBox::default()
         .class(&["text-bold", "ph-1", "pv-1"])
         .children((
@@ -140,7 +142,7 @@ pub fn create_shell_bar(ctx: Context) -> Node {
                     .spacing(4)
                     .children(vec![
                         application_button(),
-                        update_button(ctx),
+                        update_button(ctx, menu),
                         screenshare(),
                         worspaces(),
                     ])
