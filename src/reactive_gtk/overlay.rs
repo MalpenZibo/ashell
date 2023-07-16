@@ -20,6 +20,7 @@ impl Overlay {
             self.handlers.extend_from_slice(&child.handlers);
             child.handlers.clear();
             self.element.add_overlay(&child.component);
+            self.element.set_measure_overlay(&child.component, true);
         }
 
         self
@@ -35,21 +36,33 @@ impl Overlay {
                 VecDiff::Replace { values } => {
                     state.replace(
                         values,
-                        |child| element.add_overlay(child),
-                        |child| element.remove_overlay(child),
+                        |child| {
+                            element.add_overlay(child);
+                            element.set_measure_overlay(child, true);
+                        },
+                        |child| {
+                            element.set_measure_overlay(child, false);
+                            element.remove_overlay(child);
+                        },
                     );
                 }
                 VecDiff::RemoveAt { index } => {
-                    state.remove_at(index, |child| element.remove_overlay(child));
+                    state.remove_at(index, |child| {
+                        element.set_measure_overlay(child, false);
+                        element.remove_overlay(child);
+                    });
                 }
                 VecDiff::InsertAt { index, value } => {
                     state.insert_at(index, value, |child, before_child| {
-                        element.insert_before(child, Some(before_child))
+                        element.insert_before(child, Some(before_child));
+                        element.set_measure_overlay(child, true);
                     });
                 }
                 VecDiff::UpdateAt { index, value } => {
                     state.update_at(index, value, |child, old_child| {
                         element.insert_before(child, Some(old_child));
+                        element.set_measure_overlay(child, true);
+                        element.set_measure_overlay(old_child, false);
                         element.remove_overlay(old_child);
                     });
                 }
@@ -63,13 +76,22 @@ impl Overlay {
                     });
                 }
                 VecDiff::Push { value } => {
-                    state.push(value, |child| element.add_overlay(child));
+                    state.push(value, |child| {
+                        element.add_overlay(child);
+                        element.set_measure_overlay(child, true);
+                    });
                 }
                 VecDiff::Pop {} => {
-                    state.pop(|child| element.remove_overlay(child));
+                    state.pop(|child| {
+                        element.set_measure_overlay(child, false);
+                        element.remove_overlay(child)
+                    });
                 }
                 VecDiff::Clear {} => {
-                    state.clear(|child| element.remove_overlay(child));
+                    state.clear(|child| {
+                        element.set_measure_overlay(child, false);
+                        element.remove_overlay(child);
+                    });
                 }
             }
 

@@ -13,6 +13,7 @@ use crate::{
         Align, Box, Component, Context, Label, Node, Orientation, Overlay, PolicyType,
         ScrolledWindow, Separator, Surface, XAlign,
     },
+    shell_bar::MenuType,
     utils::poll,
 };
 
@@ -50,17 +51,29 @@ fn update() {
     });
 }
 
-pub fn update_button(ctx: Context, menu: Mutable<Option<(ApplicationWindow, Node)>>) -> Node {
+pub fn update_button(
+    ctx: Context,
+    menu: Mutable<Option<(ApplicationWindow, Node, MenuType)>>,
+) -> Node {
     let updates: Mutable<Vec<Update>> = Mutable::new(Vec::new());
     let updates1 = updates.clone();
 
     check_updates(updates.clone());
 
     Box::default()
-        .class(&["rounded-m", "bg", "ph-2", "interactive"])
+        .class_signal(menu.signal_ref(|m| {
+            if m.as_ref()
+                .map(|(_, _, menu_type)| *menu_type == MenuType::Updates)
+                .unwrap_or_default()
+            {
+                vec!["rounded-m", "bg", "ph-2", "interactive", "active"]
+            } else {
+                vec!["rounded-m", "bg", "ph-2", "interactive"]
+            }
+        }))
         .on_click(move || {
             menu.replace_with(|m| {
-                if let Some((win, _)) = m {
+                if let Some((win, _, _)) = m {
                     win.close();
                     None
                 } else {
@@ -68,7 +81,7 @@ pub fn update_button(ctx: Context, menu: Mutable<Option<(ApplicationWindow, Node
                         Surface::layer(false, (true, true, true, true), None),
                         update_menu(menu.clone(), updates.clone()),
                     );
-                    Some((node.0, node.1))
+                    Some((node.0, node.1, MenuType::Updates))
                 }
             });
         })
@@ -96,7 +109,7 @@ pub fn update_button(ctx: Context, menu: Mutable<Option<(ApplicationWindow, Node
 }
 
 pub fn update_menu(
-    menu: Mutable<Option<(ApplicationWindow, Node)>>,
+    menu: Mutable<Option<(ApplicationWindow, Node, MenuType)>>,
     updates: Mutable<Vec<Update>>,
 ) -> impl FnOnce(Context) -> Node {
     move |ctx| {

@@ -8,6 +8,7 @@ mod launcher;
 mod net;
 mod reactive_gtk;
 mod screenshare;
+mod settings;
 mod shell_bar;
 mod system_info;
 mod title;
