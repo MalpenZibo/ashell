@@ -168,7 +168,7 @@ fn poll_idle(ptr: *const ()) {
 ///
 pub fn spawn<T, F>(future: F) -> Handle<T>
 where
-    T: std::fmt::Debug + Copy + 'static,
+    T: Copy + 'static,
     F: Future<Output = T> + 'static,
 {
     //Check that we are in the main loop
@@ -197,13 +197,13 @@ where
 ///
 /// If the Handle is dropped, the future will keep on running, and there will
 /// be no way to cancel it or get the return value.
-#[derive(Debug, Clone)]
-pub struct Handle<T: std::fmt::Debug + Copy> {
+#[derive(Clone)]
+pub struct Handle<T: Copy> {
     task: std::sync::Weak<GIdleTask>,
     res: Rc<Cell<Option<T>>>,
 }
 
-impl<T: std::fmt::Debug + Copy> Handle<T> {
+impl<T: Copy> Handle<T> {
     /// If the future has finished, it returns `Some(t)`.
     /// If it has not finished, the future is dropped and it returns `None`.
     pub fn cancel(self) -> Option<T> {

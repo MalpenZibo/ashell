@@ -8,7 +8,7 @@ use gtk::{
     Application, ApplicationWindow, CssProvider, STYLE_PROVIDER_PRIORITY_APPLICATION,
 };
 
-use super::{spawner::Handle, Node};
+use super::Node;
 
 pub struct App {
     name: Option<&'static str>,
@@ -22,16 +22,17 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn open_surface<F: FnOnce() -> Node>(
+    pub fn open_surface<F: FnOnce(Context) -> Node>(
         &self,
         surface: Surface,
         declare_node: F,
     ) -> (ApplicationWindow, Node) {
         let window = surface.build(&self.application);
 
-        let mut root = declare_node();
-
-        // root.handlers.clear();
+        let root = declare_node(Context {
+            application: self.application.clone(),
+            window: window.clone(),
+        });
 
         window.set_child(Some(&root.component));
 
@@ -72,7 +73,7 @@ impl App {
 
             let mut root = declare_node(Context {
                 application: app.clone(),
-                window: window.clone(),
+                window: window.clone().into(),
             });
 
             root.handlers.clear();

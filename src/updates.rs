@@ -1,8 +1,11 @@
-use std::{process::Command, time::Duration};
+use std::{fmt::Debug, process::Command, time::Duration};
 
 use futures_signals::signal::Mutable;
 
-use gtk::{traits::GtkWindowExt, ApplicationWindow};
+use gtk::{
+    traits::{GtkWindowExt, WidgetExt},
+    ApplicationWindow,
+};
 use serde::Deserialize;
 
 use crate::{
@@ -48,23 +51,18 @@ pub fn update_button(ctx: Context) -> Node {
     Box::default()
         .class(&["rounded-m", "bg", "ph-2", "interactive"])
         .on_click(move || {
-            let open = menu_open.lock_ref().is_some();
-
-            if open {
-                menu_open.replace_with(|win| {
-                    if let Some((win, _)) = win {
-                        win.close();
-                    }
-
+            menu_open.replace_with(|menu| {
+                if let Some((win, _)) = menu {
+                    win.close();
                     None
-                });
-            } else {
-                let win = ctx.open_surface(
-                    Surface::layer(false, (true, true, true, true), None),
-                    update_menu(menu_open.clone(), updates.clone(), ctx.clone()),
-                );
-                menu_open.replace(Some(win));
-            }
+                } else {
+                    let node = ctx.open_surface(
+                        Surface::layer(false, (true, true, true, true), None),
+                        update_menu(menu_open.clone(), updates.clone()),
+                    );
+                    Some((node.0, node.1))
+                }
+            });
         })
         .children(vec![
             Overlay::default()
@@ -92,9 +90,8 @@ pub fn update_button(ctx: Context) -> Node {
 pub fn update_menu(
     menu_open: Mutable<Option<(ApplicationWindow, Node)>>,
     updates: Mutable<Vec<Update>>,
-    ctx: Context,
-) -> impl FnOnce() -> Node {
-    move || {
+) -> impl FnOnce(Context) -> Node {
+    move |ctx| {
         let update_list_open = Mutable::new(false);
         let update_list_open1 = update_list_open.clone();
 
@@ -104,12 +101,8 @@ pub fn update_menu(
                     .hexpand(true)
                     .vexpand(true)
                     .on_click(move || {
-                        menu_open.replace_with(|win| {
-                            if let Some((win, _)) = win {
-                                win.close();
-                            }
-                            None
-                        });
+                        ctx.window.hide();
+                        menu_open.replace(None);
                     })
                     .into(),
                 Box::default()

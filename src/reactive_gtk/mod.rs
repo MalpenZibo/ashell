@@ -30,10 +30,19 @@ pub use separator::*;
 #[derive(Clone)]
 pub struct T(Handle<()>);
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Node {
     pub component: Widget,
     pub handlers: Vec<Handle<()>>,
+}
+
+impl std::fmt::Debug for Node {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Node")
+            .field("component", &self.component)
+            .field("handlers", &self.handlers.len())
+            .finish()
+    }
 }
 
 impl Drop for Node {
