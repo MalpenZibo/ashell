@@ -7,13 +7,13 @@ use gtk::{
 };
 
 use crate::{
-    audio::{audio_subscribe, Sink, Source},
+    audio::{audio_subscribe, set_sink, set_volume, toggle_volume, Sink, Source},
     battery::{get_battery_capacity, BatteryData},
     launcher,
     net::{net_monitor, Vpn},
     reactive_gtk::{
-        Align, Box, Button, Component, Context, Label, Node, Orientation, Overlay, Separator,
-        Surface,
+        Align, AsStr, Box, Button, Component, Context, Label, Node, Orientation, Overlay, Scale,
+        Separator, Surface,
     },
     shell_bar::MenuType,
     utils::poll,
@@ -36,6 +36,8 @@ pub fn settings(ctx: Context, menu: Mutable<Option<(ApplicationWindow, Node, Men
     net_monitor(active_connection.clone(), vpn_list.clone());
 
     let sinks: Mutable<Vec<Sink>> = Mutable::new(Vec::with_capacity(0));
+    let sinks1 = sinks.clone();
+    let sinks2 = sinks.clone();
     let sources: Mutable<Vec<Source>> = Mutable::new(Vec::with_capacity(0));
     audio_subscribe(sinks.clone(), sources.clone());
 
@@ -58,7 +60,7 @@ pub fn settings(ctx: Context, menu: Mutable<Option<(ApplicationWindow, Node, Men
                 } else {
                     let node = ctx.open_surface(
                         Surface::layer(false, (true, true, true, true), None),
-                        settings_menu(menu.clone(), battery.clone()),
+                        settings_menu(menu.clone(), battery.clone(), sinks2.clone()),
                     );
                     Some((node.0, node.1, MenuType::Settings))
                 }
@@ -80,7 +82,7 @@ pub fn settings(ctx: Context, menu: Mutable<Option<(ApplicationWindow, Node, Men
                 )
                 .into(),
             Label::default()
-                .text_signal(sinks.signal_ref(|s| {
+                .text_signal(sinks1.signal_ref(|s| {
                     s.iter()
                         .find_map(|s| {
                             if s.active {
@@ -114,12 +116,19 @@ pub fn settings(ctx: Context, menu: Mutable<Option<(ApplicationWindow, Node, Men
 pub fn settings_menu(
     menu: Mutable<Option<(ApplicationWindow, Node, MenuType)>>,
     battery: Mutable<Option<BatteryData>>,
+    sinks: Mutable<Vec<Sink>>,
 ) -> impl FnOnce(Context) -> Node {
     move |ctx| {
         let sub_menu: Mutable<Option<SubMenu>> = Mutable::new(None);
         let window = ctx.window.clone();
         let menu1 = menu.clone();
         let sub_menu1 = sub_menu.clone();
+        let sub_menu2 = sub_menu.clone();
+
+        let value = Mutable::<f64>::new(34.);
+
+        let sinks1 = sinks.clone();
+        let sinks2 = sinks.clone();
 
         Overlay::default()
             .children(vec![
@@ -155,10 +164,9 @@ pub fn settings_menu(
                                     sub_menu.clone(),
                                     Box::default()
                                         .class(&["rounded-l", "ph-3", "bg-dark-4"])
-                                        .children(vec![battery_indicator(battery).into()])
+                                        .children(vec![battery_indicator(battery)])
                                         .into(),
-                                )
-                                .into(),
+                                ),
                                 Box::default()
                                     .orientation(Orientation::Horizontal)
                                     .hexpand(true)
@@ -185,7 +193,7 @@ pub fn settings_menu(
                                                 .on_click(move || {
                                                     sub_menu1.replace_with(|m| {
                                                         if m.map(|m| m != SubMenu::Power)
-                                                            .unwrap_or_else(|| true)
+                                                            .unwrap_or(true)
                                                         {
                                                             Some(SubMenu::Power)
                                                         } else {
@@ -220,6 +228,53 @@ pub fn settings_menu(
                                 }),
                             ],
                         ),
+                        setting_slider(
+                            sub_menu.clone(),
+                            sinks.signal_ref(|s| {
+                                s.iter()
+                                    .find_map(|s| {
+                                        if s.active {
+                                            Some(s.to_type_icon().to_string())
+                                        } else {
+                                            None
+                                        }
+                                    })
+                                    .unwrap_or_default()
+                            }),
+                            (0., 100.),
+                            value.signal(),
+                            Some(|| {
+                                toggle_volume(sinks.clone());
+                            }),
+                            move |v| set_volume(sinks1.clone(), v.round() as u32),
+                            Some(move || {
+                                sub_menu2.replace_with(|m| {
+                                    if m.map(|m| m != SubMenu::Audio).unwrap_or(true) {
+                                        Some(SubMenu::Audio)
+                                    } else {
+                                        None
+                                    }
+                                });
+                            }),
+                        ),
+                        menu_card(
+                            sub_menu
+                                .signal_ref(|m| m.map(|m| m == SubMenu::Audio).unwrap_or_default()),
+                            "󰕾",
+                            "Sound Output",
+                            vec![], // sinks.signal_ref(move |s| {
+                                    //     let sinks3 = sinks2.clone();
+                                    //     s.into_iter()
+                                    //         .map(move |s| {
+                                    //             let index = s.index;
+                                    //             let name = s.name.clone();
+                                    //             menu_card_item("", "", move || {
+                                    //                 set_sink(sinks3.clone(), index, &name);
+                                    //             })
+                                    //         })
+                                    //         .collect()
+                                    // }),
+                        ),
                     ])
                     .into(),
             ])
@@ -230,6 +285,7 @@ pub fn settings_menu(
 #[derive(Clone, Copy, PartialEq)]
 enum SubMenu {
     Power,
+    Audio,
 }
 
 fn battery_indicator(battery: Mutable<Option<BatteryData>>) -> Node {
@@ -268,6 +324,67 @@ fn setting_button(sub_menu: Mutable<Option<SubMenu>>, child: Node) -> Node {
         .class_signal(is_open.map(|v| if v { vec!["disabled"] } else { vec![""] }))
         .children(vec![
             child,
+            Box::default()
+                .visible_signal(is_open1)
+                .on_click(move || {
+                    sub_menu.replace(None);
+                })
+                .hexpand(true)
+                .vexpand(true)
+                .into(),
+        ])
+        .into()
+}
+
+fn setting_slider(
+    sub_menu: Mutable<Option<SubMenu>>,
+    icon: impl Signal<Item = impl AsStr + Clone> + 'static,
+    range: (f64, f64),
+    value: impl Signal<Item = f64> + 'static,
+    on_toggle: Option<impl Fn()>,
+    on_change: impl Fn(f64) + 'static,
+    on_open_details: Option<impl Fn() + 'static>,
+) -> Node {
+    let is_open = sub_menu.signal_ref(|m| m.is_some());
+    let is_open1 = sub_menu.signal_ref(|m| m.is_some());
+
+    let icon = icon.broadcast();
+
+    Overlay::default()
+        .class_signal(is_open.map(|v| if v { vec!["disabled"] } else { vec![""] }))
+        .children(vec![
+            Box::default()
+                .orientation(Orientation::Horizontal)
+                .spacing(8)
+                .children(vec![
+                    Button::default()
+                        .class(&["rounded-full"])
+                        .child(Label::default().text_signal(icon.signal_cloned()))
+                        .visible(on_toggle.is_some())
+                        .into(),
+                    Label::default()
+                        .text_signal(icon.signal_cloned())
+                        .visible(on_toggle.is_none())
+                        .into(),
+                    Scale::default()
+                        .hexpand(true)
+                        .range(range)
+                        .value_signal(value)
+                        .on_change(on_change)
+                        .round_digits(0)
+                        .into(),
+                    Button::default()
+                        .visible(on_open_details.is_some())
+                        .class(&["rounded-full"])
+                        .on_click(move || {
+                            if let Some(on_open_details) = &on_open_details {
+                                on_open_details();
+                            }
+                        })
+                        .child(Label::default().text("󰁔"))
+                        .into(),
+                ])
+                .into(),
             Box::default()
                 .visible_signal(is_open1)
                 .on_click(move || {
@@ -322,6 +439,42 @@ fn menu_card(
             Box::default()
                 .orientation(Orientation::Vertical)
                 .children(children)
+                .into(),
+        ])
+        .into()
+}
+
+fn menu_card_dynamic(
+    visible: impl Signal<Item = bool> + 'static,
+    icon: &str,
+    title: &str,
+    children: impl Signal<Item = Vec<Node>> + 'static,
+) -> Node {
+    Box::default()
+        .visible_signal(visible)
+        .class(&["bg", "p-5", "rounded-m"])
+        .hexpand(true)
+        .orientation(Orientation::Vertical)
+        .children(vec![
+            Box::default()
+                .class(&["mb-2"])
+                .spacing(12)
+                .children(vec![
+                    Box::default()
+                        .class(&["rounded-full", "bg-light"])
+                        .homogeneous(true)
+                        .size((35, 35))
+                        .children(vec![Label::default().text(icon).into()])
+                        .into(),
+                    Label::default()
+                        .class(&["text-l", "text-bold"])
+                        .text(title)
+                        .into(),
+                ])
+                .into(),
+            Box::default()
+                .orientation(Orientation::Vertical)
+                .children_signal(children)
                 .into(),
         ])
         .into()

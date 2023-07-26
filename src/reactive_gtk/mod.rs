@@ -14,6 +14,7 @@ mod button;
 mod centerbox;
 mod label;
 mod overlay;
+mod scale;
 mod scrolled_window;
 mod separator;
 pub mod spawner;
@@ -24,6 +25,7 @@ pub use centerbox::*;
 pub use label::*;
 pub use overlay::*;
 pub use r#box::*;
+pub use scale::*;
 pub use scrolled_window::*;
 pub use separator::*;
 

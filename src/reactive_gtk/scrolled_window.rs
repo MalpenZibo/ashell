@@ -1,5 +1,4 @@
 use futures_signals::signal::{Signal, SignalExt};
-use gtk::traits::ButtonExt;
 
 use super::{
     spawner::{spawn, Handle},

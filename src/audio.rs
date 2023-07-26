@@ -59,8 +59,12 @@ pub struct Sink {
 }
 
 impl Sink {
+    fn is_muted(&self) -> bool {
+        self.mute || self.volume == 0
+    }
+
     pub fn to_icon(&self) -> &str {
-        if self.mute || self.volume == 0 {
+        if self.is_muted() {
             "󰸈"
         } else if self.volume < 34 {
             "󰕿"
@@ -68,6 +72,20 @@ impl Sink {
             "󰖀"
         } else {
             "󰕾"
+        }
+    }
+
+    pub fn to_type_icon(&self) -> &str {
+        match self {
+            Sink { r#type, .. } if r#type == "Headphones" && self.is_muted() => "󰟎",
+            Sink { r#type, .. } if r#type == "Headphones" && !self.is_muted() => "󰋋",
+            _ => {
+                if self.is_muted() {
+                    "󰖁"
+                } else {
+                    "󰕾"
+                }
+            }
         }
     }
 }
@@ -201,8 +219,6 @@ fn get_sources() -> Vec<Source> {
         })
         .collect();
 
-    println!("Sources: {:?}", sources);
-
     sources
 }
 
@@ -236,4 +252,72 @@ pub fn audio_subscribe(sinks: Mutable<Vec<Sink>>, sources: Mutable<Vec<Source>>)
             }
         }
     });
+}
+
+pub fn toggle_volume(sinks: Mutable<Vec<Sink>>) {
+    let command = Command::new("pactl")
+        .args(["set-sink-mute", "@DEFAULT_SINK@", "toggle"])
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("Failed to execute pactl command");
+
+    command
+        .wait_with_output()
+        .expect("Failed to read pactl toggle command output");
+
+    sinks.replace(get_sinks());
+}
+
+pub fn set_volume(sinks: Mutable<Vec<Sink>>, new_volume: u32) {
+    let command = Command::new("pactl")
+        .args(["get-sink-mute", "@DEFAULT_SINK@"])
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("Failed to execute pactl command");
+
+    let output = command
+        .wait_with_output()
+        .expect("Failed to read pactl toggle command output");
+    let output = String::from_utf8_lossy(&output.stdout);
+    if output == "Mute: yes" && new_volume > 0 {
+        let command = Command::new("pactl")
+            .args(["set-sink-mute", "@DEFAULT_SINK@", "toggle"])
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("Failed to execute pactl command");
+
+        command
+            .wait_with_output()
+            .expect("Failed to read pactl toggle command output");
+    }
+
+    let command = Command::new("pactl")
+        .args([
+            "set-sink-volume",
+            "@DEFAULT_SINK@",
+            &format!("{}%", new_volume),
+        ])
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("Failed to execute pactl command");
+
+    command
+        .wait_with_output()
+        .expect("Failed to read pactl toggle command output");
+
+    sinks.replace(get_sinks());
+}
+
+pub fn set_sink(sinks: Mutable<Vec<Sink>>, index: u32, name: &str) {
+    let command = Command::new("pactl")
+        .args(["set-sink-port", &format!("{}", index), &name])
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("Failed to execute pactl command");
+
+    command
+        .wait_with_output()
+        .expect("Failed to read pactl toggle command output");
+
+    sinks.replace(get_sinks());
 }
