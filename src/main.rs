@@ -6,6 +6,7 @@ use shell_bar::create_shell_bar;
 
 mod audio;
 mod battery;
+mod brightness;
 mod clock;
 mod launcher;
 mod net;
@@ -19,19 +20,19 @@ mod updates;
 mod utils;
 mod workspaces;
 
-// #[tokio::main]
-// async fn main() {
-// use reactive_gtk::{App, Surface};
-//     let shell = App::new(Some("malpenzibo.ashell"));
-//     let surface = Surface::layer(true, (true, true, true, false), Some("eDP-1")).height(34);
+#[tokio::main]
+async fn main() {
+    use reactive_gtk::{App, Surface};
+    let shell = App::new(Some("malpenzibo.ashell"));
+    let surface = Surface::layer(true, (true, true, true, false), Some("eDP-1")).height(34);
 
-//     shell.run(surface, create_shell_bar);
-// }
-
-fn main() {
-    let app = RelmApp::new("malpenzibo.ashell");
-    app.run::<App>(0);
+    shell.run(surface, create_shell_bar);
 }
+
+// fn main() {
+//     let app = RelmApp::new("malpenzibo.ashell");
+//     app.run::<App>(0);
+// }
 
 fn setup_layer(window: &gtk::Window) {
     gtk4_layer_shell::init_for_window(window);

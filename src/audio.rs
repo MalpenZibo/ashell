@@ -308,7 +308,7 @@ pub fn set_volume(sinks: Mutable<Vec<Sink>>, new_volume: u32) {
     sinks.replace(get_sinks());
 }
 
-pub fn set_sink(sinks: Mutable<Vec<Sink>>, index: u32, name: &str) {
+pub fn set_sink(sinks: Mutable<Vec<Sink>>, index: u32, name: String) {
     let command = Command::new("pactl")
         .args(["set-sink-port", &format!("{}", index), &name])
         .stdout(Stdio::piped())
@@ -320,4 +320,72 @@ pub fn set_sink(sinks: Mutable<Vec<Sink>>, index: u32, name: &str) {
         .expect("Failed to read pactl toggle command output");
 
     sinks.replace(get_sinks());
+}
+
+pub fn set_microphone(sources: Mutable<Vec<Source>>, new_volume: u32) {
+    let command = Command::new("pactl")
+        .args(["get-source-mute", "@DEFAULT_SOURCE@"])
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("Failed to execute pactl command");
+
+    let output = command
+        .wait_with_output()
+        .expect("Failed to read pactl toggle command output");
+    let output = String::from_utf8_lossy(&output.stdout);
+    if output == "Mute: yes" && new_volume > 0 {
+        let command = Command::new("pactl")
+            .args(["set-source-mute", "@DEFAULT_SOURCE@", "toggle"])
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("Failed to execute pactl command");
+
+        command
+            .wait_with_output()
+            .expect("Failed to read pactl toggle command output");
+    }
+
+    let command = Command::new("pactl")
+        .args([
+            "set-source-volume",
+            "@DEFAULT_SOURCE@",
+            &format!("{}%", new_volume),
+        ])
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("Failed to execute pactl command");
+
+    command
+        .wait_with_output()
+        .expect("Failed to read pactl toggle command output");
+
+    sources.replace(get_sources());
+}
+
+pub fn toggle_microphone(sources: Mutable<Vec<Source>>) {
+    let command = Command::new("pactl")
+        .args(["set-source-mute", "@DEFAULT_SOURCE@", "toggle"])
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("Failed to execute pactl command");
+
+    command
+        .wait_with_output()
+        .expect("Failed to read pactl toggle command output");
+
+    sources.replace(get_sources());
+}
+
+pub fn set_source(sources: Mutable<Vec<Source>>, index: u32, name: String) {
+    let command = Command::new("pactl")
+        .args(["set-source-port", &format!("{}", index), &name])
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("Failed to execute pactl command");
+
+    command
+        .wait_with_output()
+        .expect("Failed to read pactl toggle command output");
+
+    sources.replace(get_sources());
 }

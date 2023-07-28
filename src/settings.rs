@@ -7,9 +7,12 @@ use gtk::{
 };
 
 use crate::{
-    audio::{audio_subscribe, set_sink, set_volume, toggle_volume, Sink, Source},
+    audio::{
+        audio_subscribe, set_microphone, set_sink, set_source, set_volume, toggle_microphone,
+        toggle_volume, Sink, Source,
+    },
     battery::{get_battery_capacity, BatteryData},
-    launcher,
+    brightness, launcher,
     net::{net_monitor, Vpn},
     reactive_gtk::{
         Align, AsStr, Box, Button, Component, Context, Label, Node, Orientation, Overlay, Scale,
@@ -39,7 +42,8 @@ pub fn settings(ctx: Context, menu: Mutable<Option<(ApplicationWindow, Node, Men
     let sinks1 = sinks.clone();
     let sinks2 = sinks.clone();
     let sources: Mutable<Vec<Source>> = Mutable::new(Vec::with_capacity(0));
-    audio_subscribe(sinks.clone(), sources.clone());
+    let sources1 = sources.clone();
+    audio_subscribe(sinks, sources.clone());
 
     Box::default()
         .class_signal(menu.signal_ref(|m| {
@@ -60,7 +64,12 @@ pub fn settings(ctx: Context, menu: Mutable<Option<(ApplicationWindow, Node, Men
                 } else {
                     let node = ctx.open_surface(
                         Surface::layer(false, (true, true, true, true), None),
-                        settings_menu(menu.clone(), battery.clone(), sinks2.clone()),
+                        settings_menu(
+                            menu.clone(),
+                            battery.clone(),
+                            sinks2.clone(),
+                            sources1.clone(),
+                        ),
                     );
                     Some((node.0, node.1, MenuType::Settings))
                 }
@@ -117,6 +126,7 @@ pub fn settings_menu(
     menu: Mutable<Option<(ApplicationWindow, Node, MenuType)>>,
     battery: Mutable<Option<BatteryData>>,
     sinks: Mutable<Vec<Sink>>,
+    sources: Mutable<Vec<Source>>,
 ) -> impl FnOnce(Context) -> Node {
     move |ctx| {
         let sub_menu: Mutable<Option<SubMenu>> = Mutable::new(None);
@@ -124,11 +134,29 @@ pub fn settings_menu(
         let menu1 = menu.clone();
         let sub_menu1 = sub_menu.clone();
         let sub_menu2 = sub_menu.clone();
+        let sub_menu3 = sub_menu.clone();
 
-        let value = Mutable::<f64>::new(34.);
+        let brightness = Mutable::new(0);
+        brightness::listen(brightness.clone());
+
+        let volume_value = sinks.signal_ref(|s| {
+            s.iter()
+                .find_map(|s| if s.active { Some(s.volume) } else { None })
+                .unwrap_or_default()
+        });
+        let mic_volume_value = sources.signal_ref(|s| {
+            s.iter()
+                .find_map(|s| if s.active { Some(s.volume) } else { None })
+                .unwrap_or_default()
+        });
 
         let sinks1 = sinks.clone();
         let sinks2 = sinks.clone();
+        let sinks3 = sinks.clone();
+        let sources1 = sources.clone();
+        let sources2 = sources.clone();
+        let sources3 = sources.clone();
+        let sources4 = sources.clone();
 
         Overlay::default()
             .children(vec![
@@ -212,7 +240,7 @@ pub fn settings_menu(
                                 .signal_ref(|m| m.map(|m| m == SubMenu::Power).unwrap_or_default()),
                             "󰐥",
                             "Power Off",
-                            vec![
+                            Value::Static::<Vec<Node>, FakeSignal<Vec<Node>>>(vec![
                                 menu_card_item("", "Suspend", || {
                                     launcher::suspend();
                                 }),
@@ -226,11 +254,11 @@ pub fn settings_menu(
                                 menu_card_item("", "Log Out", || {
                                     launcher::logout();
                                 }),
-                            ],
+                            ]),
                         ),
                         setting_slider(
                             sub_menu.clone(),
-                            sinks.signal_ref(|s| {
+                            Value::Dynamic(sinks.signal_ref(|s| {
                                 s.iter()
                                     .find_map(|s| {
                                         if s.active {
@@ -240,10 +268,10 @@ pub fn settings_menu(
                                         }
                                     })
                                     .unwrap_or_default()
-                            }),
+                            })),
                             (0., 100.),
-                            value.signal(),
-                            Some(|| {
+                            volume_value,
+                            Some(move || {
                                 toggle_volume(sinks.clone());
                             }),
                             move |v| set_volume(sinks1.clone(), v.round() as u32),
@@ -256,24 +284,94 @@ pub fn settings_menu(
                                     }
                                 });
                             }),
+                            None::<FakeSignal<bool>>,
                         ),
                         menu_card(
                             sub_menu
                                 .signal_ref(|m| m.map(|m| m == SubMenu::Audio).unwrap_or_default()),
                             "󰕾",
                             "Sound Output",
-                            vec![], // sinks.signal_ref(move |s| {
-                                    //     let sinks3 = sinks2.clone();
-                                    //     s.into_iter()
-                                    //         .map(move |s| {
-                                    //             let index = s.index;
-                                    //             let name = s.name.clone();
-                                    //             menu_card_item("", "", move || {
-                                    //                 set_sink(sinks3.clone(), index, &name);
-                                    //             })
-                                    //         })
-                                    //         .collect()
-                                    // }),
+                            Value::Dynamic(sinks3.signal_ref(move |s| {
+                                let sinks3 = sinks2.clone();
+                                s.iter()
+                                    .map(|s| {
+                                        let index = s.index;
+                                        let name = s.name.clone();
+                                        let sinks4 = sinks3.clone();
+                                        menu_card_item(
+                                            if s.active { "󰄬" } else { "" },
+                                            &s.description,
+                                            move || {
+                                                set_sink(sinks4.clone(), index, name.clone());
+                                            },
+                                        )
+                                    })
+                                    .collect()
+                            })),
+                        ),
+                        setting_slider(
+                            sub_menu.clone(),
+                            Value::Dynamic(sources.signal_ref(|s| {
+                                s.iter()
+                                    .find_map(|s| {
+                                        if s.active {
+                                            Some(s.to_icon().to_string())
+                                        } else {
+                                            None
+                                        }
+                                    })
+                                    .unwrap_or_default()
+                            })),
+                            (0., 100.),
+                            mic_volume_value,
+                            Some(move || {
+                                toggle_microphone(sources.clone());
+                            }),
+                            move |v| set_microphone(sources1.clone(), v.round() as u32),
+                            Some(move || {
+                                sub_menu3.replace_with(|m| {
+                                    if m.map(|m| m != SubMenu::Microphone).unwrap_or(true) {
+                                        Some(SubMenu::Microphone)
+                                    } else {
+                                        None
+                                    }
+                                });
+                            }),
+                            Some(sources3.signal_ref(|s| s.iter().any(|s| s.active))),
+                        ),
+                        menu_card(
+                            sub_menu.signal_ref(|m| {
+                                m.map(|m| m == SubMenu::Microphone).unwrap_or_default()
+                            }),
+                            "󰍬",
+                            "Sound Input",
+                            Value::Dynamic(sources4.signal_ref(move |s| {
+                                let sources3 = sources2.clone();
+                                s.iter()
+                                    .map(|s| {
+                                        let index = s.index;
+                                        let name = s.name.clone();
+                                        let sources4 = sources3.clone();
+                                        menu_card_item(
+                                            if s.active { "󰄬" } else { "" },
+                                            &s.description,
+                                            move || {
+                                                set_source(sources4.clone(), index, name.clone());
+                                            },
+                                        )
+                                    })
+                                    .collect()
+                            })),
+                        ),
+                        setting_slider(
+                            sub_menu.clone(),
+                            Value::Static::<&str, FakeSignal<&str>>("󰃟"),
+                            (0., 255.),
+                            brightness.signal(),
+                            None::<fn()>,
+                            move |v| brightness::set(v.round() as u32),
+                            None::<fn()>,
+                            None::<FakeSignal<bool>>,
                         ),
                     ])
                     .into(),
@@ -286,6 +384,7 @@ pub fn settings_menu(
 enum SubMenu {
     Power,
     Audio,
+    Microphone,
 }
 
 fn battery_indicator(battery: Mutable<Option<BatteryData>>) -> Node {
@@ -336,40 +435,52 @@ fn setting_button(sub_menu: Mutable<Option<SubMenu>>, child: Node) -> Node {
         .into()
 }
 
-fn setting_slider(
+fn setting_slider<I: AsStr + Clone>(
     sub_menu: Mutable<Option<SubMenu>>,
-    icon: impl Signal<Item = impl AsStr + Clone> + 'static,
+    icon: Value<I, impl Signal<Item = I> + 'static>,
     range: (f64, f64),
-    value: impl Signal<Item = f64> + 'static,
-    on_toggle: Option<impl Fn()>,
+    value: impl Signal<Item = u32> + 'static,
+    on_toggle: Option<impl Fn() + 'static>,
     on_change: impl Fn(f64) + 'static,
     on_open_details: Option<impl Fn() + 'static>,
+    visible: Option<impl Signal<Item = bool> + 'static>,
 ) -> Node {
     let is_open = sub_menu.signal_ref(|m| m.is_some());
     let is_open1 = sub_menu.signal_ref(|m| m.is_some());
 
-    let icon = icon.broadcast();
+    // let icon = icon.broadcast();
 
-    Overlay::default()
+    let first_child = if let Some(on_toggle) = on_toggle {
+        let btn = Button::default()
+            .on_click(on_toggle)
+            .class(&["rounded-full"]);
+
+        let content = match icon {
+            Value::Static(icon) => Label::default().text(icon),
+            Value::Dynamic(icon) => Label::default().text_signal(icon),
+        };
+
+        btn.child(content).into()
+    } else {
+        match icon {
+            Value::Static(icon) => Label::default().class(&["ph-3"]).text(icon),
+            Value::Dynamic(icon) => Label::default().class(&["ph-3"]).text_signal(icon),
+        }
+        .into()
+    };
+
+    let overlay = Overlay::default()
         .class_signal(is_open.map(|v| if v { vec!["disabled"] } else { vec![""] }))
         .children(vec![
             Box::default()
                 .orientation(Orientation::Horizontal)
                 .spacing(8)
                 .children(vec![
-                    Button::default()
-                        .class(&["rounded-full"])
-                        .child(Label::default().text_signal(icon.signal_cloned()))
-                        .visible(on_toggle.is_some())
-                        .into(),
-                    Label::default()
-                        .text_signal(icon.signal_cloned())
-                        .visible(on_toggle.is_none())
-                        .into(),
+                    first_child,
                     Scale::default()
                         .hexpand(true)
                         .range(range)
-                        .value_signal(value)
+                        .value_signal(value.map(|v| v as f64))
                         .on_change(on_change)
                         .round_digits(0)
                         .into(),
@@ -393,8 +504,15 @@ fn setting_slider(
                 .hexpand(true)
                 .vexpand(true)
                 .into(),
-        ])
-        .into()
+        ]);
+
+    let overlay = if let Some(visible) = visible {
+        overlay.visible_signal(visible)
+    } else {
+        overlay
+    };
+
+    overlay.into()
 }
 
 fn menu_card_item(icon: &str, content: &str, on_click: impl Fn() + 'static) -> Node {
@@ -408,11 +526,30 @@ fn menu_card_item(icon: &str, content: &str, on_click: impl Fn() + 'static) -> N
         .into()
 }
 
+struct FakeSignal<T> {
+    _phantom: std::marker::PhantomData<T>,
+}
+impl<T> Signal for FakeSignal<T> {
+    type Item = T;
+
+    fn poll_change(
+        self: std::pin::Pin<&mut Self>,
+        _: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Self::Item>> {
+        std::task::Poll::Pending
+    }
+}
+
+enum Value<T, S: Signal<Item = T>> {
+    Static(T),
+    Dynamic(S),
+}
+
 fn menu_card(
     visible: impl Signal<Item = bool> + 'static,
     icon: &str,
     title: &str,
-    children: Vec<Node>,
+    children: Value<Vec<Node>, impl Signal<Item = Vec<Node>> + 'static>,
 ) -> Node {
     Box::default()
         .visible_signal(visible)
@@ -436,10 +573,16 @@ fn menu_card(
                         .into(),
                 ])
                 .into(),
-            Box::default()
-                .orientation(Orientation::Vertical)
-                .children(children)
-                .into(),
+            match children {
+                Value::Static(children) => Box::default()
+                    .orientation(Orientation::Vertical)
+                    .children(children)
+                    .into(),
+                Value::Dynamic(children) => Box::default()
+                    .orientation(Orientation::Vertical)
+                    .children_signal(children)
+                    .into(),
+            },
         ])
         .into()
 }

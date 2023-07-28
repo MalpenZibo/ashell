@@ -21,6 +21,7 @@ sysinfo = "0.29.4"
 chrono = "0.4.26"
 relm4 = "0.6.0"
 relm4-components = "0.6.0"
+udev = "0.7.0"
 
 [build-dependencies]
 fs_extra = "1.2"
