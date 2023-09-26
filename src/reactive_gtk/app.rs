@@ -1,12 +1,13 @@
-use gdk::{
-    prelude::{ApplicationExt, ApplicationExtManual, ListModelExtManual},
-    traits::{DisplayExt, MonitorExt},
-    Display,
+use gdk4::{
+    prelude::{ApplicationExt, ApplicationExtManual, DisplayExt, ListModelExtManual, MonitorExt},
+    Display, Monitor,
 };
-use gtk::{
+
+use gtk4::{
     traits::{GtkWindowExt, WidgetExt},
     Application, ApplicationWindow, CssProvider, STYLE_PROVIDER_PRIORITY_APPLICATION,
 };
+use gtk4_layer_shell::LayerShell;
 
 use super::Node;
 
@@ -55,7 +56,7 @@ impl App {
         main_surface: Surface,
         declare_node: F,
     ) {
-        let application = gtk::Application::new(self.name, Default::default());
+        let application = gtk4::Application::new(self.name, Default::default());
 
         application.connect_startup(move |app| {
             // The CSS "magic" happens here.
@@ -63,7 +64,7 @@ impl App {
             provider.load_from_data(grass::include!("./src/style.scss"));
             // We give the CssProvided to the default screen so the CSS rules we added
             // can be applied to our window.
-            gtk::style_context_add_provider_for_display(
+            gtk4::style_context_add_provider_for_display(
                 &Display::default().expect("Could not connect to a display."),
                 &provider,
                 STYLE_PROVIDER_PRIORITY_APPLICATION,
@@ -140,7 +141,7 @@ impl Surface {
     }
 
     pub fn build(self, app: &Application) -> ApplicationWindow {
-        let window = gtk::ApplicationWindow::new(app);
+        let window = gtk4::ApplicationWindow::new(app);
         window.set_default_size(
             self.width.map(|w| w as i32).unwrap_or(-1),
             self.height.map(|h| h as i32).unwrap_or(-1),
@@ -153,19 +154,19 @@ impl Surface {
                 anchors,
                 ..
             } => {
-                gtk4_layer_shell::init_for_window(&window);
-                gtk4_layer_shell::set_layer(&window, gtk4_layer_shell::Layer::Overlay);
+                window.init_layer_shell();
+                window.set_layer(gtk4_layer_shell::Layer::Overlay);
 
                 if exclusive {
-                    gtk4_layer_shell::auto_exclusive_zone_enable(&window);
+                    window.auto_exclusive_zone_enable();
                 }
 
                 if let Some(requested_monitor) = monitor {
-                    let display = gdk::Display::default().expect("Failed to get default display");
+                    let display = Display::default().expect("Failed to get default display");
                     let monitors = display.monitors();
 
-                    let mut target: Option<gdk::Monitor> = None;
-                    for m in monitors.iter::<gdk::Monitor>() {
+                    let mut target: Option<Monitor> = None;
+                    for m in monitors.iter::<Monitor>() {
                         let monitor = m.unwrap();
                         let connector = monitor.connector().unwrap();
                         if connector == requested_monitor {
@@ -174,22 +175,22 @@ impl Surface {
                     }
 
                     if let Some(target) = target {
-                        gtk4_layer_shell::set_monitor(&window, &target);
+                        window.set_monitor(&target);
                     }
                 }
 
                 let (left, top, right, bottom) = anchors;
                 if left {
-                    gtk4_layer_shell::set_anchor(&window, gtk4_layer_shell::Edge::Left, true);
+                    window.set_anchor(gtk4_layer_shell::Edge::Left, true);
                 }
                 if top {
-                    gtk4_layer_shell::set_anchor(&window, gtk4_layer_shell::Edge::Top, true);
+                    window.set_anchor(gtk4_layer_shell::Edge::Top, true);
                 }
                 if right {
-                    gtk4_layer_shell::set_anchor(&window, gtk4_layer_shell::Edge::Right, true);
+                    window.set_anchor(gtk4_layer_shell::Edge::Right, true);
                 }
                 if bottom {
-                    gtk4_layer_shell::set_anchor(&window, gtk4_layer_shell::Edge::Bottom, true);
+                    window.set_anchor(gtk4_layer_shell::Edge::Bottom, true);
                 }
             }
             SurfaceType::Window => {}

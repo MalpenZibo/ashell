@@ -1,5 +1,5 @@
 use futures_signals::signal::{Signal, SignalExt};
-use gtk::traits::{GestureExt, OrientableExt, WidgetExt};
+use gtk4::traits::{GestureExt, OrientableExt, WidgetExt};
 
 use super::{
     spawner::{spawn, Handle},
@@ -8,7 +8,7 @@ use super::{
 
 #[derive(Default, Clone)]
 pub struct CenterBox {
-    element: gtk::CenterBox,
+    element: gtk4::CenterBox,
     handlers: Vec<Handle<()>>,
 }
 
@@ -88,9 +88,9 @@ impl CenterBox {
     }
 
     pub fn on_click(self, onclick: impl Fn() + 'static) -> Self {
-        let gesture = gtk::GestureClick::new();
+        let gesture = gtk4::GestureClick::new();
         gesture.connect_released(move |gesture, _, _, _| {
-            gesture.set_state(gtk::EventSequenceState::Claimed);
+            gesture.set_state(gtk4::EventSequenceState::Claimed);
 
             onclick();
         });
@@ -101,7 +101,7 @@ impl CenterBox {
 }
 
 impl Component for CenterBox {
-    fn get_widget(&self) -> gtk::Widget {
+    fn get_widget(&self) -> gtk4::Widget {
         self.element.clone().into()
     }
 

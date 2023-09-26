@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use futures_signals::signal::{Mutable, Signal, SignalExt};
-use gtk::{
+use gtk4::{
     traits::{GtkWindowExt, WidgetExt},
     ApplicationWindow,
 };

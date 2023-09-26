@@ -2,7 +2,7 @@ use std::{fmt::Debug, process::Command, time::Duration};
 
 use futures_signals::signal::Mutable;
 
-use gtk::{
+use gtk4::{
     traits::{GtkWindowExt, WidgetExt},
     ApplicationWindow,
 };

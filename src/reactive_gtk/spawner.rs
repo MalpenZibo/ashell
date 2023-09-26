@@ -63,7 +63,7 @@
 //!       .enable_all()
 //!       .build()
 //!       .unwrap();
-//!    rt.block_on(async { gtk::main() });
+//!    rt.block_on(async { gtk4::main() });
 //!```
 //!
 //!Or you can decorate your `main` function with:
@@ -135,7 +135,7 @@ fn poll_idle(ptr: *const ()) {
         let raw = RawWaker::new(task as *const GIdleTask as *const (), &GWAKER_VTABLE);
         let waker = unsafe { Waker::from_raw(raw) };
 
-        //It is unlikely but the call to poll could call gtk::main_iteration() or similar and
+        //It is unlikely but the call to poll could call gtk4::main_iteration() or similar and
         //reenter the this idle call. We avoid reentering the future by taking it from the
         //GIdleTask and storing it later if it returns pending.
         //This has the additional advantage that the future is automatically fused.
@@ -151,7 +151,7 @@ fn poll_idle(ptr: *const ()) {
                 }
             }
         }
-        glib::source::Continue(false)
+        glib::ControlFlow::Break
     });
 }
 

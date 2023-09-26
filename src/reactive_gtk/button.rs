@@ -1,5 +1,5 @@
 use futures_signals::signal::{Signal, SignalExt};
-use gtk::traits::ButtonExt;
+use gtk4::traits::ButtonExt;
 
 use super::{
     spawner::{spawn, Handle},
@@ -8,7 +8,7 @@ use super::{
 
 #[derive(Default, Clone)]
 pub struct Button {
-    element: gtk::Button,
+    element: gtk4::Button,
     handlers: Vec<Handle<()>>,
 }
 
@@ -48,7 +48,7 @@ impl Button {
 }
 
 impl Component for Button {
-    fn get_widget(&self) -> gtk::Widget {
+    fn get_widget(&self) -> gtk4::Widget {
         self.element.clone().into()
     }
 

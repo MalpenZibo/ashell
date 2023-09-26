@@ -10,7 +10,7 @@ use crate::{
 };
 
 use futures_signals::signal::Mutable;
-use gtk::ApplicationWindow;
+use gtk4::ApplicationWindow;
 
 use crate::{
     launcher::launch_rofi,

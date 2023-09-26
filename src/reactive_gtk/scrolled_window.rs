@@ -11,19 +11,19 @@ pub enum PolicyType {
     Never,
 }
 
-impl From<PolicyType> for gtk::PolicyType {
+impl From<PolicyType> for gtk4::PolicyType {
     fn from(value: PolicyType) -> Self {
         match value {
-            PolicyType::Always => gtk::PolicyType::Always,
-            PolicyType::Automatic => gtk::PolicyType::Automatic,
-            PolicyType::Never => gtk::PolicyType::Never,
+            PolicyType::Always => gtk4::PolicyType::Always,
+            PolicyType::Automatic => gtk4::PolicyType::Automatic,
+            PolicyType::Never => gtk4::PolicyType::Never,
         }
     }
 }
 
 #[derive(Default, Clone)]
 pub struct ScrolledWindow {
-    element: gtk::ScrolledWindow,
+    element: gtk4::ScrolledWindow,
     handlers: Vec<Handle<()>>,
 }
 
@@ -101,7 +101,7 @@ impl ScrolledWindow {
 }
 
 impl Component for ScrolledWindow {
-    fn get_widget(&self) -> gtk::Widget {
+    fn get_widget(&self) -> gtk4::Widget {
         self.element.clone().into()
     }
 

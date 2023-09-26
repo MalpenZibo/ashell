@@ -12,13 +12,13 @@ pub enum Justification {
     Fill,
 }
 
-impl From<Justification> for gtk::Justification {
+impl From<Justification> for gtk4::Justification {
     fn from(value: Justification) -> Self {
         match value {
-            Justification::Left => gtk::Justification::Left,
-            Justification::Right => gtk::Justification::Right,
-            Justification::Center => gtk::Justification::Center,
-            Justification::Fill => gtk::Justification::Fill,
+            Justification::Left => gtk4::Justification::Left,
+            Justification::Right => gtk4::Justification::Right,
+            Justification::Center => gtk4::Justification::Center,
+            Justification::Fill => gtk4::Justification::Fill,
         }
     }
 }
@@ -41,7 +41,7 @@ impl From<XAlign> for f32 {
 
 #[derive(Default, Clone)]
 pub struct Label {
-    element: gtk::Label,
+    element: gtk4::Label,
     pub(crate) handlers: Vec<Handle<()>>,
 }
 
@@ -55,7 +55,7 @@ impl From<Label> for Node {
 }
 
 impl Component for Label {
-    fn get_widget(&self) -> gtk::Widget {
+    fn get_widget(&self) -> gtk4::Widget {
         self.element.clone().into()
     }
 

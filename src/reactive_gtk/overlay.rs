@@ -1,5 +1,5 @@
 use futures_signals::signal_vec::{SignalVec, SignalVecExt, VecDiff};
-use gtk::traits::WidgetExt;
+use gtk4::traits::WidgetExt;
 
 use crate::reactive_gtk::ChildrenState;
 
@@ -10,7 +10,7 @@ use super::{
 
 #[derive(Default, Clone)]
 pub struct Overlay {
-    element: gtk::Overlay,
+    element: gtk4::Overlay,
     handlers: Vec<Handle<()>>,
 }
 
@@ -105,7 +105,7 @@ impl Overlay {
 }
 
 impl Component for Overlay {
-    fn get_widget(&self) -> gtk::Widget {
+    fn get_widget(&self) -> gtk4::Widget {
         self.element.clone().into()
     }
 

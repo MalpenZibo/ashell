@@ -2,7 +2,7 @@ use futures_signals::{
     signal::{Signal, SignalExt},
     signal_vec::{SignalVec, SignalVecExt, VecDiff},
 };
-use gtk::traits::{BoxExt, GestureExt, OrientableExt, WidgetExt};
+use gtk4::traits::{BoxExt, GestureExt, OrientableExt, WidgetExt};
 
 use crate::reactive_gtk::ChildrenState;
 
@@ -16,18 +16,18 @@ pub enum Orientation {
     Vertical,
 }
 
-impl From<Orientation> for gtk::Orientation {
+impl From<Orientation> for gtk4::Orientation {
     fn from(value: Orientation) -> Self {
         match value {
-            Orientation::Horizontal => gtk::Orientation::Horizontal,
-            Orientation::Vertical => gtk::Orientation::Vertical,
+            Orientation::Horizontal => gtk4::Orientation::Horizontal,
+            Orientation::Vertical => gtk4::Orientation::Vertical,
         }
     }
 }
 
 #[derive(Default, Clone)]
 pub struct Box {
-    element: gtk::Box,
+    element: gtk4::Box,
     handlers: Vec<Handle<()>>,
 }
 
@@ -167,7 +167,7 @@ impl Box {
 }
 
 impl Component for Box {
-    fn get_widget(&self) -> gtk::Widget {
+    fn get_widget(&self) -> gtk4::Widget {
         self.element.clone().into()
     }
 

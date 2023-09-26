@@ -1,5 +1,5 @@
 use futures_signals::signal::{Signal, SignalExt};
-use gtk::traits::OrientableExt;
+use gtk4::traits::OrientableExt;
 
 use super::{
     spawner::{spawn, Handle},
@@ -8,7 +8,7 @@ use super::{
 
 #[derive(Default, Clone)]
 pub struct Separator {
-    element: gtk::Separator,
+    element: gtk4::Separator,
     handlers: Vec<Handle<()>>,
 }
 
@@ -38,7 +38,7 @@ impl Separator {
 }
 
 impl Component for Separator {
-    fn get_widget(&self) -> gtk::Widget {
+    fn get_widget(&self) -> gtk4::Widget {
         self.element.clone().into()
     }
 

@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use futures_signals::signal::{Signal, SignalExt};
-use gtk::{
+use gtk4::{
     traits::{GestureExt, WidgetExt},
     Widget,
 };
@@ -63,20 +63,20 @@ pub enum Align {
     End,
 }
 
-impl From<Align> for gtk::Align {
+impl From<Align> for gtk4::Align {
     fn from(value: Align) -> Self {
         match value {
-            Align::Fill => gtk::Align::Fill,
-            Align::Baseline => gtk::Align::Baseline,
-            Align::Start => gtk::Align::Start,
-            Align::Center => gtk::Align::Center,
-            Align::End => gtk::Align::End,
+            Align::Fill => gtk4::Align::Fill,
+            Align::Baseline => gtk4::Align::Baseline,
+            Align::Start => gtk4::Align::Start,
+            Align::Center => gtk4::Align::Center,
+            Align::End => gtk4::Align::End,
         }
     }
 }
 
 pub trait Component: Sized {
-    fn get_widget(&self) -> gtk::Widget;
+    fn get_widget(&self) -> gtk4::Widget;
 
     fn get_handlers(&mut self) -> &mut Vec<Handle<()>>;
 
@@ -275,10 +275,10 @@ pub trait Component: Sized {
     }
 
     fn on_click(self, onclick: impl Fn() + 'static) -> Self {
-        let gesture = gtk::GestureClick::new();
+        let gesture = gtk4::GestureClick::new();
 
         gesture.connect_released(move |gesture, _, _, _| {
-            gesture.set_state(gtk::EventSequenceState::Claimed);
+            gesture.set_state(gtk4::EventSequenceState::Claimed);
 
             onclick();
         });

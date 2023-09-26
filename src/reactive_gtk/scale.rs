@@ -1,5 +1,5 @@
 use futures_signals::signal::{Signal, SignalExt};
-use gtk::traits::RangeExt;
+use gtk4::traits::RangeExt;
 
 use super::{
     spawner::{spawn, Handle},
@@ -8,7 +8,7 @@ use super::{
 
 #[derive(Default, Clone)]
 pub struct Scale {
-    element: gtk::Scale,
+    element: gtk4::Scale,
     handlers: Vec<Handle<()>>,
 }
 
@@ -80,7 +80,7 @@ impl Scale {
 }
 
 impl Component for Scale {
-    fn get_widget(&self) -> gtk::Widget {
+    fn get_widget(&self) -> gtk4::Widget {
         self.element.clone().into()
     }
 
