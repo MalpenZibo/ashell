@@ -54,7 +54,7 @@ impl From<Label> for Node {
     }
 }
 
-impl Component for Label {
+impl Component for Label2 {
     fn get_widget(&self) -> gtk4::Widget {
         self.element.clone().into()
     }

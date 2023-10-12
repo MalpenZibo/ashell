@@ -10,9 +10,8 @@ gdk4 = "0.7.3"
 glib = "0.18.1"
 grass = { version = "0.12.4", features = ["macro"] }
 serde = "1.0.166"
-serde_json = "1.0.99"
+serde_json = "1.0.107"
 hyprland = { version = "0.3.11" }
-tokio = "1.29.1"
 sysinfo = "0.29.4"
 chrono = "0.4.26"
 udev = "0.7.0"
@@ -20,6 +19,8 @@ leptos = "0.5.0-beta"
 typed-builder = "0.16.2"
 futures-signals = "0.3.3"
 futures = "0.3.28"
+tokio = { version = "1", features = ["full"] }
+
 
 [build-dependencies]
 fs_extra = "1.2"

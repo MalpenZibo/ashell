@@ -1,0 +1,59 @@
+$radius: (
+  "s": 8px,
+  "m": 16px,
+  "l": 32px,
+  "xl": 48px,
+  "full": 50%,
+);
+
+$directions: (
+  "l": (
+    "top-left",
+    "bottom-left",
+  ),
+  "r": (
+    "top-right",
+    "bottom-right",
+  ),
+  "t": (
+    "top-left",
+    "top-right",
+  ),
+  "b": (
+    "bottom-left",
+    "bottom-right",
+  ),
+  "tl": (
+    "top-left",
+  ),
+  "tr": (
+    "top-right",
+  ),
+  "bl": (
+    "bottom-left",
+  ),
+  "br": (
+    "bottom-right",
+  ),
+  "a": "all",
+);
+
+@each $dirKey, $dirValue in $directions {
+  @each $radiusKey, $radiusValue in $radius {
+    @if $dirKey == "a" {
+      .rounded-#{$radiusKey} {
+        border-radius: $radiusValue;
+      }
+    } @else {
+      .rounded-#{$dirKey}-#{$radiusKey} {
+        @each $prop in $dirValue {
+          border-#{$prop}-radius: $radiusValue;
+        }
+      }
+    }
+  }
+}
+
+.border {
+  border: 1px solid $accent_color;
+}

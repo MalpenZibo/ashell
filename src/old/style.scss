@@ -5,20 +5,6 @@
 @import "./scss/borders.scss";
 @import "./scss/common.scss";
 
-.header-button {
-  background-color: $dark-2;
-  padding: 4px 8px 4px 8px;
-  border-radius: 20px;
-}
-.header-button:hover {
-  background: $light-1;
-}
-
-.arch-icon {
-  padding-left: 7px;
-  padding-right: 9px;
-}
-
 .card {
   background: black;
   border-radius: 20px;
