@@ -1,12 +1,12 @@
 use std::rc::Rc;
 
-use gtk4::traits::{ApplicationWindowExt, ButtonExt, GtkWindowExt, WidgetExt};
-use gtk4::{Application, ApplicationWindow, Label, Widget};
-use gtk4_layer_shell::{Edge, Layer, LayerShell};
-use leptos::{create_memo, create_signal, SignalGet, SignalSet, SignalUpdate};
+use gtk4::traits::GtkWindowExt;
+use gtk4::{ApplicationWindow, Widget};
+use gtk4_layer_shell::Layer;
+use leptos::{create_memo, create_signal, SignalGet, SignalSet};
 
 use crate::gtk4_wrapper::{center_box, container, overlay, Align, AppCtx, Component, LayerOption};
-use crate::modules::{app_launcher, title, updates};
+use crate::modules::{app_launcher, system_info, title, updates};
 
 pub fn bar(app: AppCtx) -> Widget {
     let (menu, set_menu) = create_signal::<Option<ApplicationWindow>>(None);
@@ -73,6 +73,6 @@ pub fn bar(app: AppCtx) -> Widget {
                 .into(),
         ))
         .center(Some(container().children(vec![title()]).into()))
-        // .right(Some(button.into()))
+        .right(Some(container().children(vec![system_info()]).into()))
         .into()
 }
