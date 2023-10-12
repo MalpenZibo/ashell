@@ -1,9 +1,9 @@
-use crate::gtk4_wrapper::{label, spawn, Align, Component};
+use crate::gtk4_wrapper::{label, spawn, Align, Component, EllipsizeMode};
 use gtk4::Widget;
 use hyprland::{
     async_closure, data::Client, event_listener::AsyncEventListener, shared::HyprDataActiveOptional,
 };
-use leptos::{create_memo, create_signal, SignalGet, SignalUpdate};
+use leptos::{create_memo, create_signal, SignalGet, SignalSet, SignalUpdate};
 
 pub fn title() -> Widget {
     let (title, set_title) = create_signal::<Option<String>>(
@@ -20,6 +20,10 @@ pub fn title() -> Widget {
                 set_title.update(|title| *title = e.map(|w| w.window_title));
             }});
 
+            event_listener.add_window_close_handler(async_closure!(move |_| {
+                set_title.set(None);
+            }));
+
             let _ = event_listener.start_listener_async().await;
         }
     });
@@ -31,6 +35,7 @@ pub fn title() -> Widget {
         .class(vec!["header-label"])
         .valign(Align::Center)
         .vexpand(false)
+        .ellipsize(EllipsizeMode::Middle)
         .text(formatted)
         .visible(visible)
         .into()

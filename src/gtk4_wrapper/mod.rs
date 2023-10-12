@@ -6,6 +6,8 @@ mod r#box;
 mod centerbox;
 mod label;
 mod overlay;
+mod scrolled_window;
+mod separator;
 mod spawner;
 
 pub use app::*;
@@ -13,6 +15,8 @@ pub use centerbox::*;
 pub use label::*;
 pub use overlay::*;
 pub use r#box::*;
+pub use scrolled_window::*;
+pub use separator::*;
 pub use spawner::*;
 
 #[derive(Copy, Clone)]

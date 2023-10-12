@@ -1,35 +1,59 @@
 @import "./scss/theme.scss";
-@import "./scss/colors.scss";
-@import "./scss/spacing.scss";
-@import "./scss/typography.scss";
-@import "./scss/borders.scss";
-@import "./scss/common.scss";
+
+window.background {
+  background-color: transparent;
+}
+
+.header-bar {
+  margin: 0px 4px;
+}
 
 .header-button {
   background-color: $dark-2;
   padding: 4px 8px 4px 8px;
   border-radius: 20px;
 }
+
 .header-button:hover {
   background: $light-1;
 }
 
-.arch-icon {
+.header-label {
+  background-color: $dark-2;
+  padding: 4px 8px 4px 8px;
+  border-radius: 20px;
+}
+
+.icon-position-fix {
   padding-left: 7px;
   padding-right: 9px;
 }
 
-.card {
-  background: black;
-  border-radius: 20px;
+.menu {
+  background-color: $dark-2;
+  border-radius: 16px;
   margin: 8px;
-  color: white;
+  padding: 16px;
+  border: 1px solid $dark-1;
 }
 
-.card > * {
-  padding: 20px;
+.overlay {
+  background-color: transparent;
 }
 
-.test {
-  background-color: red;
+.menu-voice {
+  padding: 8px 16px;
+  border-radius: 8px;
+}
+
+.menu-voice:hover {
+  background-color: $light-1;
+}
+
+.updates-list {
+  padding: 4px 16px 4px 0px;
+}
+
+.small-text {
+  font-size: 12px;
 }

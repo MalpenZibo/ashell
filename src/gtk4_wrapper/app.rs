@@ -12,6 +12,28 @@ pub struct LayerOption {
     pub right_anchor: bool,
 }
 
+impl LayerOption {
+    fn setup_window(&self, window: &ApplicationWindow) {
+        window.init_layer_shell();
+        window.set_layer(self.r#type);
+
+        if self.exclusive_zone {
+            window.auto_exclusive_zone_enable();
+        }
+
+        let anchors = [
+            (Edge::Left, self.left_anchor),
+            (Edge::Right, self.right_anchor),
+            (Edge::Top, self.top_anchor),
+            (Edge::Bottom, self.bottom_anchor),
+        ];
+
+        for (anchor, state) in anchors {
+            window.set_anchor(anchor, state);
+        }
+    }
+}
+
 pub struct App {
     title: Option<String>,
     width: Option<i32>,
@@ -57,30 +79,14 @@ impl App {
         self
     }
 
-    pub fn run<F: Fn() -> Widget + 'static>(self, root: F) {
+    pub fn run<F: Fn(AppCtx) -> Widget + 'static>(self, root: F) {
         let build_ui = move |app: &Application| {
             let window = ApplicationWindow::new(app);
             window.set_title(self.title.as_deref());
             window.set_default_size(self.width.unwrap_or(-1), self.height.unwrap_or(-1));
 
             if let Some(layer_option) = &self.layer_option {
-                window.init_layer_shell();
-                window.set_layer(layer_option.r#type);
-
-                if layer_option.exclusive_zone {
-                    window.auto_exclusive_zone_enable();
-                }
-
-                let anchors = [
-                    (Edge::Left, layer_option.left_anchor),
-                    (Edge::Right, layer_option.right_anchor),
-                    (Edge::Top, layer_option.top_anchor),
-                    (Edge::Bottom, layer_option.bottom_anchor),
-                ];
-
-                for (anchor, state) in anchors {
-                    window.set_anchor(anchor, state);
-                }
+                layer_option.setup_window(&window);
             }
 
             // The CSS "magic" happens here.
@@ -94,7 +100,7 @@ impl App {
                 STYLE_PROVIDER_PRIORITY_APPLICATION,
             );
 
-            window.set_child(Some(&root()));
+            window.set_child(Some(&root(AppCtx(app.clone()))));
 
             // Present window
             window.present();
@@ -105,5 +111,24 @@ impl App {
 
         // Run the application
         self.gtk_application.run();
+    }
+}
+
+pub struct AppCtx(Application);
+
+impl AppCtx {
+    pub fn open_window(
+        &self,
+        root: impl FnOnce(ApplicationWindow) -> Widget,
+        layer: Option<LayerOption>,
+    ) -> ApplicationWindow {
+        let window = ApplicationWindow::new(&self.0);
+        if let Some(layer) = layer {
+            layer.setup_window(&window);
+        }
+        window.set_child(Some(&root(window.clone())));
+        window.show();
+
+        window
     }
 }
