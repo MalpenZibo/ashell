@@ -24,6 +24,16 @@ window.background {
   border-radius: 20px;
 }
 
+.clock {
+  border-top-right-radius: 0px;
+  border-bottom-right-radius: 0px;
+}
+
+.settings {
+  border-top-left-radius: 0px;
+  border-bottom-left-radius: 0px;
+}
+
 .icon-position-fix {
   padding-left: 7px;
   padding-right: 9px;
