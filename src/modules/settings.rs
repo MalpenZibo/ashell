@@ -29,11 +29,15 @@ fn battery_indicator(battery: ReadSignal<Option<BatteryData>>) -> Widget {
         let battery = battery.get();
         format!(
             "{} {}%",
-            battery.map_or("".to_string(), |b| b.to_icon().into()),
+            battery.map_or("".to_string(), |b| b.get_icon().into()),
             battery.map_or(0, |b| b.capacity)
         )
     });
+    let class = create_memo(move |_| {
+        let battery = battery.get();
+        battery.map_or(vec![], |b| b.get_class())
+    });
     let visible = create_memo(move |_| battery.get().is_some());
 
-    label().text(format).visible(visible).into()
+    label().class(class).text(format).visible(visible).into()
 }

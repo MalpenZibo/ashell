@@ -34,6 +34,14 @@ window.background {
   border-bottom-left-radius: 0px;
 }
 
+.battery.charging {
+  color: $success;
+}
+
+.battery.critical {
+  color: $danger;
+}
+
 .icon-position-fix {
   padding-left: 7px;
   padding-right: 9px;

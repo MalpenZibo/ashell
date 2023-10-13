@@ -13,21 +13,21 @@ pub enum BatteryStatus {
 }
 
 impl BatteryData {
-    pub fn to_class(&self) -> &str {
+    pub fn get_class(&self) -> Vec<&'static str> {
         match self {
             BatteryData {
                 status: BatteryStatus::Charging,
                 ..
-            } => "fg-green",
+            } => vec!["battery", "charging"],
             BatteryData {
                 status: BatteryStatus::Discharging,
                 capacity,
-            } if *capacity < 20 => "fg-red",
-            _ => "",
+            } if *capacity < 20 => vec!["battery", "critical"],
+            _ => vec!["battery"],
         }
     }
 
-    pub fn to_icon(&self) -> &str {
+    pub fn get_icon(&self) -> &str {
         match self {
             BatteryData {
                 status: BatteryStatus::Charging,
