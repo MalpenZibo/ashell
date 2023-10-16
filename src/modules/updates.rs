@@ -1,9 +1,12 @@
-use crate::gtk4_wrapper::{
-    container, label, scrolled_window, separator, spawn, Align, Component, Orientation, PolicyType,
-    TextAlign,
+use crate::{
+    bar::{MenuAction, MenuType},
+    gtk4_wrapper::{
+        container, label, scrolled_window, separator, spawn, Align, Component, Orientation,
+        PolicyType, TextAlign,
+    },
 };
 use gtk4::Widget;
-use leptos::{create_memo, create_signal, Memo, ReadSignal, SignalGet, SignalSet};
+use leptos::{create_memo, create_signal, ReadSignal, SignalGet, SignalSet};
 use serde::Deserialize;
 use std::{process::Stdio, rc::Rc, time::Duration};
 use tokio::{process::Command, time::sleep};
@@ -59,11 +62,7 @@ async fn update() {
             .output().await;
 }
 
-pub fn updates(
-    menu_is_open: Memo<bool>,
-    open_menu: Rc<dyn Fn(Widget)>,
-    close_menu: Rc<dyn Fn()>,
-) -> Widget {
+pub fn updates(toggle_menu: Rc<dyn Fn(MenuType, MenuAction)>) -> Widget {
     let (updates, set_updates) = create_signal::<Vec<Update>>(vec![]);
 
     spawn(async move {
@@ -83,28 +82,35 @@ pub fn updates(
         .vexpand(false)
         .valign(Align::Center)
         .on_click(move || {
-            if menu_is_open.get() {
-                close_menu()
-            } else {
-                open_menu(update_menu(
-                    updates,
+            toggle_menu(
+                MenuType::Updates,
+                MenuAction::Open(Box::new({
+                    let toggle_menu = toggle_menu.clone();
                     move || {
-                        spawn(async move {
-                            set_updates.set(vec![]);
-                            set_updates.set(check_update_now().await);
-                        });
-                    },
-                    {
-                        let close_menu = close_menu.clone();
-                        move || {
-                            tokio::spawn(async move {
-                                update().await;
-                            });
-                            close_menu();
-                        }
-                    },
-                ))
-            }
+                        (
+                            update_menu(
+                                updates,
+                                move || {
+                                    spawn(async move {
+                                        set_updates.set(vec![]);
+                                        set_updates.set(check_update_now().await);
+                                    });
+                                },
+                                {
+                                    let toggle_menu = toggle_menu.clone();
+                                    move || {
+                                        tokio::spawn(async move {
+                                            update().await;
+                                        });
+                                        toggle_menu(MenuType::Updates, MenuAction::Close);
+                                    }
+                                },
+                            ),
+                            Align::Start,
+                        )
+                    }
+                })),
+            )
         })
         .children(vec![
             label()
@@ -179,6 +185,7 @@ fn update_menu(
     container()
         .orientation(Orientation::Vertical)
         .hexpand(true)
+        .class(vec!["updates-menu"])
         .spacing(4)
         .children(vec![
             container()

@@ -29,9 +29,35 @@ window.background {
   border-bottom-right-radius: 0px;
 }
 
-.settings {
+.header-button.settings {
   border-top-left-radius: 0px;
   border-bottom-left-radius: 0px;
+}
+
+.settings-label {
+  background-color: $dark-3;
+  padding: 4px 8px 4px 8px;
+  border-radius: 20px;
+}
+
+.settings-button {
+  background-color: $dark-3;
+  padding: 4px 8px 4px 8px;
+  border-radius: 20px;
+}
+
+.settings-button:hover {
+  background: $light-1;
+}
+
+.header-button {
+  background-color: $dark-2;
+  padding: 4px 8px 4px 8px;
+  border-radius: 20px;
+}
+
+.header-button:hover {
+  background: $light-1;
 }
 
 .battery.charging {
@@ -51,12 +77,41 @@ window.background {
   background-color: $dark-2;
   border-radius: 16px;
   margin: 8px;
-  padding: 16px;
   border: 1px solid $dark-1;
 }
 
+.section {
+  padding: 16px;
+}
+
+.section-top {
+  padding: 0px 0px 16px 0px;
+}
+
+.section-bottom {
+  padding: 16px 0px 0px 0px;
+}
+
+.sub-menu {
+  margin: 16px 0px;
+  border-top: 1px solid $dark-1;
+  border-bottom: 1px solid $dark-1;
+}
+
 .overlay {
-  background-color: transparent;
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+.overlay-top {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-top-right-radius: 16px;
+  border-top-left-radius: 16px;
+}
+
+.overlay-bottom {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-bottom-right-radius: 16px;
+  border-bottom-left-radius: 16px;
 }
 
 .menu-voice {
@@ -68,10 +123,23 @@ window.background {
   background-color: $light-1;
 }
 
+.updates-menu {
+  padding: 16px;
+}
+
 .updates-list {
   padding: 4px 16px 4px 0px;
 }
 
 .small-text {
   font-size: 12px;
+}
+
+.workspace {
+  background-color: $accent-color;
+  border-radius: 16px;
+}
+
+.workspace.empty {
+  background-color: $dark-3;
 }
