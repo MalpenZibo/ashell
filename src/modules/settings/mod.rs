@@ -13,13 +13,18 @@ use crate::{
     utils::{
         battery::{get_battery_capacity, BatteryData},
         launcher::{lock, logout, poweroff, reboot, suspend},
+        net::net_monitor,
     },
 };
 
+use self::net::net_indicator;
+
 mod battery;
+mod net;
 
 pub fn settings(toggle_menu: Rc<dyn Fn(MenuType, MenuAction)>) -> Widget {
     let (battery, set_battery) = create_signal(get_battery_capacity());
+    let (active_connection, vpn_list) = net_monitor();
 
     spawn(async move {
         loop {
@@ -30,13 +35,17 @@ pub fn settings(toggle_menu: Rc<dyn Fn(MenuType, MenuAction)>) -> Widget {
 
     container()
         .class(vec!["header-button", "settings"])
+        .spacing(8)
         .on_click(move || {
             toggle_menu(
                 MenuType::Settings,
                 MenuAction::Open(Box::new(move || (settings_menu(battery), Align::End))),
             )
         })
-        .children(vec![battery_indicator(battery)])
+        .children(vec![
+            net_indicator(active_connection),
+            battery_indicator(battery),
+        ])
         .into()
 }
 
@@ -103,7 +112,7 @@ fn settings_menu(battery: ReadSignal<Option<BatteryData>>) -> Widget {
                             .children(vec![
                                 label()
                                     .class(vec!["settings-button"])
-                                    .on_click(|| lock())
+                                    .on_click(lock)
                                     .text("")
                                     .into(),
                                 label()
@@ -139,26 +148,26 @@ fn power_sub_menu(sub_menu: ReadSignal<Option<SubMenu>>) -> Widget {
                 .text_halign(TextAlign::Start)
                 .class(vec!["menu-voice"])
                 .text("Suspend")
-                .on_click(|| suspend())
+                .on_click(suspend)
                 .into(),
             label()
                 .text_halign(TextAlign::Start)
                 .class(vec!["menu-voice"])
                 .text("Reboot")
-                .on_click(|| reboot())
+                .on_click(reboot)
                 .into(),
             label()
                 .text_halign(TextAlign::Start)
                 .class(vec!["menu-voice"])
                 .text("Power Off")
-                .on_click(|| poweroff())
+                .on_click(poweroff)
                 .into(),
             separator().into(),
             label()
                 .text_halign(TextAlign::Start)
                 .class(vec!["menu-voice"])
                 .text("Logout")
-                .on_click(|| logout())
+                .on_click(logout)
                 .into(),
         ])
         .visible(visible)

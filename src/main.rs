@@ -15,7 +15,7 @@ async fn main() {
     let _ = create_runtime();
 
     let app = gtk4_wrapper::App::new(APP_ID)
-        .set_height(40)
+        .set_height(34)
         .set_layer_option(LayerOption {
             r#type: Layer::Top,
             exclusive_zone: true,
