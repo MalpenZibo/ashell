@@ -1,0 +1,15 @@
+@import "./theme.scss";
+
+window.background {
+  background-color: transparent;
+}
+
+.header-bar {
+  margin: 0px 4px;
+}
+
+.header-item {
+  background-color: $base;
+  padding: 4px 12px;
+  border-radius: 20px;
+}

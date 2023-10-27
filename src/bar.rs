@@ -1,5 +1,9 @@
-use crate::{app::AppCtx, reactive_gtk::{centerbox, Node}};
+use crate::{
+    app::AppCtx,
+    modules::title,
+    reactive_gtk::{centerbox, Node},
+};
 
 pub fn bar(app: AppCtx) -> impl Into<Node> {
-    centerbox()
+    centerbox().center(Some(title().into()))
 }

@@ -11,4 +11,5 @@ glib = "0.18.2"
 grass = { version = "0.13.1", features = ["macro"] }
 gtk4 = "0.7.3"
 gtk4-layer-shell = "0.2.0"
+hyprland = "0.3.12"
 tokio = { version = "1", features = ["full"] }

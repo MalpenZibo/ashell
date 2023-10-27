@@ -3,6 +3,7 @@ use gtk4_layer_shell::Layer;
 
 mod app;
 mod bar;
+mod modules;
 mod reactive_gtk;
 
 #[tokio::main]

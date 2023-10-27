@@ -46,16 +46,12 @@ pub trait NodeBuilder: Sized {
 
     fn get_ctx(&mut self) -> &mut AsyncContext;
 
-    fn class(mut self, value: impl MaybeSignal<Vec<String>>) -> Self {
+    fn class<'a>(mut self, value: impl MaybeSignal<Vec<&'a str>>) -> Self {
         let sub = value.subscribe({
             let widget = self.get_widget();
             move |value| {
                 widget.set_css_classes(
-                    value
-                        .iter()
-                        .map(AsRef::as_ref)
-                        .collect::<Vec<&str>>()
-                        .as_slice(),
+                    &value
                 );
             }
         });
