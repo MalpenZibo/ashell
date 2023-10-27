@@ -83,7 +83,7 @@ impl App {
         self
     }
 
-    pub fn run<F: Fn(AppCtx) -> Node + 'static>(self, root: F) {
+    pub fn run<N: Into<Node>, F: Fn(AppCtx) -> N + 'static>(self, root: F) {
         let build_ui = move |app: &Application| {
             let window = gtk4::ApplicationWindow::new(app);
             window.set_title(self.title.as_deref());
@@ -104,7 +104,7 @@ impl App {
                 STYLE_PROVIDER_PRIORITY_APPLICATION,
             );
 
-            let mut root = root(AppCtx(app.clone()));
+            let mut root = root(AppCtx(app.clone())).into();
 
             root.get_ctx().forget();
 
@@ -136,9 +136,9 @@ impl Deref for CloseHandle {
 }
 
 impl AppCtx {
-    pub fn open_window(
+    pub fn open_window<N: Into<Node>>(
         &self,
-        root: impl FnOnce(CloseHandle) -> Node,
+        root: impl FnOnce(CloseHandle) -> N,
         layer: Option<LayerOption>,
     ) -> CloseHandle {
         let window = gtk4::ApplicationWindow::new(&self.0);
@@ -149,7 +149,7 @@ impl AppCtx {
             let window = window.clone();
             Rc::new(move || window.close())
         });
-        let mut root = root(close_window.clone());
+        let mut root = root(close_window.clone()).into();
 
         root.get_ctx().forget();
 

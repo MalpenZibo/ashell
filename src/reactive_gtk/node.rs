@@ -7,6 +7,10 @@ pub struct Node {
 }
 
 impl Node {
+    pub fn new(widget: gtk4::Widget, ctx: AsyncContext) -> Self {
+        Self { widget, ctx }
+    }
+
     pub fn get_widget(&self) -> &gtk4::Widget {
         &self.widget
     }
@@ -37,14 +41,14 @@ impl From<Align> for gtk4::Align {
     }
 }
 
-trait NodeBuilder: Sized {
-    fn get_widget(&self) -> &gtk4::Widget;
+pub trait NodeBuilder: Sized {
+    fn get_widget(&self) -> gtk4::Widget;
 
     fn get_ctx(&mut self) -> &mut AsyncContext;
 
     fn class(mut self, value: impl MaybeSignal<Vec<String>>) -> Self {
         let sub = value.subscribe({
-            let widget = self.get_widget().clone();
+            let widget = self.get_widget();
             move |value| {
                 widget.set_css_classes(
                     value
@@ -65,7 +69,7 @@ trait NodeBuilder: Sized {
 
     fn vexpand(mut self, value: impl MaybeSignal<bool>) -> Self {
         let sub = value.subscribe({
-            let widget = self.get_widget().clone();
+            let widget = self.get_widget();
             move |value| {
                 widget.set_vexpand(value);
             }
@@ -80,7 +84,7 @@ trait NodeBuilder: Sized {
 
     fn hexpand(mut self, value: impl MaybeSignal<bool>) -> Self {
         let sub = value.subscribe({
-            let widget = self.get_widget().clone();
+            let widget = self.get_widget();
             move |value| {
                 widget.set_hexpand(value);
             }
@@ -95,7 +99,7 @@ trait NodeBuilder: Sized {
 
     fn valign(mut self, value: impl MaybeSignal<Align>) -> Self {
         let sub = value.subscribe({
-            let widget = self.get_widget().clone();
+            let widget = self.get_widget();
             move |value| {
                 widget.set_valign(value.into());
             }
@@ -110,7 +114,7 @@ trait NodeBuilder: Sized {
 
     fn halign(mut self, value: impl MaybeSignal<Align>) -> Self {
         let sub = value.subscribe({
-            let widget = self.get_widget().clone();
+            let widget = self.get_widget();
             move |value| {
                 widget.set_halign(value.into());
             }
@@ -125,7 +129,7 @@ trait NodeBuilder: Sized {
 
     fn active(mut self, value: impl MaybeSignal<bool>) -> Self {
         let sub = value.subscribe({
-            let widget = self.get_widget().clone();
+            let widget = self.get_widget();
             move |value| {
                 widget.set_sensitive(value);
             }
@@ -140,7 +144,7 @@ trait NodeBuilder: Sized {
 
     fn visible(mut self, value: impl MaybeSignal<bool>) -> Self {
         let sub = value.subscribe({
-            let widget = self.get_widget().clone();
+            let widget = self.get_widget();
             move |value| {
                 widget.set_visible(value);
             }
@@ -155,7 +159,7 @@ trait NodeBuilder: Sized {
 
     fn size(mut self, value: impl MaybeSignal<(i32, i32)>) -> Self {
         let sub = value.subscribe({
-            let widget = self.get_widget().clone();
+            let widget = self.get_widget();
             move |value| {
                 widget.set_size_request(value.0, value.1);
             }

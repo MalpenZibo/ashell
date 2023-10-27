@@ -2,9 +2,11 @@ use futures_signals::signal::{Signal, SignalExt};
 
 mod node;
 mod spawn;
+mod center_box;
 
 pub use node::*;
 pub use spawn::*;
+pub use center_box::*;
 
 pub struct Dynamic<T, S: Signal<Item = T>>(pub S);
 
