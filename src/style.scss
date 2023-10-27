@@ -4,12 +4,16 @@ window.background {
   background-color: transparent;
 }
 
-.header-bar {
+.bar {
   margin: 0px 4px;
 }
 
-.header-item {
+.bar-item {
   background-color: $base;
   padding: 4px 12px;
   border-radius: 20px;
+}
+
+.interactive:hover {
+  background-color: $surface-0;
 }

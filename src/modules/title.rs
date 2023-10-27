@@ -37,7 +37,7 @@ pub fn title() -> impl Into<Node> {
     });
 
     label()
-        .class(vec!["header-item", "title"])
+        .class(vec!["bar-item", "title"])
         .valign(Align::Center)
         .vexpand(false)
         .ellipsize(EllipsizeMode::Middle)

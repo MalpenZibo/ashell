@@ -5,6 +5,7 @@ mod app;
 mod bar;
 mod modules;
 mod reactive_gtk;
+mod utils;
 
 #[tokio::main]
 async fn main() {
