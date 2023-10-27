@@ -77,7 +77,7 @@ impl<T, S: Signal<Item = T> + 'static> MaybeSignal<T> for Dynamic<T, S> {
 pub struct AsyncContext(Vec<Handle<()>>);
 
 impl AsyncContext {
-    fn forget(&mut self) {
+    pub fn forget(&mut self) {
         self.0.clear();
     }
 
