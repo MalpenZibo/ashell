@@ -1,10 +1,12 @@
 use futures_signals::signal::{Signal, SignalExt};
 
 mod center_box;
+mod container;
 mod label;
 mod node;
 mod spawn;
 
+pub use container::*;
 pub use center_box::*;
 pub use label::*;
 pub use node::*;
