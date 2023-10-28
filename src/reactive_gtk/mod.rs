@@ -109,3 +109,10 @@ impl Drop for AsyncContext {
         self.cancel();
     }
 }
+
+#[macro_export]
+macro_rules! nodes {
+    ( $( $child:expr ),* ) => {
+        vec!($( $child.into() ),*)
+    };
+}

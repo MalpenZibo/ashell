@@ -33,14 +33,12 @@ pub fn label() -> Label {
 
 impl Label {
     pub fn text(mut self, value: impl MaybeSignal<String>) -> Self {
-        let sub = value.subscribe({
+        if let Some(sub) = value.subscribe({
             let widget = self.widget.clone();
             move |value| {
                 widget.set_text(&value);
             }
-        });
-
-        if let Some(sub) = sub {
+        }) {
             self.ctx.add_subscription(sub);
         }
 
@@ -48,14 +46,12 @@ impl Label {
     }
 
     pub fn ellipsize(mut self, mode: impl MaybeSignal<EllipsizeMode>) -> Self {
-        let sub = mode.subscribe({
+        if let Some(sub) = mode.subscribe({
             let widget = self.widget.clone();
             move |mode| {
                 widget.set_ellipsize(mode.into());
             }
-        });
-
-        if let Some(sub) = sub {
+        }) {
             self.ctx.add_subscription(sub);
         }
 

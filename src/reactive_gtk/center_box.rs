@@ -13,10 +13,11 @@ pub fn centerbox() -> Centerbox {
 }
 
 impl Centerbox {
-    pub fn start(mut self, child: impl MaybeSignal<Option<Node>>) -> Self {
-        let sub = child.subscribe_with_ctx({
+    pub fn start<N: Into<Node>>(mut self, child: impl MaybeSignal<Option<N>>) -> Self {
+        match child.subscribe_with_ctx({
             let widget = self.widget.clone();
-            move |mut child: Option<Node>, ctx| {
+            move |child, ctx| {
+                let mut child = child.map(|child| child.into());
                 ctx.cancel();
                 if let Some(child) = child.as_mut() {
                     ctx.consume(child.get_ctx());
@@ -24,9 +25,7 @@ impl Centerbox {
                 let child_widget = child.as_ref().map(|child| child.get_widget().clone());
                 widget.set_start_widget(child_widget.as_ref());
             }
-        });
-
-        match sub {
+        }) {
             Subscription::Dynamic(sub) => {
                 self.ctx.add_subscription(sub);
             }
@@ -38,10 +37,11 @@ impl Centerbox {
         self
     }
 
-    pub fn center(mut self, child: impl MaybeSignal<Option<Node>>) -> Self {
-        let sub = child.subscribe_with_ctx({
+    pub fn center<N: Into<Node>>(mut self, child: impl MaybeSignal<Option<N>>) -> Self {
+        match child.subscribe_with_ctx({
             let widget = self.widget.clone();
-            move |mut child: Option<Node>, ctx| {
+            move |child, ctx| {
+                let mut child = child.map(|child| child.into());
                 ctx.cancel();
                 if let Some(child) = child.as_mut() {
                     ctx.consume(child.get_ctx());
@@ -49,9 +49,7 @@ impl Centerbox {
                 let child_widget = child.as_ref().map(|child| child.get_widget().clone());
                 widget.set_center_widget(child_widget.as_ref());
             }
-        });
-
-        match sub {
+        }) {
             Subscription::Dynamic(sub) => {
                 self.ctx.add_subscription(sub);
             }
@@ -63,10 +61,11 @@ impl Centerbox {
         self
     }
 
-    pub fn end(mut self, child: impl MaybeSignal<Option<Node>>) -> Self {
-        let sub = child.subscribe_with_ctx({
+    pub fn end<N: Into<Node>>(mut self, child: impl MaybeSignal<Option<N>>) -> Self {
+        match child.subscribe_with_ctx({
             let widget = self.widget.clone();
-            move |mut child: Option<Node>, ctx| {
+            move |child, ctx| {
+                let mut child = child.map(|child| child.into());
                 ctx.cancel();
                 if let Some(child) = child.as_mut() {
                     ctx.consume(child.get_ctx());
@@ -74,9 +73,7 @@ impl Centerbox {
                 let child_widget = child.as_ref().map(|child| child.get_widget().clone());
                 widget.set_end_widget(child_widget.as_ref());
             }
-        });
-
-        match sub {
+        }) {
             Subscription::Dynamic(sub) => {
                 self.ctx.add_subscription(sub);
             }

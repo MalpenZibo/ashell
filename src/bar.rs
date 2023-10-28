@@ -1,7 +1,7 @@
 use crate::{
     app::AppCtx,
     modules::{app_launcher, system_info, title},
-    reactive_gtk::{centerbox, container, Align, Node, NodeBuilder},
+    reactive_gtk::{centerbox, container, Align, Node, NodeBuilder}, nodes,
 };
 
 pub fn bar(app: AppCtx) -> impl Into<Node> {
@@ -14,22 +14,19 @@ pub fn bar(app: AppCtx) -> impl Into<Node> {
                 .spacing(4)
                 .vexpand(false)
                 .valign(Align::Center)
-                .children(vec![app_launcher().into()])
-                .into(),
+                .children(nodes![app_launcher()]),
         ))
         .center(Some(
             container()
                 .vexpand(false)
                 .valign(Align::Center)
-                .children(vec![title().into()])
-                .into(),
+                .children(nodes![title()]),
         ))
         .end(Some(
             container()
                 .spacing(4)
                 .vexpand(false)
                 .valign(Align::Center)
-                .children(vec![system_info().into()])
-                .into(),
+                .children(nodes![system_info()]),
         ))
 }

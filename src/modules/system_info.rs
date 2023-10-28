@@ -1,6 +1,6 @@
 use crate::{
-    reactive_gtk::{container, label, Node, NodeBuilder, Dynamic},
-    utils::poll,
+    reactive_gtk::{container, label, Dynamic, Node, NodeBuilder},
+    utils::poll, nodes,
 };
 use futures_signals::signal::Mutable;
 use std::time::Duration;
@@ -69,18 +69,10 @@ pub fn system_info() -> impl Into<Node> {
     container()
         .class(vec!["bar-item", "system-info"])
         .spacing(4)
-        .children(vec![
-            label()
-                .class(vec!["system-info-cpu"])
-                .text(Dynamic(cpu))
-                .into(),
-            label()
-                .class(vec!["system-info-ram"])
-                .text(Dynamic(ram))
-                .into(),
-            label()
-                .class(vec!["system-info-temp"])
-                .text(Dynamic(temp))
-                .into(),
+        .children(nodes![
+            label().class(vec!["system-info-cpu"]).text(Dynamic(cpu)),
+            label().class(vec!["system-info-ram"]).text(Dynamic(ram)),
+            label().class(vec!["system-info-temp"]).text(Dynamic(temp)),
+            container()
         ])
 }

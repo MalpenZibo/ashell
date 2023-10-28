@@ -1,4 +1,4 @@
-use super::{Node, AsyncContext, NodeBuilder, MaybeSignal, Subscription};
+use super::{AsyncContext, MaybeSignal, Node, NodeBuilder, Subscription};
 use gtk4::traits::{BoxExt, OrientableExt, WidgetExt};
 
 #[derive(Copy, Clone)]
@@ -72,7 +72,7 @@ impl Container {
     }
 
     pub fn children(mut self, children: impl MaybeSignal<Vec<Node>>) -> Self {
-        let sub = children.subscribe_with_ctx({
+        match children.subscribe_with_ctx({
             let widget = self.widget.clone();
             move |mut children, ctx| {
                 ctx.cancel();
@@ -85,9 +85,7 @@ impl Container {
                     ctx.consume(child.get_ctx());
                 }
             }
-        });
-
-        match sub {
+        }) {
             Subscription::Dynamic(sub) => {
                 self.ctx.add_subscription(sub);
             }

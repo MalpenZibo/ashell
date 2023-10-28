@@ -47,16 +47,12 @@ pub trait NodeBuilder: Sized {
     fn get_ctx(&mut self) -> &mut AsyncContext;
 
     fn class<'a>(mut self, value: impl MaybeSignal<Vec<&'a str>>) -> Self {
-        let sub = value.subscribe({
+        if let Some(sub) = value.subscribe({
             let widget = self.get_widget();
             move |value| {
-                widget.set_css_classes(
-                    &value
-                );
+                widget.set_css_classes(&value);
             }
-        });
-
-        if let Some(sub) = sub {
+        }) {
             self.get_ctx().add_subscription(sub);
         }
 
@@ -64,14 +60,12 @@ pub trait NodeBuilder: Sized {
     }
 
     fn vexpand(mut self, value: impl MaybeSignal<bool>) -> Self {
-        let sub = value.subscribe({
+        if let Some(sub) = value.subscribe({
             let widget = self.get_widget();
             move |value| {
                 widget.set_vexpand(value);
             }
-        });
-
-        if let Some(sub) = sub {
+        }) {
             self.get_ctx().add_subscription(sub);
         }
 
@@ -79,14 +73,12 @@ pub trait NodeBuilder: Sized {
     }
 
     fn hexpand(mut self, value: impl MaybeSignal<bool>) -> Self {
-        let sub = value.subscribe({
+        if let Some(sub) = value.subscribe({
             let widget = self.get_widget();
             move |value| {
                 widget.set_hexpand(value);
             }
-        });
-
-        if let Some(sub) = sub {
+        }) {
             self.get_ctx().add_subscription(sub);
         }
 
@@ -94,14 +86,12 @@ pub trait NodeBuilder: Sized {
     }
 
     fn valign(mut self, value: impl MaybeSignal<Align>) -> Self {
-        let sub = value.subscribe({
+        if let Some(sub) = value.subscribe({
             let widget = self.get_widget();
             move |value| {
                 widget.set_valign(value.into());
             }
-        });
-
-        if let Some(sub) = sub {
+        }) {
             self.get_ctx().add_subscription(sub);
         }
 
@@ -109,14 +99,12 @@ pub trait NodeBuilder: Sized {
     }
 
     fn halign(mut self, value: impl MaybeSignal<Align>) -> Self {
-        let sub = value.subscribe({
+        if let Some(sub) = value.subscribe({
             let widget = self.get_widget();
             move |value| {
                 widget.set_halign(value.into());
             }
-        });
-
-        if let Some(sub) = sub {
+        }) {
             self.get_ctx().add_subscription(sub);
         }
 
@@ -124,14 +112,12 @@ pub trait NodeBuilder: Sized {
     }
 
     fn active(mut self, value: impl MaybeSignal<bool>) -> Self {
-        let sub = value.subscribe({
+        if let Some(sub) = value.subscribe({
             let widget = self.get_widget();
             move |value| {
                 widget.set_sensitive(value);
             }
-        });
-
-        if let Some(sub) = sub {
+        }) {
             self.get_ctx().add_subscription(sub);
         }
 
@@ -139,14 +125,12 @@ pub trait NodeBuilder: Sized {
     }
 
     fn visible(mut self, value: impl MaybeSignal<bool>) -> Self {
-        let sub = value.subscribe({
+        if let Some(sub) = value.subscribe({
             let widget = self.get_widget();
             move |value| {
                 widget.set_visible(value);
             }
-        });
-
-        if let Some(sub) = sub {
+        }) {
             self.get_ctx().add_subscription(sub);
         }
 
@@ -154,14 +138,12 @@ pub trait NodeBuilder: Sized {
     }
 
     fn size(mut self, value: impl MaybeSignal<(i32, i32)>) -> Self {
-        let sub = value.subscribe({
+        if let Some(sub) = value.subscribe({
             let widget = self.get_widget();
             move |value| {
                 widget.set_size_request(value.0, value.1);
             }
-        });
-
-        if let Some(sub) = sub {
+        }) {
             self.get_ctx().add_subscription(sub);
         }
 
