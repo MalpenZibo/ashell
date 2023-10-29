@@ -17,3 +17,13 @@ window.background {
 .interactive:hover {
   background-color: $surface-0;
 }
+
+.workspace {
+  background-color: $peach;
+  border-radius: 16px;
+}
+
+.workspace.empty {
+  background-color: $surface-0;
+}
+
