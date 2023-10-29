@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+chrono = "0.4.31"
 futures = "0.3.28"
 futures-signals = "0.3.33"
 gdk4 = "0.7.3"
