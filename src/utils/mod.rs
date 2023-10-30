@@ -2,6 +2,7 @@ use std::time::Duration;
 use tokio::{spawn, task::JoinHandle, time::sleep};
 
 pub mod launcher;
+pub mod net;
 pub mod battery;
 
 pub fn poll<F>(mut f: F, every: Duration) -> JoinHandle<()>

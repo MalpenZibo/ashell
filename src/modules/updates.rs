@@ -69,7 +69,7 @@ pub fn updates(toggle_menu: Rc<dyn Fn(MenuType, MenuAction)>) -> impl Into<Node>
         let updates = updates.clone();
         async move {
             loop {
-                // updates.replace(check_update_now().await);
+                updates.replace(check_update_now().await);
                 sleep(Duration::from_secs(600)).await;
             }
         }

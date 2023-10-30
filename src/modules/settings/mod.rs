@@ -1,4 +1,7 @@
-use self::battery::{battery_indicator, battery_settings_indicator};
+use self::{
+    battery::{battery_indicator, battery_settings_indicator},
+    net::net_indicator,
+};
 use crate::{
     bar::{MenuAction, MenuType},
     nodes,
@@ -9,6 +12,7 @@ use crate::{
     utils::{
         battery::{get_battery_capacity, BatteryData},
         launcher::{lock, logout, poweroff, reboot, suspend},
+        net::net_monitor,
         poll,
     },
 };
@@ -16,8 +20,10 @@ use futures_signals::signal::Mutable;
 use std::{rc::Rc, time::Duration};
 
 mod battery;
+mod net;
 
 pub fn settings(toggle_menu: Rc<dyn Fn(MenuType, MenuAction)>) -> impl Into<Node> {
+    let (active_connection, vpn_list) = net_monitor();
     let battery = Mutable::new(get_battery_capacity());
 
     poll(
@@ -45,7 +51,10 @@ pub fn settings(toggle_menu: Rc<dyn Fn(MenuType, MenuAction)>) -> impl Into<Node
                 )
             }
         })
-        .children(nodes!(battery_indicator(battery)))
+        .children(nodes!(
+            net_indicator(active_connection),
+            battery_indicator(battery)
+        ))
 }
 
 pub enum Round {
