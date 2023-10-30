@@ -20,6 +20,16 @@ impl Node {
     }
 }
 
+impl NodeBuilder for Node {
+    fn get_ctx(&mut self) -> &mut AsyncContext {
+        &mut self.ctx
+    }
+
+    fn get_widget(&self) -> gtk4::Widget {
+        self.widget.clone()
+    }
+}
+
 #[derive(Copy, Clone)]
 pub enum Align {
     Fill,

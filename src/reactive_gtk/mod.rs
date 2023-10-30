@@ -4,12 +4,16 @@ mod center_box;
 mod container;
 mod label;
 mod node;
+mod overlay;
+mod separator;
 mod spawn;
 
-pub use container::*;
 pub use center_box::*;
+pub use container::*;
 pub use label::*;
 pub use node::*;
+pub use overlay::*;
+pub use separator::*;
 pub use spawn::*;
 
 pub struct Dynamic<T, S: Signal<Item = T>>(pub S);
@@ -91,13 +95,13 @@ impl AsyncContext {
         self.0.push(handle);
     }
 
-    fn consume(&mut self, ctx: &mut AsyncContext) {
+    pub fn consume(&mut self, ctx: &mut AsyncContext) {
         for handle in ctx.0.drain(..) {
             self.0.push(handle);
         }
     }
 
-    fn cancel(&mut self) {
+    pub fn cancel(&mut self) {
         for handle in self.0.drain(..) {
             handle.cancel();
         }

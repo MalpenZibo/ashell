@@ -2,10 +2,11 @@ use gdk4::Display;
 use gtk4::Application;
 use gtk4::{prelude::*, CssProvider, STYLE_PROVIDER_PRIORITY_APPLICATION};
 use gtk4_layer_shell::{Edge, Layer, LayerShell};
+use std::cell::RefCell;
 use std::ops::Deref;
 use std::rc::Rc;
 
-use crate::reactive_gtk::Node;
+use crate::reactive_gtk::{Node, AsyncContext};
 
 pub struct LayerOption {
     pub r#type: Layer,
@@ -145,14 +146,22 @@ impl AppCtx {
         if let Some(layer) = layer {
             layer.setup_window(&window);
         }
+
+        let ctx = Rc::new(RefCell::new(AsyncContext::default()));
+
         let close_window = CloseHandle({
             let window = window.clone();
-            Rc::new(move || window.close())
+            let ctx = ctx.clone();
+            Rc::new(move || {
+                window.close();
+                ctx.borrow_mut().cancel();
+            })
         });
+
         let mut root = root(close_window.clone()).into();
 
-        root.get_ctx().forget();
-
+        ctx.borrow_mut().consume(root.get_ctx());
+        
         window.set_child(Some(root.get_widget()));
         window.show();
 

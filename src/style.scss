@@ -4,6 +4,13 @@ window.background {
   background-color: transparent;
 }
 
+.menu {
+  background-color: $base;
+  border-radius: 16px;
+  margin: 0px 8px;
+  border: 1px solid $crust;
+}
+
 .bar {
   margin: 0px 4px;
 }
@@ -32,8 +39,63 @@ window.background {
   border-bottom-right-radius: 0px;
 }
 
+.battery.charging {
+  color: $green;
+}
+
+.battery.critical {
+  color: $red;
+}
+
 .settings {
   border-top-left-radius: 0px;
   border-bottom-left-radius: 0px;
 }
 
+.settings-item {
+  font-size: 16px;
+  background-color: $surface-0;
+  padding: 8px 13px;
+  border-radius: 20px;
+}
+
+.settings-item.interactive:hover {
+  background-color: $surface-1;
+}
+
+.settings-menu-top-margin {
+  margin-top: 16px;
+}
+
+.settings-menu-bottom-margin {
+  margin-bottom: 16px;
+}
+
+.section {
+  padding: 8px;
+}
+
+.overlay {
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+.overlay-top {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-top-right-radius: 16px;
+  border-top-left-radius: 16px;
+}
+
+.overlay-bottom {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-bottom-right-radius: 16px;
+  border-bottom-left-radius: 16px;
+}
+
+.menu-voice {
+  padding: 8px 16px;
+  border-radius: 8px;
+}
+
+.menu-voice:hover {
+  background-color: $surface-0;
+}

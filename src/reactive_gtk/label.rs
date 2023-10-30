@@ -19,6 +19,23 @@ impl From<EllipsizeMode> for gtk4::pango::EllipsizeMode {
     }
 }
 
+#[derive(Clone, Copy)]
+pub enum TextAlign {
+    Start,
+    Center,
+    End,
+}
+
+impl From<TextAlign> for f32 {
+    fn from(align: TextAlign) -> Self {
+        match align {
+            TextAlign::Start => 0.,
+            TextAlign::Center => 0.5,
+            TextAlign::End => 1.,
+        }
+    }
+}
+
 pub struct Label {
     widget: gtk4::Label,
     ctx: AsyncContext,
@@ -50,6 +67,19 @@ impl Label {
             let widget = self.widget.clone();
             move |mode| {
                 widget.set_ellipsize(mode.into());
+            }
+        }) {
+            self.ctx.add_subscription(sub);
+        }
+
+        self
+    }
+
+    pub fn text_halign(mut self, value: impl MaybeSignal<TextAlign>) -> Self {
+        if let Some(sub) = value.subscribe({
+            let widget = self.widget.clone();
+            move |value| {
+                widget.set_xalign(value.into());
             }
         }) {
             self.ctx.add_subscription(sub);
