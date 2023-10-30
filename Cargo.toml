@@ -13,5 +13,7 @@ grass = { version = "0.13.1", features = ["macro"] }
 gtk4 = "0.7.3"
 gtk4-layer-shell = "0.2.0"
 hyprland = "0.3.12"
+serde = "1.0.190"
+serde_json = "1.0.107"
 sysinfo = "0.29.10"
 tokio = { version = "1", features = ["full"] }

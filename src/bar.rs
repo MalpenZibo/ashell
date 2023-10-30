@@ -5,7 +5,7 @@ use gtk4_layer_shell::Layer;
 
 use crate::{
     app::{AppCtx, CloseHandle, LayerOption},
-    modules::{app_launcher, clock, settings, system_info, title, workspaces},
+    modules::{app_launcher, clock, settings, system_info, title, updates, workspaces},
     nodes,
     reactive_gtk::{centerbox, container, overlay, Align, Node, NodeBuilder},
 };
@@ -89,7 +89,8 @@ pub fn bar(app: AppCtx) -> impl Into<Node> {
                 .spacing(4)
                 .vexpand(false)
                 .valign(Align::Center)
-                .children(nodes![app_launcher(), workspaces()]),
+                .children(nodes![app_launcher(), updates(
+                        toggle_menu.clone()), workspaces()]),
         ))
         .center(Some(
             container()

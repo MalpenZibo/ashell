@@ -25,6 +25,10 @@ window.background {
   background-color: $surface-0;
 }
 
+.icon-position-fix {
+  padding: 5px 10px 4px 7px;
+}
+
 .workspace {
   background-color: $peach;
   border-radius: 16px;
@@ -50,6 +54,18 @@ window.background {
 .settings {
   border-top-left-radius: 0px;
   border-bottom-left-radius: 0px;
+}
+
+.updates-menu {
+  padding: 16px;
+}
+
+.updates-list {
+  padding: 4px 16px 4px 0px;
+}
+
+.small-text {
+  font-size: 12px;
 }
 
 .settings-item {

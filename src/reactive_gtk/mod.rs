@@ -5,6 +5,7 @@ mod container;
 mod label;
 mod node;
 mod overlay;
+mod scrolled_window;
 mod separator;
 mod spawn;
 
@@ -13,6 +14,7 @@ pub use container::*;
 pub use label::*;
 pub use node::*;
 pub use overlay::*;
+pub use scrolled_window::*;
 pub use separator::*;
 pub use spawn::*;
 

@@ -87,6 +87,19 @@ impl Label {
 
         self
     }
+
+    pub fn text_valign(mut self, value: impl MaybeSignal<TextAlign>) -> Self {
+        if let Some(sub) = value.subscribe({
+            let widget = self.widget.clone();
+            move |value| {
+                widget.set_yalign(value.into());
+            }
+        }) {
+            self.ctx.add_subscription(sub);
+        }
+
+        self
+    }
 }
 
 impl NodeBuilder for Label {
