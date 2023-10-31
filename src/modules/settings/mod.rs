@@ -6,11 +6,12 @@ use crate::{
     bar::{MenuAction, MenuType},
     nodes,
     reactive_gtk::{
-        container, label, overlay, separator, Align, Dynamic, Node, NodeBuilder, Orientation,
-        TextAlign,
+        container, label, overlay, scale, separator, Align, Dynamic, MaybeSignal, Node,
+        NodeBuilder, Orientation, TextAlign,
     },
     utils::{
         battery::{get_battery_capacity, BatteryData},
+        brightness::{brightness_monitor, set_brightness},
         launcher::{lock, logout, poweroff, reboot, suspend},
         net::net_monitor,
         poll,
@@ -19,6 +20,7 @@ use crate::{
 use futures_signals::signal::Mutable;
 use std::{rc::Rc, time::Duration};
 
+mod audio;
 mod battery;
 mod net;
 
@@ -86,22 +88,16 @@ pub fn section(
             }))
         })
         .collect();
-    let mut main_section = vec![overlay()
-        .children(vec![
-            container()
-                .class(vec!["section"])
-                .children(nodes!(content))
-                .into(),
-            container()
-                .class(vec!["overlay"])
-                .on_click({
-                    let submenu = submenu.clone();
-                    move || submenu.set(None)
-                })
-                .visible(Dynamic(submenu.signal_ref(|submenu| submenu.is_some())))
-                .into(),
-        ])
-        .into()];
+    let mut main_section = nodes![overlay().children(nodes![
+        container().class(vec!["section"]).children(nodes!(content)),
+        container()
+            .class(vec!["overlay"])
+            .on_click({
+                let submenu = submenu.clone();
+                move || submenu.set(None)
+            })
+            .visible(Dynamic(submenu.signal_ref(|submenu| submenu.is_some())))
+    ])];
 
     main_section.append(&mut submenu_sections);
 
@@ -125,8 +121,55 @@ pub fn vmargin(submenu: Mutable<Option<SubMenuType>>, round: Round) -> impl Into
     ))
 }
 
+pub fn slider(
+    indicator: impl MaybeSignal<String>,
+    indicator_classes: Vec<&str>,
+    value: Mutable<f64>,
+    range: (f64, f64),
+    on_change: impl Fn(f64) + 'static,
+    on_toggle: Option<impl Fn() + 'static>,
+    with_menu: bool,
+) -> impl Into<Node> {
+    let indicator_classes = [indicator_classes, {
+        if on_toggle.is_none() {
+            vec!["settings-item"]
+        } else {
+            vec!["settings-item", "interactive"]
+        }
+    }]
+    .concat();
+    let mut children = nodes!(
+        label()
+            .class(indicator_classes)
+            .text(indicator),
+        scale()
+            .hexpand(true)
+            .value(Dynamic(value.clone().signal()))
+            .round_digits(0)
+            .range(range)
+            .on_change(move |new_value| {
+                value.replace(new_value);
+                on_change(new_value);
+            })
+    );
+
+    if with_menu {
+        children.push(
+            label()
+                .class(vec!["settings-item", "interactive"])
+                .text("󰁔".to_string())
+                .into(),
+        );
+    }
+
+    container()
+        .class(vec!["settings-slider"])
+        .children(children)
+}
+
 pub fn settings_menu(battery: Mutable<Option<BatteryData>>) -> impl Into<Node> {
     let submenu: Mutable<Option<SubMenuType>> = Mutable::new(None);
+    let brightness = brightness_monitor();
 
     container()
         .orientation(Orientation::Vertical)
@@ -156,6 +199,21 @@ pub fn settings_menu(battery: Mutable<Option<BatteryData>>) -> impl Into<Node> {
                     ))
                 ),),
                 vec!(power_submenu()),
+            ),
+            section(
+                submenu.clone(),
+                slider(
+                    "󰃟".to_string(),
+                    vec!("brightness-icon-fix"),
+                    brightness.clone(),
+                    (0., 255.),
+                    |value| {
+                        set_brightness(value as u32);
+                    },
+                    None::<fn()>,
+                    false
+                ),
+                vec!(),
             ),
             vmargin(submenu.clone(), Round::Bottom)
         ))

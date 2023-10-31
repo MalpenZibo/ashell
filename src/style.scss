@@ -15,6 +15,14 @@ window.background {
   margin: 0px 4px;
 }
 
+.start-bar {
+  margin-right: 4px;
+}
+
+.end-bar {
+  margin-left: 4px;
+}
+
 .bar-item {
   background-color: $base;
   padding: 4px 8px;
@@ -73,6 +81,10 @@ window.background {
   background-color: $surface-0;
   padding: 8px 13px;
   border-radius: 20px;
+}
+
+.brightness-icon-fix {
+  padding: 9px 14px 7px 10px;
 }
 
 .settings-item.interactive:hover {

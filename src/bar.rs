@@ -86,20 +86,26 @@ pub fn bar(app: AppCtx) -> impl Into<Node> {
         .vexpand(false)
         .start(Some(
             container()
+                .class(vec!["start-bar"])
                 .spacing(4)
                 .vexpand(false)
                 .valign(Align::Center)
-                .children(nodes![app_launcher(), updates(
-                        toggle_menu.clone()), workspaces()]),
+                .children(nodes![
+                    app_launcher(),
+                    updates(toggle_menu.clone()),
+                    workspaces()
+                ]),
         ))
         .center(Some(
             container()
+                .class(vec!["center-bar"])
                 .vexpand(false)
                 .valign(Align::Center)
                 .children(nodes![title()]),
         ))
         .end(Some(
             container()
+                .class(vec!["end-bar"])
                 .spacing(4)
                 .vexpand(false)
                 .valign(Align::Center)
