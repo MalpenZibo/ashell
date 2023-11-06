@@ -51,6 +51,14 @@ window.background {
   border-bottom-right-radius: 0px;
 }
 
+.source {
+  color: $red;
+}
+
+.connection {
+  padding-right: 4px;
+}
+
 .battery.charging {
   color: $green;
 }

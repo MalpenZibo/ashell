@@ -35,7 +35,10 @@ pub fn source_indicator(sources: Mutable<Vec<Source>>) -> impl Into<Node> {
     });
     let visible = sources.signal_ref(|sources| sources.iter().any(|s| s.active));
 
-    label().text(Dynamic(format)).visible(Dynamic(visible))
+    label()
+        .class(vec!["source"])
+        .text(Dynamic(format))
+        .visible(Dynamic(visible))
 }
 
 pub fn sink_indicator(sinks: Mutable<Vec<Sink>>) -> impl Into<Node> {
@@ -52,7 +55,9 @@ pub fn sink_indicator(sinks: Mutable<Vec<Sink>>) -> impl Into<Node> {
             .unwrap_or_default()
     });
 
-    label().text(Dynamic(format))
+    label()
+        .class(vec!["sink"])
+        .text(Dynamic(format))
 }
 
 pub fn sinks_settings(

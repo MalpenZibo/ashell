@@ -18,7 +18,10 @@ pub fn net_indicator(
 pub fn vpn_indicator(vpn_list: Mutable<Vec<Vpn>>) -> impl Into<Node> {
     let visible = vpn_list.signal_ref(|vpn_list| !vpn_list.is_empty());
 
-    label().text("󰖂".to_string()).visible(Dynamic(visible))
+    label()
+        .class(vec!["vpn"])
+        .text("󰖂".to_string())
+        .visible(Dynamic(visible))
 }
 
 pub fn connection_indicator(
@@ -32,5 +35,8 @@ pub fn connection_indicator(
     });
     let visible = active_connection.signal_ref(|active_connection| active_connection.is_some());
 
-    label().text(Dynamic(format)).visible(Dynamic(visible))
+    label()
+        .class(vec!["connection"])
+        .text(Dynamic(format))
+        .visible(Dynamic(visible))
 }
