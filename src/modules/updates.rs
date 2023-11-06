@@ -103,12 +103,12 @@ pub fn updates(toggle_menu: Rc<dyn Fn(MenuType, MenuAction)>) -> impl Into<Node>
                 .text("󰗠".to_string())
                 .text_halign(TextAlign::Center)
                 .text_valign(TextAlign::Center)
-                .visible(Dynamic(updates.signal_ref(|updates| !updates.is_empty()))),
+                .visible(Dynamic(updates.signal_ref(|updates| updates.is_empty()))),
             label()
                 .text("󰳛".to_string())
                 .text_halign(TextAlign::Center)
                 .text_valign(TextAlign::Center)
-                .visible(Dynamic(updates.signal_ref(|updates| updates.is_empty()))),
+                .visible(Dynamic(updates.signal_ref(|updates| !updates.is_empty()))),
             label()
                 .text(Dynamic(
                     updates.signal_ref(|updates| updates.len().to_string())
