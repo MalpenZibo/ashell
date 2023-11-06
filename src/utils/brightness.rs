@@ -2,7 +2,6 @@ use std::{
     process::{Command, Stdio},
     time::Duration,
 };
-
 use futures_signals::signal::Mutable;
 
 use crate::utils::poll;

@@ -1,4 +1,5 @@
 use self::{
+    audio::{audio_indicator, sinks_settings, sources_settings},
     battery::{battery_indicator, battery_settings_indicator},
     net::net_indicator,
 };
@@ -10,6 +11,7 @@ use crate::{
         NodeBuilder, Orientation, TextAlign,
     },
     utils::{
+        audio::{audio_monitor, Sink, Source},
         battery::{get_battery_capacity, BatteryData},
         brightness::{brightness_monitor, set_brightness},
         launcher::{lock, logout, poweroff, reboot, suspend},
@@ -26,6 +28,7 @@ mod net;
 
 pub fn settings(toggle_menu: Rc<dyn Fn(MenuType, MenuAction)>) -> impl Into<Node> {
     let (active_connection, vpn_list) = net_monitor();
+    let (sinks, sources) = audio_monitor();
     let battery = Mutable::new(get_battery_capacity());
 
     poll(
@@ -43,18 +46,29 @@ pub fn settings(toggle_menu: Rc<dyn Fn(MenuType, MenuAction)>) -> impl Into<Node
         .spacing(8)
         .on_click({
             let battery = battery.clone();
+            let sinks = sinks.clone();
+            let sources = sources.clone();
             move || {
                 toggle_menu(
                     MenuType::Settings,
                     MenuAction::Open(Box::new({
                         let battery = battery.clone();
-                        move || (settings_menu(battery.clone()).into(), Align::End)
+                        let sinks = sinks.clone();
+                        let sources = sources.clone();
+                        move || {
+                            (
+                                settings_menu(battery.clone(), sinks.clone(), sources.clone())
+                                    .into(),
+                                Align::End,
+                            )
+                        }
                     })),
                 )
             }
         })
         .children(nodes!(
-            net_indicator(active_connection),
+            audio_indicator(sinks, sources),
+            net_indicator(active_connection, vpn_list),
             battery_indicator(battery)
         ))
 }
@@ -67,12 +81,15 @@ pub enum Round {
 #[derive(Clone, Copy, PartialEq)]
 pub enum SubMenuType {
     Power,
+    Sinks,
+    Sources,
 }
 
 pub fn section(
     submenu: Mutable<Option<SubMenuType>>,
     content: impl Into<Node>,
     children: Vec<(SubMenuType, Node)>,
+    visible: impl MaybeSignal<bool>,
 ) -> impl Into<Node> {
     let mut submenu_sections: Vec<Node> = children
         .into_iter()
@@ -104,6 +121,7 @@ pub fn section(
     container()
         .orientation(Orientation::Vertical)
         .children(main_section)
+        .visible(visible)
 }
 
 pub fn vmargin(submenu: Mutable<Option<SubMenuType>>, round: Round) -> impl Into<Node> {
@@ -124,11 +142,12 @@ pub fn vmargin(submenu: Mutable<Option<SubMenuType>>, round: Round) -> impl Into
 pub fn slider(
     indicator: impl MaybeSignal<String>,
     indicator_classes: Vec<&str>,
-    value: Mutable<f64>,
+    value: impl MaybeSignal<f64>,
     range: (f64, f64),
     on_change: impl Fn(f64) + 'static,
     on_toggle: Option<impl Fn() + 'static>,
-    with_menu: bool,
+    on_submenu_toggle: Option<impl Fn() + 'static>,
+    submenu_toggle_visibility: impl MaybeSignal<bool>,
 ) -> impl Into<Node> {
     let indicator_classes = [indicator_classes, {
         if on_toggle.is_none() {
@@ -138,26 +157,32 @@ pub fn slider(
         }
     }]
     .concat();
+
+    let mut indicator = label().class(indicator_classes).text(indicator);
+
+    if let Some(on_toggle) = on_toggle {
+        indicator = indicator.on_click(on_toggle);
+    }
+
     let mut children = nodes!(
-        label()
-            .class(indicator_classes)
-            .text(indicator),
+        indicator,
         scale()
             .hexpand(true)
-            .value(Dynamic(value.clone().signal()))
+            .value(value)
             .round_digits(0)
             .range(range)
             .on_change(move |new_value| {
-                value.replace(new_value);
                 on_change(new_value);
             })
     );
 
-    if with_menu {
+    if let Some(on_submenu_toggle) = on_submenu_toggle {
         children.push(
             label()
                 .class(vec!["settings-item", "interactive"])
                 .text("󰁔".to_string())
+                .visible(submenu_toggle_visibility)
+                .on_click(on_submenu_toggle)
                 .into(),
         );
     }
@@ -167,7 +192,11 @@ pub fn slider(
         .children(children)
 }
 
-pub fn settings_menu(battery: Mutable<Option<BatteryData>>) -> impl Into<Node> {
+pub fn settings_menu(
+    battery: Mutable<Option<BatteryData>>,
+    sinks: Mutable<Vec<Sink>>,
+    sources: Mutable<Vec<Source>>,
+) -> impl Into<Node> {
     let submenu: Mutable<Option<SubMenuType>> = Mutable::new(None);
     let brightness = brightness_monitor();
 
@@ -199,21 +228,27 @@ pub fn settings_menu(battery: Mutable<Option<BatteryData>>) -> impl Into<Node> {
                     ))
                 ),),
                 vec!(power_submenu()),
+                true
             ),
+            sinks_settings(submenu.clone(), sinks.clone()),
+            sources_settings(submenu.clone(), sources.clone()),
             section(
                 submenu.clone(),
                 slider(
                     "󰃟".to_string(),
                     vec!("brightness-icon-fix"),
-                    brightness.clone(),
+                    Dynamic(brightness.clone().signal()),
                     (0., 255.),
-                    |value| {
+                    move |value| {
                         set_brightness(value as u32);
+                        brightness.replace(value);
                     },
+                    None::<fn()>,
                     None::<fn()>,
                     false
                 ),
                 vec!(),
+                true
             ),
             vmargin(submenu.clone(), Round::Bottom)
         ))

@@ -1,12 +1,12 @@
+use futures_signals::signal::Mutable;
+use serde::Deserialize;
 use std::{
     io::{BufRead, BufReader},
-    process::{Command, Stdio},
+    process::Stdio,
     thread,
     time::{Duration, Instant},
 };
-
-use futures_signals::signal::Mutable;
-use serde::Deserialize;
+use tokio::process::Command;
 
 #[derive(Deserialize, Debug)]
 struct RawProperties {
@@ -110,17 +110,15 @@ impl Source {
     }
 }
 
-fn get_sinks() -> Vec<Sink> {
+async fn get_sinks() -> Vec<Sink> {
     let command = Command::new("pactl")
         .args(["-f", "json", "list", "sinks"])
         .stdout(Stdio::piped())
-        .spawn()
+        .output()
+        .await
         .expect("Failed to execute pactl command");
 
-    let output = command
-        .wait_with_output()
-        .expect("Failed to read jc command output");
-    let output = String::from_utf8_lossy(&output.stdout);
+    let output = String::from_utf8_lossy(&command.stdout);
 
     let raw_entry: Vec<RawEntry> = serde_json::from_str(&output).unwrap();
 
@@ -129,61 +127,71 @@ fn get_sinks() -> Vec<Sink> {
         .flat_map(|s| {
             s.ports
                 .iter()
-                .map(|p| Sink {
-                    index: s.index,
-                    name: p.name.to_string(),
-                    description: format!("{} - {}", p.description, s.properties.device_description),
-                    r#type: p.r#type.to_string(),
-                    volume: {
-                        let left = s
-                            .volume
-                            .front_left
-                            .value_percent
-                            .replace('%', "")
-                            .parse::<u32>()
-                            .unwrap();
+                .filter_map(|p| {
+                    if p.availability != "not available" {
+                        Some(Sink {
+                            index: s.index,
+                            name: p.name.to_string(),
+                            description: format!(
+                                "{} - {}",
+                                p.description, s.properties.device_description
+                            ),
+                            r#type: p.r#type.to_string(),
+                            volume: {
+                                let left = s
+                                    .volume
+                                    .front_left
+                                    .value_percent
+                                    .replace('%', "")
+                                    .parse::<u32>()
+                                    .unwrap();
 
-                        let right = s
-                            .volume
-                            .front_right
-                            .value_percent
-                            .replace('%', "")
-                            .parse::<u32>()
-                            .unwrap();
+                                let right = s
+                                    .volume
+                                    .front_right
+                                    .value_percent
+                                    .replace('%', "")
+                                    .parse::<u32>()
+                                    .unwrap();
 
-                        ((left as f32 * f32::abs((-1. + s.balance) / 2.))
-                            + right as f32 * f32::abs((1. + s.balance) / 2.))
-                            as u32
-                    },
-                    mute: s.mute,
-                    active: s.active_port.as_ref() == Some(&p.name),
+                                ((left as f32 * f32::abs((-1. + s.balance) / 2.))
+                                    + right as f32 * f32::abs((1. + s.balance) / 2.))
+                                    as u32
+                            },
+                            mute: s.mute,
+                            active: s.active_port.as_ref() == Some(&p.name),
+                        })
+                    } else {
+                        None
+                    }
                 })
                 .collect::<Vec<Sink>>()
         })
         .collect();
 
-    println!("Sinks: {:?}", sinks);
-
     sinks
 }
 
-fn get_sources() -> Vec<Source> {
+async fn get_sources() -> Vec<Source> {
     let command = Command::new("pactl")
         .args(["-f", "json", "list", "sources"])
         .stdout(Stdio::piped())
-        .spawn()
+        .output()
+        .await
         .expect("Failed to execute pactl command");
 
-    let output = command
-        .wait_with_output()
-        .expect("Failed to read jc command output");
-    let output = String::from_utf8_lossy(&output.stdout);
+    let output = String::from_utf8_lossy(&command.stdout);
 
     let raw_entry: Vec<RawEntry> = serde_json::from_str(&output).unwrap();
 
     let sources = raw_entry
         .iter()
-        .filter(|s| !s.ports.is_empty())
+        .filter(|s| {
+            !s.ports.is_empty()
+                && s.ports
+                    .iter()
+                    .any(|p| p.r#type == "Mic" && p.availability != "not available")
+        })
         .flat_map(|s| {
             s.ports
                 .iter()
@@ -222,171 +230,171 @@ fn get_sources() -> Vec<Source> {
     sources
 }
 
-pub fn audio_subscribe(sinks: Mutable<Vec<Sink>>, sources: Mutable<Vec<Source>>) {
-    sinks.replace(get_sinks());
-    sources.replace(get_sources());
+pub fn audio_monitor() -> (Mutable<Vec<Sink>>, Mutable<Vec<Source>>) {
+    let sinks = Mutable::new(vec![]);
+    let sources = Mutable::new(vec![]);
 
-    tokio::spawn(async move {
-        let mut handle = Command::new("pactl")
-            .arg("subscribe")
-            .stdout(Stdio::piped())
-            .stdin(std::process::Stdio::null())
-            .spawn()
-            .expect("Failed to execute command");
+    tokio::spawn({
+        let sinks = sinks.clone();
+        let sources = sources.clone();
 
-        let mut stdout_lines = BufReader::new(handle.stdout.take().unwrap()).lines();
+        async move {
+            sinks.replace(get_sinks().await);
+            sources.replace(get_sources().await);
 
-        let mut last_time = Instant::now();
-        loop {
-            let line = stdout_lines.next().unwrap().unwrap();
-            let delta = last_time.elapsed();
+            let mut handle = std::process::Command::new("pactl")
+                .arg("subscribe")
+                .stdout(Stdio::piped())
+                .stdin(std::process::Stdio::null())
+                .spawn()
+                .expect("Failed to execute command");
 
-            if delta.as_millis() > 50 {
-                thread::sleep(Duration::from_millis(500));
-                println!("stdout: {}", line);
+            let mut stdout_lines = BufReader::new(handle.stdout.take().unwrap()).lines();
 
-                sinks.replace(get_sinks());
-                sources.replace(get_sources());
+            let mut last_time = Instant::now();
+            loop {
+                let line = stdout_lines.next().unwrap().unwrap();
+                let delta = last_time.elapsed();
 
-                last_time = Instant::now();
+                if delta.as_millis() > 50 {
+                    thread::sleep(Duration::from_millis(500));
+
+                    sinks.replace(get_sinks().await);
+                    sources.replace(get_sources().await);
+
+                    last_time = Instant::now();
+                }
             }
         }
     });
+
+    (sinks, sources)
 }
 
-pub fn toggle_volume(sinks: Mutable<Vec<Sink>>) {
-    let command = Command::new("pactl")
+pub async fn toggle_volume(sinks: Mutable<Vec<Sink>>) {
+    Command::new("pactl")
         .args(["set-sink-mute", "@DEFAULT_SINK@", "toggle"])
         .stdout(Stdio::piped())
-        .spawn()
+        .output()
+        .await
         .expect("Failed to execute pactl command");
 
-    command
-        .wait_with_output()
-        .expect("Failed to read pactl toggle command output");
-
-    sinks.replace(get_sinks());
+    sinks.replace(get_sinks().await);
 }
 
-pub fn set_volume(sinks: Mutable<Vec<Sink>>, new_volume: u32) {
+pub async fn set_volume(sinks: Mutable<Vec<Sink>>, new_volume: u32) {
     let command = Command::new("pactl")
         .args(["get-sink-mute", "@DEFAULT_SINK@"])
         .stdout(Stdio::piped())
-        .spawn()
+        .output()
+        .await
         .expect("Failed to execute pactl command");
 
-    let output = command
-        .wait_with_output()
-        .expect("Failed to read pactl toggle command output");
-    let output = String::from_utf8_lossy(&output.stdout);
+    let output = String::from_utf8_lossy(&command.stdout);
     if output == "Mute: yes" && new_volume > 0 {
-        let command = Command::new("pactl")
+        Command::new("pactl")
             .args(["set-sink-mute", "@DEFAULT_SINK@", "toggle"])
             .stdout(Stdio::piped())
-            .spawn()
+            .output()
+            .await
             .expect("Failed to execute pactl command");
-
-        command
-            .wait_with_output()
-            .expect("Failed to read pactl toggle command output");
     }
 
-    let command = Command::new("pactl")
+    Command::new("pactl")
         .args([
             "set-sink-volume",
             "@DEFAULT_SINK@",
             &format!("{}%", new_volume),
         ])
         .stdout(Stdio::piped())
-        .spawn()
+        .output()
+        .await
         .expect("Failed to execute pactl command");
 
-    command
-        .wait_with_output()
-        .expect("Failed to read pactl toggle command output");
-
-    sinks.replace(get_sinks());
+    sinks.replace(get_sinks().await);
 }
 
-pub fn set_sink(sinks: Mutable<Vec<Sink>>, index: u32, name: String) {
-    let command = Command::new("pactl")
-        .args(["set-sink-port", &format!("{}", index), &name])
+pub async fn set_sink(sinks: Mutable<Vec<Sink>>, index: u32, name: String) {
+    Command::new("pactl")
+        .arg("set-default-sink")
+        .arg(&format!("{}", index))
         .stdout(Stdio::piped())
-        .spawn()
+        .output()
+        .await
         .expect("Failed to execute pactl command");
 
-    command
-        .wait_with_output()
-        .expect("Failed to read pactl toggle command output");
+    Command::new("pactl")
+        .arg("set-sink-port")
+        .arg(&format!("{}", index))
+        .arg(&name)
+        .stdout(Stdio::piped())
+        .output()
+        .await
+        .expect("Failed to execute pactl command");
 
-    sinks.replace(get_sinks());
+    sinks.replace(get_sinks().await);
 }
 
-pub fn set_microphone(sources: Mutable<Vec<Source>>, new_volume: u32) {
+pub async fn set_microphone(sources: Mutable<Vec<Source>>, new_volume: u32) {
     let command = Command::new("pactl")
         .args(["get-source-mute", "@DEFAULT_SOURCE@"])
         .stdout(Stdio::piped())
-        .spawn()
+        .output()
+        .await
         .expect("Failed to execute pactl command");
 
-    let output = command
-        .wait_with_output()
-        .expect("Failed to read pactl toggle command output");
-    let output = String::from_utf8_lossy(&output.stdout);
+    let output = String::from_utf8_lossy(&command.stdout);
     if output == "Mute: yes" && new_volume > 0 {
-        let command = Command::new("pactl")
+        Command::new("pactl")
             .args(["set-source-mute", "@DEFAULT_SOURCE@", "toggle"])
             .stdout(Stdio::piped())
-            .spawn()
+            .output()
+            .await
             .expect("Failed to execute pactl command");
-
-        command
-            .wait_with_output()
-            .expect("Failed to read pactl toggle command output");
     }
 
-    let command = Command::new("pactl")
+    Command::new("pactl")
         .args([
             "set-source-volume",
             "@DEFAULT_SOURCE@",
             &format!("{}%", new_volume),
         ])
         .stdout(Stdio::piped())
-        .spawn()
+        .output()
+        .await
         .expect("Failed to execute pactl command");
 
-    command
-        .wait_with_output()
-        .expect("Failed to read pactl toggle command output");
-
-    sources.replace(get_sources());
+    sources.replace(get_sources().await);
 }
 
-pub fn toggle_microphone(sources: Mutable<Vec<Source>>) {
-    let command = Command::new("pactl")
+pub async fn toggle_microphone(sources: Mutable<Vec<Source>>) {
+    Command::new("pactl")
         .args(["set-source-mute", "@DEFAULT_SOURCE@", "toggle"])
         .stdout(Stdio::piped())
-        .spawn()
+        .output()
+        .await
         .expect("Failed to execute pactl command");
 
-    command
-        .wait_with_output()
-        .expect("Failed to read pactl toggle command output");
-
-    sources.replace(get_sources());
+    sources.replace(get_sources().await);
 }
 
-pub fn set_source(sources: Mutable<Vec<Source>>, index: u32, name: String) {
-    let command = Command::new("pactl")
-        .args(["set-source-port", &format!("{}", index), &name])
+pub async fn set_source(sources: Mutable<Vec<Source>>, index: u32, name: String) {
+    Command::new("pactl")
+        .arg("set-default-source")
+        .arg(&format!("{}", index))
         .stdout(Stdio::piped())
-        .spawn()
+        .output()
+        .await
         .expect("Failed to execute pactl command");
 
-    command
-        .wait_with_output()
-        .expect("Failed to read pactl toggle command output");
+    Command::new("pactl")
+        .arg("set-source-port")
+        .arg(&format!("{}", index))
+        .arg(&name)
+        .stdout(Stdio::piped())
+        .output()
+        .await
+        .expect("Failed to execute pactl command");
 
-    sources.replace(get_sources());
+    sources.replace(get_sources().await);
 }
-
