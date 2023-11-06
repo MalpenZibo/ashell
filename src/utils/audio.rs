@@ -1,12 +1,14 @@
 use futures_signals::signal::Mutable;
 use serde::Deserialize;
 use std::{
-    io::{BufRead, BufReader},
     process::Stdio,
-    thread,
     time::{Duration, Instant},
 };
-use tokio::process::Command;
+use tokio::{
+    io::{AsyncBufReadExt, BufReader},
+    process::Command,
+    time::sleep,
+};
 
 #[derive(Deserialize, Debug)]
 struct RawProperties {
@@ -242,27 +244,36 @@ pub fn audio_monitor() -> (Mutable<Vec<Sink>>, Mutable<Vec<Source>>) {
             sinks.replace(get_sinks().await);
             sources.replace(get_sources().await);
 
-            let mut handle = std::process::Command::new("pactl")
+            let mut handle = Command::new("pactl")
                 .arg("subscribe")
                 .stdout(Stdio::piped())
                 .stdin(std::process::Stdio::null())
                 .spawn()
                 .expect("Failed to execute command");
 
-            let mut stdout_lines = BufReader::new(handle.stdout.take().unwrap()).lines();
+            if let Some(ref mut stdout) = handle.stdout {
+                let reader = BufReader::new(stdout);
+                let mut lines = reader.lines();
 
-            let mut last_time = Instant::now();
-            loop {
-                let line = stdout_lines.next().unwrap().unwrap();
-                let delta = last_time.elapsed();
+                let mut last_time = Instant::now();
+                loop {
+                    let _line = lines
+                        .next_line()
+                        .await
+                        .ok()
+                        .flatten()
+                        .unwrap_or("".to_string());
 
-                if delta.as_millis() > 50 {
-                    thread::sleep(Duration::from_millis(500));
+                    let delta = last_time.elapsed();
 
-                    sinks.replace(get_sinks().await);
-                    sources.replace(get_sources().await);
+                    if delta.as_millis() > 50 {
+                        sleep(Duration::from_millis(500)).await;
 
-                    last_time = Instant::now();
+                        sinks.replace(get_sinks().await);
+                        sources.replace(get_sources().await);
+
+                        last_time = Instant::now();
+                    }
                 }
             }
         }
