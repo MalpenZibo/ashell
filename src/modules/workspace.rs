@@ -1,4 +1,4 @@
-use crate::reactive_gtk::{container, Align, Dynamic, Node, NodeBuilder, label, TextAlign};
+use crate::reactive_gtk::{container, label, Align, Dynamic, Node, NodeBuilder, TextAlign};
 use futures_signals::signal::Mutable;
 use hyprland::{
     event_listener::EventListener,
@@ -12,6 +12,8 @@ pub struct Workspace {
     pub active: bool,
     pub windows: u16,
 }
+
+const MONITOR: [&str; 3] = ["eDP-1", "DP-1", "DP-2"];
 
 pub fn workspaces() -> impl Into<Node> {
     let get_workspaces = || {
@@ -98,6 +100,13 @@ pub fn workspaces() -> impl Into<Node> {
                 }
             });
 
+            event_listener.add_window_moved_handler({
+                let workspaces = workspaces.clone();
+                move |_| {
+                    workspaces.replace(get_workspaces());
+                }
+            });
+
             event_listener
                 .start_listener_async()
                 .await
@@ -108,11 +117,25 @@ pub fn workspaces() -> impl Into<Node> {
     let workspaces = workspaces.signal_ref(|w| {
         w.iter()
             .map(|w| {
+                let monitor_class = *w
+                    .monitor
+                    .as_ref()
+                    .and_then(|m| MONITOR.iter().find(|m1| m == *m1))
+                    .unwrap_or(&MONITOR[0]);
                 label()
                     .class(if w.windows > 0 {
-                        vec!["workspace", if w.active { "active" } else { "" } ]
+                        vec![
+                            "workspace",
+                            monitor_class,
+                            if w.active { "active" } else { "" },
+                        ]
                     } else {
-                        vec!["workspace", "empty", if w.active { "active" } else { "" }]
+                        vec![
+                            "workspace",
+                            monitor_class,
+                            "empty",
+                            if w.active { "active" } else { "" },
+                        ]
                     })
                     .text(w.id.to_string())
                     .text_halign(TextAlign::Center)
@@ -124,7 +147,7 @@ pub fn workspaces() -> impl Into<Node> {
 
     container()
         .spacing(4)
-        .valign(Align::Center)
+        .vexpand(true)
         .class(vec!["bar-item", "workspaces"])
         .children(Dynamic(workspaces))
 }

@@ -40,6 +40,7 @@ struct RawPort {
 #[derive(Deserialize, Debug)]
 struct RawEntry {
     index: u32,
+    name: String,
     active_port: Option<String>,
     state: String,
     volume: RawVolume,
@@ -124,6 +125,15 @@ async fn get_sinks() -> Vec<Sink> {
 
     let raw_entry: Vec<RawEntry> = serde_json::from_str(&output).unwrap();
 
+    let command = Command::new("pactl")
+        .arg("get-default-sink")
+        .stdout(Stdio::piped())
+        .output()
+        .await
+        .expect("Failed to execute pactl command");
+
+    let default_sink = String::from_utf8_lossy(&command.stdout).trim().to_string();
+
     let sinks = raw_entry
         .iter()
         .flat_map(|s| {
@@ -161,7 +171,8 @@ async fn get_sinks() -> Vec<Sink> {
                                     as u32
                             },
                             mute: s.mute,
-                            active: s.active_port.as_ref() == Some(&p.name) && s.state == "RUNNING",
+                            active: s.active_port.as_ref() == Some(&p.name)
+                                && s.name == default_sink,
                         })
                     } else {
                         None
@@ -185,6 +196,15 @@ async fn get_sources() -> Vec<Source> {
     let output = String::from_utf8_lossy(&command.stdout);
 
     let raw_entry: Vec<RawEntry> = serde_json::from_str(&output).unwrap();
+
+    let command = Command::new("pactl")
+        .arg("get-default-source")
+        .stdout(Stdio::piped())
+        .output()
+        .await
+        .expect("Failed to execute pactl command");
+
+    let default_source = String::from_utf8_lossy(&command.stdout).trim().to_string();
 
     let sources = raw_entry
         .iter()
@@ -223,7 +243,9 @@ async fn get_sources() -> Vec<Source> {
                             as u32
                     },
                     mute: s.mute,
-                    active: s.active_port.as_ref() == Some(&p.name) && s.state == "RUNNING",
+                    active: s.active_port.as_ref() == Some(&p.name)
+                        && s.name == default_source
+                        && s.state == "RUNNING",
                 })
                 .collect::<Vec<Source>>()
         })
