@@ -161,7 +161,7 @@ async fn get_sinks() -> Vec<Sink> {
                                     as u32
                             },
                             mute: s.mute,
-                            active: s.active_port.as_ref() == Some(&p.name),
+                            active: s.active_port.as_ref() == Some(&p.name) && s.state == "RUNNING",
                         })
                     } else {
                         None
