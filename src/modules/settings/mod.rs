@@ -30,6 +30,7 @@ pub fn settings(toggle_menu: Rc<dyn Fn(MenuType, MenuAction)>) -> impl Into<Node
     let (active_connection, vpn_list) = net_monitor();
     let (sinks, sources) = audio_monitor();
     let battery = Mutable::new(get_battery_capacity());
+    let brightness = brightness_monitor();
 
     poll(
         {
@@ -48,6 +49,7 @@ pub fn settings(toggle_menu: Rc<dyn Fn(MenuType, MenuAction)>) -> impl Into<Node
             let battery = battery.clone();
             let sinks = sinks.clone();
             let sources = sources.clone();
+            let brightness = brightness.clone();
             move || {
                 toggle_menu(
                     MenuType::Settings,
@@ -55,10 +57,16 @@ pub fn settings(toggle_menu: Rc<dyn Fn(MenuType, MenuAction)>) -> impl Into<Node
                         let battery = battery.clone();
                         let sinks = sinks.clone();
                         let sources = sources.clone();
+                        let brightness = brightness.clone();
                         move || {
                             (
-                                settings_menu(battery.clone(), sinks.clone(), sources.clone())
-                                    .into(),
+                                settings_menu(
+                                    battery.clone(),
+                                    sinks.clone(),
+                                    sources.clone(),
+                                    brightness.clone(),
+                                )
+                                .into(),
                                 Align::End,
                             )
                         }
@@ -139,15 +147,17 @@ pub fn vmargin(submenu: Mutable<Option<SubMenuType>>, round: Round) -> impl Into
     ))
 }
 
+pub enum SliderToggleMenu<V: MaybeSignal<bool>, C: Fn() + 'static> {
+    Disabled,
+    Enabled((V, C)),
+}
+
 pub fn slider(
-    indicator: impl MaybeSignal<String>,
-    indicator_classes: Vec<&str>,
-    value: impl MaybeSignal<f64>,
+    (indicator, indicator_classes): (impl MaybeSignal<String>, Vec<&str>),
     range: (f64, f64),
-    on_change: impl Fn(f64) + 'static,
+    (value, on_change): (impl MaybeSignal<f64>, impl Fn(f64) + 'static),
     on_toggle: Option<impl Fn() + 'static>,
-    on_submenu_toggle: Option<impl Fn() + 'static>,
-    submenu_toggle_visibility: impl MaybeSignal<bool>,
+    toggle_menu: SliderToggleMenu<impl MaybeSignal<bool>, impl Fn() + 'static>,
 ) -> impl Into<Node> {
     let indicator_classes = [indicator_classes, {
         if on_toggle.is_none() {
@@ -176,13 +186,13 @@ pub fn slider(
             })
     );
 
-    if let Some(on_submenu_toggle) = on_submenu_toggle {
+    if let SliderToggleMenu::Enabled((visibility, on_toggle)) = toggle_menu {
         children.push(
             label()
                 .class(vec!["settings-item", "interactive"])
                 .text("󰁔".to_string())
-                .visible(submenu_toggle_visibility)
-                .on_click(on_submenu_toggle)
+                .visible(visibility)
+                .on_click(on_toggle)
                 .into(),
         );
     }
@@ -196,9 +206,9 @@ pub fn settings_menu(
     battery: Mutable<Option<BatteryData>>,
     sinks: Mutable<Vec<Sink>>,
     sources: Mutable<Vec<Source>>,
+    brightness: Mutable<f64>,
 ) -> impl Into<Node> {
     let submenu: Mutable<Option<SubMenuType>> = Mutable::new(None);
-    let brightness = brightness_monitor();
 
     container()
         .orientation(Orientation::Vertical)
@@ -235,17 +245,14 @@ pub fn settings_menu(
             section(
                 submenu.clone(),
                 slider(
-                    "󰃟".to_string(),
-                    vec!("brightness-icon-fix"),
-                    Dynamic(brightness.clone().signal()),
+                    ("󰃟".to_string(), vec!("brightness-icon-fix")),
                     (0., 255.),
-                    move |value| {
+                    (Dynamic(brightness.clone().signal()), move |value| {
                         set_brightness(value as u32);
                         brightness.replace(value);
-                    },
+                    }),
                     None::<fn()>,
-                    None::<fn()>,
-                    false
+                    SliderToggleMenu::Disabled::<bool, fn()>
                 ),
                 vec!(),
                 true

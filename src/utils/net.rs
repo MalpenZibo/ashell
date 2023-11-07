@@ -38,12 +38,28 @@ pub enum ActiveConnection {
 }
 
 static WIFI_SIGNAL_ICONS: [&str; 5] = ["󰤭", "󰤟", "󰤢", "󰤥", "󰤨"];
+static WIFI_SIGNAL_CLASS: [&str; 5] = [
+    "wifi-signal-0",
+    "wifi-signal-1",
+    "wifi-signal-2",
+    "wifi-signal-3",
+    "wifi-signal-4",
+];
 
 impl ActiveConnection {
     pub fn to_icon(&self) -> &str {
         match self {
             ActiveConnection::Ethernet(_) => "󰈀",
             ActiveConnection::Wifi { signal, .. } => WIFI_SIGNAL_ICONS[*signal as usize],
+        }
+    }
+
+    pub fn get_classes(&self) -> Vec<&'static str> {
+        match self {
+            ActiveConnection::Ethernet(_) => vec!["ethernet"],
+            ActiveConnection::Wifi { signal, .. } => {
+                vec!["wifi", WIFI_SIGNAL_CLASS[*signal as usize]]
+            }
         }
     }
 }

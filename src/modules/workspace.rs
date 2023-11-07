@@ -1,12 +1,8 @@
+use crate::reactive_gtk::{container, Align, Dynamic, Node, NodeBuilder, label, TextAlign};
 use futures_signals::signal::Mutable;
 use hyprland::{
     event_listener::EventListener,
     shared::{HyprData, HyprDataActive},
-};
-
-use crate::{
-    nodes,
-    reactive_gtk::{container, Align, Node, NodeBuilder, Dynamic},
 };
 
 #[derive(Debug, Clone)]
@@ -88,6 +84,20 @@ pub fn workspaces() -> impl Into<Node> {
                 }
             });
 
+            event_listener.add_window_close_handler({
+                let workspaces = workspaces.clone();
+                move |_| {
+                    workspaces.replace(get_workspaces());
+                }
+            });
+
+            event_listener.add_window_open_handler({
+                let workspaces = workspaces.clone();
+                move |_| {
+                    workspaces.replace(get_workspaces());
+                }
+            });
+
             event_listener
                 .start_listener_async()
                 .await
@@ -98,13 +108,15 @@ pub fn workspaces() -> impl Into<Node> {
     let workspaces = workspaces.signal_ref(|w| {
         w.iter()
             .map(|w| {
-                container()
+                label()
                     .class(if w.windows > 0 {
-                        vec!["workspace"]
+                        vec!["workspace", if w.active { "active" } else { "" } ]
                     } else {
-                        vec!["workspace", "empty"]
+                        vec!["workspace", "empty", if w.active { "active" } else { "" }]
                     })
-                    .size((if w.active { 32 } else { 16 }, 16))
+                    .text(w.id.to_string())
+                    .text_halign(TextAlign::Center)
+                    .text_valign(TextAlign::Center)
                     .into()
             })
             .collect::<Vec<Node>>()

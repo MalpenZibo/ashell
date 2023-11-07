@@ -36,7 +36,15 @@ pub fn connection_indicator(
     let visible = active_connection.signal_ref(|active_connection| active_connection.is_some());
 
     label()
-        .class(vec!["connection"])
+        .class(Dynamic(active_connection.signal_ref(|active_connection| {
+            [
+                active_connection
+                    .as_ref()
+                    .map_or(vec![], |c| c.get_classes()),
+                vec!["connection"],
+            ]
+            .concat()
+        })))
         .text(Dynamic(format))
         .visible(Dynamic(visible))
 }

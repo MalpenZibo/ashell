@@ -1,4 +1,4 @@
-use super::{section, slider, SubMenuType};
+use super::{section, slider, SliderToggleMenu, SubMenuType};
 use crate::{
     nodes,
     reactive_gtk::{
@@ -55,9 +55,7 @@ pub fn sink_indicator(sinks: Mutable<Vec<Sink>>) -> impl Into<Node> {
             .unwrap_or_default()
     });
 
-    label()
-        .class(vec!["sink"])
-        .text(Dynamic(format))
+    label().class(vec!["sink"]).text(Dynamic(format))
 }
 
 pub fn sinks_settings(
@@ -79,40 +77,40 @@ pub fn sinks_settings(
     section(
         submenu.clone(),
         slider(
-            Dynamic(sinks.signal_ref(|sinks| {
-                sinks
-                    .iter()
-                    .find_map(|s| {
-                        if s.active {
-                            Some(s.to_type_icon().to_string())
-                        } else {
-                            None
-                        }
-                    })
-                    .unwrap_or_default()
-            })),
-            vec![],
-            Dynamic(volume_value),
+            (
+                Dynamic(sinks.signal_ref(|sinks| {
+                    sinks
+                        .iter()
+                        .find_map(|s| {
+                            if s.active {
+                                Some(s.to_type_icon().to_string())
+                            } else {
+                                None
+                            }
+                        })
+                        .unwrap_or_default()
+                })),
+                vec!["sink-icon-fix"],
+            ),
             (0., 100.),
-            {
+            (Dynamic(volume_value), {
                 let sinks = sinks.clone();
                 move |value| {
                     tokio::spawn(set_volume(sinks.clone(), value as u32));
                 }
-            },
+            }),
             Some({
                 let sinks = sinks.clone();
                 move || {
                     tokio::spawn(toggle_volume(sinks.clone()));
                 }
             }),
-            Some({
+            SliderToggleMenu::Enabled((Dynamic(sinks.signal_ref(|sinks| sinks.len() > 1)), {
                 let submenu = submenu.clone();
                 move || {
                     submenu.set(Some(SubMenuType::Sinks));
                 }
-            }),
-            Dynamic(sinks.signal_ref(|sinks| sinks.len() > 1)),
+            })),
         ),
         vec![sinks_submenu(sinks.clone())],
         true,
@@ -138,40 +136,43 @@ pub fn sources_settings(
     section(
         submenu.clone(),
         slider(
-            Dynamic(sources.signal_ref(|sources| {
-                sources
-                    .iter()
-                    .find_map(|s| {
-                        if s.active {
-                            Some(s.to_icon().to_string())
-                        } else {
-                            None
-                        }
-                    })
-                    .unwrap_or_default()
-            })),
-            vec![],
-            Dynamic(volume_value),
+            (
+                Dynamic(sources.signal_ref(|sources| {
+                    sources
+                        .iter()
+                        .find_map(|s| {
+                            if s.active {
+                                Some(s.to_icon().to_string())
+                            } else {
+                                None
+                            }
+                        })
+                        .unwrap_or_default()
+                })),
+                vec![],
+            ),
             (0., 100.),
-            {
+            (Dynamic(volume_value), {
                 let sources = sources.clone();
                 move |value| {
                     tokio::spawn(set_microphone(sources.clone(), value as u32));
                 }
-            },
+            }),
             Some({
                 let sources = sources.clone();
                 move || {
                     tokio::spawn(toggle_microphone(sources.clone()));
                 }
             }),
-            Some({
-                let submenu = submenu.clone();
-                move || {
-                    submenu.set(Some(SubMenuType::Sources));
-                }
-            }),
-            Dynamic(sources.signal_ref(|sources| sources.len() > 1)),
+            SliderToggleMenu::Enabled((
+                Dynamic(sources.signal_ref(|sources| sources.len() > 1)),
+                {
+                    let submenu = submenu.clone();
+                    move || {
+                        submenu.set(Some(SubMenuType::Sources));
+                    }
+                },
+            )),
         ),
         vec![sources_submenu(sources.clone())],
         Dynamic(sources.signal_ref(|sources| sources.iter().any(|s| s.active))),

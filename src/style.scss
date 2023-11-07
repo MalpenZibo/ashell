@@ -39,11 +39,43 @@ window.background {
 
 .workspace {
   background-color: $peach;
+  color: $base;
+  font-size: 12px;
   border-radius: 16px;
+  padding: 0px 6px;
+}
+
+.workspace.active {
+  padding: 0px 16px;
 }
 
 .workspace.empty {
   background-color: $surface-0;
+  color: $text;
+}
+
+.system-info-cpu-medium {
+  color: $yellow;
+}
+
+.system-info-cpu-high {
+  color: $red;
+}
+
+.system-info-ram-medium {
+  color: $yellow;
+}
+
+.system-info-ram-high {
+  color: $red;
+}
+
+.system-info-temp-medium {
+  color: $yellow;
+}
+
+.system-info-temp-high {
+  color: $red;
 }
 
 .clock {
@@ -57,6 +89,14 @@ window.background {
 
 .connection {
   padding-right: 4px;
+}
+
+.wifi-signal-0 {
+  color: $red;
+}
+
+.wifi-signal-1 {
+  color: $yellow;
 }
 
 .battery.charging {
@@ -89,6 +129,10 @@ window.background {
   background-color: $surface-0;
   padding: 8px 13px;
   border-radius: 20px;
+}
+
+.sink-icon-fix {
+  padding: 8px 13px 8px 12px;
 }
 
 .brightness-icon-fix {

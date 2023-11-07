@@ -52,7 +52,7 @@ pub fn system_info() -> impl Into<Node> {
 
     let cpu = system_info.signal_ref(|s| {
         s.as_ref()
-            .map(|s| format!("󰔂  {}%", s.cpu_usage))
+            .map(|s| format!("󰔂   {}%", s.cpu_usage))
             .unwrap_or_default()
     });
     let ram = system_info.signal_ref(|s| {
@@ -66,13 +66,59 @@ pub fn system_info() -> impl Into<Node> {
             .unwrap_or_default()
     });
 
+    let cpu_class = system_info.signal_ref(|s| {
+        s.as_ref()
+            .map(|s| {
+                if s.cpu_usage > 80 {
+                    vec!["system-info-cpu", "system-info-cpu-high"]
+                } else if s.cpu_usage > 60 {
+                    vec!["system-info-cpu", "system-info-cpu-medium"]
+                } else {
+                    vec!["system-info-cpu"]
+                }
+            })
+            .unwrap_or_default()
+    });
+
+    let ram_class = system_info.signal_ref(|s| {
+        s.as_ref()
+            .map(|s| {
+                if s.memory_usage > 85 {
+                    vec!["system-info-ram", "system-info-ram-high"]
+                } else if s.memory_usage > 70 {
+                    vec!["system-info-ram", "system-info-ram-medium"]
+                } else {
+                    vec!["system-info-ram"]
+                }
+            })
+            .unwrap_or_default()
+    });
+
+    let temp_class = system_info.signal_ref(|s| {
+        s.as_ref()
+            .map(|s| {
+                if let Some(temp) = s.temperature {
+                    if temp > 80. {
+                        vec!["system-info-temp", "system-info-temp-high"]
+                    } else if temp > 60. {
+                        vec!["system-info-temp", "system-info-temp-medium"]
+                    } else {
+                        vec!["system-info-temp"]
+                    }
+                } else {
+                    vec!["system-info-temp"]
+                }
+            })
+            .unwrap_or_default()
+    });
+
     container()
         .class(vec!["bar-item", "system-info"])
         .spacing(4)
         .children(nodes![
-            label().class(vec!["system-info-cpu"]).text(Dynamic(cpu)),
-            label().class(vec!["system-info-ram"]).text(Dynamic(ram)),
-            label().class(vec!["system-info-temp"]).text(Dynamic(temp)),
+            label().class(Dynamic(cpu_class)).text(Dynamic(cpu)),
+            label().class(Dynamic(ram_class)).text(Dynamic(ram)),
+            label().class(Dynamic(temp_class)).text(Dynamic(temp)),
             container()
         ])
 }
