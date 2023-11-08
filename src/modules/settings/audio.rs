@@ -199,22 +199,22 @@ pub fn sinks_submenu(sinks: Mutable<Vec<Sink>>) -> (SubMenuType, Node) {
                                 container()
                                     .class(vec!["menu-voice"])
                                     .spacing(8)
+                                    .on_click({
+                                        let sinks = sinks.clone();
+                                        move || {
+                                            tokio::spawn(set_sink(
+                                                sinks.clone(),
+                                                index,
+                                                name.clone(),
+                                            ));
+                                        }
+                                    })
                                     .children(nodes!(
                                         label().text("".to_string()).visible(s.active),
                                         label()
                                             .text_halign(TextAlign::Start)
                                             .ellipsize(EllipsizeMode::End)
                                             .text(s.description.to_string())
-                                            .on_click({
-                                                let sinks = sinks.clone();
-                                                move || {
-                                                    tokio::spawn(set_sink(
-                                                        sinks.clone(),
-                                                        index,
-                                                        name.clone(),
-                                                    ));
-                                                }
-                                            })
                                     ))
                                     .into()
                             }
@@ -245,22 +245,22 @@ pub fn sources_submenu(sources: Mutable<Vec<Source>>) -> (SubMenuType, Node) {
                                 container()
                                     .class(vec!["menu-voice"])
                                     .spacing(8)
+                                    .on_click({
+                                        let sources = sources.clone();
+                                        move || {
+                                            tokio::spawn(set_source(
+                                                sources.clone(),
+                                                index,
+                                                name.clone(),
+                                            ));
+                                        }
+                                    })
                                     .children(nodes!(
                                         label().text("".to_string()).visible(s.active),
                                         label()
                                             .text_halign(TextAlign::Start)
                                             .ellipsize(EllipsizeMode::End)
                                             .text(s.description.to_string())
-                                            .on_click({
-                                                let sources = sources.clone();
-                                                move || {
-                                                    tokio::spawn(set_source(
-                                                        sources.clone(),
-                                                        index,
-                                                        name.clone(),
-                                                    ));
-                                                }
-                                            })
                                     ))
                                     .into()
                             }
