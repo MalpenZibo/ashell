@@ -1,4 +1,4 @@
-use super::{AsyncContext, MaybeSignal, Node, NodeBuilder};
+use super::{AsyncContext, IntoSignal, Node, NodeBuilder};
 
 #[derive(Clone, Copy)]
 pub enum EllipsizeMode {
@@ -49,54 +49,46 @@ pub fn label() -> Label {
 }
 
 impl Label {
-    pub fn text(mut self, value: impl MaybeSignal<String>) -> Self {
-        if let Some(sub) = value.subscribe({
+    pub fn text(mut self, value: impl IntoSignal<String> + 'static) -> Self {
+        self.ctx.subscribe(value, {
             let widget = self.widget.clone();
             move |value| {
                 widget.set_text(&value);
             }
-        }) {
-            self.ctx.add_subscription(sub);
-        }
+        });
 
         self
     }
 
-    pub fn ellipsize(mut self, mode: impl MaybeSignal<EllipsizeMode>) -> Self {
-        if let Some(sub) = mode.subscribe({
+    pub fn ellipsize(mut self, value: impl IntoSignal<EllipsizeMode> + 'static) -> Self {
+        self.ctx.subscribe(value, {
             let widget = self.widget.clone();
-            move |mode| {
-                widget.set_ellipsize(mode.into());
+            move |value| {
+                widget.set_ellipsize(value.into());
             }
-        }) {
-            self.ctx.add_subscription(sub);
-        }
+        });
 
         self
     }
 
-    pub fn text_halign(mut self, value: impl MaybeSignal<TextAlign>) -> Self {
-        if let Some(sub) = value.subscribe({
+    pub fn text_halign(mut self, value: impl IntoSignal<TextAlign> + 'static) -> Self {
+        self.ctx.subscribe(value, {
             let widget = self.widget.clone();
             move |value| {
                 widget.set_xalign(value.into());
             }
-        }) {
-            self.ctx.add_subscription(sub);
-        }
+        });
 
         self
     }
 
-    pub fn text_valign(mut self, value: impl MaybeSignal<TextAlign>) -> Self {
-        if let Some(sub) = value.subscribe({
+    pub fn text_valign(mut self, value: impl IntoSignal<TextAlign> + 'static) -> Self {
+        self.ctx.subscribe(value, {
             let widget = self.widget.clone();
             move |value| {
                 widget.set_yalign(value.into());
             }
-        }) {
-            self.ctx.add_subscription(sub);
-        }
+        });
 
         self
     }

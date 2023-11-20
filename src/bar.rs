@@ -1,14 +1,12 @@
-use std::rc::Rc;
-
-use futures_signals::signal::Mutable;
-use gtk4_layer_shell::Layer;
-
 use crate::{
     app::{AppCtx, CloseHandle, LayerOption},
     modules::{app_launcher, clock, settings, system_info, title, updates, workspaces},
     nodes,
     reactive_gtk::{centerbox, container, overlay, Align, Node, NodeBuilder},
 };
+use futures_signals::signal::Mutable;
+use gtk4_layer_shell::Layer;
+use std::rc::Rc;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum MenuType {

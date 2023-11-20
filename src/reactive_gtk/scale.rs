@@ -1,4 +1,4 @@
-use super::{AsyncContext, MaybeSignal, Node, NodeBuilder};
+use super::{AsyncContext, Node, NodeBuilder, IntoSignal};
 use gtk4::traits::RangeExt;
 
 pub struct Scale {
@@ -14,41 +14,31 @@ pub fn scale() -> Scale {
 }
 
 impl Scale {
-    pub fn range(mut self, value: impl MaybeSignal<(f64, f64)>) -> Self {
-        if let Some(sub) = value.subscribe({
-            let widget = self.widget.clone();
-            move |(min, max)| {
-                widget.set_range(min, max);
-            }
-        }) {
-            self.ctx.add_subscription(sub);
-        }
+    pub fn range(self, value: (f64, f64)) -> Self {
+        let (min, max) = value;
+        self.widget.set_range(min, max);
 
         self
     }
 
-    pub fn value(mut self, value: impl MaybeSignal<f64>) -> Self {
-        if let Some(sub) = value.subscribe({
+    pub fn value(mut self, value: impl IntoSignal<f64> + 'static) -> Self {
+        self.ctx.subscribe(value, {
             let widget = self.widget.clone();
             move |value| {
                 widget.set_value(value);
             }
-        }) {
-            self.ctx.add_subscription(sub);
-        }
+        });
 
         self
     }
 
-    pub fn round_digits(mut self, value: impl MaybeSignal<i32>) -> Self {
-        if let Some(sub) = value.subscribe({
+    pub fn round_digits(mut self, value: impl IntoSignal<i32> + 'static) -> Self {
+        self.ctx.subscribe(value, {
             let widget = self.widget.clone();
             move |value| {
                 widget.set_round_digits(value);
             }
-        }) {
-            self.ctx.add_subscription(sub);
-        }
+        });
 
         self
     }

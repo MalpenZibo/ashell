@@ -1,6 +1,7 @@
 use crate::{
+    nodes,
     reactive_gtk::{container, label, Dynamic, Node, NodeBuilder},
-    utils::poll, nodes,
+    utils::poll,
 };
 use futures_signals::signal::Mutable;
 use std::time::Duration;
@@ -118,7 +119,6 @@ pub fn system_info() -> impl Into<Node> {
         .children(nodes![
             label().class(Dynamic(cpu_class)).text(Dynamic(cpu)),
             label().class(Dynamic(ram_class)).text(Dynamic(ram)),
-            label().class(Dynamic(temp_class)).text(Dynamic(temp)),
-            container()
+            label().class(Dynamic(temp_class)).text(Dynamic(temp))
         ])
 }

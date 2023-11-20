@@ -1,5 +1,4 @@
 use futures_signals::signal::Mutable;
-
 use crate::{
     reactive_gtk::{label, Dynamic, Node, NodeBuilder},
     utils::battery::BatteryData,

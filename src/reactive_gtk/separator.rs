@@ -1,4 +1,4 @@
-use super::{AsyncContext, MaybeSignal, Node, NodeBuilder, Orientation};
+use super::{AsyncContext, IntoSignal, Node, NodeBuilder, Orientation};
 use gtk4::traits::OrientableExt;
 
 pub struct Separator {
@@ -14,15 +14,13 @@ pub fn separator() -> Separator {
 }
 
 impl Separator {
-    pub fn orientation(mut self, value: impl MaybeSignal<Orientation>) -> Self {
-        if let Some(sub) = value.subscribe({
+    pub fn orientation(mut self, value: impl IntoSignal<Orientation> + 'static) -> Self {
+        self.ctx.subscribe(value, {
             let widget = self.widget.clone();
             move |value| {
                 widget.set_orientation(value.into());
             }
-        }) {
-            self.ctx.add_subscription(sub);
-        }
+        });
 
         self
     }

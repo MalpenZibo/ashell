@@ -1,4 +1,4 @@
-use super::{AsyncContext, MaybeSignal};
+use super::{AsyncContext, IntoSignal};
 use gtk4::traits::{GestureExt, WidgetExt};
 
 pub struct Node {
@@ -56,106 +56,90 @@ pub trait NodeBuilder: Sized {
 
     fn get_ctx(&mut self) -> &mut AsyncContext;
 
-    fn class<'a>(mut self, value: impl MaybeSignal<Vec<&'a str>>) -> Self {
-        if let Some(sub) = value.subscribe({
-            let widget = self.get_widget();
+    fn class<'a>(mut self, value: impl IntoSignal<Vec<&'a str>> + 'static) -> Self {
+        let widget = self.get_widget();
+        self.get_ctx().subscribe(value, {
             move |value| {
                 widget.set_css_classes(&value);
             }
-        }) {
-            self.get_ctx().add_subscription(sub);
-        }
+        });
 
         self
     }
 
-    fn vexpand(mut self, value: impl MaybeSignal<bool>) -> Self {
-        if let Some(sub) = value.subscribe({
-            let widget = self.get_widget();
+    fn vexpand(mut self, value: impl IntoSignal<bool> + 'static) -> Self {
+        let widget = self.get_widget();
+        self.get_ctx().subscribe(value, {
             move |value| {
                 widget.set_vexpand(value);
             }
-        }) {
-            self.get_ctx().add_subscription(sub);
-        }
+        });
 
         self
     }
 
-    fn hexpand(mut self, value: impl MaybeSignal<bool>) -> Self {
-        if let Some(sub) = value.subscribe({
-            let widget = self.get_widget();
+    fn hexpand(mut self, value: impl IntoSignal<bool> + 'static) -> Self {
+        let widget = self.get_widget();
+        self.get_ctx().subscribe(value, {
             move |value| {
                 widget.set_hexpand(value);
             }
-        }) {
-            self.get_ctx().add_subscription(sub);
-        }
+        });
 
         self
     }
 
-    fn valign(mut self, value: impl MaybeSignal<Align>) -> Self {
-        if let Some(sub) = value.subscribe({
-            let widget = self.get_widget();
+    fn valign(mut self, value: impl IntoSignal<Align> + 'static) -> Self {
+        let widget = self.get_widget();
+        self.get_ctx().subscribe(value, {
             move |value| {
                 widget.set_valign(value.into());
             }
-        }) {
-            self.get_ctx().add_subscription(sub);
-        }
+        });
 
         self
     }
 
-    fn halign(mut self, value: impl MaybeSignal<Align>) -> Self {
-        if let Some(sub) = value.subscribe({
-            let widget = self.get_widget();
+    fn halign(mut self, value: impl IntoSignal<Align> + 'static) -> Self {
+        let widget = self.get_widget();
+        self.get_ctx().subscribe(value, {
             move |value| {
                 widget.set_halign(value.into());
             }
-        }) {
-            self.get_ctx().add_subscription(sub);
-        }
+        });
 
         self
     }
 
-    fn active(mut self, value: impl MaybeSignal<bool>) -> Self {
-        if let Some(sub) = value.subscribe({
-            let widget = self.get_widget();
+    fn active(mut self, value: impl IntoSignal<bool> + 'static) -> Self {
+        let widget = self.get_widget();
+        self.get_ctx().subscribe(value, {
             move |value| {
                 widget.set_sensitive(value);
             }
-        }) {
-            self.get_ctx().add_subscription(sub);
-        }
+        });
 
         self
     }
 
-    fn visible(mut self, value: impl MaybeSignal<bool>) -> Self {
-        if let Some(sub) = value.subscribe({
-            let widget = self.get_widget();
+    fn visible(mut self, value: impl IntoSignal<bool> + 'static) -> Self {
+        let widget = self.get_widget();
+        self.get_ctx().subscribe(value, {
             move |value| {
                 widget.set_visible(value);
             }
-        }) {
-            self.get_ctx().add_subscription(sub);
-        }
+        });
 
         self
     }
 
-    fn size(mut self, value: impl MaybeSignal<(i32, i32)>) -> Self {
-        if let Some(sub) = value.subscribe({
-            let widget = self.get_widget();
+    fn size(mut self, value: impl IntoSignal<(i32, i32)> + 'static) -> Self {
+        let widget = self.get_widget();
+        self.get_ctx().subscribe(value, {
             move |value| {
                 widget.set_size_request(value.0, value.1);
             }
-        }) {
-            self.get_ctx().add_subscription(sub);
-        }
+        });
 
         self
     }

@@ -1,4 +1,4 @@
-use super::{AsyncContext, MaybeSignal, Node, NodeBuilder, Subscription};
+use super::{AsyncContext, IntoSignal, Node, NodeBuilder};
 use gtk4::traits::{BoxExt, OrientableExt, WidgetExt};
 
 #[derive(Copy, Clone)]
@@ -29,50 +29,44 @@ pub fn container() -> Container {
 }
 
 impl Container {
-    pub fn orientation(mut self, orientation: impl MaybeSignal<Orientation>) -> Self {
-        if let Some(handle) = orientation.subscribe({
+    pub fn orientation(mut self, value: impl IntoSignal<Orientation> + 'static) -> Self {
+        self.ctx.subscribe(value, {
             let widget = self.widget.clone();
 
             move |value| {
                 widget.set_orientation(value.into());
             }
-        }) {
-            self.ctx.add_subscription(handle);
-        }
+        });
 
         self
     }
 
-    pub fn spacing(mut self, spacing: impl MaybeSignal<i32>) -> Self {
-        if let Some(handle) = spacing.subscribe({
+    pub fn spacing(mut self, value: impl IntoSignal<i32> + 'static) -> Self {
+        self.ctx.subscribe(value, {
             let widget = self.widget.clone();
 
             move |value| {
                 widget.set_spacing(value);
             }
-        }) {
-            self.ctx.add_subscription(handle);
-        }
+        });
 
         self
     }
 
-    pub fn homogeneous(mut self, homogeneous: impl MaybeSignal<bool>) -> Self {
-        if let Some(handle) = homogeneous.subscribe({
+    pub fn homogeneous(mut self, value: impl IntoSignal<bool> + 'static) -> Self {
+        self.ctx.subscribe(value, {
             let widget = self.widget.clone();
 
             move |value| {
                 widget.set_homogeneous(value);
             }
-        }) {
-            self.ctx.add_subscription(handle);
-        }
+        });
 
         self
     }
 
-    pub fn children(mut self, children: impl MaybeSignal<Vec<Node>>) -> Self {
-        match children.subscribe_with_ctx({
+    pub fn children(mut self, value: impl IntoSignal<Vec<Node>> + 'static) -> Self {
+        self.ctx.subscribe_with_ctx(value, {
             let widget = self.widget.clone();
             move |mut children, ctx| {
                 ctx.cancel();
@@ -85,14 +79,7 @@ impl Container {
                     ctx.consume(child.get_ctx());
                 }
             }
-        }) {
-            Subscription::Dynamic(sub) => {
-                self.ctx.add_subscription(sub);
-            }
-            Subscription::Static(mut ctx) => {
-                self.ctx.consume(&mut ctx);
-            }
-        };
+        });
 
         self
     }

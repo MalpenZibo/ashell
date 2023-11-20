@@ -1,3 +1,4 @@
+use crate::reactive_gtk::{AsyncContext, Node};
 use gdk4::Display;
 use gtk4::Application;
 use gtk4::{prelude::*, CssProvider, STYLE_PROVIDER_PRIORITY_APPLICATION};
@@ -5,8 +6,6 @@ use gtk4_layer_shell::{Edge, Layer, LayerShell};
 use std::cell::RefCell;
 use std::ops::Deref;
 use std::rc::Rc;
-
-use crate::reactive_gtk::{Node, AsyncContext};
 
 pub struct LayerOption {
     pub r#type: Layer,
@@ -85,6 +84,8 @@ impl App {
     }
 
     pub fn run<N: Into<Node>, F: Fn(AppCtx) -> N + 'static>(self, root: F) {
+        let ctx = RefCell::new(AsyncContext::default());
+
         let build_ui = move |app: &Application| {
             let window = gtk4::ApplicationWindow::new(app);
             window.set_title(self.title.as_deref());
@@ -107,7 +108,7 @@ impl App {
 
             let mut root = root(AppCtx(app.clone())).into();
 
-            root.get_ctx().forget();
+            ctx.borrow_mut().consume(root.get_ctx());
 
             window.set_child(Some(root.get_widget()));
 
@@ -161,11 +162,11 @@ impl AppCtx {
         let mut root = root(close_window.clone()).into();
 
         ctx.borrow_mut().consume(root.get_ctx());
-        
+
         window.set_child(Some(root.get_widget()));
-        window.show();
+
+        window.present();
 
         close_window
     }
 }
-

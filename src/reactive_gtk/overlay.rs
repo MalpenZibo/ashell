@@ -1,4 +1,4 @@
-use super::{AsyncContext, MaybeSignal, Node, NodeBuilder, Subscription};
+use super::{AsyncContext, Node, NodeBuilder, IntoSignal};
 use gtk4::traits::WidgetExt;
 
 pub struct Overlay {
@@ -14,30 +14,23 @@ pub fn overlay() -> Overlay {
 }
 
 impl Overlay {
-    pub fn children(mut self, children: impl MaybeSignal<Vec<Node>>) -> Self {
-        match children.subscribe_with_ctx({
+    pub fn children(mut self, value: impl IntoSignal<Vec<Node>> + 'static) -> Self {
+        self.ctx.subscribe_with_ctx(value, {
             let widget = self.widget.clone();
-            move |mut children, ctx| {
+            move |mut value, ctx| {
                 ctx.cancel();
                 while let Some(child) = widget.last_child() {
                     widget.remove_overlay(&child);
                 }
 
-                for mut child in children.drain(..) {
-                    let child_widget = child.get_widget();
-                    widget.add_overlay(child_widget);
-                    widget.set_measure_overlay(child_widget, true);
-                    ctx.consume(child.get_ctx());
+                for mut value in value.drain(..) {
+                    let value_widget = value.get_widget();
+                    widget.add_overlay(value_widget);
+                    widget.set_measure_overlay(value_widget, true);
+                    ctx.consume(value.get_ctx());
                 }
             }
-        }) {
-            Subscription::Dynamic(sub) => {
-                self.ctx.add_subscription(sub);
-            }
-            Subscription::Static(mut ctx) => {
-                self.ctx.consume(&mut ctx);
-            }
-        };
+        });
 
         self
     }

@@ -1,5 +1,4 @@
-use super::{AsyncContext, MaybeSignal, Node, NodeBuilder, Subscription};
-use gtk4::traits::WidgetExt;
+use super::{AsyncContext, IntoSignal, Node, NodeBuilder};
 
 #[derive(Copy, Clone)]
 pub enum PolicyType {
@@ -31,64 +30,41 @@ pub fn scrolled_window() -> ScrolledWindow {
 }
 
 impl ScrolledWindow {
-    pub fn child<N: Into<Node>>(mut self, child: impl MaybeSignal<Option<N>>) -> Self {
-        match child.subscribe_with_ctx({
+    pub fn child<N: Into<Node>>(mut self, value: impl IntoSignal<Option<N>> + 'static) -> Self {
+        self.ctx.subscribe_with_ctx(value, {
             let widget = self.widget.clone();
-            move |child, ctx| {
-                let mut child = child.map(|child| child.into());
+            move |value, ctx| {
+                let mut value = value.map(|value| value.into());
                 ctx.cancel();
-                if let Some(child) = child.as_mut() {
-                    ctx.consume(child.get_ctx());
+                if let Some(value) = value.as_mut() {
+                    ctx.consume(value.get_ctx());
                 }
-                let child_widget = child.as_ref().map(|child| child.get_widget().clone());
-                widget.set_child(child_widget.as_ref());
+                let value_widget = value.as_ref().map(|value| value.get_widget().clone());
+                widget.set_child(value_widget.as_ref());
             }
-        }) {
-            Subscription::Dynamic(sub) => {
-                self.ctx.add_subscription(sub);
-            }
-            Subscription::Static(mut ctx) => {
-                self.ctx.consume(&mut ctx);
-            }
-        };
+        });
 
         self
     }
 
-    pub fn vscrollbar_policy(mut self, value: impl MaybeSignal<PolicyType>) -> Self {
-        match value.subscribe_with_ctx({
+    pub fn vscrollbar_policy(mut self, value: impl IntoSignal<PolicyType> + 'static) -> Self {
+        self.ctx.subscribe(value, {
             let widget = self.widget.clone();
-            move |value, ctx| {
-                ctx.cancel();
+            move |value| {
                 widget.set_vscrollbar_policy(value.into());
             }
-        }) {
-            Subscription::Dynamic(sub) => {
-                self.ctx.add_subscription(sub);
-            }
-            Subscription::Static(mut ctx) => {
-                self.ctx.consume(&mut ctx);
-            }
-        };
+        });
 
         self
     }
 
-    pub fn hscrollbar_policy(mut self, value: impl MaybeSignal<PolicyType>) -> Self {
-        match value.subscribe_with_ctx({
+    pub fn hscrollbar_policy(mut self, value: impl IntoSignal<PolicyType> + 'static) -> Self {
+        self.ctx.subscribe(value, {
             let widget = self.widget.clone();
-            move |value, ctx| {
-                ctx.cancel();
+            move |value| {
                 widget.set_hscrollbar_policy(value.into());
             }
-        }) {
-            Subscription::Dynamic(sub) => {
-                self.ctx.add_subscription(sub);
-            }
-            Subscription::Static(mut ctx) => {
-                self.ctx.consume(&mut ctx);
-            }
-        };
+        });
 
         self
     }

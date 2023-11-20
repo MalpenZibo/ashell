@@ -186,6 +186,7 @@ where
     });
     let wtask = Arc::downgrade(&task);
     let ptr = Arc::into_raw(task) as *const ();
+
     poll_idle(ptr);
     Handle { task: wtask, res }
 }

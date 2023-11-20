@@ -1,4 +1,4 @@
-use super::{AsyncContext, MaybeSignal, Node, NodeBuilder, Subscription};
+use super::{AsyncContext, IntoSignal, Node, NodeBuilder};
 
 pub struct Centerbox {
     widget: gtk4::CenterBox,
@@ -13,74 +13,53 @@ pub fn centerbox() -> Centerbox {
 }
 
 impl Centerbox {
-    pub fn start<N: Into<Node>>(mut self, child: impl MaybeSignal<Option<N>>) -> Self {
-        match child.subscribe_with_ctx({
+    pub fn start<N: Into<Node>>(mut self, value: impl IntoSignal<Option<N>> + 'static) -> Self {
+        self.ctx.subscribe_with_ctx(value, {
             let widget = self.widget.clone();
-            move |child, ctx| {
-                let mut child = child.map(|child| child.into());
+            move |value, ctx| {
+                let mut value = value.map(|child| child.into());
                 ctx.cancel();
-                if let Some(child) = child.as_mut() {
-                    ctx.consume(child.get_ctx());
+                if let Some(value) = value.as_mut() {
+                    ctx.consume(value.get_ctx());
                 }
-                let child_widget = child.as_ref().map(|child| child.get_widget().clone());
-                widget.set_start_widget(child_widget.as_ref());
+                let value_widget = value.as_ref().map(|child| child.get_widget().clone());
+                widget.set_start_widget(value_widget.as_ref());
             }
-        }) {
-            Subscription::Dynamic(sub) => {
-                self.ctx.add_subscription(sub);
-            }
-            Subscription::Static(mut ctx) => {
-                self.ctx.consume(&mut ctx);
-            }
-        };
+        });
 
         self
     }
 
-    pub fn center<N: Into<Node>>(mut self, child: impl MaybeSignal<Option<N>>) -> Self {
-        match child.subscribe_with_ctx({
+    pub fn center<N: Into<Node>>(mut self, value: impl IntoSignal<Option<N>> + 'static) -> Self {
+        self.ctx.subscribe_with_ctx(value, {
             let widget = self.widget.clone();
-            move |child, ctx| {
-                let mut child = child.map(|child| child.into());
+            move |value, ctx| {
+                let mut value = value.map(|child| child.into());
                 ctx.cancel();
-                if let Some(child) = child.as_mut() {
-                    ctx.consume(child.get_ctx());
+                if let Some(value) = value.as_mut() {
+                    ctx.consume(value.get_ctx());
                 }
-                let child_widget = child.as_ref().map(|child| child.get_widget().clone());
-                widget.set_center_widget(child_widget.as_ref());
+                let value_widget = value.as_ref().map(|child| child.get_widget().clone());
+                widget.set_center_widget(value_widget.as_ref());
             }
-        }) {
-            Subscription::Dynamic(sub) => {
-                self.ctx.add_subscription(sub);
-            }
-            Subscription::Static(mut ctx) => {
-                self.ctx.consume(&mut ctx);
-            }
-        };
+        });
 
         self
     }
 
-    pub fn end<N: Into<Node>>(mut self, child: impl MaybeSignal<Option<N>>) -> Self {
-        match child.subscribe_with_ctx({
+    pub fn end<N: Into<Node>>(mut self, value: impl IntoSignal<Option<N>> + 'static) -> Self {
+        self.ctx.subscribe_with_ctx(value, {
             let widget = self.widget.clone();
-            move |child, ctx| {
-                let mut child = child.map(|child| child.into());
+            move |value, ctx| {
+                let mut value = value.map(|child| child.into());
                 ctx.cancel();
-                if let Some(child) = child.as_mut() {
-                    ctx.consume(child.get_ctx());
+                if let Some(value) = value.as_mut() {
+                    ctx.consume(value.get_ctx());
                 }
-                let child_widget = child.as_ref().map(|child| child.get_widget().clone());
-                widget.set_end_widget(child_widget.as_ref());
+                let value_widget = value.as_ref().map(|child| child.get_widget().clone());
+                widget.set_end_widget(value_widget.as_ref());
             }
-        }) {
-            Subscription::Dynamic(sub) => {
-                self.ctx.add_subscription(sub);
-            }
-            Subscription::Static(mut ctx) => {
-                self.ctx.consume(&mut ctx);
-            }
-        };
+        });
 
         self
     }

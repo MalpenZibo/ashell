@@ -7,8 +7,8 @@ use crate::{
     bar::{MenuAction, MenuType},
     nodes,
     reactive_gtk::{
-        container, label, overlay, scale, separator, Align, Dynamic, MaybeSignal, Node,
-        NodeBuilder, Orientation, TextAlign,
+        container, label, overlay, scale, separator, Align, Dynamic, IntoSignal, Node, NodeBuilder,
+        Orientation, TextAlign,
     },
     utils::{
         audio::{audio_monitor, Sink, Source},
@@ -97,7 +97,7 @@ pub fn section(
     submenu: Mutable<Option<SubMenuType>>,
     content: impl Into<Node>,
     children: Vec<(SubMenuType, Node)>,
-    visible: impl MaybeSignal<bool>,
+    visible: impl IntoSignal<bool> + 'static,
 ) -> impl Into<Node> {
     let mut submenu_sections: Vec<Node> = children
         .into_iter()
@@ -147,17 +147,17 @@ pub fn vmargin(submenu: Mutable<Option<SubMenuType>>, round: Round) -> impl Into
     ))
 }
 
-pub enum SliderToggleMenu<V: MaybeSignal<bool>, C: Fn() + 'static> {
+pub enum SliderToggleMenu<V: IntoSignal<bool>, C: Fn() + 'static> {
     Disabled,
     Enabled((V, C)),
 }
 
 pub fn slider(
-    (indicator, indicator_classes): (impl MaybeSignal<String>, Vec<&str>),
+    (indicator, indicator_classes): (impl IntoSignal<String> + 'static, Vec<&'static str>),
     range: (f64, f64),
-    (value, on_change): (impl MaybeSignal<f64>, impl Fn(f64) + 'static),
+    (value, on_change): (impl IntoSignal<f64> + 'static, impl Fn(f64) + 'static),
     on_toggle: Option<impl Fn() + 'static>,
-    toggle_menu: SliderToggleMenu<impl MaybeSignal<bool>, impl Fn() + 'static>,
+    toggle_menu: SliderToggleMenu<impl IntoSignal<bool> + 'static, impl Fn() + 'static>,
 ) -> impl Into<Node> {
     let indicator_classes = [indicator_classes, {
         if on_toggle.is_none() {
@@ -178,9 +178,9 @@ pub fn slider(
         indicator,
         scale()
             .hexpand(true)
+            .range(range)
             .value(value)
             .round_digits(0)
-            .range(range)
             .on_change(move |new_value| {
                 on_change(new_value);
             })
@@ -236,7 +236,7 @@ pub fn settings_menu(
                             })
                             .text("󰐥".to_string())
                     ))
-                ),),
+                )),
                 vec!(power_submenu()),
                 true
             ),

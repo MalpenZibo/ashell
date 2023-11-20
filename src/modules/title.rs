@@ -1,7 +1,6 @@
+use crate::reactive_gtk::{label, Align, Dynamic, EllipsizeMode, Node, NodeBuilder};
 use futures_signals::signal::Mutable;
 use hyprland::{data::Client, event_listener::EventListener, shared::HyprDataActiveOptional};
-
-use crate::reactive_gtk::{Node, label, NodeBuilder, Align, Dynamic, EllipsizeMode};
 
 pub fn title() -> impl Into<Node> {
     let title: Mutable<Option<String>> = Mutable::new(

@@ -1,4 +1,4 @@
-use crate::reactive_gtk::{container, label, Align, Dynamic, Node, NodeBuilder, TextAlign};
+use crate::reactive_gtk::{container, label, Dynamic, Node, NodeBuilder, TextAlign};
 use futures_signals::signal::Mutable;
 use hyprland::{
     event_listener::EventListener,
