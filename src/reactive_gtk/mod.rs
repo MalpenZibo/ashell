@@ -1,5 +1,5 @@
 use futures_signals::signal::{Signal, SignalExt, always, Always};
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, rc::Rc, borrow::Cow};
 
 mod center_box;
 mod container;
@@ -44,7 +44,6 @@ impl<T: 'static, S: Signal<Item = T> + 'static> IntoSignal<T> for Dynamic<T, S> 
         self.0
     }
 }
-
 
 #[derive(Default, Debug)]
 pub struct AsyncContext {
@@ -120,6 +119,65 @@ impl AsyncContext {
 impl Drop for AsyncContext {
     fn drop(&mut self) {
         self.cancel();
+    }
+}
+
+pub trait AsStr {
+    fn with_str<A, F>(&self, f: F) -> A
+    where
+        F: FnOnce(&str) -> A;
+}
+
+impl<'a, A> AsStr for &'a A
+where
+    A: AsStr,
+{
+    #[inline]
+    fn with_str<B, F>(&self, f: F) -> B
+    where
+        F: FnOnce(&str) -> B,
+    {
+        AsStr::with_str(*self, f)
+    }
+}
+
+impl AsStr for String {
+    #[inline]
+    fn with_str<A, F>(&self, f: F) -> A
+    where
+        F: FnOnce(&str) -> A,
+    {
+        f(self)
+    }
+}
+
+impl AsStr for str {
+    #[inline]
+    fn with_str<A, F>(&self, f: F) -> A
+    where
+        F: FnOnce(&str) -> A,
+    {
+        f(self)
+    }
+}
+
+impl<'a> AsStr for &'a str {
+    #[inline]
+    fn with_str<A, F>(&self, f: F) -> A
+    where
+        F: FnOnce(&str) -> A,
+    {
+        f(self)
+    }
+}
+
+impl<'a> AsStr for Cow<'a, str> {
+    #[inline]
+    fn with_str<A, F>(&self, f: F) -> A
+    where
+        F: FnOnce(&str) -> A,
+    {
+        f(self)
     }
 }
 

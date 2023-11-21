@@ -1,5 +1,6 @@
 use super::{section, slider, SliderToggleMenu, SubMenuType};
 use crate::{
+    components::icons::{icon, icon_with_class, Icons},
     nodes,
     reactive_gtk::{
         container, label, Dynamic, EllipsizeMode, Node, NodeBuilder, Orientation, TextAlign,
@@ -21,41 +22,28 @@ pub fn audio_indicator(
 }
 
 pub fn source_indicator(sources: Mutable<Vec<Source>>) -> impl Into<Node> {
-    let format = sources.signal_ref(|sources| {
+    let mic_icon = sources.signal_ref(|sources| {
         sources
             .iter()
-            .find_map(|s| {
-                if s.active {
-                    Some(s.to_icon().to_string())
-                } else {
-                    None
-                }
-            })
+            .find_map(|s| if s.active { Some(s.to_icon()) } else { None })
             .unwrap_or_default()
     });
     let visible = sources.signal_ref(|sources| sources.iter().any(|s| s.active));
 
-    label()
-        .class(vec!["source"])
-        .text(Dynamic(format))
+    icon_with_class(Dynamic(mic_icon), vec!["source"])
+        .into()
         .visible(Dynamic(visible))
 }
 
 pub fn sink_indicator(sinks: Mutable<Vec<Sink>>) -> impl Into<Node> {
-    let format = sinks.signal_ref(|sinks| {
+    let sink_icon = sinks.signal_ref(|sinks| {
         sinks
             .iter()
-            .find_map(|s| {
-                if s.active {
-                    Some(s.to_icon().to_string())
-                } else {
-                    None
-                }
-            })
+            .find_map(|s| if s.active { Some(s.to_icon()) } else { None })
             .unwrap_or_default()
     });
 
-    label().class(vec!["sink"]).text(Dynamic(format))
+    icon_with_class(Dynamic(sink_icon), vec!["sink"])
 }
 
 pub fn sinks_settings(
@@ -77,21 +65,18 @@ pub fn sinks_settings(
     section(
         submenu.clone(),
         slider(
-            (
-                Dynamic(sinks.signal_ref(|sinks| {
-                    sinks
-                        .iter()
-                        .find_map(|s| {
-                            if s.active {
-                                Some(s.to_type_icon().to_string())
-                            } else {
-                                None
-                            }
-                        })
-                        .unwrap_or_default()
-                })),
-                vec!["sink-icon-fix"],
-            ),
+            Dynamic(sinks.signal_ref(|sinks| {
+                sinks
+                    .iter()
+                    .find_map(|s| {
+                        if s.active {
+                            Some(s.to_type_icon())
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or_default()
+            })),
             (0., 100.),
             (Dynamic(volume_value), {
                 let sinks = sinks.clone();
@@ -136,21 +121,12 @@ pub fn sources_settings(
     section(
         submenu.clone(),
         slider(
-            (
-                Dynamic(sources.signal_ref(|sources| {
-                    sources
-                        .iter()
-                        .find_map(|s| {
-                            if s.active {
-                                Some(s.to_icon().to_string())
-                            } else {
-                                None
-                            }
-                        })
-                        .unwrap_or_default()
-                })),
-                vec![],
-            ),
+            Dynamic(sources.signal_ref(|sources| {
+                sources
+                    .iter()
+                    .find_map(|s| if s.active { Some(s.to_icon()) } else { None })
+                    .unwrap_or_default()
+            })),
             (0., 100.),
             (Dynamic(volume_value), {
                 let sources = sources.clone();
@@ -210,7 +186,7 @@ pub fn sinks_submenu(sinks: Mutable<Vec<Sink>>) -> (SubMenuType, Node) {
                                         }
                                     })
                                     .children(nodes!(
-                                        label().text("".to_string()).visible(s.active),
+                                        icon(Icons::Point).into().visible(s.active),
                                         label()
                                             .text_halign(TextAlign::Start)
                                             .ellipsize(EllipsizeMode::End)
@@ -256,7 +232,7 @@ pub fn sources_submenu(sources: Mutable<Vec<Source>>) -> (SubMenuType, Node) {
                                         }
                                     })
                                     .children(nodes!(
-                                        label().text("".to_string()).visible(s.active),
+                                        icon(Icons::Point).into().visible(s.active),
                                         label()
                                             .text_halign(TextAlign::Start)
                                             .ellipsize(EllipsizeMode::End)

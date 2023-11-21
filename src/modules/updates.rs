@@ -1,5 +1,6 @@
 use crate::{
     bar::{MenuAction, MenuType},
+    components::icons::{self, icon, Icons},
     nodes,
     reactive_gtk::{
         container, label, scrolled_window, separator, Align, Dynamic, Node, NodeBuilder,
@@ -77,9 +78,7 @@ pub fn updates(toggle_menu: Rc<dyn Fn(MenuType, MenuAction)>) -> impl Into<Node>
 
     container()
         .class(vec!["bar-item", "interactive", "icon-position-fix"])
-        .spacing(8)
-        .vexpand(false)
-        .valign(Align::Center)
+        .spacing(4)
         .on_click({
             let updates = updates.clone();
             move || {
@@ -99,18 +98,14 @@ pub fn updates(toggle_menu: Rc<dyn Fn(MenuType, MenuAction)>) -> impl Into<Node>
             }
         })
         .children(nodes![
-            label()
-                .text("󰗠".to_string())
-                .text_halign(TextAlign::Center)
-                .text_valign(TextAlign::Center)
+            icon(Icons::NoUpdatesAvailable)
+                .into()
                 .visible(Dynamic(updates.signal_ref(|updates| updates.is_empty()))),
-            label()
-                .text("󰳛".to_string())
-                .text_halign(TextAlign::Center)
-                .text_valign(TextAlign::Center)
+            icon(Icons::UpdatesAvailable)
+                .into()
                 .visible(Dynamic(updates.signal_ref(|updates| !updates.is_empty()))),
             label()
-                .text(Dynamic(
+                .text::<String>(Dynamic(
                     updates.signal_ref(|updates| updates.len().to_string())
                 ))
                 .visible(Dynamic(updates.signal_ref(|updates| !updates.is_empty())))
@@ -124,13 +119,7 @@ fn update_menu(
     let menu_open = Mutable::new(false);
     let update_present = updates.signal_ref(|updates| !updates.is_empty());
 
-    let scroll_size = updates.signal_ref(|updates| {
-        if updates.len() < 10 {
-            (-1, updates.len() as i32 * 22)
-        } else {
-            (-1, 320)
-        }
-    });
+    let scroll_size = updates.signal_ref(|updates| (-1, (updates.len() as i32 * 20).min(320)));
 
     let number_of_updates = updates.signal_ref(|updates| {
         if updates.is_empty() {
@@ -140,8 +129,13 @@ fn update_menu(
         }
     });
 
-    let menu_expander_icon =
-        menu_open.signal_ref(|menu_open| if *menu_open { "" } else { "" }.to_string());
+    let menu_expander_icon = menu_open.signal_ref(|menu_open| {
+        if *menu_open {
+            Icons::MenuOpen
+        } else {
+            Icons::MenuClosed
+        }
+    });
 
     let updates_list = updates.signal_ref(|updates| {
         updates
@@ -186,9 +180,9 @@ fn update_menu(
                     label()
                         .hexpand(true)
                         .halign(Align::Start)
-                        .text(Dynamic(number_of_updates)),
-                    label()
-                        .text(Dynamic(menu_expander_icon))
+                        .text::<String>(Dynamic(number_of_updates)),
+                    icon(Dynamic(menu_expander_icon))
+                        .into()
                         .visible(Dynamic(update_present))
                 ]),
             scrolled_window()
@@ -215,7 +209,7 @@ fn update_menu(
                     toggle_menu(MenuType::Updates, MenuAction::Close);
                 })
                 .text_halign(TextAlign::Start)
-                .text("Update".to_string()),
+                .text("Update"),
             label()
                 .class(vec!["menu-voice"])
                 .hexpand(true)
@@ -232,6 +226,6 @@ fn update_menu(
                     }
                 })
                 .text_halign(TextAlign::Start)
-                .text("Check now!".to_string())
+                .text("Check now!")
         ])
 }

@@ -1,4 +1,5 @@
 use crate::{
+    components::icons::{icon_with_text, Icons},
     nodes,
     reactive_gtk::{container, label, Dynamic, Node, NodeBuilder},
     utils::poll,
@@ -53,17 +54,17 @@ pub fn system_info() -> impl Into<Node> {
 
     let cpu = system_info.signal_ref(|s| {
         s.as_ref()
-            .map(|s| format!("󰔂   {}%", s.cpu_usage))
+            .map(|s| format!("{}%", s.cpu_usage))
             .unwrap_or_default()
     });
     let ram = system_info.signal_ref(|s| {
         s.as_ref()
-            .map(|s| format!("󰘚  {}%", s.memory_usage))
+            .map(|s| format!("{}%", s.memory_usage))
             .unwrap_or_default()
     });
     let temp = system_info.signal_ref(|s| {
         s.as_ref()
-            .map(|s| format!("󰔏 {}°", s.temperature.unwrap_or_default()))
+            .map(|s| format!("{}°", s.temperature.unwrap_or_default()))
             .unwrap_or_default()
     });
 
@@ -117,8 +118,8 @@ pub fn system_info() -> impl Into<Node> {
         .class(vec!["bar-item", "system-info"])
         .spacing(4)
         .children(nodes![
-            label().class(Dynamic(cpu_class)).text(Dynamic(cpu)),
-            label().class(Dynamic(ram_class)).text(Dynamic(ram)),
-            label().class(Dynamic(temp_class)).text(Dynamic(temp))
+            icon_with_text::<String, &str>(Icons::Cpu, Dynamic(cpu), Dynamic(cpu_class)),
+            icon_with_text::<String, &str>(Icons::Mem, Dynamic(ram), Dynamic(ram_class)),
+            icon_with_text::<String, &str>(Icons::Temp, Dynamic(temp), Dynamic(temp_class))
         ])
 }

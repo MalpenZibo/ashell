@@ -5,6 +5,7 @@ use self::{
 };
 use crate::{
     bar::{MenuAction, MenuType},
+    components::icons::{icon_with_class, Icons},
     nodes,
     reactive_gtk::{
         container, label, overlay, scale, separator, Align, Dynamic, IntoSignal, Node, NodeBuilder,
@@ -153,22 +154,19 @@ pub enum SliderToggleMenu<V: IntoSignal<bool>, C: Fn() + 'static> {
 }
 
 pub fn slider(
-    (indicator, indicator_classes): (impl IntoSignal<String> + 'static, Vec<&'static str>),
+    indicator: impl IntoSignal<Icons> + 'static,
     range: (f64, f64),
     (value, on_change): (impl IntoSignal<f64> + 'static, impl Fn(f64) + 'static),
     on_toggle: Option<impl Fn() + 'static>,
     toggle_menu: SliderToggleMenu<impl IntoSignal<bool> + 'static, impl Fn() + 'static>,
 ) -> impl Into<Node> {
-    let indicator_classes = [indicator_classes, {
-        if on_toggle.is_none() {
-            vec!["settings-item"]
-        } else {
-            vec!["settings-item", "interactive"]
-        }
-    }]
-    .concat();
+    let indicator_classes = if on_toggle.is_none() {
+        vec!["settings-item"]
+    } else {
+        vec!["settings-item", "interactive"]
+    };
 
-    let mut indicator = label().class(indicator_classes).text(indicator);
+    let mut indicator = icon_with_class(indicator, indicator_classes).into();
 
     if let Some(on_toggle) = on_toggle {
         indicator = indicator.on_click(on_toggle);
@@ -188,12 +186,10 @@ pub fn slider(
 
     if let SliderToggleMenu::Enabled((visibility, on_toggle)) = toggle_menu {
         children.push(
-            label()
-                .class(vec!["settings-item", "interactive"])
-                .text("󰁔".to_string())
+            icon_with_class(Icons::RightArrow, vec!["settings-item", "interactive"])
+                .into()
                 .visible(visibility)
-                .on_click(on_toggle)
-                .into(),
+                .on_click(on_toggle),
         );
     }
 
@@ -224,17 +220,15 @@ pub fn settings_menu(
                         .children(nodes!(battery_settings_indicator(battery)))
                         .hexpand(true),
                     container().spacing(4).children(nodes!(
-                        label()
-                            .class(vec!("settings-item", "interactive"))
-                            .on_click(lock)
-                            .text("".to_string()),
-                        label()
-                            .class(vec!("settings-item", "interactive"))
+                        icon_with_class(Icons::Lock, vec!("settings-item", "interactive"))
+                            .into()
+                            .on_click(lock),
+                        icon_with_class(Icons::Power, vec!("settings-item", "interactive"))
+                            .into()
                             .on_click({
                                 let submenu = submenu.clone();
                                 move || submenu.set(Some(SubMenuType::Power))
                             })
-                            .text("󰐥".to_string())
                     ))
                 )),
                 vec!(power_submenu()),
@@ -245,7 +239,7 @@ pub fn settings_menu(
             section(
                 submenu.clone(),
                 slider(
-                    ("󰃟".to_string(), vec!("brightness-icon-fix")),
+                    Icons::Brightness,
                     (0., 255.),
                     (Dynamic(brightness.clone().signal()), move |value| {
                         set_brightness(value as u32);
@@ -271,26 +265,26 @@ pub fn power_submenu() -> (SubMenuType, Node) {
                 label()
                     .text_halign(TextAlign::Start)
                     .class(vec!["menu-voice"])
-                    .text("Suspend".to_string())
+                    .text("Suspend")
                     .on_click(suspend)
                     .into(),
                 label()
                     .text_halign(TextAlign::Start)
                     .class(vec!["menu-voice"])
-                    .text("Reboot".to_string())
+                    .text("Reboot")
                     .on_click(reboot)
                     .into(),
                 label()
                     .text_halign(TextAlign::Start)
                     .class(vec!["menu-voice"])
-                    .text("Power Off".to_string())
+                    .text("Power Off")
                     .on_click(poweroff)
                     .into(),
                 separator().into(),
                 label()
                     .text_halign(TextAlign::Start)
                     .class(vec!["menu-voice"])
-                    .text("Logout".to_string())
+                    .text("Logout")
                     .on_click(logout)
                     .into(),
             ])

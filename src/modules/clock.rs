@@ -12,7 +12,7 @@ pub fn clock() -> impl Into<Node> {
         local.format("%a %d %b %R").to_string()
     };
 
-    let clock = Mutable::new(get_date());
+    let clock: Mutable<String> = Mutable::new(get_date());
 
     poll(
         {
@@ -26,5 +26,5 @@ pub fn clock() -> impl Into<Node> {
 
     label()
         .class(vec!["bar-item", "clock"])
-        .text(Dynamic(clock.signal_cloned()))
+        .text::<String>(Dynamic(clock.signal_cloned()))
 }

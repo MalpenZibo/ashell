@@ -10,6 +10,8 @@ use tokio::{
     time::sleep,
 };
 
+use crate::components::icons::Icons;
+
 #[derive(Deserialize, Debug)]
 struct RawProperties {
     #[serde(alias = "device.description")]
@@ -66,27 +68,27 @@ impl Sink {
         self.mute || self.volume == 0
     }
 
-    pub fn to_icon(&self) -> &str {
+    pub fn to_icon(&self) -> Icons {
         if self.is_muted() {
-            "󰸈"
+            Icons::Speaker0
         } else if self.volume < 34 {
-            "󰕿"
+            Icons::Speaker1
         } else if self.volume < 67 {
-            "󰖀"
+            Icons::Speaker2
         } else {
-            "󰕾"
+            Icons::Speaker3
         }
     }
 
-    pub fn to_type_icon(&self) -> &str {
+    pub fn to_type_icon(&self) -> Icons {
         match self {
-            Sink { r#type, .. } if r#type == "Headphones" && self.is_muted() => "󰟎",
-            Sink { r#type, .. } if r#type == "Headphones" && !self.is_muted() => "󰋋",
+            Sink { r#type, .. } if r#type == "Headphones" && self.is_muted() => Icons::Headphones0,
+            Sink { r#type, .. } if r#type == "Headphones" && !self.is_muted() => Icons::Headphones1,
             _ => {
                 if self.is_muted() {
-                    "󰖁"
+                    Icons::Speaker0
                 } else {
-                    "󰕾"
+                    Icons::Speaker3
                 }
             }
         }
@@ -104,11 +106,11 @@ pub struct Source {
 }
 
 impl Source {
-    pub fn to_icon(&self) -> &str {
+    pub fn to_icon(&self) -> Icons {
         if self.volume > 0 && !self.mute {
-            "󰍬"
+            Icons::Mic1
         } else {
-            "󰍭"
+            Icons::Mic0
         }
     }
 }

@@ -37,10 +37,8 @@ pub fn title() -> impl Into<Node> {
 
     label()
         .class(vec!["bar-item", "title"])
-        .valign(Align::Center)
-        .vexpand(false)
         .ellipsize(EllipsizeMode::Middle)
-        .text(Dynamic(title.signal_ref(|t| {
+        .text::<String>(Dynamic(title.signal_ref(|t| {
             t.as_ref().map_or_else(|| "".to_string(), |t| t.to_owned())
         })))
         .visible(Dynamic(title.signal_ref(|t| t.is_some())))

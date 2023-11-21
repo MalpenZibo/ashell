@@ -1,4 +1,4 @@
-use super::{AsyncContext, IntoSignal};
+use super::{AsStr, AsyncContext, IntoSignal};
 use gtk4::traits::{GestureExt, WidgetExt};
 
 pub struct Node {
@@ -56,11 +56,15 @@ pub trait NodeBuilder: Sized {
 
     fn get_ctx(&mut self) -> &mut AsyncContext;
 
-    fn class<'a>(mut self, value: impl IntoSignal<Vec<&'a str>> + 'static) -> Self {
+    fn class<S: AsStr>(mut self, value: impl IntoSignal<Vec<S>> + 'static) -> Self {
         let widget = self.get_widget();
         self.get_ctx().subscribe(value, {
             move |value| {
-                widget.set_css_classes(&value);
+                let value = value
+                    .iter()
+                    .map(|s| s.with_str(|s| s.to_string()))
+                    .collect::<Vec<String>>();
+                widget.set_css_classes(&value.iter().map(|s| s.as_str()).collect::<Vec<_>>());
             }
         });
 

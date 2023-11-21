@@ -1,5 +1,7 @@
 use std::fs::read_to_string;
 
+use crate::components::icons::Icons;
+
 #[derive(Copy, Clone)]
 pub struct BatteryData {
     pub capacity: i64,
@@ -27,29 +29,29 @@ impl BatteryData {
         }
     }
 
-    pub fn get_icon(&self) -> &str {
+    pub fn get_icon(&self) -> Icons {
         match self {
             BatteryData {
                 status: BatteryStatus::Charging,
                 ..
-            } => "󰂄",
+            } => Icons::BatteryCharging,
             BatteryData {
                 status: BatteryStatus::Discharging,
                 capacity,
-            } if *capacity < 20 => "󰂃",
+            } if *capacity < 20 => Icons::Battery0,
             BatteryData {
                 status: BatteryStatus::Discharging,
                 capacity,
-            } if *capacity < 40 => "󰁼",
+            } if *capacity < 40 => Icons::Battery1,
             BatteryData {
                 status: BatteryStatus::Discharging,
                 capacity,
-            } if *capacity < 60 => "󰁾",
+            } if *capacity < 60 => Icons::Battery2,
             BatteryData {
                 status: BatteryStatus::Discharging,
                 capacity,
-            } if *capacity < 80 => "󰂀",
-            _ => "󰁹",
+            } if *capacity < 80 => Icons::Battery3,
+            _ => Icons::Battery4,
         }
     }
 }

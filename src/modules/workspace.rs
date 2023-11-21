@@ -147,7 +147,6 @@ pub fn workspaces() -> impl Into<Node> {
 
     container()
         .spacing(4)
-        .vexpand(true)
         .class(vec!["bar-item", "workspaces"])
         .children(Dynamic(workspaces))
 }

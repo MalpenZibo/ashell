@@ -1,5 +1,14 @@
 @import "./theme.scss";
 
+* {
+  font-family: "Cantarell";
+}
+
+.icon {
+  font-family: "Symbols Nerd Font Mono";
+  font-size: 12px;
+}
+
 window.background {
   background-color: transparent;
 }
@@ -12,7 +21,7 @@ window.background {
 }
 
 .bar {
-  margin: 0px 4px;
+  margin: 4px;
 }
 
 .start-bar {
@@ -29,12 +38,12 @@ window.background {
   border-radius: 20px;
 }
 
-.interactive:hover {
-  background-color: $surface-0;
+.app-launcher {
+  padding: 4px 7px;
 }
 
-.icon-position-fix {
-  padding: 5px 10px 4px 7px;
+.interactive:hover {
+  background-color: $surface-0;
 }
 
 .workspace {
@@ -46,7 +55,7 @@ window.background {
 }
 
 .workspace.active {
-  padding: 0px 16px;
+  padding: 0px 12px;
 }
 
 .workspace.DP-1 {
@@ -95,10 +104,6 @@ window.background {
   color: $red;
 }
 
-.connection {
-  padding-right: 4px;
-}
-
 .wifi-signal-0 {
   color: $red;
 }
@@ -133,18 +138,9 @@ window.background {
 }
 
 .settings-item {
-  font-size: 16px;
   background-color: $surface-0;
-  padding: 8px 13px;
+  padding: 8px 11px;
   border-radius: 20px;
-}
-
-.sink-icon-fix {
-  padding: 8px 13px 8px 12px;
-}
-
-.brightness-icon-fix {
-  padding: 9px 14px 7px 10px;
 }
 
 .settings-item.interactive:hover {

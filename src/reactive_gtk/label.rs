@@ -1,4 +1,4 @@
-use super::{AsyncContext, IntoSignal, Node, NodeBuilder};
+use super::{AsyncContext, IntoSignal, Node, NodeBuilder, AsStr};
 
 #[derive(Clone, Copy)]
 pub enum EllipsizeMode {
@@ -49,10 +49,11 @@ pub fn label() -> Label {
 }
 
 impl Label {
-    pub fn text(mut self, value: impl IntoSignal<String> + 'static) -> Self {
+    pub fn text<T: AsStr>(mut self, value: impl IntoSignal<T> + 'static) -> Self {
         self.ctx.subscribe(value, {
             let widget = self.widget.clone();
             move |value| {
+                let value = value.with_str(|s| s.to_string());
                 widget.set_text(&value);
             }
         });

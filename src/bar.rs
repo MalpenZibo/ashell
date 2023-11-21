@@ -80,14 +80,10 @@ pub fn bar(app: AppCtx) -> impl Into<Node> {
 
     centerbox()
         .class(vec!["bar"])
-        .valign(Align::Center)
-        .vexpand(false)
         .start(Some(
             container()
                 .class(vec!["start-bar"])
                 .spacing(4)
-                .vexpand(false)
-                .valign(Align::Center)
                 .children(nodes![
                     app_launcher(),
                     updates(toggle_menu.clone()),
@@ -97,16 +93,12 @@ pub fn bar(app: AppCtx) -> impl Into<Node> {
         .center(Some(
             container()
                 .class(vec!["center-bar"])
-                .vexpand(false)
-                .valign(Align::Center)
                 .children(nodes![title()]),
         ))
         .end(Some(
             container()
                 .class(vec!["end-bar"])
                 .spacing(4)
-                .vexpand(false)
-                .valign(Align::Center)
                 .children(nodes![
                     system_info(),
                     container().children(nodes!(clock(), settings(toggle_menu)))

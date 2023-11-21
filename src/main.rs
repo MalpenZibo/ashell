@@ -2,6 +2,7 @@ use app::{App, LayerOption};
 use gtk4_layer_shell::Layer;
 
 mod app;
+mod components;
 mod bar;
 mod modules;
 mod reactive_gtk;

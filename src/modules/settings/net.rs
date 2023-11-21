@@ -20,7 +20,7 @@ pub fn vpn_indicator(vpn_list: Mutable<Vec<Vpn>>) -> impl Into<Node> {
 
     label()
         .class(vec!["vpn"])
-        .text("󰖂".to_string())
+        .text("󰖂")
         .visible(Dynamic(visible))
 }
 
@@ -45,6 +45,6 @@ pub fn connection_indicator(
             ]
             .concat()
         })))
-        .text(Dynamic(format))
+        .text::<String>(Dynamic(format))
         .visible(Dynamic(visible))
 }
