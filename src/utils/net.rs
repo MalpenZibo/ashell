@@ -11,6 +11,8 @@ use tokio::{
     time::sleep,
 };
 
+use crate::components::icons::Icons;
+
 #[derive(Deserialize, Debug)]
 struct Device {
     device: String,
@@ -37,7 +39,13 @@ pub enum ActiveConnection {
     },
 }
 
-static WIFI_SIGNAL_ICONS: [&str; 5] = ["󰤭", "󰤟", "󰤢", "󰤥", "󰤨"];
+static WIFI_SIGNAL_ICONS: [Icons; 5] = [
+    Icons::Wifi0,
+    Icons::Wifi1,
+    Icons::Wifi2,
+    Icons::Wifi3,
+    Icons::Wifi4,
+];
 static WIFI_SIGNAL_CLASS: [&str; 5] = [
     "wifi-signal-0",
     "wifi-signal-1",
@@ -47,10 +55,24 @@ static WIFI_SIGNAL_CLASS: [&str; 5] = [
 ];
 
 impl ActiveConnection {
-    pub fn to_icon(&self) -> &str {
+    pub fn name(&self) -> &str {
         match self {
-            ActiveConnection::Ethernet(_) => "󰈀",
+            ActiveConnection::Ethernet(name) => name,
+            ActiveConnection::Wifi { ssid, .. } => ssid,
+        }
+    }
+
+    pub fn to_icon(&self) -> Icons {
+        match self {
+            ActiveConnection::Ethernet(_) => Icons::Ethernet,
             ActiveConnection::Wifi { signal, .. } => WIFI_SIGNAL_ICONS[*signal as usize],
+        }
+    }
+
+    pub fn to_icon_type(&self) -> Icons {
+        match self {
+            ActiveConnection::Ethernet(_) => Icons::Ethernet,
+            ActiveConnection::Wifi { .. } => Icons::Wifi4,
         }
     }
 

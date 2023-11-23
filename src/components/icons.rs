@@ -4,7 +4,7 @@ use crate::{
 };
 use futures_signals::signal::SignalExt;
 
-#[derive(Default)]
+#[derive(Copy, Clone, Default)]
 pub enum Icons {
     #[default]
     None,

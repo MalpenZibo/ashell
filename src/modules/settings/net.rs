@@ -1,4 +1,5 @@
 use crate::{
+    components::icons::{icon_with_class, Icons},
     nodes,
     reactive_gtk::{container, label, Dynamic, Node, NodeBuilder},
     utils::net::{ActiveConnection, Vpn},
@@ -18,25 +19,25 @@ pub fn net_indicator(
 pub fn vpn_indicator(vpn_list: Mutable<Vec<Vpn>>) -> impl Into<Node> {
     let visible = vpn_list.signal_ref(|vpn_list| !vpn_list.is_empty());
 
-    label()
-        .class(vec!["vpn"])
-        .text("󰖂")
+    icon_with_class(Icons::Vpn, vec!["vpn"])
+        .into()
         .visible(Dynamic(visible))
 }
 
 pub fn connection_indicator(
     active_connection: Mutable<Option<ActiveConnection>>,
 ) -> impl Into<Node> {
-    let format = active_connection.signal_ref(|active_connection| {
+    let icon_type = active_connection.signal_ref(|active_connection| {
         active_connection
             .as_ref()
-            .map_or("", |c| c.to_icon())
-            .to_string()
+            .map(|c| c.to_icon())
+            .unwrap_or_default()
     });
     let visible = active_connection.signal_ref(|active_connection| active_connection.is_some());
 
-    label()
-        .class(Dynamic(active_connection.signal_ref(|active_connection| {
+    icon_with_class(
+        Dynamic(icon_type),
+        Dynamic(active_connection.signal_ref(|active_connection| {
             [
                 active_connection
                     .as_ref()
@@ -44,7 +45,8 @@ pub fn connection_indicator(
                 vec!["connection"],
             ]
             .concat()
-        })))
-        .text::<String>(Dynamic(format))
-        .visible(Dynamic(visible))
+        })),
+    )
+    .into()
+    .visible(Dynamic(visible))
 }
