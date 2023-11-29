@@ -8,10 +8,14 @@ use crate::{
 use iced::{theme::Palette, widget::row, window::Id, Alignment, Application, Color, Length, Theme};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
+pub enum OpenMenu {
+    Updates,
+}
+
 pub struct App {
     menu_sender: UnboundedSender<MenuInput>,
     menu_receiver: RefCell<Option<UnboundedReceiver<MenuOutput>>>,
-    menu_is_open: bool,
+    menu_type: Option<OpenMenu>,
     updates: Updates,
     window_title: Title,
 }
@@ -39,7 +43,7 @@ impl Application for App {
             App {
                 menu_sender: flags.0,
                 menu_receiver: RefCell::new(Some(flags.1)),
-                menu_is_open: false,
+                menu_type: None,
                 updates: Updates::new(),
                 window_title: Title::new(),
             },
@@ -65,20 +69,31 @@ impl Application for App {
         match message {
             Message::None => {}
             Message::MenuClosed => {
-                self.menu_is_open = false;
+                self.menu_type = None;
             }
             Message::UpdatesMessage(crate::modules::updates::Message::ToggleMenu) => {
-                if self.menu_is_open {
-                    self.menu_is_open = false;
+                if self.menu_type.is_some() {
+                    self.menu_type = None;
                     self.menu_sender.send(MenuInput::Close).unwrap();
                 } else {
                     self.menu_sender
-                        .send(MenuInput::Open(MenuType::Updates))
+                        .send(MenuInput::Open(MenuType::Updates(self.updates.updates.clone())))
                         .unwrap();
-                    self.menu_is_open = true;
+                    self.menu_type = Some(OpenMenu::Updates);
                 }
             }
             Message::UpdatesMessage(crate::modules::updates::Message::InternalMessage(message)) => {
+                match (&message, &self.menu_type) {
+                    (
+                        crate::modules::updates::InternalMessage::UpdatesCheckCompleted(updates),
+                        Some(OpenMenu::Updates),
+                    ) => {
+                        self.menu_sender
+                            .send(MenuInput::MessageToUpdates(updates.clone()))
+                            .unwrap();
+                    }
+                    _ => {}
+                };
                 self.updates.update(message);
             }
             Message::LauncherMessage(_) => {
@@ -95,7 +110,7 @@ impl Application for App {
         iced::Command::none()
     }
 
-    fn view(&self, id: Id) -> iced::Element<'_, Self::Message> {
+    fn view(&self, _id: Id) -> iced::Element<'_, Self::Message> {
         let left = row!(
             launcher::launcher().map(Message::LauncherMessage),
             self.updates.view().map(Message::UpdatesMessage),

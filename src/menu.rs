@@ -1,4 +1,4 @@
-use crate::modules::updates::{MenuItem, UpdateMenu, UpdateMenuMessage};
+use crate::modules::updates::{Update, UpdateMenu, UpdateMenuMessage};
 use iced::wayland::layer_surface::{set_anchor, set_size};
 use iced::widget::container;
 use iced::{
@@ -16,12 +16,13 @@ use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 
 #[derive(Debug, Clone)]
 pub enum MenuType {
-    Updates,
+    Updates(Vec<Update>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum MenuInput {
     Open(MenuType),
+    MessageToUpdates(Vec<Update>),
     Close,
 }
 
@@ -115,7 +116,7 @@ impl Application for Menu {
                 ])
             }
             Message::None => iced::Command::none(),
-            Message::OpenMenu(MenuType::Updates) => {
+            Message::OpenMenu(MenuType::Updates(updates)) => {
                 let cmd = iced::Command::batch([
                     set_anchor(
                         Id(1),
@@ -127,7 +128,7 @@ impl Application for Menu {
                     set_size(Id(1), None, None),
                 ]);
 
-                self.updates = Some(UpdateMenu {});
+                self.updates = Some(UpdateMenu { updates });
 
                 cmd
             }
@@ -177,10 +178,13 @@ impl Application for Menu {
                 if let Some(menu_message) = receiver.as_mut().unwrap().recv().await {
                     (
                         match menu_message {
-                            MenuInput::Open(MenuType::Updates) => {
-                                Message::OpenMenu(MenuType::Updates)
+                            MenuInput::Open(MenuType::Updates(updates)) => {
+                                Message::OpenMenu(MenuType::Updates(updates))
                             }
                             MenuInput::Close => Message::CloseRequest,
+                            MenuInput::MessageToUpdates(msg) => {
+                                Message::UpdatesMenu(UpdateMenuMessage::UpdatesCheckCompleted(msg))
+                            }
                         },
                         receiver,
                     )

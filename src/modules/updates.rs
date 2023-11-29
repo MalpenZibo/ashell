@@ -78,7 +78,7 @@ enum State {
 }
 pub struct Updates {
     state: State,
-    updates: Vec<Update>,
+    pub updates: Vec<Update>,
 }
 
 impl Updates {
@@ -90,42 +90,43 @@ impl Updates {
     }
 
     pub fn update(&mut self, message: InternalMessage) {
-        match message {   
+        match message {
             InternalMessage::UpdatesCheckCompleted(updates) => {
                 self.updates = updates;
                 self.state = State::Ready;
-            }  
-        }  
-    }  
-  
+            }
+        }
+    }
+
     pub fn view(&self) -> Element<Message> {
         let mut content = row!(icon(match self.state {
             State::Checking => Icons::Refresh,
             State::Ready if self.updates.is_empty() => Icons::NoUpdatesAvailable,
             _ => Icons::UpdatesAvailable,
-        }))  
-        .spacing(4);   
-     
+        }))
+        .spacing(4);
+
         if !self.updates.is_empty() {
             content = content.push(text(self.updates.len()));
-        }   
-  
-        button(content)  
+        }
+
+        button(content)
             .style(iced::theme::Button::custom(HeaderButtonStyle))
             .on_press(Message::ToggleMenu)
-            .into()  
-    }  
+            .into()
+    }
 
     pub fn subscription(&self) -> iced::Subscription<InternalMessage> {
         iced::subscription::channel("update-checker", 10, |mut output| async move {
-            let updates = check_update_now().await;
+             let updates = check_update_now().await;
 
             let _ = output.try_send(InternalMessage::UpdatesCheckCompleted(updates));
 
             loop {
-                sleep(Duration::from_secs(60 * 30)).await;
+                sleep(Duration::from_secs(10)).await;
 
                 let updates = check_update_now().await;
+
                 let _ = output.try_send(InternalMessage::UpdatesCheckCompleted(updates));
             }
         })
@@ -133,25 +134,31 @@ impl Updates {
 }
 
 #[derive(Debug, Clone)]
-pub enum UpdateMenuMessage {}
-
-#[derive(Debug)]
-pub struct UpdateMenu {}
-
-pub trait MenuItem {
-    type Message;
-
-    fn update(&mut self, message: Self::Message);
-
-    fn view(&self) -> Element<Self::Message>;
+pub enum UpdateMenuMessage {
+    UpdatesCheckCompleted(Vec<Update>),
 }
 
-impl MenuItem for UpdateMenu {
-    type Message = UpdateMenuMessage;
+#[derive(Debug)]
+pub struct UpdateMenu {
+    pub updates: Vec<Update>,
+}
 
-    fn update(&mut self, message: Self::Message) {}
+impl UpdateMenu {
+    pub fn update(&mut self, message: UpdateMenuMessage) {
+        match message {
+            UpdateMenuMessage::UpdatesCheckCompleted(updates) => {
+                self.updates = updates;
+            }
+        }
+    }
 
-    fn view(&self) -> Element<Self::Message> {
-        text("Hello from update menu").into()
+    pub fn view(&self) -> Element<UpdateMenuMessage> {
+        let mut element = row!(text("Hello from update menu"),);
+
+        for u in self.updates.iter() {
+            element = element.push(text(u.package.clone()));
+        }
+
+        element.into()
     }
 }
