@@ -1,30 +1,71 @@
-use crate::reactive_gtk::{label, Align, Dynamic, EllipsizeMode, Node, NodeBuilder};
-use futures_signals::signal::Mutable;
 use hyprland::{data::Client, event_listener::EventListener, shared::HyprDataActiveOptional};
+use iced::{widget::container, BorderRadius, Element};
+use std::cell::RefCell;
 
-pub fn title() -> impl Into<Node> {
-    let title: Mutable<Option<String>> = Mutable::new(
-        Client::get_active()
+pub struct Title {
+    value: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub enum Message {
+    TitleChanged(Option<String>),
+}
+
+impl Title {
+    pub fn new() -> Self {
+        let init = Client::get_active()
             .ok()
-            .and_then(|w| w.map(|w| w.initial_title)),
-    );
+            .and_then(|w| w.map(|w| w.initial_title));
 
-    tokio::spawn({
-        let title = title.clone();
-        async move {
+        Self { value: init }
+    }
+
+    pub fn update(&mut self, message: Message) {
+        match message {
+            Message::TitleChanged(value) => {
+                self.value = value;
+            }
+        }
+    }
+
+    pub fn view(&self) -> Option<Element<Message>> {
+        self.value.as_ref().map(|value| {
+            container(iced::widget::text(value))
+                .padding([4, 8])
+                .style(move |_: &_| iced::widget::container::Appearance {
+                    background: Some(iced::Background::Color(iced::Color::from_rgb(
+                        0.0, 0.0, 0.0,
+                    ))),
+                    border_radius: BorderRadius::from(12.0),
+                    border_width: 0.0,
+                    border_color: iced::Color::TRANSPARENT,
+                    text_color: Some(iced::Color::from_rgb(1.0, 1.0, 1.0)),
+                    ..Default::default()
+                })
+                .into()
+        })
+    }
+
+    pub fn subscription(&self) -> iced::Subscription<Message> {
+        iced::subscription::channel("title-listener", 10, |output| async move {
+            let output = RefCell::new(output);
             let mut event_listener = EventListener::new();
 
             event_listener.add_active_window_change_handler({
-                let title = title.clone();
+                let output = output.clone();
                 move |e| {
-                    title.replace(e.map(|w| w.window_title));
+                    let mut output = output.borrow_mut();
+                    output
+                        .try_send(Message::TitleChanged(e.map(|e| e.window_title)))
+                        .unwrap();
                 }
             });
 
             event_listener.add_window_close_handler({
-                let title = title.clone();
+                let output = output.clone();
                 move |_| {
-                    title.set(None);
+                    let mut output = output.borrow_mut();
+                    output.try_send(Message::TitleChanged(None)).unwrap();
                 }
             });
 
@@ -32,14 +73,8 @@ pub fn title() -> impl Into<Node> {
                 .start_listener_async()
                 .await
                 .expect("failed to start active window listener");
-        }
-    });
 
-    label()
-        .class(vec!["bar-item", "title"])
-        .ellipsize(EllipsizeMode::Middle)
-        .text::<String>(Dynamic(title.signal_ref(|t| {
-            t.as_ref().map_or_else(|| "".to_string(), |t| t.to_owned())
-        })))
-        .visible(Dynamic(title.signal_ref(|t| t.is_some())))
+            panic!("Exiting hyprland event listener");
+        })
+    }
 }

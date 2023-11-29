@@ -1,172 +1,150 @@
-use crate::reactive_gtk::{AsyncContext, Node};
-use gdk4::Display;
-use gtk4::Application;
-use gtk4::{prelude::*, CssProvider, STYLE_PROVIDER_PRIORITY_APPLICATION};
-use gtk4_layer_shell::{Edge, Layer, LayerShell};
 use std::cell::RefCell;
-use std::ops::Deref;
-use std::rc::Rc;
 
-pub struct LayerOption {
-    pub r#type: Layer,
-    pub exclusive_zone: bool,
-    pub top_anchor: bool,
-    pub bottom_anchor: bool,
-    pub left_anchor: bool,
-    pub right_anchor: bool,
-}
-
-impl LayerOption {
-    fn setup_window(&self, window: &gtk4::ApplicationWindow) {
-        window.init_layer_shell();
-        window.set_layer(self.r#type);
-
-        if self.exclusive_zone {
-            window.auto_exclusive_zone_enable();
-        }
-
-        let anchors = [
-            (Edge::Left, self.left_anchor),
-            (Edge::Right, self.right_anchor),
-            (Edge::Top, self.top_anchor),
-            (Edge::Bottom, self.bottom_anchor),
-        ];
-
-        for (anchor, state) in anchors {
-            window.set_anchor(anchor, state);
-        }
-    }
-}
+use crate::{
+    centerbox,
+    menu::{MenuInput, MenuOutput, MenuType},
+    modules::{launcher, title::Title, updates::Updates},
+};
+use iced::{theme::Palette, widget::row, window::Id, Alignment, Application, Color, Length, Theme};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 pub struct App {
-    title: Option<String>,
-    width: Option<i32>,
-    height: Option<i32>,
-    layer_option: Option<LayerOption>,
-    gtk_application: Application,
+    menu_sender: UnboundedSender<MenuInput>,
+    menu_receiver: RefCell<Option<UnboundedReceiver<MenuOutput>>>,
+    menu_is_open: bool,
+    updates: Updates,
+    window_title: Title,
 }
 
-impl App {
-    pub fn new(name: &str) -> Self {
-        let gtk_application = Application::builder().application_id(name).build();
+#[derive(Debug, Clone)]
+pub enum Message {
+    None,
+    MenuClosed,
+    LauncherMessage(crate::modules::launcher::Message),
+    UpdatesMessage(crate::modules::updates::Message),
+    TitleMessage(crate::modules::title::Message),
+    CloseRequest,
+}
 
-        Self {
-            title: None,
-            width: None,
-            height: None,
-            layer_option: None,
-            gtk_application,
-        }
+impl Application for App {
+    type Executor = iced::executor::Default;
+    type Theme = Theme;
+    type Message = Message;
+    type Flags = (UnboundedSender<MenuInput>, UnboundedReceiver<MenuOutput>);
+
+    fn new(
+        flags: (UnboundedSender<MenuInput>, UnboundedReceiver<MenuOutput>),
+    ) -> (Self, iced::Command<Self::Message>) {
+        (
+            App {
+                menu_sender: flags.0,
+                menu_receiver: RefCell::new(Some(flags.1)),
+                menu_is_open: false,
+                updates: Updates::new(),
+                window_title: Title::new(),
+            },
+            iced::Command::none(),
+        )
     }
 
-    pub fn set_title(mut self, title: String) -> Self {
-        self.title = Some(title);
-
-        self
+    fn theme(&self) -> Self::Theme {
+        Theme::custom(Palette {
+            background: iced::Color::from_rgba(0.0, 0.0, 0.0, 0.0),
+            text: Color::BLACK,
+            primary: Color::from_rgb(0.5, 0.5, 0.0),
+            success: Color::from_rgb(0.0, 1.0, 0.0),
+            danger: Color::from_rgb(1.0, 0.0, 0.0),
+        })
     }
 
-    pub fn set_width(mut self, width: i32) -> Self {
-        self.width = Some(width);
-
-        self
+    fn title(&self) -> String {
+        String::from("ashell")
     }
 
-    pub fn set_height(mut self, height: i32) -> Self {
-        self.height = Some(height);
-
-        self
-    }
-
-    pub fn set_layer_option(mut self, layer_option: LayerOption) -> Self {
-        self.layer_option = Some(layer_option);
-
-        self
-    }
-
-    pub fn run<N: Into<Node>, F: Fn(AppCtx) -> N + 'static>(self, root: F) {
-        let ctx = RefCell::new(AsyncContext::default());
-
-        let build_ui = move |app: &Application| {
-            let window = gtk4::ApplicationWindow::new(app);
-            window.set_title(self.title.as_deref());
-            window.set_default_size(self.width.unwrap_or(-1), self.height.unwrap_or(-1));
-
-            if let Some(layer_option) = &self.layer_option {
-                layer_option.setup_window(&window);
+    fn update(&mut self, message: Self::Message) -> iced::Command<Self::Message> {
+        match message {
+            Message::None => {}
+            Message::MenuClosed => {
+                self.menu_is_open = false;
             }
-
-            // The CSS "magic" happens here.
-            let provider = CssProvider::new();
-            provider.load_from_data(grass::include!("./src/style.scss"));
-            // We give the CssProvided to the default screen so the CSS rules we added
-            // can be applied to our window.
-            gtk4::style_context_add_provider_for_display(
-                &Display::default().expect("Could not connect to a display."),
-                &provider,
-                STYLE_PROVIDER_PRIORITY_APPLICATION,
-            );
-
-            let mut root = root(AppCtx(app.clone())).into();
-
-            ctx.borrow_mut().consume(root.get_ctx());
-
-            window.set_child(Some(root.get_widget()));
-
-            // Present window
-            window.present();
-        };
-
-        // Connect to "activate" signal of `app`
-        self.gtk_application.connect_activate(build_ui);
-
-        // Run the application
-        self.gtk_application.run();
-    }
-}
-
-pub struct AppCtx(Application);
-
-#[derive(Clone)]
-pub struct CloseHandle(Rc<dyn Fn()>);
-
-impl Deref for CloseHandle {
-    type Target = Rc<dyn Fn()>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl AppCtx {
-    pub fn open_window<N: Into<Node>>(
-        &self,
-        root: impl FnOnce(CloseHandle) -> N,
-        layer: Option<LayerOption>,
-    ) -> CloseHandle {
-        let window = gtk4::ApplicationWindow::new(&self.0);
-        if let Some(layer) = layer {
-            layer.setup_window(&window);
+            Message::UpdatesMessage(crate::modules::updates::Message::ToggleMenu) => {
+                if self.menu_is_open {
+                    self.menu_is_open = false;
+                    self.menu_sender.send(MenuInput::Close).unwrap();
+                } else {
+                    self.menu_sender
+                        .send(MenuInput::Open(MenuType::Updates))
+                        .unwrap();
+                    self.menu_is_open = true;
+                }
+            }
+            Message::UpdatesMessage(crate::modules::updates::Message::InternalMessage(message)) => {
+                self.updates.update(message);
+            }
+            Message::LauncherMessage(_) => {
+                crate::utils::launcher::launch_rofi();
+            }
+            Message::TitleMessage(message) => {
+                self.window_title.update(message);
+            }
+            Message::CloseRequest => {
+                println!("Close request received");
+            }
         }
 
-        let ctx = Rc::new(RefCell::new(AsyncContext::default()));
+        iced::Command::none()
+    }
 
-        let close_window = CloseHandle({
-            let window = window.clone();
-            let ctx = ctx.clone();
-            Rc::new(move || {
-                window.close();
-                ctx.borrow_mut().cancel();
-            })
-        });
+    fn view(&self, id: Id) -> iced::Element<'_, Self::Message> {
+        let left = row!(
+            launcher::launcher().map(Message::LauncherMessage),
+            self.updates.view().map(Message::UpdatesMessage),
+        )
+        .spacing(4);
 
-        let mut root = root(close_window.clone()).into();
+        let mut center = row!().spacing(4);
+        if let Some(title) = self.window_title.view() {
+            center = center.push(title.map(Message::TitleMessage));
+        }
 
-        ctx.borrow_mut().consume(root.get_ctx());
+        let right = row!().spacing(4);
 
-        window.set_child(Some(root.get_widget()));
+        centerbox::Centerbox::new([left.into(), center.into(), right.into()])
+            .spacing(4)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .align_items(Alignment::Center)
+            .padding(4)
+            .into()
+    }
 
-        window.present();
+    fn subscription(&self) -> iced::Subscription<Self::Message> {
+        iced::Subscription::batch(vec![
+            iced::subscription::unfold(
+                "menu output receiver",
+                self.menu_receiver.take(),
+                move |mut receiver| async move {
+                    if let Some(menu_message) = receiver.as_mut().unwrap().recv().await {
+                        (
+                            match menu_message {
+                                MenuOutput::Close => Message::MenuClosed,
+                            },
+                            receiver,
+                        )
+                    } else {
+                        (Message::None, receiver)
+                    }
+                },
+            ),
+            self.updates.subscription().map(|msg| {
+                Message::UpdatesMessage(crate::modules::updates::Message::InternalMessage(msg))
+            }),
+            self.window_title.subscription().map(Message::TitleMessage),
+        ])
+    }
 
-        close_window
+    fn close_requested(&self, id: iced::window::Id) -> Self::Message {
+        println!("Window {:?} has received a close request", id);
+        Message::CloseRequest
     }
 }

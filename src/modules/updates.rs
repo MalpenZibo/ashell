@@ -1,15 +1,13 @@
 use crate::{
-    bar::{MenuAction, MenuType},
-    components::icons::{self, icon, Icons},
-    nodes,
-    reactive_gtk::{
-        container, label, scrolled_window, separator, Align, Dynamic, Node, NodeBuilder,
-        Orientation, PolicyType, TextAlign,
-    },
+    components::icons::{icon, Icons},
+    style::HeaderButtonStyle,
 };
-use futures_signals::signal::Mutable;
+use iced::{
+    widget::{button, row, text},
+    Element,
+};
 use serde::Deserialize;
-use std::{process::Stdio, rc::Rc, time::Duration};
+use std::{process::Stdio, time::Duration};
 use tokio::{process::Command, time::sleep};
 
 #[derive(Deserialize, Debug, Clone)]
@@ -63,169 +61,97 @@ async fn update() {
             .output().await;
 }
 
-pub fn updates(toggle_menu: Rc<dyn Fn(MenuType, MenuAction)>) -> impl Into<Node> {
-    let updates = Mutable::new(vec![]);
-
-    tokio::spawn({
-        let updates = updates.clone();
-        async move {
-            loop {
-                updates.replace(check_update_now().await);
-                sleep(Duration::from_secs(600)).await;
-            }
-        }
-    });
-
-    container()
-        .class(vec!["bar-item", "interactive", "icon-position-fix"])
-        .spacing(4)
-        .on_click({
-            let updates = updates.clone();
-            move || {
-                toggle_menu(
-                    MenuType::Updates,
-                    MenuAction::Open(Box::new({
-                        let toggle_menu = toggle_menu.clone();
-                        let updates = updates.clone();
-                        move || {
-                            (
-                                update_menu(toggle_menu.clone(), updates.clone()).into(),
-                                Align::Start,
-                            )
-                        }
-                    })),
-                )
-            }
-        })
-        .children(nodes![
-            icon(Icons::NoUpdatesAvailable)
-                .into()
-                .visible(Dynamic(updates.signal_ref(|updates| updates.is_empty()))),
-            icon(Icons::UpdatesAvailable)
-                .into()
-                .visible(Dynamic(updates.signal_ref(|updates| !updates.is_empty()))),
-            label()
-                .text::<String>(Dynamic(
-                    updates.signal_ref(|updates| updates.len().to_string())
-                ))
-                .visible(Dynamic(updates.signal_ref(|updates| !updates.is_empty())))
-        ])
+#[derive(Debug, Clone)]
+pub enum Message {
+    ToggleMenu,
+    InternalMessage(InternalMessage),
 }
 
-fn update_menu(
-    toggle_menu: Rc<dyn Fn(MenuType, MenuAction)>,
-    updates: Mutable<Vec<Update>>,
-) -> impl Into<Node> {
-    let menu_open = Mutable::new(false);
-    let update_present = updates.signal_ref(|updates| !updates.is_empty());
+#[derive(Debug, Clone)]
+pub enum InternalMessage {
+    UpdatesCheckCompleted(Vec<Update>),
+}
 
-    let scroll_size = updates.signal_ref(|updates| (-1, (updates.len() as i32 * 20).min(320)));
+enum State {
+    Checking,
+    Ready,
+}
+pub struct Updates {
+    state: State,
+    updates: Vec<Update>,
+}
 
-    let number_of_updates = updates.signal_ref(|updates| {
-        if updates.is_empty() {
-            "Up to date ;)".to_string()
-        } else {
-            format!("{} updates availabe", updates.len())
+impl Updates {
+    pub fn new() -> Self {
+        Self {
+            state: State::Checking,
+            updates: vec![],
         }
-    });
+    }
 
-    let menu_expander_icon = menu_open.signal_ref(|menu_open| {
-        if *menu_open {
-            Icons::MenuOpen
-        } else {
-            Icons::MenuClosed
-        }
-    });
+    pub fn update(&mut self, message: InternalMessage) {
+        match message {   
+            InternalMessage::UpdatesCheckCompleted(updates) => {
+                self.updates = updates;
+                self.state = State::Ready;
+            }  
+        }  
+    }  
+  
+    pub fn view(&self) -> Element<Message> {
+        let mut content = row!(icon(match self.state {
+            State::Checking => Icons::Refresh,
+            State::Ready if self.updates.is_empty() => Icons::NoUpdatesAvailable,
+            _ => Icons::UpdatesAvailable,
+        }))  
+        .spacing(4);   
+     
+        if !self.updates.is_empty() {
+            content = content.push(text(self.updates.len()));
+        }   
+  
+        button(content)  
+            .style(iced::theme::Button::custom(HeaderButtonStyle))
+            .on_press(Message::ToggleMenu)
+            .into()  
+    }  
 
-    let updates_list = updates.signal_ref(|updates| {
-        updates
-            .iter()
-            .map(|update| {
-                container()
-                    .orientation(Orientation::Horizontal)
-                    .spacing(4)
-                    .children(nodes![
-                        label()
-                            .hexpand(true)
-                            .class(vec!["small-text"])
-                            .text_halign(TextAlign::Start)
-                            .text(update.package.clone()),
-                        label()
-                            .class(vec!["small-text"])
-                            .text_halign(TextAlign::End)
-                            .text(format!("{} -> {}", update.from, update.to))
-                    ])
-                    .into()
-            })
-            .collect::<Vec<Node>>()
-    });
+    pub fn subscription(&self) -> iced::Subscription<InternalMessage> {
+        iced::subscription::channel("update-checker", 10, |mut output| async move {
+            let updates = check_update_now().await;
 
-    container()
-        .orientation(Orientation::Vertical)
-        .hexpand(true)
-        .class(vec!["updates-menu"])
-        .spacing(4)
-        .children(nodes![
-            container()
-                .class(vec!["menu-voice"])
-                .hexpand(true)
-                .on_click({
-                    let menu_open = menu_open.clone();
-                    move || {
-                        menu_open.replace_with(|menu_open| !*menu_open);
-                    }
-                })
-                .spacing(16)
-                .children(nodes![
-                    label()
-                        .hexpand(true)
-                        .halign(Align::Start)
-                        .text::<String>(Dynamic(number_of_updates)),
-                    icon(Dynamic(menu_expander_icon))
-                        .into()
-                        .visible(Dynamic(update_present))
-                ]),
-            scrolled_window()
-                .size(Dynamic(scroll_size))
-                .child(Some(
-                    container()
-                        .class(vec!["updates-list"])
-                        .orientation(Orientation::Vertical)
-                        .spacing(4)
-                        .children(Dynamic(updates_list)),
-                ))
-                .hscrollbar_policy(PolicyType::Never)
-                .visible(Dynamic(menu_open.signal())),
-            separator().orientation(Orientation::Horizontal),
-            label()
-                .class(vec!["menu-voice"])
-                .hexpand(true)
-                .on_click(move || {
-                    tokio::spawn({
-                        async move {
-                            update().await;
-                        }
-                    });
-                    toggle_menu(MenuType::Updates, MenuAction::Close);
-                })
-                .text_halign(TextAlign::Start)
-                .text("Update"),
-            label()
-                .class(vec!["menu-voice"])
-                .hexpand(true)
-                .on_click({
-                    let updates = updates.clone();
-                    move || {
-                        tokio::spawn({
-                            let updates = updates.clone();
-                            async move {
-                                updates.replace(vec![]);
-                                updates.replace(check_update_now().await);
-                            }
-                        });
-                    }
-                })
-                .text_halign(TextAlign::Start)
-                .text("Check now!")
-        ])
+            let _ = output.try_send(InternalMessage::UpdatesCheckCompleted(updates));
+
+            loop {
+                sleep(Duration::from_secs(60 * 30)).await;
+
+                let updates = check_update_now().await;
+                let _ = output.try_send(InternalMessage::UpdatesCheckCompleted(updates));
+            }
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum UpdateMenuMessage {}
+
+#[derive(Debug)]
+pub struct UpdateMenu {}
+
+pub trait MenuItem {
+    type Message;
+
+    fn update(&mut self, message: Self::Message);
+
+    fn view(&self) -> Element<Self::Message>;
+}
+
+impl MenuItem for UpdateMenu {
+    type Message = UpdateMenuMessage;
+
+    fn update(&mut self, message: Self::Message) {}
+
+    fn view(&self) -> Element<Self::Message> {
+        text("Hello from update menu").into()
+    }
 }

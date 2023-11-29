@@ -1,14 +1,14 @@
-use iced::{
-    widget::{container, text, Container},
-    Font,
+use crate::{
+    nodes,
+    reactive_gtk::{container, label, AsStr, Dynamic, IntoSignal, Node, NodeBuilder, Orientation},
 };
+use futures_signals::signal::SignalExt;
 
 #[derive(Copy, Clone, Default)]
 pub enum Icons {
     #[default]
     None,
     Launcher,
-    Refresh,
     NoUpdatesAvailable,
     UpdatesAvailable,
     MenuClosed,
@@ -41,7 +41,7 @@ pub enum Icons {
     Power,
     RightArrow,
     Brightness,
-    Point,
+    Point
 }
 
 impl From<Icons> for &'static str {
@@ -49,7 +49,6 @@ impl From<Icons> for &'static str {
         match icon {
             Icons::None => "",
             Icons::Launcher => "󱗼",
-            Icons::Refresh => "󰑐",
             Icons::NoUpdatesAvailable => "󰗠",
             Icons::UpdatesAvailable => "󰳛",
             Icons::MenuClosed => "",
@@ -82,16 +81,44 @@ impl From<Icons> for &'static str {
             Icons::Power => "󰐥",
             Icons::RightArrow => "󰁔",
             Icons::Brightness => "󰃟",
-            Icons::Point => "",
+            Icons::Point => ""
         }
     }
 }
 
-pub fn icon<'a, Message>(r#type: Icons) -> Container<'a, Message> {
-    container(
-        text(std::convert::Into::<&'static str>::into(r#type))
-            .font(Font::with_name("Symbols Nerd Font Mono"))
-            .size(12),
-    )
-    .padding([0, 2])
+pub fn icon(icon: impl IntoSignal<Icons>) -> impl Into<Node> {
+    label()
+        .class(vec!["icon"])
+        .text::<&str>(Dynamic(icon.into_signal().map(|icon| icon.into())))
+}
+
+pub fn icon_with_class<C: AsStr>(
+    icon: impl IntoSignal<Icons>,
+    classes: impl IntoSignal<Vec<C>>,
+) -> impl Into<Node> {
+    let classes = classes.into_signal().map(|classes| {
+        [
+            vec!["icon".to_string()],
+            classes
+                .iter()
+                .map(|c| c.with_str(|c| c.to_string()))
+                .collect(),
+        ]
+        .concat()
+    });
+    label()
+        .class(Dynamic(classes))
+        .text::<&str>(Dynamic(icon.into_signal().map(|icon| icon.into())))
+}
+
+pub fn icon_with_text<T: AsStr, C: AsStr>(
+    r#type: impl IntoSignal<Icons>,
+    text: impl IntoSignal<T> + 'static,
+    classes: impl IntoSignal<Vec<C>> + 'static,
+) -> impl Into<Node> {
+    container()
+        .class(classes)
+        .orientation(Orientation::Horizontal)
+        .spacing(4)
+        .children(nodes!(icon(r#type), label().text::<T>(text)))
 }
