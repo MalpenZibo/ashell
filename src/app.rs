@@ -3,9 +3,10 @@ use crate::{
     menu::{MenuInput, MenuOutput, MenuType},
     modules::{
         launcher,
+        system_info::SystemInfo,
         title::Title,
         updates::{Update, UpdateMenuOutput, Updates},
-        workspaces::Workspaces
+        workspaces::Workspaces,
     },
     style::ashell_theme,
 };
@@ -30,6 +31,7 @@ pub struct App {
     updates: Updates,
     workspaces: Workspaces,
     window_title: Title,
+    system_info: SystemInfo,
 }
 
 #[derive(Debug, Clone)]
@@ -40,6 +42,7 @@ pub enum Message {
     UpdatesMessage(crate::modules::updates::Message),
     WorkspacesMessage(crate::modules::workspaces::Message),
     TitleMessage(crate::modules::title::Message),
+    SystemInfoMessage(crate::modules::system_info::Message),
     CloseRequest,
 }
 
@@ -60,6 +63,7 @@ impl Application for App {
                 updates: Updates::new(),
                 workspaces: Workspaces::new(),
                 window_title: Title::new(),
+                system_info: SystemInfo::new(),
             },
             iced::Command::none(),
         )
@@ -120,6 +124,9 @@ impl Application for App {
             Message::TitleMessage(message) => {
                 self.window_title.update(message);
             }
+            Message::SystemInfoMessage(message) => {
+                self.system_info.update(message);
+            }
             Message::CloseRequest => {
                 println!("Close request received");
             }
@@ -141,7 +148,7 @@ impl Application for App {
             center = center.push(title.map(Message::TitleMessage));
         }
 
-        let right = row!().spacing(4);
+        let right = row!(self.system_info.view().map(Message::SystemInfoMessage)).spacing(4);
 
         centerbox::Centerbox::new([left.into(), center.into(), right.into()])
             .spacing(4)
@@ -190,8 +197,14 @@ impl Application for App {
                 },
             ),
             self.updates.subscription().map(Message::UpdatesMessage),
-            self.workspaces.subscription().map(Message::WorkspacesMessage),
+            self.workspaces
+                .subscription()
+                .map(Message::WorkspacesMessage),
             self.window_title.subscription().map(Message::TitleMessage),
+            self.system_info
+                .subscription()
+                .map(Message::SystemInfoMessage),
+                    
         ])
     }
 

@@ -118,11 +118,13 @@ impl Updates {
     }
 
     pub fn view(&self) -> Element<Message> {
-        let mut content = row!(icon(match self.state {
+        let mut content = row!(container(icon(match self.state {
             State::Checking => Icons::Refresh,
             State::Ready if self.updates.is_empty() => Icons::NoUpdatesAvailable,
             _ => Icons::UpdatesAvailable,
         }))
+        .padding([0, 1]))
+        .align_items(iced::Alignment::Center)
         .spacing(4);
 
         if !self.updates.is_empty() {

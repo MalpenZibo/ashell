@@ -1,5 +1,5 @@
 use iced::{
-    widget::{container, text, Container},
+    widget::{text, Text},
     Font,
 };
 
@@ -87,11 +87,13 @@ impl From<Icons> for &'static str {
     }
 }
 
-pub fn icon<'a, Message>(r#type: Icons) -> Container<'a, Message> {
-    container(
-        text(std::convert::Into::<&'static str>::into(r#type))
-            .font(Font::with_name("Symbols Nerd Font Mono"))
-            .size(12),
-    )
-    .padding([0, 2])
+pub fn icon<'a, Renderer>(r#type: Icons) -> Text<'a, Renderer>
+where
+    Renderer: iced::advanced::text::Renderer,
+    Renderer::Theme: text::StyleSheet,
+    Renderer::Font: From<Font> 
+{
+    text(std::convert::Into::<&'static str>::into(r#type))
+        .font(Font::with_name("Symbols Nerd Font Mono"))
+        .size(12)
 }

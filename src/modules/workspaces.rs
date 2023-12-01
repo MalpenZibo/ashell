@@ -3,11 +3,10 @@ use hyprland::{
     shared::{HyprData, HyprDataActive},
 };
 use iced::{
-    widget::{container, horizontal_space, mouse_area, row, space, text, Row},
-    BorderRadius, Color, Element, Length, Theme,
+    widget::{container, mouse_area, text, Row},
+    BorderRadius, Element, Length, Theme,
 };
 use std::cell::RefCell;
-
 use crate::style::{header_pills, BASE, LAVENDER, MAUVE, PEACH, SURFACE_0, TEXT};
 
 #[derive(Debug, Clone)]
