@@ -1,6 +1,8 @@
 use hyprland::{data::Client, event_listener::EventListener, shared::HyprDataActiveOptional};
-use iced::{widget::container, BorderRadius, Element};
+use iced::{widget::container, BorderRadius, Element, Theme};
 use std::cell::RefCell;
+
+use crate::style::header_pills;
 
 pub struct Title {
     value: Option<String>,
@@ -32,16 +34,7 @@ impl Title {
         self.value.as_ref().map(|value| {
             container(iced::widget::text(value))
                 .padding([4, 8])
-                .style(move |_: &_| iced::widget::container::Appearance {
-                    background: Some(iced::Background::Color(iced::Color::from_rgb(
-                        0.0, 0.0, 0.0,
-                    ))),
-                    border_radius: BorderRadius::from(12.0),
-                    border_width: 0.0,
-                    border_color: iced::Color::TRANSPARENT,
-                    text_color: Some(iced::Color::from_rgb(1.0, 1.0, 1.0)),
-                    ..Default::default()
-                })
+                .style(header_pills)
                 .into()
         })
     }

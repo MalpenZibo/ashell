@@ -1,8 +1,8 @@
-use crate::modules::updates::{Update, UpdateMenu, UpdateMenuMessage};
+use crate::modules::updates::{Update, UpdateMenu, UpdateMenuMessage, UpdateMenuOutput};
+use crate::style::{ashell_theme, CRUST};
 use iced::wayland::layer_surface::{set_anchor, set_size};
 use iced::widget::container;
 use iced::{
-    theme::Palette,
     wayland::{
         actions::layer_surface::SctkLayerSurfaceSettings,
         layer_surface::{Anchor, KeyboardInteractivity, Layer},
@@ -27,6 +27,7 @@ pub enum MenuInput {
 }
 
 pub enum MenuOutput {
+    MessageFromUpdates(UpdateMenuOutput),
     Close,
 }
 
@@ -93,13 +94,19 @@ impl Application for Menu {
     }
 
     fn theme(&self) -> Self::Theme {
-        Theme::custom(Palette {
-            background: iced::Color::from_rgba(0.0, 0.0, 0.0, 0.0),
-            text: Color::BLACK,
-            primary: Color::from_rgb(0.5, 0.5, 0.0),
-            success: Color::from_rgb(0.0, 1.0, 0.0),
-            danger: Color::from_rgb(1.0, 0.0, 0.0),
-        })
+        ashell_theme()
+    }
+
+    fn style(&self) -> iced::theme::Application {
+        fn dark_background(theme: &Theme) -> iced::wayland::Appearance {
+            iced::wayland::Appearance {
+                background_color: Color::TRANSPARENT,
+                text_color: theme.palette().text,
+                icon_color: theme.palette().text,
+            }
+        }
+
+        iced::theme::Application::from(dark_background as fn(&Theme) -> _)
     }
 
     fn title(&self) -> String {
@@ -128,15 +135,16 @@ impl Application for Menu {
                     set_size(Id(1), None, None),
                 ]);
 
-                self.updates = Some(UpdateMenu { updates });
+                self.updates = Some(UpdateMenu::new(self.output_tx.clone(), updates));
 
                 cmd
             }
             Message::UpdatesMenu(msg) => {
                 if let Some(updates) = self.updates.as_mut() {
-                    updates.update(msg);
+                    updates.update(msg).map(Message::UpdatesMenu)
+                } else {
+                    iced::Command::none()
                 }
-                iced::Command::none()
             }
         }
     }
@@ -148,11 +156,12 @@ impl Application for Menu {
                     iced::widget::mouse_area(
                         container(updates_menu.view().map(Message::UpdatesMenu))
                             .height(iced::Length::Shrink)
-                            .style(|_: &_| iced::widget::container::Appearance {
-                                background: Some(iced::Background::Color(Color::from_rgb(
-                                    0.0, 0.0, 0.0,
-                                ))),
+                            .width(iced::Length::Shrink)
+                            .style(|theme: &Theme| iced::widget::container::Appearance {
+                                background: Some(theme.palette().background.into()),
                                 border_radius: 16.0.into(),
+                                border_width: 1.,
+                                border_color: CRUST,
                                 ..Default::default()
                             })
                             .padding(16),

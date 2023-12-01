@@ -1,13 +1,24 @@
-use std::cell::RefCell;
-
 use crate::{
     centerbox,
     menu::{MenuInput, MenuOutput, MenuType},
-    modules::{launcher, title::Title, updates::Updates},
+    modules::{
+        launcher,
+        title::Title,
+        updates::{Update, UpdateMenuOutput, Updates},
+        workspaces::Workspaces
+    },
+    style::ashell_theme,
 };
-use iced::{theme::Palette, widget::row, window::Id, Alignment, Application, Color, Length, Theme};
+use iced::{widget::row, window::Id, Alignment, Application, Color, Length, Theme};
+use std::cell::RefCell;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
+pub enum MenuRequest<'a> {
+    Updates(&'a Vec<Update>),
+    NotifyNewUpdates(&'a Vec<Update>),
+}
+
+#[derive(Eq, PartialEq, Debug)]
 pub enum OpenMenu {
     Updates,
 }
@@ -17,6 +28,7 @@ pub struct App {
     menu_receiver: RefCell<Option<UnboundedReceiver<MenuOutput>>>,
     menu_type: Option<OpenMenu>,
     updates: Updates,
+    workspaces: Workspaces,
     window_title: Title,
 }
 
@@ -26,6 +38,7 @@ pub enum Message {
     MenuClosed,
     LauncherMessage(crate::modules::launcher::Message),
     UpdatesMessage(crate::modules::updates::Message),
+    WorkspacesMessage(crate::modules::workspaces::Message),
     TitleMessage(crate::modules::title::Message),
     CloseRequest,
 }
@@ -45,6 +58,7 @@ impl Application for App {
                 menu_receiver: RefCell::new(Some(flags.1)),
                 menu_type: None,
                 updates: Updates::new(),
+                workspaces: Workspaces::new(),
                 window_title: Title::new(),
             },
             iced::Command::none(),
@@ -52,13 +66,19 @@ impl Application for App {
     }
 
     fn theme(&self) -> Self::Theme {
-        Theme::custom(Palette {
-            background: iced::Color::from_rgba(0.0, 0.0, 0.0, 0.0),
-            text: Color::BLACK,
-            primary: Color::from_rgb(0.5, 0.5, 0.0),
-            success: Color::from_rgb(0.0, 1.0, 0.0),
-            danger: Color::from_rgb(1.0, 0.0, 0.0),
-        })
+        ashell_theme()
+    }
+
+    fn style(&self) -> iced::theme::Application {
+        fn dark_background(theme: &Theme) -> iced::wayland::Appearance {
+            iced::wayland::Appearance {
+                background_color: Color::TRANSPARENT,
+                text_color: theme.palette().text,
+                icon_color: theme.palette().text,
+            }
+        }
+
+        iced::theme::Application::from(dark_background as fn(&Theme) -> _)
     }
 
     fn title(&self) -> String {
@@ -71,34 +91,32 @@ impl Application for App {
             Message::MenuClosed => {
                 self.menu_type = None;
             }
-            Message::UpdatesMessage(crate::modules::updates::Message::ToggleMenu) => {
-                if self.menu_type.is_some() {
-                    self.menu_type = None;
-                    self.menu_sender.send(MenuInput::Close).unwrap();
-                } else {
-                    self.menu_sender
-                        .send(MenuInput::Open(MenuType::Updates(self.updates.updates.clone())))
-                        .unwrap();
-                    self.menu_type = Some(OpenMenu::Updates);
-                }
-            }
-            Message::UpdatesMessage(crate::modules::updates::Message::InternalMessage(message)) => {
-                match (&message, &self.menu_type) {
-                    (
-                        crate::modules::updates::InternalMessage::UpdatesCheckCompleted(updates),
-                        Some(OpenMenu::Updates),
-                    ) => {
+            Message::UpdatesMessage(message) => {
+                let response = self.updates.update(message);
+
+                match (&self.menu_type, response) {
+                    (Some(OpenMenu::Updates), Some(MenuRequest::Updates(_))) => {
+                        self.menu_type = None;
+                        self.menu_sender.send(MenuInput::Close).unwrap();
+                    }
+                    (_, Some(MenuRequest::Updates(updates))) => {
+                        self.menu_type = Some(OpenMenu::Updates);
+                        self.menu_sender
+                            .send(MenuInput::Open(MenuType::Updates(updates.clone())))
+                            .unwrap();
+                    }
+                    (Some(OpenMenu::Updates), Some(MenuRequest::NotifyNewUpdates(updates))) => {
                         self.menu_sender
                             .send(MenuInput::MessageToUpdates(updates.clone()))
                             .unwrap();
                     }
                     _ => {}
                 };
-                self.updates.update(message);
             }
             Message::LauncherMessage(_) => {
                 crate::utils::launcher::launch_rofi();
             }
+            Message::WorkspacesMessage(msg) => self.workspaces.update(msg),
             Message::TitleMessage(message) => {
                 self.window_title.update(message);
             }
@@ -114,6 +132,7 @@ impl Application for App {
         let left = row!(
             launcher::launcher().map(Message::LauncherMessage),
             self.updates.view().map(Message::UpdatesMessage),
+            self.workspaces.view().map(Message::WorkspacesMessage)
         )
         .spacing(4);
 
@@ -142,6 +161,25 @@ impl Application for App {
                     if let Some(menu_message) = receiver.as_mut().unwrap().recv().await {
                         (
                             match menu_message {
+                                MenuOutput::MessageFromUpdates(
+                                    UpdateMenuOutput::UpdateFinished,
+                                ) => Message::UpdatesMessage(
+                                    crate::modules::updates::Message::UpdateFinished,
+                                ),
+
+                                MenuOutput::MessageFromUpdates(
+                                    UpdateMenuOutput::UpdatesCheckInit,
+                                ) => Message::UpdatesMessage(
+                                    crate::modules::updates::Message::UpdatesCheckInit,
+                                ),
+
+                                MenuOutput::MessageFromUpdates(
+                                    UpdateMenuOutput::UpdatesCheckCompleted(updates),
+                                ) => Message::UpdatesMessage(
+                                    crate::modules::updates::Message::UpdatesRefreshFromMenu(
+                                        updates,
+                                    ),
+                                ),
                                 MenuOutput::Close => Message::MenuClosed,
                             },
                             receiver,
@@ -151,9 +189,8 @@ impl Application for App {
                     }
                 },
             ),
-            self.updates.subscription().map(|msg| {
-                Message::UpdatesMessage(crate::modules::updates::Message::InternalMessage(msg))
-            }),
+            self.updates.subscription().map(Message::UpdatesMessage),
+            self.workspaces.subscription().map(Message::WorkspacesMessage),
             self.window_title.subscription().map(Message::TitleMessage),
         ])
     }
