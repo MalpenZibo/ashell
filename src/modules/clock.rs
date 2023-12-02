@@ -1,4 +1,4 @@
-use crate::style::header_pills;
+use crate::style::left_header_pills;
 use chrono::Local;
 use iced::{
     widget::{container, text},
@@ -36,7 +36,7 @@ impl Clock {
     pub fn view(&self) -> Element<Message> {
         container(text(&self.date))
             .padding([4, 8])
-            .style(header_pills)
+            .style(left_header_pills)
             .into()
     }
 

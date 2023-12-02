@@ -132,7 +132,7 @@ impl Updates {
         }
 
         button(content)
-            .style(iced::theme::Button::custom(HeaderButtonStyle))
+            .style(iced::theme::Button::custom(HeaderButtonStyle::Full))
             .on_press(Message::ToggleMenu)
             .into()
     }

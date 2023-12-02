@@ -21,8 +21,8 @@ pub fn ashell_theme() -> Theme {
     })
 }
 
-pub fn header_pills(test: &Theme) -> iced::widget::container::Appearance {
-    let palette = test.palette();
+pub fn header_pills(theme: &Theme) -> iced::widget::container::Appearance {
+    let palette = theme.palette();
     iced::widget::container::Appearance {
         background: Some(palette.background.into()),
         border_radius: BorderRadius::from(12.0),
@@ -33,7 +33,23 @@ pub fn header_pills(test: &Theme) -> iced::widget::container::Appearance {
     }
 }
 
-pub struct HeaderButtonStyle;
+pub fn left_header_pills(theme: &Theme) -> iced::widget::container::Appearance {
+    let palette = theme.palette();
+    iced::widget::container::Appearance {
+        background: Some(palette.background.into()),
+        border_radius: BorderRadius::from([12.0, 0.0, 0.0, 12.0]),
+        border_width: 0.0,
+        border_color: iced::Color::TRANSPARENT,
+        text_color: Some(palette.text),
+        ..Default::default()
+    }
+}
+
+pub enum HeaderButtonStyle {
+    Full,
+    Left,
+    Right,
+}
 
 impl button::StyleSheet for HeaderButtonStyle {
     type Style = iced::theme::Theme;
@@ -41,7 +57,11 @@ impl button::StyleSheet for HeaderButtonStyle {
     fn active(&self, style: &Self::Style) -> button::Appearance {
         button::Appearance {
             background: Some(style.palette().background.into()),
-            border_radius: BorderRadius::from(12.0),
+            border_radius: match self {
+                HeaderButtonStyle::Full => BorderRadius::from(12.0),
+                HeaderButtonStyle::Left => BorderRadius::from([12.0, 0.0, 0.0, 12.0]),
+                HeaderButtonStyle::Right => BorderRadius::from([0.0, 12.0, 12.0, 0.0]),
+            },
             border_width: 0.0,
             border_color: iced::Color::TRANSPARENT,
             text_color: style.palette().text,
@@ -52,44 +72,7 @@ impl button::StyleSheet for HeaderButtonStyle {
     fn hovered(&self, style: &Self::Style) -> button::Appearance {
         button::Appearance {
             background: Some(SURFACE_0.into()),
-            border_radius: BorderRadius::from(12.0),
-            border_width: 0.0,
-            border_color: iced::Color::TRANSPARENT,
-            text_color: style.palette().text,
-            ..button::Appearance::default()
-        }
-    }
-
-    fn focused(&self, style: &Self::Style) -> button::Appearance {
-        button::Appearance {
-            background: Some(SURFACE_0.into()),
-            border_radius: BorderRadius::from(12.0),
-            border_width: 0.0,
-            border_color: iced::Color::TRANSPARENT,
-            text_color: style.palette().text,
-            ..button::Appearance::default()
-        }
-    }
-
-    fn pressed(&self, style: &Self::Style) -> button::Appearance {
-        button::Appearance {
-            background: Some(SURFACE_0.into()),
-            border_radius: BorderRadius::from(12.0),
-            border_width: 0.0,
-            border_color: iced::Color::TRANSPARENT,
-            text_color: style.palette().text,
-            ..button::Appearance::default()
-        }
-    }
-
-    fn disabled(&self, style: &Self::Style) -> button::Appearance {
-        button::Appearance {
-            background: Some(style.palette().background.into()),
-            border_radius: BorderRadius::from(12.0),
-            border_width: 0.0,
-            border_color: iced::Color::TRANSPARENT,
-            text_color: style.palette().text,
-            ..button::Appearance::default()
+            ..self.active(style)
         }
     }
 }
@@ -113,11 +96,7 @@ impl button::StyleSheet for GhostButtonStyle {
     fn hovered(&self, style: &Self::Style) -> button::Appearance {
         button::Appearance {
             background: Some(iced::Background::Color(SURFACE_0)),
-            border_radius: BorderRadius::from(4.0),
-            border_width: 0.0,
-            border_color: iced::Color::TRANSPARENT,
-            text_color: style.palette().text,
-            ..button::Appearance::default()
+            ..self.active(style)
         }
     }
 }
