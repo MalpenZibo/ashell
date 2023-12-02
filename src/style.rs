@@ -51,7 +51,7 @@ impl button::StyleSheet for HeaderButtonStyle {
 
     fn hovered(&self, style: &Self::Style) -> button::Appearance {
         button::Appearance {
-            background: Some(style.palette().background.into()),
+            background: Some(SURFACE_0.into()),
             border_radius: BorderRadius::from(12.0),
             border_width: 0.0,
             border_color: iced::Color::TRANSPARENT,
@@ -62,7 +62,7 @@ impl button::StyleSheet for HeaderButtonStyle {
 
     fn focused(&self, style: &Self::Style) -> button::Appearance {
         button::Appearance {
-            background: Some(style.palette().background.into()),
+            background: Some(SURFACE_0.into()),
             border_radius: BorderRadius::from(12.0),
             border_width: 0.0,
             border_color: iced::Color::TRANSPARENT,
@@ -73,7 +73,7 @@ impl button::StyleSheet for HeaderButtonStyle {
 
     fn pressed(&self, style: &Self::Style) -> button::Appearance {
         button::Appearance {
-            background: Some(style.palette().background.into()),
+            background: Some(SURFACE_0.into()),
             border_radius: BorderRadius::from(12.0),
             border_width: 0.0,
             border_color: iced::Color::TRANSPARENT,

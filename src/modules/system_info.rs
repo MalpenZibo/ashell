@@ -3,7 +3,7 @@ use crate::{
     style::{header_pills, RED, TEXT, YELLOW},
 };
 use iced::{
-    widget::{container, row, scrollable::Alignment, text},
+    widget::{container, row, text},
     Element,
 };
 use std::time::Duration;

@@ -2,6 +2,7 @@ use crate::{
     centerbox,
     menu::{MenuInput, MenuOutput, MenuType},
     modules::{
+        clock::Clock,
         launcher,
         system_info::SystemInfo,
         title::Title,
@@ -32,6 +33,7 @@ pub struct App {
     workspaces: Workspaces,
     window_title: Title,
     system_info: SystemInfo,
+    clock: Clock,
 }
 
 #[derive(Debug, Clone)]
@@ -43,6 +45,7 @@ pub enum Message {
     WorkspacesMessage(crate::modules::workspaces::Message),
     TitleMessage(crate::modules::title::Message),
     SystemInfoMessage(crate::modules::system_info::Message),
+    ClockMessage(crate::modules::clock::Message),
     CloseRequest,
 }
 
@@ -64,6 +67,7 @@ impl Application for App {
                 workspaces: Workspaces::new(),
                 window_title: Title::new(),
                 system_info: SystemInfo::new(),
+                clock: Clock::new(),
             },
             iced::Command::none(),
         )
@@ -127,6 +131,9 @@ impl Application for App {
             Message::SystemInfoMessage(message) => {
                 self.system_info.update(message);
             }
+            Message::ClockMessage(message) => {
+                self.clock.update(message);
+            }
             Message::CloseRequest => {
                 println!("Close request received");
             }
@@ -148,7 +155,11 @@ impl Application for App {
             center = center.push(title.map(Message::TitleMessage));
         }
 
-        let right = row!(self.system_info.view().map(Message::SystemInfoMessage)).spacing(4);
+        let right = row!(
+            self.system_info.view().map(Message::SystemInfoMessage),
+            self.clock.view().map(Message::ClockMessage)
+        )
+        .spacing(4);
 
         centerbox::Centerbox::new([left.into(), center.into(), right.into()])
             .spacing(4)
@@ -204,7 +215,7 @@ impl Application for App {
             self.system_info
                 .subscription()
                 .map(Message::SystemInfoMessage),
-                    
+            self.clock.subscription().map(Message::ClockMessage),
         ])
     }
 
