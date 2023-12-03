@@ -4,6 +4,7 @@ use crate::{
     modules::{
         clock::Clock,
         launcher,
+        settings::Settings,
         system_info::SystemInfo,
         title::Title,
         updates::{Update, UpdateMenuOutput, Updates},
@@ -34,6 +35,7 @@ pub struct App {
     window_title: Title,
     system_info: SystemInfo,
     clock: Clock,
+    settings: Settings,
 }
 
 #[derive(Debug, Clone)]
@@ -46,6 +48,7 @@ pub enum Message {
     TitleMessage(crate::modules::title::Message),
     SystemInfoMessage(crate::modules::system_info::Message),
     ClockMessage(crate::modules::clock::Message),
+    SettingsMessage(crate::modules::settings::Message),
     CloseRequest,
 }
 
@@ -68,6 +71,7 @@ impl Application for App {
                 window_title: Title::new(),
                 system_info: SystemInfo::new(),
                 clock: Clock::new(),
+                settings: Settings::new(),
             },
             iced::Command::none(),
         )
@@ -134,6 +138,9 @@ impl Application for App {
             Message::ClockMessage(message) => {
                 self.clock.update(message);
             }
+            Message::SettingsMessage(message) => {
+                self.settings.update(message);
+            }
             Message::CloseRequest => {
                 println!("Close request received");
             }
@@ -157,7 +164,10 @@ impl Application for App {
 
         let right = row!(
             self.system_info.view().map(Message::SystemInfoMessage),
-            self.clock.view().map(Message::ClockMessage)
+            row!(
+                self.clock.view().map(Message::ClockMessage),
+                self.settings.view().map(Message::SettingsMessage)
+            )
         )
         .spacing(4);
 
@@ -216,6 +226,7 @@ impl Application for App {
                 .subscription()
                 .map(Message::SystemInfoMessage),
             self.clock.subscription().map(Message::ClockMessage),
+            self.settings.subscription().map(Message::SettingsMessage),
         ])
     }
 

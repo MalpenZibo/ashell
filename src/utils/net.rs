@@ -1,17 +1,11 @@
-use futures_signals::signal::Mutable;
+use iced::Color;
 use serde::Deserialize;
-use std::{
-    process::Stdio,
-    time::{Duration, Instant},
+use std::process::Stdio;
+use tokio::{join, process::Command};
+use crate::{
+    components::icons::Icons,
+    style::{RED, TEXT, YELLOW},
 };
-use tokio::{
-    io::{AsyncBufReadExt, BufReader},
-    join,
-    process::Command,
-    time::sleep,
-};
-
-use crate::components::icons::Icons;
 
 #[derive(Deserialize, Debug)]
 struct Device {
@@ -46,13 +40,6 @@ static WIFI_SIGNAL_ICONS: [Icons; 5] = [
     Icons::Wifi3,
     Icons::Wifi4,
 ];
-static WIFI_SIGNAL_CLASS: [&str; 5] = [
-    "wifi-signal-0",
-    "wifi-signal-1",
-    "wifi-signal-2",
-    "wifi-signal-3",
-    "wifi-signal-4",
-];
 
 impl ActiveConnection {
     pub fn name(&self) -> &str {
@@ -62,31 +49,33 @@ impl ActiveConnection {
         }
     }
 
-    pub fn to_icon(&self) -> Icons {
+    pub fn get_icon(&self) -> Icons {
         match self {
             ActiveConnection::Ethernet(_) => Icons::Ethernet,
             ActiveConnection::Wifi { signal, .. } => WIFI_SIGNAL_ICONS[*signal as usize],
         }
     }
 
-    pub fn to_icon_type(&self) -> Icons {
+    pub fn get_icon_type(&self) -> Icons {
         match self {
             ActiveConnection::Ethernet(_) => Icons::Ethernet,
             ActiveConnection::Wifi { .. } => Icons::Wifi4,
         }
     }
 
-    pub fn get_classes(&self) -> Vec<&'static str> {
+    pub fn get_color(&self) -> Color {
         match self {
-            ActiveConnection::Ethernet(_) => vec!["ethernet"],
-            ActiveConnection::Wifi { signal, .. } => {
-                vec!["wifi", WIFI_SIGNAL_CLASS[*signal as usize]]
-            }
+            ActiveConnection::Ethernet(_) => TEXT,
+            ActiveConnection::Wifi { signal, .. } => match signal {
+                0 => RED,
+                1 => YELLOW,
+                _ => TEXT,
+            },
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Vpn {
     pub name: String,
     pub active: bool,
@@ -97,7 +86,7 @@ struct IWConfigOut {
     link_quality: String,
 }
 
-async fn get_connected_wifi_signal(device: &str) -> u32 {
+ async fn get_connected_wifi_signal(device: &str) -> u32 {
     let mut iwconfig = Command::new("iwconfig")
         .arg(device)
         .stdout(Stdio::piped())
@@ -189,7 +178,7 @@ pub async fn get_active_connection() -> Option<ActiveConnection> {
     }
 }
 
-async fn get_vpn() -> Vec<Vpn> {
+pub async fn get_vpn() -> Vec<Vpn> {
     let mut nmcli = Command::new("nmcli")
         .args(["connection", "show", "--active"])
         .stdout(Stdio::piped())
@@ -229,74 +218,4 @@ async fn get_vpn() -> Vec<Vpn> {
             }
         })
         .collect()
-}
-
-pub fn net_monitor() -> (Mutable<Option<ActiveConnection>>, Mutable<Vec<Vpn>>) {
-    let active_connection = Mutable::new(None);
-    let vpn_list = Mutable::new(vec![]);
-
-    tokio::spawn({
-        let active_connection = active_connection.clone();
-        async move {
-            let wifi = active_connection.get_cloned().and_then(|c| match c {
-                ActiveConnection::Wifi { ssid, device, .. } => Some((ssid, device)),
-                _ => None,
-            });
-
-            if let Some((ssid, device)) = wifi {
-                let new_signal = get_connected_wifi_signal(&device).await;
-                active_connection.replace(Some(ActiveConnection::Wifi {
-                    ssid,
-                    device,
-                    signal: new_signal,
-                }));
-            }
-            sleep(Duration::from_secs(60)).await
-        }
-    });
-
-    tokio::spawn({
-        let active_connection = active_connection.clone();
-        let vpn_list = vpn_list.clone();
-
-        async move {
-            active_connection.set(get_active_connection().await);
-            vpn_list.set(get_vpn().await);
-
-            let mut handle = Command::new("nmcli")
-                .arg("monitor")
-                .stdout(Stdio::piped())
-                .stdin(Stdio::null())
-                .spawn()
-                .expect("Failed to execute command");
-
-            if let Some(ref mut stdout) = handle.stdout {
-                let reader = BufReader::new(stdout);
-                let mut lines = reader.lines();
-
-                let mut last_time = Instant::now();
-                loop {
-                    let _line = lines
-                        .next_line()
-                        .await
-                        .ok()
-                        .flatten()
-                        .unwrap_or("".to_string());
-
-                    let delta = last_time.elapsed();
-
-                    if delta.as_millis() > 50 {
-                        sleep(Duration::from_millis(500)).await;
-
-                        active_connection.replace(get_active_connection().await);
-                        vpn_list.replace(get_vpn().await);
-
-                        last_time = Instant::now();
-                    }
-                }
-            }
-        }
-    });
-
-    (active_connection, vpn_list)
 }

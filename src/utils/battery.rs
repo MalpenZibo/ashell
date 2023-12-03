@@ -1,6 +1,7 @@
 use std::fs::read_to_string;
+use iced::Color;
 
-use crate::components::icons::Icons;
+use crate::{components::icons::Icons, style::{GREEN, TEXT, RED}};
 
 #[derive(Copy, Clone)]
 pub struct BatteryData {
@@ -15,17 +16,17 @@ pub enum BatteryStatus {
 }
 
 impl BatteryData {
-    pub fn get_class(&self) -> Vec<&'static str> {
+    pub fn get_color(&self) -> Color {
         match self {
             BatteryData {
                 status: BatteryStatus::Charging,
                 ..
-            } => vec!["battery", "charging"],
+            } => GREEN,
             BatteryData {
                 status: BatteryStatus::Discharging,
                 capacity,
-            } if *capacity < 20 => vec!["battery", "critical"],
-            _ => vec!["battery"],
+            } if *capacity < 20 => RED,
+            _ => TEXT,
         }
     }
 

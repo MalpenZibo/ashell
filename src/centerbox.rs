@@ -5,12 +5,12 @@ use iced::{
         widget::{Operation, OperationOutputWrapper, Tree},
         Clipboard, Layout, Shell, Widget,
     },
-    event, Alignment, Element, Event, Length, Limits, Padding, Point, Rectangle, Size, Pixels,
+    event, Alignment, Element, Event, Length, Limits, Padding, Pixels, Point, Rectangle, Size,
 };
 
 #[allow(missing_debug_implementations)]
 pub struct Centerbox<'a, Message, Renderer = iced::Renderer> {
-     spacing: f32,
+    spacing: f32,
     padding: Padding,
     width: Length,
     height: Length,
@@ -135,19 +135,26 @@ where
         nodes[0].move_to(Point::new(padding.left, padding.top));
         nodes[0].align(Alignment::Start, align_items, Size::new(0.0, height));
 
-        nodes[2].move_to(Point::new(limits.max().width - padding.right, padding.top));
+        nodes[2].move_to(Point::new(
+            limits_without_padding.max().width - padding.right,
+            padding.top,
+        ));
         nodes[2].align(Alignment::End, align_items, Size::new(0.0, height));
 
         let half_available_width = limits_without_padding.max().width / 2.;
         let half_width = nodes[1].size().width / 2.0;
         if half_available_width - right_width < half_width {
             nodes[1].move_to(Point::new(
-                half_available_width - (half_width - (half_available_width - right_width)).abs() - spacing,
+                half_available_width
+                    - (half_width - (half_available_width - right_width)).abs()
+                    - spacing,
                 padding.top,
             ));
         } else if half_available_width - left_width < half_width {
             nodes[1].move_to(Point::new(
-                half_available_width + (half_width - (half_available_width - left_width)).abs() + spacing,
+                half_available_width
+                    + (half_width - (half_available_width - left_width)).abs()
+                    + spacing,
                 padding.top,
             ));
         } else {
