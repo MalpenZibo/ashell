@@ -1,37 +1,16 @@
-use iced::Color;
-use serde::Deserialize;
-use std::process::Stdio;
-use tokio::{join, process::Command};
 use crate::{
     components::icons::Icons,
+    modules::settings::NetMessage,
     style::{RED, TEXT, YELLOW},
 };
-
-#[derive(Deserialize, Debug)]
-struct Device {
-    device: String,
-    r#type: String,
-    state: String,
-    connection: Option<String>,
-}
-
-#[derive(Deserialize, Debug)]
-struct Connection {
-    name: String,
-    uuid: String,
-    r#type: String,
-    device: String,
-}
-
-#[derive(Debug, Clone)]
-pub enum ActiveConnection {
-    Ethernet(String),
-    Wifi {
-        ssid: String,
-        device: String,
-        signal: u32,
+use iced::{
+    futures::{
+        stream::{self},
+        FutureExt, SinkExt, StreamExt,
     },
-}
+    Color, Subscription,
+};
+use zbus::{dbus_proxy, zvariant::OwnedObjectPath, Connection, Result};
 
 static WIFI_SIGNAL_ICONS: [Icons; 5] = [
     Icons::Wifi0,
@@ -41,181 +20,337 @@ static WIFI_SIGNAL_ICONS: [Icons; 5] = [
     Icons::Wifi4,
 ];
 
-impl ActiveConnection {
-    pub fn name(&self) -> &str {
-        match self {
-            ActiveConnection::Ethernet(name) => name,
-            ActiveConnection::Wifi { ssid, .. } => ssid,
-        }
-    }
+#[dbus_proxy(
+    interface = "org.freedesktop.NetworkManager",
+    default_service = "org.freedesktop.NetworkManager",
+    default_path = "/org/freedesktop/NetworkManager"
+)]
+trait NetworkManager {
+    #[dbus_proxy(property)]
+    fn devices(&self) -> Result<Vec<OwnedObjectPath>>;
 
-    pub fn get_icon(&self) -> Icons {
-        match self {
-            ActiveConnection::Ethernet(_) => Icons::Ethernet,
-            ActiveConnection::Wifi { signal, .. } => WIFI_SIGNAL_ICONS[*signal as usize],
-        }
-    }
+    #[dbus_proxy(property)]
+    fn active_connections(&self) -> Result<Vec<OwnedObjectPath>>;
+}
 
-    pub fn get_icon_type(&self) -> Icons {
-        match self {
-            ActiveConnection::Ethernet(_) => Icons::Ethernet,
-            ActiveConnection::Wifi { .. } => Icons::Wifi4,
-        }
-    }
+#[dbus_proxy(
+    default_service = "org.freedesktop.NetworkManager",
+    default_path = "/org/freedesktop/NetworkManager/Connection/Active",
+    interface = "org.freedesktop.NetworkManager.Connection.Active"
+)]
+trait ActiveConnection {
+    #[dbus_proxy(property)]
+    fn id(&self) -> Result<String>;
 
-    pub fn get_color(&self) -> Color {
-        match self {
-            ActiveConnection::Ethernet(_) => TEXT,
-            ActiveConnection::Wifi { signal, .. } => match signal {
-                0 => RED,
-                1 => YELLOW,
-                _ => TEXT,
-            },
-        }
-    }
+    #[dbus_proxy(property)]
+    fn uuid(&self) -> Result<String>;
+
+    #[dbus_proxy(property, name = "Type")]
+    fn connection_type(&self) -> Result<String>;
+
+    #[dbus_proxy(property)]
+    fn state(&self) -> Result<u32>;
+
+    #[dbus_proxy(property)]
+    fn vpn(&self) -> Result<bool>;
+
+    #[dbus_proxy(property)]
+    fn devices(&self) -> Result<Vec<OwnedObjectPath>>;
+}
+
+#[dbus_proxy(
+    default_service = "org.freedesktop.NetworkManager",
+    default_path = "/org/freedesktop/NetworkManager/Device",
+    interface = "org.freedesktop.NetworkManager.Device"
+)]
+trait Device {
+    #[dbus_proxy(property)]
+    fn device_type(&self) -> Result<u32>;
+
+    #[dbus_proxy(property)]
+    fn active_connection(&self) -> Result<OwnedObjectPath>;
+}
+
+#[dbus_proxy(
+    default_service = "org.freedesktop.NetworkManager",
+    default_path = "/org/freedesktop/NetworkManager/Device/Wireless",
+    interface = "org.freedesktop.NetworkManager.Device.Wireless"
+)]
+trait DeviceWireless {
+    #[dbus_proxy(property)]
+    fn active_access_point(&self) -> Result<OwnedObjectPath>;
+}
+
+#[dbus_proxy(
+    default_service = "org.freedesktop.NetworkManager",
+    default_path = "/org/freedesktop/NetworkManager/AccessPoint",
+    interface = "org.freedesktop.NetworkManager.AccessPoint"
+)]
+trait AccessPoint {
+    #[dbus_proxy(property)]
+    fn strength(&self) -> Result<u8>;
 }
 
 #[derive(Debug, Clone)]
-pub struct Vpn {
-    pub name: String,
-    pub active: bool,
+pub struct Wifi {
+    connection_ssid: String,
+    signal: u8,
 }
 
-#[derive(Deserialize, Debug)]
-struct IWConfigOut {
-    link_quality: String,
-}
+impl Wifi {
+    pub fn get_icon(&self) -> Icons {
+        WIFI_SIGNAL_ICONS[f32::round(self.signal as f32 / 20.) as usize]
+    }
 
- async fn get_connected_wifi_signal(device: &str) -> u32 {
-    let mut iwconfig = Command::new("iwconfig")
-        .arg(device)
-        .stdout(Stdio::piped())
-        .spawn()
-        .expect("Failed to execute iwconfig command");
-
-    let iwconfig_out: Stdio = iwconfig
-        .stdout
-        .take()
-        .unwrap()
-        .try_into()
-        .expect("failed to convert to Stdio");
-
-    let jc = Command::new("jc")
-        .arg("--iwconfig")
-        .stdin(iwconfig_out)
-        .stdout(Stdio::piped())
-        .spawn()
-        .expect("Failed to execute jc command");
-
-    let (_, jc_out) = join!(iwconfig.wait(), jc.wait_with_output());
-
-    let jc_out = jc_out.expect("Failed to read jc command output").stdout;
-    let output = String::from_utf8_lossy(&jc_out);
-
-    let iwconfig = serde_json::from_str::<Vec<IWConfigOut>>(&output).unwrap();
-    let iwconfig = iwconfig.first().map(|c| {
-        c.link_quality
-            .split('/')
-            .map(|s| s.parse().ok())
-            .collect::<Vec<Option<i32>>>()
-    });
-
-    if let Some(iwconfig) = iwconfig {
-        match &iwconfig[..] {
-            &[Some(quality), Some(max), ..] => (quality as f32 / max as f32 * 4.).floor() as u32,
-            _ => 0,
+    pub fn get_color(&self) -> Color {
+        match self.signal {
+            0 => RED,
+            1 => YELLOW,
+            _ => TEXT,
         }
-    } else {
-        0
     }
 }
 
-pub async fn get_active_connection() -> Option<ActiveConnection> {
-    let mut nmcli = Command::new("nmcli")
-        .arg("d")
-        .stdout(Stdio::piped())
-        .spawn()
-        .expect("Failed to execute nmcli command");
+pub fn subscription() -> Subscription<NetMessage> {
+    iced::Subscription::batch(vec![
+        iced::subscription::channel("nm-dbus-wifi-listener", 100, |mut output| async move {
+            let conn = Connection::system().await.unwrap();
+            let nm = NetworkManagerProxy::new(&conn).await.unwrap();
 
-    let nmcli_out: Stdio = nmcli
-        .stdout
-        .take()
-        .unwrap()
-        .try_into()
-        .expect("failed to convert to Stdio");
+            struct Proxies<'a> {
+                device: DeviceProxy<'a>,
+                wireless_device: DeviceWirelessProxy<'a>,
+                access_point: AccessPointProxy<'a>,
+                connection: ActiveConnectionProxy<'a>,
+            }
 
-    let jc = Command::new("jc")
-        .arg("--nmcli")
-        .stdin(nmcli_out)
-        .stdout(Stdio::piped())
-        .spawn()
-        .expect("Failed to execute jc command");
+            let init = || async {
+                let mut devices = nm.devices().await.unwrap_or(vec![]);
+                let devices = devices.drain(..);
 
-    let (_, jc_out) = join!(nmcli.wait(), jc.wait_with_output());
+                let wifi_device = stream::iter(devices.into_iter())
+                    .filter_map(|d| {
+                        let conn = conn.clone();
+                        async move {
+                            if DeviceProxy::builder(&conn)
+                                .path(d.to_owned())
+                                .unwrap()
+                                .build()
+                                .await
+                                .unwrap()
+                                .device_type()
+                                .await
+                                .unwrap()
+                                == 2
+                            //WI-FI
+                            {
+                                Some(d)
+                            } else {
+                                None
+                            }
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .await;
+                let wifi_device = wifi_device.first();
+                if let Some(wifi_device) = wifi_device {
+                    let device = DeviceProxy::builder(&conn)
+                        .path(wifi_device.to_owned())
+                        .unwrap()
+                        .build()
+                        .await
+                        .unwrap();
+                    let wireless_device = DeviceWirelessProxy::builder(&conn)
+                        .path(wifi_device.to_owned())
+                        .unwrap()
+                        .build()
+                        .await
+                        .unwrap();
+                    let access_point = AccessPointProxy::builder(&conn)
+                        .path(
+                            wireless_device
+                                .active_access_point()
+                                .await
+                                .unwrap()
+                                .to_owned(),
+                        )
+                        .unwrap()
+                        .build()
+                        .await
+                        .unwrap();
 
-    let jc_out = jc_out.expect("Failed to read jc command output").stdout;
-    let output = String::from_utf8_lossy(&jc_out);
+                    let connection = ActiveConnectionProxy::builder(&conn)
+                        .path(device.active_connection().await.unwrap().to_owned())
+                        .unwrap()
+                        .build()
+                        .await
+                        .unwrap();
 
-    let devices: Vec<Device> = serde_json::from_str(&output).unwrap();
+                    Some(Proxies {
+                        device,
+                        wireless_device,
+                        access_point,
+                        connection,
+                    })
+                } else {
+                    None
+                }
+            };
 
-    let ethernet_connected = devices
-        .iter()
-        .find(|d| d.r#type == "ethernet" && d.state == "connected");
-    let wifi_connected = devices
-        .iter()
-        .find(|d| d.r#type == "wifi" && d.state == "connected");
+            let mut maybe_proxies = init().await;
 
-    match (ethernet_connected, wifi_connected) {
-        (Some(ethernet), _) => Some(ActiveConnection::Ethernet(
-            ethernet.connection.clone().unwrap_or_default(),
-        )),
-        (None, Some(wifi)) => Some(ActiveConnection::Wifi {
-            ssid: wifi.connection.clone().unwrap_or_default(),
-            device: wifi.device.clone(),
-            signal: get_connected_wifi_signal(&wifi.device).await,
-        }),
-        _ => None,
-    }
-}
-
-pub async fn get_vpn() -> Vec<Vpn> {
-    let mut nmcli = Command::new("nmcli")
-        .args(["connection", "show", "--active"])
-        .stdout(Stdio::piped())
-        .spawn()
-        .expect("Failed to execute nmcli command");
-
-    let nmcli_out: Stdio = nmcli
-        .stdout
-        .take()
-        .unwrap()
-        .try_into()
-        .expect("failed to convert to Stdio");
-
-    let jc = Command::new("jc")
-        .arg("--nmcli")
-        .stdin(nmcli_out)
-        .stdout(Stdio::piped())
-        .spawn()
-        .expect("Failed to execute jc command");
-
-    let (_, jc_out) = join!(nmcli.wait(), jc.wait_with_output());
-
-    let jc_out = jc_out.expect("Failed to read jc command output").stdout;
-    let output = String::from_utf8_lossy(&jc_out);
-
-    let connections: Vec<Connection> = serde_json::from_str(&output).unwrap();
-    connections
-        .iter()
-        .filter_map(|c| {
-            if c.r#type == "vpn" {
-                Some(Vpn {
-                    name: c.name.clone(),
-                    active: !c.device.is_empty(),
+            let mut wifi = if let Some(proxies) = maybe_proxies.as_ref() {
+                Some(Wifi {
+                    connection_ssid: proxies.connection.id().await.unwrap(),
+                    signal: proxies.access_point.strength().await.unwrap(),
                 })
             } else {
                 None
+            };
+
+            let _ = output.send(NetMessage::Wifi(wifi.clone())).await;
+
+            loop {
+                let mut devices_change = nm.receive_devices_changed().await;
+
+                if let Some((
+                    mut access_point_change,
+                    mut connection_change,
+                    mut connection_id,
+                    mut strength,
+                )) = if let Some(ref mut proxies) = maybe_proxies.as_mut() {
+                    let access_point_change = proxies
+                        .wireless_device
+                        .receive_active_access_point_changed()
+                        .await;
+                    let connection_change =
+                        proxies.device.receive_active_connection_changed().await;
+                    let connection_id = proxies.connection.receive_id_changed().await;
+                    let strength = proxies.access_point.receive_strength_changed().await;
+
+                    Some((
+                        access_point_change,
+                        connection_change,
+                        connection_id,
+                        strength,
+                    ))
+                } else {
+                    None
+                } {
+                    iced::futures::select_biased! {
+                        _ = devices_change.next().fuse() => {
+                            maybe_proxies = init().await;
+
+                            wifi = if let Some(proxies) = maybe_proxies.as_ref() {
+                                Some(Wifi {
+                                    connection_ssid: proxies.connection.id().await.unwrap(),
+                                    signal: proxies.access_point.strength().await.unwrap(),
+                                })
+                            } else { None };
+
+                            let _ = output.send(NetMessage::Wifi(wifi.clone())).await;
+                        }
+                        v = access_point_change.next().fuse() => {
+                            if let Some(value) = v {
+                                if let Some(proxies) = maybe_proxies.as_mut() {
+                                proxies.access_point = AccessPointProxy::builder(&conn)
+                                    .path(value.get().await.unwrap().to_owned())
+                                    .unwrap()
+                                    .build()
+                                    .await
+                                    .unwrap();
+                                wifi = Some(Wifi {
+                                    connection_ssid: proxies.connection.id().await.unwrap(),
+                                    signal: proxies.access_point.strength().await.unwrap(),
+                                });
+                                let _ = output.send(NetMessage::Wifi(wifi.clone())).await;
+                                }
+                            }
+                        },
+                        v = connection_change.next().fuse() => {
+                            if let Some(value) = v {
+                                if let Some(proxies) = maybe_proxies.as_mut() {
+                                proxies.connection = ActiveConnectionProxy::builder(&conn)
+                                    .path(value.get().await.unwrap().to_owned())
+                                    .unwrap()
+                                    .build()
+                                    .await
+                                    .unwrap();
+                                wifi = Some(Wifi {
+                                    connection_ssid: proxies.connection.id().await.unwrap(),
+                                    signal: proxies.access_point.strength().await.unwrap(),
+                                });
+                                let _ = output.send(NetMessage::Wifi(wifi.clone())).await;
+                                }
+                            }
+                        },
+                        v = connection_id.next().fuse() => {
+                            if let Some(connection) = v {
+                                if let Some(ref mut wifi) = wifi {
+                                    let connection = connection.get().await.unwrap();
+                                    wifi.connection_ssid = connection;
+                                    let _ = output.send(NetMessage::Wifi(Some(wifi.clone()))).await;
+                                }
+                            }
+                        },
+                        v = strength.next().fuse() => {
+                            if let Some(strength) = v {
+                                if let Some(ref mut wifi) = wifi {
+                                    let value = strength.get().await.unwrap();
+
+                                    if value.abs_diff(wifi.signal) > 10 {
+                                        wifi.signal = value;
+                                        let _ = output.send(NetMessage::Wifi(Some(wifi.clone()))).await;
+                                    }
+                                }
+                            }
+                        },
+                    };
+                } else if devices_change.next().await.is_some() {
+                    maybe_proxies = init().await;
+
+                    wifi = if let Some(proxies) = maybe_proxies.as_ref() {
+                        Some(Wifi {
+                            connection_ssid: proxies.connection.id().await.unwrap(),
+                            signal: proxies.access_point.strength().await.unwrap(),
+                        })
+                    } else {
+                        None
+                    };
+
+                    let _ = output.send(NetMessage::Wifi(None)).await;
+                }
             }
-        })
-        .collect()
+        }),
+        iced::subscription::channel("nm-dbus-vpn-active-listener", 100, |mut output| async move {
+            let conn = Connection::system().await.unwrap();
+            let nm = NetworkManagerProxy::new(&conn).await.unwrap();
+
+            let mut connections = nm.receive_active_connections_changed().await;
+
+            loop {
+                if let Some(connections) = connections.next().await {
+                    let active_vpn = stream::iter(connections.get().await.unwrap().iter())
+                        .any(|c| {
+                            let conn = conn.clone();
+                            async move {
+                                ActiveConnectionProxy::builder(&conn)
+                                    .path(c.to_owned())
+                                    .unwrap()
+                                    .build()
+                                    .await
+                                    .unwrap()
+                                    .vpn()
+                                    .await
+                                    .unwrap()
+                            }
+                        })
+                        .await;
+
+                    let _ = output.send(NetMessage::VpnActive(active_vpn)).await;
+                    
+                }
+            }
+        }),
+    ])
 }
