@@ -132,22 +132,18 @@ pub fn subscription() -> Subscription<NetMessage> {
                     .filter_map(|d| {
                         let conn = conn.clone();
                         async move {
-                            if DeviceProxy::builder(&conn)
-                                .path(d.to_owned())
-                                .unwrap()
-                                .build()
-                                .await
-                                .unwrap()
-                                .device_type()
-                                .await
-                                .unwrap()
-                                == 2
-                            //WI-FI
-                            {
-                                Some(d)
-                            } else {
-                                None
+                            let builder = DeviceProxy::builder(&conn).path(d.to_owned());
+                            if let Ok(builder) = builder {
+                                let device = builder.build().await;
+                                if let Ok(device) = device {
+                                    let device_type = device.device_type().await;
+                                    if device_type == Ok(2) {
+                                        return Some(d);
+                                    }
+                                }
                             }
+
+                            None
                         }
                     })
                     .collect::<Vec<_>>()
@@ -322,35 +318,38 @@ pub fn subscription() -> Subscription<NetMessage> {
                 }
             }
         }),
-        iced::subscription::channel("nm-dbus-vpn-active-listener", 100, |mut output| async move {
-            let conn = Connection::system().await.unwrap();
-            let nm = NetworkManagerProxy::new(&conn).await.unwrap();
+        iced::subscription::channel(
+            "nm-dbus-vpn-active-listener",
+            100,
+            |mut output| async move {
+                let conn = Connection::system().await.unwrap();
+                let nm = NetworkManagerProxy::new(&conn).await.unwrap();
 
-            let mut connections = nm.receive_active_connections_changed().await;
+                let mut connections = nm.receive_active_connections_changed().await;
 
-            loop {
-                if let Some(connections) = connections.next().await {
-                    let active_vpn = stream::iter(connections.get().await.unwrap().iter())
-                        .any(|c| {
-                            let conn = conn.clone();
-                            async move {
-                                ActiveConnectionProxy::builder(&conn)
-                                    .path(c.to_owned())
-                                    .unwrap()
-                                    .build()
-                                    .await
-                                    .unwrap()
-                                    .vpn()
-                                    .await
-                                    .unwrap()
-                            }
-                        })
-                        .await;
+                loop {
+                    if let Some(connections) = connections.next().await {
+                        let active_vpn = stream::iter(connections.get().await.unwrap().iter())
+                            .any(|c| {
+                                let conn = conn.clone();
+                                async move {
+                                    ActiveConnectionProxy::builder(&conn)
+                                        .path(c.to_owned())
+                                        .unwrap()
+                                        .build()
+                                        .await
+                                        .unwrap()
+                                        .vpn()
+                                        .await
+                                        .unwrap()
+                                }
+                            })
+                            .await;
 
-                    let _ = output.send(NetMessage::VpnActive(active_vpn)).await;
-                    
+                        let _ = output.send(NetMessage::VpnActive(active_vpn)).await;
+                    }
                 }
-            }
-        }),
+            },
+        ),
     ])
 }

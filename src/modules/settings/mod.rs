@@ -89,60 +89,6 @@ impl Settings {
         iced::Subscription::batch(vec![
             iced::time::every(Duration::from_secs(60)).map(|_| Message::BatteryUpdate),
             crate::utils::net::subscription().map(Message::NetUpdate),
-            // iced::subscription::channel("wifi-signal-monitor", 10, |mut output| async move {
-            //     let get_net = || async move { (get_active_connection().await, get_vpn().await) };
-            //
-            //     let _ = output.send(Message::NetUpdateActive(get_net().await)).await;
-            //
-            //     loop {
-            //         let _ = output.send(Message::NetUpdateActive(get_net().await)).await;
-            //         sleep(Duration::from_secs(60)).await
-            //     }
-            // }),
-            // iced::subscription::channel("nmcli-monitor", 10, |mut output| async move {
-            //     let _ = output
-            //         .send(Message::NetUpdateActive((
-            //             get_active_connection().await,
-            //             get_vpn().await,
-            //         )))
-            //         .await;
-            //
-            //     let handle = Command::new("nmcli")
-            //         .arg("monitor")
-            //         .stdout(Stdio::piped())
-            //         .stdin(Stdio::null())
-            //         .spawn()
-            //         .expect("Failed to execute command");
-            //
-            //     let stdout = handle.stdout.expect("no nmcli stdout");
-            //     let reader = BufReader::new(stdout);
-            //     let mut lines = reader.lines();
-            //
-            //     let mut last_time = Instant::now();
-            //     loop {
-            //         let _line = lines
-            //             .next_line()
-            //             .await
-            //             .ok()
-            //             .flatten()
-            //             .unwrap_or("".to_string());
-            //
-            //         let delta = last_time.elapsed();
-            //
-            //         if delta.as_millis() > 50 {
-            //             sleep(Duration::from_millis(500)).await;
-            //
-            //             let _ = output
-            //                 .send(Message::NetUpdateActive((
-            //                     get_active_connection().await,
-            //                     get_vpn().await,
-            //                 )))
-            //                 .await;
-            //
-            //             last_time = Instant::now();
-            //         }
-            //     }
-            // }),
         ])
     }
 }
