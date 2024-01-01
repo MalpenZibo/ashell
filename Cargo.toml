@@ -12,3 +12,5 @@ serde_json = "1.0.107"
 sysinfo = "0.29.10"
 tokio = { version = "1", features = ["full"] }
 zbus = "3.14.1"
+libpulse-binding = {version = "2.28.1", features = ["pa_v15"] }
+libpulse-tokio = "0.1"
