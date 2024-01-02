@@ -9,11 +9,11 @@ use libpulse_binding::{
 use pulse::{
     callbacks::ListResult,
     context::{
-        introspect::{ServerInfo, SinkInfo},
+        introspect::{ServerInfo, SinkInfo, SourceInfo},
         subscribe::InterestMaskSet,
         FlagSet,
     },
-    def::DevicePortType,
+    def::{DevicePortType, SourceState},
     operation::{Operation, State},
 };
 use std::{
@@ -86,6 +86,14 @@ fn set_default_sink(info: &ServerInfo, default_sink: &mut Option<String>) {
     }
 }
 
+fn set_default_source(info: &ServerInfo, default_source: &mut Option<String>) {
+    if let Some(name) = info.default_source_name.as_ref() {
+        default_source.replace(name.to_string());
+    } else {
+        default_source.take();
+    }
+}
+
 fn create_sink(data: &SinkInfo, default_sink: &Option<String>) -> Sink {
     Sink {
         name: data
@@ -121,6 +129,42 @@ fn create_sink(data: &SinkInfo, default_sink: &Option<String>) -> Sink {
     }
 }
 
+fn create_source(data: &SourceInfo, default_source: &Option<String>) -> Source {
+    Source {
+        name: data
+            .name
+            .as_ref()
+            .map_or(String::default(), |n| n.to_string()),
+        description: data
+            .proplist
+            .get_str("device.description")
+            .map_or(String::default(), |d| d.to_string()),
+        volume: data.volume.avg().0 as f64 / libpulse_binding::volume::Volume::NORMAL.0 as f64,
+        is_mute: data.mute,
+        is_running: data.state == SourceState::Running,
+        ports: data
+            .ports
+            .iter()
+            .map(|port| Port {
+                name: port
+                    .name
+                    .as_ref()
+                    .map_or(String::default(), |n| n.to_string()),
+                description: port.description.as_ref().unwrap().to_string(),
+                r#type: match port.r#type {
+                    DevicePortType::Headphones => DeviceType::Headphones,
+                    DevicePortType::Speaker => DeviceType::Speakers,
+                    DevicePortType::Headset => DeviceType::Headset,
+                    _ => DeviceType::Speakers,
+                },
+                active: data.active_port.as_ref().and_then(|p| p.name.as_ref())
+                    == port.name.as_ref()
+                    && &data.name.as_ref().map(|n| n.to_string()) == default_source,
+            })
+            .collect::<Vec<_>>(),
+    }
+}
+
 fn populate_and_send_sinks(
     info: ListResult<&SinkInfo>,
     tx: &tokio::sync::mpsc::UnboundedSender<AudioMessage>,
@@ -134,6 +178,24 @@ fn populate_and_send_sinks(
         ListResult::End => {
             let _ = tx.send(AudioMessage::SinkChanges(sinks.clone()));
             sinks.clear();
+        }
+        ListResult::Error => println!("Error"),
+    }
+}
+
+fn populate_and_send_sources(
+    info: ListResult<&SourceInfo>,
+    tx: &tokio::sync::mpsc::UnboundedSender<AudioMessage>,
+    sources: &mut Vec<Source>,
+    default_source: &Option<String>,
+) {
+    match info {
+        ListResult::Item(data) => {
+            sources.push(create_source(data, default_source));
+        }
+        ListResult::End => {
+            let _ = tx.send(AudioMessage::SourceChanges(sources.clone()));
+            sources.clear();
         }
         ListResult::Error => println!("Error"),
     }
@@ -169,12 +231,43 @@ impl Sinks for Vec<Sink> {
     }
 }
 
+pub trait Sources {
+    fn get_icon(&self) -> Option<Icons>;
+}
+
+impl Sources for Vec<Source> {
+    fn get_icon(&self) -> Option<Icons> {
+        match self.iter().find_map(|s| {
+            if s.ports.iter().any(|p| p.active) {
+                Some((s.is_running, s.is_mute, s.volume))
+            } else {
+                None
+            }
+        }) {
+            Some((false, _, _)) => None,
+            Some((true, true, _)) => Some(Icons::Mic0),
+            Some((true, false, _)) => Some(Icons::Mic1),
+            None => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Sink {
     pub name: String,
     pub description: String,
     pub volume: f64,
     pub is_mute: bool,
+    pub ports: Vec<Port>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Source {
+    pub name: String,
+    pub description: String,
+    pub volume: f64,
+    pub is_mute: bool,
+    pub is_running: bool,
     pub ports: Vec<Port>,
 }
 
@@ -200,21 +293,28 @@ pub fn subscription() -> Subscription<AudioMessage> {
         thread::spawn(move || {
             let (mainloop, context) = init("Ashell-audio-listener");
 
-            context
-                .borrow_mut()
-                .subscribe(InterestMaskSet::SINK, |res| {
+            context.borrow_mut().subscribe(
+                InterestMaskSet::SINK.union(InterestMaskSet::SOURCE),
+                |res| {
                     if !res {
                         println!("Subscription failed!");
                     }
-                });
+                },
+            );
 
             let default_sink = Rc::new(RefCell::new(None));
+            let default_source = Rc::new(RefCell::new(None));
             let sinks = Rc::new(RefCell::new(Vec::new()));
+            let sources = Rc::new(RefCell::new(Vec::new()));
 
             let introspector = context.borrow().introspect();
             let get_server = introspector.get_server_info({
                 let default_sink = default_sink.clone();
-                move |info| set_default_sink(info, &mut default_sink.borrow_mut())
+                let default_source = default_source.clone();
+                move |info| {
+                    set_default_sink(info, &mut default_sink.borrow_mut());
+                    set_default_source(info, &mut default_source.borrow_mut())
+                }
             });
             wait_for_response(mainloop.borrow_mut().deref_mut(), get_server);
             let get_and_send_sinks = introspector.get_sink_info_list({
@@ -231,6 +331,20 @@ pub fn subscription() -> Subscription<AudioMessage> {
                 }
             });
             wait_for_response(mainloop.borrow_mut().deref_mut(), get_and_send_sinks);
+            let get_and_send_source = introspector.get_source_info_list({
+                let tx = tx.clone();
+                let default_source = default_source.clone();
+                let sources = sources.clone();
+                move |info| {
+                    populate_and_send_sources(
+                        info,
+                        &tx,
+                        &mut sources.borrow_mut(),
+                        &default_source.borrow(),
+                    )
+                }
+            });
+            wait_for_response(mainloop.borrow_mut().deref_mut(), get_and_send_source);
 
             context.borrow_mut().set_subscribe_callback({
                 let context = context.clone();
@@ -251,6 +365,20 @@ pub fn subscription() -> Subscription<AudioMessage> {
                                 &tx,
                                 &mut sinks.borrow_mut(),
                                 &default_sink.borrow(),
+                            )
+                        }
+                    });
+                    introspector.get_source_info_list({
+                        let tx = tx.clone();
+                        let default_source = default_source.clone();
+                        let sources = sources.clone();
+
+                        move |info| {
+                            populate_and_send_sources(
+                                info,
+                                &tx,
+                                &mut sources.borrow_mut(),
+                                &default_source.borrow(),
                             )
                         }
                     });

@@ -1,12 +1,12 @@
 use self::{
-    audio::sink_indicator,
+    audio::{sink_indicator, source_indicator},
     battery::battery_indicator,
     net::{vpn_indicator, wifi_indicator},
 };
 use crate::{
     style::HeaderButtonStyle,
     utils::{
-        audio::Sink,
+        audio::{Sink, Source},
         battery::{get_battery_capacity, BatteryData},
         net::Wifi,
     },
@@ -27,6 +27,7 @@ pub struct Settings {
     wifi: Option<Wifi>,
     vpn_active: bool,
     sinks: Vec<Sink>,
+    sources: Vec<Source>,
 }
 
 #[derive(Debug, Clone)]
@@ -38,6 +39,7 @@ pub enum NetMessage {
 #[derive(Debug, Clone)]
 pub enum AudioMessage {
     SinkChanges(Vec<Sink>),
+    SourceChanges(Vec<Source>),
 }
 
 #[derive(Debug, Clone)]
@@ -54,6 +56,7 @@ impl Settings {
             wifi: None,
             vpn_active: false,
             sinks: vec![],
+            sources: vec![],
         }
     }
 
@@ -78,6 +81,10 @@ impl Settings {
                     println!("sinks: {:?}", sinks);
                     self.sinks = sinks
                 }
+                AudioMessage::SourceChanges(sources) => {
+                    println!("sources: {:?}", sources);
+                    self.sources = sources
+                }
             },
         }
     }
@@ -85,7 +92,12 @@ impl Settings {
     pub fn view(&self) -> Element<Message> {
         let mut elements = row!().spacing(8);
 
-        let audio_elements = row!(sink_indicator(&self.sinks)).spacing(4);
+        let sink = sink_indicator(&self.sinks);
+        let audio_elements = if let Some(source) = source_indicator(&self.sources) {
+            row!(source, sink)
+        } else {
+            row!(sink)
+        }.spacing(4);
         elements = elements.push(audio_elements);
 
         let mut net_elements = row!().spacing(4);
