@@ -4,6 +4,8 @@ use self::{
     net::{vpn_indicator, wifi_indicator},
 };
 use crate::{
+    app::MenuRequest,
+    menu::MenuOutput,
     style::HeaderButtonStyle,
     utils::{
         audio::{Sink, Source},
@@ -13,9 +15,10 @@ use crate::{
 };
 use iced::{
     theme::Button,
-    widget::{button, row},
+    widget::{button, row, text},
     Element, Subscription,
 };
+use tokio::sync::mpsc::UnboundedSender;
 
 mod audio;
 mod battery;
@@ -49,7 +52,7 @@ pub enum AudioMessage {
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    Void,
+    ToggleMenu,
     Battery(BatteryMessage),
     Net(NetMessage),
     Audio(AudioMessage),
@@ -66,43 +69,56 @@ impl Settings {
         }
     }
 
-    pub fn update(&mut self, message: Message) {
-        println!("settings: {:?}", message);
+    pub fn update(&mut self, message: Message) -> Option<MenuRequest> {
         match message {
-            Message::Void => {}
+            Message::ToggleMenu => {
+                Some(MenuRequest::Settings)
+            },
             Message::Battery(msg) => match msg {
                 BatteryMessage::PercentageChanged(percentage) => {
                     println!("battery: {:?}", percentage);
                     self.battery_data = Some(BatteryData {
                         capacity: percentage,
                         status: BatteryStatus::Full,
-                    })
+                    });
+
+                    None
                 }
                 BatteryMessage::StatusChanged(status) => {
                     println!("battery: {:?}", status);
                     if let Some(battery_data) = &mut self.battery_data {
                         battery_data.status = status;
                     }
+
+                    None
                 }
             },
             Message::Net(msg) => match msg {
                 NetMessage::Wifi(wifi) => {
                     println!("wifi: {:?}", wifi);
-                    self.wifi = wifi
+                    self.wifi = wifi;
+
+                    None
                 }
                 NetMessage::VpnActive(active) => {
                     println!("vpn: {:?}", active);
-                    self.vpn_active = active
+                    self.vpn_active = active;
+
+                    None
                 }
             },
             Message::Audio(msg) => match msg {
                 AudioMessage::SinkChanges(sinks) => {
                     println!("sinks: {:?}", sinks);
-                    self.sinks = sinks
+                    self.sinks = sinks;
+
+                    None
                 }
                 AudioMessage::SourceChanges(sources) => {
                     println!("sources: {:?}", sources);
-                    self.sources = sources
+                    self.sources = sources;
+
+                    None
                 }
             },
         }
@@ -137,7 +153,7 @@ impl Settings {
 
         button(elements)
             .style(Button::custom(HeaderButtonStyle::Right))
-            .on_press(Message::Void)
+            .on_press(Message::ToggleMenu)
             .into()
     }
 
@@ -147,5 +163,26 @@ impl Settings {
             crate::utils::net::subscription().map(Message::Net),
             crate::utils::audio::subscription().map(Message::Audio),
         ])
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum SettingsMenuMessage {}
+
+pub struct SettingsMenu {
+    output_tx: UnboundedSender<MenuOutput>,
+}
+
+impl SettingsMenu {
+    pub fn new(output_tx: UnboundedSender<MenuOutput>) -> Self {
+        Self { output_tx }
+    }
+
+    pub fn update(&mut self, message: SettingsMenuMessage) -> iced::Command<SettingsMenuMessage> {
+        match message {}
+    }
+
+    pub fn view(&self) -> Element<SettingsMenuMessage> {
+        text("ciao").into()
     }
 }

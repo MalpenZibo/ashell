@@ -1,3 +1,4 @@
+use crate::modules::settings::{SettingsMenu, SettingsMenuMessage};
 use crate::modules::updates::{Update, UpdateMenu, UpdateMenuMessage, UpdateMenuOutput};
 use crate::style::{ashell_theme, CRUST};
 use iced::wayland::layer_surface::{set_anchor, set_size};
@@ -17,6 +18,7 @@ use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 #[derive(Debug, Clone)]
 pub enum MenuType {
     Updates(Vec<Update>),
+    Settings,
 }
 
 #[derive(Debug)]
@@ -60,8 +62,13 @@ pub fn create_menu() -> (UnboundedSender<MenuInput>, UnboundedReceiver<MenuOutpu
     (input_tx, output_rx)
 }
 
+pub enum MenuInstance {
+    Update(UpdateMenu),
+    Settings(SettingsMenu),
+}
+
 pub struct Menu {
-    updates: Option<UpdateMenu>,
+    menu_instance: Option<MenuInstance>,
     input_rx: RefCell<Option<UnboundedReceiver<MenuInput>>>,
     output_tx: UnboundedSender<MenuOutput>,
 }
@@ -71,6 +78,7 @@ pub enum Message {
     None,
     OpenMenu(MenuType),
     UpdatesMenu(UpdateMenuMessage),
+    SettingsMenu(SettingsMenuMessage),
     CloseRequest,
 }
 
@@ -85,7 +93,7 @@ impl Application for Menu {
     ) -> (Self, iced::Command<Self::Message>) {
         (
             Menu {
-                updates: None,
+                menu_instance: None,
                 input_rx: RefCell::new(Some(flags.0)),
                 output_tx: flags.1,
             },
@@ -135,39 +143,72 @@ impl Application for Menu {
                     set_size(Id(1), None, None),
                 ]);
 
-                self.updates = Some(UpdateMenu::new(self.output_tx.clone(), updates));
+                self.menu_instance = Some(MenuInstance::Update(UpdateMenu::new(
+                    self.output_tx.clone(),
+                    updates,
+                )));
 
                 cmd
             }
             Message::UpdatesMenu(msg) => {
-                if let Some(updates) = self.updates.as_mut() {
+                if let Some(MenuInstance::Update(updates)) = self.menu_instance.as_mut() {
                     updates.update(msg).map(Message::UpdatesMenu)
                 } else {
                     iced::Command::none()
                 }
             }
+            Message::OpenMenu(MenuType::Settings) => {
+                let cmd = iced::Command::batch([
+                    set_anchor(
+                        Id(1),
+                        Anchor::TOP
+                            .union(Anchor::LEFT)
+                            .union(Anchor::RIGHT)
+                            .union(Anchor::BOTTOM),
+                    ),
+                    set_size(Id(1), None, None),
+                ]);
+
+                self.menu_instance = Some(MenuInstance::Settings(SettingsMenu::new(
+                    self.output_tx.clone(),
+                )));
+
+                cmd
+            }
+            Message::SettingsMenu(_) => iced::Command::none(),
         }
     }
 
     fn view(&self, _id: Id) -> iced::Element<'_, Self::Message> {
-        if let Some(updates_menu) = self.updates.as_ref() {
+        if let Some(menu_instance) = self.menu_instance.as_ref() {
             iced::widget::mouse_area(
                 container(
                     iced::widget::mouse_area(
-                        container(updates_menu.view().map(Message::UpdatesMenu))
-                            .height(iced::Length::Shrink)
-                            .width(iced::Length::Shrink)
-                            .style(|theme: &Theme| iced::widget::container::Appearance {
-                                background: Some(theme.palette().background.into()),
-                                border_radius: 16.0.into(),
-                                border_width: 1.,
-                                border_color: CRUST,
-                                ..Default::default()
-                            })
-                            .padding(16),
+                        container(match menu_instance {
+                            MenuInstance::Update(updates_menu) => {
+                                updates_menu.view().map(Message::UpdatesMenu)
+                            }
+                            MenuInstance::Settings(settings_menu) => {
+                                settings_menu.view().map(Message::SettingsMenu)
+                            }
+                        })
+                        .height(iced::Length::Shrink)
+                        .width(iced::Length::Shrink)
+                        .style(|theme: &Theme| iced::widget::container::Appearance {
+                            background: Some(theme.palette().background.into()),
+                            border_radius: 16.0.into(),
+                            border_width: 1.,
+                            border_color: CRUST,
+                            ..Default::default()
+                        })
+                        .padding(16),
                     )
                     .on_release(Message::None),
                 )
+                .align_x(match menu_instance {
+                    MenuInstance::Update(_) => iced::alignment::Horizontal::Left,
+                    MenuInstance::Settings(_) => iced::alignment::Horizontal::Right,
+                })
                 .padding([0, 8, 8, 8])
                 .width(iced::Length::Fill)
                 .height(iced::Length::Fill),
@@ -189,6 +230,9 @@ impl Application for Menu {
                         match menu_message {
                             MenuInput::Open(MenuType::Updates(updates)) => {
                                 Message::OpenMenu(MenuType::Updates(updates))
+                            }
+                            MenuInput::Open(MenuType::Settings) => {
+                                Message::OpenMenu(MenuType::Settings)
                             }
                             MenuInput::Close => Message::CloseRequest,
                             MenuInput::MessageToUpdates(msg) => {

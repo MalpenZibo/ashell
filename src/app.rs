@@ -19,11 +19,13 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 pub enum MenuRequest<'a> {
     Updates(&'a Vec<Update>),
     NotifyNewUpdates(&'a Vec<Update>),
+    Settings,
 }
 
 #[derive(Eq, PartialEq, Debug)]
 pub enum OpenMenu {
     Updates,
+    Settings,
 }
 
 pub struct App {
@@ -139,7 +141,17 @@ impl Application for App {
                 self.clock.update(message);
             }
             Message::SettingsMessage(message) => {
-                self.settings.update(message);
+                let response = self.settings.update(message);
+
+                match (&self.menu_type, response) {
+                    (_, Some(MenuRequest::Settings)) => {
+                        self.menu_type = Some(OpenMenu::Settings);
+                        self.menu_sender
+                            .send(MenuInput::Open(MenuType::Settings))
+                            .unwrap();
+                    }
+                    _ => {}
+                };
             }
             Message::CloseRequest => {
                 println!("Close request received");
