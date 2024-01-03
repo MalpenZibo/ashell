@@ -1,6 +1,7 @@
 use iced::{theme::Palette, widget::button, BorderRadius, Color, Theme};
 
 pub const BASE: Color = Color::from_rgb(0.117_647_06, 0.117_647_06, 0.180_392_16);
+pub const MANTLE: Color = Color::from_rgb(0.094117647, 0.094117647, 0.145098039);
 pub const CRUST: Color = Color::from_rgb(0.066_666_67, 0.066_666_68, 0.105_882_353);
 pub const SURFACE_0: Color = Color::from_rgb(0.192_156_87, 0.196_078_43, 0.266_666_68);
 pub const SURFACE_1: Color = Color::from_rgb(0.270_588_25,0.278_431_43,0.352_941_26);

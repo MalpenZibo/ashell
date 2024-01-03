@@ -208,14 +208,15 @@ impl Application for Menu {
                         })
                         .height(iced::Length::Shrink)
                         .width(iced::Length::Shrink)
-                        .style(|theme: &Theme| iced::widget::container::Appearance {
-                            background: Some(theme.palette().background.into()),
-                            border_radius: 16.0.into(),
-                            border_width: 1.,
-                            border_color: CRUST,
-                            ..Default::default()
-                        })
-                        .padding(16),
+                        .style(|theme: &Theme| {
+                            iced::widget::container::Appearance {
+                                background: Some(theme.palette().background.into()),
+                                border_radius: 16.0.into(),
+                                border_width: 1.,
+                                border_color: CRUST,
+                                ..Default::default()
+                            }
+                        }),
                     )
                     .on_release(Message::None),
                 )

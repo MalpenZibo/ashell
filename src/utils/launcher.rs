@@ -28,7 +28,7 @@ pub fn suspend() {
     });
 }
 
-pub fn poweroff() {
+pub fn shutdown() {
     tokio::spawn(async move {
         Command::new("bash")
             .arg("-c")

@@ -20,6 +20,7 @@ pub fn battery_indicator<'a, Message>(data: BatteryData) -> Row<'a, Message, ice
 
 pub fn settings_battery_indicator<'a, Message: 'static>(
     data: BatteryData,
+    sub_menu_open: bool,
 ) -> Container<'a, Message, iced::Renderer> {
     container({
         let battery_info = row!(
@@ -46,8 +47,12 @@ pub fn settings_battery_indicator<'a, Message: 'static>(
         }
     })
     .padding(8)
-    .style(|_: &Theme| iced::widget::container::Appearance {
-        background: Some(iced::Background::Color(SURFACE_0)),
+    .style(move |theme: &Theme| iced::widget::container::Appearance {
+        background: Some(if sub_menu_open {
+            theme.palette().background.into()
+        } else {
+            iced::Background::Color(SURFACE_0)
+        }),
         border_radius: 32.0.into(),
         ..iced::widget::container::Appearance::default()
     })

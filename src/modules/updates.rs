@@ -316,6 +316,7 @@ impl UpdateMenu {
             .width(Length::Fill),
         )
         .spacing(4)
+        .padding(16)
         .max_width(250)
         .into()
     }

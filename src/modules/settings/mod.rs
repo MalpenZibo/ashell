@@ -7,7 +7,10 @@ use crate::{
     app::MenuRequest,
     components::icons::{icon, Icons},
     menu::{MenuOutput, SettingsInputMessage},
-    style::{HeaderButtonStyle, SettingsButtonStyle, CRUST, LAVENDER, RED, SURFACE_0, YELLOW},
+    style::{
+        GhostButtonStyle, HeaderButtonStyle, SettingsButtonStyle, CRUST, LAVENDER, MANTLE, RED,
+        SURFACE_0, YELLOW,
+    },
     utils::{
         audio::{Sink, Source},
         battery::{BatteryData, BatteryStatus},
@@ -16,7 +19,7 @@ use crate::{
 };
 use iced::{
     theme::Button,
-    widget::{button, column, container, row, text, Space},
+    widget::{button, column, container, horizontal_rule, mouse_area, row, text, Space},
     Element, Length, Subscription, Theme,
 };
 use tokio::sync::mpsc::UnboundedSender;
@@ -177,9 +180,16 @@ impl Settings {
 pub enum SettingsMenuMessage {
     MainMessage(SettingsInputMessage),
     Lock,
-    OpenPowerMenu,
+    Suspend,
+    Reboot,
+    Shutdown,
+    Logout,
+    OpenSubMenu(SubMenu),
+    CloseSubMenu,
+    None,
 }
 
+#[derive(Debug, Clone)]
 pub enum SubMenu {
     Power,
 }
@@ -202,9 +212,17 @@ impl SettingsMenu {
     pub fn update(&mut self, message: SettingsMenuMessage) -> iced::Command<SettingsMenuMessage> {
         match message {
             SettingsMenuMessage::Lock => crate::utils::launcher::lock(),
-            SettingsMenuMessage::OpenPowerMenu => {
-                self.sub_menu.replace(SubMenu::Power);
+            SettingsMenuMessage::Suspend => crate::utils::launcher::suspend(),
+            SettingsMenuMessage::Reboot => crate::utils::launcher::reboot(),
+            SettingsMenuMessage::Shutdown => crate::utils::launcher::shutdown(),
+            SettingsMenuMessage::Logout => crate::utils::launcher::logout(),
+            SettingsMenuMessage::OpenSubMenu(menu_type) => {
+                self.sub_menu.replace(menu_type);
             }
+            SettingsMenuMessage::CloseSubMenu => {
+                self.sub_menu.take();
+            }
+            SettingsMenuMessage::None => {}
             SettingsMenuMessage::MainMessage(message) => match message {
                 SettingsInputMessage::Battery(battery) => match battery {
                     BatteryMessage::PercentageChanged(percentage) => {
@@ -235,24 +253,93 @@ impl SettingsMenu {
     }
 
     pub fn view(&self) -> Element<SettingsMenuMessage> {
-        let battery_data = self.battery_data.map(settings_battery_indicator);
+        let sub_menu_open = self.sub_menu.is_some();
+
+        let battery_data = self
+            .battery_data
+            .map(|battery_data| settings_battery_indicator(battery_data, sub_menu_open));
         let right_buttons = row!(
             button(icon(Icons::Lock))
                 .padding([8, 9])
-                .on_press(SettingsMenuMessage::Lock)
+                .on_press_maybe(if !sub_menu_open {
+                    Some(SettingsMenuMessage::Lock)
+                } else {
+                    None
+                })
                 .style(Button::custom(SettingsButtonStyle)),
             button(icon(Icons::Power))
                 .padding([8, 9])
-                .on_press(SettingsMenuMessage::OpenPowerMenu)
+                .on_press_maybe(if !sub_menu_open {
+                    Some(SettingsMenuMessage::OpenSubMenu(SubMenu::Power))
+                } else {
+                    None
+                })
                 .style(Button::custom(SettingsButtonStyle))
-        );
+        )
+        .spacing(8);
 
-        column!(if let Some(battery_data) = battery_data {
+        let main_content = column!(if let Some(battery_data) = battery_data {
             row!(battery_data, Space::with_width(Length::Fill), right_buttons).width(Length::Fill)
         } else {
             row!(Space::with_width(Length::Fill), right_buttons)
-        },)
-        .max_width(350.)
-        .into()
+        },);
+
+        match self.sub_menu {
+            None => main_content.padding(16).max_width(350.).into(),
+            Some(SubMenu::Power) => {
+                let power_menu = column!(
+                    button(text("Suspend"))
+                        .padding([8, 9])
+                        .on_press(SettingsMenuMessage::Suspend)
+                        .width(Length::Fill)
+                        .style(Button::custom(GhostButtonStyle)),
+                    button(text("Reboot"))
+                        .padding([8, 9])
+                        .on_press(SettingsMenuMessage::Reboot)
+                        .width(Length::Fill)
+                        .style(Button::custom(GhostButtonStyle)),
+                    button(text("Shutdown"))
+                        .padding([8, 9])
+                        .on_press(SettingsMenuMessage::Shutdown)
+                        .width(Length::Fill)
+                        .style(Button::custom(GhostButtonStyle)),
+                    horizontal_rule(1),
+                    button(text("Logout"))
+                        .padding([8, 9])
+                        .on_press(SettingsMenuMessage::Logout)
+                        .width(Length::Fill)
+                        .style(Button::custom(GhostButtonStyle)),
+                )
+                .padding(8)
+                .width(Length::Fill)
+                .spacing(8);
+
+                mouse_area(
+                    container(
+                        column!(
+                            main_content,
+                            container(mouse_area(power_menu).on_release(SettingsMenuMessage::None))
+                                .style(|theme: &Theme| iced::widget::container::Appearance {
+                                    background: Some(theme.palette().background.into()),
+                                    border_radius: 16.0.into(),
+                                    ..Default::default()
+                                })
+                        )
+                        .spacing(12),
+                    )
+                    .style(|_: &Theme| iced::widget::container::Appearance {
+                        background: Some(iced::Background::Color(MANTLE)),
+                        border_radius: 16.0.into(),
+                        border_width: 1.,
+                        border_color: CRUST,
+                        ..Default::default()
+                    })
+                    .max_width(350.)
+                    .padding(16),
+                )
+                .on_release(SettingsMenuMessage::CloseSubMenu)
+                .into()
+            }
+        }
     }
 }
