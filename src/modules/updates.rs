@@ -185,7 +185,7 @@ impl UpdateMenu {
 
     pub fn update(&mut self, message: UpdateMenuMessage) -> iced::Command<UpdateMenuMessage> {
         match message {
-            UpdateMenuMessage::UpdatesCheckCompleted(updates) => {
+        UpdateMenuMessage::UpdatesCheckCompleted(updates) => {
                 self.state = State::Ready;
 
                 let _ = self.output_tx.send(MenuOutput::MessageFromUpdates(

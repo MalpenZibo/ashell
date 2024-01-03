@@ -1,6 +1,7 @@
-use crate::modules::settings::{SettingsMenu, SettingsMenuMessage};
+use crate::modules::settings::{BatteryMessage, SettingsMenu, SettingsMenuMessage};
 use crate::modules::updates::{Update, UpdateMenu, UpdateMenuMessage, UpdateMenuOutput};
 use crate::style::{ashell_theme, CRUST};
+use crate::utils::battery::BatteryData;
 use iced::wayland::layer_surface::{set_anchor, set_size};
 use iced::widget::container;
 use iced::{
@@ -18,14 +19,20 @@ use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 #[derive(Debug, Clone)]
 pub enum MenuType {
     Updates(Vec<Update>),
-    Settings,
+    Settings(Option<BatteryData>),
 }
 
 #[derive(Debug)]
 pub enum MenuInput {
     Open(MenuType),
     MessageToUpdates(Vec<Update>),
+    MessageToSettings(SettingsInputMessage),
     Close,
+}
+
+#[derive(Debug, Clone)]
+pub enum SettingsInputMessage {
+    Battery(BatteryMessage),
 }
 
 pub enum MenuOutput {
@@ -157,7 +164,7 @@ impl Application for Menu {
                     iced::Command::none()
                 }
             }
-            Message::OpenMenu(MenuType::Settings) => {
+            Message::OpenMenu(MenuType::Settings(battery_data)) => {
                 let cmd = iced::Command::batch([
                     set_anchor(
                         Id(1),
@@ -171,11 +178,18 @@ impl Application for Menu {
 
                 self.menu_instance = Some(MenuInstance::Settings(SettingsMenu::new(
                     self.output_tx.clone(),
+                    battery_data,
                 )));
 
                 cmd
             }
-            Message::SettingsMenu(_) => iced::Command::none(),
+            Message::SettingsMenu(msg) => {
+                if let Some(MenuInstance::Settings(settings)) = self.menu_instance.as_mut() {
+                    settings.update(msg).map(Message::SettingsMenu)
+                } else {
+                    iced::Command::none()
+                }
+            }
         }
     }
 
@@ -231,12 +245,15 @@ impl Application for Menu {
                             MenuInput::Open(MenuType::Updates(updates)) => {
                                 Message::OpenMenu(MenuType::Updates(updates))
                             }
-                            MenuInput::Open(MenuType::Settings) => {
-                                Message::OpenMenu(MenuType::Settings)
+                            MenuInput::Open(MenuType::Settings(battery_data)) => {
+                                Message::OpenMenu(MenuType::Settings(battery_data))
                             }
                             MenuInput::Close => Message::CloseRequest,
                             MenuInput::MessageToUpdates(msg) => {
                                 Message::UpdatesMenu(UpdateMenuMessage::UpdatesCheckCompleted(msg))
+                            }
+                            MenuInput::MessageToSettings(msg) => {
+                                Message::SettingsMenu(SettingsMenuMessage::MainMessage(msg))
                             }
                         },
                         receiver,

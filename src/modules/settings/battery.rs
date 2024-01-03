@@ -1,5 +1,12 @@
-use crate::{components::icons::icon, utils::battery::BatteryData};
-use iced::widget::{row, text, Row};
+use crate::{
+    components::icons::icon,
+    style::SURFACE_0,
+    utils::battery::{BatteryData, BatteryStatus},
+};
+use iced::{
+    widget::{container, row, text, Container, Row},
+    Theme,
+};
 
 pub fn battery_indicator<'a, Message>(data: BatteryData) -> Row<'a, Message, iced::Renderer> {
     let icon_type = data.get_icon();
@@ -9,4 +16,39 @@ pub fn battery_indicator<'a, Message>(data: BatteryData) -> Row<'a, Message, ice
         icon(icon_type).style(color),
         text(format!("{}%", data.capacity)).style(color)
     )
+}
+
+pub fn settings_battery_indicator<'a, Message: 'static>(
+    data: BatteryData,
+) -> Container<'a, Message, iced::Renderer> {
+    container({
+        let battery_info = row!(
+            icon(data.get_icon()).style(data.get_color()),
+            text(format!("{}%", data.capacity)).style(data.get_color())
+        )
+        .spacing(4);
+        match data.status {
+            BatteryStatus::Charging(remaining) => {
+                let minutes = (remaining.as_secs() / 60) % 60;
+                let hours = (remaining.as_secs() / 60) / 60;
+                row!(battery_info, text(format!("Full in {}:{}", hours, minutes))).spacing(16)
+            }
+            BatteryStatus::Discharging(remaining) => {
+                let minutes = (remaining.as_secs() / 60) % 60;
+                let hours = (remaining.as_secs() / 60) / 60;
+                row!(
+                    battery_info,
+                    text(format!("Empty in {}:{}", hours, minutes))
+                )
+                .spacing(16)
+            }
+            BatteryStatus::Full => row!(battery_info),
+        }
+    })
+    .padding(8)
+    .style(|_: &Theme| iced::widget::container::Appearance {
+        background: Some(iced::Background::Color(SURFACE_0)),
+        border_radius: 32.0.into(),
+        ..iced::widget::container::Appearance::default()
+    })
 }

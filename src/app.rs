@@ -37,7 +37,7 @@ pub struct App {
     window_title: Title,
     system_info: SystemInfo,
     clock: Clock,
-    settings: Settings,
+    pub settings: Settings,
 }
 
 #[derive(Debug, Clone)]
@@ -141,17 +141,28 @@ impl Application for App {
                 self.clock.update(message);
             }
             Message::SettingsMessage(message) => {
+                if let Some(OpenMenu::Settings) = &self.menu_type {
+                    if let Some(message) = match message {
+                        crate::modules::settings::Message::Battery(battery) => {
+                            Some(MenuInput::MessageToSettings(
+                                crate::menu::SettingsInputMessage::Battery(battery),
+                            ))
+                        }
+                        _ => None,
+                    } {
+                        self.menu_sender.send(message).unwrap();
+                    }
+                }
                 let response = self.settings.update(message);
 
-                match (&self.menu_type, response) {
-                    (_, Some(MenuRequest::Settings)) => {
-                        self.menu_type = Some(OpenMenu::Settings);
-                        self.menu_sender
-                            .send(MenuInput::Open(MenuType::Settings))
-                            .unwrap();
-                    }
-                    _ => {}
-                };
+                if let (_, Some(MenuRequest::Settings)) = (&self.menu_type, response) {
+                    self.menu_type = Some(OpenMenu::Settings);
+                    self.menu_sender
+                        .send(MenuInput::Open(MenuType::Settings(
+                            self.settings.battery_data,
+                        )))
+                        .unwrap();
+                }
             }
             Message::CloseRequest => {
                 println!("Close request received");

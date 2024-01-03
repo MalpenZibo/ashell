@@ -1,12 +1,13 @@
 use self::{
     audio::{sink_indicator, source_indicator},
-    battery::battery_indicator,
+    battery::{battery_indicator, settings_battery_indicator},
     net::{vpn_indicator, wifi_indicator},
 };
 use crate::{
     app::MenuRequest,
-    menu::MenuOutput,
-    style::HeaderButtonStyle,
+    components::icons::{icon, Icons},
+    menu::{MenuOutput, SettingsInputMessage},
+    style::{HeaderButtonStyle, SettingsButtonStyle, CRUST, LAVENDER, RED, SURFACE_0, YELLOW},
     utils::{
         audio::{Sink, Source},
         battery::{BatteryData, BatteryStatus},
@@ -15,8 +16,8 @@ use crate::{
 };
 use iced::{
     theme::Button,
-    widget::{button, row, text},
-    Element, Subscription,
+    widget::{button, column, container, row, text, Space},
+    Element, Length, Subscription, Theme,
 };
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -25,7 +26,7 @@ mod battery;
 mod net;
 
 pub struct Settings {
-    battery_data: Option<BatteryData>,
+    pub battery_data: Option<BatteryData>,
     wifi: Option<Wifi>,
     vpn_active: bool,
     sinks: Vec<Sink>,
@@ -71,16 +72,17 @@ impl Settings {
 
     pub fn update(&mut self, message: Message) -> Option<MenuRequest> {
         match message {
-            Message::ToggleMenu => {
-                Some(MenuRequest::Settings)
-            },
+            Message::ToggleMenu => Some(MenuRequest::Settings),
             Message::Battery(msg) => match msg {
                 BatteryMessage::PercentageChanged(percentage) => {
-                    println!("battery: {:?}", percentage);
-                    self.battery_data = Some(BatteryData {
-                        capacity: percentage,
-                        status: BatteryStatus::Full,
-                    });
+                    if let Some(battery_data) = &mut self.battery_data {
+                        battery_data.capacity = percentage;
+                    } else {
+                        self.battery_data = Some(BatteryData {
+                            capacity: percentage,
+                            status: BatteryStatus::Full,
+                        });
+                    }
 
                     None
                 }
@@ -88,6 +90,11 @@ impl Settings {
                     println!("battery: {:?}", status);
                     if let Some(battery_data) = &mut self.battery_data {
                         battery_data.status = status;
+                    } else {
+                        self.battery_data = Some(BatteryData {
+                            capacity: 100,
+                            status,
+                        });
                     }
 
                     None
@@ -167,22 +174,85 @@ impl Settings {
 }
 
 #[derive(Debug, Clone)]
-pub enum SettingsMenuMessage {}
+pub enum SettingsMenuMessage {
+    MainMessage(SettingsInputMessage),
+    Lock,
+    OpenPowerMenu,
+}
+
+pub enum SubMenu {
+    Power,
+}
 
 pub struct SettingsMenu {
     output_tx: UnboundedSender<MenuOutput>,
+    sub_menu: Option<SubMenu>,
+    battery_data: Option<BatteryData>,
 }
 
 impl SettingsMenu {
-    pub fn new(output_tx: UnboundedSender<MenuOutput>) -> Self {
-        Self { output_tx }
+    pub fn new(output_tx: UnboundedSender<MenuOutput>, battery_data: Option<BatteryData>) -> Self {
+        Self {
+            output_tx,
+            sub_menu: None,
+            battery_data,
+        }
     }
 
     pub fn update(&mut self, message: SettingsMenuMessage) -> iced::Command<SettingsMenuMessage> {
-        match message {}
+        match message {
+            SettingsMenuMessage::Lock => crate::utils::launcher::lock(),
+            SettingsMenuMessage::OpenPowerMenu => {
+                self.sub_menu.replace(SubMenu::Power);
+            }
+            SettingsMenuMessage::MainMessage(message) => match message {
+                SettingsInputMessage::Battery(battery) => match battery {
+                    BatteryMessage::PercentageChanged(percentage) => {
+                        if let Some(battery_data) = &mut self.battery_data {
+                            battery_data.capacity = percentage;
+                        } else {
+                            self.battery_data = Some(BatteryData {
+                                capacity: percentage,
+                                status: BatteryStatus::Full,
+                            });
+                        }
+                    }
+                    BatteryMessage::StatusChanged(status) => {
+                        if let Some(battery_data) = &mut self.battery_data {
+                            battery_data.status = status;
+                        } else {
+                            self.battery_data = Some(BatteryData {
+                                capacity: 100,
+                                status,
+                            });
+                        }
+                    }
+                },
+            },
+        };
+
+        iced::Command::none()
     }
 
     pub fn view(&self) -> Element<SettingsMenuMessage> {
-        text("ciao").into()
+        let battery_data = self.battery_data.map(settings_battery_indicator);
+        let right_buttons = row!(
+            button(icon(Icons::Lock))
+                .padding([8, 9])
+                .on_press(SettingsMenuMessage::Lock)
+                .style(Button::custom(SettingsButtonStyle)),
+            button(icon(Icons::Power))
+                .padding([8, 9])
+                .on_press(SettingsMenuMessage::OpenPowerMenu)
+                .style(Button::custom(SettingsButtonStyle))
+        );
+
+        column!(if let Some(battery_data) = battery_data {
+            row!(battery_data, Space::with_width(Length::Fill), right_buttons).width(Length::Fill)
+        } else {
+            row!(Space::with_width(Length::Fill), right_buttons)
+        },)
+        .max_width(350.)
+        .into()
     }
 }
