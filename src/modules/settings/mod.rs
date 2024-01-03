@@ -7,7 +7,7 @@ use crate::{
     style::HeaderButtonStyle,
     utils::{
         audio::{Sink, Source},
-        battery::{get_battery_capacity, BatteryData},
+        battery::{BatteryData, BatteryStatus},
         net::Wifi,
     },
 };
@@ -16,7 +16,6 @@ use iced::{
     widget::{button, row},
     Element, Subscription,
 };
-use std::time::Duration;
 
 mod audio;
 mod battery;
@@ -28,6 +27,12 @@ pub struct Settings {
     vpn_active: bool,
     sinks: Vec<Sink>,
     sources: Vec<Source>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum BatteryMessage {
+    PercentageChanged(i64),
+    StatusChanged(BatteryStatus),
 }
 
 #[derive(Debug, Clone)]
@@ -44,15 +49,16 @@ pub enum AudioMessage {
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    BatteryUpdate,
-    NetUpdate(NetMessage),
-    AudioUpdate(AudioMessage),
+    Void,
+    Battery(BatteryMessage),
+    Net(NetMessage),
+    Audio(AudioMessage),
 }
 
 impl Settings {
     pub fn new() -> Self {
         Settings {
-            battery_data: get_battery_capacity(),
+            battery_data: None,
             wifi: None,
             vpn_active: false,
             sinks: vec![],
@@ -63,10 +69,23 @@ impl Settings {
     pub fn update(&mut self, message: Message) {
         println!("settings: {:?}", message);
         match message {
-            Message::BatteryUpdate => {
-                get_battery_capacity();
-            }
-            Message::NetUpdate(msg) => match msg {
+            Message::Void => {}
+            Message::Battery(msg) => match msg {
+                BatteryMessage::PercentageChanged(percentage) => {
+                    println!("battery: {:?}", percentage);
+                    self.battery_data = Some(BatteryData {
+                        capacity: percentage,
+                        status: BatteryStatus::Full,
+                    })
+                }
+                BatteryMessage::StatusChanged(status) => {
+                    println!("battery: {:?}", status);
+                    if let Some(battery_data) = &mut self.battery_data {
+                        battery_data.status = status;
+                    }
+                }
+            },
+            Message::Net(msg) => match msg {
                 NetMessage::Wifi(wifi) => {
                     println!("wifi: {:?}", wifi);
                     self.wifi = wifi
@@ -76,7 +95,7 @@ impl Settings {
                     self.vpn_active = active
                 }
             },
-            Message::AudioUpdate(msg) => match msg {
+            Message::Audio(msg) => match msg {
                 AudioMessage::SinkChanges(sinks) => {
                     println!("sinks: {:?}", sinks);
                     self.sinks = sinks
@@ -97,7 +116,8 @@ impl Settings {
             row!(source, sink)
         } else {
             row!(sink)
-        }.spacing(4);
+        }
+        .spacing(4);
         elements = elements.push(audio_elements);
 
         let mut net_elements = row!().spacing(4);
@@ -117,15 +137,15 @@ impl Settings {
 
         button(elements)
             .style(Button::custom(HeaderButtonStyle::Right))
-            .on_press(Message::BatteryUpdate)
+            .on_press(Message::Void)
             .into()
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
         iced::Subscription::batch(vec![
-            iced::time::every(Duration::from_secs(60)).map(|_| Message::BatteryUpdate),
-            crate::utils::net::subscription().map(Message::NetUpdate),
-            crate::utils::audio::subscription().map(Message::AudioUpdate),
+            crate::utils::battery::subscription().map(Message::Battery),
+            crate::utils::net::subscription().map(Message::Net),
+            crate::utils::audio::subscription().map(Message::Audio),
         ])
     }
 }
