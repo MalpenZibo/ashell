@@ -8,8 +8,8 @@ use crate::{
     components::icons::{icon, Icons},
     menu::{MenuOutput, SettingsInputMessage},
     style::{
-        GhostButtonStyle, HeaderButtonStyle, SettingsButtonStyle, CRUST, LAVENDER, MANTLE, RED,
-        SURFACE_0, YELLOW,
+        GhostButtonStyle, HeaderButtonStyle, SettingsButtonStyle, BASE, CRUST, LAVENDER, MANTLE,
+        PEACH, RED, SURFACE_0, YELLOW,
     },
     utils::{
         audio::{Sink, Source},
@@ -19,8 +19,8 @@ use crate::{
 };
 use iced::{
     theme::Button,
-    widget::{button, column, container, horizontal_rule, mouse_area, row, text, Space},
-    Element, Length, Subscription, Theme,
+    widget::{button, column, container, horizontal_rule, mouse_area, row, slider, text, Space},
+    Element, Length, Subscription, Theme, Alignment,
 };
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -32,7 +32,7 @@ pub struct Settings {
     pub battery_data: Option<BatteryData>,
     wifi: Option<Wifi>,
     vpn_active: bool,
-    sinks: Vec<Sink>,
+    pub sinks: Vec<Sink>,
     sources: Vec<Source>,
 }
 
@@ -198,14 +198,20 @@ pub struct SettingsMenu {
     output_tx: UnboundedSender<MenuOutput>,
     sub_menu: Option<SubMenu>,
     battery_data: Option<BatteryData>,
+    sinks: Vec<Sink>,
 }
 
 impl SettingsMenu {
-    pub fn new(output_tx: UnboundedSender<MenuOutput>, battery_data: Option<BatteryData>) -> Self {
+    pub fn new(
+        output_tx: UnboundedSender<MenuOutput>,
+        battery_data: Option<BatteryData>,
+        sinks: Vec<Sink>,
+    ) -> Self {
         Self {
             output_tx,
             sub_menu: None,
             battery_data,
+            sinks,
         }
     }
 
@@ -246,6 +252,12 @@ impl SettingsMenu {
                         }
                     }
                 },
+                SettingsInputMessage::Audio(audio) => match audio {
+                    AudioMessage::SinkChanges(sinks) => {
+                        self.sinks = sinks;
+                    }
+                    AudioMessage::SourceChanges(_) => {}
+                },
             },
         };
 
@@ -278,14 +290,58 @@ impl SettingsMenu {
         )
         .spacing(8);
 
-        let main_content = column!(if let Some(battery_data) = battery_data {
+        let header = if let Some(battery_data) = battery_data {
             row!(battery_data, Space::with_width(Length::Fill), right_buttons).width(Length::Fill)
         } else {
             row!(Space::with_width(Length::Fill), right_buttons)
-        },);
+        };
+
+        let active_sink = self
+            .sinks
+            .iter()
+            .find(|sink| sink.ports.iter().any(|p| p.active));
+
+        let sink_slider = active_sink
+            .map(|s| {
+                row!(
+                    button(if s.is_mute {
+                        icon(Icons::Speaker0)
+                    } else {
+                        icon(Icons::Speaker3)
+                    })
+                    .padding([8, 9])
+                    .on_press(SettingsMenuMessage::None)
+                    .style(Button::custom(SettingsButtonStyle)),
+                    slider(0..=100, 3, |v| SettingsMenuMessage::None)
+                        .step(1)
+                        // .style(|_: &Theme| {
+                        //     iced::widget::slider::Appearance {
+                        //         rail: iced::widget::slider::Rail {
+                        //             colors: RailBackground(iced::Color::TRANSPARENT, iced::Color::TRANSPARENT),
+                        //             width: 2.,
+                        //             border_radius: 16.0.into(),
+                        //         },
+                        //         handle: iced::widget::slider::Handle {
+                        //             shape: iced::widget::slider::HandleShape::Circle { radius: 8. },
+                        //             color: LAVENDER,
+                        //             border_width: 0.,
+                        //             border_color: iced::Color::TRANSPARENT,
+                        //         },
+                        //     }
+                        // })
+                        .width(Length::Fill),
+                )
+                .align_items(Alignment::Center)
+                .spacing(8)
+            })
+            .unwrap_or(row!());
 
         match self.sub_menu {
-            None => main_content.padding(16).max_width(350.).into(),
+            None => column!(header, sink_slider)
+                .spacing(16)
+                .padding(16)
+                .max_width(350.)
+                .into(),
             Some(SubMenu::Power) => {
                 let power_menu = column!(
                     button(text("Suspend"))
@@ -317,15 +373,16 @@ impl SettingsMenu {
                 mouse_area(
                     container(
                         column!(
-                            main_content,
+                            header,
                             container(mouse_area(power_menu).on_release(SettingsMenuMessage::None))
                                 .style(|theme: &Theme| iced::widget::container::Appearance {
                                     background: Some(theme.palette().background.into()),
                                     border_radius: 16.0.into(),
                                     ..Default::default()
-                                })
+                                }),
+                            sink_slider
                         )
-                        .spacing(12),
+                        .spacing(16),
                     )
                     .style(|_: &Theme| iced::widget::container::Appearance {
                         background: Some(iced::Background::Color(MANTLE)),

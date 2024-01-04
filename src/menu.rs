@@ -1,6 +1,7 @@
-use crate::modules::settings::{BatteryMessage, SettingsMenu, SettingsMenuMessage};
+use crate::modules::settings::{BatteryMessage, SettingsMenu, SettingsMenuMessage, AudioMessage};
 use crate::modules::updates::{Update, UpdateMenu, UpdateMenuMessage, UpdateMenuOutput};
 use crate::style::{ashell_theme, CRUST};
+use crate::utils::audio::Sink;
 use crate::utils::battery::BatteryData;
 use iced::wayland::layer_surface::{set_anchor, set_size};
 use iced::widget::container;
@@ -19,7 +20,7 @@ use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 #[derive(Debug, Clone)]
 pub enum MenuType {
     Updates(Vec<Update>),
-    Settings(Option<BatteryData>),
+    Settings((Option<BatteryData>, Vec<Sink>)),
 }
 
 #[derive(Debug)]
@@ -33,6 +34,7 @@ pub enum MenuInput {
 #[derive(Debug, Clone)]
 pub enum SettingsInputMessage {
     Battery(BatteryMessage),
+    Audio(AudioMessage),
 }
 
 pub enum MenuOutput {
@@ -164,7 +166,7 @@ impl Application for Menu {
                     iced::Command::none()
                 }
             }
-            Message::OpenMenu(MenuType::Settings(battery_data)) => {
+            Message::OpenMenu(MenuType::Settings((battery_data, sinks))) => {
                 let cmd = iced::Command::batch([
                     set_anchor(
                         Id(1),
@@ -179,6 +181,7 @@ impl Application for Menu {
                 self.menu_instance = Some(MenuInstance::Settings(SettingsMenu::new(
                     self.output_tx.clone(),
                     battery_data,
+                    sinks,
                 )));
 
                 cmd

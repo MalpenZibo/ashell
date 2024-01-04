@@ -32,14 +32,14 @@ pub fn settings_battery_indicator<'a, Message: 'static>(
             BatteryStatus::Charging(remaining) => {
                 let minutes = (remaining.as_secs() / 60) % 60;
                 let hours = (remaining.as_secs() / 60) / 60;
-                row!(battery_info, text(format!("Full in {}:{}", hours, minutes))).spacing(16)
+                row!(battery_info, text(format!("Full in {}:{:0>2}", hours, minutes))).spacing(16)
             }
             BatteryStatus::Discharging(remaining) => {
                 let minutes = (remaining.as_secs() / 60) % 60;
                 let hours = (remaining.as_secs() / 60) / 60;
                 row!(
                     battery_info,
-                    text(format!("Empty in {}:{}", hours, minutes))
+                    text(format!("Empty in {}:{:0>2}", hours, minutes))
                 )
                 .spacing(16)
             }

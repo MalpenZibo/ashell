@@ -142,10 +142,15 @@ impl Application for App {
             }
             Message::SettingsMessage(message) => {
                 if let Some(OpenMenu::Settings) = &self.menu_type {
-                    if let Some(message) = match message {
+                    if let Some(message) = match message.clone() {
                         crate::modules::settings::Message::Battery(battery) => {
                             Some(MenuInput::MessageToSettings(
                                 crate::menu::SettingsInputMessage::Battery(battery),
+                            ))
+                        }
+                        crate::modules::settings::Message::Audio(msg) => {
+                            Some(MenuInput::MessageToSettings(
+                                crate::menu::SettingsInputMessage::Audio(msg),
                             ))
                         }
                         _ => None,
@@ -158,9 +163,10 @@ impl Application for App {
                 if let (_, Some(MenuRequest::Settings)) = (&self.menu_type, response) {
                     self.menu_type = Some(OpenMenu::Settings);
                     self.menu_sender
-                        .send(MenuInput::Open(MenuType::Settings(
+                        .send(MenuInput::Open(MenuType::Settings((
                             self.settings.battery_data,
-                        )))
+                            self.settings.sinks.clone(),
+                        ))))
                         .unwrap();
                 }
             }
