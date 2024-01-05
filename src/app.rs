@@ -1,40 +1,22 @@
 use crate::{
     centerbox,
-    menu::{MenuInput, MenuOutput, MenuType},
+    menu::{close_menu, create_menu, menu_wrapper},
     modules::{
-        clock::Clock,
-        launcher,
-        settings::Settings,
-        system_info::SystemInfo,
-        title::Title,
-        updates::{Update, UpdateMenuOutput, Updates},
-        workspaces::Workspaces,
+        clock::Clock, launcher, settings::Settings, system_info::SystemInfo, title::Title,
+        updates::Updates, workspaces::Workspaces,
     },
     style::ashell_theme,
 };
-use iced::{
-    widget::{container, row, text},
-    window::Id,
-    Alignment, Application, Color, Length, Theme,
-};
-use std::cell::RefCell;
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use iced::{widget::row, window::Id, Alignment, Application, Color, Length, Theme};
 
-pub enum MenuRequest<'a> {
-    Updates(&'a Vec<Update>),
-    NotifyNewUpdates(&'a Vec<Update>),
-    Settings,
-}
-
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub enum OpenMenu {
     Updates,
     Settings,
 }
 
 pub struct App {
-    menu_sender: UnboundedSender<MenuInput>,
-    menu_receiver: RefCell<Option<UnboundedReceiver<MenuOutput>>>,
+    menu_id: Id,
     menu_type: Option<OpenMenu>,
     updates: Updates,
     workspaces: Workspaces,
@@ -47,7 +29,7 @@ pub struct App {
 #[derive(Debug, Clone)]
 pub enum Message {
     None,
-    MenuClosed,
+    CloseMenu,
     LauncherMessage(crate::modules::launcher::Message),
     UpdatesMessage(crate::modules::updates::Message),
     WorkspacesMessage(crate::modules::workspaces::Message),
@@ -55,22 +37,19 @@ pub enum Message {
     SystemInfoMessage(crate::modules::system_info::Message),
     ClockMessage(crate::modules::clock::Message),
     SettingsMessage(crate::modules::settings::Message),
-    CloseRequest,
 }
 
 impl Application for App {
     type Executor = iced::executor::Default;
     type Theme = Theme;
     type Message = Message;
-    type Flags = (UnboundedSender<MenuInput>, UnboundedReceiver<MenuOutput>);
+    type Flags = ();
 
-    fn new(
-        flags: (UnboundedSender<MenuInput>, UnboundedReceiver<MenuOutput>),
-    ) -> (Self, iced::Command<Self::Message>) {
+    fn new(_: ()) -> (Self, iced::Command<Self::Message>) {
+        let (menu_id, cmd) = create_menu();
         (
             App {
-                menu_sender: flags.0,
-                menu_receiver: RefCell::new(Some(flags.1)),
+                menu_id,
                 menu_type: None,
                 updates: Updates::new(),
                 workspaces: Workspaces::new(),
@@ -79,11 +58,11 @@ impl Application for App {
                 clock: Clock::new(),
                 settings: Settings::new(),
             },
-            iced::Command::none(),
+            cmd,
         )
     }
 
-    fn theme(&self, id: iced::window::Id) -> Self::Theme {
+    fn theme(&self, _id: iced::window::Id) -> Self::Theme {
         ashell_theme()
     }
 
@@ -99,157 +78,97 @@ impl Application for App {
         iced::theme::Application::from(dark_background as fn(&Theme) -> _)
     }
 
-    fn title(&self, id: iced::window::Id) -> String {
+    fn title(&self, _id: iced::window::Id) -> String {
         String::from("ashell")
     }
 
     fn update(&mut self, message: Self::Message) -> iced::Command<Self::Message> {
         match message {
-            Message::None => {}
-            Message::MenuClosed => {
+            Message::None => iced::Command::none(),
+            Message::CloseMenu => {
                 self.menu_type = None;
-            }
-            Message::UpdatesMessage(message) => {
-                let response = self.updates.update(message);
 
-                match (&self.menu_type, response) {
-                    (Some(OpenMenu::Updates), Some(MenuRequest::Updates(_))) => {
-                        self.menu_type = None;
-                        self.menu_sender.send(MenuInput::Close).unwrap();
-                    }
-                    (_, Some(MenuRequest::Updates(updates))) => {
-                        self.menu_type = Some(OpenMenu::Updates);
-                        self.menu_sender
-                            .send(MenuInput::Open(MenuType::Updates(updates.clone())))
-                            .unwrap();
-                    }
-                    (Some(OpenMenu::Updates), Some(MenuRequest::NotifyNewUpdates(updates))) => {
-                        self.menu_sender
-                            .send(MenuInput::MessageToUpdates(updates.clone()))
-                            .unwrap();
-                    }
-                    _ => {}
-                };
+                close_menu(self.menu_id)
             }
+            Message::UpdatesMessage(message) => self
+                .updates
+                .update(message, self.menu_id, &mut self.menu_type)
+                .map(Message::UpdatesMessage),
             Message::LauncherMessage(_) => {
                 crate::utils::launcher::launch_rofi();
+                iced::Command::none()
             }
-            Message::WorkspacesMessage(msg) => self.workspaces.update(msg),
+            Message::WorkspacesMessage(msg) => {
+                self.workspaces.update(msg);
+
+                iced::Command::none()
+            }
             Message::TitleMessage(message) => {
                 self.window_title.update(message);
+                iced::Command::none()
             }
             Message::SystemInfoMessage(message) => {
                 self.system_info.update(message);
+                iced::Command::none()
             }
             Message::ClockMessage(message) => {
                 self.clock.update(message);
+                iced::Command::none()
             }
-            Message::SettingsMessage(message) => {
-                if let Some(OpenMenu::Settings) = &self.menu_type {
-                    if let Some(message) = match message.clone() {
-                        crate::modules::settings::Message::Battery(battery) => {
-                            Some(MenuInput::MessageToSettings(
-                                crate::menu::SettingsInputMessage::Battery(battery),
-                            ))
-                        }
-                        crate::modules::settings::Message::Audio(msg) => {
-                            Some(MenuInput::MessageToSettings(
-                                crate::menu::SettingsInputMessage::Audio(msg),
-                            ))
-                        }
-                        _ => None,
-                    } {
-                        self.menu_sender.send(message).unwrap();
-                    }
-                }
-                let response = self.settings.update(message);
-
-                if let (_, Some(MenuRequest::Settings)) = (&self.menu_type, response) {
-                    self.menu_type = Some(OpenMenu::Settings);
-                    self.menu_sender
-                        .send(MenuInput::Open(MenuType::Settings((
-                            self.settings.battery_data,
-                            self.settings.sinks.clone(),
-                        ))))
-                        .unwrap();
-                }
-            }
-            Message::CloseRequest => {
-                println!("Close request received");
-            }
+            Message::SettingsMessage(message) => self
+                .settings
+                .update(message, self.menu_id, &mut self.menu_type)
+                .map(Message::SettingsMessage),
         }
-
-        iced::Command::none()
     }
 
-    fn view(&self, _id: Id) -> iced::Element<'_, Self::Message> {
-        let left = row!(
-            launcher::launcher().map(Message::LauncherMessage),
-            self.updates.view().map(Message::UpdatesMessage),
-            self.workspaces.view().map(Message::WorkspacesMessage)
-        )
-        .spacing(4);
+    fn view(&self, id: Id) -> iced::Element<'_, Self::Message> {
+        match self.menu_type {
+            Some(menu_type) if self.menu_id == id => menu_wrapper(
+                match menu_type {
+                    OpenMenu::Updates => self.updates.menu_view().map(Message::UpdatesMessage),
+                    OpenMenu::Settings => self.settings.menu_view().map(Message::SettingsMessage),
+                },
+                match menu_type {
+                    OpenMenu::Updates => crate::menu::MenuPosition::Left,
+                    OpenMenu::Settings => crate::menu::MenuPosition::Right,
+                },
+            ),
+            _ => {
+                let left = row!(
+                    launcher::launcher().map(Message::LauncherMessage),
+                    self.updates.view().map(Message::UpdatesMessage),
+                    self.workspaces.view().map(Message::WorkspacesMessage)
+                )
+                .spacing(4);
 
-        let mut center = row!().spacing(4);
-        if let Some(title) = self.window_title.view() {
-            center = center.push(title.map(Message::TitleMessage));
+                let mut center = row!().spacing(4);
+                if let Some(title) = self.window_title.view() {
+                    center = center.push(title.map(Message::TitleMessage));
+                }
+
+                let right = row!(
+                    self.system_info.view().map(Message::SystemInfoMessage),
+                    row!(
+                        self.clock.view().map(Message::ClockMessage),
+                        self.settings.view().map(Message::SettingsMessage)
+                    )
+                )
+                .spacing(4);
+
+                centerbox::Centerbox::new([left.into(), center.into(), right.into()])
+                    .spacing(4)
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .align_items(Alignment::Center)
+                    .padding(4)
+                    .into()
+            }
         }
-
-        let right = row!(
-            self.system_info.view().map(Message::SystemInfoMessage),
-            row!(
-                self.clock.view().map(Message::ClockMessage),
-                self.settings.view().map(Message::SettingsMessage)
-            )
-        )
-        .spacing(4);
-
-        centerbox::Centerbox::new([left.into(), center.into(), right.into()])
-            .spacing(4)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .align_items(Alignment::Center)
-            .padding(4)
-            .into()
     }
 
     fn subscription(&self) -> iced::Subscription<Self::Message> {
         iced::Subscription::batch(vec![
-            iced::subscription::unfold(
-                "menu output receiver",
-                self.menu_receiver.take(),
-                move |mut receiver| async move {
-                    if let Some(menu_message) = receiver.as_mut().unwrap().recv().await {
-                        (
-                            match menu_message {
-                                MenuOutput::MessageFromUpdates(
-                                    UpdateMenuOutput::UpdateFinished,
-                                ) => Message::UpdatesMessage(
-                                    crate::modules::updates::Message::UpdateFinished,
-                                ),
-
-                                MenuOutput::MessageFromUpdates(
-                                    UpdateMenuOutput::UpdatesCheckInit,
-                                ) => Message::UpdatesMessage(
-                                    crate::modules::updates::Message::UpdatesCheckInit,
-                                ),
-
-                                MenuOutput::MessageFromUpdates(
-                                    UpdateMenuOutput::UpdatesCheckCompleted(updates),
-                                ) => Message::UpdatesMessage(
-                                    crate::modules::updates::Message::UpdatesRefreshFromMenu(
-                                        updates,
-                                    ),
-                                ),
-                                MenuOutput::Close => Message::MenuClosed,
-                            },
-                            receiver,
-                        )
-                    } else {
-                        (Message::None, receiver)
-                    }
-                },
-            ),
             self.updates.subscription().map(Message::UpdatesMessage),
             self.workspaces
                 .subscription()

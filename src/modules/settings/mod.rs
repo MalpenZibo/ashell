@@ -4,13 +4,10 @@ use self::{
     net::{vpn_indicator, wifi_indicator},
 };
 use crate::{
-    app::MenuRequest,
+    app::OpenMenu,
     components::icons::{icon, Icons},
-    menu::{MenuOutput, SettingsInputMessage},
-    style::{
-        GhostButtonStyle, HeaderButtonStyle, SettingsButtonStyle, BASE, CRUST, LAVENDER, MANTLE,
-        PEACH, RED, SURFACE_0, YELLOW,
-    },
+    menu::{close_menu, open_menu},
+    style::{GhostButtonStyle, HeaderButtonStyle, SettingsButtonStyle, CRUST, MANTLE},
     utils::{
         audio::{Sink, Source},
         battery::{BatteryData, BatteryStatus},
@@ -20,15 +17,16 @@ use crate::{
 use iced::{
     theme::Button,
     widget::{button, column, container, horizontal_rule, mouse_area, row, slider, text, Space},
-    Element, Length, Subscription, Theme, Alignment,
+    window::Id,
+    Alignment, Element, Length, Subscription, Theme,
 };
-use tokio::sync::mpsc::UnboundedSender;
 
 mod audio;
 mod battery;
 mod net;
 
 pub struct Settings {
+    sub_menu: Option<SubMenu>,
     pub battery_data: Option<BatteryData>,
     wifi: Option<Wifi>,
     vpn_active: bool,
@@ -60,11 +58,25 @@ pub enum Message {
     Battery(BatteryMessage),
     Net(NetMessage),
     Audio(AudioMessage),
+    Lock,
+    Suspend,
+    Reboot,
+    Shutdown,
+    Logout,
+    OpenSubMenu(SubMenu),
+    CloseSubMenu,
+    None,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum SubMenu {
+    Power,
 }
 
 impl Settings {
     pub fn new() -> Self {
         Settings {
+            sub_menu: None,
             battery_data: None,
             wifi: None,
             vpn_active: false,
@@ -73,64 +85,112 @@ impl Settings {
         }
     }
 
-    pub fn update(&mut self, message: Message) -> Option<MenuRequest> {
+    pub fn update(
+        &mut self,
+        message: Message,
+        menu_id: Id,
+        menu_type: &mut Option<OpenMenu>,
+    ) -> iced::Command<Message> {
         match message {
-            Message::ToggleMenu => Some(MenuRequest::Settings),
-            Message::Battery(msg) => match msg {
-                BatteryMessage::PercentageChanged(percentage) => {
-                    if let Some(battery_data) = &mut self.battery_data {
-                        battery_data.capacity = percentage;
-                    } else {
-                        self.battery_data = Some(BatteryData {
-                            capacity: percentage,
-                            status: BatteryStatus::Full,
-                        });
+            Message::ToggleMenu => match *menu_type {
+                Some(OpenMenu::Settings) => {
+                    menu_type.take();
+
+                    close_menu(menu_id)
+                }
+                Some(_) => {
+                    menu_type.replace(OpenMenu::Settings);
+                    iced::Command::none()
+                }
+                None => {
+                    menu_type.replace(OpenMenu::Settings);
+
+                    open_menu(menu_id)
+                }
+            },
+            Message::Battery(msg) => {
+                match msg {
+                    BatteryMessage::PercentageChanged(percentage) => {
+                        if let Some(battery_data) = &mut self.battery_data {
+                            battery_data.capacity = percentage;
+                        } else {
+                            self.battery_data = Some(BatteryData {
+                                capacity: percentage,
+                                status: BatteryStatus::Full,
+                            });
+                        }
                     }
-
-                    None
-                }
-                BatteryMessage::StatusChanged(status) => {
-                    println!("battery: {:?}", status);
-                    if let Some(battery_data) = &mut self.battery_data {
-                        battery_data.status = status;
-                    } else {
-                        self.battery_data = Some(BatteryData {
-                            capacity: 100,
-                            status,
-                        });
+                    BatteryMessage::StatusChanged(status) => {
+                        println!("battery: {:?}", status);
+                        if let Some(battery_data) = &mut self.battery_data {
+                            battery_data.status = status;
+                        } else {
+                            self.battery_data = Some(BatteryData {
+                                capacity: 100,
+                                status,
+                            });
+                        }
                     }
+                };
+                iced::Command::none()
+            }
+            Message::Net(msg) => {
+                match msg {
+                    NetMessage::Wifi(wifi) => {
+                        println!("wifi: {:?}", wifi);
+                        self.wifi = wifi;
+                    }
+                    NetMessage::VpnActive(active) => {
+                        println!("vpn: {:?}", active);
+                        self.vpn_active = active;
+                    }
+                };
+                iced::Command::none()
+            }
+            Message::Audio(msg) => {
+                match msg {
+                    AudioMessage::SinkChanges(sinks) => {
+                        println!("sinks: {:?}", sinks);
+                        self.sinks = sinks;
+                    }
+                    AudioMessage::SourceChanges(sources) => {
+                        println!("sources: {:?}", sources);
+                        self.sources = sources;
+                    }
+                };
+                iced::Command::none()
+            }
+            Message::Lock => {
+                crate::utils::launcher::lock();
+                iced::Command::none()
+            }
+            Message::Suspend => {
+                crate::utils::launcher::suspend();
+                iced::Command::none()
+            }
+            Message::Reboot => {
+                crate::utils::launcher::reboot();
+                iced::Command::none()
+            }
+            Message::Shutdown => {
+                crate::utils::launcher::shutdown();
+                iced::Command::none()
+            }
+            Message::Logout => {
+                crate::utils::launcher::logout();
+                iced::Command::none()
+            }
+            Message::OpenSubMenu(menu_type) => {
+                self.sub_menu.replace(menu_type);
 
-                    None
-                }
-            },
-            Message::Net(msg) => match msg {
-                NetMessage::Wifi(wifi) => {
-                    println!("wifi: {:?}", wifi);
-                    self.wifi = wifi;
+                iced::Command::none()
+            }
+            Message::CloseSubMenu => {
+                self.sub_menu.take();
 
-                    None
-                }
-                NetMessage::VpnActive(active) => {
-                    println!("vpn: {:?}", active);
-                    self.vpn_active = active;
-
-                    None
-                }
-            },
-            Message::Audio(msg) => match msg {
-                AudioMessage::SinkChanges(sinks) => {
-                    println!("sinks: {:?}", sinks);
-                    self.sinks = sinks;
-
-                    None
-                }
-                AudioMessage::SourceChanges(sources) => {
-                    println!("sources: {:?}", sources);
-                    self.sources = sources;
-
-                    None
-                }
-            },
+                iced::Command::none()
+            }
+            Message::None => iced::Command::none(),
         }
     }
 
@@ -167,104 +227,7 @@ impl Settings {
             .into()
     }
 
-    pub fn subscription(&self) -> Subscription<Message> {
-        iced::Subscription::batch(vec![
-            crate::utils::battery::subscription().map(Message::Battery),
-            crate::utils::net::subscription().map(Message::Net),
-            crate::utils::audio::subscription().map(Message::Audio),
-        ])
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum SettingsMenuMessage {
-    MainMessage(SettingsInputMessage),
-    Lock,
-    Suspend,
-    Reboot,
-    Shutdown,
-    Logout,
-    OpenSubMenu(SubMenu),
-    CloseSubMenu,
-    None,
-}
-
-#[derive(Debug, Clone)]
-pub enum SubMenu {
-    Power,
-}
-
-pub struct SettingsMenu {
-    output_tx: UnboundedSender<MenuOutput>,
-    sub_menu: Option<SubMenu>,
-    battery_data: Option<BatteryData>,
-    sinks: Vec<Sink>,
-}
-
-impl SettingsMenu {
-    pub fn new(
-        output_tx: UnboundedSender<MenuOutput>,
-        battery_data: Option<BatteryData>,
-        sinks: Vec<Sink>,
-    ) -> Self {
-        Self {
-            output_tx,
-            sub_menu: None,
-            battery_data,
-            sinks,
-        }
-    }
-
-    pub fn update(&mut self, message: SettingsMenuMessage) -> iced::Command<SettingsMenuMessage> {
-        match message {
-            SettingsMenuMessage::Lock => crate::utils::launcher::lock(),
-            SettingsMenuMessage::Suspend => crate::utils::launcher::suspend(),
-            SettingsMenuMessage::Reboot => crate::utils::launcher::reboot(),
-            SettingsMenuMessage::Shutdown => crate::utils::launcher::shutdown(),
-            SettingsMenuMessage::Logout => crate::utils::launcher::logout(),
-            SettingsMenuMessage::OpenSubMenu(menu_type) => {
-                self.sub_menu.replace(menu_type);
-            }
-            SettingsMenuMessage::CloseSubMenu => {
-                self.sub_menu.take();
-            }
-            SettingsMenuMessage::None => {}
-            SettingsMenuMessage::MainMessage(message) => match message {
-                SettingsInputMessage::Battery(battery) => match battery {
-                    BatteryMessage::PercentageChanged(percentage) => {
-                        if let Some(battery_data) = &mut self.battery_data {
-                            battery_data.capacity = percentage;
-                        } else {
-                            self.battery_data = Some(BatteryData {
-                                capacity: percentage,
-                                status: BatteryStatus::Full,
-                            });
-                        }
-                    }
-                    BatteryMessage::StatusChanged(status) => {
-                        if let Some(battery_data) = &mut self.battery_data {
-                            battery_data.status = status;
-                        } else {
-                            self.battery_data = Some(BatteryData {
-                                capacity: 100,
-                                status,
-                            });
-                        }
-                    }
-                },
-                SettingsInputMessage::Audio(audio) => match audio {
-                    AudioMessage::SinkChanges(sinks) => {
-                        self.sinks = sinks;
-                    }
-                    AudioMessage::SourceChanges(_) => {}
-                },
-            },
-        };
-
-        iced::Command::none()
-    }
-
-    pub fn view(&self) -> Element<SettingsMenuMessage> {
+    pub fn menu_view(&self) -> Element<Message> {
         let sub_menu_open = self.sub_menu.is_some();
 
         let battery_data = self
@@ -274,7 +237,7 @@ impl SettingsMenu {
             button(icon(Icons::Lock))
                 .padding([8, 9])
                 .on_press_maybe(if !sub_menu_open {
-                    Some(SettingsMenuMessage::Lock)
+                    Some(Message::Lock)
                 } else {
                     None
                 })
@@ -282,7 +245,7 @@ impl SettingsMenu {
             button(icon(Icons::Power))
                 .padding([8, 9])
                 .on_press_maybe(if !sub_menu_open {
-                    Some(SettingsMenuMessage::OpenSubMenu(SubMenu::Power))
+                    Some(Message::OpenSubMenu(SubMenu::Power))
                 } else {
                     None
                 })
@@ -310,9 +273,9 @@ impl SettingsMenu {
                         icon(Icons::Speaker3)
                     })
                     .padding([8, 9])
-                    .on_press(SettingsMenuMessage::None)
+                    .on_press(Message::None)
                     .style(Button::custom(SettingsButtonStyle)),
-                    slider(0..=100, 3, |v| SettingsMenuMessage::None)
+                    slider(0..=100, 3, |v| Message::None)
                         .step(1)
                         // .style(|_: &Theme| {
                         //     iced::widget::slider::Appearance {
@@ -346,23 +309,23 @@ impl SettingsMenu {
                 let power_menu = column!(
                     button(text("Suspend"))
                         .padding([8, 9])
-                        .on_press(SettingsMenuMessage::Suspend)
+                        .on_press(Message::Suspend)
                         .width(Length::Fill)
                         .style(Button::custom(GhostButtonStyle)),
                     button(text("Reboot"))
                         .padding([8, 9])
-                        .on_press(SettingsMenuMessage::Reboot)
+                        .on_press(Message::Reboot)
                         .width(Length::Fill)
                         .style(Button::custom(GhostButtonStyle)),
                     button(text("Shutdown"))
                         .padding([8, 9])
-                        .on_press(SettingsMenuMessage::Shutdown)
+                        .on_press(Message::Shutdown)
                         .width(Length::Fill)
                         .style(Button::custom(GhostButtonStyle)),
                     horizontal_rule(1),
                     button(text("Logout"))
                         .padding([8, 9])
-                        .on_press(SettingsMenuMessage::Logout)
+                        .on_press(Message::Logout)
                         .width(Length::Fill)
                         .style(Button::custom(GhostButtonStyle)),
                 )
@@ -374,12 +337,13 @@ impl SettingsMenu {
                     container(
                         column!(
                             header,
-                            container(mouse_area(power_menu).on_release(SettingsMenuMessage::None))
-                                .style(|theme: &Theme| iced::widget::container::Appearance {
+                            container(mouse_area(power_menu).on_release(Message::None)).style(
+                                |theme: &Theme| iced::widget::container::Appearance {
                                     background: Some(theme.palette().background.into()),
                                     border_radius: 16.0.into(),
                                     ..Default::default()
-                                }),
+                                }
+                            ),
                             sink_slider
                         )
                         .spacing(16),
@@ -394,9 +358,17 @@ impl SettingsMenu {
                     .max_width(350.)
                     .padding(16),
                 )
-                .on_release(SettingsMenuMessage::CloseSubMenu)
+                .on_release(Message::CloseSubMenu)
                 .into()
             }
         }
+    }
+
+    pub fn subscription(&self) -> Subscription<Message> {
+        iced::Subscription::batch(vec![
+            crate::utils::battery::subscription().map(Message::Battery),
+            crate::utils::net::subscription().map(Message::Net),
+            crate::utils::audio::subscription().map(Message::Audio),
+        ])
     }
 }

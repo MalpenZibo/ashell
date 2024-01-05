@@ -1,16 +1,17 @@
 use crate::{
-    app::MenuRequest,
+    app::OpenMenu,
     components::icons::{icon, Icons},
-    menu::MenuOutput,
+    menu::{close_menu, open_menu},
     style::{GhostButtonStyle, HeaderButtonStyle},
 };
 use iced::{
     widget::{button, column, container, horizontal_rule, row, scrollable, text, Column},
+    window::Id,
     Element, Length,
 };
 use serde::Deserialize;
 use std::{process::Stdio, time::Duration};
-use tokio::{process::Command, sync::mpsc::UnboundedSender, time::sleep};
+use tokio::{process::Command, time::sleep};
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct Update {
@@ -70,6 +71,9 @@ pub enum Message {
     UpdatesCheckCompleted(Vec<Update>),
     UpdateFinished,
     UpdatesRefreshFromMenu(Vec<Update>),
+    ToggleUpdatesList,
+    CheckNow,
+    Update,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -80,6 +84,7 @@ enum State {
 pub struct Updates {
     state: State,
     pub updates: Vec<Update>,
+    is_updates_list_open: bool,
 }
 
 impl Updates {
@@ -87,42 +92,90 @@ impl Updates {
         Self {
             state: State::Checking,
             updates: vec![],
+            is_updates_list_open: false,
         }
     }
 
-    pub fn update(&mut self, message: Message) -> Option<MenuRequest> {
+    pub fn update(
+        &mut self,
+        message: Message,
+        menu_id: Id,
+        menu_type: &mut Option<OpenMenu>,
+    ) -> iced::Command<Message> {
         match message {
             Message::UpdatesCheckCompleted(updates) => {
                 self.updates = updates;
                 self.state = State::Ready;
 
-                Some(MenuRequest::NotifyNewUpdates(&self.updates))
+                iced::Command::none()
             }
-            Message::ToggleMenu => Some(MenuRequest::Updates(&self.updates)),
+            Message::ToggleMenu => match *menu_type {
+                Some(OpenMenu::Updates) => {
+                    menu_type.take();
+                    close_menu(menu_id)
+                }
+                Some(_) => {
+                    menu_type.replace(OpenMenu::Updates);
+                    iced::Command::none()
+                }
+                None => {
+                    menu_type.replace(OpenMenu::Updates);
+
+                    open_menu(menu_id)
+                }
+            },
             Message::UpdatesCheckInit => {
                 self.state = State::Checking;
-                None
+
+                iced::Command::none()
             }
             Message::UpdateFinished => {
                 self.updates.clear();
                 self.state = State::Ready;
-                None
+
+                iced::Command::none()
             }
             Message::UpdatesRefreshFromMenu(updates) => {
                 self.updates = updates;
                 self.state = State::Ready;
 
-                None
+                iced::Command::none()
             }
+            Message::ToggleUpdatesList => {
+                self.is_updates_list_open = !self.is_updates_list_open;
+
+                iced::Command::none()
+            }
+            Message::CheckNow | Message::UpdateFinished => {
+                self.state = State::Checking;
+                iced::Command::perform(
+                    async move { check_update_now().await },
+                    Message::UpdatesCheckCompleted,
+                )
+            }
+            Message::Update => iced::Command::perform(
+                async move {
+                    tokio::spawn({
+                        async move {
+                            update().await;
+                        }
+                    })
+                    .await
+                },
+                move |_| Message::UpdateFinished,
+            ),
         }
     }
 
     pub fn view(&self) -> Element<Message> {
-        let mut content = row!(container(icon(match self.state {
-            State::Checking => Icons::Refresh,
-            State::Ready if self.updates.is_empty() => Icons::NoUpdatesAvailable,
-            _ => Icons::UpdatesAvailable,
-        }).size(14))
+        let mut content = row!(container(
+            icon(match self.state {
+                State::Checking => Icons::Refresh,
+                State::Ready if self.updates.is_empty() => Icons::NoUpdatesAvailable,
+                _ => Icons::UpdatesAvailable,
+            })
+            .size(14)
+        )
         .padding([0, 1]))
         .align_items(iced::Alignment::Center)
         .spacing(4);
@@ -137,100 +190,8 @@ impl Updates {
             .into()
     }
 
-    pub fn subscription(&self) -> iced::Subscription<Message> {
-        iced::subscription::channel("update-checker", 10, |mut output| async move {
-            loop {
-                let updates = check_update_now().await;
-
-                let _ = output.try_send(Message::UpdatesCheckCompleted(updates));
-
-                sleep(Duration::from_secs(10)).await;
-            }
-        })
-    }
-}
-
-pub enum UpdateMenuOutput {
-    UpdateFinished,
-    UpdatesCheckInit,
-    UpdatesCheckCompleted(Vec<Update>),
-}
-
-#[derive(Debug, Clone)]
-pub enum UpdateMenuMessage {
-    UpdatesCheckCompleted(Vec<Update>),
-    ToggleUpdatesList,
-    CheckNow,
-    Update,
-    UpdateFinished,
-}
-
-#[derive(Debug)]
-pub struct UpdateMenu {
-    output_tx: UnboundedSender<MenuOutput>,
-    state: State,
-    updates: Vec<Update>,
-    is_updates_list_open: bool,
-}
-
-impl UpdateMenu {
-    pub fn new(output_tx: UnboundedSender<MenuOutput>, updates: Vec<Update>) -> Self {
-        Self {
-            output_tx,
-            state: State::Ready,
-            updates,
-            is_updates_list_open: false,
-        }
-    }
-
-    pub fn update(&mut self, message: UpdateMenuMessage) -> iced::Command<UpdateMenuMessage> {
-        match message {
-        UpdateMenuMessage::UpdatesCheckCompleted(updates) => {
-                self.state = State::Ready;
-
-                let _ = self.output_tx.send(MenuOutput::MessageFromUpdates(
-                    UpdateMenuOutput::UpdatesCheckCompleted(updates.clone()),
-                ));
-                self.updates = updates;
-                iced::Command::none()
-            }
-            UpdateMenuMessage::ToggleUpdatesList => {
-                self.is_updates_list_open = !self.is_updates_list_open;
-                iced::Command::none()
-            }
-            UpdateMenuMessage::Update => iced::Command::perform(
-                async move {
-                    tokio::spawn({
-                        async move {
-                            update().await;
-                        }
-                    })
-                    .await
-                },
-                {
-                    let output_tx = self.output_tx.clone();
-                    move |_| {
-                        let _ = output_tx.send(MenuOutput::MessageFromUpdates(
-                            UpdateMenuOutput::UpdateFinished,
-                        ));
-                        UpdateMenuMessage::UpdateFinished
-                    }
-                },
-            ),
-            UpdateMenuMessage::CheckNow | UpdateMenuMessage::UpdateFinished => {
-                self.state = State::Checking;
-                let _ = self.output_tx.send(MenuOutput::MessageFromUpdates(
-                    UpdateMenuOutput::UpdatesCheckInit,
-                ));
-                iced::Command::perform(
-                    async move { check_update_now().await },
-                    UpdateMenuMessage::UpdatesCheckCompleted,
-                )
-            }
-        }
-    }
-
-    pub fn view(&self) -> Element<UpdateMenuMessage> {
+    pub fn menu_view(&self) -> Element<Message> {
+        println!("Updates menu view");
         column!(
             if self.updates.is_empty() {
                 std::convert::Into::<Element<'_, _, _>>::into(
@@ -248,7 +209,7 @@ impl UpdateMenu {
                 ))
                 .style(iced::theme::Button::custom(GhostButtonStyle))
                 .padding([8, 8])
-                .on_press(UpdateMenuMessage::ToggleUpdatesList)
+                .on_press(Message::ToggleUpdatesList)
                 .width(Length::Fill),);
 
                 if self.is_updates_list_open {
@@ -299,7 +260,7 @@ impl UpdateMenu {
             button("Update")
                 .style(iced::theme::Button::custom(GhostButtonStyle))
                 .padding([8, 8])
-                .on_press(UpdateMenuMessage::Update)
+                .on_press(Message::Update)
                 .width(Length::Fill),
             button({
                 let mut content = row!(text("Check now").width(Length::Fill),);
@@ -312,12 +273,196 @@ impl UpdateMenu {
             })
             .style(iced::theme::Button::custom(GhostButtonStyle))
             .padding([8, 8])
-            .on_press(UpdateMenuMessage::CheckNow)
+            .on_press(Message::CheckNow)
             .width(Length::Fill),
         )
         .spacing(4)
         .padding(16)
-        .max_width(250)
+        .width(250)
         .into()
     }
+
+    pub fn subscription(&self) -> iced::Subscription<Message> {
+        iced::subscription::channel("update-checker", 10, |mut output| async move {
+            loop {
+                let updates = check_update_now().await;
+
+                let _ = output.try_send(Message::UpdatesCheckCompleted(updates));
+
+                sleep(Duration::from_secs(10)).await;
+            }
+        })
+    }
 }
+
+// pub enum UpdateMenuOutput {
+//     UpdateFinished,
+//     UpdatesCheckInit,
+//     UpdatesCheckCompleted(Vec<Update>),
+// }
+
+// #[derive(Debug, Clone)]
+// pub enum UpdateMenuMessage {
+//     UpdatesCheckCompleted(Vec<Update>),
+//     ToggleUpdatesList,
+//     CheckNow,
+//     Update,
+//     UpdateFinished,
+// }
+
+// #[derive(Debug)]
+// pub struct UpdateMenu {
+//     output_tx: UnboundedSender<MenuOutput>,
+//     state: State,
+//     updates: Vec<Update>,
+//     is_updates_list_open: bool,
+// }
+
+// impl UpdateMenu {
+//     pub fn new(output_tx: UnboundedSender<MenuOutput>, updates: Vec<Update>) -> Self {
+//         Self {
+//             output_tx,
+//             state: State::Ready,
+//             updates,
+//             is_updates_list_open: false,
+//         }
+//     }
+//
+//     pub fn update(&mut self, message: UpdateMenuMessage) -> iced::Command<UpdateMenuMessage> {
+//         match message {
+//             UpdateMenuMessage::UpdatesCheckCompleted(updates) => {
+//                 self.state = State::Ready;
+//
+//                 let _ = self.output_tx.send(MenuOutput::MessageFromUpdates(
+//                     UpdateMenuOutput::UpdatesCheckCompleted(updates.clone()),
+//                 ));
+//                 self.updates = updates;
+//                 iced::Command::none()
+//             }
+//             UpdateMenuMessage::ToggleUpdatesList => {
+//                 self.is_updates_list_open = !self.is_updates_list_open;
+//                 iced::Command::none()
+//             }
+//             UpdateMenuMessage::Update => iced::Command::perform(
+//                 async move {
+//                     tokio::spawn({
+//                         async move {
+//                             update().await;
+//                         }
+//                     })
+//                     .await
+//                 },
+//                 {
+//                     let output_tx = self.output_tx.clone();
+//                     move |_| {
+//                         let _ = output_tx.send(MenuOutput::MessageFromUpdates(
+//                             UpdateMenuOutput::UpdateFinished,
+//                         ));
+//                         UpdateMenuMessage::UpdateFinished
+//                     }
+//                 },
+//             ),
+//             UpdateMenuMessage::CheckNow | UpdateMenuMessage::UpdateFinished => {
+//                 self.state = State::Checking;
+//                 let _ = self.output_tx.send(MenuOutput::MessageFromUpdates(
+//                     UpdateMenuOutput::UpdatesCheckInit,
+//                 ));
+//                 iced::Command::perform(
+//                     async move { check_update_now().await },
+//                     UpdateMenuMessage::UpdatesCheckCompleted,
+//                 )
+//             }
+//         }
+//     }
+//
+//     pub fn view(&self) -> Element<UpdateMenuMessage> {
+//         column!(
+//             if self.updates.is_empty() {
+//                 std::convert::Into::<Element<'_, _, _>>::into(
+//                     container(text("Up to date ;)")).padding([8, 8]),
+//                 )
+//             } else {
+//                 let mut elements = column!(button(row!(
+//                     text(format!("{} Updates available", self.updates.len()))
+//                         .width(iced::Length::Fill),
+//                     icon(if self.is_updates_list_open {
+//                         Icons::MenuClosed
+//                     } else {
+//                         Icons::MenuOpen
+//                     })
+//                 ))
+//                 .style(iced::theme::Button::custom(GhostButtonStyle))
+//                 .padding([8, 8])
+//                 .on_press(UpdateMenuMessage::ToggleUpdatesList)
+//                 .width(Length::Fill),);
+//
+//                 if self.is_updates_list_open {
+//                     elements = elements.push(
+//                         container(scrollable(
+//                             Column::with_children(
+//                                 self.updates
+//                                     .iter()
+//                                     .map(|update| {
+//                                         column!(
+//                                             text(update.package.clone())
+//                                                 .size(10)
+//                                                 .width(iced::Length::Fill),
+//                                             text(format!(
+//                                                 "{} -> {}",
+//                                                 {
+//                                                     let mut res = update.from.clone();
+//                                                     res.truncate(18);
+//
+//                                                     res
+//                                                 },
+//                                                 {
+//                                                     let mut res = update.to.clone();
+//                                                     res.truncate(18);
+//
+//                                                     res
+//                                                 },
+//                                             ))
+//                                             .width(iced::Length::Fill)
+//                                             .horizontal_alignment(
+//                                                 iced::alignment::Horizontal::Right
+//                                             )
+//                                             .size(10)
+//                                         )
+//                                         .into()
+//                                     })
+//                                     .collect::<Vec<Element<'_, _, _>>>(),
+//                             )
+//                             .spacing(4),
+//                         ))
+//                         .padding([8, 0])
+//                         .max_height(300),
+//                     );
+//                 }
+//                 elements.into()
+//             },
+//             horizontal_rule(1).width(Length::Fill),
+//             button("Update")
+//                 .style(iced::theme::Button::custom(GhostButtonStyle))
+//                 .padding([8, 8])
+//                 .on_press(UpdateMenuMessage::Update)
+//                 .width(Length::Fill),
+//             button({
+//                 let mut content = row!(text("Check now").width(Length::Fill),);
+//
+//                 if self.state == State::Checking {
+//                     content = content.push(icon(Icons::Refresh));
+//                 }
+//
+//                 content
+//             })
+//             .style(iced::theme::Button::custom(GhostButtonStyle))
+//             .padding([8, 8])
+//             .on_press(UpdateMenuMessage::CheckNow)
+//             .width(Length::Fill),
+//         )
+//         .spacing(4)
+//         .padding(16)
+//         .max_width(250)
+//         .into()
+//     }
+// }

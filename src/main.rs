@@ -21,8 +21,6 @@ mod utils;
 async fn main() {
     let height = 34;
 
-    let menu_sender = menu::create_menu();
-
     App::run(Settings {
         antialiasing: true,
         exit_on_close_request: false,
@@ -36,7 +34,7 @@ async fn main() {
             exclusive_zone: height as i32,
             ..Default::default()
         }),
-        flags: menu_sender,
+        flags: (),
         id: None,
         default_font: Font::default(),
         fonts: Default::default(),
