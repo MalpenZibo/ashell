@@ -122,7 +122,7 @@ impl Updates {
             State::Checking => Icons::Refresh,
             State::Ready if self.updates.is_empty() => Icons::NoUpdatesAvailable,
             _ => Icons::UpdatesAvailable,
-        }))
+        }).size(14))
         .padding([0, 1]))
         .align_items(iced::Alignment::Center)
         .spacing(4);

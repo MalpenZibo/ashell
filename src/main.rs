@@ -6,16 +6,16 @@ use iced::{
         InitialSurface,
     },
     window::Id,
-    Application, Settings, Font,
+    Application, Font, Settings, Pixels,
 };
 
 mod app;
-mod modules;
 mod centerbox;
-mod utils;
 mod components;
 mod menu;
+mod modules;
 mod style;
+mod utils;
 
 #[tokio::main]
 async fn main() {
@@ -27,7 +27,7 @@ async fn main() {
         antialiasing: true,
         exit_on_close_request: false,
         initial_surface: InitialSurface::LayerSurface(SctkLayerSurfaceSettings {
-            id: Id(0),
+            id: Id::MAIN,
             keyboard_interactivity: KeyboardInteractivity::None,
             namespace: "ashell2".into(),
             layer: Layer::Top,
@@ -39,7 +39,8 @@ async fn main() {
         flags: menu_sender,
         id: None,
         default_font: Font::default(),
-        default_text_size: 14.
+        fonts: Default::default(),
+        default_text_size: Pixels::from(14.),
     })
     .unwrap();
 }

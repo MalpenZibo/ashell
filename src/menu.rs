@@ -53,7 +53,7 @@ pub fn create_menu() -> (UnboundedSender<MenuInput>, UnboundedReceiver<MenuOutpu
                 exit_on_close_request: false,
                 flags: (input_rx, output_tx),
                 initial_surface: InitialSurface::LayerSurface(SctkLayerSurfaceSettings {
-                    id: Id(1),
+                    id: Id::MAIN,
                     keyboard_interactivity: KeyboardInteractivity::None,
                     namespace: "ashell2-menu".into(),
                     layer: Layer::Overlay,
@@ -63,7 +63,8 @@ pub fn create_menu() -> (UnboundedSender<MenuInput>, UnboundedReceiver<MenuOutpu
                 }),
                 id: None,
                 default_font: Font::default(),
-                default_text_size: 14.,
+                default_text_size: 14.into(),
+                fonts: Default::default(),
             },
         )
     });
@@ -110,7 +111,7 @@ impl Application for Menu {
         )
     }
 
-    fn theme(&self) -> Self::Theme {
+    fn theme(&self, id: iced::window::Id) -> Self::Theme {
         ashell_theme()
     }
 
@@ -126,7 +127,7 @@ impl Application for Menu {
         iced::theme::Application::from(dark_background as fn(&Theme) -> _)
     }
 
-    fn title(&self) -> String {
+    fn title(&self, id: iced::window::Id) -> String {
         String::from("ashell-menu")
     }
 
@@ -135,21 +136,21 @@ impl Application for Menu {
             Message::CloseRequest => {
                 self.output_tx.send(MenuOutput::Close).unwrap();
                 iced::Command::batch([
-                    set_size(Id(1), None, Some(1)),
-                    set_anchor(Id(1), Anchor::TOP.union(Anchor::LEFT).union(Anchor::RIGHT)),
+                    set_size(Id::MAIN, None, Some(1)),
+                    set_anchor(Id::MAIN, Anchor::TOP.union(Anchor::LEFT).union(Anchor::RIGHT)),
                 ])
             }
             Message::None => iced::Command::none(),
             Message::OpenMenu(MenuType::Updates(updates)) => {
                 let cmd = iced::Command::batch([
                     set_anchor(
-                        Id(1),
+                        Id::MAIN,
                         Anchor::TOP
                             .union(Anchor::LEFT)
                             .union(Anchor::RIGHT)
                             .union(Anchor::BOTTOM),
                     ),
-                    set_size(Id(1), None, None),
+                    set_size(Id::MAIN, None, None),
                 ]);
 
                 self.menu_instance = Some(MenuInstance::Update(UpdateMenu::new(
@@ -169,13 +170,13 @@ impl Application for Menu {
             Message::OpenMenu(MenuType::Settings((battery_data, sinks))) => {
                 let cmd = iced::Command::batch([
                     set_anchor(
-                        Id(1),
+                        Id::MAIN,
                         Anchor::TOP
                             .union(Anchor::LEFT)
                             .union(Anchor::RIGHT)
                             .union(Anchor::BOTTOM),
                     ),
-                    set_size(Id(1), None, None),
+                    set_size(Id::MAIN, None, None),
                 ]);
 
                 self.menu_instance = Some(MenuInstance::Settings(SettingsMenu::new(
@@ -267,10 +268,5 @@ impl Application for Menu {
                 }
             },
         )
-    }
-
-    fn close_requested(&self, id: iced::window::Id) -> Self::Message {
-        println!("Window {:?} has received a close request", id);
-        Message::CloseRequest
     }
 }

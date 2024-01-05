@@ -12,7 +12,11 @@ use crate::{
     },
     style::ashell_theme,
 };
-use iced::{widget::row, window::Id, Alignment, Application, Color, Length, Theme};
+use iced::{
+    widget::{container, row, text},
+    window::Id,
+    Alignment, Application, Color, Length, Theme,
+};
 use std::cell::RefCell;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
@@ -79,7 +83,7 @@ impl Application for App {
         )
     }
 
-    fn theme(&self) -> Self::Theme {
+    fn theme(&self, id: iced::window::Id) -> Self::Theme {
         ashell_theme()
     }
 
@@ -95,7 +99,7 @@ impl Application for App {
         iced::theme::Application::from(dark_background as fn(&Theme) -> _)
     }
 
-    fn title(&self) -> String {
+    fn title(&self, id: iced::window::Id) -> String {
         String::from("ashell")
     }
 
@@ -257,10 +261,5 @@ impl Application for App {
             self.clock.subscription().map(Message::ClockMessage),
             self.settings.subscription().map(Message::SettingsMessage),
         ])
-    }
-
-    fn close_requested(&self, id: iced::window::Id) -> Self::Message {
-        println!("Window {:?} has received a close request", id);
-        Message::CloseRequest
     }
 }

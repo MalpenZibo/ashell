@@ -85,7 +85,12 @@ where
         self.height
     }
 
-    fn layout(&self, renderer: &Renderer, limits: &layout::Limits) -> layout::Node {
+    fn layout(
+        &self,
+        tree: &mut iced::advanced::widget::Tree,
+        renderer: &Renderer,
+        limits: &layout::Limits,
+    ) -> layout::Node {
         let limits_without_padding = limits.width(self.width).height(self.height);
 
         let spacing = self.spacing;
@@ -101,29 +106,32 @@ where
         let mut available_width = limits.max().width - total_spacing;
 
         let mut nodes: [Node; 3] = [Node::default(), Node::default(), Node::default()];
-        let mut edge_nodes_layout = |i: usize, child: &Element<'a, Message, Renderer>| {
-            let (max_width, max_height) = (available_width, max_height);
+        let mut edge_nodes_layout =
+            |i: usize, child: &Element<'a, Message, Renderer>, tree: &mut Tree| {
+                let (max_width, max_height) = (available_width, max_height);
 
-            let child_limits = Limits::new(Size::ZERO, Size::new(max_width, max_height));
+                let child_limits = Limits::new(Size::ZERO, Size::new(max_width, max_height));
 
-            let layout = child.as_widget().layout(renderer, &child_limits);
+                let layout = child.as_widget().layout(tree, renderer, &child_limits);
 
-            let size = layout.size();
+                let size = layout.size();
 
-            available_width -= size.width;
-            height = height.max(size.height);
+                available_width -= size.width;
+                height = height.max(size.height);
 
-            nodes[i] = layout;
-        };
+                nodes[i] = layout;
+            };
 
-        edge_nodes_layout(0, &items[0]);
-        edge_nodes_layout(2, &items[2]);
+        edge_nodes_layout(0, &items[0], &mut tree.children[0]);
+        edge_nodes_layout(2, &items[2], &mut tree.children[2]);
 
         let remaining_width = available_width.max(0.0);
 
         let child_limits = Limits::new(Size::ZERO, Size::new(remaining_width, max_height));
 
-        let layout = items[1].as_widget().layout(renderer, &child_limits);
+        let layout = items[1]
+            .as_widget()
+            .layout(&mut tree.children[1], renderer, &child_limits);
 
         height = height.max(layout.size().height);
 
