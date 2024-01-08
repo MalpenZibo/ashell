@@ -42,6 +42,7 @@ pub enum Icons {
     RightArrow,
     Brightness,
     Point,
+    Close
 }
 
 impl From<Icons> for &'static str {
@@ -83,6 +84,7 @@ impl From<Icons> for &'static str {
             Icons::RightArrow => "󰁔",
             Icons::Brightness => "󰃟",
             Icons::Point => "",
+            Icons::Close => "󰅖"
         }
     }
 }

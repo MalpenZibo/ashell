@@ -1,10 +1,10 @@
-use iced::{theme::Palette, widget::button, BorderRadius, Color, Theme};
+use iced::{theme::Palette, widget::button, widget::slider, BorderRadius, Color, Theme};
 
 pub const BASE: Color = Color::from_rgb(0.117_647_06, 0.117_647_06, 0.180_392_16);
 pub const MANTLE: Color = Color::from_rgb(0.094117647, 0.094117647, 0.145098039);
 pub const CRUST: Color = Color::from_rgb(0.066_666_67, 0.066_666_68, 0.105_882_353);
 pub const SURFACE_0: Color = Color::from_rgb(0.192_156_87, 0.196_078_43, 0.266_666_68);
-pub const SURFACE_1: Color = Color::from_rgb(0.270_588_25,0.278_431_43,0.352_941_26);
+pub const SURFACE_1: Color = Color::from_rgb(0.270_588_25, 0.278_431_43, 0.352_941_26);
 pub const TEXT: Color = Color::from_rgb(0.803_921_6, 0.839_215_7, 0.956_862_75);
 pub const PEACH: Color = Color::from_rgb(0.980_392_16, 0.701_960_84, 0.529_411_85);
 pub const LAVENDER: Color = Color::from_rgb(0.705_882_4, 0.745_098_05, 0.996_078_43);
@@ -126,3 +126,33 @@ impl button::StyleSheet for SettingsButtonStyle {
         }
     }
 }
+
+pub struct SliderStyle;
+
+// impl slider::StyleSheet for SliderStyle {
+//     type Style = iced::theme::Theme;
+//
+//     fn active(&self, style: &Self::Style) -> slider::Appearance {
+//         slider::Appearance {
+//             rail: slider::Rail {
+//                 colors: iced::widget::slider:: slider::RailBackground::Pair(PEACH, PEACH),
+//                 width: 4.,
+//                 border_radius: 4.0.into(),
+//             },
+//             handle: slider::Handle {
+//                 shape: slider::HandleShape::Circle { radius: 8.0 },
+//                 color: style.palette().primary,
+//                 border_width: 0.0,
+//                 border_color: Color::TRANSPARENT,
+//             },
+//         }
+//     }
+//
+//     fn hovered(&self, style: &Self::Style) -> slider::Appearance {
+//         self.active(style)
+//     }
+//
+//     fn dragging(&self, style: &Self::Style) -> slider::Appearance {
+//         self.active(style)
+//     }
+// }

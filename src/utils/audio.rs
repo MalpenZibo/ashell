@@ -13,7 +13,7 @@ use pulse::{
         subscribe::InterestMaskSet,
         FlagSet,
     },
-    def::{DevicePortType, SourceState},
+    def::{DevicePortType, PortAvailable, SourceState},
     operation::{Operation, State},
 };
 use std::{
@@ -94,74 +94,99 @@ fn set_default_source(info: &ServerInfo, default_source: &mut Option<String>) {
     }
 }
 
-fn create_sink(data: &SinkInfo, default_sink: &Option<String>) -> Sink {
-    Sink {
-        name: data
-            .name
-            .as_ref()
-            .map_or(String::default(), |n| n.to_string()),
-        description: data
-            .proplist
-            .get_str("device.description")
-            .map_or(String::default(), |d| d.to_string()),
-        volume: data.volume.avg().0 as f64 / libpulse_binding::volume::Volume::NORMAL.0 as f64,
-        is_mute: data.mute,
-        ports: data
-            .ports
-            .iter()
-            .map(|port| Port {
-                name: port
-                    .name
-                    .as_ref()
-                    .map_or(String::default(), |n| n.to_string()),
-                description: port.description.as_ref().unwrap().to_string(),
-                r#type: match port.r#type {
-                    DevicePortType::Headphones => DeviceType::Headphones,
-                    DevicePortType::Speaker => DeviceType::Speakers,
-                    DevicePortType::Headset => DeviceType::Headset,
-                    _ => DeviceType::Speakers,
-                },
-                active: data.active_port.as_ref().and_then(|p| p.name.as_ref())
-                    == port.name.as_ref()
-                    && &data.name.as_ref().map(|n| n.to_string()) == default_sink,
-            })
-            .collect::<Vec<_>>(),
+fn create_sink(data: &SinkInfo, default_sink: &Option<String>) -> Option<Sink> {
+    if data
+        .ports
+        .iter()
+        .any(|port| port.available != PortAvailable::No)
+    {
+        Some(Sink {
+            name: data
+                .name
+                .as_ref()
+                .map_or(String::default(), |n| n.to_string()),
+            description: data
+                .proplist
+                .get_str("device.description")
+                .map_or(String::default(), |d| d.to_string()),
+            volume: data.volume.avg().0 as f64 / libpulse_binding::volume::Volume::NORMAL.0 as f64,
+            is_mute: data.mute,
+            ports: data
+                .ports
+                .iter()
+                .filter_map(|port| {
+                    if port.available != PortAvailable::No {
+                        Some(Port {
+                            name: port
+                                .name
+                                .as_ref()
+                                .map_or(String::default(), |n| n.to_string()),
+                            description: port.description.as_ref().unwrap().to_string(),
+                            r#type: match port.r#type {
+                                DevicePortType::Headphones => DeviceType::Headphones,
+                                DevicePortType::Speaker => DeviceType::Speakers,
+                                DevicePortType::Headset => DeviceType::Headset,
+                                _ => DeviceType::Speakers,
+                            },
+                            active: data.active_port.as_ref().and_then(|p| p.name.as_ref())
+                                == port.name.as_ref()
+                                && &data.name.as_ref().map(|n| n.to_string()) == default_sink,
+                        })
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>(),
+        })
+    } else {
+        None
     }
 }
 
-fn create_source(data: &SourceInfo, default_source: &Option<String>) -> Source {
-    Source {
-        name: data
-            .name
-            .as_ref()
-            .map_or(String::default(), |n| n.to_string()),
-        description: data
-            .proplist
-            .get_str("device.description")
-            .map_or(String::default(), |d| d.to_string()),
-        volume: data.volume.avg().0 as f64 / libpulse_binding::volume::Volume::NORMAL.0 as f64,
-        is_mute: data.mute,
-        is_running: data.state == SourceState::Running,
-        ports: data
-            .ports
-            .iter()
-            .map(|port| Port {
-                name: port
-                    .name
-                    .as_ref()
-                    .map_or(String::default(), |n| n.to_string()),
-                description: port.description.as_ref().unwrap().to_string(),
-                r#type: match port.r#type {
-                    DevicePortType::Headphones => DeviceType::Headphones,
-                    DevicePortType::Speaker => DeviceType::Speakers,
-                    DevicePortType::Headset => DeviceType::Headset,
-                    _ => DeviceType::Speakers,
-                },
-                active: data.active_port.as_ref().and_then(|p| p.name.as_ref())
-                    == port.name.as_ref()
-                    && &data.name.as_ref().map(|n| n.to_string()) == default_source,
-            })
-            .collect::<Vec<_>>(),
+fn create_source(data: &SourceInfo, default_source: &Option<String>) -> Option<Source> {
+    if data.state == SourceState::Running
+        && data.ports.iter().any(|p| p.available != PortAvailable::No)
+    {
+        Some(Source {
+            name: data
+                .name
+                .as_ref()
+                .map_or(String::default(), |n| n.to_string()),
+            description: data
+                .proplist
+                .get_str("device.description")
+                .map_or(String::default(), |d| d.to_string()),
+            volume: data.volume.avg().0 as f64 / libpulse_binding::volume::Volume::NORMAL.0 as f64,
+            is_mute: data.mute,
+            ports: data
+                .ports
+                .iter()
+                .filter_map(|port| {
+                    if port.available != PortAvailable::No {
+                        Some(Port {
+                            name: port
+                                .name
+                                .as_ref()
+                                .map_or(String::default(), |n| n.to_string()),
+                            description: port.description.as_ref().unwrap().to_string(),
+                            r#type: match port.r#type {
+                                DevicePortType::Headphones => DeviceType::Headphones,
+                                DevicePortType::Speaker => DeviceType::Speakers,
+                                DevicePortType::Headset => DeviceType::Headset,
+                                _ => DeviceType::Speakers,
+                            },
+                            active: data.active_port.as_ref().and_then(|p| p.name.as_ref())
+                                == port.name.as_ref()
+                                && &data.name.as_ref().map(|n| n.to_string()) == default_source,
+                        })
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>(),
+        })
+    } else {
+        None
     }
 }
 
@@ -173,7 +198,9 @@ fn populate_and_send_sinks(
 ) {
     match info {
         ListResult::Item(data) => {
-            sinks.push(create_sink(data, default_sink));
+            if let Some(sink) = create_sink(data, default_sink) {
+                sinks.push(sink);
+            }
         }
         ListResult::End => {
             let _ = tx.send(AudioMessage::SinkChanges(sinks.clone()));
@@ -191,7 +218,9 @@ fn populate_and_send_sources(
 ) {
     match info {
         ListResult::Item(data) => {
-            sources.push(create_source(data, default_source));
+            if let Some(source) = create_source(data, default_source) {
+                sources.push(source);
+            }
         }
         ListResult::End => {
             let _ = tx.send(AudioMessage::SourceChanges(sources.clone()));
@@ -232,22 +261,21 @@ impl Sinks for Vec<Sink> {
 }
 
 pub trait Sources {
-    fn get_icon(&self) -> Option<Icons>;
+    fn get_icon(&self) -> Icons;
 }
 
 impl Sources for Vec<Source> {
-    fn get_icon(&self) -> Option<Icons> {
+    fn get_icon(&self) -> Icons {
         match self.iter().find_map(|s| {
             if s.ports.iter().any(|p| p.active) {
-                Some((s.is_running, s.is_mute, s.volume))
+                Some(s.is_mute)
             } else {
                 None
             }
         }) {
-            Some((false, _, _)) => None,
-            Some((true, true, _)) => Some(Icons::Mic0),
-            Some((true, false, _)) => Some(Icons::Mic1),
-            None => None,
+            Some(true) => Icons::Mic0,
+            Some(false) => Icons::Mic1,
+            None => Icons::Mic0,
         }
     }
 }
@@ -267,7 +295,6 @@ pub struct Source {
     pub description: String,
     pub volume: f64,
     pub is_mute: bool,
-    pub is_running: bool,
     pub ports: Vec<Port>,
 }
 

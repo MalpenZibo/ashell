@@ -20,7 +20,6 @@ pub fn battery_indicator<'a, Message>(data: BatteryData) -> Row<'a, Message, ice
 
 pub fn settings_battery_indicator<'a, Message: 'static>(
     data: BatteryData,
-    sub_menu_open: bool,
 ) -> Container<'a, Message, iced::Renderer> {
     container({
         let battery_info = row!(
@@ -32,7 +31,11 @@ pub fn settings_battery_indicator<'a, Message: 'static>(
             BatteryStatus::Charging(remaining) => {
                 let minutes = (remaining.as_secs() / 60) % 60;
                 let hours = (remaining.as_secs() / 60) / 60;
-                row!(battery_info, text(format!("Full in {}:{:0>2}", hours, minutes))).spacing(16)
+                row!(
+                    battery_info,
+                    text(format!("Full in {}:{:0>2}", hours, minutes))
+                )
+                .spacing(16)
             }
             BatteryStatus::Discharging(remaining) => {
                 let minutes = (remaining.as_secs() / 60) % 60;
@@ -47,12 +50,8 @@ pub fn settings_battery_indicator<'a, Message: 'static>(
         }
     })
     .padding(8)
-    .style(move |theme: &Theme| iced::widget::container::Appearance {
-        background: Some(if sub_menu_open {
-            theme.palette().background.into()
-        } else {
-            iced::Background::Color(SURFACE_0)
-        }),
+    .style(move |_: &Theme| iced::widget::container::Appearance {
+        background: iced::Background::Color(SURFACE_0).into(),
         border_radius: 32.0.into(),
         ..iced::widget::container::Appearance::default()
     })

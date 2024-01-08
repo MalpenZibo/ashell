@@ -7,7 +7,11 @@ use crate::{
     },
     style::ashell_theme,
 };
-use iced::{widget::row, window::Id, Alignment, Application, Color, Length, Theme};
+use iced::{
+    widget::{column, container, row},
+    window::Id,
+    Alignment, Application, Color, Length, Theme,
+};
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub enum OpenMenu {
@@ -47,6 +51,7 @@ impl Application for App {
 
     fn new(_: ()) -> (Self, iced::Command<Self::Message>) {
         let (menu_id, cmd) = create_menu();
+
         (
             App {
                 menu_id,
@@ -134,12 +139,13 @@ impl Application for App {
                     OpenMenu::Settings => crate::menu::MenuPosition::Right,
                 },
             ),
-            _ => {
+            _ if id == Id::MAIN => {
                 let left = row!(
                     launcher::launcher().map(Message::LauncherMessage),
                     self.updates.view().map(Message::UpdatesMessage),
                     self.workspaces.view().map(Message::WorkspacesMessage)
                 )
+                .align_items(Alignment::Center)
                 .spacing(4);
 
                 let mut center = row!().spacing(4);
@@ -164,6 +170,7 @@ impl Application for App {
                     .padding(4)
                     .into()
             }
+            _ => row!().into(),
         }
     }
 
