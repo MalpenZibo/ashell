@@ -22,8 +22,10 @@ pub enum Icons {
     Speaker3,
     Headphones0,
     Headphones1,
+    Headset,
     Mic0,
     Mic1,
+    Monitor,
     Battery0,
     Battery1,
     Battery2,
@@ -42,7 +44,7 @@ pub enum Icons {
     RightArrow,
     Brightness,
     Point,
-    Close
+    Close,
 }
 
 impl From<Icons> for &'static str {
@@ -64,8 +66,10 @@ impl From<Icons> for &'static str {
             Icons::Speaker3 => "󰕾",
             Icons::Headphones0 => "󰟎",
             Icons::Headphones1 => "󰋋",
+            Icons::Headset => "󰋎",
             Icons::Mic0 => "󰍭",
             Icons::Mic1 => "󰍬",
+            Icons::Monitor => "󰍹",
             Icons::Battery0 => "󰂃",
             Icons::Battery1 => "󰁼",
             Icons::Battery2 => "󰁾",
@@ -84,7 +88,7 @@ impl From<Icons> for &'static str {
             Icons::RightArrow => "󰁔",
             Icons::Brightness => "󰃟",
             Icons::Point => "",
-            Icons::Close => "󰅖"
+            Icons::Close => "󰅖",
         }
     }
 }
@@ -93,7 +97,7 @@ pub fn icon<'a, Renderer>(r#type: Icons) -> Text<'a, Renderer>
 where
     Renderer: iced::advanced::text::Renderer,
     Renderer::Theme: text::StyleSheet,
-    Renderer::Font: From<Font> 
+    Renderer::Font: From<Font>,
 {
     text(std::convert::Into::<&'static str>::into(r#type))
         .font(Font::with_name("Symbols Nerd Font Mono"))

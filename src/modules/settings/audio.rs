@@ -1,13 +1,13 @@
 use iced::{
     theme::Button,
-    widget::{button, column, row, slider, text, Column, Row, Text},
+    widget::{button, row, slider, text, Column, Row},
     Alignment, Element, Length,
 };
 
 use crate::{
     components::icons::{icon, Icons},
-    style::{GhostButtonStyle, SettingsButtonStyle, YELLOW},
-    utils::audio::{Sink, Sinks, Source, Sources},
+    style::{GhostButtonStyle, SettingsButtonStyle, GREEN, YELLOW},
+    utils::audio::{DeviceType, Sink, Sinks, Source, Sources},
 };
 
 use super::SubMenu;
@@ -43,7 +43,6 @@ pub fn audio_slider<'a, Message: 'a + Clone>(
     toggle_mute: Message,
     volume: i32,
     volume_changed: impl Fn(i32) -> Message + 'a,
-    volume_confirm: Message,
     with_submenu: Option<(Option<SubMenu>, Message)>,
 ) -> Element<'a, Message> {
     Row::with_children(
@@ -60,7 +59,7 @@ pub fn audio_slider<'a, Message: 'a + Clone>(
                         SliderType::Source => Icons::Mic1,
                     }
                 }))
-                .padding([8, 9])
+                .padding([8, 10])
                 .on_press(toggle_mute)
                 .style(Button::custom(SettingsButtonStyle))
                 .into(),
@@ -68,7 +67,6 @@ pub fn audio_slider<'a, Message: 'a + Clone>(
             Some(
                 slider(0..=100, volume, volume_changed)
                     .step(1)
-                    .on_release(volume_confirm)
                     .width(Length::Fill)
                     .into(),
             ),
@@ -78,7 +76,7 @@ pub fn audio_slider<'a, Message: 'a + Clone>(
                     (SliderType::Source, Some(SubMenu::Sources)) => Icons::Close,
                     _ => Icons::RightArrow,
                 }))
-                .padding([8, 9])
+                .padding([8, 10])
                 .on_press(msg)
                 .style(Button::custom(SettingsButtonStyle))
                 .into()
@@ -95,6 +93,7 @@ pub fn audio_slider<'a, Message: 'a + Clone>(
 
 pub struct SubmenuEntry<Message> {
     pub name: String,
+    pub device: DeviceType,
     pub active: bool,
     pub msg: Message,
 }
@@ -107,18 +106,25 @@ pub fn audio_submenu<'a, Message: 'a + Clone>(
             .into_iter()
             .map(|e| {
                 if e.active {
-                    row!(icon(Icons::Point), text(e.name))
-                        .align_items(Alignment::Center)
-                        .spacing(8)
-                        .padding([4, 12])
-                        .into()
+                    row!(
+                        icon(e.device.get_icon()).style(GREEN),
+                        text(e.name).style(GREEN)
+                    )
+                    .align_items(Alignment::Center)
+                    .spacing(16)
+                    .padding([4, 12])
+                    .into()
                 } else {
-                    button(text(e.name))
-                        .on_press(e.msg)
-                        .padding([4, 12])
-                        .width(Length::Fill)
-                        .style(Button::custom(GhostButtonStyle))
-                        .into()
+                    button(
+                        row!(icon(e.device.get_icon()), text(e.name))
+                            .spacing(16)
+                            .align_items(Alignment::Center),
+                    )
+                    .on_press(e.msg)
+                    .padding([4, 12])
+                    .width(Length::Fill)
+                    .style(Button::custom(GhostButtonStyle))
+                    .into()
                 }
             })
             .collect::<Vec<_>>(),

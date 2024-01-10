@@ -99,7 +99,7 @@ pub struct Wifi {
 
 impl Wifi {
     pub fn get_icon(&self) -> Icons {
-        WIFI_SIGNAL_ICONS[f32::round(self.signal as f32 / 20.) as usize]
+        WIFI_SIGNAL_ICONS[f32::floor(self.signal as f32 / 100.) as usize % (4 - 1 + 1) + 1]
     }
 
     pub fn get_color(&self) -> Color {
@@ -234,17 +234,19 @@ pub fn subscription() -> Subscription<NetMessage> {
                     None
                 } {
                     iced::futures::select_biased! {
-                        _ = devices_change.next().fuse() => {
-                            maybe_proxies = init().await;
+                        v = devices_change.next().fuse() => {
+                            if v.is_some() {
+                                maybe_proxies = init().await;
 
-                            wifi = if let Some(proxies) = maybe_proxies.as_ref() {
-                                Some(Wifi {
-                                    connection_ssid: proxies.connection.id().await.unwrap(),
-                                    signal: proxies.access_point.strength().await.unwrap(),
-                                })
-                            } else { None };
+                                wifi = if let Some(proxies) = maybe_proxies.as_ref() {
+                                    Some(Wifi {
+                                        connection_ssid: proxies.connection.id().await.unwrap(),
+                                        signal: proxies.access_point.strength().await.unwrap(),
+                                    })
+                                } else { None };
 
-                            let _ = output.send(NetMessage::Wifi(wifi.clone())).await;
+                                let _ = output.send(NetMessage::Wifi(wifi.clone())).await;
+                            }
                         }
                         v = access_point_change.next().fuse() => {
                             if let Some(value) = v {
