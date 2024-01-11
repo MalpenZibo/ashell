@@ -8,38 +8,39 @@ use crate::{
     components::icons::{icon, Icons},
     menu::{close_menu, open_menu},
     modules::settings::audio::SubmenuEntry,
-    style::{GhostButtonStyle, HeaderButtonStyle, SettingsButtonStyle, MANTLE},
+    style::{GhostButtonStyle, HeaderButtonStyle, SettingsButtonStyle, MANTLE, SURFACE_0},
     utils::{
         audio::{AudioCommand, Sink, Source, Volume},
         battery::{BatteryData, BatteryStatus},
         net::Wifi,
+        Commander,
     },
 };
 use iced::{
     theme::Button,
-    widget::{button, column, container, horizontal_rule, row, text, Column, Row, Space},
+    widget::{button, column, container, horizontal_rule, row, slider, text, Column, Row, Space},
     window::Id,
-    Element, Length, Subscription, Theme,
+    Alignment, Background, Element, Length, Subscription, Theme,
 };
-use std::cell::RefCell;
 
 mod audio;
 mod battery;
 mod net;
 
 pub struct Settings {
-    audio_command_tx: tokio::sync::mpsc::UnboundedSender<AudioCommand>,
-    audio_command_rx: RefCell<Option<tokio::sync::mpsc::UnboundedReceiver<AudioCommand>>>,
+    audio_commander: Commander<AudioCommand>,
+    brightness_commander: Commander<f64>,
     sub_menu: Option<SubMenu>,
-    pub battery_data: Option<BatteryData>,
+    battery_data: Option<BatteryData>,
     wifi: Option<Wifi>,
     vpn_active: bool,
     default_sink: String,
     default_source: String,
-    pub sinks: Vec<Sink>,
+    sinks: Vec<Sink>,
     sources: Vec<Source>,
     cur_sink_volume: i32,
     cur_source_volume: i32,
+    cur_brightness: i32,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -79,6 +80,7 @@ pub enum Message {
     SourceToggleMute,
     SourceVolumeChanged(i32),
     DefaultSourceChanged(String, String),
+    BrightnessChanged(f64),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -90,10 +92,9 @@ pub enum SubMenu {
 
 impl Settings {
     pub fn new() -> Self {
-        let (audio_command_tx, audio_command_rx) = tokio::sync::mpsc::unbounded_channel();
         Settings {
-            audio_command_tx,
-            audio_command_rx: RefCell::new(Some(audio_command_rx)),
+            audio_commander: Commander::new(),
+            brightness_commander: Commander::new(),
             sub_menu: None,
             battery_data: None,
             wifi: None,
@@ -104,6 +105,7 @@ impl Settings {
             sources: vec![],
             cur_sink_volume: 0,
             cur_source_volume: 0,
+            cur_brightness: 0,
         }
     }
 
@@ -143,7 +145,6 @@ impl Settings {
                         }
                     }
                     BatteryMessage::StatusChanged(status) => {
-                        println!("battery: {:?}", status);
                         if let Some(battery_data) = &mut self.battery_data {
                             battery_data.status = status;
                         } else {
@@ -159,11 +160,9 @@ impl Settings {
             Message::Net(msg) => {
                 match msg {
                     NetMessage::Wifi(wifi) => {
-                        println!("wifi: {:?}", wifi);
                         self.wifi = wifi;
                     }
                     NetMessage::VpnActive(active) => {
-                        println!("vpn: {:?}", active);
                         self.vpn_active = active;
                     }
                 };
@@ -193,7 +192,6 @@ impl Settings {
                             })
                             .unwrap_or_default()
                             * 100.) as i32;
-                        println!("cur sink volume: {}", self.cur_sink_volume);
                     }
                     AudioMessage::SourceChanges(sources) => {
                         self.sources = sources;
@@ -300,7 +298,7 @@ impl Settings {
                     .iter()
                     .find(|sink| sink.name == self.default_sink)
                 {
-                    let _ = self.audio_command_tx.send(AudioCommand::SinkMute(
+                    let _ = self.audio_commander.send(AudioCommand::SinkMute(
                         self.default_sink.clone(),
                         !sink.is_mute,
                     ));
@@ -308,7 +306,6 @@ impl Settings {
                 iced::Command::none()
             }
             Message::SinkVolumeChanged(volume) => {
-                println!("volume: {}", volume);
                 self.cur_sink_volume = volume;
                 if let Some(sink) = self
                     .sinks
@@ -318,17 +315,23 @@ impl Settings {
                     if let Some(new_volume) =
                         sink.volume.scale_volume(self.cur_sink_volume as f64 / 100.)
                     {
-                        println!("new volume: {}", new_volume);
                         let _ = self
-                            .audio_command_tx
+                            .audio_commander
                             .send(AudioCommand::SinkVolume(sink.name.clone(), *new_volume));
                     }
                 }
                 iced::Command::none()
             }
             Message::DefaultSinkChanged(name, port) => {
+                self.default_sink = name.clone();
+                for sink in self.sinks.iter_mut() {
+                    for cur_port in sink.ports.iter_mut() {
+                        cur_port.active = sink.name == name && cur_port.name == port;
+                    }
+                }
+
                 let _ = self
-                    .audio_command_tx
+                    .audio_commander
                     .send(AudioCommand::DefaultSink(name, port));
                 iced::Command::none()
             }
@@ -338,7 +341,7 @@ impl Settings {
                     .iter()
                     .find(|source| source.name == self.default_source)
                 {
-                    let _ = self.audio_command_tx.send(AudioCommand::SourceMute(
+                    let _ = self.audio_commander.send(AudioCommand::SourceMute(
                         self.default_source.clone(),
                         !source.is_mute,
                     ));
@@ -357,16 +360,28 @@ impl Settings {
                         .scale_volume(self.cur_source_volume as f64 / 100.)
                     {
                         let _ = self
-                            .audio_command_tx
+                            .audio_commander
                             .send(AudioCommand::SourceVolume(source.name.clone(), *new_volume));
                     }
                 }
                 iced::Command::none()
             }
             Message::DefaultSourceChanged(name, port) => {
+                self.default_source = name.clone();
+                for source in self.sources.iter_mut() {
+                    for cur_port in source.ports.iter_mut() {
+                        cur_port.active = source.name == name && cur_port.name == port;
+                    }
+                }
+
                 let _ = self
-                    .audio_command_tx
+                    .audio_commander
                     .send(AudioCommand::DefaultSource(name, port));
+                iced::Command::none()
+            }
+            Message::BrightnessChanged(value) => {
+                self.cur_brightness = (value * 100.).round() as i32;
+                self.brightness_commander.send(value).unwrap();
                 iced::Command::none()
             }
         }
@@ -470,6 +485,25 @@ impl Settings {
             )
         });
 
+        let brightness_slider = row!(
+            container(icon(Icons::Brightness))
+                .padding([8, 10])
+                .style(|_: &Theme| iced::widget::container::Appearance {
+                    background: Background::Color(SURFACE_0).into(),
+                    border_radius: 32.0.into(),
+                    ..Default::default()
+                }),
+            slider(
+                0..=100,
+                self.cur_brightness,
+                |v| Message::BrightnessChanged(v as f64 / 100.)
+            )
+            .step(1)
+            .width(Length::Fill),
+        )
+        .align_items(Alignment::Center)
+        .spacing(8);
+
         let sub_menu_wrapper = |content| {
             container(content)
                 .style(|_: &Theme| iced::widget::container::Appearance {
@@ -483,7 +517,12 @@ impl Settings {
 
         Column::with_children(
             match self.sub_menu {
-                None => vec![Some(header.into()), sink_slider, source_slider],
+                None => vec![
+                    Some(header.into()),
+                    sink_slider,
+                    source_slider,
+                    Some(brightness_slider.into()),
+                ],
                 Some(SubMenu::Power) => {
                     let power_menu = sub_menu_wrapper(
                         column!(
@@ -520,6 +559,7 @@ impl Settings {
                         Some(power_menu.into()),
                         sink_slider,
                         source_slider,
+                        Some(brightness_slider.into()),
                     ]
                 }
                 Some(SubMenu::Sinks) => {
@@ -544,6 +584,7 @@ impl Settings {
                         sink_slider,
                         Some(sink_menu.into()),
                         source_slider,
+                        Some(brightness_slider.into()),
                     ]
                 }
                 Some(SubMenu::Sources) => {
@@ -568,6 +609,7 @@ impl Settings {
                         sink_slider,
                         source_slider,
                         Some(source_menu.into()),
+                        Some(brightness_slider.into()),
                     ]
                 }
             }
@@ -585,8 +627,9 @@ impl Settings {
         iced::Subscription::batch(vec![
             crate::utils::battery::subscription().map(Message::Battery),
             crate::utils::net::subscription().map(Message::Net),
-            crate::utils::audio::subscription(self.audio_command_rx.borrow_mut().take())
+            crate::utils::audio::subscription(self.audio_commander.give_receiver())
                 .map(Message::Audio),
+            crate::utils::brightness::subscription(self.brightness_commander.give_receiver()),
         ])
     }
 }

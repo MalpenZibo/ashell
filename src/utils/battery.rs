@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::{
     components::icons::Icons,
     modules::settings::BatteryMessage,
@@ -10,7 +12,6 @@ use iced::{
     },
     Color, Subscription,
 };
-use std::time::Duration;
 use zbus::{dbus_proxy, zvariant::OwnedObjectPath, Connection, Result};
 
 #[derive(Copy, Clone, Debug)]
@@ -188,7 +189,9 @@ pub fn subscription() -> Subscription<BatteryMessage> {
                             if let Some(time_to_full) = time_to_full {
                                 let value = time_to_full.get().await;
                                 if let Ok(value) = value {
-                                    let _ = output.send(BatteryMessage::StatusChanged(BatteryStatus::Charging(Duration::from_secs(value as u64)))).await;
+                                    if value > 0 {
+                                        let _ = output.send(BatteryMessage::StatusChanged(BatteryStatus::Charging(Duration::from_secs(value as u64)))).await;
+                                    }
                                 }
                             }
                         },
@@ -196,7 +199,9 @@ pub fn subscription() -> Subscription<BatteryMessage> {
                             if let Some(time_to_empty) = time_to_empty {
                                 let value = time_to_empty.get().await;
                                 if let Ok(value) = value {
-                                    let _ = output.send(BatteryMessage::StatusChanged(BatteryStatus::Discharging(Duration::from_secs(value as u64)))).await;
+                                    if value > 0 {
+                                        let _ = output.send(BatteryMessage::StatusChanged(BatteryStatus::Discharging(Duration::from_secs(value as u64)))).await;
+                                    }
                                 }
                             }
                         },

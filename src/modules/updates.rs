@@ -67,10 +67,8 @@ async fn update() {
 #[derive(Debug, Clone)]
 pub enum Message {
     ToggleMenu,
-    UpdatesCheckInit,
     UpdatesCheckCompleted(Vec<Update>),
     UpdateFinished,
-    UpdatesRefreshFromMenu(Vec<Update>),
     ToggleUpdatesList,
     CheckNow,
     Update,
@@ -124,19 +122,8 @@ impl Updates {
                     open_menu(menu_id)
                 }
             },
-            Message::UpdatesCheckInit => {
-                self.state = State::Checking;
-
-                iced::Command::none()
-            }
             Message::UpdateFinished => {
                 self.updates.clear();
-                self.state = State::Ready;
-
-                iced::Command::none()
-            }
-            Message::UpdatesRefreshFromMenu(updates) => {
-                self.updates = updates;
                 self.state = State::Ready;
 
                 iced::Command::none()
@@ -146,7 +133,7 @@ impl Updates {
 
                 iced::Command::none()
             }
-            Message::CheckNow | Message::UpdateFinished => {
+            Message::CheckNow => {
                 self.state = State::Checking;
                 iced::Command::perform(
                     async move { check_update_now().await },

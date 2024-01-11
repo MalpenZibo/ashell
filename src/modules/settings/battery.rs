@@ -1,7 +1,10 @@
 use crate::{
     components::icons::icon,
     style::SURFACE_0,
-    utils::battery::{BatteryData, BatteryStatus},
+    utils::{
+        battery::{BatteryData, BatteryStatus},
+        format_duration,
+    },
 };
 use iced::{
     widget::{container, row, text, Container, Row},
@@ -28,24 +31,16 @@ pub fn settings_battery_indicator<'a, Message: 'static>(
         )
         .spacing(4);
         match data.status {
-            BatteryStatus::Charging(remaining) => {
-                let minutes = (remaining.as_secs() / 60) % 60;
-                let hours = (remaining.as_secs() / 60) / 60;
-                row!(
-                    battery_info,
-                    text(format!("Full in {}:{:0>2}", hours, minutes))
-                )
-                .spacing(16)
-            }
-            BatteryStatus::Discharging(remaining) => {
-                let minutes = (remaining.as_secs() / 60) % 60;
-                let hours = (remaining.as_secs() / 60) / 60;
-                row!(
-                    battery_info,
-                    text(format!("Empty in {}:{:0>2}", hours, minutes))
-                )
-                .spacing(16)
-            }
+            BatteryStatus::Charging(remaining) => row!(
+                battery_info,
+                text(format!("Full in {}", format_duration(&remaining)))
+            )
+            .spacing(16),
+            BatteryStatus::Discharging(remaining) => row!(
+                battery_info,
+                text(format!("Empty in {}", format_duration(&remaining)))
+            )
+            .spacing(16),
             BatteryStatus::Full => row!(battery_info),
         }
     })

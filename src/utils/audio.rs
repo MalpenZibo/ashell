@@ -36,7 +36,7 @@ fn init(name: &str) -> (Rc<RefCell<Mainloop>>, Rc<RefCell<Context>>) {
     ));
 
     let context = Rc::new(RefCell::new(
-        Context::new_with_proplist(mainloop.borrow().deref(), "FooAppContext", &proplist)
+        Context::new_with_proplist(mainloop.borrow().deref(), name, &proplist)
             .expect("Failed to create new context"),
     ));
 
@@ -70,7 +70,6 @@ fn wait_for_response<T: ?Sized>(mainloop: &mut Mainloop, operation: Operation<T>
             }
             IterateResult::Success(_) => {
                 if operation.get_state() == State::Done {
-                    println!("Operation done");
                     break;
                 }
             }
@@ -321,7 +320,7 @@ impl DeviceType {
             DeviceType::Speaker => Icons::Speaker3,
             DeviceType::Headphones => Icons::Headphones1,
             DeviceType::Headset => Icons::Headset,
-            DeviceType::Hdmi => Icons::Monitor,
+            DeviceType::Hdmi => Icons::MonitorSpeaker,
         }
     }
 }
@@ -404,7 +403,6 @@ impl AudioCommander {
                 }
                 IterateResult::Success(_) => {
                     if operation.get_state() == State::Done {
-                        println!("Operation done");
                         break;
                     }
                 }
@@ -421,31 +419,30 @@ pub fn subscription(
             let (internal_tx, mut internal_rx) = tokio::sync::mpsc::unbounded_channel::<()>();
 
             thread::spawn(move || {
-                if let Some(mut rx) = rx {
-                    let mut audio_commander = AudioCommander::new();
+                let mut rx = rx.unwrap();
+                let mut audio_commander = AudioCommander::new();
 
-                    internal_tx.send(()).unwrap();
-                    loop {
-                        if let Some(command) = rx.blocking_recv() {
-                            match command {
-                                AudioCommand::SinkMute(name, mute) => {
-                                    audio_commander.set_sink_mute(&name, mute);
-                                }
-                                AudioCommand::SourceMute(name, mute) => {
-                                    audio_commander.set_source_mute(&name, mute);
-                                }
-                                AudioCommand::SinkVolume(name, volume) => {
-                                    audio_commander.set_sink_volume(&name, &volume);
-                                }
-                                AudioCommand::SourceVolume(name, volume) => {
-                                    audio_commander.set_source_volume(&name, &volume);
-                                }
-                                AudioCommand::DefaultSink(name, port) => {
-                                    audio_commander.set_default_sink(&name, &port);
-                                }
-                                AudioCommand::DefaultSource(name, port) => {
-                                    audio_commander.set_default_source(&name, &port);
-                                }
+                internal_tx.send(()).unwrap();
+                loop {
+                    if let Some(command) = rx.blocking_recv() {
+                        match command {
+                            AudioCommand::SinkMute(name, mute) => {
+                                audio_commander.set_sink_mute(&name, mute);
+                            }
+                            AudioCommand::SourceMute(name, mute) => {
+                                audio_commander.set_source_mute(&name, mute);
+                            }
+                            AudioCommand::SinkVolume(name, volume) => {
+                                audio_commander.set_sink_volume(&name, &volume);
+                            }
+                            AudioCommand::SourceVolume(name, volume) => {
+                                audio_commander.set_source_volume(&name, &volume);
+                            }
+                            AudioCommand::DefaultSink(name, port) => {
+                                audio_commander.set_default_sink(&name, &port);
+                            }
+                            AudioCommand::DefaultSource(name, port) => {
+                                audio_commander.set_default_source(&name, &port);
                             }
                         }
                     }
@@ -526,7 +523,6 @@ pub fn subscription(
                             let sinks = sinks.clone();
 
                             move |info| {
-                                println!("got sinks");
                                 populate_and_send_sinks(info, &tx, &mut sinks.borrow_mut());
                             }
                         });
@@ -540,8 +536,6 @@ pub fn subscription(
                         });
                     }))
                 });
-
-                println!("Starting PulseAudio mainloop");
 
                 loop {
                     let data = mainloop.borrow_mut().iterate(true);

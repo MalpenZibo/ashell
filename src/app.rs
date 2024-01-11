@@ -7,11 +7,7 @@ use crate::{
     },
     style::ashell_theme,
 };
-use iced::{
-    widget::{column, container, row},
-    window::Id,
-    Alignment, Application, Color, Length, Theme,
-};
+use iced::{widget::row, window::Id, Alignment, Application, Color, Length, Theme};
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub enum OpenMenu {
