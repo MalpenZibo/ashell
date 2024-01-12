@@ -1,7 +1,6 @@
 use crate::{
     components::icons::Icons,
-    modules::settings::NetMessage,
-    style::{RED, TEXT, YELLOW},
+    style::{RED, TEXT, YELLOW}, modules::settings::net::NetMessage,
 };
 use iced::{
     futures::{

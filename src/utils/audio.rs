@@ -1,6 +1,6 @@
 extern crate libpulse_binding as pulse;
 
-use crate::{components::icons::Icons, modules::settings::AudioMessage};
+use crate::{components::icons::Icons, modules::settings::audio::AudioMessage};
 use iced::{futures::SinkExt, Subscription};
 use libpulse_binding::{
     context::Context,
