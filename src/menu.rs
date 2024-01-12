@@ -12,9 +12,8 @@ pub fn create_menu<Message>() -> (Id, Command<Message>) {
             layer: iced::wayland::layer_surface::Layer::Overlay,
             anchor: Anchor::TOP
                 .union(Anchor::LEFT)
-                .union(Anchor::RIGHT)
-                .union(Anchor::BOTTOM),
-            size: Some((None, None)),
+                .union(Anchor::RIGHT),
+            size: Some((None, Some(1))),
             ..Default::default()
         },
     );
