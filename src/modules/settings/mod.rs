@@ -1,7 +1,6 @@
-use self::{
-    audio::{audio_submenu, get_audio_sliders, sink_indicator, source_indicator, AudioMessage},
+use self::{ audio::{audio_submenu, get_audio_sliders, sink_indicator, source_indicator, AudioMessage},
     battery::{battery_indicator, settings_battery_indicator},
-    net::{vpn_indicator, wifi_indicator, NetMessage},
+    net::{active_connection_indicator, vpn_indicator, vpn_menu, NetMessage},
     power::PowerMessage,
 };
 use crate::{
@@ -9,19 +8,25 @@ use crate::{
     components::icons::{icon, Icons},
     menu::{close_menu, open_menu},
     modules::settings::{audio::SubmenuEntry, power::power_menu},
-    style::{HeaderButtonStyle, SettingsButtonStyle, MANTLE, SURFACE_0},
+    style::{
+        HeaderButtonStyle, QuickSettingsSubMenuButtonStyle, SettingsButtonStyle, MANTLE, PEACH,
+        SURFACE_0, TEXT,
+    },
     utils::{
         audio::{AudioCommand, Sink, Source},
         battery::{BatteryData, BatteryStatus},
-        net::Wifi,
+        net::{ActiveConnection, NetCommand, Vpn},
         Commander,
     },
 };
 use iced::{
     theme::Button,
-    widget::{button, container, row, slider, Column, Row, Space},
+    widget::{
+        button, column, container, horizontal_space, mouse_area, row, slider, text, Column, Row,
+        Space,
+    },
     window::Id,
-    Alignment, Background, Element, Length, Subscription, Theme,
+    Alignment, Background, Element, Length, Subscription, Theme, advanced::Widget,
 };
 
 pub mod audio;
@@ -32,10 +37,12 @@ mod power;
 pub struct Settings {
     audio_commander: Commander<AudioCommand>,
     brightness_commander: Commander<f64>,
+    net_commander: Commander<NetCommand>,
     sub_menu: Option<SubMenu>,
     battery_data: Option<BatteryData>,
-    wifi: Option<Wifi>,
+    active_connection: Option<ActiveConnection>,
     vpn_active: bool,
+    vpn_connections: Vec<Vpn>,
     default_sink: String,
     default_source: String,
     sinks: Vec<Sink>,
@@ -68,6 +75,8 @@ pub enum SubMenu {
     Power,
     Sinks,
     Sources,
+    Wifi,
+    Vpn,
 }
 
 impl Settings {
@@ -75,10 +84,12 @@ impl Settings {
         Settings {
             audio_commander: Commander::new(),
             brightness_commander: Commander::new(),
+            net_commander: Commander::new(),
             sub_menu: None,
             battery_data: None,
-            wifi: None,
+            active_connection: None,
             vpn_active: false,
+            vpn_connections: vec![],
             default_sink: String::new(),
             default_source: String::new(),
             sinks: vec![],
@@ -149,6 +160,14 @@ impl Settings {
                 if self.sub_menu == Some(menu_type) {
                     self.sub_menu.take();
                 } else {
+                    match menu_type {
+                        SubMenu::Vpn => {
+                            self.net_commander
+                                .send(NetCommand::GetVpnConnections)
+                                .unwrap();
+                        }
+                        _ => {}
+                    };
                     self.sub_menu.replace(menu_type);
                 }
                 iced::Command::none()
@@ -183,8 +202,8 @@ impl Settings {
         );
 
         let mut net_elements = row!().spacing(4);
-        if let Some(wifi) = &self.wifi {
-            net_elements = net_elements.push(wifi_indicator(wifi));
+        if let Some(active_connection) = &self.active_connection {
+            net_elements = net_elements.push(active_connection_indicator(active_connection));
         }
 
         if self.vpn_active {
@@ -254,90 +273,94 @@ impl Settings {
         .align_items(Alignment::Center)
         .spacing(8);
 
-        let sub_menu_wrapper = |content| {
-            container(content)
-                .style(|_: &Theme| iced::widget::container::Appearance {
-                    background: iced::Background::Color(MANTLE).into(),
-                    border_radius: 16.0.into(),
-                    ..iced::widget::container::Appearance::default()
-                })
-                .padding(8)
-                .width(Length::Fill)
-        };
+        let quick_settings = quick_settings_section(vec![
+            // (
+            //     quick_setting_button(
+            //         self.wifi.as_ref().map(|w| w.get_icon()).unwrap_or_default(),
+            //         "Wi-Fi".to_string(),
+            //         self.wifi.as_ref().map(|w| w.connection_ssid.clone()),
+            //         self.wifi.is_some(),
+            //         Some((
+            //             SubMenu::Wifi,
+            //             self.sub_menu,
+            //             Message::ToggleSubMenu(SubMenu::Wifi),
+            //         )),
+            //     ),
+            //     None,
+            // ),
+            (
+                quick_setting_button(
+                    Icons::Vpn,
+                    "Vpn".to_string(),
+                    None,
+                    self.vpn_active,
+                    Message::Net(NetMessage::DeactivateVpns),
+                    Some((
+                        SubMenu::Vpn,
+                        self.sub_menu,
+                        Message::ToggleSubMenu(SubMenu::Vpn),
+                    )),
+                ),
+                self.sub_menu
+                    .filter(|menu_type| *menu_type == SubMenu::Vpn)
+                    .map(|_| sub_menu_wrapper(vpn_menu(&self.vpn_connections)).map(Message::Net)),
+            ),
+        ]);
 
         Column::with_children(
-            match self.sub_menu {
-                None => vec![
-                    Some(header.into()),
-                    sink_slider,
-                    source_slider,
-                    Some(brightness_slider.into()),
-                ],
-                Some(SubMenu::Power) => {
-                    let power_menu = sub_menu_wrapper(power_menu().map(Message::Power));
-
-                    vec![
-                        Some(header.into()),
-                        Some(power_menu.into()),
-                        sink_slider,
-                        source_slider,
-                        Some(brightness_slider.into()),
-                    ]
-                }
-                Some(SubMenu::Sinks) => {
-                    let sink_menu = sub_menu_wrapper(audio_submenu(
-                        self.sinks
-                            .iter()
-                            .flat_map(|s| {
-                                s.ports.iter().map(|p| SubmenuEntry {
-                                    name: format!("{}: {}", p.description, s.description),
-                                    device: p.device_type,
-                                    active: p.active && s.name == self.default_sink,
-                                    msg: Message::Audio(AudioMessage::DefaultSinkChanged(
-                                        s.name.clone(),
-                                        p.name.clone(),
-                                    )),
+            vec![
+                Some(header.into()),
+                self.sub_menu
+                    .filter(|menu_type| *menu_type == SubMenu::Power)
+                    .map(|_| sub_menu_wrapper(power_menu().map(Message::Power))),
+                sink_slider,
+                self.sub_menu
+                    .filter(|menu_type| *menu_type == SubMenu::Sinks)
+                    .map(|_| {
+                        sub_menu_wrapper(audio_submenu(
+                            self.sinks
+                                .iter()
+                                .flat_map(|s| {
+                                    s.ports.iter().map(|p| SubmenuEntry {
+                                        name: format!("{}: {}", p.description, s.description),
+                                        device: p.device_type,
+                                        active: p.active && s.name == self.default_sink,
+                                        msg: Message::Audio(AudioMessage::DefaultSinkChanged(
+                                            s.name.clone(),
+                                            p.name.clone(),
+                                        )),
+                                    })
                                 })
-                            })
-                            .collect(),
-                    ));
-                    vec![
-                        Some(header.into()),
-                        sink_slider,
-                        Some(sink_menu.into()),
-                        source_slider,
-                        Some(brightness_slider.into()),
-                    ]
-                }
-                Some(SubMenu::Sources) => {
-                    let source_menu = sub_menu_wrapper(audio_submenu(
-                        self.sources
-                            .iter()
-                            .flat_map(|s| {
-                                s.ports.iter().map(|p| SubmenuEntry {
-                                    name: format!("{}: {}", p.description, s.description),
-                                    device: p.device_type,
-                                    active: p.active && s.name == self.default_source,
-                                    msg: Message::Audio(AudioMessage::DefaultSourceChanged(
-                                        s.name.clone(),
-                                        p.name.clone(),
-                                    )),
+                                .collect(),
+                        ))
+                    }),
+                source_slider,
+                self.sub_menu
+                    .filter(|menu_type| *menu_type == SubMenu::Sources)
+                    .map(|_| {
+                        sub_menu_wrapper(audio_submenu(
+                            self.sources
+                                .iter()
+                                .flat_map(|s| {
+                                    s.ports.iter().map(|p| SubmenuEntry {
+                                        name: format!("{}: {}", p.description, s.description),
+                                        device: p.device_type,
+                                        active: p.active && s.name == self.default_source,
+                                        msg: Message::Audio(AudioMessage::DefaultSourceChanged(
+                                            s.name.clone(),
+                                            p.name.clone(),
+                                        )),
+                                    })
                                 })
-                            })
-                            .collect(),
-                    ));
-                    vec![
-                        Some(header.into()),
-                        sink_slider,
-                        source_slider,
-                        Some(source_menu.into()),
-                        Some(brightness_slider.into()),
-                    ]
-                }
-            }
+                                .collect(),
+                        ))
+                    }),
+                Some(brightness_slider.into()),
+                Some(quick_settings),
+            ]
             .into_iter()
             .flatten()
-            .collect(),
+            .collect::<Vec<_>>(),
         )
         .spacing(16)
         .padding(16)
@@ -348,10 +371,123 @@ impl Settings {
     pub fn subscription(&self) -> Subscription<Message> {
         iced::Subscription::batch(vec![
             crate::utils::battery::subscription().map(Message::Battery),
-            crate::utils::net::subscription().map(Message::Net),
+            crate::utils::net::subscription(self.net_commander.give_receiver()).map(Message::Net),
             crate::utils::audio::subscription(self.audio_commander.give_receiver())
                 .map(Message::Audio),
             crate::utils::brightness::subscription(self.brightness_commander.give_receiver()),
         ])
     }
+}
+
+fn quick_settings_section<'a>(
+    buttons: Vec<(Element<'a, Message>, Option<Element<'a, Message>>)>,
+) -> Element<'a, Message> {
+    let mut section = column!().spacing(8);
+
+    let mut before: Option<(Element<'a, Message>, Option<Element<'a, Message>>)> = None;
+
+    for (button, menu) in buttons.into_iter() {
+        if let Some((before_button, before_menu)) = before.take() {
+            section = section.push(row![before_button, button].width(Length::Fill).spacing(8));
+
+            if let Some(menu) = before_menu {
+                section = section.push(sub_menu_wrapper(menu));
+            }
+
+            if let Some(menu) = menu {
+                section = section.push(sub_menu_wrapper(menu));
+            }
+        } else {
+            before = Some((button, menu));
+        }
+    }
+
+    if let Some((before_button, before_menu)) = before.take() {
+        section = section.push(
+            row![before_button, horizontal_space(Length::Fill)]
+                .width(Length::Fill)
+                .spacing(8),
+        );
+
+        if let Some(menu) = before_menu {
+            section = section.push(sub_menu_wrapper(menu));
+        }
+    }
+
+    section.into()
+}
+
+fn sub_menu_wrapper<'a, Msg: 'static>(content: impl Into<Element<'a, Msg>>) -> Element<'a, Msg> {
+    container(content.into())
+        .style(|_: &Theme| iced::widget::container::Appearance {
+            background: iced::Background::Color(MANTLE).into(),
+            border_radius: 16.0.into(),
+            ..iced::widget::container::Appearance::default()
+        })
+        .padding(8)
+        .width(Length::Fill)
+        .into()
+}
+
+fn quick_setting_button<'a, Msg: Clone + 'static>(
+    icon_type: Icons,
+    title: String,
+    subtitle: Option<String>,
+    active: bool,
+    on_press: Msg,
+    with_submenu: Option<(SubMenu, Option<SubMenu>, Msg)>,
+) -> Element<'a, Msg> {
+    mouse_area(
+        container(
+            Row::with_children(
+                vec![
+                    Some(icon(icon_type).into()),
+                    Some(
+                        Column::with_children(
+                            vec![
+                                Some(text(title).into()),
+                                subtitle.map(|s| text(s).size(12).into()),
+                            ]
+                            .into_iter()
+                            .flatten()
+                            .collect::<Vec<_>>(),
+                        )
+                        .spacing(2)
+                        .width(Length::Shrink)
+                        .into(),
+                    ),
+                    with_submenu
+                        .as_ref()
+                        .map(|_| horizontal_space(Length::Fill).into()),
+                    with_submenu.map(|(menu_type, submenu, msg)| {
+                        button(icon(if Some(menu_type) == submenu {
+                            Icons::Close
+                        } else {
+                            Icons::VerticalDots
+                        }))
+                        .on_press(msg)
+                        .style(Button::custom(QuickSettingsSubMenuButtonStyle(active)))
+                        .into()
+                    }),
+                ]
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>(),
+            )
+            .align_items(Alignment::Center)
+            .spacing(8),
+        )
+        .padding([4, 8])
+        .align_y(iced::alignment::Vertical::Center)
+        .style(move |_: &Theme| iced::widget::container::Appearance {
+            background: Some(Background::Color(if active { PEACH } else { SURFACE_0 })),
+            text_color: Some(if active { SURFACE_0 } else { TEXT }),
+            border_radius: 32.0.into(),
+            ..Default::default()
+        })
+        .width(Length::Fill)
+        .height(Length::Fixed(50.)),
+    )
+    .on_press(on_press)
+    .into()
 }

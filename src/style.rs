@@ -156,3 +156,28 @@ pub struct SliderStyle;
 //         self.active(style)
 //     }
 // }
+
+pub struct QuickSettingsSubMenuButtonStyle(pub bool);
+
+impl button::StyleSheet for QuickSettingsSubMenuButtonStyle {
+    type Style = iced::theme::Theme;
+
+    fn active(&self, style: &Self::Style) -> button::Appearance {
+        button::Appearance {
+            background: None,
+            border_radius: BorderRadius::from(4.0),
+            border_width: 0.0,
+            border_color: iced::Color::TRANSPARENT,
+            text_color: if self.0 { SURFACE_0 } else { style.palette().text },
+            ..button::Appearance::default()
+        }
+    }
+
+    fn hovered(&self, style: &Self::Style) -> button::Appearance {
+        button::Appearance {
+            background: Some(iced::Background::Color(SURFACE_0)),
+            text_color: style.palette().text,
+            ..self.active(style)
+        }
+    }
+}
