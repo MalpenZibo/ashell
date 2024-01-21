@@ -1,4 +1,8 @@
-use iced::{widget::{button, text, column, horizontal_rule}, Element, Length, theme::Button};
+use iced::{
+    theme::Button,
+    widget::{button, column, horizontal_rule, text},
+    Element, Length,
+};
 
 use crate::style::GhostButtonStyle;
 

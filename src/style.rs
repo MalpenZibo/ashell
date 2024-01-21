@@ -168,7 +168,11 @@ impl button::StyleSheet for QuickSettingsSubMenuButtonStyle {
             border_radius: BorderRadius::from(4.0),
             border_width: 0.0,
             border_color: iced::Color::TRANSPARENT,
-            text_color: if self.0 { SURFACE_0 } else { style.palette().text },
+            text_color: if self.0 {
+                SURFACE_0
+            } else {
+                style.palette().text
+            },
             ..button::Appearance::default()
         }
     }

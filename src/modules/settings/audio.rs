@@ -10,7 +10,7 @@ use crate::{
     utils::audio::{AudioCommand, DeviceType, Sink, Sinks, Source, Sources, Volume},
 };
 
-use super::{Settings, SubMenu, Message};
+use super::{Message, Settings, SubMenu};
 
 #[derive(Debug, Clone)]
 pub enum AudioMessage {

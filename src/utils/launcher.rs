@@ -57,4 +57,3 @@ pub fn logout() {
             .expect("Failed to execute command.");
     });
 }
-

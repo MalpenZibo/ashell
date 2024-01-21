@@ -6,7 +6,7 @@ use iced::{
         InitialSurface,
     },
     window::Id,
-    Application, Font, Settings, Pixels,
+    Application, Font, Pixels, Settings,
 };
 
 mod app;

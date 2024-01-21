@@ -1,3 +1,4 @@
+use crate::style::{header_pills, BASE, LAVENDER, MAUVE, PEACH, SURFACE_0, TEXT};
 use hyprland::{
     event_listener::EventListener,
     shared::{HyprData, HyprDataActive},
@@ -7,7 +8,6 @@ use iced::{
     BorderRadius, Element, Length, Theme,
 };
 use std::cell::RefCell;
-use crate::style::{header_pills, BASE, LAVENDER, MAUVE, PEACH, SURFACE_0, TEXT};
 
 #[derive(Debug, Clone)]
 pub struct Workspace {

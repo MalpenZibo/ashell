@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-iced = { git = "https://github.com/pop-os/iced", rev="611ce160e6b2ccab388fc8e303d4795a3365afbc", features = ["tokio", "wayland", "advanced"] }
+iced = { git = "https://github.com/pop-os/iced", rev="6115280d5277c50b8539d4eff6ab61050c51b592", features = ["tokio", "wayland", "advanced"] }
 chrono = "0.4.31"
 hyprland = "0.3.12"
 serde = "1.0.190"

@@ -10,9 +10,7 @@ pub fn create_menu<Message>() -> (Id, Command<Message>) {
         iced::wayland::actions::layer_surface::SctkLayerSurfaceSettings {
             id,
             layer: iced::wayland::layer_surface::Layer::Overlay,
-            anchor: Anchor::TOP
-                .union(Anchor::LEFT)
-                .union(Anchor::RIGHT),
+            anchor: Anchor::TOP.union(Anchor::LEFT).union(Anchor::RIGHT),
             size: Some((None, Some(1))),
             ..Default::default()
         },
@@ -25,9 +23,7 @@ pub fn close_menu<Message>(id: Id) -> Command<Message> {
     Command::batch(vec![
         iced::wayland::layer_surface::set_anchor(
             id,
-            Anchor::TOP
-                .union(Anchor::LEFT)
-                .union(Anchor::RIGHT)
+            Anchor::TOP.union(Anchor::LEFT).union(Anchor::RIGHT),
         ),
         iced::wayland::layer_surface::set_size(id, None, Some(1)),
     ])

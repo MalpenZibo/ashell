@@ -1,6 +1,7 @@
-use self::{ audio::{audio_submenu, get_audio_sliders, sink_indicator, source_indicator, AudioMessage},
+use self::{
+    audio::{audio_submenu, get_audio_sliders, sink_indicator, source_indicator, AudioMessage},
     battery::{battery_indicator, settings_battery_indicator},
-    net::{active_connection_indicator, vpn_indicator, vpn_menu, NetMessage},
+    net::{active_connection_indicator, vpn_indicator, vpn_menu, wifi_menu, NetMessage},
     power::PowerMessage,
 };
 use crate::{
@@ -15,18 +16,19 @@ use crate::{
     utils::{
         audio::{AudioCommand, Sink, Source},
         battery::{BatteryData, BatteryStatus},
-        net::{ActiveConnection, NetCommand, Vpn},
+        net::{ActiveConnection, NetCommand, Vpn, WifiConnection, WifiDeviceState},
         Commander,
     },
 };
 use iced::{
+    advanced::Widget,
     theme::Button,
     widget::{
         button, column, container, horizontal_space, mouse_area, row, slider, text, Column, Row,
         Space,
     },
     window::Id,
-    Alignment, Background, Element, Length, Subscription, Theme, advanced::Widget,
+    Alignment, Background, Element, Length, Subscription, Theme,
 };
 
 pub mod audio;
@@ -40,9 +42,12 @@ pub struct Settings {
     net_commander: Commander<NetCommand>,
     sub_menu: Option<SubMenu>,
     battery_data: Option<BatteryData>,
+    wifi_device_state: WifiDeviceState,
+    scanning_nearby_wifi: bool,
     active_connection: Option<ActiveConnection>,
     vpn_active: bool,
     vpn_connections: Vec<Vpn>,
+    nearby_wifi: Vec<WifiConnection>,
     default_sink: String,
     default_source: String,
     sinks: Vec<Sink>,
@@ -87,9 +92,12 @@ impl Settings {
             net_commander: Commander::new(),
             sub_menu: None,
             battery_data: None,
+            wifi_device_state: WifiDeviceState::Unavailable,
+            scanning_nearby_wifi: false,
             active_connection: None,
             vpn_active: false,
             vpn_connections: vec![],
+            nearby_wifi: vec![],
             default_sink: String::new(),
             default_source: String::new(),
             sinks: vec![],
@@ -165,6 +173,10 @@ impl Settings {
                             self.net_commander
                                 .send(NetCommand::GetVpnConnections)
                                 .unwrap();
+                        }
+                        SubMenu::Wifi => {
+                            self.scanning_nearby_wifi = true;
+                            self.net_commander.send(NetCommand::ScanNearByWifi).unwrap();
                         }
                         _ => {}
                     };
@@ -273,39 +285,93 @@ impl Settings {
         .align_items(Alignment::Center)
         .spacing(8);
 
-        let quick_settings = quick_settings_section(vec![
-            // (
-            //     quick_setting_button(
-            //         self.wifi.as_ref().map(|w| w.get_icon()).unwrap_or_default(),
-            //         "Wi-Fi".to_string(),
-            //         self.wifi.as_ref().map(|w| w.connection_ssid.clone()),
-            //         self.wifi.is_some(),
-            //         Some((
-            //             SubMenu::Wifi,
-            //             self.sub_menu,
-            //             Message::ToggleSubMenu(SubMenu::Wifi),
-            //         )),
-            //     ),
-            //     None,
-            // ),
-            (
-                quick_setting_button(
-                    Icons::Vpn,
-                    "Vpn".to_string(),
-                    None,
-                    self.vpn_active,
-                    Message::Net(NetMessage::DeactivateVpns),
+        let wifi_setting_button = self.active_connection.as_ref().map_or_else(
+            || {
+                if self.wifi_device_state != WifiDeviceState::Unavailable {
                     Some((
-                        SubMenu::Vpn,
-                        self.sub_menu,
-                        Message::ToggleSubMenu(SubMenu::Vpn),
-                    )),
-                ),
-                self.sub_menu
-                    .filter(|menu_type| *menu_type == SubMenu::Vpn)
-                    .map(|_| sub_menu_wrapper(vpn_menu(&self.vpn_connections)).map(Message::Net)),
-            ),
-        ]);
+                        quick_setting_button(
+                            Icons::Wifi4,
+                            "Wi-Fi".to_string(),
+                            None,
+                            self.wifi_device_state == WifiDeviceState::Active,
+                            Message::Net(NetMessage::ToggleWifi),
+                            Some((
+                                SubMenu::Wifi,
+                                self.sub_menu,
+                                Message::ToggleSubMenu(SubMenu::Wifi),
+                            )),
+                        ),
+                        self.sub_menu
+                            .filter(|menu_type| *menu_type == SubMenu::Wifi)
+                            .map(|_| {
+                                sub_menu_wrapper(wifi_menu(
+                                    self.scanning_nearby_wifi,
+                                    None,
+                                    &self.nearby_wifi,
+                                ))
+                                .map(Message::Net)
+                            }),
+                    ))
+                } else {
+                    None
+                }
+            },
+            |a| match a {
+                ActiveConnection::Wifi(wifi) => Some((
+                    quick_setting_button(
+                        a.get_icon(),
+                        "Wi-Fi".to_string(),
+                        Some(wifi.ssid.clone()),
+                        true,
+                        Message::Net(NetMessage::ToggleWifi),
+                        Some((
+                            SubMenu::Wifi,
+                            self.sub_menu,
+                            Message::ToggleSubMenu(SubMenu::Wifi),
+                        )),
+                    ),
+                    self.sub_menu
+                        .filter(|menu_type| *menu_type == SubMenu::Wifi)
+                        .map(|_| {
+                            sub_menu_wrapper(wifi_menu(
+                                self.scanning_nearby_wifi,
+                                Some(&wifi),
+                                &self.nearby_wifi,
+                            ))
+                            .map(Message::Net)
+                        }),
+                )),
+                _ => None,
+            },
+        );
+
+        let quick_settings = quick_settings_section(
+            vec![
+                wifi_setting_button,
+                Some((
+                    quick_setting_button(
+                        Icons::Vpn,
+                        "Vpn".to_string(),
+                        None,
+                        self.vpn_active,
+                        Message::Net(NetMessage::DeactivateVpns),
+                        Some((
+                            SubMenu::Vpn,
+                            self.sub_menu,
+                            Message::ToggleSubMenu(SubMenu::Vpn),
+                        )),
+                    ),
+                    self.sub_menu
+                        .filter(|menu_type| *menu_type == SubMenu::Vpn)
+                        .map(|_| {
+                            sub_menu_wrapper(vpn_menu(&self.vpn_connections)).map(Message::Net)
+                        }),
+                )),
+            ]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>(),
+        );
 
         Column::with_children(
             vec![

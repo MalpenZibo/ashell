@@ -580,7 +580,7 @@ dependencies = [
 [[package]]
 name = "cosmic-text"
 version = "0.10.0"
-source = "git+https://github.com/pop-os/cosmic-text.git?branch=refactor#6abf336e6df08771d80232b2d6853269be34ee28"
+source = "git+https://github.com/pop-os/cosmic-text.git#db1530c4ec14bcbb290f9c971d8a6197c90e189a"
 dependencies = [
  "bitflags 2.4.1",
  "fontdb",
@@ -592,6 +592,7 @@ dependencies = [
  "self_cell",
  "swash",
  "sys-locale",
+ "ttf-parser",
  "unicode-bidi",
  "unicode-linebreak",
  "unicode-script",
@@ -1203,7 +1204,7 @@ dependencies = [
 [[package]]
 name = "iced"
 version = "0.12.0"
-source = "git+https://github.com/pop-os/iced?rev=611ce160e6b2ccab388fc8e303d4795a3365afbc#611ce160e6b2ccab388fc8e303d4795a3365afbc"
+source = "git+https://github.com/pop-os/iced?rev=6115280d5277c50b8539d4eff6ab61050c51b592#6115280d5277c50b8539d4eff6ab61050c51b592"
 dependencies = [
  "iced_accessibility",
  "iced_core",
@@ -1217,7 +1218,7 @@ dependencies = [
 [[package]]
 name = "iced_accessibility"
 version = "0.1.0"
-source = "git+https://github.com/pop-os/iced?rev=611ce160e6b2ccab388fc8e303d4795a3365afbc#611ce160e6b2ccab388fc8e303d4795a3365afbc"
+source = "git+https://github.com/pop-os/iced?rev=6115280d5277c50b8539d4eff6ab61050c51b592#6115280d5277c50b8539d4eff6ab61050c51b592"
 dependencies = [
  "accesskit",
  "accesskit_unix",
@@ -1226,7 +1227,7 @@ dependencies = [
 [[package]]
 name = "iced_core"
 version = "0.12.0"
-source = "git+https://github.com/pop-os/iced?rev=611ce160e6b2ccab388fc8e303d4795a3365afbc#611ce160e6b2ccab388fc8e303d4795a3365afbc"
+source = "git+https://github.com/pop-os/iced?rev=6115280d5277c50b8539d4eff6ab61050c51b592#6115280d5277c50b8539d4eff6ab61050c51b592"
 dependencies = [
  "bitflags 1.3.2",
  "iced_accessibility",
@@ -1243,7 +1244,7 @@ dependencies = [
 [[package]]
 name = "iced_futures"
 version = "0.12.0"
-source = "git+https://github.com/pop-os/iced?rev=611ce160e6b2ccab388fc8e303d4795a3365afbc#611ce160e6b2ccab388fc8e303d4795a3365afbc"
+source = "git+https://github.com/pop-os/iced?rev=6115280d5277c50b8539d4eff6ab61050c51b592#6115280d5277c50b8539d4eff6ab61050c51b592"
 dependencies = [
  "futures",
  "iced_core",
@@ -1256,7 +1257,7 @@ dependencies = [
 [[package]]
 name = "iced_graphics"
 version = "0.12.0"
-source = "git+https://github.com/pop-os/iced?rev=611ce160e6b2ccab388fc8e303d4795a3365afbc#611ce160e6b2ccab388fc8e303d4795a3365afbc"
+source = "git+https://github.com/pop-os/iced?rev=6115280d5277c50b8539d4eff6ab61050c51b592#6115280d5277c50b8539d4eff6ab61050c51b592"
 dependencies = [
  "bitflags 1.3.2",
  "bytemuck",
@@ -1276,7 +1277,7 @@ dependencies = [
 [[package]]
 name = "iced_renderer"
 version = "0.12.0"
-source = "git+https://github.com/pop-os/iced?rev=611ce160e6b2ccab388fc8e303d4795a3365afbc#611ce160e6b2ccab388fc8e303d4795a3365afbc"
+source = "git+https://github.com/pop-os/iced?rev=6115280d5277c50b8539d4eff6ab61050c51b592#6115280d5277c50b8539d4eff6ab61050c51b592"
 dependencies = [
  "iced_graphics",
  "iced_tiny_skia",
@@ -1288,7 +1289,7 @@ dependencies = [
 [[package]]
 name = "iced_runtime"
 version = "0.12.0"
-source = "git+https://github.com/pop-os/iced?rev=611ce160e6b2ccab388fc8e303d4795a3365afbc#611ce160e6b2ccab388fc8e303d4795a3365afbc"
+source = "git+https://github.com/pop-os/iced?rev=6115280d5277c50b8539d4eff6ab61050c51b592#6115280d5277c50b8539d4eff6ab61050c51b592"
 dependencies = [
  "iced_accessibility",
  "iced_core",
@@ -1300,7 +1301,7 @@ dependencies = [
 [[package]]
 name = "iced_sctk"
 version = "0.1.0"
-source = "git+https://github.com/pop-os/iced?rev=611ce160e6b2ccab388fc8e303d4795a3365afbc#611ce160e6b2ccab388fc8e303d4795a3365afbc"
+source = "git+https://github.com/pop-os/iced?rev=6115280d5277c50b8539d4eff6ab61050c51b592#6115280d5277c50b8539d4eff6ab61050c51b592"
 dependencies = [
  "enum-repr",
  "float-cmp",
@@ -1324,7 +1325,7 @@ dependencies = [
 [[package]]
 name = "iced_style"
 version = "0.12.0"
-source = "git+https://github.com/pop-os/iced?rev=611ce160e6b2ccab388fc8e303d4795a3365afbc#611ce160e6b2ccab388fc8e303d4795a3365afbc"
+source = "git+https://github.com/pop-os/iced?rev=6115280d5277c50b8539d4eff6ab61050c51b592#6115280d5277c50b8539d4eff6ab61050c51b592"
 dependencies = [
  "iced_core",
  "once_cell",
@@ -1334,7 +1335,7 @@ dependencies = [
 [[package]]
 name = "iced_tiny_skia"
 version = "0.12.0"
-source = "git+https://github.com/pop-os/iced?rev=611ce160e6b2ccab388fc8e303d4795a3365afbc#611ce160e6b2ccab388fc8e303d4795a3365afbc"
+source = "git+https://github.com/pop-os/iced?rev=6115280d5277c50b8539d4eff6ab61050c51b592#6115280d5277c50b8539d4eff6ab61050c51b592"
 dependencies = [
  "bytemuck",
  "cosmic-text",
@@ -1351,7 +1352,7 @@ dependencies = [
 [[package]]
 name = "iced_widget"
 version = "0.12.0"
-source = "git+https://github.com/pop-os/iced?rev=611ce160e6b2ccab388fc8e303d4795a3365afbc#611ce160e6b2ccab388fc8e303d4795a3365afbc"
+source = "git+https://github.com/pop-os/iced?rev=6115280d5277c50b8539d4eff6ab61050c51b592#6115280d5277c50b8539d4eff6ab61050c51b592"
 dependencies = [
  "iced_renderer",
  "iced_runtime",

@@ -45,7 +45,7 @@ pub enum Icons {
     Brightness,
     Point,
     Close,
-    VerticalDots
+    VerticalDots,
 }
 
 impl From<Icons> for &'static str {
