@@ -249,7 +249,7 @@ async fn get_wifi_devices<'a>(
 }
 
 async fn get_current_connection<'a>(
-    connections: &Vec<OwnedObjectPath>,
+    connections: &[OwnedObjectPath],
     conn: zbus::Connection,
     current_access_point_proxy: &mut Option<AccessPointProxy<'a>>,
 ) -> Option<ActiveConnection> {
@@ -344,7 +344,7 @@ async fn get_current_connection<'a>(
     }
 }
 
-async fn get_vpn_active(connections: &Vec<OwnedObjectPath>, conn: zbus::Connection) -> bool {
+async fn get_vpn_active(connections: &[OwnedObjectPath], conn: zbus::Connection) -> bool {
     stream::iter(connections.iter())
         .any(|c| {
             let conn = conn.clone();
@@ -364,8 +364,8 @@ async fn get_vpn_active(connections: &Vec<OwnedObjectPath>, conn: zbus::Connecti
 }
 
 async fn get_vpn_connections(
-    connections: &Vec<OwnedObjectPath>,
-    active_connections: &Vec<OwnedObjectPath>,
+    connections: &[OwnedObjectPath],
+    active_connections: &[OwnedObjectPath],
     conn: zbus::Connection,
 ) -> Vec<Vpn> {
     let active_vpns_name = stream::iter(active_connections.iter())
@@ -444,7 +444,7 @@ async fn get_vpn_connections(
 
 async fn find_connection(
     name: &str,
-    connections: &Vec<OwnedObjectPath>,
+    connections: &[OwnedObjectPath],
     conn: zbus::Connection,
 ) -> Option<OwnedObjectPath> {
     stream::iter(connections.iter())
@@ -485,7 +485,7 @@ async fn find_connection(
 
 async fn find_active_connection(
     name: &str,
-    active_connections: &Vec<OwnedObjectPath>,
+    active_connections: &[OwnedObjectPath],
     conn: zbus::Connection,
 ) -> Option<OwnedObjectPath> {
     stream::iter(active_connections.iter())
@@ -563,7 +563,7 @@ async fn get_kown_wifi_connection<'a>(
 async fn get_nearby_wifi<'a>(
     wifi_devices: Vec<DeviceWirelessProxy<'a>>,
     conn: zbus::Connection,
-    known_connections: &Vec<String>,
+    known_connections: &[String],
     active_wifi_connection: Option<&String>,
 ) -> Vec<WifiConnection> {
     let mut connections: Vec<WifiConnection> = vec![];

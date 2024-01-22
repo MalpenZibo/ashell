@@ -1,7 +1,9 @@
 use std::fs::File;
 
 use app::App;
-use flexi_logger::{Age, Cleanup, Criterion, FileSpec, LogSpecification, Logger, Naming};
+use flexi_logger::{
+    Age, Cleanup, Criterion, FileSpec, LogSpecBuilder, LogSpecification, Logger, Naming,
+};
 use iced::{
     wayland::{
         actions::layer_surface::SctkLayerSurfaceSettings,
@@ -50,16 +52,13 @@ async fn main() {
         Config::default()
     };
 
-    Logger::with(match config.log_level {
-        log::LevelFilter::Off => LogSpecification::off(),
-        log::LevelFilter::Error => LogSpecification::error(),
-        log::LevelFilter::Warn => LogSpecification::warn(),
-        log::LevelFilter::Info => LogSpecification::info(),
-        log::LevelFilter::Debug => LogSpecification::debug(),
-        log::LevelFilter::Trace => LogSpecification::trace(),
-    })
-    .log_to_stdout()
+    Logger::with(
+        LogSpecBuilder::new()
+            .module("ashell", config.log_level)
+            .build(),
+    )
     .log_to_file(FileSpec::default().directory("/tmp/ashell"))
+    .duplicate_to_stderr(flexi_logger::Duplicate::All)
     .rotate(
         Criterion::Age(Age::Day),
         Naming::Timestamps,

@@ -1,7 +1,7 @@
 use hyprland::{data::Client, event_listener::EventListener, shared::HyprDataActiveOptional};
 use iced::{
     widget::{container, text},
-    BorderRadius, Element, Theme,
+    Element,
 };
 use std::cell::RefCell;
 
@@ -37,6 +37,7 @@ impl Title {
         self.value.as_ref().map(|value| {
             container(text(value).size(12))
                 .padding([4, 8])
+                .height(26)
                 .style(header_pills)
                 .into()
         })

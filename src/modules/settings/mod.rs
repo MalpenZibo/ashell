@@ -3,7 +3,7 @@ use self::{
     battery::{battery_indicator, settings_battery_indicator},
     net::{
         active_connection_indicator, get_wifi_quick_setting_button, vpn_indicator, vpn_menu,
-        wifi_menu, NetMessage,
+        NetMessage,
     },
     power::PowerMessage,
 };
@@ -13,8 +13,8 @@ use crate::{
     menu::{close_menu, open_menu},
     modules::settings::{audio::SubmenuEntry, power::power_menu},
     style::{
-        HeaderButtonStyle, QuickSettingsSubMenuButtonStyle, SettingsButtonStyle, MANTLE, PEACH,
-        SURFACE_0, TEXT,
+        HeaderButtonStyle, QuickSettingsButtonStyle, QuickSettingsSubMenuButtonStyle,
+        SettingsButtonStyle, MANTLE, SURFACE_0,
     },
     utils::{
         audio::{AudioCommand, Sink, Source},
@@ -26,7 +26,7 @@ use crate::{
 use iced::{
     theme::Button,
     widget::{
-        button, column, container, horizontal_space, mouse_area, row, slider, text, Column, Row,
+        button, column, container, horizontal_space, row, slider, text, vertical_rule, Column, Row,
         Space,
     },
     window::Id,
@@ -448,58 +448,61 @@ fn quick_setting_button<'a, Msg: Clone + 'static>(
     on_press: Msg,
     with_submenu: Option<(SubMenu, Option<SubMenu>, Msg)>,
 ) -> Element<'a, Msg> {
-    mouse_area(
-        container(
-            Row::with_children(
-                vec![
-                    Some(icon(icon_type).into()),
-                    Some(
-                        Column::with_children(
-                            vec![
-                                Some(text(title).into()),
-                                subtitle.map(|s| text(s).size(12).into()),
-                            ]
-                            .into_iter()
-                            .flatten()
-                            .collect::<Vec<_>>(),
-                        )
-                        .spacing(2)
-                        .width(Length::Shrink)
-                        .into(),
-                    ),
-                    with_submenu
-                        .as_ref()
-                        .map(|_| horizontal_space(Length::Fill).into()),
-                    with_submenu.map(|(menu_type, submenu, msg)| {
-                        button(icon(if Some(menu_type) == submenu {
+    let main_content = row!(
+        icon(icon_type),
+        Column::with_children(
+            vec![
+                Some(text(title).size(12).into()),
+                subtitle.map(|s| text(s).size(10).into()),
+            ]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>(),
+        )
+        .spacing(4)
+    )
+    .spacing(4)
+    .width(Length::Fill)
+    .align_items(Alignment::Center);
+
+    button(
+        Row::with_children(
+            vec![
+                Some(main_content.into()),
+                with_submenu.as_ref().map(|_| vertical_rule(1).into()),
+                with_submenu.map(|(menu_type, submenu, msg)| {
+                    button(
+                        container(icon(if Some(menu_type) == submenu {
                             Icons::Close
                         } else {
                             Icons::VerticalDots
                         }))
-                        .padding([4, 8])
-                        .on_press(msg)
-                        .style(Button::custom(QuickSettingsSubMenuButtonStyle(active)))
-                        .into()
-                    }),
-                ]
-                .into_iter()
-                .flatten()
-                .collect::<Vec<_>>(),
-            )
-            .align_items(Alignment::Center)
-            .spacing(8),
+                        .height(Length::Fill)
+                        .width(Length::Fill)
+                        .align_y(iced::alignment::Vertical::Center)
+                        .align_x(iced::alignment::Horizontal::Center),
+                    )
+                    .padding([4, 12])
+                    .style(Button::custom(QuickSettingsSubMenuButtonStyle(active)))
+                    .height(Length::Shrink)
+                    .on_press(msg)
+                    .into()
+                }),
+            ]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>(),
         )
-        .padding([4, 8])
-        .align_y(iced::alignment::Vertical::Center)
-        .style(move |_: &Theme| iced::widget::container::Appearance {
-            background: Some(Background::Color(if active { PEACH } else { SURFACE_0 })),
-            text_color: Some(if active { SURFACE_0 } else { TEXT }),
-            border_radius: 32.0.into(),
-            ..Default::default()
-        })
-        .width(Length::Fill)
-        .height(Length::Fixed(50.)),
+        .spacing(4)
+        .align_items(Alignment::Center)
+        .height(Length::Fill),
     )
+    .padding([4, 8])
     .on_press(on_press)
+    .height(Length::Fill)
+    .width(Length::Fill)
+    .style(Button::custom(QuickSettingsButtonStyle(active)))
+    .width(Length::Fill)
+    .height(Length::Fixed(50.))
     .into()
 }

@@ -7,7 +7,7 @@ use libpulse_binding::{
     mainloop::standard::{IterateResult, Mainloop},
     proplist::Proplist,
 };
-use log::error;
+use log::{error, trace};
 use pulse::{
     callbacks::ListResult,
     context::{
@@ -128,8 +128,10 @@ fn create_sink(data: &SinkInfo) -> Option<Sink> {
 }
 
 fn create_source(data: &SourceInfo) -> Option<Source> {
+    trace!("create source data: {:?}", data);
     if data.state == SourceState::Running
         && data.ports.iter().any(|p| p.available != PortAvailable::No)
+            && data.monitor_of_sink.is_none()
     {
         Some(Source {
             name: data

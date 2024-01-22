@@ -1,7 +1,7 @@
-use iced::{theme::Palette, widget::button, widget::slider, BorderRadius, Color, Theme};
+use iced::{theme::Palette, widget::button, BorderRadius, Color, Theme};
 
 pub const BASE: Color = Color::from_rgb(0.117_647_06, 0.117_647_06, 0.180_392_16);
-pub const MANTLE: Color = Color::from_rgb(0.094117647, 0.094117647, 0.145098039);
+pub const MANTLE: Color = Color::from_rgb(0.094_117_65, 0.094_117_66, 0.145_098_05);
 pub const CRUST: Color = Color::from_rgb(0.066_666_67, 0.066_666_68, 0.105_882_353);
 pub const SURFACE_0: Color = Color::from_rgb(0.192_156_87, 0.196_078_43, 0.266_666_68);
 pub const SURFACE_1: Color = Color::from_rgb(0.270_588_25, 0.278_431_43, 0.352_941_26);
@@ -156,6 +156,36 @@ pub struct SliderStyle;
 //         self.active(style)
 //     }
 // }
+
+pub struct QuickSettingsButtonStyle(pub bool);
+
+impl button::StyleSheet for QuickSettingsButtonStyle {
+    type Style = iced::theme::Theme;
+
+    fn active(&self, _: &Self::Style) -> button::Appearance {
+        button::Appearance {
+            background: Some(if self.0 {
+                iced::Background::Color(PEACH)
+            } else {
+                iced::Background::Color(SURFACE_0)
+            }),
+            border_radius: BorderRadius::from(32.0),
+            border_width: 0.0,
+            border_color: iced::Color::TRANSPARENT,
+            text_color: if self.0 { SURFACE_0 } else { TEXT },
+            ..button::Appearance::default()
+        }
+    }
+
+    fn hovered(&self, style: &Self::Style) -> button::Appearance {
+        let peach = style.extended_palette().primary.weak.color;
+
+        button::Appearance {
+            background: Some(if self.0 { peach } else { SURFACE_1 }.into()),
+            ..self.active(style)
+        }
+    }
+}
 
 pub struct QuickSettingsSubMenuButtonStyle(pub bool);
 
