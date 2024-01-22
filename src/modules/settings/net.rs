@@ -6,13 +6,12 @@ use crate::{
     },
 };
 use iced::{
-    alignment::Horizontal,
     theme::Button,
-    widget::{button, column, container, horizontal_rule, row, text, toggler, Column, Text},
-    Element,
+    widget::{button, column, horizontal_rule, row, text, toggler, Column, Text},
+    Element, Length,
 };
 
-use super::Settings;
+use super::{quick_setting_button, sub_menu_wrapper, Message, Settings, SubMenu};
 
 #[derive(Debug, Clone)]
 pub enum NetMessage {
@@ -23,13 +22,11 @@ pub enum NetMessage {
     VpnActive(bool),
     VpnConnections(Vec<Vpn>),
     VpnToggle(String),
-    DeactivateVpns,
     NearByWifi(Vec<WifiConnection>),
 }
 
 impl NetMessage {
     pub fn update(self, settings: &mut Settings) {
-        println!("{:?}", self);
         match self {
             NetMessage::WifiDeviceState(state) => {
                 settings.wifi_device_state = state;
@@ -38,7 +35,7 @@ impl NetMessage {
                 settings.active_connection = connection;
             }
             NetMessage::ToggleWifi => {
-                // let _ = settings.net_commander.send(NetCommand::ToggleWifi);
+                let _ = settings.net_commander.send(NetCommand::ToggleWifi);
             }
             NetMessage::ScanNearByWifi => {
                 settings.scanning_nearby_wifi = true;
@@ -64,14 +61,6 @@ impl NetMessage {
                     }
                 }
             }
-            NetMessage::DeactivateVpns => {
-                for vpn in settings.vpn_connections.iter_mut() {
-                    vpn.is_active = false;
-                    let _ = settings
-                        .net_commander
-                        .send(NetCommand::DeactivateVpn(vpn.name.clone()));
-                }
-            }
             NetMessage::NearByWifi(connections) => {
                 settings.scanning_nearby_wifi = false;
                 settings.nearby_wifi = connections;
@@ -91,30 +80,95 @@ pub fn vpn_indicator<'a>() -> Text<'a, iced::Renderer> {
     icon(Icons::Vpn).style(YELLOW)
 }
 
+pub fn get_wifi_quick_setting_button<'a>(
+    settings: &Settings,
+) -> Option<(Element<'a, Message>, Option<Element<'a, Message>>)> {
+    settings.active_connection.as_ref().map_or_else(
+        || {
+            if settings.wifi_device_state != WifiDeviceState::Unavailable {
+                Some((
+                    quick_setting_button(
+                        Icons::Wifi0,
+                        "Wi-Fi".to_string(),
+                        None,
+                        settings.wifi_device_state == WifiDeviceState::Active,
+                        Message::Net(NetMessage::ToggleWifi),
+                        Some((
+                            SubMenu::Wifi,
+                            settings.sub_menu,
+                            Message::ToggleSubMenu(SubMenu::Wifi),
+                        ))
+                        .filter(|_| settings.wifi_device_state == WifiDeviceState::Active),
+                    ),
+                    settings
+                        .sub_menu
+                        .filter(|menu_type| *menu_type == SubMenu::Wifi)
+                        .map(|_| {
+                            sub_menu_wrapper(wifi_menu(
+                                settings.scanning_nearby_wifi,
+                                None,
+                                &settings.nearby_wifi,
+                            ))
+                            .map(Message::Net)
+                        }),
+                ))
+            } else {
+                None
+            }
+        },
+        |a| match a {
+            ActiveConnection::Wifi(wifi) => Some((
+                quick_setting_button(
+                    a.get_icon(),
+                    "Wi-Fi".to_string(),
+                    Some(wifi.ssid.clone()),
+                    true,
+                    Message::Net(NetMessage::ToggleWifi),
+                    Some((
+                        SubMenu::Wifi,
+                        settings.sub_menu,
+                        Message::ToggleSubMenu(SubMenu::Wifi),
+                    )),
+                ),
+                settings
+                    .sub_menu
+                    .filter(|menu_type| *menu_type == SubMenu::Wifi)
+                    .map(|_| {
+                        sub_menu_wrapper(wifi_menu(
+                            settings.scanning_nearby_wifi,
+                            Some(&wifi),
+                            &settings.nearby_wifi,
+                        ))
+                        .map(Message::Net)
+                    }),
+            )),
+            _ => None,
+        },
+    )
+}
+
 pub fn wifi_menu<'a>(
     scanning_nearby_wifi: bool,
     active_connection: Option<&Wifi>,
     nearby_wifi: &Vec<WifiConnection>,
 ) -> Element<'a, NetMessage> {
     column!(
-        container(
-            row!(
-                text(if scanning_nearby_wifi {
-                    "Scanning..."
-                } else {
-                    ""
-                })
-                .size(12),
-                button(icon(Icons::Refresh))
-                    .padding([4, 8])
-                    .style(Button::custom(SettingsButtonStyle))
-                    .on_press(NetMessage::ScanNearByWifi),
-            )
-            .spacing(8)
-            .align_items(iced::Alignment::Center),
+        row!(
+            text("Nearby Wifi").width(Length::Fill),
+            text(if scanning_nearby_wifi {
+                "Scanning..."
+            } else {
+                ""
+            })
+            .size(12),
+            button(icon(Icons::Refresh))
+                .padding([4, 8])
+                .style(Button::custom(SettingsButtonStyle))
+                .on_press(NetMessage::ScanNearByWifi),
         )
+        .spacing(8)
         .width(iced::Length::Fill)
-        .align_x(Horizontal::Right),
+        .align_items(iced::Alignment::Center),
         horizontal_rule(1),
         Column::with_children(
             nearby_wifi
@@ -133,14 +187,15 @@ pub fn wifi_menu<'a>(
                             .style(color)
                             .width(iced::Length::Fill),
                     )
+                    .align_items(iced::Alignment::Center)
                     .spacing(8)
                     .into()
                 })
                 .collect::<Vec<Element<'a, NetMessage>>>(),
         )
-        .spacing(8)
+        .spacing(4)
     )
-    .spacing(4)
+    .spacing(8)
     .into()
 }
 

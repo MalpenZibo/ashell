@@ -7,6 +7,7 @@ use libpulse_binding::{
     mainloop::standard::{IterateResult, Mainloop},
     proplist::Proplist,
 };
+use log::error;
 use pulse::{
     callbacks::ListResult,
     context::{
@@ -188,7 +189,7 @@ fn populate_and_send_sinks(
             let _ = tx.send(AudioMessage::SinkChanges(sinks.clone()));
             sinks.clear();
         }
-        ListResult::Error => println!("Error"),
+        ListResult::Error => error!("Error during sink list population"),
     }
 }
 
@@ -207,7 +208,7 @@ fn populate_and_send_sources(
             let _ = tx.send(AudioMessage::SourceChanges(sources.clone()));
             sources.clear();
         }
-        ListResult::Error => println!("Error"),
+        ListResult::Error => error!("Error during source list population"),
     }
 }
 
@@ -465,7 +466,7 @@ pub fn subscription(
                         .union(InterestMaskSet::SOURCE),
                     |res| {
                         if !res {
-                            println!("Subscription failed!");
+                            error!("Audio subscription failed!");
                         }
                     },
                 );
@@ -540,7 +541,7 @@ pub fn subscription(
                 loop {
                     let data = mainloop.borrow_mut().iterate(true);
                     if let IterateResult::Quit(_) | IterateResult::Err(_) = data {
-                        println!("PulseAudio mainloop error");
+                        error!("PulseAudio mainloop error");
                     }
                 }
             });

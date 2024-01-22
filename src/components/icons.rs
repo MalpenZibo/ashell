@@ -98,5 +98,4 @@ impl From<Icons> for &'static str {
 pub fn icon<'a>(r#type: Icons) -> Text<'a> {
     text(std::convert::Into::<&'static str>::into(r#type))
         .font(Font::with_name("Symbols Nerd Font Mono"))
-        .size(12)
 }

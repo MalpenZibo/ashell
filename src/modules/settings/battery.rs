@@ -19,6 +19,8 @@ pub fn battery_indicator<'a, Message>(data: BatteryData) -> Row<'a, Message, ice
         icon(icon_type).style(color),
         text(format!("{}%", data.capacity)).style(color)
     )
+    .spacing(4)
+    .align_items(iced::Alignment::Center)
 }
 
 pub fn settings_battery_indicator<'a, Message: 'static>(
@@ -44,7 +46,7 @@ pub fn settings_battery_indicator<'a, Message: 'static>(
             BatteryStatus::Full => row!(battery_info),
         }
     })
-    .padding(8)
+    .padding([8, 16])
     .style(move |_: &Theme| iced::widget::container::Appearance {
         background: iced::Background::Color(SURFACE_0).into(),
         border_radius: 32.0.into(),

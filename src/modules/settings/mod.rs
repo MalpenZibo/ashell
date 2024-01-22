@@ -1,7 +1,10 @@
 use self::{
     audio::{audio_submenu, get_audio_sliders, sink_indicator, source_indicator, AudioMessage},
     battery::{battery_indicator, settings_battery_indicator},
-    net::{active_connection_indicator, vpn_indicator, vpn_menu, wifi_menu, NetMessage},
+    net::{
+        active_connection_indicator, get_wifi_quick_setting_button, vpn_indicator, vpn_menu,
+        wifi_menu, NetMessage,
+    },
     power::PowerMessage,
 };
 use crate::{
@@ -21,7 +24,6 @@ use crate::{
     },
 };
 use iced::{
-    advanced::Widget,
     theme::Button,
     widget::{
         button, column, container, horizontal_space, mouse_area, row, slider, text, Column, Row,
@@ -115,22 +117,25 @@ impl Settings {
         menu_type: &mut Option<OpenMenu>,
     ) -> iced::Command<Message> {
         match message {
-            Message::ToggleMenu => match *menu_type {
-                Some(OpenMenu::Settings) => {
-                    menu_type.take();
+            Message::ToggleMenu => {
+                self.sub_menu = None;
+                match *menu_type {
+                    Some(OpenMenu::Settings) => {
+                        menu_type.take();
 
-                    close_menu(menu_id)
-                }
-                Some(_) => {
-                    menu_type.replace(OpenMenu::Settings);
-                    iced::Command::none()
-                }
-                None => {
-                    menu_type.replace(OpenMenu::Settings);
+                        close_menu(menu_id)
+                    }
+                    Some(_) => {
+                        menu_type.replace(OpenMenu::Settings);
+                        iced::Command::none()
+                    }
+                    None => {
+                        menu_type.replace(OpenMenu::Settings);
 
-                    open_menu(menu_id)
+                        open_menu(menu_id)
+                    }
                 }
-            },
+            }
             Message::Battery(msg) => {
                 match msg {
                     BatteryMessage::PercentageChanged(percentage) => {
@@ -230,6 +235,7 @@ impl Settings {
 
         button(elements)
             .style(Button::custom(HeaderButtonStyle::Right))
+            .padding([4, 8])
             .on_press(Message::ToggleMenu)
             .into()
     }
@@ -238,7 +244,7 @@ impl Settings {
         let battery_data = self.battery_data.map(settings_battery_indicator);
         let right_buttons = row!(
             button(icon(Icons::Lock))
-                .padding([8, 10])
+                .padding([8, 13])
                 .on_press(Message::Lock)
                 .style(Button::custom(SettingsButtonStyle)),
             button(icon(if self.sub_menu == Some(SubMenu::Power) {
@@ -246,16 +252,18 @@ impl Settings {
             } else {
                 Icons::Power
             }))
-            .padding([8, 10])
+            .padding([8, 13])
             .on_press(Message::ToggleSubMenu(SubMenu::Power))
             .style(Button::custom(SettingsButtonStyle))
         )
         .spacing(8);
 
         let header = if let Some(battery_data) = battery_data {
-            row!(battery_data, Space::with_width(Length::Fill), right_buttons).width(Length::Fill)
+            row!(battery_data, Space::with_width(Length::Fill), right_buttons)
+                .align_items(Alignment::Center)
+                .width(Length::Fill)
         } else {
-            row!(Space::with_width(Length::Fill), right_buttons)
+            row!(Space::with_width(Length::Fill), right_buttons).align_items(Alignment::Center)
         };
 
         let (sink_slider, source_slider) = get_audio_sliders(
@@ -268,7 +276,7 @@ impl Settings {
 
         let brightness_slider = row!(
             container(icon(Icons::Brightness))
-                .padding([8, 10])
+                .padding([8, 11])
                 .style(|_: &Theme| iced::widget::container::Appearance {
                     background: Background::Color(SURFACE_0).into(),
                     border_radius: 32.0.into(),
@@ -285,66 +293,7 @@ impl Settings {
         .align_items(Alignment::Center)
         .spacing(8);
 
-        let wifi_setting_button = self.active_connection.as_ref().map_or_else(
-            || {
-                if self.wifi_device_state != WifiDeviceState::Unavailable {
-                    Some((
-                        quick_setting_button(
-                            Icons::Wifi4,
-                            "Wi-Fi".to_string(),
-                            None,
-                            self.wifi_device_state == WifiDeviceState::Active,
-                            Message::Net(NetMessage::ToggleWifi),
-                            Some((
-                                SubMenu::Wifi,
-                                self.sub_menu,
-                                Message::ToggleSubMenu(SubMenu::Wifi),
-                            )),
-                        ),
-                        self.sub_menu
-                            .filter(|menu_type| *menu_type == SubMenu::Wifi)
-                            .map(|_| {
-                                sub_menu_wrapper(wifi_menu(
-                                    self.scanning_nearby_wifi,
-                                    None,
-                                    &self.nearby_wifi,
-                                ))
-                                .map(Message::Net)
-                            }),
-                    ))
-                } else {
-                    None
-                }
-            },
-            |a| match a {
-                ActiveConnection::Wifi(wifi) => Some((
-                    quick_setting_button(
-                        a.get_icon(),
-                        "Wi-Fi".to_string(),
-                        Some(wifi.ssid.clone()),
-                        true,
-                        Message::Net(NetMessage::ToggleWifi),
-                        Some((
-                            SubMenu::Wifi,
-                            self.sub_menu,
-                            Message::ToggleSubMenu(SubMenu::Wifi),
-                        )),
-                    ),
-                    self.sub_menu
-                        .filter(|menu_type| *menu_type == SubMenu::Wifi)
-                        .map(|_| {
-                            sub_menu_wrapper(wifi_menu(
-                                self.scanning_nearby_wifi,
-                                Some(&wifi),
-                                &self.nearby_wifi,
-                            ))
-                            .map(Message::Net)
-                        }),
-                )),
-                _ => None,
-            },
-        );
-
+        let wifi_setting_button = get_wifi_quick_setting_button(self);
         let quick_settings = quick_settings_section(
             vec![
                 wifi_setting_button,
@@ -354,12 +303,8 @@ impl Settings {
                         "Vpn".to_string(),
                         None,
                         self.vpn_active,
-                        Message::Net(NetMessage::DeactivateVpns),
-                        Some((
-                            SubMenu::Vpn,
-                            self.sub_menu,
-                            Message::ToggleSubMenu(SubMenu::Vpn),
-                        )),
+                        Message::ToggleSubMenu(SubMenu::Vpn),
+                        None,
                     ),
                     self.sub_menu
                         .filter(|menu_type| *menu_type == SubMenu::Vpn)
@@ -531,6 +476,7 @@ fn quick_setting_button<'a, Msg: Clone + 'static>(
                         } else {
                             Icons::VerticalDots
                         }))
+                        .padding([4, 8])
                         .on_press(msg)
                         .style(Button::custom(QuickSettingsSubMenuButtonStyle(active)))
                         .into()

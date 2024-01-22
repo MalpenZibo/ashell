@@ -9,6 +9,7 @@ use iced::{
     window::Id,
     Element, Length,
 };
+use log::error;
 use serde::Deserialize;
 use std::{process::Stdio, time::Duration};
 use tokio::{process::Command, time::sleep};
@@ -51,7 +52,7 @@ async fn check_update_now() -> Vec<Update> {
             new_updates
         }
         Err(e) => {
-            println!("Error: {:?}", e);
+            error!("Error: {:?}", e);
             vec![]
         }
     }
@@ -161,9 +162,8 @@ impl Updates {
                 State::Ready if self.updates.is_empty() => Icons::NoUpdatesAvailable,
                 _ => Icons::UpdatesAvailable,
             })
-            .size(14)
-        )
-        .padding([0, 1]))
+            .size(18)
+        ))
         .align_items(iced::Alignment::Center)
         .spacing(4);
 
@@ -172,13 +172,13 @@ impl Updates {
         }
 
         button(content)
+            .padding([0, 6])
             .style(iced::theme::Button::custom(HeaderButtonStyle::Full))
             .on_press(Message::ToggleMenu)
             .into()
     }
 
     pub fn menu_view(&self) -> Element<Message> {
-        println!("Updates menu view");
         column!(
             if self.updates.is_empty() {
                 std::convert::Into::<Element<'_, _, _>>::into(

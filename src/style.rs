@@ -165,7 +165,7 @@ impl button::StyleSheet for QuickSettingsSubMenuButtonStyle {
     fn active(&self, style: &Self::Style) -> button::Appearance {
         button::Appearance {
             background: None,
-            border_radius: BorderRadius::from(4.0),
+            border_radius: BorderRadius::from(16.0),
             border_width: 0.0,
             border_color: iced::Color::TRANSPARENT,
             text_color: if self.0 {

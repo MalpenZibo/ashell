@@ -160,8 +160,8 @@ impl Application for App {
 
                 centerbox::Centerbox::new([left.into(), center.into(), right.into()])
                     .spacing(4)
-                    .width(Length::Fill)
-                    .height(Length::Fill)
+                    .width(Length::Fixed(1440.))
+                    .height(Length::Shrink)
                     .align_items(Alignment::Center)
                     .padding(4)
                     .into()

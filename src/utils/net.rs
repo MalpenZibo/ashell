@@ -45,6 +45,12 @@ trait NetworkManager {
 
     #[dbus_proxy(property)]
     fn devices(&self) -> Result<Vec<OwnedObjectPath>>;
+
+    #[dbus_proxy(property)]
+    fn wireless_enabled(&self) -> Result<bool>;
+
+    #[dbus_proxy(property)]
+    fn set_wireless_enabled(&self, value: bool) -> Result<()>;
 }
 
 #[dbus_proxy(
@@ -477,6 +483,37 @@ async fn find_connection(
         .next()
 }
 
+async fn find_active_connection(
+    name: &str,
+    active_connections: &Vec<OwnedObjectPath>,
+    conn: zbus::Connection,
+) -> Option<OwnedObjectPath> {
+    stream::iter(active_connections.iter())
+        .filter_map(|c| {
+            let conn = conn.clone();
+            async move {
+                let connection = ActiveConnectionProxy::builder(&conn)
+                    .path(c.to_owned())
+                    .unwrap()
+                    .build()
+                    .await
+                    .unwrap();
+
+                let id = connection.id().await.unwrap();
+
+                if id == name {
+                    Some(c.to_owned())
+                } else {
+                    None
+                }
+            }
+        })
+        .collect::<Vec<_>>()
+        .await
+        .into_iter()
+        .next()
+}
+
 async fn get_kown_wifi_connection<'a>(
     settings: SettingsProxy<'a>,
     conn: &zbus::Connection,
@@ -589,8 +626,17 @@ async fn get_nearby_wifi_stream<'a>(
     select_all(nearby_wifi)
 }
 
+fn wireless_enabled_to_state(enabled: bool) -> WifiDeviceState {
+    if enabled {
+        WifiDeviceState::Active
+    } else {
+        WifiDeviceState::Inactive
+    }
+}
+
 pub enum NetCommand {
     ScanNearByWifi,
+    ToggleWifi,
     GetVpnConnections,
     ActivateVpn(String),
     DeactivateVpn(String),
@@ -625,12 +671,13 @@ pub fn subscription(
             let wifi_devices = get_wifi_devices(nm.devices().await.unwrap(), conn.clone()).await;
             let _ = output
                 .send(NetMessage::WifiDeviceState(if wifi_devices.len() > 0 {
-                    WifiDeviceState::Active
+                    wireless_enabled_to_state(nm.wireless_enabled().await.unwrap())
                 } else {
                     WifiDeviceState::Unavailable
                 }))
                 .await;
 
+            let mut wireless_enabled_changed = nm.receive_wireless_enabled_changed().await;
             let mut devices_changed = nm.receive_devices_changed().await;
             let mut active_connections = nm.receive_active_connections_changed().await;
             let mut nearby_wifi =
@@ -650,8 +697,15 @@ pub fn subscription(
                                 NetCommand::ScanNearByWifi => {
                                     let wifi_devices = get_wifi_devices(nm.devices().await.unwrap(), conn.clone()).await;
                                     for d in wifi_devices.iter() {
-                                        d.request_scan(HashMap::new()).await.unwrap();
+                                        let _ = d.request_scan(HashMap::new()).await;
                                     }
+                                }
+                                NetCommand::ToggleWifi => {
+                                    let _ = if nm.wireless_enabled().await.unwrap() {
+                                        nm.set_wireless_enabled(false).await
+                                    } else {
+                                        nm.set_wireless_enabled(true).await
+                                    };
                                 }
                                 NetCommand::GetVpnConnections => {
                                     let connections = settings.connections().await.unwrap();
@@ -677,7 +731,7 @@ pub fn subscription(
                                     }
                                 }
                                 NetCommand::DeactivateVpn(name) => {
-                                    let object_path = find_connection(
+                                    let object_path = find_active_connection(
                                         &name,
                                         &nm.active_connections().await.unwrap(),
                                         conn.clone()
@@ -692,6 +746,13 @@ pub fn subscription(
                             }
                         }
                     },
+                    v = wireless_enabled_changed.next().fuse() => {
+                        if let Some(state) = v {
+                            let _ = output.send(NetMessage::WifiDeviceState(
+                                wireless_enabled_to_state(state.get().await.unwrap())
+                            )).await;
+                        }
+                    }
                     v = devices_changed.next().fuse() => {
                         if let Some(_) = v {
                             let wifi_devices = get_wifi_devices(nm.devices().await.unwrap(), conn.clone()).await;
@@ -700,7 +761,9 @@ pub fn subscription(
                                     nm.devices().await.unwrap(),
                                     conn.clone()
                                 ).await;
-                                let _ = output.send(NetMessage::WifiDeviceState(WifiDeviceState::Active)).await;
+                                let _ = output.send(NetMessage::WifiDeviceState(
+                                    wireless_enabled_to_state(nm.wireless_enabled().await.unwrap())
+                                )).await;
                             } else {
                                 let _ = output.send(NetMessage::WifiDeviceState(WifiDeviceState::Unavailable)).await;
                             };
@@ -751,7 +814,7 @@ pub fn subscription(
                                 ).await,
                                 conn.clone(),
                                 &get_kown_wifi_connection(settings.clone(), &conn).await,
-                                if let ActiveConnection::Wifi(wifi) = active_connection.as_ref().unwrap() {
+                                if let Some(ActiveConnection::Wifi(wifi)) = active_connection.as_ref() {
                                     Some(&wifi.ssid)
                                 } else {
                                     None

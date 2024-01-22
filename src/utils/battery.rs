@@ -12,6 +12,7 @@ use iced::{
     },
     Color, Subscription,
 };
+use log::error;
 use zbus::{dbus_proxy, zvariant::OwnedObjectPath, Connection, Result};
 
 #[derive(Copy, Clone, Debug)]
@@ -168,8 +169,16 @@ pub fn subscription() -> Subscription<BatteryMessage> {
                                 let value = state.get().await;
                                 if let Ok(value) = value {
                                     let status = match value {
-                                        1 => BatteryStatus::Charging(Duration::from_secs(battery.time_to_full().await.unwrap_or_default() as u64)),
-                                        2 => BatteryStatus::Discharging(Duration::from_secs(battery.time_to_empty().await.unwrap_or_default() as u64)),
+                                        1 => BatteryStatus::Charging(
+                                            Duration::from_secs(
+                                                battery.time_to_full().await.unwrap_or_default() as u64
+                                            )
+                                        ),
+                                        2 => BatteryStatus::Discharging(
+                                            Duration::from_secs(
+                                                battery.time_to_empty().await.unwrap_or_default() as u64
+                                            )
+                                        ),
                                         4 => BatteryStatus::Full,
                                         _ => BatteryStatus::Discharging(Duration::from_secs(0)),
                                     };
@@ -181,7 +190,9 @@ pub fn subscription() -> Subscription<BatteryMessage> {
                             if let Some(percentage) = percentage {
                                 let value = percentage.get().await;
                                 if let Ok(value) = value {
-                                    let _ = output.send(BatteryMessage::PercentageChanged(value as i64)).await;
+                                    let _ = output.send(
+                                        BatteryMessage::PercentageChanged(value as i64)
+                                    ).await;
                                 }
                             }
                         },
@@ -190,7 +201,13 @@ pub fn subscription() -> Subscription<BatteryMessage> {
                                 let value = time_to_full.get().await;
                                 if let Ok(value) = value {
                                     if value > 0 {
-                                        let _ = output.send(BatteryMessage::StatusChanged(BatteryStatus::Charging(Duration::from_secs(value as u64)))).await;
+                                        let _ = output.send(
+                                            BatteryMessage::StatusChanged(
+                                                BatteryStatus::Charging(
+                                                    Duration::from_secs(value as u64)
+                                                )
+                                            )
+                                        ).await;
                                     }
                                 }
                             }
@@ -200,7 +217,13 @@ pub fn subscription() -> Subscription<BatteryMessage> {
                                 let value = time_to_empty.get().await;
                                 if let Ok(value) = value {
                                     if value > 0 {
-                                        let _ = output.send(BatteryMessage::StatusChanged(BatteryStatus::Discharging(Duration::from_secs(value as u64)))).await;
+                                        let _ = output.send(
+                                            BatteryMessage::StatusChanged(
+                                                BatteryStatus::Discharging(
+                                                    Duration::from_secs(value as u64)
+                                                )
+                                            )
+                                        ).await;
                                     }
                                 }
                             }
@@ -209,7 +232,7 @@ pub fn subscription() -> Subscription<BatteryMessage> {
                 }
             } else {
                 let _ = upower.receive_device_added().await;
-                println!("upower device added");
+                error!("upower device added");
             }
         }
     })

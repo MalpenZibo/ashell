@@ -13,7 +13,8 @@ pub enum Message {
 }
 
 pub fn launcher<'a>() -> Element<'a, Message> {
-    button(container(icon(Icons::Launcher)).padding([0, 1]))
+    button(container(icon(Icons::Launcher).size(18)))
+        .padding([0, 6])
         .on_press(Message::OpenLauncher)
         .style(iced::theme::Button::custom(HeaderButtonStyle::Full))
         .into()
