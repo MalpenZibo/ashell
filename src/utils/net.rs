@@ -10,10 +10,11 @@ use iced::{
     },
     Color, Subscription,
 };
-use std::collections::HashMap;
+use log::debug;
+use std::{cmp::Ordering, collections::HashMap};
 use zbus::{
     dbus_proxy,
-    zvariant::{OwnedObjectPath, OwnedValue, Value},
+    zvariant::{self, OwnedObjectPath, OwnedValue, Value},
     PropertyStream, Result,
 };
 
@@ -23,6 +24,13 @@ static WIFI_SIGNAL_ICONS: [Icons; 5] = [
     Icons::Wifi2,
     Icons::Wifi3,
     Icons::Wifi4,
+];
+
+static WIFI_LOCK_SIGNAL_ICONS: [Icons; 4] = [
+    Icons::WifiLock1,
+    Icons::WifiLock2,
+    Icons::WifiLock3,
+    Icons::WifiLock4,
 ];
 
 #[dbus_proxy(
@@ -127,6 +135,9 @@ trait AccessPoint {
 
     #[dbus_proxy(property)]
     fn strength(&self) -> Result<u8>;
+
+    #[dbus_proxy(property)]
+    fn flags(&self) -> Result<u32>;
 }
 
 #[dbus_proxy(
@@ -135,6 +146,11 @@ trait AccessPoint {
     interface = "org.freedesktop.NetworkManager.Settings"
 )]
 trait Settings {
+    fn add_connection(
+        &self,
+        connection: HashMap<String, HashMap<String, OwnedValue>>,
+    ) -> Result<OwnedObjectPath>;
+
     #[dbus_proxy(property)]
     fn connections(&self) -> Result<Vec<OwnedObjectPath>>;
 }
@@ -162,6 +178,10 @@ pub struct Wifi {
 
 pub fn get_wifi_icon(signal: u8) -> Icons {
     WIFI_SIGNAL_ICONS[1 + f32::round(signal as f32 / 100. * 3.) as usize]
+}
+
+pub fn get_wifi_lock_icon(signal: u8) -> Icons {
+    WIFI_LOCK_SIGNAL_ICONS[f32::round(signal as f32 / 100. * 3.) as usize]
 }
 
 impl ActiveConnection {
@@ -207,6 +227,8 @@ pub struct Vpn {
 pub struct WifiConnection {
     pub ssid: String,
     pub strength: u8,
+    pub public: bool,
+    pub known: bool,
 }
 
 impl PartialEq for WifiConnection {
@@ -580,9 +602,20 @@ async fn get_nearby_wifi<'a>(
 
                     if let Ok(access_point) = access_point {
                         let id = String::from_utf8(access_point.ssid().await.unwrap()).unwrap();
-                        let strength = access_point.strength().await.unwrap_or_default();
+                        if id.is_empty() {
+                            return None;
+                        }
 
-                        Some(WifiConnection { ssid: id, strength })
+                        let strength = access_point.strength().await.unwrap_or_default();
+                        let public = access_point.flags().await.unwrap_or_default() == 0;
+                        let known = known_connections.iter().any(|c| c == &id);
+
+                        Some(WifiConnection {
+                            ssid: id,
+                            strength,
+                            public,
+                            known,
+                        })
                     } else {
                         None
                     }
@@ -591,24 +624,30 @@ async fn get_nearby_wifi<'a>(
             .collect::<Vec<_>>()
             .await;
 
-        connections.extend(cure);
+        for cure in cure {
+            if !connections.iter().any(|c| c == &cure) {
+                connections.push(cure);
+            }
+        }
     }
-
-    connections.dedup();
 
     let get_sort_value = |e: &WifiConnection| {
         if Some(&e.ssid) == active_wifi_connection {
             return 0;
         }
 
-        if known_connections.iter().any(|c| c == &e.ssid) {
+        if e.known {
             return 1;
         }
 
-        return 2;
+        2
     };
 
-    connections.sort_by(|a, b| get_sort_value(a).cmp(&get_sort_value(b)));
+    connections.sort_by(|a, b| match get_sort_value(a).cmp(&get_sort_value(b)) {
+        Ordering::Equal => a.strength.cmp(&b.strength).reverse(),
+        Ordering::Less => Ordering::Less,
+        Ordering::Greater => Ordering::Greater,
+    });
 
     connections
 }
@@ -634,9 +673,95 @@ fn wireless_enabled_to_state(enabled: bool) -> WifiDeviceState {
     }
 }
 
+async fn activate_wifi_connection(
+    ssid: String,
+    password: Option<String>,
+    nm: &NetworkManagerProxy<'_>,
+    settings: &SettingsProxy<'_>,
+    conn: &zbus::Connection,
+) {
+    let wifi_devices = get_wifi_devices(nm.devices().await.unwrap(), conn.clone()).await;
+    if let Some(device) = wifi_devices.first() {
+        let connections = settings.connections().await.unwrap();
+        let connection = find_connection(&ssid, &connections, conn.clone()).await;
+        if let Some(connection) = connection {
+            let res = nm
+                .activate_connection(
+                    connection,
+                    device.path().to_owned().into(),
+                    OwnedObjectPath::try_from("/").unwrap(),
+                )
+                .await;
+
+            debug!("Activate connection: {:?}", res);
+        } else {
+            let mut connection_config: HashMap<String, zvariant::OwnedValue> = HashMap::new();
+            connection_config.insert(
+                "id".to_owned(),
+                zvariant::Value::from(ssid.clone()).to_owned(),
+            );
+            // connection_config.insert("uuid", zvariant::Value::from("random-uuid"));
+            connection_config.insert(
+                "type".to_owned(),
+                zvariant::Value::from("802-11-wireless").to_owned(),
+            );
+
+            // Configure the 802-11-wireless component
+            let mut wireless_config: HashMap<String, zvariant::OwnedValue> = HashMap::new();
+            wireless_config.insert("ssid".to_owned(), zvariant::Value::from(ssid).to_owned());
+            // wireless_config.insert("mode", zvariant::Value::from("infrastructure"));
+
+            // Configure the 802-11-wireless-security component
+            let mut wireless_security_config: HashMap<String, zvariant::OwnedValue> =
+                HashMap::new();
+            if let Some(password) = password.as_ref() {
+                wireless_config.insert(
+                    "security".to_owned(),
+                    zvariant::Value::from("802-11-wireless-security").to_owned(),
+                );
+                wireless_security_config.insert(
+                    "key-mgmt".to_owned(),
+                    zvariant::Value::from("wpa-psk").to_owned(),
+                );
+                wireless_security_config.insert(
+                    "psk".to_owned(),
+                    zvariant::Value::from(password.clone()).to_owned(),
+                );
+            }
+
+            // Combine these all in a single configuration.
+            let mut new_conn_config: HashMap<String, HashMap<String, zvariant::OwnedValue>> =
+                HashMap::new();
+            new_conn_config.insert("connection".to_owned(), connection_config);
+            new_conn_config.insert("802-11-wireless".to_owned(), wireless_config);
+            if password.is_some() {
+                new_conn_config.insert(
+                    "802-11-wireless-security".to_owned(),
+                    wireless_security_config,
+                );
+            }
+            let connection_path = settings.add_connection(new_conn_config).await;
+            if let Ok(connection_path) = connection_path {
+                let _ = nm
+                    .activate_connection(
+                        connection_path,
+                        device.path().to_owned().into(),
+                        OwnedObjectPath::try_from("/").unwrap(),
+                    )
+                    .await;
+            }
+        }
+    }
+
+    for d in wifi_devices.iter() {
+        let _ = d.request_scan(HashMap::new()).await;
+    }
+}
+
 pub enum NetCommand {
     ScanNearByWifi,
     ToggleWifi,
+    ActivateWifiConnection(String, Option<String>),
     GetVpnConnections,
     ActivateVpn(String),
     DeactivateVpn(String),
@@ -670,7 +795,7 @@ pub fn subscription(
 
             let wifi_devices = get_wifi_devices(nm.devices().await.unwrap(), conn.clone()).await;
             let _ = output
-                .send(NetMessage::WifiDeviceState(if wifi_devices.len() > 0 {
+                .send(NetMessage::WifiDeviceState(if !wifi_devices.is_empty() {
                     wireless_enabled_to_state(nm.wireless_enabled().await.unwrap())
                 } else {
                     WifiDeviceState::Unavailable
@@ -706,6 +831,15 @@ pub fn subscription(
                                     } else {
                                         nm.set_wireless_enabled(true).await
                                     };
+                                }
+                                NetCommand::ActivateWifiConnection(name, password) => {
+                                    activate_wifi_connection(
+                                        name, 
+                                        password, 
+                                        &nm, 
+                                        &settings, 
+                                        &conn
+                                    ).await;
                                 }
                                 NetCommand::GetVpnConnections => {
                                     let connections = settings.connections().await.unwrap();
@@ -754,9 +888,9 @@ pub fn subscription(
                         }
                     }
                     v = devices_changed.next().fuse() => {
-                        if let Some(_) = v {
+                        if v.is_some() {
                             let wifi_devices = get_wifi_devices(nm.devices().await.unwrap(), conn.clone()).await;
-                            if wifi_devices.len() > 0 {
+                            if !wifi_devices.is_empty() {
                                 nearby_wifi = get_nearby_wifi_stream(
                                     nm.devices().await.unwrap(),
                                     conn.clone()
@@ -806,7 +940,7 @@ pub fn subscription(
                         }
                     },
                     v = nearby_wifi.next().fuse() => {
-                        if let Some(_) = v {
+                        if v.is_some() {
                             let wifi_connections = get_nearby_wifi(
                                 get_wifi_devices(
                                     nm.devices().await.unwrap(),

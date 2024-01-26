@@ -5,6 +5,7 @@ use crate::{
         clock::Clock, launcher, settings::Settings, system_info::SystemInfo, title::Title,
         updates::Updates, workspaces::Workspaces,
     },
+    password_dialog::password_dialog,
     style::ashell_theme,
 };
 use iced::{widget::row, window::Id, Alignment, Application, Color, Length, Theme};
@@ -135,6 +136,17 @@ impl Application for App {
                     OpenMenu::Settings => crate::menu::MenuPosition::Right,
                 },
             ),
+            _ if Some(id) == self.settings.password_dialog.as_ref().map(|s| s.0) => {
+                if let Some((_, ssid, current_password)) = self.settings.password_dialog.as_ref() {
+                    password_dialog(ssid.as_str(), current_password.as_str()).map(|msg| {
+                        Message::SettingsMessage(crate::modules::settings::Message::PasswordDialog(
+                            msg,
+                        ))
+                    })
+                } else {
+                    row!().into()
+                }
+            }
             _ if id == Id::MAIN => {
                 let left = row!(
                     launcher::launcher().map(Message::LauncherMessage),

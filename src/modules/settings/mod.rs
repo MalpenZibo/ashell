@@ -12,6 +12,7 @@ use crate::{
     components::icons::{icon, Icons},
     menu::{close_menu, open_menu},
     modules::settings::{audio::SubmenuEntry, power::power_menu},
+    password_dialog::{self, close_dialog},
     style::{
         HeaderButtonStyle, QuickSettingsButtonStyle, QuickSettingsSubMenuButtonStyle,
         SettingsButtonStyle, MANTLE, SURFACE_0,
@@ -57,6 +58,7 @@ pub struct Settings {
     cur_sink_volume: i32,
     cur_source_volume: i32,
     cur_brightness: i32,
+    pub password_dialog: Option<(Id, String, String)>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -75,6 +77,7 @@ pub enum Message {
     Power(PowerMessage),
     ToggleSubMenu(SubMenu),
     BrightnessChanged(f64),
+    PasswordDialog(password_dialog::Message),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -107,6 +110,7 @@ impl Settings {
             cur_sink_volume: 0,
             cur_source_volume: 0,
             cur_brightness: 0,
+            password_dialog: None,
         }
     }
 
@@ -161,10 +165,7 @@ impl Settings {
                 };
                 iced::Command::none()
             }
-            Message::Net(msg) => {
-                msg.update(self);
-                iced::Command::none()
-            }
+            Message::Net(msg) => msg.update(self),
             Message::Audio(msg) => {
                 msg.update(self);
                 iced::Command::none()
@@ -202,6 +203,34 @@ impl Settings {
                 self.brightness_commander.send(value).unwrap();
                 iced::Command::none()
             }
+            Message::PasswordDialog(msg) => match msg {
+                password_dialog::Message::PasswordChanged(password) => {
+                    if let Some((_, _, current_password)) = &mut self.password_dialog {
+                        println!("Password changed: {}", password);
+                        *current_password = password;
+                    }
+
+                    iced::Command::none()
+                }
+                password_dialog::Message::DialogConfirmed => {
+                    if let Some((id, ssid, password)) = self.password_dialog.take() {
+                        let _ = self
+                            .net_commander
+                            .send(NetCommand::ActivateWifiConnection(ssid, Some(password)));
+
+                        close_dialog(id)
+                    } else {
+                        iced::Command::none()
+                    }
+                }
+                password_dialog::Message::DialogCancelled => {
+                    if let Some((id, _, _)) = self.password_dialog.take() {
+                        close_dialog(id)
+                    } else {
+                        iced::Command::none()
+                    }
+                }
+            },
         }
     }
 

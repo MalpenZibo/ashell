@@ -19,6 +19,7 @@ mod app;
 mod centerbox;
 mod components;
 mod menu;
+mod password_dialog;
 mod modules;
 mod style;
 mod utils;
@@ -80,7 +81,7 @@ async fn main() {
             layer: Layer::Top,
             size: None,
             anchor: Anchor::TOP.union(Anchor::LEFT).union(Anchor::RIGHT),
-            exclusive_zone: height as i32,
+            exclusive_zone: height,
             ..Default::default()
         }),
         flags: (),

@@ -1,13 +1,17 @@
 use crate::{
     components::icons::{icon, Icons},
-    style::{SettingsButtonStyle, GREEN, TEXT, YELLOW},
+    password_dialog::open_dialog,
+    style::{GhostButtonStyle, SettingsButtonStyle, GREEN, TEXT, YELLOW},
     utils::net::{
-        get_wifi_icon, ActiveConnection, NetCommand, Vpn, Wifi, WifiConnection, WifiDeviceState,
+        get_wifi_icon, get_wifi_lock_icon, ActiveConnection, NetCommand, Vpn, Wifi, WifiConnection,
+        WifiDeviceState,
     },
 };
 use iced::{
     theme::Button,
-    widget::{button, column, horizontal_rule, row, text, toggler, Column, Text},
+    widget::{
+        button, column, container, horizontal_rule, row, scrollable, text, toggler, Column, Text,
+    },
     Element, Length,
 };
 
@@ -18,6 +22,8 @@ pub enum NetMessage {
     WifiDeviceState(WifiDeviceState),
     ActiveConnection(Option<ActiveConnection>),
     ToggleWifi,
+    ActivateWifi(String, Option<String>),
+    RequestWifiPassword(String),
     ScanNearByWifi,
     VpnActive(bool),
     VpnConnections(Vec<Vpn>),
@@ -26,26 +32,52 @@ pub enum NetMessage {
 }
 
 impl NetMessage {
-    pub fn update(self, settings: &mut Settings) {
+    pub fn update(self, settings: &mut Settings) -> iced::Command<Message> {
         match self {
             NetMessage::WifiDeviceState(state) => {
                 settings.wifi_device_state = state;
+
+                iced::Command::none()
             }
             NetMessage::ActiveConnection(connection) => {
                 settings.active_connection = connection;
+
+                iced::Command::none()
             }
             NetMessage::ToggleWifi => {
                 let _ = settings.net_commander.send(NetCommand::ToggleWifi);
+
+                iced::Command::none()
+            }
+            NetMessage::ActivateWifi(ssid, password) => {
+                let _ = settings
+                    .net_commander
+                    .send(NetCommand::ActivateWifiConnection(ssid, password));
+
+                iced::Command::none()
+            }
+            NetMessage::RequestWifiPassword(ssid) => {
+                let (id, cmd) = open_dialog();
+
+                settings.password_dialog = Some((id, ssid, "".to_string()));
+
+                cmd
             }
             NetMessage::ScanNearByWifi => {
                 settings.scanning_nearby_wifi = true;
                 let _ = settings.net_commander.send(NetCommand::ScanNearByWifi);
+
+                iced::Command::none()
             }
             NetMessage::VpnActive(active) => {
                 settings.vpn_active = active;
+
+                iced::Command::none()
             }
             NetMessage::VpnConnections(connections) => {
                 settings.vpn_connections = connections;
+
+                iced::Command::none()
             }
             NetMessage::VpnToggle(name) => {
                 if let Some(vpn) = settings
@@ -60,12 +92,16 @@ impl NetMessage {
                         let _ = settings.net_commander.send(NetCommand::DeactivateVpn(name));
                     }
                 }
+
+                iced::Command::none()
             }
             NetMessage::NearByWifi(connections) => {
                 settings.scanning_nearby_wifi = false;
                 settings.nearby_wifi = connections;
+
+                iced::Command::none()
             }
-        };
+        }
     }
 }
 
@@ -136,7 +172,7 @@ pub fn get_wifi_quick_setting_button<'a>(
                     .map(|_| {
                         sub_menu_wrapper(wifi_menu(
                             settings.scanning_nearby_wifi,
-                            Some(&wifi),
+                            Some(wifi),
                             &settings.nearby_wifi,
                         ))
                         .map(Message::Net)
@@ -150,7 +186,7 @@ pub fn get_wifi_quick_setting_button<'a>(
 pub fn wifi_menu<'a>(
     scanning_nearby_wifi: bool,
     active_connection: Option<&Wifi>,
-    nearby_wifi: &Vec<WifiConnection>,
+    nearby_wifi: &[WifiConnection],
 ) -> Element<'a, NetMessage> {
     column!(
         row!(
@@ -170,36 +206,54 @@ pub fn wifi_menu<'a>(
         .width(iced::Length::Fill)
         .align_items(iced::Alignment::Center),
         horizontal_rule(1),
-        Column::with_children(
-            nearby_wifi
-                .iter()
-                .map(|wifi| {
-                    let color = if active_connection.is_some_and(|c| c.ssid == wifi.ssid) {
-                        GREEN
-                    } else {
-                        TEXT
-                    };
-                    row!(
-                        icon(get_wifi_icon(wifi.strength))
-                            .style(color)
-                            .width(iced::Length::Shrink),
-                        text(wifi.ssid.to_string())
-                            .style(color)
-                            .width(iced::Length::Fill),
-                    )
-                    .align_items(iced::Alignment::Center)
-                    .spacing(8)
-                    .into()
-                })
-                .collect::<Vec<Element<'a, NetMessage>>>(),
-        )
-        .spacing(4)
+        container(scrollable(
+            Column::with_children(
+                nearby_wifi
+                    .iter()
+                    .map(|wifi| {
+                        let is_active = active_connection.is_some_and(|c| c.ssid == wifi.ssid);
+                        let color = if is_active { GREEN } else { TEXT };
+                        button(
+                            row!(
+                                icon(if wifi.public {
+                                    get_wifi_icon(wifi.strength)
+                                } else {
+                                    get_wifi_lock_icon(wifi.strength)
+                                })
+                                .style(color)
+                                .width(iced::Length::Shrink),
+                                text(wifi.ssid.to_string())
+                                    .style(color)
+                                    .width(iced::Length::Fill),
+                            )
+                            .align_items(iced::Alignment::Center)
+                            .spacing(8),
+                        )
+                        .style(iced::theme::Button::custom(GhostButtonStyle))
+                        .padding([8, 8])
+                        .on_press_maybe(if !is_active {
+                            Some(if wifi.known {
+                                NetMessage::ActivateWifi(wifi.ssid.clone(), None)
+                            } else {
+                                NetMessage::RequestWifiPassword(wifi.ssid.clone())
+                            })
+                        } else {
+                            None
+                        })
+                        .width(Length::Fill)
+                        .into()
+                    })
+                    .collect::<Vec<Element<'a, NetMessage>>>(),
+            )
+            .spacing(4)
+        ))
+        .max_height(200)
     )
     .spacing(8)
     .into()
 }
 
-pub fn vpn_menu<'a>(vpn_connections: &'a Vec<Vpn>) -> Element<'a, NetMessage> {
+pub fn vpn_menu<'a>(vpn_connections: &'a [Vpn]) -> Element<'a, NetMessage> {
     Column::with_children(
         vpn_connections
             .iter()
