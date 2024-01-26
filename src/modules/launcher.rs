@@ -2,10 +2,7 @@ use crate::{
     components::icons::{icon, Icons},
     style::HeaderButtonStyle,
 };
-use iced::{
-    widget::{button, container},
-    Element,
-};
+use iced::{widget::button, Element};
 
 #[derive(Clone, Debug)]
 pub enum Message {
@@ -13,8 +10,8 @@ pub enum Message {
 }
 
 pub fn launcher<'a>() -> Element<'a, Message> {
-    button(container(icon(Icons::Launcher).size(18)))
-        .padding([0, 6])
+    button(icon(Icons::Launcher))
+        .padding([5, 6])
         .on_press(Message::OpenLauncher)
         .style(iced::theme::Button::custom(HeaderButtonStyle::Full))
         .into()

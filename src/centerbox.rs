@@ -88,7 +88,7 @@ where
 
     fn layout(
         &self,
-        tree: &mut iced::advanced::widget::Tree,
+        // tree: &mut iced::advanced::widget::Tree,
         renderer: &Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
@@ -111,12 +111,12 @@ where
 
         let mut nodes: [Node; 3] = [Node::default(), Node::default(), Node::default()];
         let mut edge_nodes_layout =
-            |i: usize, child: &Element<'a, Message, Renderer>, tree: &mut Tree| {
+            |i: usize, child: &Element<'a, Message, Renderer>/* , tree: &mut Tree */| {
                 let (max_width, max_height) = (available_width, max_height);
 
                 let child_limits = Limits::new(Size::ZERO, Size::new(max_width, max_height));
 
-                let layout = child.as_widget().layout(tree, renderer, &child_limits);
+                let layout = child.as_widget().layout(/* tree, */ renderer, &child_limits);
 
                 let size = layout.size();
 
@@ -129,8 +129,8 @@ where
                 nodes[i] = layout;
             };
 
-        edge_nodes_layout(0, &items[0], &mut tree.children[0]);
-        edge_nodes_layout(2, &items[2], &mut tree.children[2]);
+        edge_nodes_layout(0, &items[0]/* , &mut tree.children[0] */);
+        edge_nodes_layout(2, &items[2]/* , &mut tree.children[2] */);
 
         let remaining_width = available_width.max(0.0);
         trace!("remaining_width: {:?}", remaining_width);
@@ -139,7 +139,7 @@ where
 
         let layout = items[1]
             .as_widget()
-            .layout(&mut tree.children[1], renderer, &child_limits);
+            .layout(/* &mut tree.children[1], */ renderer, &child_limits);
 
         height = height.max(layout.size().height);
 

@@ -1,14 +1,17 @@
 use crate::{
     centerbox,
-    menu::{close_menu, create_menu, menu_wrapper},
+    menu::{close_menu, menu_wrapper},
     modules::{
         clock::Clock, launcher, settings::Settings, system_info::SystemInfo, title::Title,
         updates::Updates, workspaces::Workspaces,
     },
-    password_dialog::password_dialog,
     style::ashell_theme,
 };
-use iced::{widget::row, window::Id, Alignment, Application, Color, Length, Theme};
+use iced::{
+    widget::{row, Column},
+    window::{self, Id},
+    Alignment, Application, Color, Length, Theme,
+};
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub enum OpenMenu {
@@ -17,7 +20,6 @@ pub enum OpenMenu {
 }
 
 pub struct App {
-    menu_id: Id,
     menu_type: Option<OpenMenu>,
     updates: Updates,
     workspaces: Workspaces,
@@ -31,13 +33,14 @@ pub struct App {
 pub enum Message {
     None,
     CloseMenu,
-    LauncherMessage(crate::modules::launcher::Message),
-    UpdatesMessage(crate::modules::updates::Message),
-    WorkspacesMessage(crate::modules::workspaces::Message),
-    TitleMessage(crate::modules::title::Message),
-    SystemInfoMessage(crate::modules::system_info::Message),
-    ClockMessage(crate::modules::clock::Message),
-    SettingsMessage(crate::modules::settings::Message),
+    Launcher(crate::modules::launcher::Message),
+    Updates(crate::modules::updates::Message),
+    Workspaces(crate::modules::workspaces::Message),
+    Title(crate::modules::title::Message),
+    SystemInfo(crate::modules::system_info::Message),
+    Clock(crate::modules::clock::Message),
+    Settings(crate::modules::settings::Message),
+    CloseRequested
 }
 
 impl Application for App {
@@ -47,11 +50,8 @@ impl Application for App {
     type Flags = ();
 
     fn new(_: ()) -> (Self, iced::Command<Self::Message>) {
-        let (menu_id, cmd) = create_menu();
-
         (
             App {
-                menu_id,
                 menu_type: None,
                 updates: Updates::new(),
                 workspaces: Workspaces::new(),
@@ -60,11 +60,11 @@ impl Application for App {
                 clock: Clock::new(),
                 settings: Settings::new(),
             },
-            cmd,
+            iced::Command::none(),
         )
     }
 
-    fn theme(&self, _id: iced::window::Id) -> Self::Theme {
+    fn theme(&self) -> Self::Theme {
         ashell_theme()
     }
 
@@ -80,7 +80,7 @@ impl Application for App {
         iced::theme::Application::from(dark_background as fn(&Theme) -> _)
     }
 
-    fn title(&self, _id: iced::window::Id) -> String {
+    fn title(&self) -> String {
         String::from("ashell")
     }
 
@@ -90,110 +90,116 @@ impl Application for App {
             Message::CloseMenu => {
                 self.menu_type = None;
 
-                close_menu(self.menu_id)
+                close_menu()
             }
-            Message::UpdatesMessage(message) => self
+            Message::Updates(message) => self
                 .updates
-                .update(message, self.menu_id, &mut self.menu_type)
-                .map(Message::UpdatesMessage),
-            Message::LauncherMessage(_) => {
+                .update(message, &mut self.menu_type)
+                .map(Message::Updates),
+            Message::Launcher(_) => {
                 crate::utils::launcher::launch_rofi();
                 iced::Command::none()
             }
-            Message::WorkspacesMessage(msg) => {
+            Message::Workspaces(msg) => {
                 self.workspaces.update(msg);
 
                 iced::Command::none()
             }
-            Message::TitleMessage(message) => {
+            Message::Title(message) => {
                 self.window_title.update(message);
                 iced::Command::none()
             }
-            Message::SystemInfoMessage(message) => {
+            Message::SystemInfo(message) => {
                 self.system_info.update(message);
                 iced::Command::none()
             }
-            Message::ClockMessage(message) => {
+            Message::Clock(message) => {
                 self.clock.update(message);
                 iced::Command::none()
             }
-            Message::SettingsMessage(message) => self
+            Message::Settings(message) => self
                 .settings
-                .update(message, self.menu_id, &mut self.menu_type)
-                .map(Message::SettingsMessage),
+                .update(message, &mut self.menu_type)
+                .map(Message::Settings),
+            Message::CloseRequested => window::close(),
         }
     }
 
-    fn view(&self, id: Id) -> iced::Element<'_, Self::Message> {
-        match self.menu_type {
-            Some(menu_type) if self.menu_id == id => menu_wrapper(
-                match menu_type {
-                    OpenMenu::Updates => self.updates.menu_view().map(Message::UpdatesMessage),
-                    OpenMenu::Settings => self.settings.menu_view().map(Message::SettingsMessage),
-                },
-                match menu_type {
-                    OpenMenu::Updates => crate::menu::MenuPosition::Left,
-                    OpenMenu::Settings => crate::menu::MenuPosition::Right,
-                },
-            ),
-            _ if Some(id) == self.settings.password_dialog.as_ref().map(|s| s.0) => {
-                if let Some((_, ssid, current_password)) = self.settings.password_dialog.as_ref() {
-                    password_dialog(ssid.as_str(), current_password.as_str()).map(|msg| {
-                        Message::SettingsMessage(crate::modules::settings::Message::PasswordDialog(
-                            msg,
-                        ))
-                    })
-                } else {
-                    row!().into()
-                }
-            }
-            _ if id == Id::MAIN => {
-                let left = row!(
-                    launcher::launcher().map(Message::LauncherMessage),
-                    self.updates.view().map(Message::UpdatesMessage),
-                    self.workspaces.view().map(Message::WorkspacesMessage)
-                )
-                .align_items(Alignment::Center)
-                .spacing(4);
+    fn view(&self, _id: Id) -> iced::Element<'_, Self::Message> {
+        let left = row!(
+            launcher::launcher().map(Message::Launcher),
+            self.updates.view().map(Message::Updates),
+            self.workspaces.view().map(Message::Workspaces)
+        )
+        .align_items(Alignment::Center)
+        .spacing(4);
 
-                let mut center = row!().spacing(4);
-                if let Some(title) = self.window_title.view() {
-                    center = center.push(title.map(Message::TitleMessage));
-                }
-
-                let right = row!(
-                    self.system_info.view().map(Message::SystemInfoMessage),
-                    row!(
-                        self.clock.view().map(Message::ClockMessage),
-                        self.settings.view().map(Message::SettingsMessage)
-                    )
-                )
-                .spacing(4);
-
-                centerbox::Centerbox::new([left.into(), center.into(), right.into()])
-                    .spacing(4)
-                    .width(Length::Fixed(1440.))
-                    .height(Length::Shrink)
-                    .align_items(Alignment::Center)
-                    .padding(4)
-                    .into()
-            }
-            _ => row!().into(),
+        let mut center = row!().spacing(4);
+        if let Some(title) = self.window_title.view() {
+            center = center.push(title.map(Message::Title));
         }
+
+        let right = row!(
+            self.system_info.view().map(Message::SystemInfo),
+            row!(
+                self.clock.view().map(Message::Clock),
+                self.settings.view().map(Message::Settings)
+            )
+        )
+        .spacing(4);
+
+        Column::with_children(
+            vec![
+                Some(
+                    centerbox::Centerbox::new([left.into(), center.into(), right.into()])
+                        .spacing(4)
+                        .width(Length::Fill)
+                        .height(Length::Fixed(34.))
+                        .align_items(Alignment::Center)
+                        .padding(4)
+                        .into(),
+                ),
+                self.menu_type.map(|menu_type| {
+                    menu_wrapper(
+                        match menu_type {
+                            OpenMenu::Updates => {
+                                self.updates.menu_view().map(Message::Updates)
+                            }
+                            OpenMenu::Settings => {
+                                self.settings.menu_view().map(Message::Settings)
+                            }
+                        },
+                        match menu_type {
+                            OpenMenu::Updates => crate::menu::MenuPosition::Left,
+                            OpenMenu::Settings => crate::menu::MenuPosition::Right,
+                        },
+                    )
+                }),
+            ]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>(),
+        )
+        .width(Length::Fill)
+        .into()
     }
 
     fn subscription(&self) -> iced::Subscription<Self::Message> {
         iced::Subscription::batch(vec![
-            self.updates.subscription().map(Message::UpdatesMessage),
+            self.updates.subscription().map(Message::Updates),
             self.workspaces
                 .subscription()
-                .map(Message::WorkspacesMessage),
-            self.window_title.subscription().map(Message::TitleMessage),
+                .map(Message::Workspaces),
+            self.window_title.subscription().map(Message::Title),
             self.system_info
                 .subscription()
-                .map(Message::SystemInfoMessage),
-            self.clock.subscription().map(Message::ClockMessage),
-            self.settings.subscription().map(Message::SettingsMessage),
+                .map(Message::SystemInfo),
+            self.clock.subscription().map(Message::Clock),
+            self.settings.subscription().map(Message::Settings),
         ])
+    }
+
+    fn close_requested(&self, _id: Id) -> Self::Message {
+        Message::CloseRequested
     }
 }

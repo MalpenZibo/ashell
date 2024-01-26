@@ -252,7 +252,7 @@ pub fn audio_slider<'a, Message: 'a + Clone>(
                         SliderType::Source => Icons::Mic1,
                     }
                 }))
-                .padding([8, 13])
+                .padding([8, 10])
                 .on_press(toggle_mute)
                 .style(Button::custom(SettingsButtonStyle))
                 .into(),

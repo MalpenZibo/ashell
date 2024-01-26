@@ -1,7 +1,6 @@
 use hyprland::{data::Client, event_listener::EventListener, shared::HyprDataActiveOptional};
 use iced::{
-    widget::{container, text},
-    Element,
+    widget::{container, text}, Element 
 };
 use std::cell::RefCell;
 
@@ -36,8 +35,7 @@ impl Title {
     pub fn view(&self) -> Option<Element<Message>> {
         self.value.as_ref().map(|value| {
             container(text(value).size(12))
-                .padding([4, 8])
-                .height(26)
+                .padding([6, 8])
                 .style(header_pills)
                 .into()
         })

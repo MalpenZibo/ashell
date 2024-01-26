@@ -3,42 +3,26 @@ use iced::widget::container;
 use iced::{wayland::layer_surface::Anchor, window::Id, Theme};
 use iced::{Command, Element};
 
-pub fn create_menu<Message>() -> (Id, Command<Message>) {
-    let id = Id::unique();
-
-    let spawn_window = iced::wayland::layer_surface::get_layer_surface(
-        iced::wayland::actions::layer_surface::SctkLayerSurfaceSettings {
-            id,
-            layer: iced::wayland::layer_surface::Layer::Overlay,
-            anchor: Anchor::TOP.union(Anchor::LEFT).union(Anchor::RIGHT),
-            size: Some((None, Some(1))),
-            ..Default::default()
-        },
-    );
-
-    (id, spawn_window)
-}
-
-pub fn close_menu<Message>(id: Id) -> Command<Message> {
+pub fn close_menu<Message>() -> Command<Message> {
     Command::batch(vec![
         iced::wayland::layer_surface::set_anchor(
-            id,
+            Id::default(),
             Anchor::TOP.union(Anchor::LEFT).union(Anchor::RIGHT),
         ),
-        iced::wayland::layer_surface::set_size(id, None, Some(1)),
+        iced::wayland::layer_surface::set_size(Id::default(), None, Some(34)),
     ])
 }
 
-pub fn open_menu<Message>(id: Id) -> Command<Message> {
+pub fn open_menu<Message>() -> Command<Message> {
     Command::batch(vec![
         iced::wayland::layer_surface::set_anchor(
-            id,
+            Id::default(),
             Anchor::TOP
                 .union(Anchor::LEFT)
                 .union(Anchor::RIGHT)
-                .union(Anchor::BOTTOM),
+                // .union(Anchor::BOTTOM),
         ),
-        iced::wayland::layer_surface::set_size(id, None, None),
+        iced::wayland::layer_surface::set_size(Id::default(), None, Some(1000)),
     ])
 }
 
@@ -48,9 +32,9 @@ pub enum MenuPosition {
 }
 
 pub fn menu_wrapper(
-    content: Element<crate::app::Message, iced::Renderer>,
+    content: Element<crate::app::Message>,
     position: MenuPosition,
-) -> Element<crate::app::Message, iced::Renderer> {
+) -> Element<crate::app::Message> {
     iced::widget::mouse_area(
         container(
             iced::widget::mouse_area(

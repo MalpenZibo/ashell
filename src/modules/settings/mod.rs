@@ -12,7 +12,7 @@ use crate::{
     components::icons::{icon, Icons},
     menu::{close_menu, open_menu},
     modules::settings::{audio::SubmenuEntry, power::power_menu},
-    password_dialog::{self, close_dialog},
+    password_dialog::{self, release_keyboard},
     style::{
         HeaderButtonStyle, QuickSettingsButtonStyle, QuickSettingsSubMenuButtonStyle,
         SettingsButtonStyle, MANTLE, SURFACE_0,
@@ -30,7 +30,6 @@ use iced::{
         button, column, container, horizontal_space, row, slider, text, vertical_rule, Column, Row,
         Space,
     },
-    window::Id,
     Alignment, Background, Element, Length, Subscription, Theme,
 };
 
@@ -58,7 +57,7 @@ pub struct Settings {
     cur_sink_volume: i32,
     cur_source_volume: i32,
     cur_brightness: i32,
-    pub password_dialog: Option<(Id, String, String)>,
+    pub password_dialog: Option<(String, String)>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -117,7 +116,6 @@ impl Settings {
     pub fn update(
         &mut self,
         message: Message,
-        menu_id: Id,
         menu_type: &mut Option<OpenMenu>,
     ) -> iced::Command<Message> {
         match message {
@@ -126,17 +124,19 @@ impl Settings {
                 match *menu_type {
                     Some(OpenMenu::Settings) => {
                         menu_type.take();
+                        self.password_dialog = None;
 
-                        close_menu(menu_id)
+                        iced::Command::batch(vec![release_keyboard(), close_menu()])
                     }
                     Some(_) => {
                         menu_type.replace(OpenMenu::Settings);
+
                         iced::Command::none()
                     }
                     None => {
                         menu_type.replace(OpenMenu::Settings);
 
-                        open_menu(menu_id)
+                        open_menu()
                     }
                 }
             }
@@ -205,27 +205,26 @@ impl Settings {
             }
             Message::PasswordDialog(msg) => match msg {
                 password_dialog::Message::PasswordChanged(password) => {
-                    if let Some((_, _, current_password)) = &mut self.password_dialog {
-                        println!("Password changed: {}", password);
+                    if let Some((_, current_password)) = &mut self.password_dialog {
                         *current_password = password;
                     }
 
                     iced::Command::none()
                 }
                 password_dialog::Message::DialogConfirmed => {
-                    if let Some((id, ssid, password)) = self.password_dialog.take() {
+                    if let Some((ssid, password)) = self.password_dialog.take() {
                         let _ = self
                             .net_commander
                             .send(NetCommand::ActivateWifiConnection(ssid, Some(password)));
 
-                        close_dialog(id)
+                        password_dialog::release_keyboard()
                     } else {
                         iced::Command::none()
                     }
                 }
                 password_dialog::Message::DialogCancelled => {
-                    if let Some((id, _, _)) = self.password_dialog.take() {
-                        close_dialog(id)
+                    if let Some((_, _)) = self.password_dialog.take() {
+                        password_dialog::release_keyboard()
                     } else {
                         iced::Command::none()
                     }
@@ -264,148 +263,154 @@ impl Settings {
 
         button(elements)
             .style(Button::custom(HeaderButtonStyle::Right))
-            .padding([4, 8])
+            .padding([5, 8])
             .on_press(Message::ToggleMenu)
             .into()
     }
 
     pub fn menu_view(&self) -> Element<Message> {
-        let battery_data = self.battery_data.map(settings_battery_indicator);
-        let right_buttons = row!(
-            button(icon(Icons::Lock))
-                .padding([8, 13])
-                .on_press(Message::Lock)
-                .style(Button::custom(SettingsButtonStyle)),
-            button(icon(if self.sub_menu == Some(SubMenu::Power) {
-                Icons::Close
-            } else {
-                Icons::Power
-            }))
-            .padding([8, 13])
-            .on_press(Message::ToggleSubMenu(SubMenu::Power))
-            .style(Button::custom(SettingsButtonStyle))
-        )
-        .spacing(8);
-
-        let header = if let Some(battery_data) = battery_data {
-            row!(battery_data, Space::with_width(Length::Fill), right_buttons)
-                .align_items(Alignment::Center)
-                .width(Length::Fill)
+        if let Some((ssid, password)) = &self.password_dialog {
+            password_dialog::view(ssid.as_str(), password.as_str()).map(Message::PasswordDialog)
         } else {
-            row!(Space::with_width(Length::Fill), right_buttons).align_items(Alignment::Center)
-        };
-
-        let (sink_slider, source_slider) = get_audio_sliders(
-            &self.sinks,
-            self.cur_sink_volume,
-            &self.sources,
-            self.cur_source_volume,
-            self.sub_menu,
-        );
-
-        let brightness_slider = row!(
-            container(icon(Icons::Brightness))
-                .padding([8, 11])
-                .style(|_: &Theme| iced::widget::container::Appearance {
-                    background: Background::Color(SURFACE_0).into(),
-                    border_radius: 32.0.into(),
-                    ..Default::default()
-                }),
-            slider(
-                0..=100,
-                self.cur_brightness,
-                |v| Message::BrightnessChanged(v as f64 / 100.)
+            let battery_data = self.battery_data.map(settings_battery_indicator);
+            let right_buttons = row!(
+                button(icon(Icons::Lock))
+                    .padding([8, 10])
+                    .on_press(Message::Lock)
+                    .style(Button::custom(SettingsButtonStyle)),
+                button(icon(if self.sub_menu == Some(SubMenu::Power) {
+                    Icons::Close
+                } else {
+                    Icons::Power
+                }))
+                .padding([8, 10])
+                .on_press(Message::ToggleSubMenu(SubMenu::Power))
+                .style(Button::custom(SettingsButtonStyle))
             )
-            .step(1)
-            .width(Length::Fill),
-        )
-        .align_items(Alignment::Center)
-        .spacing(8);
+            .spacing(8);
 
-        let wifi_setting_button = get_wifi_quick_setting_button(self);
-        let quick_settings = quick_settings_section(
-            vec![
-                wifi_setting_button,
-                Some((
-                    quick_setting_button(
-                        Icons::Vpn,
-                        "Vpn".to_string(),
-                        None,
-                        self.vpn_active,
-                        Message::ToggleSubMenu(SubMenu::Vpn),
-                        None,
-                    ),
+            let header = if let Some(battery_data) = battery_data {
+                row!(battery_data, Space::with_width(Length::Fill), right_buttons)
+                    .align_items(Alignment::Center)
+                    .width(Length::Fill)
+            } else {
+                row!(Space::with_width(Length::Fill), right_buttons).align_items(Alignment::Center)
+            };
+
+            let (sink_slider, source_slider) = get_audio_sliders(
+                &self.sinks,
+                self.cur_sink_volume,
+                &self.sources,
+                self.cur_source_volume,
+                self.sub_menu,
+            );
+
+            let brightness_slider = row!(
+                container(icon(Icons::Brightness))
+                    .padding([8, 10])
+                    .style(|_: &Theme| iced::widget::container::Appearance {
+                        background: Background::Color(SURFACE_0).into(),
+                        border_radius: 32.0.into(),
+                        ..Default::default()
+                    }),
+                slider(
+                    0..=100,
+                    self.cur_brightness,
+                    |v| Message::BrightnessChanged(v as f64 / 100.)
+                )
+                .step(1)
+                .width(Length::Fill),
+            )
+            .align_items(Alignment::Center)
+            .spacing(8);
+
+            let wifi_setting_button = get_wifi_quick_setting_button(self);
+            let quick_settings = quick_settings_section(
+                vec![
+                    wifi_setting_button,
+                    Some((
+                        quick_setting_button(
+                            Icons::Vpn,
+                            "Vpn".to_string(),
+                            None,
+                            self.vpn_active,
+                            Message::ToggleSubMenu(SubMenu::Vpn),
+                            None,
+                        ),
+                        self.sub_menu
+                            .filter(|menu_type| *menu_type == SubMenu::Vpn)
+                            .map(|_| {
+                                sub_menu_wrapper(vpn_menu(&self.vpn_connections)).map(Message::Net)
+                            }),
+                    )),
+                ]
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>(),
+            );
+
+            Column::with_children(
+                vec![
+                    Some(header.into()),
                     self.sub_menu
-                        .filter(|menu_type| *menu_type == SubMenu::Vpn)
+                        .filter(|menu_type| *menu_type == SubMenu::Power)
+                        .map(|_| sub_menu_wrapper(power_menu().map(Message::Power))),
+                    sink_slider,
+                    self.sub_menu
+                        .filter(|menu_type| *menu_type == SubMenu::Sinks)
                         .map(|_| {
-                            sub_menu_wrapper(vpn_menu(&self.vpn_connections)).map(Message::Net)
+                            sub_menu_wrapper(audio_submenu(
+                                self.sinks
+                                    .iter()
+                                    .flat_map(|s| {
+                                        s.ports.iter().map(|p| SubmenuEntry {
+                                            name: format!("{}: {}", p.description, s.description),
+                                            device: p.device_type,
+                                            active: p.active && s.name == self.default_sink,
+                                            msg: Message::Audio(AudioMessage::DefaultSinkChanged(
+                                                s.name.clone(),
+                                                p.name.clone(),
+                                            )),
+                                        })
+                                    })
+                                    .collect(),
+                            ))
                         }),
-                )),
-            ]
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>(),
-        );
-
-        Column::with_children(
-            vec![
-                Some(header.into()),
-                self.sub_menu
-                    .filter(|menu_type| *menu_type == SubMenu::Power)
-                    .map(|_| sub_menu_wrapper(power_menu().map(Message::Power))),
-                sink_slider,
-                self.sub_menu
-                    .filter(|menu_type| *menu_type == SubMenu::Sinks)
-                    .map(|_| {
-                        sub_menu_wrapper(audio_submenu(
-                            self.sinks
-                                .iter()
-                                .flat_map(|s| {
-                                    s.ports.iter().map(|p| SubmenuEntry {
-                                        name: format!("{}: {}", p.description, s.description),
-                                        device: p.device_type,
-                                        active: p.active && s.name == self.default_sink,
-                                        msg: Message::Audio(AudioMessage::DefaultSinkChanged(
-                                            s.name.clone(),
-                                            p.name.clone(),
-                                        )),
+                    source_slider,
+                    self.sub_menu
+                        .filter(|menu_type| *menu_type == SubMenu::Sources)
+                        .map(|_| {
+                            sub_menu_wrapper(audio_submenu(
+                                self.sources
+                                    .iter()
+                                    .flat_map(|s| {
+                                        s.ports.iter().map(|p| SubmenuEntry {
+                                            name: format!("{}: {}", p.description, s.description),
+                                            device: p.device_type,
+                                            active: p.active && s.name == self.default_source,
+                                            msg: Message::Audio(
+                                                AudioMessage::DefaultSourceChanged(
+                                                    s.name.clone(),
+                                                    p.name.clone(),
+                                                ),
+                                            ),
+                                        })
                                     })
-                                })
-                                .collect(),
-                        ))
-                    }),
-                source_slider,
-                self.sub_menu
-                    .filter(|menu_type| *menu_type == SubMenu::Sources)
-                    .map(|_| {
-                        sub_menu_wrapper(audio_submenu(
-                            self.sources
-                                .iter()
-                                .flat_map(|s| {
-                                    s.ports.iter().map(|p| SubmenuEntry {
-                                        name: format!("{}: {}", p.description, s.description),
-                                        device: p.device_type,
-                                        active: p.active && s.name == self.default_source,
-                                        msg: Message::Audio(AudioMessage::DefaultSourceChanged(
-                                            s.name.clone(),
-                                            p.name.clone(),
-                                        )),
-                                    })
-                                })
-                                .collect(),
-                        ))
-                    }),
-                Some(brightness_slider.into()),
-                Some(quick_settings),
-            ]
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>(),
-        )
-        .spacing(16)
-        .padding(16)
-        .max_width(350.)
-        .into()
+                                    .collect(),
+                            ))
+                        }),
+                    Some(brightness_slider.into()),
+                    Some(quick_settings),
+                ]
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>(),
+            )
+            .spacing(16)
+            .padding(16)
+            .max_width(350.)
+            .into()
+        }
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
@@ -511,7 +516,7 @@ fn quick_setting_button<'a, Msg: Clone + 'static>(
                         .align_y(iced::alignment::Vertical::Center)
                         .align_x(iced::alignment::Horizontal::Center),
                     )
-                    .padding([4, 12])
+                    .padding([4, 5])
                     .style(Button::custom(QuickSettingsSubMenuButtonStyle(active)))
                     .height(Length::Shrink)
                     .on_press(msg)

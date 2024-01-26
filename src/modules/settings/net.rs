@@ -1,6 +1,6 @@
 use crate::{
     components::icons::{icon, Icons},
-    password_dialog::open_dialog,
+    password_dialog,
     style::{GhostButtonStyle, SettingsButtonStyle, GREEN, TEXT, YELLOW},
     utils::net::{
         get_wifi_icon, get_wifi_lock_icon, ActiveConnection, NetCommand, Vpn, Wifi, WifiConnection,
@@ -57,11 +57,9 @@ impl NetMessage {
                 iced::Command::none()
             }
             NetMessage::RequestWifiPassword(ssid) => {
-                let (id, cmd) = open_dialog();
+                settings.password_dialog = Some((ssid, "".to_string()));
 
-                settings.password_dialog = Some((id, ssid, "".to_string()));
-
-                cmd
+                password_dialog::request_keyboard()
             }
             NetMessage::ScanNearByWifi => {
                 settings.scanning_nearby_wifi = true;
@@ -198,7 +196,7 @@ pub fn wifi_menu<'a>(
             })
             .size(12),
             button(icon(Icons::Refresh))
-                .padding([4, 8])
+                .padding([4, 5])
                 .style(Button::custom(SettingsButtonStyle))
                 .on_press(NetMessage::ScanNearByWifi),
         )

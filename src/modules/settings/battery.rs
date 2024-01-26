@@ -46,7 +46,7 @@ pub fn settings_battery_indicator<'a, Message: 'static>(
             BatteryStatus::Full => row!(battery_info),
         }
     })
-    .padding([8, 16])
+    .padding([8, 12])
     .style(move |_: &Theme| iced::widget::container::Appearance {
         background: iced::Background::Color(SURFACE_0).into(),
         border_radius: 32.0.into(),

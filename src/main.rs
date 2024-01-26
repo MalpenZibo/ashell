@@ -1,5 +1,3 @@
-use std::fs::File;
-
 use app::App;
 use flexi_logger::{
     Age, Cleanup, Criterion, FileSpec, LogSpecBuilder, LogSpecification, Logger, Naming,
@@ -11,16 +9,17 @@ use iced::{
         InitialSurface,
     },
     window::Id,
-    Application, Font, Pixels, Settings,
+    Application, Font, Settings,
 };
 use serde::Deserialize;
+use std::fs::File;
 
 mod app;
 mod centerbox;
 mod components;
 mod menu;
-mod password_dialog;
 mod modules;
+mod password_dialog;
 mod style;
 mod utils;
 
@@ -55,7 +54,14 @@ async fn main() {
 
     Logger::with(
         LogSpecBuilder::new()
-            .module("ashell", config.log_level)
+            .module(
+                "ashell",
+                if cfg!(debug_assertions) {
+                    log::LevelFilter::Debug
+                } else {
+                    config.log_level
+                },
+            )
             .build(),
     )
     .log_to_file(FileSpec::default().directory("/tmp/ashell"))
@@ -75,20 +81,19 @@ async fn main() {
         antialiasing: true,
         exit_on_close_request: false,
         initial_surface: InitialSurface::LayerSurface(SctkLayerSurfaceSettings {
-            id: Id::MAIN,
+            id: Id::default(),
             keyboard_interactivity: KeyboardInteractivity::None,
             namespace: "ashell".into(),
             layer: Layer::Top,
-            size: None,
+            size: Some((None, Some(height))),
             anchor: Anchor::TOP.union(Anchor::LEFT).union(Anchor::RIGHT),
-            exclusive_zone: height,
+            exclusive_zone: height as i32,
             ..Default::default()
         }),
         flags: (),
         id: None,
         default_font: Font::default(),
-        fonts: Default::default(),
-        default_text_size: Pixels::from(14.),
+        default_text_size: 14.,
     })
     .unwrap();
 }

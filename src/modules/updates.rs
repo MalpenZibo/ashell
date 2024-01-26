@@ -6,7 +6,6 @@ use crate::{
 };
 use iced::{
     widget::{button, column, container, horizontal_rule, row, scrollable, text, Column},
-    window::Id,
     Element, Length,
 };
 use log::error;
@@ -98,7 +97,6 @@ impl Updates {
     pub fn update(
         &mut self,
         message: Message,
-        menu_id: Id,
         menu_type: &mut Option<OpenMenu>,
     ) -> iced::Command<Message> {
         match message {
@@ -111,7 +109,8 @@ impl Updates {
             Message::ToggleMenu => match *menu_type {
                 Some(OpenMenu::Updates) => {
                     menu_type.take();
-                    close_menu(menu_id)
+
+                    close_menu()
                 }
                 Some(_) => {
                     menu_type.replace(OpenMenu::Updates);
@@ -120,7 +119,7 @@ impl Updates {
                 None => {
                     menu_type.replace(OpenMenu::Updates);
 
-                    open_menu(menu_id)
+                    open_menu()
                 }
             },
             Message::UpdateFinished => {
@@ -162,7 +161,6 @@ impl Updates {
                 State::Ready if self.updates.is_empty() => Icons::NoUpdatesAvailable,
                 _ => Icons::UpdatesAvailable,
             })
-            .size(18)
         ))
         .align_items(iced::Alignment::Center)
         .spacing(4);
@@ -172,7 +170,7 @@ impl Updates {
         }
 
         button(content)
-            .padding([0, 6])
+            .padding([5, 7])
             .style(iced::theme::Button::custom(HeaderButtonStyle::Full))
             .on_press(Message::ToggleMenu)
             .into()
