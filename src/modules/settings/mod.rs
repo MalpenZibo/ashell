@@ -121,22 +121,25 @@ impl Settings {
         match message {
             Message::ToggleMenu => {
                 self.sub_menu = None;
+                self.password_dialog = None;
+
+                let release_keyboard_cmd = release_keyboard();
+
                 match *menu_type {
                     Some(OpenMenu::Settings) => {
                         menu_type.take();
-                        self.password_dialog = None;
 
-                        iced::Command::batch(vec![release_keyboard(), close_menu()])
+                        iced::Command::batch(vec![release_keyboard_cmd, close_menu()])
                     }
                     Some(_) => {
                         menu_type.replace(OpenMenu::Settings);
 
-                        iced::Command::none()
+                        release_keyboard_cmd
                     }
                     None => {
                         menu_type.replace(OpenMenu::Settings);
 
-                        open_menu()
+                        iced::Command::batch(vec![release_keyboard_cmd, open_menu()])
                     }
                 }
             }

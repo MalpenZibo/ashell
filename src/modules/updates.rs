@@ -106,22 +106,26 @@ impl Updates {
 
                 iced::Command::none()
             }
-            Message::ToggleMenu => match *menu_type {
-                Some(OpenMenu::Updates) => {
-                    menu_type.take();
+            Message::ToggleMenu => {
+                self.is_updates_list_open = false;
+                match *menu_type {
+                    Some(OpenMenu::Updates) => {
+                        menu_type.take();
 
-                    close_menu()
-                }
-                Some(_) => {
-                    menu_type.replace(OpenMenu::Updates);
-                    iced::Command::none()
-                }
-                None => {
-                    menu_type.replace(OpenMenu::Updates);
+                        close_menu()
+                    }
+                    Some(_) => {
+                        menu_type.replace(OpenMenu::Updates);
 
-                    open_menu()
+                        iced::Command::none()
+                    }
+                    None => {
+                        menu_type.replace(OpenMenu::Updates);
+
+                        open_menu()
+                    }
                 }
-            },
+            }
             Message::UpdateFinished => {
                 self.updates.clear();
                 self.state = State::Ready;
@@ -155,13 +159,11 @@ impl Updates {
     }
 
     pub fn view(&self) -> Element<Message> {
-        let mut content = row!(container(
-            icon(match self.state {
-                State::Checking => Icons::Refresh,
-                State::Ready if self.updates.is_empty() => Icons::NoUpdatesAvailable,
-                _ => Icons::UpdatesAvailable,
-            })
-        ))
+        let mut content = row!(container(icon(match self.state {
+            State::Checking => Icons::Refresh,
+            State::Ready if self.updates.is_empty() => Icons::NoUpdatesAvailable,
+            _ => Icons::UpdatesAvailable,
+        })))
         .align_items(iced::Alignment::Center)
         .spacing(4);
 
@@ -233,6 +235,7 @@ impl Updates {
                                     })
                                     .collect::<Vec<Element<'_, _, _>>>(),
                             )
+                            .padding([0, 16, 0, 0])
                             .spacing(4),
                         ))
                         .padding([8, 0])
