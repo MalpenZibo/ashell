@@ -57,7 +57,7 @@ async fn main() {
             .module(
                 "ashell",
                 if cfg!(debug_assertions) {
-                    log::LevelFilter::Debug
+                    log::LevelFilter::Info
                 } else {
                     config.log_level
                 },

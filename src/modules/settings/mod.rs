@@ -199,8 +199,10 @@ impl Settings {
                 iced::Command::none()
             }
             Message::BrightnessChanged(value) => {
-                self.cur_brightness = (value * 100.).round() as i32;
-                self.brightness_commander.send(value).unwrap();
+                if (value - (self.cur_brightness as f64 / 100.)).abs() > 0.01 {
+                    self.cur_brightness = (value * 100.).round() as i32;
+                    self.brightness_commander.send(value).unwrap();
+                }
                 iced::Command::none()
             }
             Message::PasswordDialog(msg) => match msg {

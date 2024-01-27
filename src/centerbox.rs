@@ -7,7 +7,7 @@ use iced::{
     },
     event, Alignment, Element, Event, Length, Limits, Padding, Pixels, Point, Rectangle, Size,
 };
-use log::trace;
+use log::debug;
 
 #[allow(missing_debug_implementations)]
 pub struct Centerbox<'a, Message, Renderer = iced::Renderer> {
@@ -93,7 +93,7 @@ where
         limits: &layout::Limits,
     ) -> layout::Node {
         let limits_without_padding = limits.width(self.width).height(self.height);
-        trace!("limits_without_padding: {:?}", limits_without_padding);
+        debug!("limits_without_padding: {:?}", limits_without_padding);
 
         let spacing = self.spacing;
         let padding = self.padding;
@@ -102,38 +102,40 @@ where
 
         let total_spacing = spacing * items.len().saturating_sub(1) as f32;
         let limits = limits_without_padding.pad(padding);
-        trace!("limits with padding: {:?}", limits);
+        debug!("limits with padding: {:?}", limits);
         let max_height = limits.max().height;
 
         let mut height = limits.min().height.max(limits.fill().height);
         let mut available_width = limits.max().width - total_spacing;
-        trace!("available_width: {:?}", available_width);
+        debug!("available_width: {:?}", available_width);
 
         let mut nodes: [Node; 3] = [Node::default(), Node::default(), Node::default()];
         let mut edge_nodes_layout =
-            |i: usize, child: &Element<'a, Message, Renderer>/* , tree: &mut Tree */| {
+            |i: usize, child: &Element<'a, Message, Renderer> /* , tree: &mut Tree */| {
                 let (max_width, max_height) = (available_width, max_height);
 
                 let child_limits = Limits::new(Size::ZERO, Size::new(max_width, max_height));
 
-                let layout = child.as_widget().layout(/* tree, */ renderer, &child_limits);
+                let layout = child
+                    .as_widget()
+                    .layout(/* tree, */ renderer, &child_limits);
 
                 let size = layout.size();
 
-                trace!("size: {:?}", size);
+                debug!("size: {:?}", size);
 
                 available_width -= size.width;
-                trace!("available_width after {}: {:?}", i, &available_width);
+                debug!("available_width after {}: {:?}", i, &available_width);
                 height = height.max(size.height);
 
                 nodes[i] = layout;
             };
 
-        edge_nodes_layout(0, &items[0]/* , &mut tree.children[0] */);
-        edge_nodes_layout(2, &items[2]/* , &mut tree.children[2] */);
+        edge_nodes_layout(0, &items[0] /* , &mut tree.children[0] */);
+        edge_nodes_layout(2, &items[2] /* , &mut tree.children[2] */);
 
         let remaining_width = available_width.max(0.0);
-        trace!("remaining_width: {:?}", remaining_width);
+        debug!("remaining_width: {:?}", remaining_width);
 
         let child_limits = Limits::new(Size::ZERO, Size::new(remaining_width, max_height));
 
@@ -148,8 +150,8 @@ where
         let left_width = nodes[0].size().width;
         let right_width = nodes[2].size().width;
 
-        trace!("left_width: {:?}", left_width);
-        trace!("right_width: {:?}", right_width);
+        debug!("left_width: {:?}", left_width);
+        debug!("right_width: {:?}", right_width);
 
         nodes[0].move_to(Point::new(padding.left, padding.top));
         nodes[0].align(Alignment::Start, align_items, Size::new(0.0, height));
@@ -160,25 +162,17 @@ where
         ));
         nodes[2].align(Alignment::End, align_items, Size::new(0.0, height));
 
+        let relative_center_position =
+            (limits_without_padding.max().width - right_width + left_width) / 2.0;
         let half_available_width = limits_without_padding.max().width / 2.;
-        trace!("half_available_width: {:?}", half_available_width);
+        debug!("half_available_width: {:?}", half_available_width);
         let half_width = nodes[1].size().width / 2.0;
-        trace!("half_width: {:?}", half_width);
+        debug!("half_width: {:?}", half_width);
 
-        if half_available_width - right_width < half_width {
-            nodes[1].move_to(Point::new(
-                half_available_width
-                    - (half_width - (half_available_width - right_width)).abs()
-                    - spacing,
-                padding.top,
-            ));
-        } else if half_available_width - left_width < half_width {
-            nodes[1].move_to(Point::new(
-                half_available_width
-                    + (half_width - (half_available_width - left_width)).abs()
-                    + spacing,
-                padding.top,
-            ));
+        if (half_available_width - right_width - padding.right - spacing) < half_width
+            || (half_available_width - left_width - padding.left - spacing) < half_width
+        {
+            nodes[1].move_to(Point::new(relative_center_position, padding.top));
         } else {
             nodes[1].move_to(Point::new(half_available_width, padding.top));
         }
