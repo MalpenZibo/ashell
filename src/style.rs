@@ -1,4 +1,4 @@
-use iced::{theme::Palette, widget::button, BorderRadius, Color, Theme};
+use iced::{theme::Palette, widget::button, Border, Color, Theme};
 
 pub const BASE: Color = Color::from_rgb(0.117_647_06, 0.117_647_06, 0.180_392_16);
 pub const MANTLE: Color = Color::from_rgb(0.094_117_65, 0.094_117_66, 0.145_098_05);
@@ -14,22 +14,27 @@ pub const YELLOW: Color = Color::from_rgb(0.976_470_6, 0.886_274_5, 0.686_274_5)
 pub const GREEN: Color = Color::from_rgb(0.650_980_4, 0.890_196_1, 0.631_372_6);
 
 pub fn ashell_theme() -> Theme {
-    Theme::custom(Palette {
-        background: BASE,
-        text: TEXT,
-        primary: PEACH,
-        success: GREEN,
-        danger: RED,
-    })
+    Theme::custom(
+        "local".to_string(),
+        Palette {
+            background: BASE,
+            text: TEXT,
+            primary: PEACH,
+            success: GREEN,
+            danger: RED,
+        },
+    )
 }
 
 pub fn header_pills(theme: &Theme) -> iced::widget::container::Appearance {
     let palette = theme.palette();
     iced::widget::container::Appearance {
         background: Some(palette.background.into()),
-        border_radius: BorderRadius::from(12.0),
-        border_width: 0.0,
-        border_color: iced::Color::TRANSPARENT,
+        border: Border {
+            width: 0.0,
+            radius: 12.0.into(),
+            color: iced::Color::TRANSPARENT,
+        },
         text_color: Some(palette.text),
         ..Default::default()
     }
@@ -39,9 +44,11 @@ pub fn left_header_pills(theme: &Theme) -> iced::widget::container::Appearance {
     let palette = theme.palette();
     iced::widget::container::Appearance {
         background: Some(palette.background.into()),
-        border_radius: BorderRadius::from([12.0, 0.0, 0.0, 12.0]),
-        border_width: 0.0,
-        border_color: iced::Color::TRANSPARENT,
+        border: Border { 
+            width: 0.0, 
+            radius: [12.0, 0.0, 0.0, 12.0].into(), 
+            color: iced::Color::TRANSPARENT 
+        },
         text_color: Some(palette.text),
         ..Default::default()
     }
@@ -59,13 +66,15 @@ impl button::StyleSheet for HeaderButtonStyle {
     fn active(&self, style: &Self::Style) -> button::Appearance {
         button::Appearance {
             background: Some(style.palette().background.into()),
-            border_radius: match self {
-                HeaderButtonStyle::Full => BorderRadius::from(12.0),
-                HeaderButtonStyle::Left => BorderRadius::from([12.0, 0.0, 0.0, 12.0]),
-                HeaderButtonStyle::Right => BorderRadius::from([0.0, 12.0, 12.0, 0.0]),
+            border: Border {
+                width: 0.0,
+                radius: match self {
+                    HeaderButtonStyle::Full => 12.0.into(),
+                    HeaderButtonStyle::Left => [12.0, 0.0, 0.0, 12.0].into(),
+                    HeaderButtonStyle::Right => [0.0, 12.0, 12.0, 0.0].into(),
+                },
+                color: iced::Color::TRANSPARENT,
             },
-            border_width: 0.0,
-            border_color: iced::Color::TRANSPARENT,
             text_color: style.palette().text,
             ..button::Appearance::default()
         }
@@ -87,9 +96,11 @@ impl button::StyleSheet for GhostButtonStyle {
     fn active(&self, style: &Self::Style) -> button::Appearance {
         button::Appearance {
             background: None,
-            border_radius: BorderRadius::from(4.0),
-            border_width: 0.0,
-            border_color: iced::Color::TRANSPARENT,
+            border: Border {
+                width: 0.0,
+                radius: 4.0.into(),
+                color: iced::Color::TRANSPARENT,
+            },
             text_color: style.palette().text,
             ..button::Appearance::default()
         }
@@ -111,9 +122,11 @@ impl button::StyleSheet for SettingsButtonStyle {
     fn active(&self, style: &Self::Style) -> button::Appearance {
         button::Appearance {
             background: Some(iced::Background::Color(SURFACE_0)),
-            border_radius: BorderRadius::from(32.0),
-            border_width: 0.0,
-            border_color: iced::Color::TRANSPARENT,
+            border: Border {
+                width: 0.0,
+                radius: 32.0.into(),
+                color: iced::Color::TRANSPARENT,
+            },
             text_color: style.palette().text,
             ..button::Appearance::default()
         }
@@ -169,9 +182,11 @@ impl button::StyleSheet for QuickSettingsButtonStyle {
             } else {
                 iced::Background::Color(SURFACE_0)
             }),
-            border_radius: BorderRadius::from(32.0),
-            border_width: 0.0,
-            border_color: iced::Color::TRANSPARENT,
+            border: Border {
+                width: 0.0,
+                radius: 32.0.into(),
+                color: iced::Color::TRANSPARENT,
+            },
             text_color: if self.0 { SURFACE_0 } else { TEXT },
             ..button::Appearance::default()
         }
@@ -195,9 +210,11 @@ impl button::StyleSheet for QuickSettingsSubMenuButtonStyle {
     fn active(&self, style: &Self::Style) -> button::Appearance {
         button::Appearance {
             background: None,
-            border_radius: BorderRadius::from(16.0),
-            border_width: 0.0,
-            border_color: iced::Color::TRANSPARENT,
+            border: Border {
+                width: 0.0,
+                radius: 16.0.into(),
+                color: iced::Color::TRANSPARENT,
+            },
             text_color: if self.0 {
                 SURFACE_0
             } else {

@@ -8,11 +8,9 @@ use crate::{
     },
 };
 use iced::{
-    theme::Button,
-    widget::{
+    theme::Button, widget::{
         button, column, container, horizontal_rule, row, scrollable, text, toggler, Column, Text,
-    },
-    Element, Length,
+    }, Element, Length, Theme
 };
 
 use super::{quick_setting_button, sub_menu_wrapper, Message, Settings, SubMenu};
@@ -103,14 +101,14 @@ impl NetMessage {
     }
 }
 
-pub fn active_connection_indicator<'a>(data: &ActiveConnection) -> Text<'a, iced::Renderer> {
+pub fn active_connection_indicator<'a>(data: &ActiveConnection) -> Text<'a, Theme, iced::Renderer> {
     let icon_type = data.get_icon();
     let color = data.get_color();
 
     icon(icon_type).style(color)
 }
 
-pub fn vpn_indicator<'a>() -> Text<'a, iced::Renderer> {
+pub fn vpn_indicator<'a>() -> Text<'a, Theme, iced::Renderer> {
     icon(Icons::Vpn).style(YELLOW)
 }
 

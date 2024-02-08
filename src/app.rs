@@ -9,7 +9,7 @@ use crate::{
 };
 use iced::{
     widget::{row, Column},
-    window::{self, Id},
+    window::Id,
     Alignment, Application, Color, Length, Theme,
 };
 
@@ -40,7 +40,6 @@ pub enum Message {
     SystemInfo(crate::modules::system_info::Message),
     Clock(crate::modules::clock::Message),
     Settings(crate::modules::settings::Message),
-    CloseRequested
 }
 
 impl Application for App {
@@ -64,7 +63,7 @@ impl Application for App {
         )
     }
 
-    fn theme(&self) -> Self::Theme {
+    fn theme(&self, _id: Id) -> Self::Theme {
         ashell_theme()
     }
 
@@ -80,7 +79,7 @@ impl Application for App {
         iced::theme::Application::from(dark_background as fn(&Theme) -> _)
     }
 
-    fn title(&self) -> String {
+    fn title(&self, _id: Id) -> String {
         String::from("ashell")
     }
 
@@ -121,7 +120,6 @@ impl Application for App {
                 .settings
                 .update(message, &mut self.menu_type)
                 .map(Message::Settings),
-            Message::CloseRequested => window::close(),
         }
     }
 
@@ -162,12 +160,8 @@ impl Application for App {
                 self.menu_type.map(|menu_type| {
                     menu_wrapper(
                         match menu_type {
-                            OpenMenu::Updates => {
-                                self.updates.menu_view().map(Message::Updates)
-                            }
-                            OpenMenu::Settings => {
-                                self.settings.menu_view().map(Message::Settings)
-                            }
+                            OpenMenu::Updates => self.updates.menu_view().map(Message::Updates),
+                            OpenMenu::Settings => self.settings.menu_view().map(Message::Settings),
                         },
                         match menu_type {
                             OpenMenu::Updates => crate::menu::MenuPosition::Left,
@@ -187,19 +181,11 @@ impl Application for App {
     fn subscription(&self) -> iced::Subscription<Self::Message> {
         iced::Subscription::batch(vec![
             self.updates.subscription().map(Message::Updates),
-            self.workspaces
-                .subscription()
-                .map(Message::Workspaces),
+            self.workspaces.subscription().map(Message::Workspaces),
             self.window_title.subscription().map(Message::Title),
-            self.system_info
-                .subscription()
-                .map(Message::SystemInfo),
+            self.system_info.subscription().map(Message::SystemInfo),
             self.clock.subscription().map(Message::Clock),
             self.settings.subscription().map(Message::Settings),
         ])
-    }
-
-    fn close_requested(&self, _id: Id) -> Self::Message {
-        Message::CloseRequested
     }
 }

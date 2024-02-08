@@ -25,12 +25,10 @@ use crate::{
     },
 };
 use iced::{
-    theme::Button,
-    widget::{
+    theme::Button, widget::{
         button, column, container, horizontal_space, row, slider, text, vertical_rule, Column, Row,
         Space,
-    },
-    Alignment, Background, Element, Length, Subscription, Theme,
+    }, Alignment, Background, Border, Element, Length, Subscription, Theme
 };
 
 pub mod audio;
@@ -315,7 +313,7 @@ impl Settings {
                     .padding([8, 10])
                     .style(|_: &Theme| iced::widget::container::Appearance {
                         background: Background::Color(SURFACE_0).into(),
-                        border_radius: 32.0.into(),
+                        border: Border::with_radius(32),
                         ..Default::default()
                     }),
                 slider(
@@ -471,7 +469,7 @@ fn sub_menu_wrapper<'a, Msg: 'static>(content: impl Into<Element<'a, Msg>>) -> E
     container(content.into())
         .style(|_: &Theme| iced::widget::container::Appearance {
             background: iced::Background::Color(MANTLE).into(),
-            border_radius: 16.0.into(),
+            border: Border::with_radius(16),
             ..iced::widget::container::Appearance::default()
         })
         .padding(8)

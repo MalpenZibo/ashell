@@ -10,7 +10,7 @@ use iced::{
     },
     Color, Subscription,
 };
-use log::debug;
+use log::info;
 use std::{cmp::Ordering, collections::HashMap};
 use zbus::{
     dbus_proxy,
@@ -100,6 +100,9 @@ trait Device {
 
     #[dbus_proxy(property)]
     fn active_connection(&self) -> Result<OwnedObjectPath>;
+
+    #[dbus_proxy(property)]
+    fn state(&self) -> Result<u32>;
 }
 
 #[dbus_proxy(
@@ -161,6 +164,11 @@ trait Settings {
     interface = "org.freedesktop.NetworkManager.Settings.Connection"
 )]
 trait SettingsConnection {
+    fn update(
+        &self,
+        settings: HashMap<String, HashMap<String, OwnedValue>>,
+    ) -> Result<OwnedObjectPath>;
+
     fn get_settings(&self) -> Result<HashMap<String, HashMap<String, OwnedValue>>>;
 }
 
@@ -508,7 +516,7 @@ async fn find_connection(
 async fn find_active_connection(
     name: &str,
     active_connections: &[OwnedObjectPath],
-    conn: zbus::Connection,
+    conn: &zbus::Connection,
 ) -> Option<OwnedObjectPath> {
     stream::iter(active_connections.iter())
         .filter_map(|c| {
@@ -674,32 +682,62 @@ fn wireless_enabled_to_state(enabled: bool) -> WifiDeviceState {
 }
 
 async fn activate_wifi_connection(
-    ssid: String,
+    ssid: &str,
     password: Option<String>,
     nm: &NetworkManagerProxy<'_>,
     settings: &SettingsProxy<'_>,
     conn: &zbus::Connection,
-) {
+) -> std::result::Result<(), ()> {
+    info!("Activate wifi connection: {}", ssid);
     let wifi_devices = get_wifi_devices(nm.devices().await.unwrap(), conn.clone()).await;
     if let Some(device) = wifi_devices.first() {
         let connections = settings.connections().await.unwrap();
-        let connection = find_connection(&ssid, &connections, conn.clone()).await;
-        if let Some(connection) = connection {
-            let res = nm
-                .activate_connection(
-                    connection,
-                    device.path().to_owned().into(),
-                    OwnedObjectPath::try_from("/").unwrap(),
-                )
-                .await;
+        let connection = find_connection(ssid, &connections, conn.clone()).await;
+        let connection_path = if let Some(connection) = connection {
+            if let Some(password) = password {
+                let connection_settings = SettingsConnectionProxy::builder(conn)
+                    .path(connection.to_owned())
+                    .unwrap()
+                    .build()
+                    .await
+                    .unwrap();
 
-            debug!("Activate connection: {:?}", res);
+                let mut settings = connection_settings.get_settings().await.unwrap();
+                if let Some(security) = settings.get_mut("802-11-wireless-security") {
+                    security.insert(
+                        "psk".to_owned(),
+                        zvariant::Value::from(password.clone()).to_owned(),
+                    );
+                } else {
+                    let mut wireless_security_config: HashMap<String, zvariant::OwnedValue> =
+                        HashMap::new();
+                    wireless_security_config.insert(
+                        "key-mgmt".to_owned(),
+                        zvariant::Value::from("wpa-psk").to_owned(),
+                    );
+                    wireless_security_config.insert(
+                        "psk".to_owned(),
+                        zvariant::Value::from(password.clone()).to_owned(),
+                    );
+                    settings.insert(
+                        "802-11-wireless-security".to_owned(),
+                        wireless_security_config,
+                    );
+                };
+
+                settings.get_mut("802-11-wireless").unwrap().insert(
+                    "security".to_owned(),
+                    zvariant::Value::from("802-11-wireless-security").to_owned(),
+                );
+
+                let _ = connection_settings.update(settings).await.unwrap();
+            }
+
+            Some(connection)
         } else {
+            info!("Create new wifi connection: {}", ssid);
             let mut connection_config: HashMap<String, zvariant::OwnedValue> = HashMap::new();
-            connection_config.insert(
-                "id".to_owned(),
-                zvariant::Value::from(ssid.clone()).to_owned(),
-            );
+            connection_config.insert("id".to_owned(), zvariant::Value::from(ssid).to_owned());
             // connection_config.insert("uuid", zvariant::Value::from("random-uuid"));
             connection_config.insert(
                 "type".to_owned(),
@@ -708,7 +746,10 @@ async fn activate_wifi_connection(
 
             // Configure the 802-11-wireless component
             let mut wireless_config: HashMap<String, zvariant::OwnedValue> = HashMap::new();
-            wireless_config.insert("ssid".to_owned(), zvariant::Value::from(ssid).to_owned());
+            wireless_config.insert(
+                "ssid".to_owned(),
+                zvariant::Value::from(ssid.as_bytes()).to_owned(),
+            );
             // wireless_config.insert("mode", zvariant::Value::from("infrastructure"));
 
             // Configure the 802-11-wireless-security component
@@ -741,20 +782,73 @@ async fn activate_wifi_connection(
                 );
             }
             let connection_path = settings.add_connection(new_conn_config).await;
-            if let Ok(connection_path) = connection_path {
-                let _ = nm
-                    .activate_connection(
-                        connection_path,
-                        device.path().to_owned().into(),
-                        OwnedObjectPath::try_from("/").unwrap(),
-                    )
-                    .await;
+            info!("New wifi connection path: {:?}", connection_path);
+
+            connection_path.ok()
+        };
+
+        if let Some(connection) = connection_path {
+            let res = nm
+                .activate_connection(
+                    connection,
+                    device.path().to_owned().into(),
+                    OwnedObjectPath::try_from("/").unwrap(),
+                )
+                .await;
+
+            if let Err(e) = res {
+                info!("Activate connection error: {:?}", e);
+
+                return Err(());
             }
+
+            info!("Activate connection: {:?}", res);
+        } else {
+            return Err(());
         }
     }
 
     for d in wifi_devices.iter() {
         let _ = d.request_scan(HashMap::new()).await;
+    }
+
+    Ok(())
+}
+
+async fn get_current_device<'a>(
+    name: &str,
+    nm: &NetworkManagerProxy<'a>,
+    conn: &zbus::Connection,
+) -> Option<DeviceProxy<'a>> {
+    let active_connection =
+        find_active_connection(name, &nm.active_connections().await.unwrap(), conn).await;
+
+    if let Some(active_connection) = active_connection {
+        let active_connection_proxy = ActiveConnectionProxy::builder(&conn)
+            .path(active_connection)
+            .unwrap()
+            .build()
+            .await
+            .unwrap();
+
+        let device = active_connection_proxy
+            .devices()
+            .await
+            .unwrap()
+            .into_iter()
+            .next()
+            .unwrap();
+
+        let device_proxy = DeviceProxy::builder(&conn)
+            .path(device)
+            .unwrap()
+            .build()
+            .await
+            .unwrap();
+
+        Some(device_proxy)
+    } else {
+        None
     }
 }
 
@@ -833,13 +927,42 @@ pub fn subscription(
                                     };
                                 }
                                 NetCommand::ActivateWifiConnection(name, password) => {
-                                    activate_wifi_connection(
-                                        name, 
-                                        password, 
-                                        &nm, 
-                                        &settings, 
+                                    let res = activate_wifi_connection(
+                                        &name,
+                                        password,
+                                        &nm,
+                                        &settings,
                                         &conn
                                     ).await;
+
+                                    if res.is_err() {
+                                        let _ = output.send(NetMessage::RequestWifiPassword(name)).await;
+                                    } else {
+                                        let device = get_current_device(&name, &nm, &conn).await;
+                                        if let Some(device) = device {
+                                            let mut state_change = device.receive_state_changed().await;
+                                            loop {
+                                                if let Some(state) = state_change.next().await {
+                                                    let state = state.get().await.unwrap();
+                                                    match state {
+                                                        100 => {
+                                                            info!("Wifi connection activated");
+                                                            break
+                                                        },
+                                                        120 => {
+                                                            info!("Wifi connection activating");
+                                                            break
+                                                        },
+                                                        _ => {
+                                                            info!("Wifi connection failed");
+                                                            let _ = output.send(NetMessage::RequestWifiPassword(name)).await;
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                                 NetCommand::GetVpnConnections => {
                                     let connections = settings.connections().await.unwrap();
@@ -868,7 +991,7 @@ pub fn subscription(
                                     let object_path = find_active_connection(
                                         &name,
                                         &nm.active_connections().await.unwrap(),
-                                        conn.clone()
+                                        &conn
                                     ).await;
 
                                     if let Some(object_path) = object_path {

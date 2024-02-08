@@ -5,7 +5,7 @@ use hyprland::{
 };
 use iced::{
     widget::{container, mouse_area, text, Row},
-    BorderRadius, Element, Length, Theme,
+    Border, Element, Length, Theme,
 };
 use std::cell::RefCell;
 
@@ -108,9 +108,11 @@ impl Workspaces {
                                     } else {
                                         bg_color
                                     })),
-                                    border_color: bg_color,
-                                    border_width: if empty { 1.0 } else { 0.0 },
-                                    border_radius: BorderRadius::from(16.0),
+                                    border: Border {
+                                        width: if empty { 1.0 } else { 0.0 },
+                                        color: bg_color,
+                                        radius: 16.0.into(),
+                                    },
                                     text_color: Some(fg_color),
                                     ..iced::widget::container::Appearance::default()
                                 })

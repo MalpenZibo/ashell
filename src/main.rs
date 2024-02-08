@@ -81,7 +81,7 @@ async fn main() {
         antialiasing: true,
         exit_on_close_request: false,
         initial_surface: InitialSurface::LayerSurface(SctkLayerSurfaceSettings {
-            id: Id::default(),
+            id: Id::MAIN,
             keyboard_interactivity: KeyboardInteractivity::None,
             namespace: "ashell".into(),
             layer: Layer::Top,
@@ -92,8 +92,9 @@ async fn main() {
         }),
         flags: (),
         id: None,
+        fonts: Default::default(),
         default_font: Font::default(),
-        default_text_size: 14.,
+        default_text_size: 14.into(),
     })
     .unwrap();
 }

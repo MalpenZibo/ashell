@@ -4,18 +4,18 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-iced = { git = "https://github.com/pop-os/iced", tag="v0.10", features = ["tokio", "wayland", "advanced"] }
+iced = { git = "https://github.com/pop-os/iced", rev="273f23439782228d5992ddceacd0d60e12f66528", features = ["tokio", "wayland", "advanced", "wgpu"] }
 chrono = "0.4"
 hyprland = "0.3"
 serde = "1.0"
 serde_json = "1.0"
-sysinfo = "0.29"
+sysinfo = "0.30"
 tokio = { version = "1", features = ["full"] }
 zbus = "3"
 libpulse-binding = { version = "2.28", features = ["pa_v15"] }
 libpulse-tokio = "0.1"
 inotify = "0.10"
 log = { version = "0.4", features=["serde"] }
-flexi_logger = "0.27"
+flexi_logger = "0.26"
 serde_yaml = "0.9"
 log-panics = "2"

@@ -7,14 +7,14 @@ use iced::{
 
 pub fn request_keyboard<Msg>() -> Command<Msg> {
     iced::wayland::layer_surface::set_keyboard_interactivity(
-        Id::default(),
+        Id::MAIN,
         KeyboardInteractivity::Exclusive,
     )
 }
 
 pub fn release_keyboard<Msg>() -> Command<Msg> {
     iced::wayland::layer_surface::set_keyboard_interactivity(
-        Id::default(),
+        Id::MAIN,
         KeyboardInteractivity::None,
     )
 }

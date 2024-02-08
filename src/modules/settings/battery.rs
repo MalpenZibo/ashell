@@ -8,10 +8,12 @@ use crate::{
 };
 use iced::{
     widget::{container, row, text, Container, Row},
-    Theme,
+    Border, Theme,
 };
 
-pub fn battery_indicator<'a, Message>(data: BatteryData) -> Row<'a, Message, iced::Renderer> {
+pub fn battery_indicator<'a, Message>(
+    data: BatteryData,
+) -> Row<'a, Message, Theme, iced::Renderer> {
     let icon_type = data.get_icon();
     let color = data.get_color();
 
@@ -25,7 +27,7 @@ pub fn battery_indicator<'a, Message>(data: BatteryData) -> Row<'a, Message, ice
 
 pub fn settings_battery_indicator<'a, Message: 'static>(
     data: BatteryData,
-) -> Container<'a, Message, iced::Renderer> {
+) -> Container<'a, Message, Theme, iced::Renderer> {
     container({
         let battery_info = row!(
             icon(data.get_icon()).style(data.get_color()),
@@ -49,7 +51,7 @@ pub fn settings_battery_indicator<'a, Message: 'static>(
     .padding([8, 12])
     .style(move |_: &Theme| iced::widget::container::Appearance {
         background: iced::Background::Color(SURFACE_0).into(),
-        border_radius: 32.0.into(),
+        border: Border::with_radius(32),
         ..iced::widget::container::Appearance::default()
     })
 }

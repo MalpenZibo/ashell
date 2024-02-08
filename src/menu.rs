@@ -1,28 +1,25 @@
 use crate::style::CRUST;
 use iced::widget::container;
 use iced::{wayland::layer_surface::Anchor, window::Id, Theme};
-use iced::{Command, Element};
+use iced::{Border, Command, Element};
 
 pub fn close_menu<Message>() -> Command<Message> {
     Command::batch(vec![
         iced::wayland::layer_surface::set_anchor(
-            Id::default(),
+            Id::MAIN,
             Anchor::TOP.union(Anchor::LEFT).union(Anchor::RIGHT),
         ),
-        iced::wayland::layer_surface::set_size(Id::default(), None, Some(34)),
+        iced::wayland::layer_surface::set_size(Id::MAIN, None, Some(34)),
     ])
 }
 
 pub fn open_menu<Message>() -> Command<Message> {
     Command::batch(vec![
         iced::wayland::layer_surface::set_anchor(
-            Id::default(),
-            Anchor::TOP
-                .union(Anchor::LEFT)
-                .union(Anchor::RIGHT)
-                // .union(Anchor::BOTTOM),
+            Id::MAIN,
+            Anchor::TOP.union(Anchor::LEFT).union(Anchor::RIGHT), // .union(Anchor::BOTTOM),
         ),
-        iced::wayland::layer_surface::set_size(Id::default(), None, Some(1000)),
+        iced::wayland::layer_surface::set_size(Id::MAIN, None, Some(1000)),
     ])
 }
 
@@ -43,9 +40,11 @@ pub fn menu_wrapper(
                     .width(iced::Length::Shrink)
                     .style(|theme: &Theme| iced::widget::container::Appearance {
                         background: Some(theme.palette().background.into()),
-                        border_radius: 16.0.into(),
-                        border_width: 1.,
-                        border_color: CRUST,
+                        border: Border {
+                            color: CRUST,
+                            width: 1.,
+                            radius: 16.0.into(),
+                        },
                         ..Default::default()
                     }),
             )
