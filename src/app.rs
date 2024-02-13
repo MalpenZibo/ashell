@@ -5,18 +5,28 @@ use crate::{
         clock::Clock, launcher, settings::Settings, system_info::SystemInfo, title::Title,
         updates::Updates, workspaces::Workspaces,
     },
+    password_dialog,
     style::ashell_theme,
 };
 use iced::{
-    widget::{row, Column},
+    widget::{row, text, Column},
     window::Id,
-    Alignment, Application, Color, Length, Theme,
+    Alignment, Application, Color, Element, Length, Theme,
 };
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub enum OpenMenu {
-    Updates,
-    Settings,
+    Updates(Id),
+    Settings(Id),
+}
+
+impl OpenMenu {
+    pub fn get_id(&self) -> Id {
+        match self {
+            OpenMenu::Updates(id) => *id,
+            OpenMenu::Settings(id) => *id,
+        }
+    }
 }
 
 pub struct App {
@@ -87,9 +97,13 @@ impl Application for App {
         match message {
             Message::None => iced::Command::none(),
             Message::CloseMenu => {
-                self.menu_type = None;
+                let old_menu = self.menu_type.take();
 
-                close_menu()
+                if let Some(menu) = old_menu {
+                    close_menu(menu.get_id())
+                } else {
+                    iced::Command::none()
+                }
             }
             Message::Updates(message) => self
                 .updates
@@ -123,59 +137,95 @@ impl Application for App {
         }
     }
 
-    fn view(&self, _id: Id) -> iced::Element<'_, Self::Message> {
-        let left = row!(
-            launcher::launcher().map(Message::Launcher),
-            self.updates.view().map(Message::Updates),
-            self.workspaces.view().map(Message::Workspaces)
-        )
-        .align_items(Alignment::Center)
-        .spacing(4);
+    fn view(&self, id: Id) -> iced::Element<'_, Self::Message> {
+        match id {
+            Id::MAIN => {
+                let left = row!(
+                    launcher::launcher().map(Message::Launcher),
+                    self.updates.view().map(Message::Updates),
+                    self.workspaces.view().map(Message::Workspaces)
+                )
+                .align_items(Alignment::Center)
+                .spacing(4);
 
-        let mut center = row!().spacing(4);
-        if let Some(title) = self.window_title.view() {
-            center = center.push(title.map(Message::Title));
-        }
+                let mut center = row!().spacing(4);
+                if let Some(title) = self.window_title.view() {
+                    center = center.push(title.map(Message::Title));
+                }
 
-        let right = row!(
-            self.system_info.view().map(Message::SystemInfo),
-            row!(
-                self.clock.view().map(Message::Clock),
-                self.settings.view().map(Message::Settings)
-            )
-        )
-        .spacing(4);
-
-        Column::with_children(
-            vec![
-                Some(
-                    centerbox::Centerbox::new([left.into(), center.into(), right.into()])
-                        .spacing(4)
-                        .width(Length::Fill)
-                        .height(Length::Fixed(34.))
-                        .align_items(Alignment::Center)
-                        .padding(4)
-                        .into(),
-                ),
-                self.menu_type.map(|menu_type| {
-                    menu_wrapper(
-                        match menu_type {
-                            OpenMenu::Updates => self.updates.menu_view().map(Message::Updates),
-                            OpenMenu::Settings => self.settings.menu_view().map(Message::Settings),
-                        },
-                        match menu_type {
-                            OpenMenu::Updates => crate::menu::MenuPosition::Left,
-                            OpenMenu::Settings => crate::menu::MenuPosition::Right,
-                        },
+                let right = row!(
+                    self.system_info.view().map(Message::SystemInfo),
+                    row!(
+                        self.clock.view().map(Message::Clock),
+                        self.settings.view().map(Message::Settings)
                     )
-                }),
-            ]
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>(),
-        )
-        .width(Length::Fill)
-        .into()
+                )
+                .spacing(4);
+
+                //  Column::with_children(
+                //     vec![
+                //         Some(
+                //         ),
+                //         self.menu_type.map(|menu_type| {
+                //             menu_wrapper(
+                //                 match menu_type {
+                //                     OpenMenu::Updates => self.updates.menu_view().map(Message::Updates),
+                //                     OpenMenu::Settings => self.settings.menu_view().map(Message::Settings),
+                //                 },
+                //                 match menu_type {
+                //                     OpenMenu::Updates => crate::menu::MenuPosition::Left,
+                //                     OpenMenu::Settings => crate::menu::MenuPosition::Right,
+                //                 },
+                //             )
+                //         }),
+                //     ]
+                //     .into_iter()
+                //     .flatten()
+                //     .collect::<Vec<_>>(),
+                // )
+                // .width(Length::Fill)
+                // .into()
+
+                centerbox::Centerbox::new([left.into(), center.into(), right.into()])
+                    .spacing(4)
+                    .padding([0, 4])
+                    .width(Length::Fill)
+                    .height(Length::Shrink)
+                    .align_items(Alignment::Center)
+                    .into()
+            }
+            _ => {
+                if let Some(menu_type) = self.menu_type {
+                    if menu_type.get_id() == id {
+                        return menu_wrapper(
+                            match menu_type {
+                                OpenMenu::Updates(_) => self.updates.menu_view().map(Message::Updates),
+                                OpenMenu::Settings(_) => {
+                                    self.settings.menu_view().map(Message::Settings)
+                                }
+                            },
+                            match menu_type {
+                                OpenMenu::Updates(_) => crate::menu::MenuPosition::Left,
+                                OpenMenu::Settings(_) => crate::menu::MenuPosition::Right,
+                            },
+                        );
+                    }
+                }
+
+                if let Some((_, ssid, password)) = self
+                    .settings
+                    .password_dialog
+                    .as_ref()
+                    .filter(|(menu_id, _, _)| *menu_id == id)
+                {
+                    return password_dialog::view(ssid, password).map(|msg| {
+                        Message::Settings(crate::modules::settings::Message::PasswordDialog(msg))
+                    });
+                }
+
+                iced::Element::new(Column::new())
+            }
+        }
     }
 
     fn subscription(&self) -> iced::Subscription<Self::Message> {

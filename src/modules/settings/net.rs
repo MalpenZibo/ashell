@@ -55,9 +55,10 @@ impl NetMessage {
                 iced::Command::none()
             }
             NetMessage::RequestWifiPassword(ssid) => {
-                settings.password_dialog = Some((ssid, "".to_string()));
+                let (id, cmd) = password_dialog::open_password_dialog();
+                settings.password_dialog = Some((id, ssid, "".to_string()));
 
-                password_dialog::request_keyboard()
+                cmd
             }
             NetMessage::ScanNearByWifi => {
                 settings.scanning_nearby_wifi = true;

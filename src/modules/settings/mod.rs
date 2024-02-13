@@ -12,7 +12,7 @@ use crate::{
     components::icons::{icon, Icons},
     menu::{close_menu, open_menu},
     modules::settings::{audio::SubmenuEntry, power::power_menu},
-    password_dialog::{self, release_keyboard},
+    password_dialog::{self},
     style::{
         HeaderButtonStyle, QuickSettingsButtonStyle, QuickSettingsSubMenuButtonStyle,
         SettingsButtonStyle, MANTLE, SURFACE_0,
@@ -25,10 +25,10 @@ use crate::{
     },
 };
 use iced::{
-    theme::Button, widget::{
+     theme::Button, widget::{
         button, column, container, horizontal_space, row, slider, text, vertical_rule, Column, Row,
         Space,
-    }, Alignment, Background, Border, Element, Length, Subscription, Theme
+    }, window::Id, Alignment, Background, Border, Element, Length, Subscription, Theme
 };
 
 pub mod audio;
@@ -55,7 +55,7 @@ pub struct Settings {
     cur_sink_volume: i32,
     cur_source_volume: i32,
     cur_brightness: i32,
-    pub password_dialog: Option<(String, String)>,
+    pub password_dialog: Option<(Id, String, String)>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -121,23 +121,22 @@ impl Settings {
                 self.sub_menu = None;
                 self.password_dialog = None;
 
-                let release_keyboard_cmd = release_keyboard();
-
                 match *menu_type {
-                    Some(OpenMenu::Settings) => {
+                    Some(OpenMenu::Settings(id)) => {
                         menu_type.take();
 
-                        iced::Command::batch(vec![release_keyboard_cmd, close_menu()])
+                        close_menu(id)
                     }
-                    Some(_) => {
-                        menu_type.replace(OpenMenu::Settings);
+                    Some(old_menu) => {
+                        menu_type.replace(OpenMenu::Settings(old_menu.get_id()));
 
-                        release_keyboard_cmd
+                        iced::Command::none()
                     }
                     None => {
-                        menu_type.replace(OpenMenu::Settings);
+                        let (id, cmd) = open_menu();
+                        menu_type.replace(OpenMenu::Settings(id));
 
-                        iced::Command::batch(vec![release_keyboard_cmd, open_menu()])
+                        cmd
                     }
                 }
             }
@@ -208,26 +207,26 @@ impl Settings {
             }
             Message::PasswordDialog(msg) => match msg {
                 password_dialog::Message::PasswordChanged(password) => {
-                    if let Some((_, current_password)) = &mut self.password_dialog {
+                    if let Some((_,_, current_password)) = &mut self.password_dialog {
                         *current_password = password;
                     }
 
                     iced::Command::none()
                 }
                 password_dialog::Message::DialogConfirmed => {
-                    if let Some((ssid, password)) = self.password_dialog.take() {
+                    if let Some((id, ssid, password)) = self.password_dialog.take() {
                         let _ = self
                             .net_commander
                             .send(NetCommand::ActivateWifiConnection(ssid, Some(password)));
 
-                        password_dialog::release_keyboard()
+                        password_dialog::close_password_dialog(id)
                     } else {
                         iced::Command::none()
                     }
                 }
                 password_dialog::Message::DialogCancelled => {
-                    if let Some((_, _)) = self.password_dialog.take() {
-                        password_dialog::release_keyboard()
+                    if let Some((id, _, _)) = self.password_dialog.take() {
+                        password_dialog::close_password_dialog(id)
                     } else {
                         iced::Command::none()
                     }
@@ -272,9 +271,9 @@ impl Settings {
     }
 
     pub fn menu_view(&self) -> Element<Message> {
-        if let Some((ssid, password)) = &self.password_dialog {
-            password_dialog::view(ssid.as_str(), password.as_str()).map(Message::PasswordDialog)
-        } else {
+        // if let Some((_, ssid, password)) = &self.password_dialog {
+        //     password_dialog::view(ssid.as_str(), password.as_str()).map(Message::PasswordDialog)
+        // } else {
             let battery_data = self.battery_data.map(settings_battery_indicator);
             let right_buttons = row!(
                 button(icon(Icons::Lock))
@@ -413,7 +412,7 @@ impl Settings {
             .padding(16)
             .max_width(350.)
             .into()
-        }
+        // }
     }
 
     pub fn subscription(&self) -> Subscription<Message> {

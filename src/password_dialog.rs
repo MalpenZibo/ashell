@@ -1,21 +1,28 @@
 use iced::{
-    wayland::layer_surface::KeyboardInteractivity,
+    wayland::{actions::layer_surface::SctkLayerSurfaceSettings, layer_surface::{Anchor, KeyboardInteractivity}},
     widget::{button, column, horizontal_space, row, text, text_input},
     window::Id,
     Command, Element,
 };
 
-pub fn request_keyboard<Msg>() -> Command<Msg> {
-    iced::wayland::layer_surface::set_keyboard_interactivity(
-        Id::MAIN,
-        KeyboardInteractivity::Exclusive,
-    )
+pub fn close_password_dialog<Message>(id: Id) -> Command<Message> {
+    iced::wayland::layer_surface::destroy_layer_surface(id)
 }
 
-pub fn release_keyboard<Msg>() -> Command<Msg> {
-    iced::wayland::layer_surface::set_keyboard_interactivity(
-        Id::MAIN,
-        KeyboardInteractivity::None,
+pub fn open_password_dialog<Message>() -> (Id, Command<Message>) {
+    let id = Id::unique();
+    (
+        id,
+        iced::wayland::layer_surface::get_layer_surface(SctkLayerSurfaceSettings {
+            id,
+            anchor: Anchor::TOP
+                .union(Anchor::LEFT)
+                .union(Anchor::RIGHT)
+                .union(Anchor::BOTTOM),
+            exclusive_zone: 0,
+            keyboard_interactivity: KeyboardInteractivity::Exclusive,
+            ..Default::default()
+        }),
     )
 }
 

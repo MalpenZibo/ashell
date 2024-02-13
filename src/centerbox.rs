@@ -1,16 +1,16 @@
-use iced::{
-    advanced::{
-        graphics::core::Element,
-        layout::{self, Node},
-        overlay, renderer,
-        widget::{Operation, OperationOutputWrapper, Tree},
-        Clipboard, Layout, Shell, Widget,
-    },
-    event, mouse, Alignment, Event, Length, Limits, Padding, Pixels, Point, Rectangle, 
-    Size,
-};
-use log::debug;
+//! Distribute content horizontally.
+use iced::advanced::widget::OperationOutputWrapper;
 
+use iced::advanced::layout::{self, Layout, Node};
+use iced::advanced::overlay;
+use iced::advanced::renderer;
+use iced::advanced::widget::{Operation, Tree};
+use iced::advanced::{mouse, Clipboard, Shell, Widget};
+use iced::{
+    event, Alignment, Element, Event, Length, Limits, Padding, Pixels, Point, Rectangle, Size,
+};
+
+/// A container that distributes its contents horizontally.
 #[allow(missing_debug_implementations)]
 pub struct Centerbox<'a, Message, Theme = iced::Theme, Renderer = iced::Renderer> {
     spacing: f32,
@@ -21,7 +21,11 @@ pub struct Centerbox<'a, Message, Theme = iced::Theme, Renderer = iced::Renderer
     children: [Element<'a, Message, Theme, Renderer>; 3],
 }
 
-impl<'a, Message, Theme, Renderer> Centerbox<'a, Message, Theme, Renderer> {
+impl<'a, Message, Theme, Renderer> Centerbox<'a, Message, Theme, Renderer>
+where
+    Renderer: iced::advanced::Renderer,
+{
+    /// Creates an empty [`Centerbox`].
     pub fn new(children: [Element<'a, Message, Theme, Renderer>; 3]) -> Self {
         Centerbox {
             spacing: 0.0,
@@ -43,7 +47,7 @@ impl<'a, Message, Theme, Renderer> Centerbox<'a, Message, Theme, Renderer> {
         self
     }
 
-    /// Sets the [`Padding`] of the [`Row`].
+    /// Sets the [`Padding`] of the [`Centerbox`].
     pub fn padding<P: Into<Padding>>(mut self, padding: P) -> Self {
         self.padding = padding.into();
         self
@@ -90,101 +94,94 @@ where
 
     fn layout(
         &self,
-        tree: &mut iced::advanced::widget::Tree,
+        tree: &mut Tree,
         renderer: &Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
-        let limits_without_padding = limits.width(self.width).height(self.height);
-        debug!("limits_without_padding: {:?}", limits_without_padding);
+        let limits = limits
+            .width(self.width)
+            .height(self.height)
+            .shrink(self.padding);
+        let total_spacing = self.spacing * 3_i32.saturating_sub(1) as f32;
+        let max_cross = limits.max().height;
 
-        let spacing = self.spacing;
-        let padding = self.padding;
-        let align_items = self.align_items;
-        let items = &self.children;
+        let mut cross = match self.height {
+            Length::Shrink => 0.0,
+            _ => max_cross,
+        };
 
-        let total_spacing = spacing * items.len().saturating_sub(1) as f32;
-        let limits = limits_without_padding.shrink(padding);
-        debug!("limits with padding: {:?}", limits);
-        let max_height = limits.max().height;
+        let available = limits.max().width - total_spacing;
 
-        let mut height = limits.min().height;
-        let mut available_width = limits.max().width - total_spacing;
-        debug!("available_width: {:?}", available_width);
+        let mut nodes = [Node::default(), Node::default(), Node::default()];
 
-        let mut nodes: [Node; 3] = [Node::default(), Node::default(), Node::default()];
-        let mut edge_nodes_layout =
-            |i: usize, child: &Element<'a, Message, Theme, Renderer>, tree: &mut Tree| {
-                let (max_width, max_height) = (available_width, max_height);
+        let mut remaining = match self.width {
+            Length::Shrink => 0.0,
+            _ => available.max(0.0),
+        };
+
+        let mut calculate_edge_layout =
+            |i: usize, (child, tree): (&Element<'a, Message, Theme, Renderer>, &mut Tree)| {
+                let fill_cross_factor = {
+                    let size = child.as_widget().size();
+
+                    size.height.fill_factor()
+                };
+
+                let (max_width, max_height) = (
+                    remaining,
+                    if fill_cross_factor != 0 {
+                        cross
+                    } else {
+                        max_cross
+                    },
+                );
 
                 let child_limits = Limits::new(Size::ZERO, Size::new(max_width, max_height));
 
                 let layout = child.as_widget().layout(tree, renderer, &child_limits);
-
                 let size = layout.size();
 
-                debug!("size: {:?}", size);
-
-                available_width -= size.width;
-                debug!("available_width after {}: {:?}", i, &available_width);
-                height = height.max(size.height);
+                remaining -= size.width;
+                cross = cross.max(size.height);
 
                 nodes[i] = layout;
             };
 
-        edge_nodes_layout(0, &items[0], &mut tree.children[0]);
-        edge_nodes_layout(2, &items[2], &mut tree.children[2]);
+        calculate_edge_layout(0, (&self.children[0], &mut tree.children[0]));
+        calculate_edge_layout(2, (&self.children[2], &mut tree.children[2]));
+        calculate_edge_layout(1, (&self.children[1], &mut tree.children[1]));
 
-        let remaining_width = available_width.max(0.0);
-        debug!("remaining_width: {:?}", remaining_width);
+        nodes[0].move_to_mut(Point::new(self.padding.left, self.padding.top));
+        nodes[0].align_mut(Alignment::Start, self.align_items, Size::new(0.0, cross));
+        nodes[2].move_to_mut(Point::new(limits.max().width, self.padding.top));
+        nodes[2].align_mut(Alignment::End, self.align_items, Size::new(0.0, cross));
 
-        let child_limits = Limits::new(Size::ZERO, Size::new(remaining_width, max_height));
-
-        let layout = items[1]
-            .as_widget()
-            .layout(&mut tree.children[1], renderer, &child_limits);
-
-        height = height.max(layout.size().height);
-
-        nodes[1] = layout;
-
-        let left_width = nodes[0].size().width;
-        let right_width = nodes[2].size().width;
-
-        debug!("left_width: {:?}", left_width);
-        debug!("right_width: {:?}", right_width);
-
-        nodes[0].move_to_mut(Point::new(padding.left, padding.top));
-        nodes[0].align_mut(Alignment::Start, align_items, Size::new(0.0, height));
-
-        nodes[2].move_to_mut(Point::new(
-            limits_without_padding.max().width - padding.right,
-            padding.top,
-        ));
-        nodes[2].align_mut(Alignment::End, align_items, Size::new(0.0, height));
-
-        let relative_center_position =
-            (limits_without_padding.max().width - right_width + left_width) / 2.0;
-        let half_available_width = limits_without_padding.max().width / 2.;
-        debug!("half_available_width: {:?}", half_available_width);
-        let half_width = nodes[1].size().width / 2.0;
-        debug!("half_width: {:?}", half_width);
-
-        if (half_available_width - right_width - padding.right - spacing) < half_width
-            || (half_available_width - left_width - padding.left - spacing) < half_width
+        let half_available = available / 2.0;
+        let half_center_width = nodes[1].size().width / 2.0;
+        if half_available - nodes[0].size().width < half_center_width
+            || half_available - nodes[2].size().width < half_center_width
         {
-            nodes[1].move_to_mut(Point::new(relative_center_position, padding.top));
+            nodes[1].move_to_mut(Point::new(
+                (limits.max().width - nodes[2].size().width - nodes[0].size().width) / 2.0
+                    + nodes[0].size().width,
+                self.padding.top,
+            ));
         } else {
-            nodes[1].move_to_mut(Point::new(half_available_width, padding.top));
+            nodes[1].move_to_mut(Point::new(limits.max().width / 2., self.padding.top));
         }
-        nodes[1].align_mut(Alignment::Center, align_items, Size::new(0.0, height));
+        nodes[1].align_mut(Alignment::Center, self.align_items, Size::new(0.0, cross));
 
+        let main =
+            nodes[0].size().width + nodes[1].size().width + nodes[2].size().width + total_spacing;
+
+        let (intrinsic_width, intrinsic_height) = (main, cross);
         let size = limits.resolve(
             self.width,
             self.height,
-            Size::new(limits.max().width, height),
+            Size::new(intrinsic_width, intrinsic_height),
         );
 
-        Node::with_children(size.expand(padding), nodes.to_vec())
+        Node::with_children(size.expand(self.padding), nodes.into())
     }
 
     fn operate(
@@ -290,6 +287,24 @@ where
     ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
         overlay::from_children(&mut self.children, tree, layout, renderer)
     }
+
+    #[cfg(feature = "a11y")]
+    /// get the a11y nodes for the widget
+    fn a11y_nodes(
+        &self,
+        layout: Layout<'_>,
+        state: &Tree,
+        cursor: mouse::Cursor,
+    ) -> iced_accessibility::A11yTree {
+        use iced_accessibility::A11yTree;
+        A11yTree::join(
+            self.children
+                .iter()
+                .zip(layout.children())
+                .zip(state.children.iter())
+                .map(|((c, c_layout), state)| c.as_widget().a11y_nodes(c_layout, state, cursor)),
+        )
+    }
 }
 
 impl<'a, Message, Theme, Renderer> From<Centerbox<'a, Message, Theme, Renderer>>
@@ -299,7 +314,7 @@ where
     Theme: 'a,
     Renderer: iced::advanced::Renderer + 'a,
 {
-    fn from(centerbox: Centerbox<'a, Message, Theme, Renderer>) -> Self {
-        Self::new(centerbox)
+    fn from(row: Centerbox<'a, Message, Theme, Renderer>) -> Self {
+        Self::new(row)
     }
 }

@@ -109,20 +109,21 @@ impl Updates {
             Message::ToggleMenu => {
                 self.is_updates_list_open = false;
                 match *menu_type {
-                    Some(OpenMenu::Updates) => {
+                    Some(OpenMenu::Updates(id)) => {
                         menu_type.take();
 
-                        close_menu()
+                        close_menu(id)
                     }
-                    Some(_) => {
-                        menu_type.replace(OpenMenu::Updates);
+                    Some(old_menu) => {
+                        menu_type.replace(OpenMenu::Updates(old_menu.get_id()));
 
                         iced::Command::none()
                     }
                     None => {
-                        menu_type.replace(OpenMenu::Updates);
+                        let (id, cmd) = open_menu();
+                        menu_type.replace(OpenMenu::Updates(id));
 
-                        open_menu()
+                        cmd
                     }
                 }
             }
