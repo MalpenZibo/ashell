@@ -824,7 +824,7 @@ async fn get_current_device<'a>(
         find_active_connection(name, &nm.active_connections().await.unwrap(), conn).await;
 
     if let Some(active_connection) = active_connection {
-        let active_connection_proxy = ActiveConnectionProxy::builder(&conn)
+        let active_connection_proxy = ActiveConnectionProxy::builder(conn)
             .path(active_connection)
             .unwrap()
             .build()
@@ -839,7 +839,7 @@ async fn get_current_device<'a>(
             .next()
             .unwrap();
 
-        let device_proxy = DeviceProxy::builder(&conn)
+        let device_proxy = DeviceProxy::builder(conn)
             .path(device)
             .unwrap()
             .build()

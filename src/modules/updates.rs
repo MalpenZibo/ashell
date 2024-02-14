@@ -5,7 +5,9 @@ use crate::{
     style::{GhostButtonStyle, HeaderButtonStyle},
 };
 use iced::{
-    advanced::overlay, widget::{button, column, container, horizontal_rule, row, scrollable, text, Column}, window::Id, Element, Length
+    widget::{button, column, container, horizontal_rule, row, scrollable, text, Column},
+    window::Id,
+    Element, Length,
 };
 use log::error;
 use serde::Deserialize;
@@ -114,7 +116,7 @@ impl Updates {
 
                         close_menu(overlay_id)
                     }
-                    Some(old_menu) => {
+                    Some(_) => {
                         menu_type.replace(OpenMenu::Updates);
 
                         iced::Command::none()

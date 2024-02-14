@@ -2,7 +2,7 @@ use crate::{
     components::icons::{icon, Icons},
     style::HeaderButtonStyle,
 };
-use iced::{widget::button, Element, Length};
+use iced::{widget::button, Element};
 
 #[derive(Clone, Debug)]
 pub enum Message {

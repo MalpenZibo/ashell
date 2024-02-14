@@ -131,7 +131,7 @@ impl Settings {
 
                         close_menu(overlay_id)
                     }
-                    Some(old_menu) => {
+                    Some(_) => {
                         menu_type.replace(OpenMenu::Settings);
 
                         iced::Command::none()
@@ -223,14 +223,14 @@ impl Settings {
                             .net_commander
                             .send(NetCommand::ActivateWifiConnection(ssid, Some(password)));
 
-                        password_dialog::close_password_dialog(overlay_id)
+                        password_dialog::close_password_dialog(overlay_id, self.sub_menu.is_some())
                     } else {
                         iced::Command::none()
                     }
                 }
                 password_dialog::Message::DialogCancelled => {
                     if let Some((_, _)) = self.password_dialog.take() {
-                        password_dialog::close_password_dialog(overlay_id)
+                        password_dialog::close_password_dialog(overlay_id, self.sub_menu.is_some())
                     } else {
                         iced::Command::none()
                     }

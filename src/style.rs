@@ -44,10 +44,10 @@ pub fn left_header_pills(theme: &Theme) -> iced::widget::container::Appearance {
     let palette = theme.palette();
     iced::widget::container::Appearance {
         background: Some(palette.background.into()),
-        border: Border { 
-            width: 0.0, 
-            radius: [12.0, 0.0, 0.0, 12.0].into(), 
-            color: iced::Color::TRANSPARENT 
+        border: Border {
+            width: 0.0,
+            radius: [12.0, 0.0, 0.0, 12.0].into(),
+            color: iced::Color::TRANSPARENT,
         },
         text_color: Some(palette.text),
         ..Default::default()
@@ -148,7 +148,7 @@ pub struct SliderStyle;
 //     fn active(&self, style: &Self::Style) -> slider::Appearance {
 //         slider::Appearance {
 //             rail: slider::Rail {
-//                 colors: iced::widget::slider:: slider::RailBackground::Pair(PEACH, PEACH),
+//                 colors:  RailBackground::Pair(PEACH, PEACH),
 //                 width: 4.,
 //                 border_radius: 4.0.into(),
 //             },

@@ -14,9 +14,9 @@ use iced::{
         actions::layer_surface::SctkLayerSurfaceSettings,
         layer_surface::{Anchor, Layer},
     },
-    widget::{container, row, text, Column},
+    widget::{row, Column},
     window::Id,
-    Alignment, Application, Color, Command, Element, Length, Theme,
+    Alignment, Application, Color, Command, Length, Theme,
 };
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
@@ -98,7 +98,7 @@ impl Application for App {
             Message::CloseMenu => {
                 let old_menu = self.menu_type.take();
 
-                if let Some(_) = old_menu {
+                if old_menu.is_some() {
                     close_menu(self.overlay_id)
                 } else {
                     iced::Command::none()
@@ -172,6 +172,13 @@ impl Application for App {
             }
             _ => {
                 if id == self.overlay_id {
+                    if let Some((ssid, password)) = self.settings.password_dialog.as_ref() {
+                        return password_dialog::view(ssid, password).map(|msg| {
+                            Message::Settings(crate::modules::settings::Message::PasswordDialog(
+                                msg,
+                            ))
+                        });
+                    }
                     if let Some(menu_type) = self.menu_type {
                         return menu_wrapper(
                             match menu_type {
@@ -185,13 +192,6 @@ impl Application for App {
                                 OpenMenu::Settings => crate::menu::MenuPosition::Right,
                             },
                         );
-                    }
-                    if let Some((ssid, password)) = self.settings.password_dialog.as_ref() {
-                        return password_dialog::view(ssid, password).map(|msg| {
-                            Message::Settings(crate::modules::settings::Message::PasswordDialog(
-                                msg,
-                            ))
-                        });
                     }
                 }
 

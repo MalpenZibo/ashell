@@ -101,7 +101,7 @@ impl Workspaces {
                         let empty = w.windows == 0;
                         let fg_color = if empty { TEXT } else { BASE };
                         mouse_area(
-                            container(text(w.id).size(12))
+                            container(text(w.id).size(10))
                                 .style(move |_theme: &Theme| iced::widget::container::Appearance {
                                     background: Some(iced::Background::Color(if empty {
                                         SURFACE_0
@@ -118,8 +118,8 @@ impl Workspaces {
                                 })
                                 .align_x(iced::alignment::Horizontal::Center)
                                 .align_y(iced::alignment::Vertical::Center)
-                                .width(if w.active { 32 } else { 18 })
-                                .height(18),
+                                .width(if w.active { 32 } else { 16 })
+                                .height(16),
                         )
                         .on_release(Message::ChangeWorkspace(w.id))
                         .into()
@@ -128,7 +128,7 @@ impl Workspaces {
             )
             .spacing(4),
         )
-        .padding([2, 8])
+        .padding([4, 8])
         .align_y(iced::alignment::Vertical::Center)
         .height(Length::Shrink)
         .style(header_pills)
