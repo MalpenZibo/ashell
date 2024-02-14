@@ -128,7 +128,7 @@ impl Workspaces {
             )
             .spacing(4),
         )
-        .padding([5, 8])
+        .padding([2, 8])
         .align_y(iced::alignment::Vertical::Center)
         .height(Length::Shrink)
         .style(header_pills)

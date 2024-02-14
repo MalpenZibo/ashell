@@ -35,7 +35,7 @@ impl Title {
     pub fn view(&self) -> Option<Element<Message>> {
         self.value.as_ref().map(|value| {
             container(text(value).size(12))
-                .padding([6, 8])
+                .padding([2, 7])
                 .style(header_pills)
                 .into()
         })

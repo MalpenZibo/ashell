@@ -5,8 +5,7 @@ use crate::{
     style::{GhostButtonStyle, HeaderButtonStyle},
 };
 use iced::{
-    widget::{button, column, container, horizontal_rule, row, scrollable, text, Column},
-    Element, Length,
+    advanced::overlay, widget::{button, column, container, horizontal_rule, row, scrollable, text, Column}, window::Id, Element, Length
 };
 use log::error;
 use serde::Deserialize;
@@ -97,6 +96,7 @@ impl Updates {
     pub fn update(
         &mut self,
         message: Message,
+        overlay_id: Id,
         menu_type: &mut Option<OpenMenu>,
     ) -> iced::Command<Message> {
         match message {
@@ -109,19 +109,19 @@ impl Updates {
             Message::ToggleMenu => {
                 self.is_updates_list_open = false;
                 match *menu_type {
-                    Some(OpenMenu::Updates(id)) => {
+                    Some(OpenMenu::Updates) => {
                         menu_type.take();
 
-                        close_menu(id)
+                        close_menu(overlay_id)
                     }
                     Some(old_menu) => {
-                        menu_type.replace(OpenMenu::Updates(old_menu.get_id()));
+                        menu_type.replace(OpenMenu::Updates);
 
                         iced::Command::none()
                     }
                     None => {
-                        let (id, cmd) = open_menu();
-                        menu_type.replace(OpenMenu::Updates(id));
+                        let cmd = open_menu(overlay_id);
+                        menu_type.replace(OpenMenu::Updates);
 
                         cmd
                     }
@@ -173,7 +173,7 @@ impl Updates {
         }
 
         button(content)
-            .padding([5, 7])
+            .padding([2, 7])
             .style(iced::theme::Button::custom(HeaderButtonStyle::Full))
             .on_press(Message::ToggleMenu)
             .into()

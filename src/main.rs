@@ -36,6 +36,8 @@ impl Default for Config {
     }
 }
 
+const HEIGHT: u32 = 34;
+
 #[tokio::main]
 async fn main() {
     let config_file = File::open("~/ashell.yaml");
@@ -75,8 +77,6 @@ async fn main() {
     .unwrap();
     log_panics::init();
 
-    let height = 34;
-
     App::run(Settings {
         antialiasing: true,
         exit_on_close_request: false,
@@ -85,9 +85,9 @@ async fn main() {
             keyboard_interactivity: KeyboardInteractivity::None,
             namespace: "ashell".into(),
             layer: Layer::Top,
-            size: Some((None, Some(height))),
+            size: Some((None, Some(HEIGHT))),
             anchor: Anchor::TOP.union(Anchor::LEFT).union(Anchor::RIGHT),
-            exclusive_zone: height as i32,
+            exclusive_zone: HEIGHT as i32,
             ..Default::default()
         }),
         flags: (),

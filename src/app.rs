@@ -7,29 +7,26 @@ use crate::{
     },
     password_dialog,
     style::ashell_theme,
+    HEIGHT,
 };
 use iced::{
-    widget::{row, text, Column},
+    wayland::{
+        actions::layer_surface::SctkLayerSurfaceSettings,
+        layer_surface::{Anchor, Layer},
+    },
+    widget::{container, row, text, Column},
     window::Id,
-    Alignment, Application, Color, Element, Length, Theme,
+    Alignment, Application, Color, Command, Element, Length, Theme,
 };
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub enum OpenMenu {
-    Updates(Id),
-    Settings(Id),
-}
-
-impl OpenMenu {
-    pub fn get_id(&self) -> Id {
-        match self {
-            OpenMenu::Updates(id) => *id,
-            OpenMenu::Settings(id) => *id,
-        }
-    }
+    Updates,
+    Settings,
 }
 
 pub struct App {
+    overlay_id: Id,
     menu_type: Option<OpenMenu>,
     updates: Updates,
     workspaces: Workspaces,
@@ -59,8 +56,10 @@ impl Application for App {
     type Flags = ();
 
     fn new(_: ()) -> (Self, iced::Command<Self::Message>) {
+        let (overlay_id, cmd) = open_overlay_surface();
         (
             App {
+                overlay_id,
                 menu_type: None,
                 updates: Updates::new(),
                 workspaces: Workspaces::new(),
@@ -69,7 +68,7 @@ impl Application for App {
                 clock: Clock::new(),
                 settings: Settings::new(),
             },
-            iced::Command::none(),
+            cmd,
         )
     }
 
@@ -99,15 +98,15 @@ impl Application for App {
             Message::CloseMenu => {
                 let old_menu = self.menu_type.take();
 
-                if let Some(menu) = old_menu {
-                    close_menu(menu.get_id())
+                if let Some(_) = old_menu {
+                    close_menu(self.overlay_id)
                 } else {
                     iced::Command::none()
                 }
             }
             Message::Updates(message) => self
                 .updates
-                .update(message, &mut self.menu_type)
+                .update(message, self.overlay_id, &mut self.menu_type)
                 .map(Message::Updates),
             Message::Launcher(_) => {
                 crate::utils::launcher::launch_rofi();
@@ -132,7 +131,7 @@ impl Application for App {
             }
             Message::Settings(message) => self
                 .settings
-                .update(message, &mut self.menu_type)
+                .update(message, self.overlay_id, &mut self.menu_type)
                 .map(Message::Settings),
         }
     }
@@ -145,6 +144,7 @@ impl Application for App {
                     self.updates.view().map(Message::Updates),
                     self.workspaces.view().map(Message::Workspaces)
                 )
+                .height(Length::Shrink)
                 .align_items(Alignment::Center)
                 .spacing(4);
 
@@ -162,68 +162,40 @@ impl Application for App {
                 )
                 .spacing(4);
 
-                //  Column::with_children(
-                //     vec![
-                //         Some(
-                //         ),
-                //         self.menu_type.map(|menu_type| {
-                //             menu_wrapper(
-                //                 match menu_type {
-                //                     OpenMenu::Updates => self.updates.menu_view().map(Message::Updates),
-                //                     OpenMenu::Settings => self.settings.menu_view().map(Message::Settings),
-                //                 },
-                //                 match menu_type {
-                //                     OpenMenu::Updates => crate::menu::MenuPosition::Left,
-                //                     OpenMenu::Settings => crate::menu::MenuPosition::Right,
-                //                 },
-                //             )
-                //         }),
-                //     ]
-                //     .into_iter()
-                //     .flatten()
-                //     .collect::<Vec<_>>(),
-                // )
-                // .width(Length::Fill)
-                // .into()
-
                 centerbox::Centerbox::new([left.into(), center.into(), right.into()])
                     .spacing(4)
                     .padding([0, 4])
                     .width(Length::Fill)
-                    .height(Length::Shrink)
+                    .height(Length::Fill)
                     .align_items(Alignment::Center)
                     .into()
             }
             _ => {
-                if let Some(menu_type) = self.menu_type {
-                    if menu_type.get_id() == id {
+                if id == self.overlay_id {
+                    if let Some(menu_type) = self.menu_type {
                         return menu_wrapper(
                             match menu_type {
-                                OpenMenu::Updates(_) => self.updates.menu_view().map(Message::Updates),
-                                OpenMenu::Settings(_) => {
+                                OpenMenu::Updates => self.updates.menu_view().map(Message::Updates),
+                                OpenMenu::Settings => {
                                     self.settings.menu_view().map(Message::Settings)
                                 }
                             },
                             match menu_type {
-                                OpenMenu::Updates(_) => crate::menu::MenuPosition::Left,
-                                OpenMenu::Settings(_) => crate::menu::MenuPosition::Right,
+                                OpenMenu::Updates => crate::menu::MenuPosition::Left,
+                                OpenMenu::Settings => crate::menu::MenuPosition::Right,
                             },
                         );
                     }
+                    if let Some((ssid, password)) = self.settings.password_dialog.as_ref() {
+                        return password_dialog::view(ssid, password).map(|msg| {
+                            Message::Settings(crate::modules::settings::Message::PasswordDialog(
+                                msg,
+                            ))
+                        });
+                    }
                 }
 
-                if let Some((_, ssid, password)) = self
-                    .settings
-                    .password_dialog
-                    .as_ref()
-                    .filter(|(menu_id, _, _)| *menu_id == id)
-                {
-                    return password_dialog::view(ssid, password).map(|msg| {
-                        Message::Settings(crate::modules::settings::Message::PasswordDialog(msg))
-                    });
-                }
-
-                iced::Element::new(Column::new())
+                Column::new().into()
             }
         }
     }
@@ -238,4 +210,18 @@ impl Application for App {
             self.settings.subscription().map(Message::Settings),
         ])
     }
+}
+
+fn open_overlay_surface<Msg>() -> (Id, Command<Msg>) {
+    let id = Id::unique();
+    (
+        id,
+        iced::wayland::layer_surface::get_layer_surface(SctkLayerSurfaceSettings {
+            id,
+            layer: Layer::Overlay,
+            size: Some((None, Some(HEIGHT))),
+            anchor: Anchor::TOP.union(Anchor::LEFT).union(Anchor::RIGHT),
+            ..Default::default()
+        }),
+    )
 }

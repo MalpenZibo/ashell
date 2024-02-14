@@ -1,29 +1,41 @@
 use iced::{
-    wayland::{actions::layer_surface::SctkLayerSurfaceSettings, layer_surface::{Anchor, KeyboardInteractivity}},
+    wayland::{
+        actions::layer_surface::SctkLayerSurfaceSettings,
+        layer_surface::{Anchor, KeyboardInteractivity},
+    },
     widget::{button, column, horizontal_space, row, text, text_input},
     window::Id,
     Command, Element,
 };
 
+use crate::HEIGHT;
+
 pub fn close_password_dialog<Message>(id: Id) -> Command<Message> {
-    iced::wayland::layer_surface::destroy_layer_surface(id)
+    Command::batch(vec![
+        iced::wayland::layer_surface::set_anchor(
+            id,
+            Anchor::TOP.union(Anchor::LEFT).union(Anchor::RIGHT),
+        ),
+        iced::wayland::layer_surface::set_size(id, None, Some(HEIGHT)),
+        iced::wayland::layer_surface::set_keyboard_interactivity(id, KeyboardInteractivity::None),
+    ])
 }
 
-pub fn open_password_dialog<Message>() -> (Id, Command<Message>) {
-    let id = Id::unique();
-    (
-        id,
-        iced::wayland::layer_surface::get_layer_surface(SctkLayerSurfaceSettings {
+pub fn open_password_dialog<Message>(id: Id) -> Command<Message> {
+    Command::batch(vec![
+        iced::wayland::layer_surface::set_anchor(
             id,
-            anchor: Anchor::TOP
+            Anchor::TOP
                 .union(Anchor::LEFT)
                 .union(Anchor::RIGHT)
                 .union(Anchor::BOTTOM),
-            exclusive_zone: 0,
-            keyboard_interactivity: KeyboardInteractivity::Exclusive,
-            ..Default::default()
-        }),
-    )
+        ),
+        iced::wayland::layer_surface::set_size(id, None, None),
+        iced::wayland::layer_surface::set_keyboard_interactivity(
+            id,
+            KeyboardInteractivity::Exclusive,
+        ),
+    ])
 }
 
 #[derive(Debug, Clone)]

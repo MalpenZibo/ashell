@@ -10,7 +10,7 @@ use crate::{
 use iced::{
     theme::Button, widget::{
         button, column, container, horizontal_rule, row, scrollable, text, toggler, Column, Text,
-    }, Element, Length, Theme
+    }, window::Id, Element, Length, Theme
 };
 
 use super::{quick_setting_button, sub_menu_wrapper, Message, Settings, SubMenu};
@@ -30,7 +30,7 @@ pub enum NetMessage {
 }
 
 impl NetMessage {
-    pub fn update(self, settings: &mut Settings) -> iced::Command<Message> {
+    pub fn update(self, settings: &mut Settings, overlay_id: Id) -> iced::Command<Message> {
         match self {
             NetMessage::WifiDeviceState(state) => {
                 settings.wifi_device_state = state;
@@ -55,8 +55,8 @@ impl NetMessage {
                 iced::Command::none()
             }
             NetMessage::RequestWifiPassword(ssid) => {
-                let (id, cmd) = password_dialog::open_password_dialog();
-                settings.password_dialog = Some((id, ssid, "".to_string()));
+                let  cmd = password_dialog::open_password_dialog(overlay_id);
+                settings.password_dialog = Some((ssid, "".to_string()));
 
                 cmd
             }
@@ -195,7 +195,7 @@ pub fn wifi_menu<'a>(
             })
             .size(12),
             button(icon(Icons::Refresh))
-                .padding([4, 5])
+                .padding([4, 10])
                 .style(Button::custom(SettingsButtonStyle))
                 .on_press(NetMessage::ScanNearByWifi),
         )

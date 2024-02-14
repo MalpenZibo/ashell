@@ -167,7 +167,7 @@ where
                 self.padding.top,
             ));
         } else {
-            nodes[1].move_to_mut(Point::new(limits.max().width / 2., self.padding.top));
+            nodes[1].move_to_mut(Point::new(limits.max().width / 2. + self.padding.horizontal() / 2.0, self.padding.top));
         }
         nodes[1].align_mut(Alignment::Center, self.align_items, Size::new(0.0, cross));
 

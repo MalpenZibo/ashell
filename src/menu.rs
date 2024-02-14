@@ -1,30 +1,30 @@
 use crate::style::CRUST;
-use iced::wayland::actions::layer_surface::SctkLayerSurfaceSettings;
-use iced::wayland::layer_surface::Layer;
+use crate::HEIGHT;
 use iced::widget::container;
 use iced::{wayland::layer_surface::Anchor, window::Id, Theme};
 use iced::{Border, Command, Element};
 
 pub fn close_menu<Message>(id: Id) -> Command<Message> {
-    iced::wayland::layer_surface::destroy_layer_surface(id)
+    Command::batch(vec![
+        iced::wayland::layer_surface::set_anchor(
+            id,
+            Anchor::TOP.union(Anchor::LEFT).union(Anchor::RIGHT),
+        ),
+        iced::wayland::layer_surface::set_size(id, None, Some(HEIGHT)),
+    ])
 }
 
-pub fn open_menu<Message>() -> (Id, Command<Message>) {
-    let id = Id::unique();
-    (
-        id,
-        iced::wayland::layer_surface::get_layer_surface(SctkLayerSurfaceSettings {
+pub fn open_menu<Message>(id: Id) -> Command<Message> {
+    Command::batch(vec![
+        iced::wayland::layer_surface::set_anchor(
             id,
-            layer: Layer::Overlay,
-            anchor: Anchor::TOP
+            Anchor::TOP
                 .union(Anchor::LEFT)
                 .union(Anchor::RIGHT)
                 .union(Anchor::BOTTOM),
-            exclusive_zone: 0,
-            size: Some((None, None)),
-            ..Default::default()
-        }),
-    )
+        ),
+        iced::wayland::layer_surface::set_size(id, None, None),
+    ])
 }
 
 pub enum MenuPosition {

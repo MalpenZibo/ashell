@@ -101,7 +101,7 @@ impl SystemInfo {
             .spacing(4),
         )
         .align_y(iced::alignment::Vertical::Center)
-        .padding([5, 8])
+        .padding([2, 7])
         .style(header_pills)
         .into()
     }
