@@ -6,7 +6,7 @@ use iced::{
 
 use crate::{
     components::icons::{icon, Icons},
-    style::{GhostButtonStyle, SettingsButtonStyle, GREEN, YELLOW},
+    style::{GhostButtonStyle, SettingsButtonStyle, SliderStyle, GREEN, YELLOW},
     utils::audio::{AudioCommand, DeviceType, Sink, Sinks, Source, Sources, Volume},
 };
 
@@ -261,6 +261,7 @@ pub fn audio_slider<'a, Message: 'a + Clone>(
                 slider(0..=100, volume, volume_changed)
                     .step(1)
                     .width(Length::Fill)
+                    // .style(SliderStyle)
                     .into(),
             ),
             with_submenu.map(|(submenu, msg)| {

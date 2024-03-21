@@ -7,7 +7,7 @@ use libpulse_binding::{
     mainloop::standard::{IterateResult, Mainloop},
     proplist::Proplist,
 };
-use log::{error, trace};
+use log::{debug, error, trace};
 use pulse::{
     callbacks::ListResult,
     context::{
@@ -419,13 +419,12 @@ pub fn subscription(
 ) -> Subscription<AudioMessage> {
     iced::Subscription::batch(vec![
         iced::subscription::channel("audio-commander", 100, |_| async move {
-            let (internal_tx, mut internal_rx) = tokio::sync::mpsc::unbounded_channel::<()>();
+            let (_internal_tx, mut internal_rx) = tokio::sync::mpsc::unbounded_channel::<()>();
 
             thread::spawn(move || {
                 let mut rx = rx.unwrap();
                 let mut audio_commander = AudioCommander::new();
 
-                internal_tx.send(()).unwrap();
                 loop {
                     if let Some(command) = rx.blocking_recv() {
                         match command {
@@ -454,6 +453,7 @@ pub fn subscription(
 
             loop {
                 let _ = internal_rx.recv().await;
+                debug!("Audio command receive");
             }
         }),
         iced::subscription::channel("audio-listener", 100, |mut output| async move {
@@ -551,6 +551,7 @@ pub fn subscription(
             loop {
                 let data = rx.recv().await.unwrap();
                 let _ = output.send(data).await;
+                debug!("Audio listener receive");
             }
         }),
     ])

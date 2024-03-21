@@ -6,7 +6,6 @@ use crate::{
 };
 use iced::{
     widget::{button, column, container, horizontal_rule, row, scrollable, text, Column},
-    window::Id,
     Element, Length,
 };
 use log::error;
@@ -98,7 +97,6 @@ impl Updates {
     pub fn update(
         &mut self,
         message: Message,
-        overlay_id: Id,
         menu_type: &mut Option<OpenMenu>,
     ) -> iced::Command<Message> {
         match message {
@@ -111,19 +109,19 @@ impl Updates {
             Message::ToggleMenu => {
                 self.is_updates_list_open = false;
                 match *menu_type {
-                    Some(OpenMenu::Updates) => {
+                    Some(OpenMenu::Updates(id)) => {
                         menu_type.take();
 
-                        close_menu(overlay_id)
+                        close_menu(id)
                     }
-                    Some(_) => {
-                        menu_type.replace(OpenMenu::Updates);
+                    Some(menu) => {
+                        menu_type.replace(OpenMenu::Updates(menu.id()));
 
                         iced::Command::none()
                     }
                     None => {
-                        let cmd = open_menu(overlay_id);
-                        menu_type.replace(OpenMenu::Updates);
+                        let (id, cmd) = open_menu();
+                        menu_type.replace(OpenMenu::Updates(id));
 
                         cmd
                     }
@@ -147,17 +145,24 @@ impl Updates {
                     Message::UpdatesCheckCompleted,
                 )
             }
-            Message::Update => iced::Command::perform(
-                async move {
-                    tokio::spawn({
-                        async move {
-                            update().await;
-                        }
-                    })
-                    .await
-                },
-                move |_| Message::UpdateFinished,
-            ),
+            Message::Update => {
+                let mut cmds = vec![iced::Command::perform(
+                    async move {
+                        tokio::spawn({
+                            async move {
+                                update().await;
+                            }
+                        })
+                        .await
+                    },
+                    move |_| Message::UpdateFinished,
+                )];
+                if let Some(menu) = menu_type {
+                    cmds.push(close_menu(menu.id()))
+                }
+
+                iced::Command::batch(cmds)
+            }
         }
     }
 

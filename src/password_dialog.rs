@@ -1,45 +1,34 @@
+use crate::style::CRUST;
 use iced::{
-    wayland::layer_surface::{Anchor, KeyboardInteractivity},
+    wayland::{
+        actions::layer_surface::SctkLayerSurfaceSettings,
+        layer_surface::{Anchor, KeyboardInteractivity},
+    },
     widget::{button, column, container, horizontal_space, row, text, text_input},
     window::Id,
     Border, Command, Element, Length, Theme,
 };
 
-use crate::{style::CRUST, HEIGHT};
-
-pub fn close_password_dialog<Message>(id: Id, maintain_size: bool) -> Command<Message> {
-    if maintain_size {
-        iced::wayland::layer_surface::set_keyboard_interactivity(id, KeyboardInteractivity::None)
-    } else {
-        Command::batch(vec![
-            iced::wayland::layer_surface::set_anchor(
-                id,
-                Anchor::TOP.union(Anchor::LEFT).union(Anchor::RIGHT),
-            ),
-            iced::wayland::layer_surface::set_size(id, None, Some(HEIGHT)),
-            iced::wayland::layer_surface::set_keyboard_interactivity(
-                id,
-                KeyboardInteractivity::None,
-            ),
-        ])
-    }
+pub fn close_password_dialog<Message>(id: Id) -> Command<Message> {
+    iced::wayland::layer_surface::destroy_layer_surface(id)
 }
 
-pub fn open_password_dialog<Message>(id: Id) -> Command<Message> {
-    Command::batch(vec![
-        iced::wayland::layer_surface::set_anchor(
+pub fn open_password_dialog<Message>() -> (Id, Command<Message>) {
+    let id = Id::unique();
+    (
+        id,
+        iced::wayland::layer_surface::get_layer_surface(SctkLayerSurfaceSettings {
             id,
-            Anchor::TOP
+            layer: iced::wayland::layer_surface::Layer::Overlay,
+            anchor: Anchor::TOP
                 .union(Anchor::LEFT)
                 .union(Anchor::RIGHT)
                 .union(Anchor::BOTTOM),
-        ),
-        iced::wayland::layer_surface::set_size(id, None, None),
-        iced::wayland::layer_surface::set_keyboard_interactivity(
-            id,
-            KeyboardInteractivity::Exclusive,
-        ),
-    ])
+            size: Some((None, None)),
+            keyboard_interactivity: KeyboardInteractivity::Exclusive,
+            ..Default::default()
+        }),
+    )
 }
 
 #[derive(Debug, Clone)]

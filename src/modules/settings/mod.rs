@@ -58,7 +58,7 @@ pub struct Settings {
     cur_sink_volume: i32,
     cur_source_volume: i32,
     cur_brightness: i32,
-    pub password_dialog: Option<(String, String)>,
+    pub password_dialog: Option<(Id, String, String)>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -117,7 +117,6 @@ impl Settings {
     pub fn update(
         &mut self,
         message: Message,
-        overlay_id: Id,
         menu_type: &mut Option<OpenMenu>,
     ) -> iced::Command<Message> {
         match message {
@@ -126,19 +125,19 @@ impl Settings {
                 self.password_dialog = None;
 
                 match *menu_type {
-                    Some(OpenMenu::Settings) => {
+                    Some(OpenMenu::Settings(id)) => {
                         menu_type.take();
 
-                        close_menu(overlay_id)
+                        close_menu(id)
                     }
-                    Some(_) => {
-                        menu_type.replace(OpenMenu::Settings);
+                    Some(menu) => {
+                        menu_type.replace(OpenMenu::Settings(menu.id()));
 
                         iced::Command::none()
                     }
                     None => {
-                        let cmd = open_menu(overlay_id);
-                        menu_type.replace(OpenMenu::Settings);
+                        let (id, cmd) = open_menu();
+                        menu_type.replace(OpenMenu::Settings(id));
 
                         cmd
                     }
@@ -169,7 +168,7 @@ impl Settings {
                 };
                 iced::Command::none()
             }
-            Message::Net(msg) => msg.update(self, overlay_id),
+            Message::Net(msg) => msg.update(self),
             Message::Audio(msg) => {
                 msg.update(self);
                 iced::Command::none()
@@ -211,26 +210,26 @@ impl Settings {
             }
             Message::PasswordDialog(msg) => match msg {
                 password_dialog::Message::PasswordChanged(password) => {
-                    if let Some((_, current_password)) = &mut self.password_dialog {
+                    if let Some((_, _, current_password)) = &mut self.password_dialog {
                         *current_password = password;
                     }
 
                     iced::Command::none()
                 }
                 password_dialog::Message::DialogConfirmed => {
-                    if let Some((ssid, password)) = self.password_dialog.take() {
+                    if let Some((id, ssid, password)) = self.password_dialog.take() {
                         let _ = self
                             .net_commander
                             .send(NetCommand::ActivateWifiConnection(ssid, Some(password)));
 
-                        password_dialog::close_password_dialog(overlay_id, self.sub_menu.is_some())
+                        password_dialog::close_password_dialog(id)
                     } else {
                         iced::Command::none()
                     }
                 }
                 password_dialog::Message::DialogCancelled => {
-                    if let Some((_, _)) = self.password_dialog.take() {
-                        password_dialog::close_password_dialog(overlay_id, self.sub_menu.is_some())
+                    if let Some((id, _, _)) = self.password_dialog.take() {
+                        password_dialog::close_password_dialog(id)
                     } else {
                         iced::Command::none()
                     }
