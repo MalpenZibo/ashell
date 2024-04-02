@@ -13,7 +13,7 @@ use iced::{
     Color, Subscription,
 };
 use log::error;
-use zbus::{dbus_proxy, zvariant::OwnedObjectPath, Connection, Result};
+use zbus::{proxy, zvariant::OwnedObjectPath, Connection, Result};
 
 #[derive(Copy, Clone, Debug)]
 pub struct BatteryData {
@@ -70,7 +70,7 @@ impl BatteryData {
     }
 }
 
-#[dbus_proxy(
+#[proxy(
     interface = "org.freedesktop.UPower",
     default_service = "org.freedesktop.UPower",
     default_path = "/org/freedesktop/UPower"
@@ -78,32 +78,32 @@ impl BatteryData {
 trait UPower {
     fn enumerate_devices(&self) -> Result<Vec<OwnedObjectPath>>;
 
-    #[dbus_proxy(signal)]
+    #[zbus(signal)]
     fn device_added(&self) -> Result<OwnedObjectPath>;
 }
 
-#[dbus_proxy(
+#[proxy(
     default_service = "org.freedesktop.UPower",
     default_path = "/org/freedesktop/UPower/Device",
     interface = "org.freedesktop.UPower.Device"
 )]
 trait Device {
-    #[dbus_proxy(property, name = "Type")]
+    #[zbus(property, name = "Type")]
     fn device_type(&self) -> Result<u32>;
 
-    #[dbus_proxy(property)]
+    #[zbus(property)]
     fn power_supply(&self) -> Result<bool>;
 
-    #[dbus_proxy(property)]
+    #[zbus(property)]
     fn time_to_empty(&self) -> Result<i64>;
 
-    #[dbus_proxy(property)]
+    #[zbus(property)]
     fn time_to_full(&self) -> Result<i64>;
 
-    #[dbus_proxy(property)]
+    #[zbus(property)]
     fn percentage(&self) -> Result<f64>;
 
-    #[dbus_proxy(property)]
+    #[zbus(property)]
     fn state(&self) -> Result<u32>;
 }
 

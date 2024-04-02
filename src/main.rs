@@ -59,7 +59,7 @@ async fn main() {
             .module(
                 "ashell",
                 if cfg!(debug_assertions) {
-                    log::LevelFilter::Info
+                    log::LevelFilter::Debug
                 } else {
                     config.log_level
                 },
@@ -67,7 +67,7 @@ async fn main() {
             .build(),
     )
     .log_to_file(FileSpec::default().directory("/tmp/ashell"))
-    .duplicate_to_stderr(flexi_logger::Duplicate::All)
+    .duplicate_to_stdout(flexi_logger::Duplicate::All)
     .rotate(
         Criterion::Age(Age::Day),
         Naming::Timestamps,

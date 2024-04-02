@@ -8,11 +8,11 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
-use zbus::{dbus_proxy, Connection, Result};
+use zbus::{proxy, Connection, Result};
 
 const DEVICES_FOLDER: &str = "/sys/class/backlight";
 
-#[dbus_proxy(
+#[proxy(
     default_service = "org.freedesktop.login1",
     default_path = "/org/freedesktop/login1/session/auto",
     interface = "org.freedesktop.login1.Session"

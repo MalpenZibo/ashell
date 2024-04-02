@@ -11,9 +11,9 @@ use iced::{
     Color, Subscription,
 };
 use log::info;
-use std::{cmp::Ordering, collections::HashMap};
+use std::{cmp::Ordering, collections::HashMap, ops::Deref};
 use zbus::{
-    dbus_proxy,
+    proxy,
     zvariant::{self, OwnedObjectPath, OwnedValue, Value},
     PropertyStream, Result,
 };
@@ -33,7 +33,7 @@ static WIFI_LOCK_SIGNAL_ICONS: [Icons; 4] = [
     Icons::WifiLock4,
 ];
 
-#[dbus_proxy(
+#[proxy(
     interface = "org.freedesktop.NetworkManager",
     default_service = "org.freedesktop.NetworkManager",
     default_path = "/org/freedesktop/NetworkManager"
@@ -48,102 +48,102 @@ trait NetworkManager {
 
     fn deactivate_connection(&self, connection: OwnedObjectPath) -> Result<()>;
 
-    #[dbus_proxy(property)]
+    #[zbus(property)]
     fn active_connections(&self) -> Result<Vec<OwnedObjectPath>>;
 
-    #[dbus_proxy(property)]
+    #[zbus(property)]
     fn devices(&self) -> Result<Vec<OwnedObjectPath>>;
 
-    #[dbus_proxy(property)]
+    #[zbus(property)]
     fn wireless_enabled(&self) -> Result<bool>;
 
-    #[dbus_proxy(property)]
+    #[zbus(property)]
     fn set_wireless_enabled(&self, value: bool) -> Result<()>;
 }
 
-#[dbus_proxy(
+#[proxy(
     default_service = "org.freedesktop.NetworkManager",
     default_path = "/org/freedesktop/NetworkManager/Connection/Active",
     interface = "org.freedesktop.NetworkManager.Connection.Active"
 )]
 trait ActiveConnection {
-    #[dbus_proxy(property)]
+    #[zbus(property)]
     fn id(&self) -> Result<String>;
 
-    #[dbus_proxy(property)]
+    #[zbus(property)]
     fn uuid(&self) -> Result<String>;
 
-    #[dbus_proxy(property, name = "Type")]
+    #[zbus(property, name = "Type")]
     fn connection_type(&self) -> Result<String>;
 
-    #[dbus_proxy(property)]
+    #[zbus(property)]
     fn state(&self) -> Result<u32>;
 
-    #[dbus_proxy(property)]
+    #[zbus(property)]
     fn vpn(&self) -> Result<bool>;
 
-    #[dbus_proxy(property)]
+    #[zbus(property)]
     fn devices(&self) -> Result<Vec<OwnedObjectPath>>;
 }
 
-#[dbus_proxy(
+#[proxy(
     default_service = "org.freedesktop.NetworkManager",
     default_path = "/org/freedesktop/NetworkManager/Device",
     interface = "org.freedesktop.NetworkManager.Device"
 )]
 trait Device {
-    #[dbus_proxy(property)]
+    #[zbus(property)]
     fn device_type(&self) -> Result<u32>;
 
-    #[dbus_proxy(property)]
+    #[zbus(property)]
     fn available_connections(&self) -> Result<Vec<OwnedObjectPath>>;
 
-    #[dbus_proxy(property)]
+    #[zbus(property)]
     fn active_connection(&self) -> Result<OwnedObjectPath>;
 
-    #[dbus_proxy(property)]
+    #[zbus(property)]
     fn state(&self) -> Result<u32>;
 }
 
-#[dbus_proxy(
+#[proxy(
     default_service = "org.freedesktop.NetworkManager",
     default_path = "/org/freedesktop/NetworkManager/Device/Wired",
     interface = "org.freedesktop.NetworkManager.Device.Wired"
 )]
 trait DeviceWired {}
 
-#[dbus_proxy(
+#[proxy(
     default_service = "org.freedesktop.NetworkManager",
     default_path = "/org/freedesktop/NetworkManager/Device/Wireless",
     interface = "org.freedesktop.NetworkManager.Device.Wireless"
 )]
 trait DeviceWireless {
-    #[dbus_proxy(property)]
+    #[zbus(property)]
     fn active_access_point(&self) -> Result<OwnedObjectPath>;
 
-    #[dbus_proxy(property)]
+    #[zbus(property)]
     fn access_points(&self) -> Result<Vec<OwnedObjectPath>>;
 
     fn request_scan(&self, options: HashMap<String, OwnedValue>) -> Result<()>;
 }
 
-#[dbus_proxy(
+#[proxy(
     default_service = "org.freedesktop.NetworkManager",
     default_path = "/org/freedesktop/NetworkManager/AccessPoint",
     interface = "org.freedesktop.NetworkManager.AccessPoint"
 )]
 trait AccessPoint {
-    #[dbus_proxy(property)]
+    #[zbus(property)]
     fn ssid(&self) -> Result<Vec<u8>>;
 
-    #[dbus_proxy(property)]
+    #[zbus(property)]
     fn strength(&self) -> Result<u8>;
 
-    #[dbus_proxy(property)]
+    #[zbus(property)]
     fn flags(&self) -> Result<u32>;
 }
 
-#[dbus_proxy(
+#[proxy(
     default_service = "org.freedesktop.NetworkManager",
     default_path = "/org/freedesktop/NetworkManager/Settings",
     interface = "org.freedesktop.NetworkManager.Settings"
@@ -154,11 +154,11 @@ trait Settings {
         connection: HashMap<String, HashMap<String, OwnedValue>>,
     ) -> Result<OwnedObjectPath>;
 
-    #[dbus_proxy(property)]
+    #[zbus(property)]
     fn connections(&self) -> Result<Vec<OwnedObjectPath>>;
 }
 
-#[dbus_proxy(
+#[proxy(
     default_service = "org.freedesktop.NetworkManager",
     default_path = "/org/freedesktop/NetworkManager/Settings/Connection",
     interface = "org.freedesktop.NetworkManager.Settings.Connection"
@@ -442,7 +442,7 @@ async fn get_vpn_connections(
                     .get("connection")
                     .unwrap()
                     .get("id")
-                    .map(|v| match v.into() {
+                    .map(|v| match v.deref() {
                         Value::Str(v) => v.to_string(),
                         _ => "".to_string(),
                     })
@@ -452,7 +452,7 @@ async fn get_vpn_connections(
                     .get("connection")
                     .unwrap()
                     .get("type")
-                    .and_then(|v| match v.into() {
+                    .and_then(|v| match v.deref() {
                         Value::Str(v) => match v.as_str() {
                             "vpn" => {
                                 let is_active =
@@ -494,7 +494,7 @@ async fn find_connection(
                     .get("connection")
                     .unwrap()
                     .get("id")
-                    .map(|v| match v.into() {
+                    .map(|v| match v.deref() {
                         Value::Str(v) => v.to_string(),
                         _ => "".to_string(),
                     })
@@ -567,7 +567,7 @@ async fn get_kown_wifi_connection<'a>(
                     .get("connection")
                     .unwrap()
                     .get("id")
-                    .map(|v| match v.into() {
+                    .map(|v| match v.deref() {
                         Value::Str(v) => v.to_string(),
                         _ => "".to_string(),
                     })
@@ -577,7 +577,7 @@ async fn get_kown_wifi_connection<'a>(
                     .get("connection")
                     .unwrap()
                     .get("type")
-                    .and_then(|v| match v.into() {
+                    .and_then(|v| match v.deref() {
                         Value::Str(v) => match v.as_str() {
                             "802-11-wireless" => Some(id),
                             _ => None,
@@ -706,18 +706,24 @@ async fn activate_wifi_connection(
                 if let Some(security) = settings.get_mut("802-11-wireless-security") {
                     security.insert(
                         "psk".to_owned(),
-                        zvariant::Value::from(password.clone()).to_owned(),
+                        zvariant::Value::new(password.clone())
+                            .try_to_owned()
+                            .unwrap(),
                     );
                 } else {
                     let mut wireless_security_config: HashMap<String, zvariant::OwnedValue> =
                         HashMap::new();
                     wireless_security_config.insert(
                         "key-mgmt".to_owned(),
-                        zvariant::Value::from("wpa-psk").to_owned(),
+                        zvariant::Value::from("wpa-psk".to_owned())
+                            .try_to_owned()
+                            .unwrap(),
                     );
                     wireless_security_config.insert(
                         "psk".to_owned(),
-                        zvariant::Value::from(password.clone()).to_owned(),
+                        zvariant::Value::from(password.clone())
+                            .try_to_owned()
+                            .unwrap(),
                     );
                     settings.insert(
                         "802-11-wireless-security".to_owned(),
@@ -727,7 +733,9 @@ async fn activate_wifi_connection(
 
                 settings.get_mut("802-11-wireless").unwrap().insert(
                     "security".to_owned(),
-                    zvariant::Value::from("802-11-wireless-security").to_owned(),
+                    zvariant::Value::from("802-11-wireless-security")
+                        .try_to_owned()
+                        .unwrap(),
                 );
 
                 let _ = connection_settings.update(settings).await.unwrap();
@@ -737,18 +745,25 @@ async fn activate_wifi_connection(
         } else {
             info!("Create new wifi connection: {}", ssid);
             let mut connection_config: HashMap<String, zvariant::OwnedValue> = HashMap::new();
-            connection_config.insert("id".to_owned(), zvariant::Value::from(ssid).to_owned());
+            connection_config.insert(
+                "id".to_owned(),
+                zvariant::Value::from(ssid).try_to_owned().unwrap(),
+            );
             // connection_config.insert("uuid", zvariant::Value::from("random-uuid"));
             connection_config.insert(
                 "type".to_owned(),
-                zvariant::Value::from("802-11-wireless").to_owned(),
+                zvariant::Value::from("802-11-wireless")
+                    .try_to_owned()
+                    .unwrap(),
             );
 
             // Configure the 802-11-wireless component
             let mut wireless_config: HashMap<String, zvariant::OwnedValue> = HashMap::new();
             wireless_config.insert(
                 "ssid".to_owned(),
-                zvariant::Value::from(ssid.as_bytes()).to_owned(),
+                zvariant::Value::from(ssid.as_bytes())
+                    .try_to_owned()
+                    .unwrap(),
             );
             // wireless_config.insert("mode", zvariant::Value::from("infrastructure"));
 
@@ -758,15 +773,19 @@ async fn activate_wifi_connection(
             if let Some(password) = password.as_ref() {
                 wireless_config.insert(
                     "security".to_owned(),
-                    zvariant::Value::from("802-11-wireless-security").to_owned(),
+                    zvariant::Value::from("802-11-wireless-security")
+                        .try_to_owned()
+                        .unwrap(),
                 );
                 wireless_security_config.insert(
                     "key-mgmt".to_owned(),
-                    zvariant::Value::from("wpa-psk").to_owned(),
+                    zvariant::Value::from("wpa-psk").try_to_owned().unwrap(),
                 );
                 wireless_security_config.insert(
                     "psk".to_owned(),
-                    zvariant::Value::from(password.clone()).to_owned(),
+                    zvariant::Value::from(password.clone())
+                        .try_to_owned()
+                        .unwrap(),
                 );
             }
 
@@ -791,7 +810,7 @@ async fn activate_wifi_connection(
             let res = nm
                 .activate_connection(
                     connection,
-                    device.path().to_owned().into(),
+                    device.0.path().to_owned().into(),
                     OwnedObjectPath::try_from("/").unwrap(),
                 )
                 .await;

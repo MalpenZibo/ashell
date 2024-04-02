@@ -6,7 +6,7 @@ use iced::{
 
 use crate::{
     components::icons::{icon, Icons},
-    style::{GhostButtonStyle, SettingsButtonStyle, SliderStyle, GREEN, YELLOW},
+    style::{GhostButtonStyle, SettingsButtonStyle, GREEN, YELLOW},
     utils::audio::{AudioCommand, DeviceType, Sink, Sinks, Source, Sources, Volume},
 };
 

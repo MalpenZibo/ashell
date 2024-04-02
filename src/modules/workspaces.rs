@@ -1,7 +1,7 @@
 use crate::style::{header_pills, BASE, LAVENDER, MAUVE, PEACH, SURFACE_0, TEXT};
 use hyprland::{
     event_listener::EventListener,
-    shared::{HyprData, HyprDataActive},
+    shared::{HyprData, HyprDataActive, HyprDataVec},
 };
 use iced::{
     widget::{container, mouse_area, text, Row},
@@ -23,7 +23,7 @@ fn get_workspaces() -> Vec<Workspace> {
     let active = hyprland::data::Workspace::get_active().unwrap();
     let workspaces = hyprland::data::Workspaces::get().unwrap();
 
-    let mut sorted: Vec<hyprland::data::Workspace> = workspaces.collect();
+    let mut sorted: Vec<hyprland::data::Workspace> = workspaces.to_vec();
     sorted.sort_by_key(|w| w.id);
 
     let mut current: usize = 1;
@@ -146,7 +146,7 @@ impl Workspaces {
                     let mut output = output.borrow_mut();
                     output
                         .try_send(Message::WorkspacesChanged(get_workspaces()))
-                        .unwrap();
+                        .expect("error getting workspaces: workspace added event");
                 }
             });
 
@@ -156,7 +156,7 @@ impl Workspaces {
                     let mut output = output.borrow_mut();
                     output
                         .try_send(Message::WorkspacesChanged(get_workspaces()))
-                        .unwrap();
+                        .expect("error getting workspaces: workspace change event");
                 }
             });
 
@@ -166,7 +166,7 @@ impl Workspaces {
                     let mut output = output.borrow_mut();
                     output
                         .try_send(Message::WorkspacesChanged(get_workspaces()))
-                        .unwrap();
+                        .expect("error getting workspaces: workspace destroy event");
                 }
             });
 
@@ -176,7 +176,7 @@ impl Workspaces {
                     let mut output = output.borrow_mut();
                     output
                         .try_send(Message::WorkspacesChanged(get_workspaces()))
-                        .unwrap();
+                        .expect("error getting workspaces: workspace moved event");
                 }
             });
 
@@ -186,7 +186,7 @@ impl Workspaces {
                     let mut output = output.borrow_mut();
                     output
                         .try_send(Message::WorkspacesChanged(get_workspaces()))
-                        .unwrap();
+                        .expect("error getting workspaces: window close event");
                 }
             });
 
@@ -196,7 +196,7 @@ impl Workspaces {
                     let mut output = output.borrow_mut();
                     output
                         .try_send(Message::WorkspacesChanged(get_workspaces()))
-                        .unwrap();
+                        .expect("error getting workspaces: window open event");
                 }
             });
 
@@ -206,7 +206,7 @@ impl Workspaces {
                     let mut output = output.borrow_mut();
                     output
                         .try_send(Message::WorkspacesChanged(get_workspaces()))
-                        .unwrap();
+                        .expect("error getting workspaces: window moved event");
                 }
             });
 
