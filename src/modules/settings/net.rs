@@ -1,11 +1,8 @@
 use crate::{
-    components::icons::{icon, Icons},
-    password_dialog,
-    style::{GhostButtonStyle, SettingsButtonStyle, GREEN, TEXT, YELLOW},
-    utils::net::{
+    components::icons::{icon, Icons}, menu::Menu, style::{GhostButtonStyle, SettingsButtonStyle, GREEN, TEXT, YELLOW}, utils::net::{
         get_wifi_icon, get_wifi_lock_icon, ActiveConnection, NetCommand, Vpn, Wifi, WifiConnection,
         WifiDeviceState,
-    },
+    }
 };
 use iced::{
     theme::Button,
@@ -32,7 +29,7 @@ pub enum NetMessage {
 }
 
 impl NetMessage {
-    pub fn update(self, settings: &mut Settings) -> iced::Command<Message> {
+    pub fn update(self, settings: &mut Settings,menu: &mut Menu) -> iced::Command<Message> {
         match self {
             NetMessage::WifiDeviceState(state) => {
                 settings.wifi_device_state = state;
@@ -57,10 +54,9 @@ impl NetMessage {
                 iced::Command::none()
             }
             NetMessage::RequestWifiPassword(ssid) => {
-                let (id, cmd) = password_dialog::open_password_dialog();
-                settings.password_dialog = Some((id, ssid, "".to_string()));
+                settings.password_dialog = Some((ssid, "".to_string()));
 
-                cmd
+                menu.set_keyboard_interactivity()
             }
             NetMessage::ScanNearByWifi => {
                 settings.scanning_nearby_wifi = true;

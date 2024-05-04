@@ -1,36 +1,21 @@
 use crate::{
     centerbox,
-    menu::{close_menu, menu_wrapper},
+    menu::{menu_wrapper, Menu, MenuType},
     modules::{
         clock::Clock, launcher, settings::Settings, system_info::SystemInfo, title::Title,
         updates::Updates, workspaces::Workspaces,
     },
-    password_dialog,
     style::ashell_theme,
+    HEIGHT,
 };
 use iced::{
-    widget::{row, Column},
+    widget::{column, row},
     window::Id,
     Alignment, Application, Color, Length, Theme,
 };
 
-#[derive(Eq, PartialEq, Copy, Clone, Debug)]
-pub enum OpenMenu {
-    Updates(Id),
-    Settings(Id),
-}
-
-impl OpenMenu {
-    pub fn id(&self) -> Id {
-        match self {
-            OpenMenu::Updates(id) => *id,
-            OpenMenu::Settings(id) => *id,
-        }
-    }
-}
-
 pub struct App {
-    menu_type: Option<OpenMenu>,
+    menu: Menu,
     updates: Updates,
     workspaces: Workspaces,
     window_title: Title,
@@ -59,9 +44,10 @@ impl Application for App {
     type Flags = ();
 
     fn new(_: ()) -> (Self, iced::Command<Self::Message>) {
+        let (menu, cmd) = Menu::init();
         (
             App {
-                menu_type: None,
+                menu,
                 updates: Updates::new(),
                 workspaces: Workspaces::new(),
                 window_title: Title::new(),
@@ -69,7 +55,7 @@ impl Application for App {
                 clock: Clock::new(),
                 settings: Settings::new(),
             },
-            iced::Command::none(),
+            cmd,
         )
     }
 
@@ -96,18 +82,10 @@ impl Application for App {
     fn update(&mut self, message: Self::Message) -> iced::Command<Self::Message> {
         match message {
             Message::None => iced::Command::none(),
-            Message::CloseMenu => {
-                let old_menu = self.menu_type.take();
-
-                if let Some(menu) = old_menu {
-                    close_menu(menu.id())
-                } else {
-                    iced::Command::none()
-                }
-            }
+            Message::CloseMenu => self.menu.close(),
             Message::Updates(message) => self
                 .updates
-                .update(message, &mut self.menu_type)
+                .update(message, &mut self.menu)
                 .map(Message::Updates),
             Message::Launcher(_) => {
                 crate::utils::launcher::launch_rofi();
@@ -132,73 +110,65 @@ impl Application for App {
             }
             Message::Settings(message) => self
                 .settings
-                .update(message, &mut self.menu_type)
+                .update(message, &mut self.menu)
                 .map(Message::Settings),
         }
     }
 
     fn view(&self, id: Id) -> iced::Element<'_, Self::Message> {
-        match id {
-            Id::MAIN => {
-                let left = row!(
-                    launcher::launcher().map(Message::Launcher),
-                    self.updates.view().map(Message::Updates),
-                    self.workspaces.view().map(Message::Workspaces)
+        if id == self.menu.get_id() {
+            if let Some(menu_type) = self.menu.get_menu_type() {
+                menu_wrapper(
+                    match menu_type {
+                        MenuType::Updates => self.updates.menu_view().map(Message::Updates),
+                        MenuType::Settings => self.settings.menu_view().map(Message::Settings),
+                    },
+                    match menu_type {
+                        MenuType::Updates => crate::menu::MenuPosition::Left,
+                        MenuType::Settings => crate::menu::MenuPosition::Right,
+                    },
                 )
-                .height(Length::Shrink)
-                .align_items(Alignment::Center)
-                .spacing(4);
+            } else {
+                row!().into()
+            }
+        } else {
+            let left = row!(
+                launcher::launcher().map(Message::Launcher),
+                self.updates.view().map(Message::Updates),
+                self.workspaces.view().map(Message::Workspaces)
+            )
+            .height(Length::Shrink)
+            .align_items(Alignment::Center)
+            .spacing(4);
 
-                let mut center = row!().spacing(4);
-                if let Some(title) = self.window_title.view() {
-                    center = center.push(title.map(Message::Title));
-                }
+            let mut center = row!().spacing(4);
+            if let Some(title) = self.window_title.view() {
+                center = center.push(title.map(Message::Title));
+            }
 
-                let right = row!(
-                    self.system_info.view().map(Message::SystemInfo),
-                    row!(
-                        self.clock.view().map(Message::Clock),
-                        self.settings.view().map(Message::Settings)
-                    )
+            let right = row!(
+                self.system_info.view().map(Message::SystemInfo),
+                row!(
+                    self.clock.view().map(Message::Clock),
+                    self.settings.view().map(Message::Settings)
                 )
-                .spacing(4);
+            )
+            .spacing(4);
 
+            column!(
                 centerbox::Centerbox::new([left.into(), center.into(), right.into()])
                     .spacing(4)
                     .padding([0, 4])
                     .width(Length::Fill)
-                    .height(Length::Fill)
-                    .align_items(Alignment::Center)
-                    .into()
-            }
-            _ => {
-                if let Some((_, ssid, password)) = self
-                    .settings
-                    .password_dialog
-                    .as_ref()
-                    .filter(|(password_dialog_id, _, _)| *password_dialog_id == id)
-                {
-                    return password_dialog::view(ssid, password).map(|msg| {
-                        Message::Settings(crate::modules::settings::Message::PasswordDialog(msg))
-                    });
-                }
-                if let Some(menu_type) = self.menu_type.as_ref().filter(|menu| id == menu.id()) {
-                    return menu_wrapper(
-                        match menu_type {
-                            OpenMenu::Updates(_) => self.updates.menu_view().map(Message::Updates),
-                            OpenMenu::Settings(_) => {
-                                self.settings.menu_view().map(Message::Settings)
-                            }
-                        },
-                        match menu_type {
-                            OpenMenu::Updates(_) => crate::menu::MenuPosition::Left,
-                            OpenMenu::Settings(_) => crate::menu::MenuPosition::Right,
-                        },
-                    );
-                }
-
-                Column::new().into()
-            }
+                    .height(Length::Fixed(HEIGHT as f32))
+                    .align_items(Alignment::Center),
+                menu_wrapper(
+                    self.updates.menu_view().map(Message::Updates),
+                    crate::menu::MenuPosition::Right
+                ),
+            )
+            .width(Length::Fill)
+            .into()
         }
     }
 

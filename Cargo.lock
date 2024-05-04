@@ -598,7 +598,7 @@ dependencies = [
 [[package]]
 name = "clipboard_macos"
 version = "0.1.0"
-source = "git+https://github.com/pop-os/window_clipboard.git?tag=pop-dnd#c9e7a8e2fae144336dd45835545216b521d1d2ac"
+source = "git+https://github.com/pop-os/window_clipboard.git?tag=pop-dnd-6#8a816d8f218e290041bb5ef6d3b695c38e0a53b7"
 dependencies = [
  "objc",
  "objc-foundation",
@@ -608,7 +608,7 @@ dependencies = [
 [[package]]
 name = "clipboard_wayland"
 version = "0.2.2"
-source = "git+https://github.com/pop-os/window_clipboard.git?tag=pop-dnd#c9e7a8e2fae144336dd45835545216b521d1d2ac"
+source = "git+https://github.com/pop-os/window_clipboard.git?tag=pop-dnd-6#8a816d8f218e290041bb5ef6d3b695c38e0a53b7"
 dependencies = [
  "dnd",
  "mime",
@@ -618,7 +618,7 @@ dependencies = [
 [[package]]
 name = "clipboard_x11"
 version = "0.4.2"
-source = "git+https://github.com/pop-os/window_clipboard.git?tag=pop-dnd#c9e7a8e2fae144336dd45835545216b521d1d2ac"
+source = "git+https://github.com/pop-os/window_clipboard.git?tag=pop-dnd-6#8a816d8f218e290041bb5ef6d3b695c38e0a53b7"
 dependencies = [
  "thiserror",
  "x11rb",
@@ -908,12 +908,12 @@ dependencies = [
 [[package]]
 name = "dnd"
 version = "0.1.0"
-source = "git+https://github.com/pop-os/window_clipboard.git?tag=pop-dnd#c9e7a8e2fae144336dd45835545216b521d1d2ac"
+source = "git+https://github.com/pop-os/window_clipboard.git?tag=pop-dnd-6#8a816d8f218e290041bb5ef6d3b695c38e0a53b7"
 dependencies = [
  "bitflags 2.5.0",
  "mime",
  "raw-window-handle",
- "smithay-client-toolkit",
+ "smithay-client-toolkit 0.18.0 (git+https://github.com/smithay/client-toolkit?rev=3bed072)",
  "smithay-clipboard",
 ]
 
@@ -1578,8 +1578,6 @@ checksum = "dfa686283ad6dd069f105e5ab091b04c62850d3e4cf5d67debad1933f55023df"
 [[package]]
 name = "hyprland"
 version = "0.3.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f87a8f1cc065d451894dd3916c0bc3fcf9b67b276126c05f27b1db912688dde8"
 dependencies = [
  "async-trait",
  "derive_more",
@@ -1600,9 +1598,7 @@ dependencies = [
 
 [[package]]
 name = "hyprland-macros"
-version = "0.3.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c941d3d52e979612af8cb94e8de49000c7fada2014a7791d173ab41339f4e4eb"
+version = "0.3.13"
 dependencies = [
  "quote",
  "syn 2.0.48",
@@ -1634,7 +1630,7 @@ dependencies = [
 [[package]]
 name = "iced"
 version = "0.12.0"
-source = "git+https://github.com/pop-os/iced?rev=46ef2e2a2c1d133e4988133369a9cb9fa3bd1b19#46ef2e2a2c1d133e4988133369a9cb9fa3bd1b19"
+source = "git+https://github.com/pop-os/iced?rev=927a85251c6dc56cb827711f842a8b87590f2ad4#927a85251c6dc56cb827711f842a8b87590f2ad4"
 dependencies = [
  "dnd",
  "iced_accessibility",
@@ -1651,7 +1647,7 @@ dependencies = [
 [[package]]
 name = "iced_accessibility"
 version = "0.1.0"
-source = "git+https://github.com/pop-os/iced?rev=46ef2e2a2c1d133e4988133369a9cb9fa3bd1b19#46ef2e2a2c1d133e4988133369a9cb9fa3bd1b19"
+source = "git+https://github.com/pop-os/iced?rev=927a85251c6dc56cb827711f842a8b87590f2ad4#927a85251c6dc56cb827711f842a8b87590f2ad4"
 dependencies = [
  "accesskit",
  "accesskit_unix",
@@ -1660,9 +1656,9 @@ dependencies = [
 [[package]]
 name = "iced_core"
 version = "0.12.0"
-source = "git+https://github.com/pop-os/iced?rev=46ef2e2a2c1d133e4988133369a9cb9fa3bd1b19#46ef2e2a2c1d133e4988133369a9cb9fa3bd1b19"
+source = "git+https://github.com/pop-os/iced?rev=927a85251c6dc56cb827711f842a8b87590f2ad4#927a85251c6dc56cb827711f842a8b87590f2ad4"
 dependencies = [
- "bitflags 1.3.2",
+ "bitflags 2.5.0",
  "dnd",
  "iced_accessibility",
  "log",
@@ -1670,7 +1666,7 @@ dependencies = [
  "num-traits",
  "palette",
  "raw-window-handle",
- "smithay-client-toolkit",
+ "smithay-client-toolkit 0.18.0 (git+https://github.com/smithay/client-toolkit?rev=3bed072)",
  "smol_str",
  "thiserror",
  "web-time",
@@ -1681,7 +1677,7 @@ dependencies = [
 [[package]]
 name = "iced_futures"
 version = "0.12.0"
-source = "git+https://github.com/pop-os/iced?rev=46ef2e2a2c1d133e4988133369a9cb9fa3bd1b19#46ef2e2a2c1d133e4988133369a9cb9fa3bd1b19"
+source = "git+https://github.com/pop-os/iced?rev=927a85251c6dc56cb827711f842a8b87590f2ad4#927a85251c6dc56cb827711f842a8b87590f2ad4"
 dependencies = [
  "futures",
  "iced_core",
@@ -1694,9 +1690,9 @@ dependencies = [
 [[package]]
 name = "iced_graphics"
 version = "0.12.0"
-source = "git+https://github.com/pop-os/iced?rev=46ef2e2a2c1d133e4988133369a9cb9fa3bd1b19#46ef2e2a2c1d133e4988133369a9cb9fa3bd1b19"
+source = "git+https://github.com/pop-os/iced?rev=927a85251c6dc56cb827711f842a8b87590f2ad4#927a85251c6dc56cb827711f842a8b87590f2ad4"
 dependencies = [
- "bitflags 1.3.2",
+ "bitflags 2.5.0",
  "bytemuck",
  "cosmic-text",
  "glam",
@@ -1715,7 +1711,7 @@ dependencies = [
 [[package]]
 name = "iced_renderer"
 version = "0.12.0"
-source = "git+https://github.com/pop-os/iced?rev=46ef2e2a2c1d133e4988133369a9cb9fa3bd1b19#46ef2e2a2c1d133e4988133369a9cb9fa3bd1b19"
+source = "git+https://github.com/pop-os/iced?rev=927a85251c6dc56cb827711f842a8b87590f2ad4#927a85251c6dc56cb827711f842a8b87590f2ad4"
 dependencies = [
  "iced_graphics",
  "iced_tiny_skia",
@@ -1727,13 +1723,13 @@ dependencies = [
 [[package]]
 name = "iced_runtime"
 version = "0.12.0"
-source = "git+https://github.com/pop-os/iced?rev=46ef2e2a2c1d133e4988133369a9cb9fa3bd1b19#46ef2e2a2c1d133e4988133369a9cb9fa3bd1b19"
+source = "git+https://github.com/pop-os/iced?rev=927a85251c6dc56cb827711f842a8b87590f2ad4#927a85251c6dc56cb827711f842a8b87590f2ad4"
 dependencies = [
  "dnd",
  "iced_accessibility",
  "iced_core",
  "iced_futures",
- "smithay-client-toolkit",
+ "smithay-client-toolkit 0.18.0 (git+https://github.com/smithay/client-toolkit?rev=3bed072)",
  "thiserror",
  "window_clipboard",
 ]
@@ -1741,7 +1737,7 @@ dependencies = [
 [[package]]
 name = "iced_sctk"
 version = "0.1.0"
-source = "git+https://github.com/pop-os/iced?rev=46ef2e2a2c1d133e4988133369a9cb9fa3bd1b19#46ef2e2a2c1d133e4988133369a9cb9fa3bd1b19"
+source = "git+https://github.com/pop-os/iced?rev=927a85251c6dc56cb827711f842a8b87590f2ad4#927a85251c6dc56cb827711f842a8b87590f2ad4"
 dependencies = [
  "enum-repr",
  "float-cmp",
@@ -1753,7 +1749,7 @@ dependencies = [
  "itertools",
  "lazy_static",
  "raw-window-handle",
- "smithay-client-toolkit",
+ "smithay-client-toolkit 0.18.0 (git+https://github.com/smithay/client-toolkit?rev=3bed072)",
  "thiserror",
  "tracing",
  "wayland-backend",
@@ -1767,7 +1763,7 @@ dependencies = [
 [[package]]
 name = "iced_style"
 version = "0.12.0"
-source = "git+https://github.com/pop-os/iced?rev=46ef2e2a2c1d133e4988133369a9cb9fa3bd1b19#46ef2e2a2c1d133e4988133369a9cb9fa3bd1b19"
+source = "git+https://github.com/pop-os/iced?rev=927a85251c6dc56cb827711f842a8b87590f2ad4#927a85251c6dc56cb827711f842a8b87590f2ad4"
 dependencies = [
  "iced_core",
  "once_cell",
@@ -1777,7 +1773,7 @@ dependencies = [
 [[package]]
 name = "iced_tiny_skia"
 version = "0.12.0"
-source = "git+https://github.com/pop-os/iced?rev=46ef2e2a2c1d133e4988133369a9cb9fa3bd1b19#46ef2e2a2c1d133e4988133369a9cb9fa3bd1b19"
+source = "git+https://github.com/pop-os/iced?rev=927a85251c6dc56cb827711f842a8b87590f2ad4#927a85251c6dc56cb827711f842a8b87590f2ad4"
 dependencies = [
  "bytemuck",
  "cosmic-text",
@@ -1793,9 +1789,9 @@ dependencies = [
 [[package]]
 name = "iced_wgpu"
 version = "0.12.0"
-source = "git+https://github.com/pop-os/iced?rev=46ef2e2a2c1d133e4988133369a9cb9fa3bd1b19#46ef2e2a2c1d133e4988133369a9cb9fa3bd1b19"
+source = "git+https://github.com/pop-os/iced?rev=927a85251c6dc56cb827711f842a8b87590f2ad4#927a85251c6dc56cb827711f842a8b87590f2ad4"
 dependencies = [
- "bitflags 1.3.2",
+ "bitflags 2.5.0",
  "bytemuck",
  "futures",
  "glam",
@@ -1810,14 +1806,14 @@ dependencies = [
 [[package]]
 name = "iced_widget"
 version = "0.12.0"
-source = "git+https://github.com/pop-os/iced?rev=46ef2e2a2c1d133e4988133369a9cb9fa3bd1b19#46ef2e2a2c1d133e4988133369a9cb9fa3bd1b19"
+source = "git+https://github.com/pop-os/iced?rev=927a85251c6dc56cb827711f842a8b87590f2ad4#927a85251c6dc56cb827711f842a8b87590f2ad4"
 dependencies = [
  "dnd",
  "iced_renderer",
  "iced_runtime",
  "iced_style",
  "num-traits",
- "smithay-client-toolkit",
+ "smithay-client-toolkit 0.18.0 (git+https://github.com/smithay/client-toolkit?rev=3bed072)",
  "thiserror",
  "unicode-segmentation",
  "window_clipboard",
@@ -2136,7 +2132,7 @@ dependencies = [
 [[package]]
 name = "mime"
 version = "0.1.0"
-source = "git+https://github.com/pop-os/window_clipboard.git?tag=pop-dnd#c9e7a8e2fae144336dd45835545216b521d1d2ac"
+source = "git+https://github.com/pop-os/window_clipboard.git?tag=pop-dnd-6#8a816d8f218e290041bb5ef6d3b695c38e0a53b7"
 dependencies = [
  "smithay-clipboard",
 ]
@@ -2973,13 +2969,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "smithay-client-toolkit"
+version = "0.18.0"
+source = "git+https://github.com/Smithay/client-toolkit#18070ad8e0675bdf555e6099bf90e3a92adc01b0"
+dependencies = [
+ "bitflags 2.5.0",
+ "calloop",
+ "calloop-wayland-source",
+ "cursor-icon",
+ "libc",
+ "log",
+ "memmap2 0.9.0",
+ "rustix 0.38.31",
+ "thiserror",
+ "wayland-backend",
+ "wayland-client",
+ "wayland-csd-frame",
+ "wayland-cursor",
+ "wayland-protocols",
+ "wayland-protocols-wlr",
+ "wayland-scanner",
+ "xkeysym",
+]
+
+[[package]]
 name = "smithay-clipboard"
 version = "0.8.0"
-source = "git+https://github.com/pop-os/smithay-clipboard?tag=pop-dnd#14a12205765ed5325beed02ccc348d04502c4857"
+source = "git+https://github.com/pop-os/smithay-clipboard?tag=pop-dnd-4#eefa50c3df5135d98df7f4192e2e9b07eeafe56b"
 dependencies = [
  "libc",
  "raw-window-handle",
- "smithay-client-toolkit",
+ "smithay-client-toolkit 0.18.0 (git+https://github.com/Smithay/client-toolkit)",
  "wayland-backend",
 ]
 
@@ -3778,7 +3798,7 @@ checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
 [[package]]
 name = "window_clipboard"
 version = "0.4.1"
-source = "git+https://github.com/pop-os/window_clipboard.git?tag=pop-dnd#c9e7a8e2fae144336dd45835545216b521d1d2ac"
+source = "git+https://github.com/pop-os/window_clipboard.git?tag=pop-dnd-6#8a816d8f218e290041bb5ef6d3b695c38e0a53b7"
 dependencies = [
  "clipboard-win",
  "clipboard_macos",

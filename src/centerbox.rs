@@ -1,6 +1,5 @@
 //! Distribute content horizontally.
 use iced::advanced::widget::OperationOutputWrapper;
-
 use iced::advanced::layout::{self, Layout, Node};
 use iced::advanced::overlay;
 use iced::advanced::renderer;

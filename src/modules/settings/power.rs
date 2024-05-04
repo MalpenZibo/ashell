@@ -3,7 +3,6 @@ use iced::{
     widget::{button, column, horizontal_rule, text},
     Element, Length,
 };
-
 use crate::style::GhostButtonStyle;
 
 #[derive(Debug, Clone)]

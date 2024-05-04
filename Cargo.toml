@@ -4,9 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-iced = { git = "https://github.com/pop-os/iced", rev="46ef2e2a2c1d133e4988133369a9cb9fa3bd1b19", features = ["tokio", "wayland", "advanced", "wgpu"] }
+iced = { git = "https://github.com/pop-os/iced", rev="927a85251c6dc56cb827711f842a8b87590f2ad4", features = ["tokio", "wayland", "advanced", "wgpu"] }
 chrono = "0.4"
-hyprland = "0.3"
+hyprland = { path = "../hyprland-rs" }
 serde = "1.0"
 serde_json = "1.0"
 sysinfo = "0.30"

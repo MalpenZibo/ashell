@@ -12,7 +12,7 @@ pub fn lock() {
     tokio::spawn(async move {
         Command::new("bash")
             .arg("-c")
-            .arg("swaylock &")
+            .arg("hyprlock &")
             .spawn()
             .expect("Failed to execute command.");
     });

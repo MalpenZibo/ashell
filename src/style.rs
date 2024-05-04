@@ -149,10 +149,7 @@ pub struct SliderStyle;
 //         let palette = style.extended_palette();
 //
 //         let handle = iced::widget::slider::Handle {
-//             shape: iced::widget::slider::HandleShape::Rectangle {
-//                 width: 8,
-//                 border_radius: 4.0.into(),
-//             },
+//             shape: iced::widget::slider::HandleShape::Circle { radius: 8. } ,
 //             color: Color::WHITE,
 //             border_color: Color::WHITE,
 //             border_width: 1.0,
@@ -172,9 +169,7 @@ pub struct SliderStyle;
 //                 border_color: palette.primary.base.color,
 //                 ..handle
 //             },
-//             breakpoint: Breakpoint {
-//                 color: palette.background.weak.text,
-//             },
+//             breakpoint: iced_style pv,
 //         }
 //     }
 //

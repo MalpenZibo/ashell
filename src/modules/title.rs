@@ -1,6 +1,7 @@
 use hyprland::{data::Client, event_listener::EventListener, shared::HyprDataActiveOptional};
 use iced::{
-    widget::{container, text}, Element 
+    widget::{container, text},
+    Element,
 };
 use std::cell::RefCell;
 

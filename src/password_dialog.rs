@@ -1,35 +1,8 @@
 use crate::style::CRUST;
 use iced::{
-    wayland::{
-        actions::layer_surface::SctkLayerSurfaceSettings,
-        layer_surface::{Anchor, KeyboardInteractivity},
-    },
     widget::{button, column, container, horizontal_space, row, text, text_input},
-    window::Id,
-    Border, Command, Element, Length, Theme,
+    Border, Element, Length, Theme,
 };
-
-pub fn close_password_dialog<Message>(id: Id) -> Command<Message> {
-    iced::wayland::layer_surface::destroy_layer_surface(id)
-}
-
-pub fn open_password_dialog<Message>() -> (Id, Command<Message>) {
-    let id = Id::unique();
-    (
-        id,
-        iced::wayland::layer_surface::get_layer_surface(SctkLayerSurfaceSettings {
-            id,
-            layer: iced::wayland::layer_surface::Layer::Overlay,
-            anchor: Anchor::TOP
-                .union(Anchor::LEFT)
-                .union(Anchor::RIGHT)
-                .union(Anchor::BOTTOM),
-            size: Some((None, None)),
-            keyboard_interactivity: KeyboardInteractivity::Exclusive,
-            ..Default::default()
-        }),
-    )
-}
 
 #[derive(Debug, Clone)]
 pub enum Message {

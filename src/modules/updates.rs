@@ -1,7 +1,6 @@
 use crate::{
-    app::OpenMenu,
     components::icons::{icon, Icons},
-    menu::{close_menu, open_menu},
+    menu::{Menu, MenuType},
     style::{GhostButtonStyle, HeaderButtonStyle},
 };
 use iced::{
@@ -94,11 +93,7 @@ impl Updates {
         }
     }
 
-    pub fn update(
-        &mut self,
-        message: Message,
-        menu_type: &mut Option<OpenMenu>,
-    ) -> iced::Command<Message> {
+    pub fn update(&mut self, message: Message, menu: &mut Menu) -> iced::Command<Message> {
         match message {
             Message::UpdatesCheckCompleted(updates) => {
                 self.updates = updates;
@@ -108,24 +103,7 @@ impl Updates {
             }
             Message::ToggleMenu => {
                 self.is_updates_list_open = false;
-                match *menu_type {
-                    Some(OpenMenu::Updates(id)) => {
-                        menu_type.take();
-
-                        close_menu(id)
-                    }
-                    Some(menu) => {
-                        menu_type.replace(OpenMenu::Updates(menu.id()));
-
-                        iced::Command::none()
-                    }
-                    None => {
-                        let (id, cmd) = open_menu();
-                        menu_type.replace(OpenMenu::Updates(id));
-
-                        cmd
-                    }
-                }
+                menu.toggle(MenuType::Updates)
             }
             Message::UpdateFinished => {
                 self.updates.clear();
@@ -157,9 +135,8 @@ impl Updates {
                     },
                     move |_| Message::UpdateFinished,
                 )];
-                if let Some(menu) = menu_type {
-                    cmds.push(close_menu(menu.id()))
-                }
+
+                cmds.push(menu.close_if(MenuType::Updates));
 
                 iced::Command::batch(cmds)
             }

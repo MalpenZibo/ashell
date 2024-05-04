@@ -1,5 +1,4 @@
 use std::time::Duration;
-
 use crate::{
     components::icons::Icons,
     modules::settings::BatteryMessage,
