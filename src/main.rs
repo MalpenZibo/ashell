@@ -11,8 +11,9 @@ use iced::{
     window::Id,
     Application, Font, Settings,
 };
+use log::error;
 use serde::Deserialize;
-use std::fs::File;
+use std::{fs::File, panic, thread};
 
 mod app;
 mod centerbox;
@@ -47,7 +48,9 @@ async fn main() {
             config
         }
         Logger::with(LogSpecification::default()).start().unwrap();
-        log_panics::init();
+        panic::set_hook(Box::new(|info| {
+            error!("Panic: {}", info);
+        }));
 
         panic!("Failed to parse config file");
     } else {
@@ -75,7 +78,9 @@ async fn main() {
     )
     .start()
     .unwrap();
-    log_panics::init();
+    panic::set_hook(Box::new(|info| {
+        error!("Panic: {}", info);
+    }));
 
     App::run(Settings {
         antialiasing: true,

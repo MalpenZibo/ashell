@@ -134,7 +134,6 @@ dependencies = [
  "libpulse-binding",
  "libpulse-tokio",
  "log",
- "log-panics",
  "nix 0.26.4",
  "serde",
  "serde_json",
@@ -1164,14 +1163,13 @@ dependencies = [
 
 [[package]]
 name = "flexi_logger"
-version = "0.26.1"
+version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "47a8a297f2d1285b13abf253b27f2f4480eb6703a0424b5942f9dc872831045c"
+checksum = "f248c29a6d4bc5d065c9e9068d858761a0dcd796759f7801cc14db35db23abd8"
 dependencies = [
  "chrono",
  "glob",
  "is-terminal",
- "lazy_static",
  "log",
  "nu-ansi-term",
  "regex",
@@ -2038,20 +2036,11 @@ dependencies = [
 
 [[package]]
 name = "log"
-version = "0.4.20"
+version = "0.4.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5e6163cb8c49088c2c36f57875e58ccd8c87c7427f7fbd50ea6710b2f3f2e8f"
+checksum = "90ed8c1e510134f979dbc4f070f87d4313098b704861a105fe34231c70a3901c"
 dependencies = [
  "serde",
-]
-
-[[package]]
-name = "log-panics"
-version = "2.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68f9dd8546191c1850ecf67d22f5ff00a935b890d0e84713159a55495cc2ac5f"
-dependencies = [
- "log",
 ]
 
 [[package]]

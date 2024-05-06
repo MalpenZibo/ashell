@@ -5,6 +5,7 @@ pub mod battery;
 pub mod brightness;
 pub mod launcher;
 pub mod net;
+pub mod bluetooth;
 
 pub struct Commander<T> {
     sender: tokio::sync::mpsc::UnboundedSender<T>,

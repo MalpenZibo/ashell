@@ -16,8 +16,7 @@ libpulse-binding = { version = "2.28", features = ["pa_v15"] }
 libpulse-tokio = "0.1"
 inotify = "0.10"
 log = { version = "0.4", features=["serde"] }
-flexi_logger = "0.26"
+flexi_logger = "0.28"
 serde_yaml = "0.9"
-log-panics = "2"
 nix = { version = "0.26.4", features = ["fs"] }
 

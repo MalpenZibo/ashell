@@ -1,6 +1,7 @@
 use self::{
     audio::{audio_submenu, get_audio_sliders, sink_indicator, source_indicator, AudioMessage},
     battery::{battery_indicator, settings_battery_indicator},
+    bluetooth::{get_bluetooth_quick_setting_button, BluetoothMessage, BluetoothState, Device},
     net::{
         active_connection_indicator, get_wifi_quick_setting_button, vpn_indicator, vpn_menu,
         NetMessage,
@@ -19,6 +20,7 @@ use crate::{
     utils::{
         audio::{AudioCommand, Sink, Source},
         battery::{BatteryData, BatteryStatus},
+        bluetooth::BluetoothCommand,
         net::{ActiveConnection, NetCommand, Vpn, WifiConnection, WifiDeviceState},
         Commander,
     },
@@ -34,6 +36,7 @@ use iced::{
 
 pub mod audio;
 mod battery;
+pub mod bluetooth;
 pub mod net;
 mod power;
 
@@ -41,6 +44,7 @@ pub struct Settings {
     audio_commander: Commander<AudioCommand>,
     brightness_commander: Commander<f64>,
     net_commander: Commander<NetCommand>,
+    bluetooth_commander: Commander<BluetoothCommand>,
     sub_menu: Option<SubMenu>,
     battery_data: Option<BatteryData>,
     wifi_device_state: WifiDeviceState,
@@ -49,6 +53,8 @@ pub struct Settings {
     vpn_active: bool,
     vpn_connections: Vec<Vpn>,
     nearby_wifi: Vec<WifiConnection>,
+    bluetooth_state: BluetoothState,
+    bluetooth_devices: Vec<Device>,
     default_sink: String,
     default_source: String,
     sinks: Vec<Sink>,
@@ -70,6 +76,7 @@ pub enum Message {
     ToggleMenu,
     Battery(BatteryMessage),
     Net(NetMessage),
+    Bluetooth(BluetoothMessage),
     Audio(AudioMessage),
     Lock,
     Power(PowerMessage),
@@ -85,6 +92,7 @@ pub enum SubMenu {
     Sources,
     Wifi,
     Vpn,
+    Bluetooth,
 }
 
 impl Settings {
@@ -93,6 +101,7 @@ impl Settings {
             audio_commander: Commander::new(),
             brightness_commander: Commander::new(),
             net_commander: Commander::new(),
+            bluetooth_commander: Commander::new(),
             sub_menu: None,
             battery_data: None,
             wifi_device_state: WifiDeviceState::Unavailable,
@@ -100,6 +109,8 @@ impl Settings {
             active_connection: None,
             vpn_active: false,
             vpn_connections: vec![],
+            bluetooth_state: BluetoothState::Unavailable,
+            bluetooth_devices: vec![],
             nearby_wifi: vec![],
             default_sink: String::new(),
             default_source: String::new(),
@@ -146,6 +157,7 @@ impl Settings {
                 iced::Command::none()
             }
             Message::Net(msg) => msg.update(self, menu),
+            Message::Bluetooth(msg) => msg.update(self),
             Message::Audio(msg) => {
                 msg.update(self);
                 iced::Command::none()
@@ -325,6 +337,7 @@ impl Settings {
                                 sub_menu_wrapper(vpn_menu(&self.vpn_connections)).map(Message::Net)
                             }),
                     )),
+                    get_bluetooth_quick_setting_button(self),
                 ]
                 .into_iter()
                 .flatten()
@@ -398,6 +411,8 @@ impl Settings {
             crate::utils::audio::subscription(self.audio_commander.give_receiver())
                 .map(Message::Audio),
             crate::utils::brightness::subscription(self.brightness_commander.give_receiver()),
+            crate::utils::bluetooth::subscription(self.bluetooth_commander.give_receiver())
+                .map(Message::Bluetooth),
         ])
     }
 }
@@ -461,7 +476,7 @@ fn quick_setting_button<'a, Msg: Clone + 'static>(
     with_submenu: Option<(SubMenu, Option<SubMenu>, Msg)>,
 ) -> Element<'a, Msg> {
     let main_content = row!(
-        icon(icon_type),
+        icon(icon_type).size(20),
         Column::with_children(
             vec![
                 Some(text(title).size(12).into()),
