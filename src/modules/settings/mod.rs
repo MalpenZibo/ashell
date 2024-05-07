@@ -6,7 +6,7 @@ use self::{
         active_connection_indicator, get_wifi_quick_setting_button, vpn_indicator, vpn_menu,
         NetMessage,
     },
-    power::PowerMessage,
+    power::PowerMessage, powerprofiles::{get_powerprofiles_quick_setting_button, PowerProfilesMessage, Profiles},
 };
 use crate::{
     components::icons::{icon, Icons},
@@ -22,6 +22,7 @@ use crate::{
         battery::{BatteryData, BatteryStatus},
         bluetooth::BluetoothCommand,
         net::{ActiveConnection, NetCommand, Vpn, WifiConnection, WifiDeviceState},
+        powerprofiles::PowerProfilesCommand,
         Commander,
     },
 };
@@ -39,12 +40,15 @@ mod battery;
 pub mod bluetooth;
 pub mod net;
 mod power;
+pub mod powerprofiles;
 
 pub struct Settings {
     audio_commander: Commander<AudioCommand>,
     brightness_commander: Commander<f64>,
     net_commander: Commander<NetCommand>,
     bluetooth_commander: Commander<BluetoothCommand>,
+    powerprofiles_commander: Commander<PowerProfilesCommand>,
+    powerprofiles: Option<Profiles>,
     sub_menu: Option<SubMenu>,
     battery_data: Option<BatteryData>,
     wifi_device_state: WifiDeviceState,
@@ -77,6 +81,7 @@ pub enum Message {
     Battery(BatteryMessage),
     Net(NetMessage),
     Bluetooth(BluetoothMessage),
+    PowerProfiles(PowerProfilesMessage),
     Audio(AudioMessage),
     Lock,
     Power(PowerMessage),
@@ -102,6 +107,8 @@ impl Settings {
             brightness_commander: Commander::new(),
             net_commander: Commander::new(),
             bluetooth_commander: Commander::new(),
+            powerprofiles_commander: Commander::new(),
+            powerprofiles: None,
             sub_menu: None,
             battery_data: None,
             wifi_device_state: WifiDeviceState::Unavailable,
@@ -158,6 +165,7 @@ impl Settings {
             }
             Message::Net(msg) => msg.update(self, menu),
             Message::Bluetooth(msg) => msg.update(self),
+            Message::PowerProfiles(msg) => msg.update(self),
             Message::Audio(msg) => {
                 msg.update(self);
                 iced::Command::none()
@@ -338,6 +346,7 @@ impl Settings {
                             }),
                     )),
                     get_bluetooth_quick_setting_button(self),
+                    get_powerprofiles_quick_setting_button(self),
                 ]
                 .into_iter()
                 .flatten()
@@ -413,6 +422,8 @@ impl Settings {
             crate::utils::brightness::subscription(self.brightness_commander.give_receiver()),
             crate::utils::bluetooth::subscription(self.bluetooth_commander.give_receiver())
                 .map(Message::Bluetooth),
+            crate::utils::powerprofiles::subscription(self.powerprofiles_commander.give_receiver())
+                .map(Message::PowerProfiles),
         ])
     }
 }
