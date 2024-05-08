@@ -6,7 +6,8 @@ use self::{
         active_connection_indicator, get_wifi_quick_setting_button, vpn_indicator, vpn_menu,
         NetMessage,
     },
-    power::PowerMessage, powerprofiles::{get_powerprofiles_quick_setting_button, PowerProfilesMessage, Profiles},
+    power::PowerMessage,
+    powerprofiles::{get_powerprofiles_quick_setting_button, PowerProfilesMessage, Profiles},
 };
 use crate::{
     components::icons::{icon, Icons},
@@ -21,6 +22,7 @@ use crate::{
         audio::{AudioCommand, Sink, Source},
         battery::{BatteryData, BatteryStatus},
         bluetooth::BluetoothCommand,
+        idle_inhibitor::WaylandIdleInhibitor,
         net::{ActiveConnection, NetCommand, Vpn, WifiConnection, WifiDeviceState},
         powerprofiles::PowerProfilesCommand,
         Commander,
@@ -49,6 +51,7 @@ pub struct Settings {
     bluetooth_commander: Commander<BluetoothCommand>,
     powerprofiles_commander: Commander<PowerProfilesCommand>,
     powerprofiles: Option<Profiles>,
+    idle_inhibitor: Option<WaylandIdleInhibitor>,
     sub_menu: Option<SubMenu>,
     battery_data: Option<BatteryData>,
     wifi_device_state: WifiDeviceState,
@@ -83,6 +86,7 @@ pub enum Message {
     Bluetooth(BluetoothMessage),
     PowerProfiles(PowerProfilesMessage),
     Audio(AudioMessage),
+    ToggleInhibitIdle,
     Lock,
     Power(PowerMessage),
     ToggleSubMenu(SubMenu),
@@ -109,6 +113,7 @@ impl Settings {
             bluetooth_commander: Commander::new(),
             powerprofiles_commander: Commander::new(),
             powerprofiles: None,
+            idle_inhibitor: WaylandIdleInhibitor::new().ok(),
             sub_menu: None,
             battery_data: None,
             wifi_device_state: WifiDeviceState::Unavailable,
@@ -187,6 +192,12 @@ impl Settings {
                         _ => {}
                     };
                     self.sub_menu.replace(menu_type);
+                }
+                iced::Command::none()
+            }
+            Message::ToggleInhibitIdle => {
+                if let Some(idle_inhibitor) = &mut self.idle_inhibitor {
+                    let _ = idle_inhibitor.toggle();
                 }
                 iced::Command::none()
             }
@@ -347,6 +358,23 @@ impl Settings {
                     )),
                     get_bluetooth_quick_setting_button(self),
                     get_powerprofiles_quick_setting_button(self),
+                    self.idle_inhibitor.as_ref().map(|idle_inhibitor| {
+                        (
+                            quick_setting_button(
+                                if idle_inhibitor.is_inhibited() {
+                                    Icons::EyeOpened
+                                } else {
+                                    Icons::EyeClosed
+                                },
+                                "Idle Inhibitor".to_string(),
+                                None,
+                                idle_inhibitor.is_inhibited(),
+                                Message::ToggleInhibitIdle,
+                                None,
+                            ),
+                            None,
+                        )
+                    }),
                 ]
                 .into_iter()
                 .flatten()

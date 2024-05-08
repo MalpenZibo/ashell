@@ -8,6 +8,7 @@ pub mod net;
 pub mod bluetooth;
 pub mod powerprofiles;
 pub mod privacy;
+pub mod idle_inhibitor;
 
 pub struct Commander<T> {
     sender: tokio::sync::mpsc::UnboundedSender<T>,
