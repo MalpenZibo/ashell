@@ -2,14 +2,14 @@ use crate::{
     centerbox,
     menu::{menu_wrapper, Menu, MenuType},
     modules::{
-        clock::Clock, launcher, settings::Settings, system_info::SystemInfo, title::Title,
-        updates::Updates, workspaces::Workspaces,
+        clock::Clock, launcher, privacy::Privacy, settings::Settings, system_info::SystemInfo,
+        title::Title, updates::Updates, workspaces::Workspaces,
     },
     style::ashell_theme,
     HEIGHT,
 };
 use iced::{
-    widget::{column, row},
+    widget::{column, row, Row},
     window::Id,
     Alignment, Application, Color, Length, Theme,
 };
@@ -21,6 +21,7 @@ pub struct App {
     window_title: Title,
     system_info: SystemInfo,
     clock: Clock,
+    privacy: Privacy,
     pub settings: Settings,
 }
 
@@ -34,6 +35,7 @@ pub enum Message {
     Title(crate::modules::title::Message),
     SystemInfo(crate::modules::system_info::Message),
     Clock(crate::modules::clock::Message),
+    Privacy(crate::modules::privacy::PrivacyMessage),
     Settings(crate::modules::settings::Message),
 }
 
@@ -53,6 +55,7 @@ impl Application for App {
                 window_title: Title::new(),
                 system_info: SystemInfo::new(),
                 clock: Clock::new(),
+                privacy: Privacy::new(),
                 settings: Settings::new(),
             },
             cmd,
@@ -108,6 +111,10 @@ impl Application for App {
                 self.clock.update(message);
                 iced::Command::none()
             }
+            Message::Privacy(message) => self
+                .privacy
+                .update(message, &mut self.menu)
+                .map(Message::Privacy),
             Message::Settings(message) => self
                 .settings
                 .update(message, &mut self.menu)
@@ -121,10 +128,12 @@ impl Application for App {
                 menu_wrapper(
                     match menu_type {
                         MenuType::Updates => self.updates.menu_view().map(Message::Updates),
+                        MenuType::Privacy => self.privacy.menu_view().map(Message::Privacy),
                         MenuType::Settings => self.settings.menu_view().map(Message::Settings),
                     },
                     match menu_type {
                         MenuType::Updates => crate::menu::MenuPosition::Left,
+                        MenuType::Privacy => crate::menu::MenuPosition::Right,
                         MenuType::Settings => crate::menu::MenuPosition::Right,
                     },
                 )
@@ -148,9 +157,19 @@ impl Application for App {
 
             let right = row!(
                 self.system_info.view().map(Message::SystemInfo),
-                row!(
-                    self.clock.view().map(Message::Clock),
-                    self.settings.view().map(Message::Settings)
+                Row::with_children(
+                    vec!(
+                        Some(self.clock.view().map(Message::Clock)),
+                        if self.privacy.applications.is_empty() {
+                            None
+                        } else {
+                            Some(self.privacy.view().map(Message::Privacy))
+                        },
+                        Some(self.settings.view().map(Message::Settings))
+                    )
+                    .into_iter()
+                    .flatten()
+                    .collect::<Vec<_>>()
                 )
             )
             .spacing(4);
@@ -179,6 +198,7 @@ impl Application for App {
             self.window_title.subscription().map(Message::Title),
             self.system_info.subscription().map(Message::SystemInfo),
             self.clock.subscription().map(Message::Clock),
+            self.privacy.subscription().map(Message::Privacy),
             self.settings.subscription().map(Message::Settings),
         ])
     }

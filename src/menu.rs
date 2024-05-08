@@ -35,6 +35,7 @@ fn close_menu<Message>(id: Id) -> Command<Message> {
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub enum MenuType {
     Updates,
+    Privacy,
     Settings,
 }
 

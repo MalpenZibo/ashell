@@ -13,7 +13,7 @@ use iced::{
 };
 use log::error;
 use serde::Deserialize;
-use std::{fs::File, panic, thread};
+use std::{fs::File, panic};
 
 mod app;
 mod centerbox;

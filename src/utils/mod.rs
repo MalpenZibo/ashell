@@ -7,6 +7,7 @@ pub mod launcher;
 pub mod net;
 pub mod bluetooth;
 pub mod powerprofiles;
+pub mod privacy;
 
 pub struct Commander<T> {
     sender: tokio::sync::mpsc::UnboundedSender<T>,

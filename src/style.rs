@@ -56,6 +56,7 @@ pub fn left_header_pills(theme: &Theme) -> iced::widget::container::Appearance {
 
 pub enum HeaderButtonStyle {
     Full,
+    None,
     Left,
     Right,
 }
@@ -72,6 +73,8 @@ impl button::StyleSheet for HeaderButtonStyle {
                     HeaderButtonStyle::Full => 12.0.into(),
                     HeaderButtonStyle::Left => [12.0, 0.0, 0.0, 12.0].into(),
                     HeaderButtonStyle::Right => [0.0, 12.0, 12.0, 0.0].into(),
+                    HeaderButtonStyle::None => 0.0.into(),
+
                 },
                 color: iced::Color::TRANSPARENT,
             },

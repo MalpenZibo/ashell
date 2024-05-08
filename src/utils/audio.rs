@@ -7,7 +7,7 @@ use libpulse_binding::{
     mainloop::standard::{IterateResult, Mainloop},
     proplist::Proplist,
 };
-use log::{debug, error, trace};
+use log::{error, trace};
 use pulse::{
     callbacks::ListResult,
     context::{
@@ -131,7 +131,7 @@ fn create_source(data: &SourceInfo) -> Option<Source> {
     trace!("create source data: {:?}", data);
     if data.state == SourceState::Running
         && data.ports.iter().any(|p| p.available != PortAvailable::No)
-            && data.monitor_of_sink.is_none()
+        && data.monitor_of_sink.is_none()
     {
         Some(Source {
             name: data
@@ -453,7 +453,7 @@ pub fn subscription(
 
             loop {
                 let _ = internal_rx.recv().await;
-                debug!("Audio command receive");
+                trace!("Audio command receive");
             }
         }),
         iced::subscription::channel("audio-listener", 100, |mut output| async move {
@@ -551,7 +551,7 @@ pub fn subscription(
             loop {
                 let data = rx.recv().await.unwrap();
                 let _ = output.send(data).await;
-                debug!("Audio listener receive");
+                trace!("Audio listener receive");
             }
         }),
     ])
