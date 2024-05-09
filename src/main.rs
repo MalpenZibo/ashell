@@ -59,6 +59,7 @@ async fn main() {
 
     Logger::with(
         LogSpecBuilder::new()
+            .default(log::LevelFilter::Warn)
             .module(
                 "ashell",
                 if cfg!(debug_assertions) {

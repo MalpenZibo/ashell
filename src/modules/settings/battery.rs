@@ -35,17 +35,17 @@ pub fn settings_battery_indicator<'a, Message: 'static>(
         )
         .spacing(4);
         match data.status {
-            BatteryStatus::Charging(remaining) => row!(
+            BatteryStatus::Charging(remaining) if data.capacity < 95 => row!(
                 battery_info,
                 text(format!("Full in {}", format_duration(&remaining)))
             )
             .spacing(16),
-            BatteryStatus::Discharging(remaining) => row!(
+            BatteryStatus::Discharging(remaining) if data.capacity < 95 => row!(
                 battery_info,
                 text(format!("Empty in {}", format_duration(&remaining)))
             )
             .spacing(16),
-            BatteryStatus::Full => row!(battery_info),
+            _ => row!(battery_info),
         }
     })
     .padding([8, 12])

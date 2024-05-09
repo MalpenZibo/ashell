@@ -6,8 +6,8 @@ use iced::{
 
 use crate::{
     components::icons::{icon, Icons},
-    style::{GhostButtonStyle, SettingsButtonStyle, GREEN, YELLOW},
-    utils::audio::{AudioCommand, DeviceType, Sink, Sinks, Source, Sources, Volume},
+    style::{GhostButtonStyle, SettingsButtonStyle, GREEN},
+    utils::audio::{AudioCommand, DeviceType, Sink, Sinks, Source, Volume},
 };
 
 use super::{Message, Settings, SubMenu};
@@ -210,16 +210,6 @@ pub fn sink_indicator<'a, Message>(data: &Vec<Sink>) -> Option<Element<'a, Messa
         let icon_type = data.get_icon();
 
         Some(icon(icon_type).into())
-    } else {
-        None
-    }
-}
-
-pub fn source_indicator<'a, Message>(data: &Vec<Source>) -> Option<Element<'a, Message>> {
-    if !data.is_empty() {
-        let icon_type = data.get_icon();
-
-        Some(icon(icon_type).style(YELLOW).into())
     } else {
         None
     }

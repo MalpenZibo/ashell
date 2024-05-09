@@ -1,5 +1,5 @@
 use self::{
-    audio::{audio_submenu, get_audio_sliders, sink_indicator, source_indicator, AudioMessage},
+    audio::{audio_submenu, get_audio_sliders, sink_indicator, AudioMessage},
     battery::{battery_indicator, settings_battery_indicator},
     bluetooth::{get_bluetooth_quick_setting_button, BluetoothMessage, BluetoothState, Device},
     net::{
@@ -249,15 +249,9 @@ impl Settings {
     pub fn view(&self) -> Element<Message> {
         let mut elements = row!().spacing(8);
 
-        elements = elements.push(
-            Row::with_children(
-                vec![source_indicator(&self.sources), sink_indicator(&self.sinks)]
-                    .into_iter()
-                    .flatten()
-                    .collect::<Vec<_>>(),
-            )
-            .spacing(4),
-        );
+        if let Some(sink_indicator) = sink_indicator(&self.sinks) {
+            elements = elements.push(sink_indicator);
+        }
 
         let mut net_elements = row!().spacing(4);
         if let Some(active_connection) = &self.active_connection {
@@ -304,10 +298,10 @@ impl Settings {
 
             let header = if let Some(battery_data) = battery_data {
                 row!(battery_data, Space::with_width(Length::Fill), right_buttons)
-                    .align_items(Alignment::Center)
+                    .spacing(8)
                     .width(Length::Fill)
             } else {
-                row!(Space::with_width(Length::Fill), right_buttons).align_items(Alignment::Center)
+                row!(Space::with_width(Length::Fill), right_buttons).width(Length::Fill)
             };
 
             let (sink_slider, source_slider) = get_audio_sliders(
