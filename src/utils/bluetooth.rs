@@ -98,28 +98,29 @@ async fn get_connected_devices<'a>(
             .await
             .expect("Failed to build DeviceProxy");
 
-        let name = device.name().await.expect("Failed to get device name");
-        let connected = device.connected().await;
+        if let Ok(name) = device.name().await {
+            let connected = device.connected().await;
 
-        if connected == Ok(true) {
-            let battery = if let Ok(battery) = BatteryProxy::builder(conn).path(device_path) {
-                let battery = battery.build().await;
+            if connected == Ok(true) {
+                let battery = if let Ok(battery) = BatteryProxy::builder(conn).path(device_path) {
+                    let battery = battery.build().await;
 
-                if let Ok(battery) = battery {
-                    let battery_value = battery.percentage().await;
-                    if let Ok(battery_value) = battery_value {
-                        Some((battery_value, battery))
+                    if let Ok(battery) = battery {
+                        let battery_value = battery.percentage().await;
+                        if let Ok(battery_value) = battery_value {
+                            Some((battery_value, battery))
+                        } else {
+                            None
+                        }
                     } else {
                         None
                     }
                 } else {
                     None
-                }
-            } else {
-                None
-            };
+                };
 
-            devices.push((name, battery));
+                devices.push((name, battery));
+            }
         }
     }
 
@@ -208,6 +209,50 @@ pub fn subscription(
 
                     if battery_signals.is_empty() {
                         iced::futures::select! {
+                            v = rx.recv().fuse() => {
+                                if let Some(v) = v {
+                                    match v {
+                                        BluetoothCommand::TogglePower => {
+                                            let current_state = adapter
+                                                .powered()
+                                                .await
+                                                .expect(
+                                                    "Failed to get adapter powered state"
+                                                );
+                                            adapter
+                                                .set_powered(!current_state)
+                                                .await
+                                                .expect(
+                                                    "Failed to set adapter powered state"
+                                                );
+                                            let _ = output
+                                                .send(
+                                                    BluetoothMessage::Status(
+                                                        if !current_state {
+                                                            BluetoothState::Inactive
+                                                        } else {
+                                                            BluetoothState::Active
+                                                        }
+                                                    )
+                                                )
+                                                .await;
+                                        },
+                                    }
+                                }
+                            },
+                            v = powered_signal.next().fuse() => {
+                                if let Some(v) = v {
+                                    if let Ok(value) = v.get().await {
+                                        let _ = output.send(
+                                            BluetoothMessage::Status(if value {
+                                                BluetoothState::Active
+                                            } else {
+                                                BluetoothState::Inactive
+                                            })
+                                        ).await;
+                                    }
+                                }
+                            },
                             _ = added_signal.next().fuse() => {
                             },
                             _ = removed_signal.next().fuse() => {

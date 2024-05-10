@@ -1,6 +1,10 @@
 use iced::Element;
 
-use crate::{components::icons::Icons, utils::powerprofiles::PowerProfilesCommand};
+use crate::{
+    components::icons::{self, icon, Icons},
+    style::{GREEN, RED},
+    utils::powerprofiles::PowerProfilesCommand,
+};
 
 use super::{quick_setting_button, Message, Settings};
 
@@ -53,6 +57,14 @@ impl PowerProfilesMessage {
             }
         }
     }
+}
+
+pub fn powerprofiles_indicator<'a>(settings: &Settings) -> Option<Element<'a, Message>> {
+    settings.powerprofiles.and_then(|v| match v {
+        Profiles::Balanced => None,
+        Profiles::Performance => Some(icon(Icons::Performance).style(RED).into()),
+        Profiles::PowerSaver => Some(icon(Icons::PowerSaver).style(GREEN).into()),
+    })
 }
 
 pub fn get_powerprofiles_quick_setting_button<'a>(

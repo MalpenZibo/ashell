@@ -10,7 +10,7 @@ use iced::{
     },
     Color, Subscription,
 };
-use log::info;
+use log::{debug, info};
 use std::{cmp::Ordering, collections::HashMap, ops::Deref};
 use zbus::{
     proxy,
@@ -164,10 +164,7 @@ trait Settings {
     interface = "org.freedesktop.NetworkManager.Settings.Connection"
 )]
 trait SettingsConnection {
-    fn update(
-        &self,
-        settings: HashMap<String, HashMap<String, OwnedValue>>,
-    ) -> Result<OwnedObjectPath>;
+    fn update(&self, settings: HashMap<String, HashMap<String, OwnedValue>>) -> Result<()>;
 
     fn get_settings(&self) -> Result<HashMap<String, HashMap<String, OwnedValue>>>;
 }
@@ -529,10 +526,12 @@ async fn find_active_connection(
                     .await
                     .unwrap();
 
-                let id = connection.id().await.unwrap();
-
-                if id == name {
-                    Some(c.to_owned())
+                if let Ok(id) = connection.id().await {
+                    if id == name {
+                        Some(c.to_owned())
+                    } else {
+                        None
+                    }
                 } else {
                     None
                 }
@@ -694,7 +693,9 @@ async fn activate_wifi_connection(
         let connections = settings.connections().await.unwrap();
         let connection = find_connection(ssid, &connections, conn.clone()).await;
         let connection_path = if let Some(connection) = connection {
+            debug!("Connection found: {:?}", connection);
             if let Some(password) = password {
+                debug!("Update wifi connection password: {}", ssid);
                 let connection_settings = SettingsConnectionProxy::builder(conn)
                     .path(connection.to_owned())
                     .unwrap()
@@ -738,7 +739,7 @@ async fn activate_wifi_connection(
                         .unwrap(),
                 );
 
-                let _ = connection_settings.update(settings).await.unwrap();
+                connection_settings.update(settings).await.unwrap();
             }
 
             Some(connection)
@@ -807,6 +808,10 @@ async fn activate_wifi_connection(
         };
 
         if let Some(connection) = connection_path {
+            debug!(
+                "connection path found, proceed with wifi activation: {:?}",
+                connection
+            );
             let res = nm
                 .activate_connection(
                     connection,
@@ -821,7 +826,7 @@ async fn activate_wifi_connection(
                 return Err(());
             }
 
-            info!("Activate connection: {:?}", res);
+            info!("Connection activated: {:?}", res);
         } else {
             return Err(());
         }
@@ -969,13 +974,12 @@ pub fn subscription(
                                                             break
                                                         },
                                                         120 => {
-                                                            info!("Wifi connection activating");
-                                                            break
-                                                        },
-                                                        _ => {
                                                             info!("Wifi connection failed");
                                                             let _ = output.send(NetMessage::RequestWifiPassword(name)).await;
-                                                            break;
+                                                            break
+                                                        },
+                                                        state => {
+                                                            debug!("state {}, waiting...", state);
                                                         }
                                                     }
                                                 }

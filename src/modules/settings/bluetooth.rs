@@ -8,6 +8,7 @@ use iced::{
     widget::{row, text, Column, Row},
     Element,
 };
+use log::debug;
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum BluetoothState {
@@ -33,7 +34,14 @@ impl BluetoothMessage {
     pub fn update(self, settings: &mut Settings) -> iced::Command<Message> {
         match self {
             BluetoothMessage::Status(state) => {
+                debug!("Bluetooth state: {:?}", state);
                 settings.bluetooth_state = state;
+
+                if settings.bluetooth_state != BluetoothState::Active
+                    && settings.sub_menu == Some(SubMenu::Bluetooth)
+                {
+                    settings.sub_menu = None;
+                }
 
                 iced::Command::none()
             }

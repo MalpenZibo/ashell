@@ -7,7 +7,10 @@ use self::{
         NetMessage,
     },
     power::PowerMessage,
-    powerprofiles::{get_powerprofiles_quick_setting_button, PowerProfilesMessage, Profiles},
+    powerprofiles::{
+        get_powerprofiles_quick_setting_button, powerprofiles_indicator, PowerProfilesMessage,
+        Profiles,
+    },
 };
 use crate::{
     components::icons::{icon, Icons},
@@ -16,7 +19,7 @@ use crate::{
     password_dialog,
     style::{
         HeaderButtonStyle, QuickSettingsButtonStyle, QuickSettingsSubMenuButtonStyle,
-        SettingsButtonStyle, MANTLE, SURFACE_0,
+        SettingsButtonStyle, MANTLE, RED, SURFACE_0,
     },
     utils::{
         audio::{AudioCommand, Sink, Source},
@@ -140,8 +143,10 @@ impl Settings {
             Message::ToggleMenu => {
                 self.sub_menu = None;
                 self.password_dialog = None;
-
-                menu.toggle(MenuType::Settings)
+                iced::Command::batch(vec![
+                    menu.unset_keyboard_interactivity(),
+                    menu.toggle(MenuType::Settings),
+                ])
             }
             Message::Battery(msg) => {
                 match msg {
@@ -248,6 +253,19 @@ impl Settings {
 
     pub fn view(&self) -> Element<Message> {
         let mut elements = row!().spacing(8);
+
+        if self
+            .idle_inhibitor
+            .as_ref()
+            .filter(|i| i.is_inhibited())
+            .is_some()
+        {
+            elements = elements.push(icon(Icons::EyeOpened).style(RED));
+        }
+
+        if let Some(powerprofiles_indicator) = powerprofiles_indicator(self) {
+            elements = elements.push(powerprofiles_indicator);
+        }
 
         if let Some(sink_indicator) = sink_indicator(&self.sinks) {
             elements = elements.push(sink_indicator);
