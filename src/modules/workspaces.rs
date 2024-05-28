@@ -21,13 +21,14 @@ const MONITOR: [&str; 3] = ["eDP-1", "DP-1", "DP-2"];
 
 fn get_workspaces() -> Vec<Workspace> {
     let active = hyprland::data::Workspace::get_active().unwrap();
-    let workspaces = hyprland::data::Workspaces::get().unwrap();
+    let mut workspaces = hyprland::data::Workspaces::get()
+        .map(|w| w.to_vec())
+        .unwrap_or_default();
 
-    let mut sorted: Vec<hyprland::data::Workspace> = workspaces.to_vec();
-    sorted.sort_by_key(|w| w.id);
+    workspaces.sort_by_key(|w| w.id);
 
     let mut current: usize = 1;
-    let s = sorted
+    let s = workspaces
         .iter()
         .flat_map(|w| {
             let missing: usize = w.id as usize - current;
@@ -207,6 +208,16 @@ impl Workspaces {
                     output
                         .try_send(Message::WorkspacesChanged(get_workspaces()))
                         .expect("error getting workspaces: window moved event");
+                }
+            });
+        
+            event_listener.add_active_monitor_change_handler({
+                let output = output.clone();
+                move |_| {
+                    let mut output = output.borrow_mut();
+                    output
+                        .try_send(Message::WorkspacesChanged(get_workspaces()))
+                        .expect("error getting workspaces: active monitor change event");
                 }
             });
 

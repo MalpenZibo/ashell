@@ -19,7 +19,7 @@ use crate::{
     password_dialog,
     style::{
         HeaderButtonStyle, QuickSettingsButtonStyle, QuickSettingsSubMenuButtonStyle,
-        SettingsButtonStyle, MANTLE, RED, SURFACE_0,
+        SettingsButtonStyle, MANTLE, RED,
     },
     utils::{
         audio::{AudioCommand, Sink, Source},
@@ -37,7 +37,7 @@ use iced::{
         button, column, container, horizontal_space, row, slider, text, vertical_rule, Column, Row,
         Space,
     },
-    Alignment, Background, Border, Element, Length, Subscription, Theme,
+    Alignment, Border, Element, Length, Subscription, Theme,
 };
 
 pub mod audio;
@@ -300,7 +300,7 @@ impl Settings {
             let battery_data = self.battery_data.map(settings_battery_indicator);
             let right_buttons = row!(
                 button(icon(Icons::Lock))
-                    .padding([8, 14])
+                    .padding([8, 13])
                     .on_press(Message::Lock)
                     .style(Button::custom(SettingsButtonStyle)),
                 button(icon(if self.sub_menu == Some(SubMenu::Power) {
@@ -308,7 +308,7 @@ impl Settings {
                 } else {
                     Icons::Power
                 }))
-                .padding([8, 14])
+                .padding([8, 13])
                 .on_press(Message::ToggleSubMenu(SubMenu::Power))
                 .style(Button::custom(SettingsButtonStyle))
             )
@@ -331,13 +331,7 @@ impl Settings {
             );
 
             let brightness_slider = row!(
-                container(icon(Icons::Brightness))
-                    .padding([8, 14])
-                    .style(|_: &Theme| iced::widget::container::Appearance {
-                        background: Background::Color(SURFACE_0).into(),
-                        border: Border::with_radius(32),
-                        ..Default::default()
-                    }),
+                container(icon(Icons::Brightness)).padding([8, 11]),
                 slider(
                     0..=100,
                     self.cur_brightness,
@@ -539,7 +533,8 @@ fn quick_setting_button<'a, Msg: Clone + 'static>(
         )
         .spacing(4)
     )
-    .spacing(4)
+    .spacing(8)
+    .padding([0, 0, 0, 4])
     .width(Length::Fill)
     .align_items(Alignment::Center);
 
@@ -558,7 +553,7 @@ fn quick_setting_button<'a, Msg: Clone + 'static>(
                         .align_y(iced::alignment::Vertical::Center)
                         .align_x(iced::alignment::Horizontal::Center),
                     )
-                    .padding([4, 9])
+                    .padding([4, if Some(menu_type) == submenu { 9 } else { 12 }])
                     .style(Button::custom(QuickSettingsSubMenuButtonStyle(active)))
                     .width(Length::Shrink)
                     .height(Length::Shrink)

@@ -1,7 +1,7 @@
 use iced::Element;
 
 use crate::{
-    components::icons::{self, icon, Icons},
+    components::icons::{icon, Icons},
     style::{GREEN, RED},
     utils::powerprofiles::PowerProfilesCommand,
 };

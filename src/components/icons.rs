@@ -1,7 +1,4 @@
-use iced::{
-    widget::{text, Text},
-    Font,
-};
+use iced::widget::{text, Text};
 
 #[derive(Copy, Clone, Default)]
 pub enum Icons {
@@ -109,13 +106,13 @@ impl From<Icons> for &'static str {
             Icons::Performance => "󰓅",
             Icons::EyeOpened => "󰈈",
             Icons::EyeClosed => "󰈉",
-            Icons::Lock => "",
+            Icons::Lock => "󰌾",
             Icons::Power => "󰐥",
             Icons::Reboot => "󰑐",
             Icons::Suspend => "󰤄",
             Icons::Logout => "󰗽",
             Icons::RightArrow => "󰁔",
-            Icons::Brightness => "󰃟",
+            Icons::Brightness => "󰃠",
             Icons::Point => "",
             Icons::Close => "󰅖",
             Icons::VerticalDots => "󰇙",
@@ -124,5 +121,5 @@ impl From<Icons> for &'static str {
 }
 
 pub fn icon<'a>(r#type: Icons) -> Text<'a> {
-    text(std::convert::Into::<&'static str>::into(r#type)).font(Font::MONOSPACE)
+    text(std::convert::Into::<&'static str>::into(r#type))
 }
