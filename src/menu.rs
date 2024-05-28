@@ -12,7 +12,7 @@ fn create_menu_surface<Message>() -> (Id, Command<Message>) {
         iced::wayland::layer_surface::get_layer_surface(SctkLayerSurfaceSettings {
             id,
             keyboard_interactivity: KeyboardInteractivity::None,
-            namespace: "ashell".into(),
+            namespace: "ashell-menu".into(),
             layer: Layer::Background,
             size: Some((None, None)),
             anchor: Anchor::TOP
