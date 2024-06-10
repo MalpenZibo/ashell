@@ -174,20 +174,13 @@ impl Application for App {
             )
             .spacing(4);
 
-            column!(
-                centerbox::Centerbox::new([left.into(), center.into(), right.into()])
-                    .spacing(4)
-                    .padding([0, 4])
-                    .width(Length::Fill)
-                    .height(Length::Fixed(HEIGHT as f32))
-                    .align_items(Alignment::Center),
-                menu_wrapper(
-                    self.updates.menu_view().map(Message::Updates),
-                    crate::menu::MenuPosition::Right
-                ),
-            )
-            .width(Length::Fill)
-            .into()
+            centerbox::Centerbox::new([left.into(), center.into(), right.into()])
+                .spacing(4)
+                .padding([0, 4])
+                .width(Length::Fill)
+                .height(Length::Fixed(HEIGHT as f32))
+                .align_items(Alignment::Center)
+                .into()
         }
     }
 

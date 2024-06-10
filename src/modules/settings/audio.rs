@@ -1,16 +1,19 @@
 use iced::{
     theme::Button,
     widget::{button, row, slider, text, Column, Row},
-    Alignment, Element, Length,
+    Alignment, Command, Element, Length, Subscription,
 };
 
 use crate::{
     components::icons::{icon, Icons},
     style::{GhostButtonStyle, SettingsButtonStyle, GREEN},
-    utils::audio::{AudioCommand, DeviceType, Sink, Sinks, Source, Volume},
+    utils::{
+        audio::{AudioCommand, DeviceType, Sink, Sinks, Source, Volume},
+        Commander,
+    },
 };
 
-use super::{Message, Settings, SubMenu};
+use super::{Message, SubMenu};
 
 #[derive(Debug, Clone)]
 pub enum AudioMessage {
@@ -25,19 +28,41 @@ pub enum AudioMessage {
     DefaultSourceChanged(String, String),
 }
 
-impl AudioMessage {
-    pub fn update(self, settings: &mut Settings) {
-        match self {
+pub struct Audio {
+    audio_commander: Commander<AudioCommand>,
+    sinks: Vec<Sink>,
+    sources: Vec<Source>,
+    default_sink: String,
+    default_source: String,
+    cur_sink_volume: i32,
+    cur_source_volume: i32,
+}
+
+impl Audio {
+    pub fn new() -> Self {
+        Self {
+            audio_commander: Commander::new(),
+            sinks: Vec::new(),
+            sources: Vec::new(),
+            default_sink: String::new(),
+            default_source: String::new(),
+            cur_sink_volume: 0,
+            cur_source_volume: 0,
+        }
+    }
+
+    pub fn update<Message>(&mut self, message: AudioMessage) -> Command<Message> {
+        match message {
             AudioMessage::SinkChanges(sinks) => {
-                settings.sinks = sinks;
-                settings.cur_sink_volume = (settings
+                self.sinks = sinks;
+                self.cur_sink_volume = (self
                     .sinks
                     .iter()
                     .find_map(|sink| {
                         if sink
                             .ports
                             .iter()
-                            .any(|p| p.active && sink.name == settings.default_sink)
+                            .any(|p| p.active && sink.name == self.default_sink)
                         {
                             Some(if sink.is_mute {
                                 0.
@@ -52,15 +77,15 @@ impl AudioMessage {
                     * 100.) as i32;
             }
             AudioMessage::SourceChanges(sources) => {
-                settings.sources = sources;
-                settings.cur_source_volume = (settings
+                self.sources = sources;
+                self.cur_source_volume = (self
                     .sources
                     .iter()
                     .find_map(|source| {
                         if source
                             .ports
                             .iter()
-                            .any(|p| p.active && source.name == settings.default_source)
+                            .any(|p| p.active && source.name == self.default_source)
                         {
                             Some(if source.is_mute {
                                 0.
@@ -75,17 +100,17 @@ impl AudioMessage {
                     * 100.) as i32;
             }
             AudioMessage::DefaultSinkSourceChanged(sink, source) => {
-                settings.default_sink = sink;
-                settings.default_source = source;
+                self.default_sink = sink;
+                self.default_source = source;
 
-                settings.cur_sink_volume = (settings
+                self.cur_sink_volume = (self
                     .sinks
                     .iter()
                     .find_map(|sink| {
                         if sink
                             .ports
                             .iter()
-                            .any(|p| p.active && sink.name == settings.default_sink)
+                            .any(|p| p.active && sink.name == self.default_sink)
                         {
                             Some(if sink.is_mute {
                                 0.
@@ -98,14 +123,14 @@ impl AudioMessage {
                     })
                     .unwrap_or_default()
                     * 100.) as i32;
-                settings.cur_source_volume = (settings
+                self.cur_source_volume = (self
                     .sources
                     .iter()
                     .find_map(|source| {
                         if source
                             .ports
                             .iter()
-                            .any(|p| p.active && source.name == settings.default_source)
+                            .any(|p| p.active && source.name == self.default_source)
                         {
                             Some(if source.is_mute {
                                 0.
@@ -120,98 +145,188 @@ impl AudioMessage {
                     * 100.) as i32;
             }
             AudioMessage::SinkToggleMute => {
-                if let Some(sink) = settings
+                if let Some(sink) = self
                     .sinks
                     .iter()
-                    .find(|sink| sink.name == settings.default_sink)
+                    .find(|sink| sink.name == self.default_sink)
                 {
-                    let _ = settings.audio_commander.send(AudioCommand::SinkMute(
-                        settings.default_sink.clone(),
+                    let _ = self.audio_commander.send(AudioCommand::SinkMute(
+                        self.default_sink.clone(),
                         !sink.is_mute,
                     ));
                 }
             }
             AudioMessage::SinkVolumeChanged(volume) => {
-                settings.cur_sink_volume = volume;
-                if let Some(sink) = settings
+                self.cur_sink_volume = volume;
+                if let Some(sink) = self
                     .sinks
                     .iter_mut()
-                    .find(|sink| sink.name == settings.default_sink)
+                    .find(|sink| sink.name == self.default_sink)
                 {
-                    if let Some(new_volume) = sink
-                        .volume
-                        .scale_volume(settings.cur_sink_volume as f64 / 100.)
+                    if let Some(new_volume) =
+                        sink.volume.scale_volume(self.cur_sink_volume as f64 / 100.)
                     {
-                        let _ = settings
+                        let _ = self
                             .audio_commander
                             .send(AudioCommand::SinkVolume(sink.name.clone(), *new_volume));
                     }
                 }
             }
             AudioMessage::DefaultSinkChanged(name, port) => {
-                settings.default_sink = name.clone();
-                for sink in settings.sinks.iter_mut() {
+                self.default_sink = name.clone();
+                for sink in self.sinks.iter_mut() {
                     for cur_port in sink.ports.iter_mut() {
                         cur_port.active = sink.name == name && cur_port.name == port;
                     }
                 }
 
-                let _ = settings
+                let _ = self
                     .audio_commander
                     .send(AudioCommand::DefaultSink(name, port));
             }
             AudioMessage::SourceToggleMute => {
-                if let Some(source) = settings
+                if let Some(source) = self
                     .sources
                     .iter()
-                    .find(|source| source.name == settings.default_source)
+                    .find(|source| source.name == self.default_source)
                 {
-                    let _ = settings.audio_commander.send(AudioCommand::SourceMute(
-                        settings.default_source.clone(),
+                    let _ = self.audio_commander.send(AudioCommand::SourceMute(
+                        self.default_source.clone(),
                         !source.is_mute,
                     ));
                 }
             }
             AudioMessage::SourceVolumeChanged(volume) => {
-                settings.cur_source_volume = volume;
-                if let Some(source) = settings
+                self.cur_source_volume = volume;
+                if let Some(source) = self
                     .sources
                     .iter_mut()
-                    .find(|source| source.name == settings.default_source)
+                    .find(|source| source.name == self.default_source)
                 {
                     if let Some(new_volume) = source
                         .volume
-                        .scale_volume(settings.cur_source_volume as f64 / 100.)
+                        .scale_volume(self.cur_source_volume as f64 / 100.)
                     {
-                        let _ = settings
+                        let _ = self
                             .audio_commander
                             .send(AudioCommand::SourceVolume(source.name.clone(), *new_volume));
                     }
                 }
             }
             AudioMessage::DefaultSourceChanged(name, port) => {
-                settings.default_source = name.clone();
-                for source in settings.sources.iter_mut() {
+                self.default_source = name.clone();
+                for source in self.sources.iter_mut() {
                     for cur_port in source.ports.iter_mut() {
                         cur_port.active = source.name == name && cur_port.name == port;
                     }
                 }
 
-                let _ = settings
+                let _ = self
                     .audio_commander
                     .send(AudioCommand::DefaultSource(name, port));
             }
+        };
+
+        iced::Command::none()
+    }
+
+    pub fn sink_indicator<'a, Message>(&self) -> Option<Element<'a, Message>> {
+        if !self.sinks.is_empty() {
+            let icon_type = self.sinks.get_icon();
+
+            Some(icon(icon_type).into())
+        } else {
+            None
         }
     }
-}
 
-pub fn sink_indicator<'a, Message>(data: &Vec<Sink>) -> Option<Element<'a, Message>> {
-    if !data.is_empty() {
-        let icon_type = data.get_icon();
+    pub fn audio_sliders<'a>(
+        &self,
+        sub_menu: Option<SubMenu>,
+    ) -> (Option<Element<'a, Message>>, Option<Element<'a, Message>>) {
+        let active_sink = self
+            .sinks
+            .iter()
+            .find(|sink| sink.ports.iter().any(|p| p.active));
 
-        Some(icon(icon_type).into())
-    } else {
-        None
+        let sink_slider = active_sink.map(|s| {
+            audio_slider(
+                SliderType::Sink,
+                s.is_mute,
+                Message::Audio(AudioMessage::SinkToggleMute),
+                self.cur_sink_volume,
+                |v| Message::Audio(AudioMessage::SinkVolumeChanged(v)),
+                if self.sinks.iter().map(|s| s.ports.len()).sum::<usize>() > 1 {
+                    Some((sub_menu, Message::ToggleSubMenu(SubMenu::Sinks)))
+                } else {
+                    None
+                },
+            )
+        });
+
+        let active_source = self
+            .sources
+            .iter()
+            .find(|source| source.ports.iter().any(|p| p.active));
+
+        let source_slider = active_source.map(|s| {
+            audio_slider(
+                SliderType::Source,
+                s.is_mute,
+                Message::Audio(AudioMessage::SourceToggleMute),
+                self.cur_source_volume,
+                |v| Message::Audio(AudioMessage::SourceVolumeChanged(v)),
+                if self.sources.iter().map(|s| s.ports.len()).sum::<usize>() > 1 {
+                    Some((sub_menu, Message::ToggleSubMenu(SubMenu::Sources)))
+                } else {
+                    None
+                },
+            )
+        });
+
+        (sink_slider, source_slider)
+    }
+
+    pub fn sinks_submenu<'a>(&self) -> Element<'a, Message> {
+        audio_submenu(
+            self.sinks
+                .iter()
+                .flat_map(|s| {
+                    s.ports.iter().map(|p| SubmenuEntry {
+                        name: format!("{}: {}", p.description, s.description),
+                        device: p.device_type,
+                        active: p.active && s.name == self.default_sink,
+                        msg: Message::Audio(AudioMessage::DefaultSinkChanged(
+                            s.name.clone(),
+                            p.name.clone(),
+                        )),
+                    })
+                })
+                .collect(),
+        )
+    }
+
+    pub fn sources_submenu<'a>(&self) -> Element<'a, Message> {
+        audio_submenu(
+            self.sources
+                .iter()
+                .flat_map(|s| {
+                    s.ports.iter().map(|p| SubmenuEntry {
+                        name: format!("{}: {}", p.description, s.description),
+                        device: p.device_type,
+                        active: p.active && s.name == self.default_source,
+                        msg: Message::Audio(AudioMessage::DefaultSourceChanged(
+                            s.name.clone(),
+                            p.name.clone(),
+                        )),
+                    })
+                })
+                .collect(),
+        )
+    }
+
+    pub fn subscription(&self) -> Subscription<AudioMessage> {
+        crate::utils::audio::subscription(self.audio_commander.give_receiver())
     }
 }
 
@@ -242,10 +357,13 @@ pub fn audio_slider<'a, Message: 'a + Clone>(
                         SliderType::Source => Icons::Mic1,
                     }
                 }))
-                .padding([8, match slider_type {
-                    SliderType::Sink => 13,
-                    SliderType::Source => 14,
-                }])
+                .padding([
+                    8,
+                    match slider_type {
+                        SliderType::Sink => 13,
+                        SliderType::Source => 14,
+                    },
+                ])
                 .on_press(toggle_mute)
                 .style(Button::custom(SettingsButtonStyle))
                 .into(),
@@ -276,54 +394,6 @@ pub fn audio_slider<'a, Message: 'a + Clone>(
     .align_items(Alignment::Center)
     .spacing(8)
     .into()
-}
-
-pub fn get_audio_sliders<'a>(
-    sinks: &[Sink],
-    cur_sink_volume: i32,
-    sources: &[Source],
-    cur_source_volume: i32,
-    sub_menu: Option<SubMenu>,
-) -> (Option<Element<'a, Message>>, Option<Element<'a, Message>>) {
-    let active_sink = sinks
-        .iter()
-        .find(|sink| sink.ports.iter().any(|p| p.active));
-
-    let sink_slider = active_sink.map(|s| {
-        audio_slider(
-            SliderType::Sink,
-            s.is_mute,
-            Message::Audio(AudioMessage::SinkToggleMute),
-            cur_sink_volume,
-            |v| Message::Audio(AudioMessage::SinkVolumeChanged(v)),
-            if sinks.iter().map(|s| s.ports.len()).sum::<usize>() > 1 {
-                Some((sub_menu, Message::ToggleSubMenu(SubMenu::Sinks)))
-            } else {
-                None
-            },
-        )
-    });
-
-    let active_source = sources
-        .iter()
-        .find(|source| source.ports.iter().any(|p| p.active));
-
-    let source_slider = active_source.map(|s| {
-        audio_slider(
-            SliderType::Source,
-            s.is_mute,
-            Message::Audio(AudioMessage::SourceToggleMute),
-            cur_source_volume,
-            |v| Message::Audio(AudioMessage::SourceVolumeChanged(v)),
-            if sources.iter().map(|s| s.ports.len()).sum::<usize>() > 1 {
-                Some((sub_menu, Message::ToggleSubMenu(SubMenu::Sources)))
-            } else {
-                None
-            },
-        )
-    });
-
-    (sink_slider, source_slider)
 }
 
 pub struct SubmenuEntry<Message> {

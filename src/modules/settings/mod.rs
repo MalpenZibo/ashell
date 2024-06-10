@@ -1,5 +1,5 @@
 use self::{
-    audio::{audio_submenu, get_audio_sliders, sink_indicator, AudioMessage},
+    audio::{Audio, AudioMessage},
     battery::{battery_indicator, settings_battery_indicator},
     bluetooth::{get_bluetooth_quick_setting_button, BluetoothMessage, BluetoothState, Device},
     net::{
@@ -15,14 +15,13 @@ use self::{
 use crate::{
     components::icons::{icon, Icons},
     menu::{Menu, MenuType},
-    modules::settings::{audio::SubmenuEntry, power::power_menu},
+    modules::settings::power::power_menu,
     password_dialog,
     style::{
         HeaderButtonStyle, QuickSettingsButtonStyle, QuickSettingsSubMenuButtonStyle,
         SettingsButtonStyle, MANTLE, RED,
     },
     utils::{
-        audio::{AudioCommand, Sink, Source},
         battery::{BatteryData, BatteryStatus},
         bluetooth::BluetoothCommand,
         idle_inhibitor::WaylandIdleInhibitor,
@@ -48,7 +47,7 @@ mod power;
 pub mod powerprofiles;
 
 pub struct Settings {
-    audio_commander: Commander<AudioCommand>,
+    audio: Audio,
     brightness_commander: Commander<f64>,
     net_commander: Commander<NetCommand>,
     bluetooth_commander: Commander<BluetoothCommand>,
@@ -65,12 +64,6 @@ pub struct Settings {
     nearby_wifi: Vec<WifiConnection>,
     bluetooth_state: BluetoothState,
     bluetooth_devices: Vec<Device>,
-    default_sink: String,
-    default_source: String,
-    sinks: Vec<Sink>,
-    sources: Vec<Source>,
-    cur_sink_volume: i32,
-    cur_source_volume: i32,
     cur_brightness: i32,
     pub password_dialog: Option<(String, String)>,
 }
@@ -110,7 +103,7 @@ pub enum SubMenu {
 impl Settings {
     pub fn new() -> Self {
         Settings {
-            audio_commander: Commander::new(),
+            audio: Audio::new(),
             brightness_commander: Commander::new(),
             net_commander: Commander::new(),
             bluetooth_commander: Commander::new(),
@@ -127,12 +120,6 @@ impl Settings {
             bluetooth_state: BluetoothState::Unavailable,
             bluetooth_devices: vec![],
             nearby_wifi: vec![],
-            default_sink: String::new(),
-            default_source: String::new(),
-            sinks: vec![],
-            sources: vec![],
-            cur_sink_volume: 0,
-            cur_source_volume: 0,
             cur_brightness: 0,
             password_dialog: None,
         }
@@ -176,10 +163,7 @@ impl Settings {
             Message::Net(msg) => msg.update(self, menu),
             Message::Bluetooth(msg) => msg.update(self),
             Message::PowerProfiles(msg) => msg.update(self),
-            Message::Audio(msg) => {
-                msg.update(self);
-                iced::Command::none()
-            }
+            Message::Audio(msg) => self.audio.update(msg),
             Message::ToggleSubMenu(menu_type) => {
                 if self.sub_menu == Some(menu_type) {
                     self.sub_menu.take();
@@ -267,14 +251,14 @@ impl Settings {
             elements = elements.push(powerprofiles_indicator);
         }
 
-        if let Some(sink_indicator) = sink_indicator(&self.sinks) {
+        if let Some(sink_indicator) = self.audio.sink_indicator() {
             elements = elements.push(sink_indicator);
         }
 
         let mut net_elements = row!().spacing(4);
         if let Some(active_connection) = &self.active_connection {
             net_elements = net_elements.push(active_connection_indicator(active_connection));
-        }
+            }
 
         if self.vpn_active {
             net_elements = net_elements.push(vpn_indicator());
@@ -322,13 +306,7 @@ impl Settings {
                 row!(Space::with_width(Length::Fill), right_buttons).width(Length::Fill)
             };
 
-            let (sink_slider, source_slider) = get_audio_sliders(
-                &self.sinks,
-                self.cur_sink_volume,
-                &self.sources,
-                self.cur_source_volume,
-                self.sub_menu,
-            );
+            let (sink_slider, source_slider) = self.audio.audio_sliders(self.sub_menu);
 
             let brightness_slider = row!(
                 container(icon(Icons::Brightness)).padding([8, 11]),
@@ -395,45 +373,11 @@ impl Settings {
                 sink_slider,
                 self.sub_menu
                     .filter(|menu_type| *menu_type == SubMenu::Sinks)
-                    .map(|_| {
-                        sub_menu_wrapper(audio_submenu(
-                            self.sinks
-                                .iter()
-                                .flat_map(|s| {
-                                    s.ports.iter().map(|p| SubmenuEntry {
-                                        name: format!("{}: {}", p.description, s.description),
-                                        device: p.device_type,
-                                        active: p.active && s.name == self.default_sink,
-                                        msg: Message::Audio(AudioMessage::DefaultSinkChanged(
-                                            s.name.clone(),
-                                            p.name.clone(),
-                                        )),
-                                    })
-                                })
-                                .collect(),
-                        ))
-                    }),
+                    .map(|_| sub_menu_wrapper(self.audio.sinks_submenu())),
                 source_slider,
                 self.sub_menu
                     .filter(|menu_type| *menu_type == SubMenu::Sources)
-                    .map(|_| {
-                        sub_menu_wrapper(audio_submenu(
-                            self.sources
-                                .iter()
-                                .flat_map(|s| {
-                                    s.ports.iter().map(|p| SubmenuEntry {
-                                        name: format!("{}: {}", p.description, s.description),
-                                        device: p.device_type,
-                                        active: p.active && s.name == self.default_source,
-                                        msg: Message::Audio(AudioMessage::DefaultSourceChanged(
-                                            s.name.clone(),
-                                            p.name.clone(),
-                                        )),
-                                    })
-                                })
-                                .collect(),
-                        ))
-                    }),
+                    .map(|_| sub_menu_wrapper(self.audio.sources_submenu())),
                 Some(brightness_slider.into()),
                 Some(quick_settings),
             ]
@@ -451,8 +395,7 @@ impl Settings {
         iced::Subscription::batch(vec![
             crate::utils::battery::subscription().map(Message::Battery),
             crate::utils::net::subscription(self.net_commander.give_receiver()).map(Message::Net),
-            crate::utils::audio::subscription(self.audio_commander.give_receiver())
-                .map(Message::Audio),
+            self.audio.subscription().map(Message::Audio),
             crate::utils::brightness::subscription(self.brightness_commander.give_receiver()),
             crate::utils::bluetooth::subscription(self.bluetooth_commander.give_receiver())
                 .map(Message::Bluetooth),

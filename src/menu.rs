@@ -25,7 +25,10 @@ fn create_menu_surface<Message>() -> (Id, Command<Message>) {
 }
 
 fn open_menu<Message>(id: Id) -> Command<Message> {
-    iced::wayland::layer_surface::set_layer(id, Layer::Overlay)
+    iced::Command::batch(vec![iced::wayland::layer_surface::set_layer(
+        id,
+        Layer::Overlay,
+    )])
 }
 
 fn close_menu<Message>(id: Id) -> Command<Message> {
