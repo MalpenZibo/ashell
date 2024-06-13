@@ -411,7 +411,7 @@ fn quick_settings_section<'a>(
 
     if let Some((before_button, before_menu)) = before.take() {
         section = section.push(
-            row![before_button, horizontal_space(Length::Fill)]
+            row![before_button, horizontal_space()]
                 .width(Length::Fill)
                 .spacing(8),
         );

@@ -55,7 +55,7 @@ impl Audio {
         }
     }
 
-    pub fn update<Message>(
+    pub fn update<Message: 'static>(
         &mut self,
         message: AudioMessage,
         menu: &mut Menu,

@@ -3,13 +3,9 @@ name = "ashell"
 version = "0.1.0"
 edition = "2021"
 
-[dependencies.iced]
-git = "https://github.com/pop-os/iced"
-rev="296b32267d5b7d8f16a1efcef249931694fcd19e"
-default-features = false 
-features = ["tokio", "wayland", "advanced", "wgpu"] 
-
 [dependencies]
+iced = { version = "0.12.1", features = ["tokio", "multi-window", "advanced", "wgpu"] }
+iced_sctk = { path = "../iced_sctk" } 
 chrono = "0.4"
 hyprland = { git = "https://github.com/MalpenZibo/hyprland-rs", branch="master" }
 serde = "1.0"

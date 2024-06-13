@@ -58,7 +58,7 @@ impl Net {
         }
     }
 
-    pub fn update<Message>(
+    pub fn update<Message: 'static>(
         &mut self,
         msg: NetMessage,
         menu: &mut Menu,

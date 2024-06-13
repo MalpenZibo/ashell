@@ -3,20 +3,18 @@ use config::read_config;
 use flexi_logger::{
     Age, Cleanup, Criterion, FileSpec, LogSpecBuilder, LogSpecification, Logger, Naming,
 };
-use iced::{
-    wayland::{
-        actions::layer_surface::SctkLayerSurfaceSettings,
-        layer_surface::{Anchor, KeyboardInteractivity, Layer},
-        InitialSurface,
-    },
-    window::Id,
-    Application, Font, Settings,
+use iced::{window::Id, Font};
+use iced_sctk::{
+    command::wayland::layer_surface::SctkLayerSurfaceSettings,
+    commands::layer_surface::{Anchor, KeyboardInteractivity, Layer},
+    multi_window::{settings::Settings, Application},
+    settings::InitialSurface,
 };
 use log::{error, LevelFilter};
 use std::panic;
 
 mod app;
-mod centerbox;
+// mod centerbox;
 mod components;
 mod config;
 mod menu;

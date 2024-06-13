@@ -238,7 +238,7 @@ impl Updates {
                 }
                 elements.into()
             },
-            horizontal_rule(1).width(Length::Fill),
+            horizontal_rule(1),
             button("Update")
                 .style(iced::theme::Button::custom(GhostButtonStyle))
                 .padding([8, 8])

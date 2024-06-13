@@ -19,11 +19,11 @@ pub fn view<'a>(wifi_ssid: &str, current_password: &str) -> Element<'a, Message>
                 wifi_ssid
             )),
             text_input("", current_password)
-                .password()
+                .secure(true)
                 .on_input(Message::PasswordChanged)
                 .on_submit(Message::DialogConfirmed),
             row!(
-                horizontal_space(iced::Length::Fill),
+                horizontal_space(),
                 button("Cancel").on_press(Message::DialogCancelled),
                 button("Connect").on_press(Message::DialogConfirmed)
             )

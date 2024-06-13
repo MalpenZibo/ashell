@@ -1,5 +1,5 @@
 use crate::{
-    centerbox,
+    // centerbox,
     config::{self, Config},
     get_log_spec,
     menu::{menu_wrapper, Menu, MenuType},
@@ -12,10 +12,12 @@ use crate::{
 };
 use flexi_logger::LoggerHandle;
 use iced::{
-    widget::{row, Row},
+    application::Appearance,
+    widget::{column, row, Row},
     window::Id,
-    Alignment, Application, Color, Length, Theme,
+    Alignment, Color, Length, Theme,
 };
+use iced_sctk::multi_window::Application;
 
 pub struct App {
     logger: LoggerHandle,
@@ -73,20 +75,19 @@ impl Application for App {
         ashell_theme(&self.config.appearance)
     }
 
+    fn title(&self, id: Id) -> String {
+        String::from("ashell")
+    }
+
     fn style(&self) -> iced::theme::Application {
-        fn dark_background(theme: &Theme) -> iced::wayland::Appearance {
-            iced::wayland::Appearance {
+        fn dark_background(theme: &Theme) -> Appearance {
+            Appearance {
                 background_color: Color::TRANSPARENT,
                 text_color: theme.palette().text,
-                icon_color: theme.palette().text,
             }
         }
 
-        iced::theme::Application::from(dark_background as fn(&Theme) -> _)
-    }
-
-    fn title(&self, _id: Id) -> String {
-        String::from("ashell")
+        iced::theme::Application::custom(dark_background as fn(&Theme) -> _)
     }
 
     fn update(&mut self, message: Self::Message) -> iced::Command<Self::Message> {
@@ -228,7 +229,14 @@ impl Application for App {
             )
             .spacing(4);
 
-            centerbox::Centerbox::new([left.into(), center.into(), right.into()])
+            // centerbox::Centerbox::new([left.into(), center.into(), right.into()])
+            //     .spacing(4)
+            //     .padding([0, 4])
+            //     .width(Length::Fill)
+            //     .height(Length::Fixed(HEIGHT as f32))
+            //     .align_items(Alignment::Center)
+            //     .into()
+            row!(left, center, right)
                 .spacing(4)
                 .padding([0, 4])
                 .width(Length::Fill)
