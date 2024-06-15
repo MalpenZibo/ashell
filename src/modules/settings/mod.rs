@@ -4,10 +4,7 @@ use self::{
     bluetooth::BluetoothMessage,
     net::NetMessage,
     power::PowerMessage,
-    powerprofiles::{
-        get_powerprofiles_quick_setting_button, powerprofiles_indicator, PowerProfilesMessage,
-        Profiles,
-    },
+    powerprofiles::{PowerProfiles, PowerProfilesMessage},
 };
 use crate::{
     components::icons::{icon, Icons},
@@ -21,8 +18,6 @@ use crate::{
     utils::{
         battery::{BatteryData, BatteryStatus},
         idle_inhibitor::WaylandIdleInhibitor,
-        powerprofiles::PowerProfilesCommand,
-        Commander,
     },
 };
 use bluetooth::Bluetooth;
@@ -49,8 +44,7 @@ pub struct Settings {
     brightness: Brightness,
     net: Net,
     bluetooth: Bluetooth,
-    powerprofiles_commander: Commander<PowerProfilesCommand>,
-    powerprofiles: Option<Profiles>,
+    powerprofiles: PowerProfiles,
     idle_inhibitor: Option<WaylandIdleInhibitor>,
     sub_menu: Option<SubMenu>,
     battery_data: Option<BatteryData>,
@@ -96,8 +90,7 @@ impl Settings {
             brightness: Brightness::new(),
             net: Net::new(),
             bluetooth: Bluetooth::new(),
-            powerprofiles_commander: Commander::new(),
-            powerprofiles: None,
+            powerprofiles: PowerProfiles::new(),
             idle_inhibitor: WaylandIdleInhibitor::new().ok(),
             sub_menu: None,
             battery_data: None,
@@ -142,7 +135,7 @@ impl Settings {
             }
             Message::Net(msg) => self.net.update(msg, menu, &mut self.password_dialog),
             Message::Bluetooth(msg) => self.bluetooth.update(msg, &mut self.sub_menu),
-            Message::PowerProfiles(msg) => msg.update(self),
+            Message::PowerProfiles(msg) => self.powerprofiles.update(msg),
             Message::Audio(msg) => self.audio.update(msg),
             Message::Brightness(msg) => self.brightness.update(msg),
             Message::ToggleSubMenu(menu_type) => {
@@ -215,7 +208,7 @@ impl Settings {
             elements = elements.push(icon(Icons::EyeOpened).style(RED));
         }
 
-        if let Some(powerprofiles_indicator) = powerprofiles_indicator(self) {
+        if let Some(powerprofiles_indicator) = self.powerprofiles.indicator() {
             elements = elements.push(powerprofiles_indicator);
         }
 
@@ -281,9 +274,8 @@ impl Settings {
                 vec![
                     wifi_setting_button,
                     self.net.get_vpn_quick_setting_button(self.sub_menu),
-                    self.bluetooth
-                        .get_bluetooth_quick_setting_button(self.sub_menu),
-                    get_powerprofiles_quick_setting_button(self),
+                    self.bluetooth.get_quick_setting_button(self.sub_menu),
+                    self.powerprofiles.get_quick_setting_button(),
                     self.idle_inhibitor.as_ref().map(|idle_inhibitor| {
                         (
                             quick_setting_button(
@@ -340,7 +332,8 @@ impl Settings {
             self.brightness.subscription().map(Message::Brightness),
             self.net.subscription().map(Message::Net),
             self.bluetooth.subscription().map(Message::Bluetooth),
-            crate::utils::powerprofiles::subscription(self.powerprofiles_commander.give_receiver())
+            self.powerprofiles
+                .subscription()
                 .map(Message::PowerProfiles),
         ])
     }

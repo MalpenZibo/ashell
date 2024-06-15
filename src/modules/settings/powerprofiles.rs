@@ -3,10 +3,10 @@ use iced::Element;
 use crate::{
     components::icons::{icon, Icons},
     style::{GREEN, RED},
-    utils::powerprofiles::PowerProfilesCommand,
+    utils::{powerprofiles::PowerProfilesCommand, Commander},
 };
 
-use super::{quick_setting_button, Message, Settings};
+use super::{quick_setting_button, Message};
 
 #[derive(Debug, Copy, Clone)]
 pub enum Profiles {
@@ -40,52 +40,64 @@ pub enum PowerProfilesMessage {
     Toggle,
 }
 
-impl PowerProfilesMessage {
-    pub fn update(self, settings: &mut Settings) -> iced::Command<Message> {
-        match self {
+pub struct PowerProfiles {
+    commander: Commander<PowerProfilesCommand>,
+    profiles: Option<Profiles>,
+}
+
+impl PowerProfiles {
+    pub fn new() -> Self {
+        Self {
+            commander: Commander::new(),
+            profiles: None,
+        }
+    }
+
+    pub fn update(&mut self, msg: PowerProfilesMessage) -> iced::Command<Message> {
+        match msg {
             PowerProfilesMessage::Active(state) => {
-                settings.powerprofiles = Some(state);
+                self.profiles = Some(state);
 
                 iced::Command::none()
             }
             PowerProfilesMessage::Toggle => {
-                let _ = settings
-                    .powerprofiles_commander
-                    .send(PowerProfilesCommand::Toggle);
+                let _ = self.commander.send(PowerProfilesCommand::Toggle);
 
                 iced::Command::none()
             }
         }
     }
-}
 
-pub fn powerprofiles_indicator<'a>(settings: &Settings) -> Option<Element<'a, Message>> {
-    settings.powerprofiles.and_then(|v| match v {
-        Profiles::Balanced => None,
-        Profiles::Performance => Some(icon(Icons::Performance).style(RED).into()),
-        Profiles::PowerSaver => Some(icon(Icons::PowerSaver).style(GREEN).into()),
-    })
-}
+    pub fn indicator(&self) -> Option<Element<Message>> {
+        self.profiles.and_then(|v| match v {
+            Profiles::Balanced => None,
+            Profiles::Performance => Some(icon(Icons::Performance).style(RED).into()),
+            Profiles::PowerSaver => Some(icon(Icons::PowerSaver).style(GREEN).into()),
+        })
+    }
 
-pub fn get_powerprofiles_quick_setting_button<'a>(
-    settings: &Settings,
-) -> Option<(Element<'a, Message>, Option<Element<'a, Message>>)> {
-    settings.powerprofiles.map(|state| {
-        (
-            quick_setting_button(
-                state.into(),
-                match state {
-                    Profiles::Balanced => "Balanced",
-                    Profiles::Performance => "Performance",
-                    Profiles::PowerSaver => "Power Saver",
-                }
-                .to_string(),
+    pub fn get_quick_setting_button(&self) -> Option<(Element<Message>, Option<Element<Message>>)> {
+        self.profiles.map(|state| {
+            (
+                quick_setting_button(
+                    state.into(),
+                    match state {
+                        Profiles::Balanced => "Balanced",
+                        Profiles::Performance => "Performance",
+                        Profiles::PowerSaver => "Power Saver",
+                    }
+                    .to_string(),
+                    None,
+                    true,
+                    Message::PowerProfiles(PowerProfilesMessage::Toggle),
+                    None,
+                ),
                 None,
-                true,
-                Message::PowerProfiles(PowerProfilesMessage::Toggle),
-                None,
-            ),
-            None,
-        )
-    })
+            )
+        })
+    }
+
+    pub fn subscription(&self) -> iced::Subscription<PowerProfilesMessage> {
+        crate::utils::powerprofiles::subscription(self.commander.give_receiver())
+    }
 }

@@ -74,7 +74,7 @@ impl Bluetooth {
         }
     }
 
-    pub fn get_bluetooth_quick_setting_button(
+    pub fn get_quick_setting_button(
         &self,
         sub_menu: Option<SubMenu>,
     ) -> Option<(Element<Message>, Option<Element<Message>>)> {
