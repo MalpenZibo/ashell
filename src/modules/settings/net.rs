@@ -141,7 +141,7 @@ impl Net {
             .send(NetCommand::ActivateWifiConnection(ssid, Some(password)));
     }
 
-    pub fn active_connection_indicator<'a>(&self) -> Option<Element<'a, Message>> {
+    pub fn active_connection_indicator(&self) -> Option<Element<Message>> {
         self.active_connection.as_ref().map(|a| {
             let icon_type = a.get_icon();
             let color = a.get_color();
@@ -150,7 +150,7 @@ impl Net {
         })
     }
 
-    pub fn vpn_indicator<'a>(&self) -> Option<Element<'a, Message>> {
+    pub fn vpn_indicator(&self) -> Option<Element< Message>> {
         if self.vpn_active {
             Some(icon(Icons::Vpn).style(YELLOW).into())
         } else {

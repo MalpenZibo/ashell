@@ -1,7 +1,7 @@
 use self::{
     audio::{Audio, AudioMessage},
     battery::{battery_indicator, settings_battery_indicator},
-    bluetooth::{get_bluetooth_quick_setting_button, BluetoothMessage, BluetoothState, Device},
+    bluetooth::BluetoothMessage,
     net::NetMessage,
     power::PowerMessage,
     powerprofiles::{
@@ -20,12 +20,12 @@ use crate::{
     },
     utils::{
         battery::{BatteryData, BatteryStatus},
-        bluetooth::BluetoothCommand,
         idle_inhibitor::WaylandIdleInhibitor,
         powerprofiles::PowerProfilesCommand,
         Commander,
     },
 };
+use bluetooth::Bluetooth;
 use brightness::{Brightness, BrightnessMessage};
 use iced::{
     theme::Button,
@@ -48,14 +48,12 @@ pub struct Settings {
     audio: Audio,
     brightness: Brightness,
     net: Net,
-    bluetooth_commander: Commander<BluetoothCommand>,
+    bluetooth: Bluetooth,
     powerprofiles_commander: Commander<PowerProfilesCommand>,
     powerprofiles: Option<Profiles>,
     idle_inhibitor: Option<WaylandIdleInhibitor>,
     sub_menu: Option<SubMenu>,
     battery_data: Option<BatteryData>,
-    bluetooth_state: BluetoothState,
-    bluetooth_devices: Vec<Device>,
     pub password_dialog: Option<(String, String)>,
 }
 
@@ -97,14 +95,12 @@ impl Settings {
             audio: Audio::new(),
             brightness: Brightness::new(),
             net: Net::new(),
-            bluetooth_commander: Commander::new(),
+            bluetooth: Bluetooth::new(),
             powerprofiles_commander: Commander::new(),
             powerprofiles: None,
             idle_inhibitor: WaylandIdleInhibitor::new().ok(),
             sub_menu: None,
             battery_data: None,
-            bluetooth_state: BluetoothState::Unavailable,
-            bluetooth_devices: vec![],
             password_dialog: None,
         }
     }
@@ -145,7 +141,7 @@ impl Settings {
                 iced::Command::none()
             }
             Message::Net(msg) => self.net.update(msg, menu, &mut self.password_dialog),
-            Message::Bluetooth(msg) => msg.update(self),
+            Message::Bluetooth(msg) => self.bluetooth.update(msg, &mut self.sub_menu),
             Message::PowerProfiles(msg) => msg.update(self),
             Message::Audio(msg) => self.audio.update(msg),
             Message::Brightness(msg) => self.brightness.update(msg),
@@ -285,7 +281,8 @@ impl Settings {
                 vec![
                     wifi_setting_button,
                     self.net.get_vpn_quick_setting_button(self.sub_menu),
-                    get_bluetooth_quick_setting_button(self),
+                    self.bluetooth
+                        .get_bluetooth_quick_setting_button(self.sub_menu),
                     get_powerprofiles_quick_setting_button(self),
                     self.idle_inhibitor.as_ref().map(|idle_inhibitor| {
                         (
@@ -342,8 +339,7 @@ impl Settings {
             self.audio.subscription().map(Message::Audio),
             self.brightness.subscription().map(Message::Brightness),
             self.net.subscription().map(Message::Net),
-            crate::utils::bluetooth::subscription(self.bluetooth_commander.give_receiver())
-                .map(Message::Bluetooth),
+            self.bluetooth.subscription().map(Message::Bluetooth),
             crate::utils::powerprofiles::subscription(self.powerprofiles_commander.give_receiver())
                 .map(Message::PowerProfiles),
         ])
