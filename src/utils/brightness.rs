@@ -1,4 +1,4 @@
-use crate::modules::settings::Message;
+use crate::modules::settings::brightness::BrightnessMessage;
 use iced::{
     futures::{FutureExt, SinkExt},
     Subscription,
@@ -50,7 +50,7 @@ fn watcher(tx: tokio::sync::mpsc::UnboundedSender<u32>, path: PathBuf) {
 
 pub fn subscription(
     rx: Option<tokio::sync::mpsc::UnboundedReceiver<f64>>,
-) -> Subscription<Message> {
+) -> Subscription<BrightnessMessage> {
     iced::subscription::channel("brightness", 100, move |mut output| async move {
         let mut rx = rx.unwrap();
 
@@ -83,8 +83,9 @@ pub fn subscription(
             let mut current_brightness = get_actual_brightness();
 
             let _ = output
-                .send(Message::BrightnessChanged(
+                .send(BrightnessMessage::Changed(
                     current_brightness as f64 / max_brightness as f64,
+                    true,
                 ))
                 .await;
 
@@ -97,8 +98,9 @@ pub fn subscription(
                         if let Some(v) = v {
                         if v != current_brightness {
                             current_brightness = v;
-                            let _ = output.send(Message::BrightnessChanged(
+                            let _ = output.send(BrightnessMessage::Changed(
                                 current_brightness as f64 / max_brightness as f64,
+                                true
                             )).await;
                         }
                         }

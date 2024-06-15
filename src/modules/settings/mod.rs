@@ -30,11 +30,11 @@ use crate::{
         Commander,
     },
 };
+use brightness::{Brightness, BrightnessMessage};
 use iced::{
     theme::Button,
     widget::{
-        button, column, container, horizontal_space, row, slider, text, vertical_rule, Column, Row,
-        Space,
+        button, column, container, horizontal_space, row, text, vertical_rule, Column, Row, Space,
     },
     Alignment, Border, Element, Length, Subscription, Theme,
 };
@@ -42,13 +42,14 @@ use iced::{
 pub mod audio;
 mod battery;
 pub mod bluetooth;
+pub mod brightness;
 pub mod net;
 mod power;
 pub mod powerprofiles;
 
 pub struct Settings {
     audio: Audio,
-    brightness_commander: Commander<f64>,
+    brightness: Brightness,
     net_commander: Commander<NetCommand>,
     bluetooth_commander: Commander<BluetoothCommand>,
     powerprofiles_commander: Commander<PowerProfilesCommand>,
@@ -64,7 +65,6 @@ pub struct Settings {
     nearby_wifi: Vec<WifiConnection>,
     bluetooth_state: BluetoothState,
     bluetooth_devices: Vec<Device>,
-    cur_brightness: i32,
     pub password_dialog: Option<(String, String)>,
 }
 
@@ -82,11 +82,11 @@ pub enum Message {
     Bluetooth(BluetoothMessage),
     PowerProfiles(PowerProfilesMessage),
     Audio(AudioMessage),
+    Brightness(BrightnessMessage),
     ToggleInhibitIdle,
     Lock,
     Power(PowerMessage),
     ToggleSubMenu(SubMenu),
-    BrightnessChanged(f64),
     PasswordDialog(password_dialog::Message),
 }
 
@@ -104,7 +104,7 @@ impl Settings {
     pub fn new() -> Self {
         Settings {
             audio: Audio::new(),
-            brightness_commander: Commander::new(),
+            brightness: Brightness::new(),
             net_commander: Commander::new(),
             bluetooth_commander: Commander::new(),
             powerprofiles_commander: Commander::new(),
@@ -120,7 +120,6 @@ impl Settings {
             bluetooth_state: BluetoothState::Unavailable,
             bluetooth_devices: vec![],
             nearby_wifi: vec![],
-            cur_brightness: 0,
             password_dialog: None,
         }
     }
@@ -164,6 +163,7 @@ impl Settings {
             Message::Bluetooth(msg) => msg.update(self),
             Message::PowerProfiles(msg) => msg.update(self),
             Message::Audio(msg) => self.audio.update(msg),
+            Message::Brightness(msg) => self.brightness.update(msg),
             Message::ToggleSubMenu(menu_type) => {
                 if self.sub_menu == Some(menu_type) {
                     self.sub_menu.take();
@@ -196,13 +196,6 @@ impl Settings {
             }
             Message::Power(msg) => {
                 msg.update();
-                iced::Command::none()
-            }
-            Message::BrightnessChanged(value) => {
-                if (value - (self.cur_brightness as f64 / 100.)).abs() > 0.01 {
-                    self.cur_brightness = (value * 100.).round() as i32;
-                    self.brightness_commander.send(value).unwrap();
-                }
                 iced::Command::none()
             }
             Message::PasswordDialog(msg) => match msg {
@@ -258,7 +251,7 @@ impl Settings {
         let mut net_elements = row!().spacing(4);
         if let Some(active_connection) = &self.active_connection {
             net_elements = net_elements.push(active_connection_indicator(active_connection));
-            }
+        }
 
         if self.vpn_active {
             net_elements = net_elements.push(vpn_indicator());
@@ -307,19 +300,6 @@ impl Settings {
             };
 
             let (sink_slider, source_slider) = self.audio.audio_sliders(self.sub_menu);
-
-            let brightness_slider = row!(
-                container(icon(Icons::Brightness)).padding([8, 11]),
-                slider(
-                    0..=100,
-                    self.cur_brightness,
-                    |v| Message::BrightnessChanged(v as f64 / 100.)
-                )
-                .step(1)
-                .width(Length::Fill),
-            )
-            .align_items(Alignment::Center)
-            .spacing(8);
 
             let wifi_setting_button = get_wifi_quick_setting_button(self);
             let quick_settings = quick_settings_section(
@@ -378,7 +358,7 @@ impl Settings {
                 self.sub_menu
                     .filter(|menu_type| *menu_type == SubMenu::Sources)
                     .map(|_| sub_menu_wrapper(self.audio.sources_submenu())),
-                Some(brightness_slider.into()),
+                Some(self.brightness.brightness_slider()),
                 Some(quick_settings),
             ]
             .into_iter()
@@ -396,7 +376,7 @@ impl Settings {
             crate::utils::battery::subscription().map(Message::Battery),
             crate::utils::net::subscription(self.net_commander.give_receiver()).map(Message::Net),
             self.audio.subscription().map(Message::Audio),
-            crate::utils::brightness::subscription(self.brightness_commander.give_receiver()),
+            self.brightness.subscription().map(Message::Brightness),
             crate::utils::bluetooth::subscription(self.bluetooth_commander.give_receiver())
                 .map(Message::Bluetooth),
             crate::utils::powerprofiles::subscription(self.powerprofiles_commander.give_receiver())
