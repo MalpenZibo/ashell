@@ -3,15 +3,20 @@ name = "ashell"
 version = "0.1.0"
 edition = "2021"
 
+[dependencies.iced]
+git = "https://github.com/pop-os/iced"
+rev="296b32267d5b7d8f16a1efcef249931694fcd19e"
+default-features = false 
+features = ["tokio", "wayland", "advanced", "wgpu"] 
+
 [dependencies]
-iced = { git = "https://github.com/pop-os/iced", rev="927a85251c6dc56cb827711f842a8b87590f2ad4", features = ["tokio", "wayland", "advanced", "wgpu"] }
 chrono = "0.4"
 hyprland = { git = "https://github.com/MalpenZibo/hyprland-rs", branch="master" }
 serde = "1.0"
 serde_json = "1.0"
 sysinfo = "0.30"
 tokio = { version = "1", features = ["full"] }
-zbus = "4.1"
+zbus = "4.2"
 libpulse-binding = { version = "2.28", features = ["pa_v15"] }
 libpulse-tokio = "0.1"
 inotify = "0.10"
@@ -20,6 +25,6 @@ flexi_logger = "0.28"
 serde_yaml = "0.9"
 nix = { version = "0.26.4", features = ["fs"] }
 pipewire = "0.8.0"
-wayland-client = "0.31.2"
-wayland-protocols = "0.31.2"
+wayland-client = "0.31.3"
+wayland-protocols = { version = "0.32.1", features = ["client", "unstable"] }
 
