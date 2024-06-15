@@ -2,10 +2,7 @@ use self::{
     audio::{Audio, AudioMessage},
     battery::{battery_indicator, settings_battery_indicator},
     bluetooth::{get_bluetooth_quick_setting_button, BluetoothMessage, BluetoothState, Device},
-    net::{
-        active_connection_indicator, get_wifi_quick_setting_button, vpn_indicator, vpn_menu,
-        NetMessage,
-    },
+    net::NetMessage,
     power::PowerMessage,
     powerprofiles::{
         get_powerprofiles_quick_setting_button, powerprofiles_indicator, PowerProfilesMessage,
@@ -25,7 +22,6 @@ use crate::{
         battery::{BatteryData, BatteryStatus},
         bluetooth::BluetoothCommand,
         idle_inhibitor::WaylandIdleInhibitor,
-        net::{ActiveConnection, NetCommand, Vpn, WifiConnection, WifiDeviceState},
         powerprofiles::PowerProfilesCommand,
         Commander,
     },
@@ -38,6 +34,7 @@ use iced::{
     },
     Alignment, Border, Element, Length, Subscription, Theme,
 };
+use net::Net;
 
 pub mod audio;
 mod battery;
@@ -50,19 +47,13 @@ pub mod powerprofiles;
 pub struct Settings {
     audio: Audio,
     brightness: Brightness,
-    net_commander: Commander<NetCommand>,
+    net: Net,
     bluetooth_commander: Commander<BluetoothCommand>,
     powerprofiles_commander: Commander<PowerProfilesCommand>,
     powerprofiles: Option<Profiles>,
     idle_inhibitor: Option<WaylandIdleInhibitor>,
     sub_menu: Option<SubMenu>,
     battery_data: Option<BatteryData>,
-    wifi_device_state: WifiDeviceState,
-    scanning_nearby_wifi: bool,
-    active_connection: Option<ActiveConnection>,
-    vpn_active: bool,
-    vpn_connections: Vec<Vpn>,
-    nearby_wifi: Vec<WifiConnection>,
     bluetooth_state: BluetoothState,
     bluetooth_devices: Vec<Device>,
     pub password_dialog: Option<(String, String)>,
@@ -105,21 +96,15 @@ impl Settings {
         Settings {
             audio: Audio::new(),
             brightness: Brightness::new(),
-            net_commander: Commander::new(),
+            net: Net::new(),
             bluetooth_commander: Commander::new(),
             powerprofiles_commander: Commander::new(),
             powerprofiles: None,
             idle_inhibitor: WaylandIdleInhibitor::new().ok(),
             sub_menu: None,
             battery_data: None,
-            wifi_device_state: WifiDeviceState::Unavailable,
-            scanning_nearby_wifi: false,
-            active_connection: None,
-            vpn_active: false,
-            vpn_connections: vec![],
             bluetooth_state: BluetoothState::Unavailable,
             bluetooth_devices: vec![],
-            nearby_wifi: vec![],
             password_dialog: None,
         }
     }
@@ -159,7 +144,7 @@ impl Settings {
                 };
                 iced::Command::none()
             }
-            Message::Net(msg) => msg.update(self, menu),
+            Message::Net(msg) => self.net.update(msg, menu, &mut self.password_dialog),
             Message::Bluetooth(msg) => msg.update(self),
             Message::PowerProfiles(msg) => msg.update(self),
             Message::Audio(msg) => self.audio.update(msg),
@@ -170,13 +155,10 @@ impl Settings {
                 } else {
                     match menu_type {
                         SubMenu::Vpn => {
-                            self.net_commander
-                                .send(NetCommand::GetVpnConnections)
-                                .unwrap();
+                            self.net.get_vpn_connections();
                         }
                         SubMenu::Wifi => {
-                            self.scanning_nearby_wifi = true;
-                            self.net_commander.send(NetCommand::ScanNearByWifi).unwrap();
+                            self.net.get_nearby_wifi();
                         }
                         _ => {}
                     };
@@ -208,10 +190,7 @@ impl Settings {
                 }
                 password_dialog::Message::DialogConfirmed => {
                     if let Some((ssid, password)) = self.password_dialog.take() {
-                        let _ = self
-                            .net_commander
-                            .send(NetCommand::ActivateWifiConnection(ssid, Some(password)));
-
+                        self.net.activate_wifi(ssid, password);
                         menu.unset_keyboard_interactivity()
                     } else {
                         iced::Command::none()
@@ -249,12 +228,12 @@ impl Settings {
         }
 
         let mut net_elements = row!().spacing(4);
-        if let Some(active_connection) = &self.active_connection {
-            net_elements = net_elements.push(active_connection_indicator(active_connection));
+        if let Some(indicator) = self.net.active_connection_indicator() {
+            net_elements = net_elements.push(indicator);
         }
 
-        if self.vpn_active {
-            net_elements = net_elements.push(vpn_indicator());
+        if let Some(indicator) = self.net.vpn_indicator() {
+            net_elements = net_elements.push(indicator);
         }
 
         elements = elements.push(net_elements);
@@ -301,25 +280,11 @@ impl Settings {
 
             let (sink_slider, source_slider) = self.audio.audio_sliders(self.sub_menu);
 
-            let wifi_setting_button = get_wifi_quick_setting_button(self);
+            let wifi_setting_button = self.net.get_wifi_quick_setting_button(self.sub_menu);
             let quick_settings = quick_settings_section(
                 vec![
                     wifi_setting_button,
-                    Some((
-                        quick_setting_button(
-                            Icons::Vpn,
-                            "Vpn".to_string(),
-                            None,
-                            self.vpn_active,
-                            Message::ToggleSubMenu(SubMenu::Vpn),
-                            None,
-                        ),
-                        self.sub_menu
-                            .filter(|menu_type| *menu_type == SubMenu::Vpn)
-                            .map(|_| {
-                                sub_menu_wrapper(vpn_menu(&self.vpn_connections)).map(Message::Net)
-                            }),
-                    )),
+                    self.net.get_vpn_quick_setting_button(self.sub_menu),
                     get_bluetooth_quick_setting_button(self),
                     get_powerprofiles_quick_setting_button(self),
                     self.idle_inhibitor.as_ref().map(|idle_inhibitor| {
@@ -374,9 +339,9 @@ impl Settings {
     pub fn subscription(&self) -> Subscription<Message> {
         iced::Subscription::batch(vec![
             crate::utils::battery::subscription().map(Message::Battery),
-            crate::utils::net::subscription(self.net_commander.give_receiver()).map(Message::Net),
             self.audio.subscription().map(Message::Audio),
             self.brightness.subscription().map(Message::Brightness),
+            self.net.subscription().map(Message::Net),
             crate::utils::bluetooth::subscription(self.bluetooth_commander.give_receiver())
                 .map(Message::Bluetooth),
             crate::utils::powerprofiles::subscription(self.powerprofiles_commander.give_receiver())

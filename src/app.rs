@@ -9,7 +9,7 @@ use crate::{
     HEIGHT,
 };
 use iced::{
-    widget::{column, row, Row},
+    widget::{row, Row},
     window::Id,
     Alignment, Application, Color, Length, Theme,
 };
