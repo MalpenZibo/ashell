@@ -1,5 +1,6 @@
 use crate::{
     components::icons::{icon, Icons},
+    config::SystemModuleConfig,
     style::{header_pills, RED, TEXT, YELLOW},
 };
 use iced::{
@@ -72,38 +73,60 @@ impl SystemInfo {
         }
     }
 
-    pub fn view(&self) -> Element<Message> {
-        let cpu_color = match self.data.cpu_usage {
-            60..=80 => YELLOW,
-            81..=100 => RED,
-            _ => TEXT,
-        };
-        let ram_color = match self.data.memory_usage {
-            70..=85 => YELLOW,
-            86..=100 => RED,
-            _ => TEXT,
-        };
-        let temp_color = match self.data.temperature.unwrap_or_default() as i32 {
-            60..=80 => YELLOW,
-            81.. => RED,
-            _ => TEXT,
-        };
-        container(
-            row!(
-                icon(Icons::Cpu).style(cpu_color),
-                text(format!("{}%", self.data.cpu_usage)).style(cpu_color),
-                icon(Icons::Mem).style(ram_color),
-                text(format!("{}%", self.data.memory_usage)).style(ram_color),
-                icon(Icons::Temp).style(temp_color),
-                text(format!("{}°", self.data.temperature.unwrap_or_default())).style(temp_color)
+    pub fn view(&self, config: &SystemModuleConfig) -> Option<Element<Message>> {
+        if config.disabled {
+            None
+        } else {
+            let cpu_color = if self.data.cpu_usage > config.cpu_warn_threshold
+                && self.data.cpu_usage < config.cpu_alert_threshold
+            {
+                YELLOW
+            } else if self.data.cpu_usage >= config.cpu_alert_threshold {
+                RED
+            } else {
+                TEXT
+            };
+
+            let ram_color = if self.data.memory_usage > config.mem_warn_threshold
+                && self.data.memory_usage < config.mem_alert_threshold
+            {
+                YELLOW
+            } else if self.data.memory_usage >= config.mem_alert_threshold {
+                RED
+            } else {
+                TEXT
+            };
+
+            let temp = self.data.temperature.unwrap_or_default() as i32;
+            let temp_color =
+                if temp > config.temp_warn_threshold && temp < config.temp_alert_threshold {
+                    YELLOW
+                } else if temp >= config.temp_alert_threshold {
+                    RED
+                } else {
+                    TEXT
+                };
+
+            Some(
+                container(
+                    row!(
+                        icon(Icons::Cpu).style(cpu_color),
+                        text(format!("{}%", self.data.cpu_usage)).style(cpu_color),
+                        icon(Icons::Mem).style(ram_color),
+                        text(format!("{}%", self.data.memory_usage)).style(ram_color),
+                        icon(Icons::Temp).style(temp_color),
+                        text(format!("{}°", self.data.temperature.unwrap_or_default()))
+                            .style(temp_color)
+                    )
+                    .align_items(iced::Alignment::Center)
+                    .spacing(4),
+                )
+                .align_y(iced::alignment::Vertical::Center)
+                .padding([2, 7])
+                .style(header_pills)
+                .into(),
             )
-            .align_items(iced::Alignment::Center)
-            .spacing(4),
-        )
-        .align_y(iced::alignment::Vertical::Center)
-        .padding([2, 7])
-        .style(header_pills)
-        .into()
+        }
     }
 
     pub fn subscription(&self) -> iced::Subscription<Message> {

@@ -1,5 +1,6 @@
 use crate::{
     components::icons::{icon, Icons},
+    config::UpdatesModuleConfig,
     menu::{Menu, MenuType},
     style::{GhostButtonStyle, HeaderButtonStyle},
 };
@@ -19,10 +20,10 @@ pub struct Update {
     pub to: String,
 }
 
-async fn check_update_now() -> Vec<Update> {
+async fn check_update_now(check_cmd: &str) -> Vec<Update> {
     let check_update_cmd = Command::new("bash")
         .arg("-c")
-        .arg("checkupdates; paru -Qua ")
+        .arg(check_cmd)
         .stdout(Stdio::piped())
         .output()
         .await;
@@ -56,11 +57,12 @@ async fn check_update_now() -> Vec<Update> {
     }
 }
 
-async fn update() {
+async fn update(update_cmd: &str) {
     let _ = Command::new("bash")
-            .arg("-c")
-            .arg("alacritty -e bash -c \"paru; flatpak update; echo Done - Press enter to exit; read\" &")
-            .output().await;
+        .arg("-c")
+        .arg(update_cmd)
+        .output()
+        .await;
 }
 
 #[derive(Debug, Clone)]
@@ -93,7 +95,12 @@ impl Updates {
         }
     }
 
-    pub fn update(&mut self, message: Message, menu: &mut Menu) -> iced::Command<Message> {
+    pub fn update(
+        &mut self,
+        message: Message,
+        config: &UpdatesModuleConfig,
+        menu: &mut Menu,
+    ) -> iced::Command<Message> {
         match message {
             Message::UpdatesCheckCompleted(updates) => {
                 self.updates = updates;
@@ -118,17 +125,19 @@ impl Updates {
             }
             Message::CheckNow => {
                 self.state = State::Checking;
+                let check_command = config.check_cmd.clone();
                 iced::Command::perform(
-                    async move { check_update_now().await },
+                    async move { check_update_now(&check_command).await },
                     Message::UpdatesCheckCompleted,
                 )
             }
             Message::Update => {
+                let update_command = config.update_cmd.clone();
                 let mut cmds = vec![iced::Command::perform(
                     async move {
                         tokio::spawn({
                             async move {
-                                update().await;
+                                update(&update_command).await;
                             }
                         })
                         .await
@@ -255,10 +264,11 @@ impl Updates {
         .into()
     }
 
-    pub fn subscription(&self) -> iced::Subscription<Message> {
+    pub fn subscription(&self, config: &UpdatesModuleConfig) -> iced::Subscription<Message> {
+        let check_cmd = config.check_cmd.clone();
         iced::subscription::channel("update-checker", 10, |mut output| async move {
             loop {
-                let updates = check_update_now().await;
+                let updates = check_update_now(&check_cmd).await;
 
                 let _ = output.try_send(Message::UpdatesCheckCompleted(updates));
 
@@ -267,4 +277,3 @@ impl Updates {
         })
     }
 }
-

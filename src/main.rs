@@ -1,4 +1,5 @@
 use app::App;
+use config::read_config;
 use flexi_logger::{
     Age, Cleanup, Criterion, FileSpec, LogSpecBuilder, LogSpecification, Logger, Naming,
 };
@@ -11,63 +12,40 @@ use iced::{
     window::Id,
     Application, Font, Settings,
 };
-use log::error;
-use serde::Deserialize;
-use std::{fs::File, panic};
+use log::{error, LevelFilter};
+use std::panic;
 
 mod app;
 mod centerbox;
 mod components;
+mod config;
 mod menu;
 mod modules;
 mod password_dialog;
 mod style;
 mod utils;
 
-#[derive(Deserialize, Debug)]
-struct Config {
-    log_level: log::LevelFilter,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            log_level: log::LevelFilter::Warn,
-        }
-    }
-}
-
 const HEIGHT: u32 = 34;
+
+fn get_log_spec(log_level: LevelFilter) -> LogSpecification {
+    LogSpecBuilder::new()
+        .default(log::LevelFilter::Warn)
+        .module(
+            "ashell",
+            if cfg!(debug_assertions) {
+                log::LevelFilter::Debug
+            } else {
+                log_level
+            },
+        )
+        .build()
+}
 
 #[tokio::main]
 async fn main() {
-    let config_file = File::open("~/ashell.yaml");
-    let config = if let Ok(config_file) = config_file {
-        let config = serde_yaml::from_reader(config_file);
-        if let Ok(config) = config {
-            config
-        }
-        Logger::with(LogSpecification::default()).start().unwrap();
-        panic::set_hook(Box::new(|info| {
-            error!("Panic: {}", info);
-        }));
-
-        panic!("Failed to parse config file");
-    } else {
-        Config::default()
-    };
-
-    Logger::with(
+    let logger = Logger::with(
         LogSpecBuilder::new()
-            .default(log::LevelFilter::Warn)
-            .module(
-                "ashell",
-                if cfg!(debug_assertions) {
-                    log::LevelFilter::Debug
-                } else {
-                    config.log_level
-                },
-            )
+            .default(log::LevelFilter::Info)
             .build(),
     )
     .log_to_file(FileSpec::default().directory("/tmp/ashell"))
@@ -82,6 +60,11 @@ async fn main() {
     panic::set_hook(Box::new(|info| {
         error!("Panic: {}", info);
     }));
+    let config = read_config().unwrap_or_else(|err| {
+        panic!("Failed to parse config file: {}", err);
+    });
+
+    logger.set_new_spec(get_log_spec(config.log_level));
 
     App::run(Settings {
         antialiasing: true,
@@ -96,7 +79,7 @@ async fn main() {
             exclusive_zone: HEIGHT as i32,
             ..Default::default()
         }),
-        flags: (),
+        flags: (logger, config),
         id: None,
         fonts: Default::default(),
         default_font: Font::default(),

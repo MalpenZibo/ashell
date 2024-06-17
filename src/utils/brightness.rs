@@ -1,13 +1,10 @@
 use crate::modules::settings::brightness::BrightnessMessage;
 use iced::{
-    futures::{FutureExt, SinkExt},
+    futures::{FutureExt, SinkExt, StreamExt},
     Subscription,
 };
 use inotify::{Inotify, WatchMask};
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
+use std::fs;
 use zbus::{proxy, Connection, Result};
 
 const DEVICES_FOLDER: &str = "/sys/class/backlight";
@@ -19,33 +16,6 @@ const DEVICES_FOLDER: &str = "/sys/class/backlight";
 )]
 trait BrightnessCtrl {
     fn set_brightness(&self, subsystem: &str, name: &str, value: u32) -> Result<()>;
-}
-
-fn get_actual_brightness(path: &Path) -> u32 {
-    fs::read_to_string(path)
-        .ok()
-        .and_then(|v| v.trim().parse::<u32>().ok())
-        .unwrap_or(0)
-}
-
-fn watcher(tx: tokio::sync::mpsc::UnboundedSender<u32>, path: PathBuf) {
-    std::thread::spawn(move || {
-        let mut inotify = Inotify::init().expect("Failed to initialize inotify");
-
-        inotify
-            .watches()
-            .add(&path, WatchMask::MODIFY)
-            .expect("Failed to add file watch");
-
-        let mut buffer = [0; 1024];
-        loop {
-            let _ = inotify
-                .read_events_blocking(&mut buffer)
-                .expect("Failed to read inotify events");
-
-            let _ = tx.send(get_actual_brightness(&path));
-        }
-    });
 }
 
 pub fn subscription(
@@ -89,20 +59,30 @@ pub fn subscription(
                 ))
                 .await;
 
-            let (watcher_tx, mut watcher_rx) = tokio::sync::mpsc::unbounded_channel();
-            watcher(watcher_tx, actual_brightness_file);
+            let inotify = Inotify::init().expect("Failed to initialize inotify");
+
+            inotify
+                .watches()
+                .add(&actual_brightness_file, WatchMask::MODIFY)
+                .expect("Failed to add file watch");
+
+            let buffer = [0; 1024];
+            let mut watcher_stream = inotify
+                .into_event_stream(buffer)
+                .expect("Failed to create a brightness file event stream");
 
             loop {
                 iced::futures::select! {
-                    v = watcher_rx.recv().fuse() => {
-                        if let Some(v) = v {
-                        if v != current_brightness {
-                            current_brightness = v;
-                            let _ = output.send(BrightnessMessage::Changed(
-                                current_brightness as f64 / max_brightness as f64,
-                                true
-                            )).await;
-                        }
+                    v = watcher_stream.next().fuse() => {
+                        if let Some(Ok(_)) = v {
+                            let v = get_actual_brightness();
+                            if v != current_brightness {
+                                current_brightness = v;
+                                let _ = output.send(BrightnessMessage::Changed(
+                                    current_brightness as f64 / max_brightness as f64,
+                                    true
+                                )).await;
+                            }
                         }
                     }
                     v = rx.recv().fuse() => {

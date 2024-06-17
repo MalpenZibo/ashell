@@ -1,5 +1,7 @@
 use crate::{
     centerbox,
+    config::{self, Config},
+    get_log_spec,
     menu::{menu_wrapper, Menu, MenuType},
     modules::{
         clock::Clock, launcher, privacy::Privacy, settings::Settings, system_info::SystemInfo,
@@ -8,6 +10,7 @@ use crate::{
     style::ashell_theme,
     HEIGHT,
 };
+use flexi_logger::LoggerHandle;
 use iced::{
     widget::{row, Row},
     window::Id,
@@ -15,6 +18,8 @@ use iced::{
 };
 
 pub struct App {
+    logger: LoggerHandle,
+    config: Config,
     menu: Menu,
     updates: Updates,
     workspaces: Workspaces,
@@ -28,8 +33,9 @@ pub struct App {
 #[derive(Debug, Clone)]
 pub enum Message {
     None,
+    ConfigChanged(Config),
     CloseMenu,
-    Launcher(crate::modules::launcher::Message),
+    OpenLauncher,
     Updates(crate::modules::updates::Message),
     Workspaces(crate::modules::workspaces::Message),
     Title(crate::modules::title::Message),
@@ -43,12 +49,14 @@ impl Application for App {
     type Executor = iced::executor::Default;
     type Theme = Theme;
     type Message = Message;
-    type Flags = ();
+    type Flags = (LoggerHandle, Config);
 
-    fn new(_: ()) -> (Self, iced::Command<Self::Message>) {
+    fn new((logger, config): (LoggerHandle, Config)) -> (Self, iced::Command<Self::Message>) {
         let (menu, cmd) = Menu::init();
         (
             App {
+                logger,
+                config,
                 menu,
                 updates: Updates::new(),
                 workspaces: Workspaces::new(),
@@ -85,13 +93,27 @@ impl Application for App {
     fn update(&mut self, message: Self::Message) -> iced::Command<Self::Message> {
         match message {
             Message::None => iced::Command::none(),
+            Message::ConfigChanged(config) => {
+                log::info!("New config: {:?}", config);
+                self.config = config;
+                self.logger
+                    .set_new_spec(get_log_spec(self.config.log_level));
+                iced::Command::none()
+            }
             Message::CloseMenu => self.menu.close(),
-            Message::Updates(message) => self
-                .updates
-                .update(message, &mut self.menu)
-                .map(Message::Updates),
-            Message::Launcher(_) => {
-                crate::utils::launcher::launch_rofi();
+            Message::Updates(message) => {
+                if let Some(updates_config) = self.config.updates.as_ref() {
+                    self.updates
+                        .update(message, updates_config, &mut self.menu)
+                        .map(Message::Updates)
+                } else {
+                    iced::Command::none()
+                }
+            }
+            Message::OpenLauncher => {
+                if let Some(app_launcher_cmd) = self.config.app_launcher_cmd.as_ref() {
+                    crate::utils::launcher::execute_command(app_launcher_cmd.to_string());
+                }
                 iced::Command::none()
             }
             Message::Workspaces(msg) => {
@@ -117,7 +139,7 @@ impl Application for App {
                 .map(Message::Privacy),
             Message::Settings(message) => self
                 .settings
-                .update(message, &mut self.menu)
+                .update(message, &self.config.settings, &mut self.menu)
                 .map(Message::Settings),
         }
     }
@@ -129,7 +151,10 @@ impl Application for App {
                     match menu_type {
                         MenuType::Updates => self.updates.menu_view().map(Message::Updates),
                         MenuType::Privacy => self.privacy.menu_view().map(Message::Privacy),
-                        MenuType::Settings => self.settings.menu_view().map(Message::Settings),
+                        MenuType::Settings => self
+                            .settings
+                            .menu_view(&self.config.settings)
+                            .map(Message::Settings),
                     },
                     match menu_type {
                         MenuType::Updates => crate::menu::MenuPosition::Left,
@@ -141,10 +166,21 @@ impl Application for App {
                 row!().into()
             }
         } else {
-            let left = row!(
-                launcher::launcher().map(Message::Launcher),
-                self.updates.view().map(Message::Updates),
-                self.workspaces.view().map(Message::Workspaces)
+            let left = Row::with_children(
+                vec![
+                    self.config
+                        .app_launcher_cmd
+                        .as_ref()
+                        .map(|_| launcher::launcher()),
+                    self.config
+                        .updates
+                        .as_ref()
+                        .map(|_| self.updates.view().map(Message::Updates)),
+                    Some(self.workspaces.view().map(Message::Workspaces)),
+                ]
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>(),
             )
             .height(Length::Shrink)
             .align_items(Alignment::Center)
@@ -155,22 +191,36 @@ impl Application for App {
                 center = center.push(title.map(Message::Title));
             }
 
-            let right = row!(
-                self.system_info.view().map(Message::SystemInfo),
-                Row::with_children(
-                    vec!(
-                        Some(self.clock.view().map(Message::Clock)),
-                        if self.privacy.applications.is_empty() {
-                            None
-                        } else {
-                            Some(self.privacy.view().map(Message::Privacy))
-                        },
-                        Some(self.settings.view().map(Message::Settings))
-                    )
-                    .into_iter()
-                    .flatten()
-                    .collect::<Vec<_>>()
-                )
+            let right = Row::with_children(
+                vec![
+                    self.system_info
+                        .view(&self.config.system)
+                        .map(|c| c.map(Message::SystemInfo)),
+                    Some(
+                        Row::with_children(
+                            vec![
+                                Some(
+                                    self.clock
+                                        .view(&self.config.clock.format)
+                                        .map(Message::Clock),
+                                ),
+                                if self.privacy.applications.is_empty() {
+                                    None
+                                } else {
+                                    Some(self.privacy.view().map(Message::Privacy))
+                                },
+                                Some(self.settings.view().map(Message::Settings)),
+                            ]
+                            .into_iter()
+                            .flatten()
+                            .collect::<Vec<_>>(),
+                        )
+                        .into(),
+                    ),
+                ]
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>(),
             )
             .spacing(4);
 
@@ -185,14 +235,24 @@ impl Application for App {
     }
 
     fn subscription(&self) -> iced::Subscription<Self::Message> {
-        iced::Subscription::batch(vec![
-            self.updates.subscription().map(Message::Updates),
-            self.workspaces.subscription().map(Message::Workspaces),
-            self.window_title.subscription().map(Message::Title),
-            self.system_info.subscription().map(Message::SystemInfo),
-            self.clock.subscription().map(Message::Clock),
-            self.privacy.subscription().map(Message::Privacy),
-            self.settings.subscription().map(Message::Settings),
-        ])
+        iced::Subscription::batch(
+            vec![
+                self.config.updates.as_ref().map(|updates_config| {
+                    self.updates
+                        .subscription(updates_config)
+                        .map(Message::Updates)
+                }),
+                Some(self.workspaces.subscription().map(Message::Workspaces)),
+                Some(self.window_title.subscription().map(Message::Title)),
+                Some(self.system_info.subscription().map(Message::SystemInfo)),
+                Some(self.clock.subscription().map(Message::Clock)),
+                Some(self.privacy.subscription().map(Message::Privacy)),
+                Some(self.settings.subscription().map(Message::Settings)),
+                Some(config::subscription()),
+            ]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>(),
+        )
     }
 }

@@ -1,20 +1,12 @@
 use std::process::Command;
 
-pub fn launch_rofi() {
-    Command::new("bash")
-        .arg("-c")
-        .arg("~/.config/rofi/launcher.sh")
-        .output()
-        .expect("Failed to execute command.");
-}
-
-pub fn lock() {
+pub fn execute_command(command: String) {
     tokio::spawn(async move {
         Command::new("bash")
             .arg("-c")
-            .arg("hyprlock &")
+            .arg(&command)
             .spawn()
-            .expect("Failed to execute command.");
+            .unwrap_or_else(|_| panic!("Failed to execute command {}", &command));
     });
 }
 

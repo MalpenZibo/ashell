@@ -8,6 +8,7 @@ use self::{
 };
 use crate::{
     components::icons::{icon, Icons},
+    config::SettingsModuleConfig,
     menu::{Menu, MenuType},
     modules::settings::power::power_menu,
     password_dialog,
@@ -98,7 +99,12 @@ impl Settings {
         }
     }
 
-    pub fn update(&mut self, message: Message, menu: &mut Menu) -> iced::Command<Message> {
+    pub fn update(
+        &mut self,
+        message: Message,
+        config: &SettingsModuleConfig,
+        menu: &mut Menu,
+    ) -> iced::Command<Message> {
         match message {
             Message::ToggleMenu => {
                 self.sub_menu = None;
@@ -162,7 +168,9 @@ impl Settings {
                 iced::Command::none()
             }
             Message::Lock => {
-                crate::utils::launcher::lock();
+                if let Some(lock_cmd) = &config.lock_cmd {
+                    crate::utils::launcher::execute_command(lock_cmd.to_string());
+                }
                 iced::Command::none()
             }
             Message::Power(msg) => {
@@ -238,24 +246,35 @@ impl Settings {
             .into()
     }
 
-    pub fn menu_view(&self) -> Element<Message> {
+    pub fn menu_view(&self, config: &SettingsModuleConfig) -> Element<Message> {
         Column::with_children(if let Some((_, current_password)) = &self.password_dialog {
             vec![password_dialog::view("ssid", current_password).map(Message::PasswordDialog)]
         } else {
             let battery_data = self.battery_data.map(settings_battery_indicator);
-            let right_buttons = row!(
-                button(icon(Icons::Lock))
-                    .padding([8, 13])
-                    .on_press(Message::Lock)
-                    .style(Button::custom(SettingsButtonStyle)),
-                button(icon(if self.sub_menu == Some(SubMenu::Power) {
-                    Icons::Close
-                } else {
-                    Icons::Power
-                }))
-                .padding([8, 13])
-                .on_press(Message::ToggleSubMenu(SubMenu::Power))
-                .style(Button::custom(SettingsButtonStyle))
+            let right_buttons = Row::with_children(
+                vec![
+                    config.lock_cmd.as_ref().map(|_| {
+                        button(icon(Icons::Lock))
+                            .padding([8, 13])
+                            .on_press(Message::Lock)
+                            .style(Button::custom(SettingsButtonStyle))
+                            .into()
+                    }),
+                    Some(
+                        button(icon(if self.sub_menu == Some(SubMenu::Power) {
+                            Icons::Close
+                        } else {
+                            Icons::Power
+                        }))
+                        .padding([8, 13])
+                        .on_press(Message::ToggleSubMenu(SubMenu::Power))
+                        .style(Button::custom(SettingsButtonStyle))
+                        .into(),
+                    ),
+                ]
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>(),
             )
             .spacing(8);
 

@@ -1,18 +1,13 @@
 use crate::style::left_header_pills;
-use chrono::Local;
+use chrono::{DateTime, Local};
 use iced::{
     widget::{container, text},
     Element,
 };
 use std::time::Duration;
 
-fn get_date() -> String {
-    let local = Local::now();
-    local.format("%a %d %b %R").to_string()
-}
-
 pub struct Clock {
-    date: String,
+    date: DateTime<Local>,
 }
 
 #[derive(Debug, Clone)]
@@ -22,19 +17,19 @@ pub enum Message {
 
 impl Clock {
     pub fn new() -> Self {
-        Self { date: get_date() }
+        Self { date: Local::now() }
     }
 
     pub fn update(&mut self, message: Message) {
         match message {
             Message::Update => {
-                self.date = get_date();
+                self.date = Local::now();
             }
         }
     }
 
-    pub fn view(&self) -> Element<Message> {
-        container(text(&self.date))
+    pub fn view(&self, format: &str) -> Element<Message> {
+        container(text(self.date.format(format).to_string()))
             .padding([2, 8])
             .style(left_header_pills)
             .into()
