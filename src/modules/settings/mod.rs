@@ -139,10 +139,15 @@ impl Settings {
                 };
                 iced::Command::none()
             }
-            Message::Net(msg) => self.net.update(msg, menu, &mut self.password_dialog),
-            Message::Bluetooth(msg) => self.bluetooth.update(msg, &mut self.sub_menu),
+            Message::Net(msg) => self
+                .net
+                .update(msg, menu, &mut self.password_dialog, config),
+            Message::Bluetooth(msg) => {
+                self.bluetooth
+                    .update(msg, menu, &mut self.sub_menu, config)
+            }
             Message::PowerProfiles(msg) => self.powerprofiles.update(msg),
-            Message::Audio(msg) => self.audio.update(msg),
+            Message::Audio(msg) => self.audio.update(msg, menu, config),
             Message::Brightness(msg) => self.brightness.update(msg),
             Message::ToggleSubMenu(menu_type) => {
                 if self.sub_menu == Some(menu_type) {
@@ -288,12 +293,18 @@ impl Settings {
 
             let (sink_slider, source_slider) = self.audio.audio_sliders(self.sub_menu);
 
-            let wifi_setting_button = self.net.get_wifi_quick_setting_button(self.sub_menu);
+            let wifi_setting_button = self
+                .net
+                .get_wifi_quick_setting_button(self.sub_menu, config.wifi_more_cmd.is_some());
             let quick_settings = quick_settings_section(
                 vec![
                     wifi_setting_button,
-                    self.net.get_vpn_quick_setting_button(self.sub_menu),
-                    self.bluetooth.get_quick_setting_button(self.sub_menu),
+                    self.net
+                        .get_vpn_quick_setting_button(self.sub_menu, config.vpn_more_cmd.is_some()),
+                    self.bluetooth.get_quick_setting_button(
+                        self.sub_menu,
+                        config.bluetooth_more_cmd.is_some(),
+                    ),
                     self.powerprofiles.get_quick_setting_button(),
                     self.idle_inhibitor.as_ref().map(|idle_inhibitor| {
                         (
@@ -326,11 +337,21 @@ impl Settings {
                 sink_slider,
                 self.sub_menu
                     .filter(|menu_type| *menu_type == SubMenu::Sinks)
-                    .map(|_| sub_menu_wrapper(self.audio.sinks_submenu())),
+                    .map(|_| {
+                        sub_menu_wrapper(
+                            self.audio
+                                .sinks_submenu(config.audio_sinks_more_cmd.is_some()),
+                        )
+                    }),
                 source_slider,
                 self.sub_menu
                     .filter(|menu_type| *menu_type == SubMenu::Sources)
-                    .map(|_| sub_menu_wrapper(self.audio.sources_submenu())),
+                    .map(|_| {
+                        sub_menu_wrapper(
+                            self.audio
+                                .sources_submenu(config.audio_sources_more_cmd.is_some()),
+                        )
+                    }),
                 Some(self.brightness.brightness_slider()),
                 Some(quick_settings),
             ]

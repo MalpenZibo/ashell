@@ -1,5 +1,6 @@
 use crate::{
     components::icons::{icon, Icons},
+    config::SettingsModuleConfig,
     menu::Menu,
     style::{GhostButtonStyle, SettingsButtonStyle, GREEN, TEXT, YELLOW},
     utils::{
@@ -30,6 +31,8 @@ pub enum NetMessage {
     VpnConnections(Vec<Vpn>),
     VpnToggle(String),
     NearByWifi(Vec<WifiConnection>),
+    WifiMore,
+    VpnMore,
 }
 
 pub struct Net {
@@ -60,6 +63,7 @@ impl Net {
         msg: NetMessage,
         menu: &mut Menu,
         password_dialog: &mut Option<(String, String)>,
+        config: &SettingsModuleConfig,
     ) -> iced::Command<Message> {
         match msg {
             NetMessage::WifiDeviceState(state) => {
@@ -123,6 +127,22 @@ impl Net {
 
                 iced::Command::none()
             }
+            NetMessage::WifiMore => {
+                if let Some(cmd) = &config.wifi_more_cmd {
+                    crate::utils::launcher::execute_command(cmd.to_string());
+                    menu.close()
+                } else {
+                    iced::Command::none()
+                }
+            }
+            NetMessage::VpnMore => {
+                if let Some(cmd) = &config.vpn_more_cmd {
+                    crate::utils::launcher::execute_command(cmd.to_string());
+                    menu.close()
+                } else {
+                    iced::Command::none()
+                }
+            }
         }
     }
 
@@ -150,7 +170,7 @@ impl Net {
         })
     }
 
-    pub fn vpn_indicator(&self) -> Option<Element< Message>> {
+    pub fn vpn_indicator(&self) -> Option<Element<Message>> {
         if self.vpn_active {
             Some(icon(Icons::Vpn).style(YELLOW).into())
         } else {
@@ -161,6 +181,7 @@ impl Net {
     pub fn get_wifi_quick_setting_button(
         &self,
         sub_menu: Option<SubMenu>,
+        show_more_button: bool,
     ) -> Option<(Element<Message>, Option<Element<Message>>)> {
         self.active_connection.as_ref().map_or_else(
             || {
@@ -181,7 +202,10 @@ impl Net {
                         ),
                         sub_menu
                             .filter(|menu_type| *menu_type == SubMenu::Wifi)
-                            .map(|_| sub_menu_wrapper(self.wifi_menu(None)).map(Message::Net)),
+                            .map(|_| {
+                                sub_menu_wrapper(self.wifi_menu(None, show_more_button))
+                                    .map(Message::Net)
+                            }),
                     ))
                 } else {
                     None
@@ -203,7 +227,10 @@ impl Net {
                     ),
                     sub_menu
                         .filter(|menu_type| *menu_type == SubMenu::Wifi)
-                        .map(|_| sub_menu_wrapper(self.wifi_menu(Some(wifi))).map(Message::Net)),
+                        .map(|_| {
+                            sub_menu_wrapper(self.wifi_menu(Some(wifi), show_more_button))
+                                .map(Message::Net)
+                        }),
                 )),
                 _ => None,
             },
@@ -213,6 +240,7 @@ impl Net {
     pub fn get_vpn_quick_setting_button(
         &self,
         sub_menu: Option<SubMenu>,
+        show_more_button: bool,
     ) -> Option<(Element<Message>, Option<Element<Message>>)> {
         Some((
             quick_setting_button(
@@ -225,12 +253,16 @@ impl Net {
             ),
             sub_menu
                 .filter(|menu_type| *menu_type == SubMenu::Vpn)
-                .map(|_| sub_menu_wrapper(self.vpn_menu()).map(Message::Net)),
+                .map(|_| sub_menu_wrapper(self.vpn_menu(show_more_button)).map(Message::Net)),
         ))
     }
 
-    pub fn wifi_menu(&self, active_connection: Option<&Wifi>) -> Element<NetMessage> {
-        column!(
+    pub fn wifi_menu(
+        &self,
+        active_connection: Option<&Wifi>,
+        show_more_button: bool,
+    ) -> Element<NetMessage> {
+        let main = column!(
             row!(
                 text("Nearby Wifi").width(Length::Fill),
                 text(if self.scanning_nearby_wifi {
@@ -289,14 +321,29 @@ impl Net {
                 )
                 .spacing(4)
             ))
-            .max_height(200)
+            .max_height(200),
         )
-        .spacing(8)
-        .into()
+        .spacing(8);
+
+        if show_more_button {
+            column!(
+                main,
+                horizontal_rule(1),
+                button("More")
+                    .on_press(NetMessage::WifiMore)
+                    .padding([4, 12])
+                    .width(Length::Fill)
+                    .style(Button::custom(GhostButtonStyle)),
+            )
+            .spacing(12)
+            .into()
+        } else {
+            main.into()
+        }
     }
 
-    pub fn vpn_menu(&self) -> Element<NetMessage> {
-        Column::with_children(
+    pub fn vpn_menu(&self, show_more_button: bool) -> Element<NetMessage> {
+        let main = Column::with_children(
             self.vpn_connections
                 .iter()
                 .map(|vpn| {
@@ -311,8 +358,23 @@ impl Net {
                 })
                 .collect::<Vec<Element<NetMessage>>>(),
         )
-        .spacing(8)
-        .into()
+        .spacing(8);
+
+        if show_more_button {
+            column!(
+                main,
+                horizontal_rule(1),
+                button("More")
+                    .on_press(NetMessage::VpnMore)
+                    .padding([4, 12])
+                    .width(Length::Fill)
+                    .style(Button::custom(GhostButtonStyle)),
+            )
+            .spacing(12)
+            .into()
+        } else {
+            main.into()
+        }
     }
 
     pub fn subscription(&self) -> iced::Subscription<NetMessage> {

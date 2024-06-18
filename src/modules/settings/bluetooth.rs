@@ -1,12 +1,16 @@
 use super::{quick_setting_button, sub_menu_wrapper, Message, SubMenu};
 use crate::{
     components::icons::{icon, Icons},
-    style::{RED, TEXT},
+    config::SettingsModuleConfig,
+    menu::Menu,
+    style::{GhostButtonStyle, RED, TEXT},
     utils::{bluetooth::BluetoothCommand, Commander},
 };
 use iced::{
-    widget::{row, text, Column, Row},
-    Element,
+    futures::future::join,
+    theme::Button,
+    widget::{button, column, horizontal_rule, row, text, Column, Row},
+    Element, Length,
 };
 use log::debug;
 
@@ -28,6 +32,7 @@ pub enum BluetoothMessage {
     Status(BluetoothState),
     DeviceList(Vec<Device>),
     Toggle,
+    More,
 }
 
 pub struct Bluetooth {
@@ -48,7 +53,9 @@ impl Bluetooth {
     pub fn update(
         &mut self,
         msg: BluetoothMessage,
+        menu: &mut Menu,
         sub_menu: &mut Option<SubMenu>,
+        config: &SettingsModuleConfig,
     ) -> iced::Command<Message> {
         match msg {
             BluetoothMessage::Status(state) => {
@@ -71,12 +78,21 @@ impl Bluetooth {
 
                 iced::Command::none()
             }
+            BluetoothMessage::More => {
+                if let Some(cmd) = &config.bluetooth_more_cmd {
+                    crate::utils::launcher::execute_command(cmd.to_string());
+                    menu.close()
+                } else {
+                    iced::Command::none()
+                }
+            }
         }
     }
 
     pub fn get_quick_setting_button(
         &self,
         sub_menu: Option<SubMenu>,
+        show_more_button: bool,
     ) -> Option<(Element<Message>, Option<Element<Message>>)> {
         Some((
             quick_setting_button(
@@ -94,12 +110,12 @@ impl Bluetooth {
             ),
             sub_menu
                 .filter(|menu_type| *menu_type == SubMenu::Bluetooth)
-                .map(|_| sub_menu_wrapper(self.bluetooth_menu())),
+                .map(|_| sub_menu_wrapper(self.bluetooth_menu(show_more_button))),
         ))
     }
 
-    pub fn bluetooth_menu(&self) -> Element<Message> {
-        Column::with_children(
+    pub fn bluetooth_menu(&self, show_more_button: bool) -> Element<Message> {
+        let main = Column::with_children(
             self.devices
                 .iter()
                 .map(|d| {
@@ -116,8 +132,23 @@ impl Bluetooth {
                 })
                 .collect::<Vec<Element<Message>>>(),
         )
-        .spacing(8)
-        .into()
+        .spacing(8);
+
+        if show_more_button {
+            column!(
+                main,
+                horizontal_rule(1),
+                button("More")
+                    .on_press(Message::Bluetooth(BluetoothMessage::More))
+                    .padding([4, 12])
+                    .width(Length::Fill)
+                    .style(Button::custom(GhostButtonStyle))
+            )
+            .spacing(12)
+            .into()
+        } else {
+            main.into()
+        }
     }
 
     fn battery_level<'a>(battery: u8) -> Element<'a, Message> {

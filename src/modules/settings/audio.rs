@@ -1,11 +1,13 @@
 use iced::{
     theme::Button,
-    widget::{button, row, slider, text, Column, Row},
+    widget::{button, column, horizontal_rule, row, slider, text, Column, Row},
     Alignment, Command, Element, Length, Subscription,
 };
 
 use crate::{
     components::icons::{icon, Icons},
+    config::SettingsModuleConfig,
+    menu::Menu,
     style::{GhostButtonStyle, SettingsButtonStyle, GREEN},
     utils::{
         audio::{AudioCommand, DeviceType, Sink, Sinks, Source, Volume},
@@ -26,6 +28,8 @@ pub enum AudioMessage {
     SourceToggleMute,
     SourceVolumeChanged(i32),
     DefaultSourceChanged(String, String),
+    SinksMore,
+    SourcesMore,
 }
 
 pub struct Audio {
@@ -51,7 +55,12 @@ impl Audio {
         }
     }
 
-    pub fn update<Message>(&mut self, message: AudioMessage) -> Command<Message> {
+    pub fn update<Message>(
+        &mut self,
+        message: AudioMessage,
+        menu: &mut Menu,
+        config: &SettingsModuleConfig,
+    ) -> Command<Message> {
         match message {
             AudioMessage::SinkChanges(sinks) => {
                 self.sinks = sinks;
@@ -75,6 +84,8 @@ impl Audio {
                     })
                     .unwrap_or_default()
                     * 100.) as i32;
+
+                iced::Command::none()
             }
             AudioMessage::SourceChanges(sources) => {
                 self.sources = sources;
@@ -98,6 +109,8 @@ impl Audio {
                     })
                     .unwrap_or_default()
                     * 100.) as i32;
+
+                iced::Command::none()
             }
             AudioMessage::DefaultSinkSourceChanged(sink, source) => {
                 self.default_sink = sink;
@@ -143,6 +156,8 @@ impl Audio {
                     })
                     .unwrap_or_default()
                     * 100.) as i32;
+
+                iced::Command::none()
             }
             AudioMessage::SinkToggleMute => {
                 if let Some(sink) = self
@@ -155,6 +170,8 @@ impl Audio {
                         !sink.is_mute,
                     ));
                 }
+
+                iced::Command::none()
             }
             AudioMessage::SinkVolumeChanged(volume) => {
                 self.cur_sink_volume = volume;
@@ -171,6 +188,8 @@ impl Audio {
                             .send(AudioCommand::SinkVolume(sink.name.clone(), *new_volume));
                     }
                 }
+
+                iced::Command::none()
             }
             AudioMessage::DefaultSinkChanged(name, port) => {
                 self.default_sink = name.clone();
@@ -183,6 +202,8 @@ impl Audio {
                 let _ = self
                     .audio_commander
                     .send(AudioCommand::DefaultSink(name, port));
+
+                iced::Command::none()
             }
             AudioMessage::SourceToggleMute => {
                 if let Some(source) = self
@@ -195,6 +216,8 @@ impl Audio {
                         !source.is_mute,
                     ));
                 }
+
+                iced::Command::none()
             }
             AudioMessage::SourceVolumeChanged(volume) => {
                 self.cur_source_volume = volume;
@@ -212,6 +235,8 @@ impl Audio {
                             .send(AudioCommand::SourceVolume(source.name.clone(), *new_volume));
                     }
                 }
+
+                iced::Command::none()
             }
             AudioMessage::DefaultSourceChanged(name, port) => {
                 self.default_source = name.clone();
@@ -224,10 +249,26 @@ impl Audio {
                 let _ = self
                     .audio_commander
                     .send(AudioCommand::DefaultSource(name, port));
-            }
-        };
 
-        iced::Command::none()
+                iced::Command::none()
+            }
+            AudioMessage::SinksMore => {
+                if let Some(more_cmd) = &config.audio_sinks_more_cmd {
+                    crate::utils::launcher::execute_command(more_cmd.to_string());
+                    menu.close()
+                } else {
+                    iced::Command::none()
+                }
+            }
+            AudioMessage::SourcesMore => {
+                if let Some(more_cmd) = &config.audio_sources_more_cmd {
+                    crate::utils::launcher::execute_command(more_cmd.to_string());
+                    menu.close()
+                } else {
+                    iced::Command::none()
+                }
+            }
+        }
     }
 
     pub fn sink_indicator<'a, Message>(&self) -> Option<Element<'a, Message>> {
@@ -287,7 +328,7 @@ impl Audio {
         (sink_slider, source_slider)
     }
 
-    pub fn sinks_submenu<'a>(&self) -> Element<'a, Message> {
+    pub fn sinks_submenu<'a>(&self, show_more: bool) -> Element<'a, Message> {
         audio_submenu(
             self.sinks
                 .iter()
@@ -303,10 +344,15 @@ impl Audio {
                     })
                 })
                 .collect(),
+            if show_more {
+                Some(Message::Audio(AudioMessage::SinksMore))
+            } else {
+                None
+            },
         )
     }
 
-    pub fn sources_submenu<'a>(&self) -> Element<'a, Message> {
+    pub fn sources_submenu<'a>(&self, show_more: bool) -> Element<'a, Message> {
         audio_submenu(
             self.sources
                 .iter()
@@ -322,6 +368,11 @@ impl Audio {
                     })
                 })
                 .collect(),
+            if show_more {
+                Some(Message::Audio(AudioMessage::SourcesMore))
+            } else {
+                None
+            },
         )
     }
 
@@ -405,8 +456,9 @@ pub struct SubmenuEntry<Message> {
 
 pub fn audio_submenu<'a, Message: 'a + Clone>(
     entries: Vec<SubmenuEntry<Message>>,
+    more_msg: Option<Message>,
 ) -> Element<'a, Message> {
-    Column::with_children(
+    let entries = Column::with_children(
         entries
             .into_iter()
             .map(|e| {
@@ -435,5 +487,21 @@ pub fn audio_submenu<'a, Message: 'a + Clone>(
             .collect::<Vec<_>>(),
     )
     .spacing(4)
-    .into()
+    .into();
+
+    if let Some(more_msg) = more_msg {
+        column!(
+            entries,
+            horizontal_rule(1),
+            button("More")
+                .on_press(more_msg)
+                .padding([4, 12])
+                .width(Length::Fill)
+                .style(Button::custom(GhostButtonStyle)),
+        )
+        .spacing(12)
+        .into()
+    } else {
+        entries
+    }
 }

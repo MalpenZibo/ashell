@@ -9,12 +9,14 @@ use crate::app::Message;
 const CONFIG_PATH: &str = "~/.config/ashell.yml";
 
 #[derive(Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct UpdatesModuleConfig {
     pub check_cmd: String,
     pub update_cmd: String,
 }
 
 #[derive(Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct SystemModuleConfig {
     #[serde(default)]
     pub disabled: bool,
@@ -71,6 +73,7 @@ impl Default for SystemModuleConfig {
 }
 
 #[derive(Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct ClockModuleConfig {
     pub format: String,
 }
@@ -84,6 +87,7 @@ impl Default for ClockModuleConfig {
 }
 
 #[derive(Deserialize, Default, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct SettingsModuleConfig {
     pub lock_cmd: Option<String>,
     pub audio_sinks_more_cmd: Option<String>,
@@ -94,6 +98,7 @@ pub struct SettingsModuleConfig {
 }
 
 #[derive(Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct Config {
     #[serde(default = "default_log_level")]
     pub log_level: log::LevelFilter,
