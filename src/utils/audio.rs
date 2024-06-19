@@ -263,26 +263,6 @@ impl Sinks for Vec<Sink> {
     }
 }
 
-pub trait Sources {
-    fn get_icon(&self) -> Icons;
-}
-
-impl Sources for Vec<Source> {
-    fn get_icon(&self) -> Icons {
-        match self.iter().find_map(|s| {
-            if s.ports.iter().any(|p| p.active) {
-                Some(s.is_mute)
-            } else {
-                None
-            }
-        }) {
-            Some(true) => Icons::Mic0,
-            Some(false) => Icons::Mic1,
-            None => Icons::Mic0,
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct Sink {
     pub name: String,

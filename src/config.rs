@@ -209,7 +209,9 @@ pub fn subscription() -> iced::Subscription<Message> {
 
                             let new_config = read_config();
                             if let Ok(new_config) = new_config {
-                                let _ = output.send(Message::ConfigChanged(new_config)).await;
+                                let _ = output
+                                    .send(Message::ConfigChanged(Box::new(new_config)))
+                                    .await;
                             } else {
                                 log::warn!("Failed to read config file: {:?}", new_config);
                             }
@@ -225,7 +227,9 @@ pub fn subscription() -> iced::Subscription<Message> {
 
                         let new_config = read_config();
                         if let Ok(new_config) = new_config {
-                            let _ = output.send(Message::ConfigChanged(new_config)).await;
+                            let _ = output
+                                .send(Message::ConfigChanged(Box::new(new_config)))
+                                .await;
                         } else {
                             log::warn!("Failed to read config file: {:?}", new_config);
                         }
@@ -235,7 +239,9 @@ pub fn subscription() -> iced::Subscription<Message> {
                         ..
                     })) => {
                         log::info!("Config file deleted");
-                        let _ = output.send(Message::ConfigChanged(Config::default())).await;
+                        let _ = output
+                            .send(Message::ConfigChanged(Box::default()))
+                            .await;
 
                         break;
                     }

@@ -7,7 +7,6 @@ use crate::{
     utils::{bluetooth::BluetoothCommand, Commander},
 };
 use iced::{
-    futures::future::join,
     theme::Button,
     widget::{button, column, horizontal_rule, row, text, Column, Row},
     Element, Length,

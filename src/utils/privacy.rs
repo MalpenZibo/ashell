@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use std::thread;
 
 use iced::{futures::SinkExt, Subscription};
@@ -76,7 +77,13 @@ pub fn subscription() -> Subscription<PrivacyMessage> {
                         });
 
                         output
-                            .send(PrivacyMessage::Applications(applications.clone()))
+                            .send(PrivacyMessage::Applications(
+                                applications
+                                    .iter()
+                                    .unique_by(|a| &a.application)
+                                    .cloned()
+                                    .collect::<Vec<_>>(),
+                            ))
                             .await
                             .unwrap();
                     }
@@ -84,7 +91,13 @@ pub fn subscription() -> Subscription<PrivacyMessage> {
                         applications.retain(|n| n.id != id);
 
                         output
-                            .send(PrivacyMessage::Applications(applications.clone()))
+                            .send(PrivacyMessage::Applications(
+                                applications
+                                    .iter()
+                                    .unique_by(|a| &a.application)
+                                    .cloned()
+                                    .collect::<Vec<_>>(),
+                            ))
                             .await
                             .unwrap();
                     }

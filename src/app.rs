@@ -33,7 +33,7 @@ pub struct App {
 #[derive(Debug, Clone)]
 pub enum Message {
     None,
-    ConfigChanged(Config),
+    ConfigChanged(Box<Config>),
     CloseMenu,
     OpenLauncher,
     Updates(crate::modules::updates::Message),
@@ -52,12 +52,11 @@ impl Application for App {
     type Flags = (LoggerHandle, Config);
 
     fn new((logger, config): (LoggerHandle, Config)) -> (Self, iced::Command<Self::Message>) {
-        let (menu, cmd) = Menu::init();
         (
             App {
                 logger,
                 config,
-                menu,
+                menu: Menu::init(),
                 updates: Updates::new(),
                 workspaces: Workspaces::new(),
                 window_title: Title::new(),
@@ -66,7 +65,7 @@ impl Application for App {
                 privacy: Privacy::new(),
                 settings: Settings::new(),
             },
-            cmd,
+            iced::Command::none(),
         )
     }
 
@@ -95,7 +94,7 @@ impl Application for App {
             Message::None => iced::Command::none(),
             Message::ConfigChanged(config) => {
                 log::info!("New config: {:?}", config);
-                self.config = config;
+                self.config = *config;
                 self.logger
                     .set_new_spec(get_log_spec(self.config.log_level));
                 iced::Command::none()
@@ -145,7 +144,7 @@ impl Application for App {
     }
 
     fn view(&self, id: Id) -> iced::Element<'_, Self::Message> {
-        if id == self.menu.get_id() {
+        if Some(id) == self.menu.get_id() {
             if let Some(menu_type) = self.menu.get_menu_type() {
                 menu_wrapper(
                     match menu_type {
