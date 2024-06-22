@@ -1,21 +1,57 @@
 # Ashell
 
-A un-customizable Wayland bar for Hyprland compositor and Arch linux distributions. 
+Barely customizable Wayland status bar for Hyprland compositor. 
 
 WIP, highly unstable
 
-### Does it only works on Hyprland and Arch linux?
-While it's currently tailored for Hyprland and Arch Linux, 
-it could potentially work with other compositors. 
+### Does it only work on Hyprland?
+While it's currently tailored for Hyprland, it could work with other compositors. 
 
 However, at present, it relies on [hyprland-rs](https://github.com/hyprland-community/hyprland-rs) 
 to gather information about the active window and workspaces and I haven't implemented any 
 feature flags to disable these functionalities or alternative methods to obtain this data.
 
-At the moment, `ashell` is functional only on Arch Linux due to the lack of customization options. 
-The issue lies with the `update` indicator, which I plan to address. 
-I intend to create a more generic solution to fetch the update list or provide an option 
-to disable this feature.
+## Features
+
+- Lancher button
+- OS Updates indicator
+- Hyprland Active Window
+- Hyprland Workspaces
+- System Information (CPU, RAM, Temperature)
+- Date time
+- Settings panel
+    - Power menu
+    - Battery information
+    - Audio sources and sinks
+    - Screen brightness
+    - Network stuff
+    - VPN
+    - Bluetooth
+    - Power profiles
+    - Idle inhibitor
+
+## Configuration
+The configuration uses the yaml file format and is named `~/.config/ashell.yml`
+
+``` yaml
+logLevel: "INFO" # possible values "DEBUG" | "INFO" | "WARNING" | "ERROR" (default value "INFO")
+appLauncherCmd: "~/.config/rofi/launcher.sh" # This command will be used to open the launcher, default value None, the button will not appear 
+# Update module config. The check command will be used to retrieve the update list.
+# It should return something like `package_name version_from -> version_to\n`
+# The update command is used to init the OS update process
+updates:
+  checkCmd: "checkupdates; paru -Qua"
+  updateCmd: "alacritty -e bash -c \"paru; echo Done - Press enter to exit; read\" &"
+system:
+  disabled: false # Enable or disable the system monitor module
+settings:
+  lockCmd: "hyprlock &" # command used for lock the system
+  audioSinksMoreCmd: "pavucontrol -t 3" # command used to open the  sinks audio settings (default none -> the button "More" will not appear)
+  audioSourcesMoreCmd: "pavucontrol -t 4" # command used to open the sources audio settings (default none -> the button "More" will not appear) 
+  wifiMoreCmd: "nm-connection-editor" # command used to open the network settings (default none -> the button "More" will not appear) 
+  vpnMoreCmd: "nm-connection-editor" # command used to open the VPN settings (default none -> the button "More" will not appear) 
+  bluetoothMoreCmd: "blueman-manager" # command used to open the Bluetooth settings (default none -> the button "More" will not appear) 
+```
 
 ### So, what's the purpose of this project?
 While, I could have used [waybar](https://github.com/Alexays/Waybar) that's for sure is a 
@@ -31,36 +67,10 @@ create this project.
 
 In the end, what can this project do for you? 
 
-Almost nothing but it could be useful if you want to create your own bar 
+Almost nothing but it could be useful if you want to create your own status bar 
 or if you have to read some examples on how to get information from `dbus`.
 
 So feel free to fork this project and customize it for your needs.
-
-## Features
-The main inspiration is the gnome shell bar. 
-I'm using the catpuccin mocha color palette.
-
-- Lancher button
-- Arch linux OS Update
-- Hyprland Active Window
-- Hyprland Workspaces
-- System Informations (cpu, ram, temperature)
-- Date time
-- Settings panel
-    - power menu
-    - battery information
-    - pulse audio sources and sinks
-    - screen brightness
-    - network stuff
-    - VPN
-    - bluetooth
-
-## Requirements
-- a `~/.config/rofi/launcher.sh` script to open the app lancher
-- `nerd fonts icons`
-- `hyprlock` to lock the session
-- `checkupdates` and `paru` to get the list of updates
-- probably other stuff to avoid "unexpected" crashes :D
 
 ## Some screenshots
 
@@ -84,4 +94,7 @@ I'm using the catpuccin mocha color palette.
 
 #### Bluetooth
 ![Bluetooth](https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/bluetooth-menu.png)
+
+#### Power Profile, Idle inhibitor
+![PowerProfileIdleInhibitor](https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/power-profile-idle-indicator.png)
 
