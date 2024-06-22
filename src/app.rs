@@ -121,7 +121,7 @@ impl Application for App {
                 iced::Command::none()
             }
             Message::Title(message) => {
-                self.window_title.update(message);
+                self.window_title.update(message, self.config.truncate_title_after_length);
                 iced::Command::none()
             }
             Message::SystemInfo(message) => {

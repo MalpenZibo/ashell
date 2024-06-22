@@ -25,10 +25,22 @@ impl Title {
         Self { value: init }
     }
 
-    pub fn update(&mut self, message: Message) {
+    pub fn update(&mut self, message: Message, truncate_title_after_length: u32) {
         match message {
             Message::TitleChanged(value) => {
-                self.value = value;
+                if let Some(value) = value {
+                    let length = value.len();
+
+                    self.value = Some(if length > truncate_title_after_length as usize {
+                        let first_part = &value[0..50];
+                        let last_part = &value[length - 50..length];
+                        format!("{}...{}", first_part, last_part)
+                    } else {
+                        value
+                    });
+                } else {
+                    self.value = None;
+                }
             }
         }
     }

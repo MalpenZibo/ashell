@@ -210,7 +210,7 @@ impl Workspaces {
                         .expect("error getting workspaces: window moved event");
                 }
             });
-        
+
             event_listener.add_active_monitor_change_handler({
                 let output = output.clone();
                 move |_| {

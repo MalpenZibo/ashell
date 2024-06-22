@@ -103,6 +103,8 @@ pub struct Config {
     #[serde(default = "default_log_level")]
     pub log_level: log::LevelFilter,
     pub app_launcher_cmd: Option<String>,
+    #[serde(default = "default_truncate_title_after_length")]
+    pub truncate_title_after_length: u32,
     #[serde(deserialize_with = "try_default")]
     pub updates: Option<UpdatesModuleConfig>,
     #[serde(default)]
@@ -132,11 +134,16 @@ fn default_log_level() -> log::LevelFilter {
     log::LevelFilter::Warn
 }
 
+fn default_truncate_title_after_length() -> u32 {
+    300
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
             log_level: default_log_level(),
             app_launcher_cmd: None,
+            truncate_title_after_length: default_truncate_title_after_length(),
             updates: None,
             system: SystemModuleConfig::default(),
             clock: ClockModuleConfig::default(),
