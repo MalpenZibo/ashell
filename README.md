@@ -95,6 +95,4 @@ So feel free to fork this project and customize it for your needs.
 #### Bluetooth
 ![Bluetooth](https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/bluetooth-menu.png)
 
-#### Power Profile, Idle inhibitor
-![PowerProfileIdleInhibitor](https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/power-profile-idle-indicator.png)
 
