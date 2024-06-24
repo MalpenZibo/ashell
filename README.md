@@ -34,23 +34,52 @@ feature flags to disable these functionalities or alternative methods to obtain 
 The configuration uses the yaml file format and is named `~/.config/ashell.yml`
 
 ``` yaml
-logLevel: "INFO" # possible values "DEBUG" | "INFO" | "WARNING" | "ERROR" (default value "INFO")
-appLauncherCmd: "~/.config/rofi/launcher.sh" # This command will be used to open the launcher, default value None, the button will not appear 
-# Update module config. The check command will be used to retrieve the update list.
-# It should return something like `package_name version_from -> version_to\n`
-# The update command is used to init the OS update process
-updates:
-  checkCmd: "checkupdates; paru -Qua"
-  updateCmd: "alacritty -e bash -c \"paru; echo Done - Press enter to exit; read\" &"
-system:
+# Ashell log level filter, possible values "DEBUG" | "INFO" | "WARNING" | "ERROR"
+logLevel: "INFO" # optional, default "INFO"
+# App lancher commanda, it will be used to open the launcher,
+# without a value the related button will not appear
+appLauncherCmd: "~/.config/rofi/launcher.sh" # optional, default None 
+# Update module configuration. 
+# Without a value the related button will not appear.
+updates: # optional, default None 
+  # The check command will be used to retrieve the update list.
+  # It should return something like `package_name version_from -> version_to\n`
+  checkCmd: "checkupdates; paru -Qua" # required
+  # The update command is used to init the OS update process
+  updateCmd: "alacritty -e bash -c \"paru; echo Done - Press enter to exit; read\" &" # required
+# The system module configuration
+system: 
   disabled: false # Enable or disable the system monitor module
+  cpuWarnThreshold: 6O # cpu indicator warning level (default 60)
+  cpuAlertThreshold: 8O # cpu indicator alert level (default 80)
+  memWarnThreshold: 7O # mem indicator warning level (default 70)
+  memAlertThreshold: 85 # mem indicator alert level (default 85)
+  tempWarnThreshold: 6O # temperature indicator warning level (default 60)
+  tempAlertThreshold: 8O # temperature indicator alert level (default 80)
+# Clock module configuration
+clock:
+  # clock format see: https://docs.rs/chrono/latest/chrono/format/strftime/index.html 
+  format: "%a %d %b %R" # optional, default: %a %d %b %R
+# Settings module configuration
 settings:
-  lockCmd: "hyprlock &" # command used for lock the system
-  audioSinksMoreCmd: "pavucontrol -t 3" # command used to open the  sinks audio settings (default none -> the button "More" will not appear)
-  audioSourcesMoreCmd: "pavucontrol -t 4" # command used to open the sources audio settings (default none -> the button "More" will not appear) 
-  wifiMoreCmd: "nm-connection-editor" # command used to open the network settings (default none -> the button "More" will not appear) 
-  vpnMoreCmd: "nm-connection-editor" # command used to open the VPN settings (default none -> the button "More" will not appear) 
-  bluetoothMoreCmd: "blueman-manager" # command used to open the Bluetooth settings (default none -> the button "More" will not appear) 
+  # command used for lock the system
+  # without a value the related button will not appear 
+  lockCmd: "hyprlock &" # optional, default None 
+  # command used to open the sinks audio settings 
+  # without a value the related button will not appear 
+  audioSinksMoreCmd: "pavucontrol -t 3" # optional default None 
+  # command used to open the sources audio settings
+  # without a value the related button will not appear 
+  audioSourcesMoreCmd: "pavucontrol -t 4" # optional, default None 
+  # command used to open the network settings 
+  # without a value the related button will not appear 
+  wifiMoreCmd: "nm-connection-editor" # optional, default None
+  # command used to open the VPN settings 
+  # without a value the related button will not appear 
+  vpnMoreCmd: "nm-connection-editor" # optional, default None 
+  # command used to open the Bluetooth settings  
+  # without a value the related button will not appear 
+  bluetoothMoreCmd: "blueman-manager" # optional, default None 
 ```
 
 ### So, what's the purpose of this project?
