@@ -12,9 +12,7 @@ use crate::{
     },
 };
 use iced::{
-    theme::Button,
-    widget::{button, column, container, horizontal_rule, row, scrollable, text, toggler, Column},
-    Element, Length,
+    theme::Button, widget::{button, column, container, horizontal_rule, row, scrollable, text, toggler, Column}, Color, Element, Length, Theme
 };
 
 use super::{quick_setting_button, sub_menu_wrapper, Message, SubMenu};

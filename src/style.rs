@@ -1,4 +1,8 @@
-use iced::{theme::Palette, widget::button, Border, Color, Theme};
+use iced::{
+    theme::{palette, Palette},
+    widget::button,
+    Border, Color, Theme,
+};
 
 pub const BASE: Color = Color::from_rgb(0.117_647_06, 0.117_647_06, 0.180_392_16);
 pub const MANTLE: Color = Color::from_rgb(0.094_117_65, 0.094_117_66, 0.145_098_05);
@@ -14,7 +18,17 @@ pub const YELLOW: Color = Color::from_rgb(0.976_470_6, 0.886_274_5, 0.686_274_5)
 pub const GREEN: Color = Color::from_rgb(0.650_980_4, 0.890_196_1, 0.631_372_6);
 
 pub fn ashell_theme() -> Theme {
-    Theme::custom(
+    // Theme::custom(
+    //     "local".to_string(),
+    //     Palette {
+    //         background: BASE,
+    //         text: TEXT,
+    //         primary: PEACH,
+    //         success: GREEN,
+    //         danger: RED,
+    //     }
+    // )
+    Theme::custom_with_fn(
         "local".to_string(),
         Palette {
             background: BASE,
@@ -22,6 +36,45 @@ pub fn ashell_theme() -> Theme {
             primary: PEACH,
             success: GREEN,
             danger: RED,
+        },
+        |palette| {
+            let default_bg = palette::Background::new(palette.background, palette.text);
+            let default_primary =
+                palette::Primary::generate(palette.primary, palette.background, palette.background);
+            let default_secondary = palette::Secondary::generate(CRUST, palette.text);
+            let default_success =
+                palette::Success::generate(palette.success, palette.background, palette.text);
+            let default_danger =
+                palette::Danger::generate(palette.danger, palette.background, palette.text);
+
+            palette::Extended {
+                background: palette::Background {
+                    base: default_bg.base,
+                    weak: palette::Pair::new(SURFACE_0, palette.text),
+                    strong: palette::Pair::new(SURFACE_1, palette.text),
+                },
+                primary: palette::Primary {
+                    base: default_primary.base,
+                    weak: default_primary.weak,
+                    strong: default_primary.strong,
+                },
+                secondary: palette::Secondary {
+                    base: default_secondary.base,
+                    weak: default_secondary.weak,
+                    strong: palette::Pair::new(MANTLE, palette.text),
+                },
+                success: palette::Success {
+                    base: default_success.base,
+                    weak: default_success.weak,
+                    strong: default_success.strong,
+                },
+                danger: palette::Danger {
+                    base: default_danger.base,
+                    weak: default_danger.weak,
+                    strong: default_danger.strong,
+                },
+                is_dark: true,
+            }
         },
     )
 }
@@ -74,7 +127,6 @@ impl button::StyleSheet for HeaderButtonStyle {
                     HeaderButtonStyle::Left => [12.0, 0.0, 0.0, 12.0].into(),
                     HeaderButtonStyle::Right => [0.0, 12.0, 12.0, 0.0].into(),
                     HeaderButtonStyle::None => 0.0.into(),
-
                 },
                 color: iced::Color::TRANSPARENT,
             },
@@ -85,7 +137,7 @@ impl button::StyleSheet for HeaderButtonStyle {
 
     fn hovered(&self, style: &Self::Style) -> button::Appearance {
         button::Appearance {
-            background: Some(SURFACE_0.into()),
+            background: Some(style.extended_palette().background.weak.color.into()),
             ..self.active(style)
         }
     }
@@ -111,7 +163,7 @@ impl button::StyleSheet for GhostButtonStyle {
 
     fn hovered(&self, style: &Self::Style) -> button::Appearance {
         button::Appearance {
-            background: Some(iced::Background::Color(SURFACE_0)),
+            background: Some(style.extended_palette().background.weak.color.into()),
             ..self.active(style)
         }
     }
@@ -124,7 +176,7 @@ impl button::StyleSheet for SettingsButtonStyle {
 
     fn active(&self, style: &Self::Style) -> button::Appearance {
         button::Appearance {
-            background: Some(iced::Background::Color(SURFACE_0)),
+            background: Some(style.extended_palette().background.weak.color.into()),
             border: Border {
                 width: 0.0,
                 radius: 32.0.into(),
@@ -137,7 +189,7 @@ impl button::StyleSheet for SettingsButtonStyle {
 
     fn hovered(&self, style: &Self::Style) -> button::Appearance {
         button::Appearance {
-            background: Some(SURFACE_1.into()),
+            background: Some(style.extended_palette().background.strong.color.into()),
             ..self.active(style)
         }
     }
@@ -190,19 +242,23 @@ pub struct QuickSettingsButtonStyle(pub bool);
 impl button::StyleSheet for QuickSettingsButtonStyle {
     type Style = iced::theme::Theme;
 
-    fn active(&self, _: &Self::Style) -> button::Appearance {
+    fn active(&self, style: &Self::Style) -> button::Appearance {
         button::Appearance {
             background: Some(if self.0 {
-                iced::Background::Color(PEACH)
+                style.palette().primary.into()
             } else {
-                iced::Background::Color(SURFACE_0)
+                style.extended_palette().background.weak.color.into()
             }),
             border: Border {
                 width: 0.0,
                 radius: 32.0.into(),
                 color: iced::Color::TRANSPARENT,
             },
-            text_color: if self.0 { SURFACE_0 } else { TEXT },
+            text_color: if self.0 {
+                style.extended_palette().primary.base.text
+            } else {
+                style.palette().text
+            },
             ..button::Appearance::default()
         }
     }
@@ -211,7 +267,14 @@ impl button::StyleSheet for QuickSettingsButtonStyle {
         let peach = style.extended_palette().primary.weak.color;
 
         button::Appearance {
-            background: Some(if self.0 { peach } else { SURFACE_1 }.into()),
+            background: Some(
+                if self.0 {
+                    peach
+                } else {
+                    style.extended_palette().background.strong.color
+                }
+                .into(),
+            ),
             ..self.active(style)
         }
     }
@@ -231,7 +294,7 @@ impl button::StyleSheet for QuickSettingsSubMenuButtonStyle {
                 color: iced::Color::TRANSPARENT,
             },
             text_color: if self.0 {
-                SURFACE_0
+                style.extended_palette().primary.base.text
             } else {
                 style.palette().text
             },
@@ -241,7 +304,7 @@ impl button::StyleSheet for QuickSettingsSubMenuButtonStyle {
 
     fn hovered(&self, style: &Self::Style) -> button::Appearance {
         button::Appearance {
-            background: Some(iced::Background::Color(SURFACE_0)),
+            background: Some(style.extended_palette().background.weak.color.into()),
             text_color: style.palette().text,
             ..self.active(style)
         }
