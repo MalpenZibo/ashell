@@ -135,7 +135,7 @@ fn default_log_level() -> log::LevelFilter {
 }
 
 fn default_truncate_title_after_length() -> u32 {
-    300
+    150
 }
 
 impl Default for Config {
@@ -181,6 +181,7 @@ pub fn subscription() -> iced::Subscription<Message> {
                     .add(
                         path,
                         WatchMask::MODIFY
+                            .union(WatchMask::CLOSE_WRITE)
                             .union(WatchMask::DELETE)
                             .union(WatchMask::MOVE_SELF),
                     )
@@ -227,7 +228,7 @@ pub fn subscription() -> iced::Subscription<Message> {
                         }
                     }
                     Some(Ok(inotify::Event {
-                        mask: EventMask::MODIFY,
+                        mask: EventMask::MODIFY | EventMask::MOVE_SELF | EventMask::CLOSE_WRITE,
                         ..
                     })) => {
                         log::info!("Config file modified");
@@ -242,13 +243,11 @@ pub fn subscription() -> iced::Subscription<Message> {
                         }
                     }
                     Some(Ok(inotify::Event {
-                        mask: EventMask::DELETE | EventMask::MOVE_SELF,
+                        mask: EventMask::DELETE,
                         ..
                     })) => {
                         log::info!("Config file deleted");
-                        let _ = output
-                            .send(Message::ConfigChanged(Box::default()))
-                            .await;
+                        let _ = output.send(Message::ConfigChanged(Box::default())).await;
 
                         break;
                     }

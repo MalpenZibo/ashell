@@ -32,8 +32,9 @@ impl Title {
                     let length = value.len();
 
                     self.value = Some(if length > truncate_title_after_length as usize {
-                        let first_part = &value[0..50];
-                        let last_part = &value[length - 50..length];
+                        let split = truncate_title_after_length as usize / 2;
+                        let first_part = &value[0..split];
+                        let last_part = &value[length - split..length];
                         format!("{}...{}", first_part, last_part)
                     } else {
                         value

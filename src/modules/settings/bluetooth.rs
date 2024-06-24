@@ -114,24 +114,29 @@ impl Bluetooth {
     }
 
     pub fn bluetooth_menu(&self, show_more_button: bool) -> Element<Message> {
-        let main = Column::with_children(
-            self.devices
-                .iter()
-                .map(|d| {
-                    Row::with_children(
-                        vec![
-                            Some(text(d.name.to_string()).width(iced::Length::Fill).into()),
-                            d.battery.map(Self::battery_level),
-                        ]
-                        .into_iter()
-                        .flatten()
-                        .collect::<Vec<_>>(),
-                    )
-                    .into()
-                })
-                .collect::<Vec<Element<Message>>>(),
-        )
-        .spacing(8);
+        let main = if self.devices.is_empty() {
+            text("No devices connected").into()
+        } else {
+            Column::with_children(
+                self.devices
+                    .iter()
+                    .map(|d| {
+                        Row::with_children(
+                            vec![
+                                Some(text(d.name.to_string()).width(iced::Length::Fill).into()),
+                                d.battery.map(Self::battery_level),
+                            ]
+                            .into_iter()
+                            .flatten()
+                            .collect::<Vec<_>>(),
+                        )
+                        .into()
+                    })
+                    .collect::<Vec<Element<Message>>>(),
+            )
+            .spacing(8)
+            .into()
+        };
 
         if show_more_button {
             column!(
@@ -146,7 +151,7 @@ impl Bluetooth {
             .spacing(12)
             .into()
         } else {
-            main.into()
+            main
         }
     }
 

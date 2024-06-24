@@ -47,6 +47,9 @@ updates: # optional, default None
   checkCmd: "checkupdates; paru -Qua" # required
   # The update command is used to init the OS update process
   updateCmd: "alacritty -e bash -c \"paru; echo Done - Press enter to exit; read\" &" # required
+# Maximum number of chars that can be present in the window title
+# after that the title will be truncated 
+truncateTitleAfterLength: 150 # optional, default 150
 # The system module configuration
 system: 
   disabled: false # Enable or disable the system monitor module
