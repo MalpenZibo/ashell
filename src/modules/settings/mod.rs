@@ -14,7 +14,7 @@ use crate::{
     password_dialog,
     style::{
         HeaderButtonStyle, QuickSettingsButtonStyle, QuickSettingsSubMenuButtonStyle,
-        SettingsButtonStyle, MANTLE, RED,
+        SettingsButtonStyle,
     },
     utils::{
         battery::{BatteryData, BatteryStatus},
@@ -142,10 +142,7 @@ impl Settings {
             Message::Net(msg) => self
                 .net
                 .update(msg, menu, &mut self.password_dialog, config),
-            Message::Bluetooth(msg) => {
-                self.bluetooth
-                    .update(msg, menu, &mut self.sub_menu, config)
-            }
+            Message::Bluetooth(msg) => self.bluetooth.update(msg, menu, &mut self.sub_menu, config),
             Message::PowerProfiles(msg) => self.powerprofiles.update(msg),
             Message::Audio(msg) => self.audio.update(msg, menu, config),
             Message::Brightness(msg) => self.brightness.update(msg),
@@ -218,10 +215,17 @@ impl Settings {
             .filter(|i| i.is_inhibited())
             .is_some()
         {
-            elements = elements.push(icon(Icons::EyeOpened).style(RED));
+            elements = elements.push(container(icon(Icons::EyeOpened)).style(|theme: &Theme| {
+                container::Appearance {
+                    text_color: Some(theme.palette().danger),
+                    ..Default::default()
+                }
+            }));
         }
 
-        if let Some(powerprofiles_indicator) = self.powerprofiles.indicator() {
+        if let Some(powerprofiles_indicator) =
+            self.powerprofiles.indicator()
+        {
             elements = elements.push(powerprofiles_indicator);
         }
 
@@ -230,7 +234,10 @@ impl Settings {
         }
 
         let mut net_elements = row!().spacing(4);
-        if let Some(indicator) = self.net.active_connection_indicator() {
+        if let Some(indicator) = self
+            .net
+            .active_connection_indicator()
+        {
             net_elements = net_elements.push(indicator);
         }
 
@@ -419,8 +426,9 @@ fn quick_settings_section<'a>(
 
 fn sub_menu_wrapper<'a, Msg: 'static>(content: impl Into<Element<'a, Msg>>) -> Element<'a, Msg> {
     container(content.into())
-        .style(|_: &Theme| iced::widget::container::Appearance {
-            background: iced::Background::Color(MANTLE).into(),
+        .style(|theme: &Theme| iced::widget::container::Appearance {
+            background: iced::Background::Color(theme.extended_palette().secondary.strong.color)
+                .into(),
             border: Border::with_radius(16),
             ..iced::widget::container::Appearance::default()
         })

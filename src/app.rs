@@ -70,7 +70,7 @@ impl Application for App {
     }
 
     fn theme(&self, _id: Id) -> Self::Theme {
-        ashell_theme()
+        ashell_theme(&self.config.appearance)
     }
 
     fn style(&self) -> iced::theme::Application {
@@ -121,7 +121,8 @@ impl Application for App {
                 iced::Command::none()
             }
             Message::Title(message) => {
-                self.window_title.update(message, self.config.truncate_title_after_length);
+                self.window_title
+                    .update(message, self.config.truncate_title_after_length);
                 iced::Command::none()
             }
             Message::SystemInfo(message) => {
@@ -175,7 +176,11 @@ impl Application for App {
                         .updates
                         .as_ref()
                         .map(|_| self.updates.view().map(Message::Updates)),
-                    Some(self.workspaces.view().map(Message::Workspaces)),
+                    Some(
+                        self.workspaces
+                            .view(&self.config.appearance.workspace_colors)
+                            .map(Message::Workspaces),
+                    ),
                 ]
                 .into_iter()
                 .flatten()

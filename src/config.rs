@@ -1,4 +1,9 @@
-use iced::futures::{SinkExt, StreamExt};
+use hex_color::HexColor;
+use iced::{
+    futures::{SinkExt, StreamExt},
+    theme::palette,
+    Color,
+};
 use inotify::{EventMask, Inotify, WatchMask};
 use log::warn;
 use serde::{Deserialize, Deserializer};
@@ -98,6 +103,114 @@ pub struct SettingsModuleConfig {
 }
 
 #[derive(Deserialize, Clone, Debug)]
+#[serde(untagged)]
+#[serde(rename_all = "camelCase")]
+pub enum AppearanceColor {
+    Simple(HexColor),
+    Complete {
+        base: HexColor,
+        strong: Option<HexColor>,
+        weak: Option<HexColor>,
+        text: Option<HexColor>,
+    },
+}
+
+impl AppearanceColor {
+    pub fn get_base(&self) -> Color {
+        match self {
+            AppearanceColor::Simple(color) => Color::from_rgb8(color.r, color.g, color.b),
+            AppearanceColor::Complete { base, .. } => Color::from_rgb8(base.r, base.g, base.b),
+        }
+    }
+
+    pub fn get_text(&self) -> Option<Color> {
+        match self {
+            AppearanceColor::Simple(_) => None,
+            AppearanceColor::Complete { text, .. } => {
+                text.map(|color| Color::from_rgb8(color.r, color.g, color.b))
+            }
+        }
+    }
+
+    pub fn get_weak_pair(&self, text_fallback: Color) -> Option<palette::Pair> {
+        match self {
+            AppearanceColor::Simple(_) => None,
+            AppearanceColor::Complete { weak, text, .. } => weak.map(|color| {
+                palette::Pair::new(
+                    Color::from_rgb8(color.r, color.g, color.b),
+                    text.map(|color| Color::from_rgb8(color.r, color.g, color.b))
+                        .unwrap_or(text_fallback),
+                )
+            }),
+        }
+    }
+
+    pub fn get_strong_pair(&self, text_fallback: Color) -> Option<palette::Pair> {
+        match self {
+            AppearanceColor::Simple(_) => None,
+            AppearanceColor::Complete { strong, text, .. } => strong.map(|color| {
+                palette::Pair::new(
+                    Color::from_rgb8(color.r, color.g, color.b),
+                    text.map(|color| Color::from_rgb8(color.r, color.g, color.b))
+                        .unwrap_or(text_fallback),
+                )
+            }),
+        }
+    }
+}
+
+#[derive(Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Appearance {
+    pub background_color: AppearanceColor,
+    pub primary_color: AppearanceColor,
+    pub secondary_color: AppearanceColor,
+    pub success_color: AppearanceColor,
+    pub danger_color: AppearanceColor,
+    pub text_color: AppearanceColor,
+    pub workspace_colors: Vec<HexColor>,
+}
+
+impl Default for Appearance {
+    fn default() -> Self {
+        let primary = HexColor::rgb(250, 179, 135);
+        Self {
+            background_color: AppearanceColor::Complete {
+                base: HexColor::rgb(30, 30, 46),
+                strong: Some(HexColor::rgb(69, 71, 90)),
+                weak: Some(HexColor::rgb(49, 50, 68)),
+                text: None,
+            },
+            primary_color: AppearanceColor::Complete {
+                base: primary,
+                strong: None,
+                weak: None,
+                text: Some(HexColor::rgb(30, 30, 46)),
+            },
+            secondary_color: AppearanceColor::Complete {
+                base: HexColor::rgb(17, 17, 27),
+                strong: Some(HexColor::rgb(24, 24, 37)),
+                weak: None,
+                text: None,
+            },
+            success_color: AppearanceColor::Simple(HexColor::rgb(166, 227, 161)),
+            danger_color: AppearanceColor::Complete {
+                base: HexColor::rgb(243, 139, 168),
+                weak: Some(HexColor::rgb(249, 226, 175)),
+                strong: None,
+                text: None,
+            },
+            text_color: AppearanceColor::Simple(HexColor::rgb(205, 214, 244)),
+            workspace_colors: vec![
+                primary,
+                HexColor::rgb(180, 190, 254),
+                HexColor::rgb(203, 166, 247)
+            ]
+        }
+    }
+}
+
+#[derive(Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Config {
     #[serde(default = "default_log_level")]
@@ -113,6 +226,8 @@ pub struct Config {
     pub clock: ClockModuleConfig,
     #[serde(default)]
     pub settings: SettingsModuleConfig,
+    #[serde(default)]
+    pub appearance: Appearance,
 }
 
 fn try_default<'de, T, D>(deserializer: D) -> Result<T, D::Error>
@@ -148,6 +263,7 @@ impl Default for Config {
             system: SystemModuleConfig::default(),
             clock: ClockModuleConfig::default(),
             settings: SettingsModuleConfig::default(),
+            appearance: Appearance::default(),
         }
     }
 }

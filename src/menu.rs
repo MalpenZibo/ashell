@@ -1,4 +1,3 @@
-use crate::style::CRUST;
 use iced::wayland::actions::layer_surface::SctkLayerSurfaceSettings;
 use iced::wayland::layer_surface::{Anchor, KeyboardInteractivity, Layer};
 use iced::widget::container;
@@ -177,7 +176,7 @@ pub fn menu_wrapper(
                     .style(|theme: &Theme| iced::widget::container::Appearance {
                         background: Some(theme.palette().background.into()),
                         border: Border {
-                            color: CRUST,
+                            color: theme.extended_palette().secondary.base.color,
                             width: 1.,
                             radius: 16.0.into(),
                         },

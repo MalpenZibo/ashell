@@ -1,14 +1,10 @@
-use crate::{
-    components::icons::Icons,
-    modules::settings::net::NetMessage,
-    style::{RED, TEXT, YELLOW},
-};
+use crate::{components::icons::Icons, modules::settings::net::NetMessage};
 use iced::{
     futures::{
         stream::{self, select_all, SelectAll},
         FutureExt, SinkExt, StreamExt,
     },
-    Color, Subscription,
+    Subscription,
 };
 use log::{debug, info};
 use std::{cmp::Ordering, collections::HashMap, ops::Deref};
@@ -17,6 +13,8 @@ use zbus::{
     zvariant::{self, OwnedObjectPath, OwnedValue, Value},
     PropertyStream, Result,
 };
+
+use super::IndicatorState;
 
 static WIFI_SIGNAL_ICONS: [Icons; 5] = [
     Icons::Wifi0,
@@ -197,14 +195,14 @@ impl ActiveConnection {
         }
     }
 
-    pub fn get_color(&self) -> Color {
+    pub fn get_indicator_state(&self) -> IndicatorState {
         match self {
             ActiveConnection::Wifi(wifi) => match wifi.signal {
-                0 => RED,
-                1 => YELLOW,
-                _ => TEXT,
+                0 => IndicatorState::Danger,
+                1 => IndicatorState::Warning,
+                _ => IndicatorState::Normal,
             },
-            _ => TEXT,
+            _ => IndicatorState::Normal,
         }
     }
 }

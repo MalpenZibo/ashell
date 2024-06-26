@@ -28,4 +28,5 @@ pipewire = "0.8.0"
 wayland-client = "0.31.3"
 wayland-protocols = { version = "0.32.1", features = ["client", "unstable"] }
 itertools = "0.13.0"
+hex_color = { version = "3.0.0", features = ["serde"] }
 

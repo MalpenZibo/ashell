@@ -1,14 +1,14 @@
 use iced::{
     theme::Button,
-    widget::{button, column, horizontal_rule, row, slider, text, Column, Row},
-    Alignment, Command, Element, Length, Subscription,
+    widget::{button, column, container, horizontal_rule, row, slider, text, Column, Row},
+    Alignment, Command, Element, Length, Subscription, Theme,
 };
 
 use crate::{
     components::icons::{icon, Icons},
     config::SettingsModuleConfig,
     menu::Menu,
-    style::{GhostButtonStyle, SettingsButtonStyle, GREEN},
+    style::{GhostButtonStyle, SettingsButtonStyle},
     utils::{
         audio::{AudioCommand, DeviceType, Sink, Sinks, Source, Volume},
         Commander,
@@ -192,7 +192,7 @@ impl Audio {
                 iced::Command::none()
             }
             AudioMessage::DefaultSinkChanged(name, port) => {
-                self.default_sink = name.clone();
+                self.default_sink.clone_from(&name);
                 for sink in self.sinks.iter_mut() {
                     for cur_port in sink.ports.iter_mut() {
                         cur_port.active = sink.name == name && cur_port.name == port;
@@ -239,7 +239,7 @@ impl Audio {
                 iced::Command::none()
             }
             AudioMessage::DefaultSourceChanged(name, port) => {
-                self.default_source = name.clone();
+                self.default_source.clone_from(&name);
                 for source in self.sources.iter_mut() {
                     for cur_port in source.ports.iter_mut() {
                         cur_port.active = source.name == name && cur_port.name == port;
@@ -463,13 +463,16 @@ pub fn audio_submenu<'a, Message: 'a + Clone>(
             .into_iter()
             .map(|e| {
                 if e.active {
-                    row!(
-                        icon(e.device.get_icon()).style(GREEN),
-                        text(e.name).style(GREEN)
+                    container(
+                        row!(icon(e.device.get_icon()), text(e.name))
+                            .align_items(Alignment::Center)
+                            .spacing(16)
+                            .padding([4, 12]),
                     )
-                    .align_items(Alignment::Center)
-                    .spacing(16)
-                    .padding([4, 12])
+                    .style(|theme: &Theme| container::Appearance {
+                        text_color: Some(theme.palette().success),
+                        ..Default::default()
+                    })
                     .into()
                 } else {
                     button(

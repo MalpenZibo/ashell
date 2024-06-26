@@ -37,6 +37,13 @@ impl<T> Deref for Commander<T> {
     }
 }
 
+pub enum IndicatorState {
+    Normal,
+    Success,
+    Warning,
+    Danger,
+}
+
 pub fn format_duration(duration: &Duration) -> String {
     let h = duration.as_secs() / 60 / 60;
     let m = duration.as_secs() / 60 % 60;

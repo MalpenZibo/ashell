@@ -2,17 +2,19 @@ use crate::{
     components::icons::{icon, Icons},
     config::SettingsModuleConfig,
     menu::Menu,
-    style::{GhostButtonStyle, SettingsButtonStyle, GREEN, TEXT, YELLOW},
+    style::{GhostButtonStyle, SettingsButtonStyle},
     utils::{
         net::{
             get_wifi_icon, get_wifi_lock_icon, ActiveConnection, NetCommand, Vpn, Wifi,
             WifiConnection, WifiDeviceState,
         },
-        Commander,
+        Commander, IndicatorState,
     },
 };
 use iced::{
-    theme::Button, widget::{button, column, container, horizontal_rule, row, scrollable, text, toggler, Column}, Color, Element, Length, Theme
+    theme::Button,
+    widget::{button, column, container, horizontal_rule, row, scrollable, text, toggler, Column},
+    Element, Length, Theme,
 };
 
 use super::{quick_setting_button, sub_menu_wrapper, Message, SubMenu};
@@ -162,15 +164,31 @@ impl Net {
     pub fn active_connection_indicator(&self) -> Option<Element<Message>> {
         self.active_connection.as_ref().map(|a| {
             let icon_type = a.get_icon();
-            let color = a.get_color();
+            let state = a.get_indicator_state();
 
-            icon(icon_type).style(color).into()
+            container(icon(icon_type))
+                .style(move |theme: &Theme| container::Appearance {
+                    text_color: match state {
+                        IndicatorState::Warning => Some(theme.extended_palette().danger.weak.color),
+                        IndicatorState::Danger => Some(theme.palette().danger),
+                        _ => None,
+                    },
+                    ..Default::default()
+                })
+                .into()
         })
     }
 
     pub fn vpn_indicator(&self) -> Option<Element<Message>> {
         if self.vpn_active {
-            Some(icon(Icons::Vpn).style(YELLOW).into())
+            Some(
+                container(icon(Icons::Vpn))
+                    .style(|theme: &Theme| container::Appearance {
+                        text_color: Some(theme.extended_palette().danger.weak.color),
+                        ..Default::default()
+                    })
+                    .into(),
+            )
         } else {
             None
         }
@@ -284,22 +302,31 @@ impl Net {
                         .iter()
                         .map(|wifi| {
                             let is_active = active_connection.is_some_and(|c| c.ssid == wifi.ssid);
-                            let color = if is_active { GREEN } else { TEXT };
+
                             button(
-                                row!(
-                                    icon(if wifi.public {
-                                        get_wifi_icon(wifi.strength)
-                                    } else {
-                                        get_wifi_lock_icon(wifi.strength)
-                                    })
-                                    .style(color)
-                                    .width(iced::Length::Shrink),
-                                    text(wifi.ssid.to_string())
-                                        .style(color)
-                                        .width(iced::Length::Fill),
+                                container(
+                                    row!(
+                                        icon(if wifi.public {
+                                            get_wifi_icon(wifi.strength)
+                                        } else {
+                                            get_wifi_lock_icon(wifi.strength)
+                                        })
+                                        .width(iced::Length::Shrink),
+                                        text(wifi.ssid.to_string()).width(iced::Length::Fill)
+                                    )
+                                    .align_items(iced::Alignment::Center)
+                                    .spacing(8),
                                 )
-                                .align_items(iced::Alignment::Center)
-                                .spacing(8),
+                                .style(move |theme: &Theme| {
+                                    container::Appearance {
+                                        text_color: if is_active {
+                                            Some(theme.palette().success)
+                                        } else {
+                                            None
+                                        },
+                                        ..Default::default()
+                                    }
+                                }),
                             )
                             .style(iced::theme::Button::custom(GhostButtonStyle))
                             .padding([8, 8])

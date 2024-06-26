@@ -1,18 +1,16 @@
-use std::time::Duration;
-use crate::{
-    components::icons::Icons,
-    modules::settings::BatteryMessage,
-    style::{GREEN, RED, TEXT},
-};
+use crate::{components::icons::Icons, modules::settings::BatteryMessage};
 use iced::{
     futures::{
         stream::{self},
         FutureExt, SinkExt, StreamExt,
     },
-    Color, Subscription,
+    Subscription,
 };
 use log::error;
+use std::time::Duration;
 use zbus::{proxy, zvariant::OwnedObjectPath, Connection, Result};
+
+use super::IndicatorState;
 
 #[derive(Copy, Clone, Debug)]
 pub struct BatteryData {
@@ -28,17 +26,17 @@ pub enum BatteryStatus {
 }
 
 impl BatteryData {
-    pub fn get_color(&self) -> Color {
+    pub fn get_indicator_state(&self) -> IndicatorState {
         match self {
             BatteryData {
                 status: BatteryStatus::Charging(_),
                 ..
-            } => GREEN,
+            } => IndicatorState::Success,
             BatteryData {
                 status: BatteryStatus::Discharging(_),
                 capacity,
-            } if *capacity < 20 => RED,
-            _ => TEXT,
+            } if *capacity < 20 => IndicatorState::Danger,
+            _ => IndicatorState::Normal,
         }
     }
 

@@ -1,11 +1,11 @@
 use crate::{
     components::icons::{icon, Icons},
     config::SystemModuleConfig,
-    style::{header_pills, RED, TEXT, YELLOW},
+    style::header_pills,
 };
 use iced::{
     widget::{container, row, text},
-    Element,
+    Element, Theme,
 };
 use std::time::Duration;
 use sysinfo::{Components, System};
@@ -77,46 +77,72 @@ impl SystemInfo {
         if config.disabled {
             None
         } else {
-            let cpu_color = if self.data.cpu_usage > config.cpu_warn_threshold
-                && self.data.cpu_usage < config.cpu_alert_threshold
-            {
-                YELLOW
-            } else if self.data.cpu_usage >= config.cpu_alert_threshold {
-                RED
-            } else {
-                TEXT
-            };
+            let cpu_usage = self.data.cpu_usage;
+            let memory_usage = self.data.memory_usage;
+            let temperature = self.data.temperature.unwrap_or_default() as i32;
 
-            let ram_color = if self.data.memory_usage > config.mem_warn_threshold
-                && self.data.memory_usage < config.mem_alert_threshold
-            {
-                YELLOW
-            } else if self.data.memory_usage >= config.mem_alert_threshold {
-                RED
-            } else {
-                TEXT
-            };
+            let cpu_warn_threshold = config.cpu_warn_threshold;
+            let cpu_alert_threshold = config.cpu_alert_threshold;
 
-            let temp = self.data.temperature.unwrap_or_default() as i32;
-            let temp_color =
-                if temp > config.temp_warn_threshold && temp < config.temp_alert_threshold {
-                    YELLOW
-                } else if temp >= config.temp_alert_threshold {
-                    RED
-                } else {
-                    TEXT
-                };
+            let mem_warn_threshold = config.mem_warn_threshold;
+            let mem_alert_threshold = config.mem_alert_threshold;
 
+            let temp_warn_threshold = config.temp_warn_threshold;
+            let temp_alert_threshold = config.temp_alert_threshold;
             Some(
                 container(
                     row!(
-                        icon(Icons::Cpu).style(cpu_color),
-                        text(format!("{}%", self.data.cpu_usage)).style(cpu_color),
-                        icon(Icons::Mem).style(ram_color),
-                        text(format!("{}%", self.data.memory_usage)).style(ram_color),
-                        icon(Icons::Temp).style(temp_color),
-                        text(format!("{}°", self.data.temperature.unwrap_or_default()))
-                            .style(temp_color)
+                        container(
+                            row!(icon(Icons::Cpu), text(format!("{}%", cpu_usage))).spacing(4)
+                        )
+                        .style(move |theme: &Theme| {
+                            container::Appearance {
+                                text_color: if cpu_usage > cpu_warn_threshold
+                                    && cpu_usage < cpu_alert_threshold
+                                {
+                                    Some(theme.extended_palette().danger.weak.color)
+                                } else if cpu_usage >= cpu_alert_threshold {
+                                    Some(theme.palette().danger)
+                                } else {
+                                    None
+                                },
+                                ..Default::default()
+                            }
+                        }),
+                        container(
+                            row!(icon(Icons::Mem), text(format!("{}%", memory_usage))).spacing(4)
+                        )
+                        .style(move |theme: &Theme| {
+                            container::Appearance {
+                                text_color: if memory_usage > mem_warn_threshold
+                                    && memory_usage < mem_alert_threshold
+                                {
+                                    Some(theme.extended_palette().danger.weak.color)
+                                } else if memory_usage >= mem_alert_threshold {
+                                    Some(theme.palette().danger)
+                                } else {
+                                    None
+                                },
+                                ..Default::default()
+                            }
+                        }),
+                        container(
+                            row!(icon(Icons::Temp), text(format!("{}°", temperature))).spacing(4)
+                        )
+                        .style(move |theme: &Theme| {
+                            container::Appearance {
+                                text_color: if temperature > temp_warn_threshold
+                                    && temperature < temp_alert_threshold
+                                {
+                                    Some(theme.extended_palette().danger.weak.color)
+                                } else if temperature >= temp_alert_threshold {
+                                    Some(theme.palette().danger)
+                                } else {
+                                    None
+                                },
+                                ..Default::default()
+                            }
+                        })
                     )
                     .align_items(iced::Alignment::Center)
                     .spacing(4),

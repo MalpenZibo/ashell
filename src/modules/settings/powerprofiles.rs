@@ -1,11 +1,8 @@
-use iced::Element;
-
+use iced::{widget::container, Element, Theme};
 use crate::{
     components::icons::{icon, Icons},
-    style::{GREEN, RED},
     utils::{powerprofiles::PowerProfilesCommand, Commander},
 };
-
 use super::{quick_setting_button, Message};
 
 #[derive(Debug, Copy, Clone)]
@@ -71,8 +68,22 @@ impl PowerProfiles {
     pub fn indicator(&self) -> Option<Element<Message>> {
         self.profiles.and_then(|v| match v {
             Profiles::Balanced => None,
-            Profiles::Performance => Some(icon(Icons::Performance).style(RED).into()),
-            Profiles::PowerSaver => Some(icon(Icons::PowerSaver).style(GREEN).into()),
+            Profiles::Performance => Some(
+                container(icon(Icons::Performance))
+                    .style(|theme: &Theme| container::Appearance {
+                        text_color: Some(theme.palette().danger),
+                        ..Default::default()
+                    })
+                    .into(),
+            ),
+            Profiles::PowerSaver => Some(
+                container(icon(Icons::PowerSaver))
+                    .style(|theme: &Theme| container::Appearance {
+                        text_color: Some(theme.palette().success),
+                        ..Default::default()
+                    })
+                    .into(),
+            ),
         })
     }
 

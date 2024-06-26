@@ -1,13 +1,13 @@
 use iced::{
     theme::Button,
-    widget::{button, row, text, Column, Row},
-    Element,
+    widget::{button, container, row, text, Column, Row},
+    Element, Theme,
 };
 
 use crate::{
     components::icons::{icon, Icons},
     menu::{Menu, MenuType},
-    style::{HeaderButtonStyle, YELLOW},
+    style::HeaderButtonStyle,
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -66,28 +66,34 @@ impl Privacy {
 
     pub fn view(&self) -> Element<PrivacyMessage> {
         button(
-            Row::with_children(
-                vec![
-                    self.applications.iter().find_map(|app| {
-                        if app.media == Media::Video {
-                            Some(icon(app.media.to_icon()).style(YELLOW).into())
-                        } else {
-                            None
-                        }
-                    }),
-                    self.applications.iter().find_map(|app| {
-                        if app.media == Media::Audio {
-                            Some(icon(app.media.to_icon()).style(YELLOW).into())
-                        } else {
-                            None
-                        }
-                    }),
-                ]
-                .into_iter()
-                .flatten()
-                .collect::<Vec<_>>(),
+            container(
+                Row::with_children(
+                    vec![
+                        self.applications.iter().find_map(|app| {
+                            if app.media == Media::Video {
+                                Some(icon(app.media.to_icon()).into())
+                            } else {
+                                None
+                            }
+                        }),
+                        self.applications.iter().find_map(|app| {
+                            if app.media == Media::Audio {
+                                Some(icon(app.media.to_icon()).into())
+                            } else {
+                                None
+                            }
+                        }),
+                    ]
+                    .into_iter()
+                    .flatten()
+                    .collect::<Vec<_>>(),
+                )
+                .spacing(8),
             )
-            .spacing(8),
+            .style(|theme: &Theme| container::Appearance {
+                text_color: Some(theme.extended_palette().danger.weak.color),
+                ..Default::default()
+            }),
         )
         .style(Button::custom(HeaderButtonStyle::None))
         .padding([2, 8])

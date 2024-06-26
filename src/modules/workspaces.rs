@@ -1,11 +1,12 @@
-use crate::style::{header_pills, BASE, LAVENDER, MAUVE, PEACH, SURFACE_0, TEXT};
+use crate::style::header_pills;
+use hex_color::HexColor;
 use hyprland::{
     event_listener::EventListener,
     shared::{HyprData, HyprDataActive, HyprDataVec},
 };
 use iced::{
     widget::{container, mouse_area, text, Row},
-    Border, Element, Length, Theme,
+    Border, Color, Element, Length, Theme,
 };
 use std::cell::RefCell;
 
@@ -87,35 +88,48 @@ impl Workspaces {
         }
     }
 
-    pub fn view(&self) -> Element<Message> {
+    pub fn view(&self, workspace_colors: &[HexColor]) -> Element<Message> {
         container(
             Row::with_children(
                 self.workspaces
                     .iter()
                     .map(|w| {
-                        let bg_color = w.monitor.map_or(SURFACE_0, |m| match m {
-                            0 => PEACH,
-                            1 => LAVENDER,
-                            2 => MAUVE,
-                            _ => PEACH,
-                        });
                         let empty = w.windows == 0;
-                        let fg_color = if empty { TEXT } else { BASE };
+                        let monitor = w.monitor;
                         mouse_area(
                             container(text(w.id).size(10))
-                                .style(move |_theme: &Theme| iced::widget::container::Appearance {
-                                    background: Some(iced::Background::Color(if empty {
-                                        SURFACE_0
-                                    } else {
-                                        bg_color
-                                    })),
-                                    border: Border {
-                                        width: if empty { 1.0 } else { 0.0 },
-                                        color: bg_color,
-                                        radius: 16.0.into(),
-                                    },
-                                    text_color: Some(fg_color),
-                                    ..iced::widget::container::Appearance::default()
+                                .style({
+                                    let workspace_colors = workspace_colors.to_vec();
+                                    move |theme: &Theme| {
+                                        let fg_color = if empty {
+                                            theme.palette().text
+                                        } else {
+                                            theme.palette().background
+                                        };
+                                        let bg_color = monitor.map_or(
+                                            theme.extended_palette().background.weak.color,
+                                            |m| {
+                                                workspace_colors
+                                                    .get(m)
+                                                    .map(|c| Color::from_rgb8(c.r, c.g, c.b))
+                                                    .unwrap_or(theme.palette().primary)
+                                            },
+                                        );
+                                        iced::widget::container::Appearance {
+                                            background: Some(iced::Background::Color(if empty {
+                                                theme.extended_palette().background.weak.color
+                                            } else {
+                                                bg_color
+                                            })),
+                                            border: Border {
+                                                width: if empty { 1.0 } else { 0.0 },
+                                                color: bg_color,
+                                                radius: 16.0.into(),
+                                            },
+                                            text_color: Some(fg_color),
+                                            ..iced::widget::container::Appearance::default()
+                                        }
+                                    }
                                 })
                                 .align_x(iced::alignment::Horizontal::Center)
                                 .align_y(iced::alignment::Vertical::Center)

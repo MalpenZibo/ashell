@@ -1,39 +1,51 @@
 use crate::{
     components::icons::icon,
-    style::SURFACE_0,
     utils::{
         battery::{BatteryData, BatteryStatus},
-        format_duration,
+        format_duration, IndicatorState,
     },
 };
 use iced::{
-    widget::{container, row, text, Container, Row},
-    Border, Theme,
+    widget::{container, row, text, Container},
+    Border, Element, Theme,
 };
 
-pub fn battery_indicator<'a, Message>(
-    data: BatteryData,
-) -> Row<'a, Message, Theme, iced::Renderer> {
+pub fn battery_indicator<'a, Message: 'static>(data: BatteryData) -> Element<'a, Message> {
     let icon_type = data.get_icon();
-    let color = data.get_color();
+    let state = data.get_indicator_state();
 
-    row!(
-        icon(icon_type).style(color),
-        text(format!("{}%", data.capacity)).style(color)
+    container(
+        row!(icon(icon_type), text(format!("{}%", data.capacity)))
+            .spacing(4)
+            .align_items(iced::Alignment::Center),
     )
-    .spacing(4)
-    .align_items(iced::Alignment::Center)
+    .style(move |theme: &Theme| container::Appearance {
+        text_color: Some(match state {
+            IndicatorState::Success => theme.palette().success,
+            IndicatorState::Danger => theme.palette().danger,
+            _ => theme.palette().text,
+        }),
+        ..Default::default()
+    })
+    .into()
 }
 
 pub fn settings_battery_indicator<'a, Message: 'static>(
     data: BatteryData,
-) -> Container<'a, Message, Theme, iced::Renderer> {
+) -> Container<'a, Message> {
+    let state = data.get_indicator_state();
+
     container({
-        let battery_info = row!(
-            icon(data.get_icon()).style(data.get_color()),
-            text(format!("{}%", data.capacity)).style(data.get_color())
-        )
-        .spacing(4);
+        let battery_info =
+            container(row!(icon(data.get_icon()), text(format!("{}%", data.capacity))).spacing(4))
+                .style(move |theme: &Theme| container::Appearance {
+                    text_color: Some(match state {
+                        IndicatorState::Success => theme.palette().success,
+                        IndicatorState::Danger => theme.palette().danger,
+                        _ => theme.palette().text,
+                    }),
+                    ..Default::default()
+                });
         match data.status {
             BatteryStatus::Charging(remaining) if data.capacity < 95 => row!(
                 battery_info,
@@ -49,8 +61,8 @@ pub fn settings_battery_indicator<'a, Message: 'static>(
         }
     })
     .padding([8, 12])
-    .style(move |_: &Theme| iced::widget::container::Appearance {
-        background: iced::Background::Color(SURFACE_0).into(),
+    .style(move |theme: &Theme| iced::widget::container::Appearance {
+        background: iced::Background::Color(theme.extended_palette().background.weak.color).into(),
         border: Border::with_radius(32),
         ..iced::widget::container::Appearance::default()
     })

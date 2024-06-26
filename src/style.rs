@@ -1,77 +1,107 @@
 use iced::{
     theme::{palette, Palette},
     widget::button,
-    Border, Color, Theme,
+    Border, Theme,
 };
+use crate::config::Appearance;
 
-pub const BASE: Color = Color::from_rgb(0.117_647_06, 0.117_647_06, 0.180_392_16);
-pub const MANTLE: Color = Color::from_rgb(0.094_117_65, 0.094_117_66, 0.145_098_05);
-pub const CRUST: Color = Color::from_rgb(0.066_666_67, 0.066_666_68, 0.105_882_353);
-pub const SURFACE_0: Color = Color::from_rgb(0.192_156_87, 0.196_078_43, 0.266_666_68);
-pub const SURFACE_1: Color = Color::from_rgb(0.270_588_25, 0.278_431_43, 0.352_941_26);
-pub const TEXT: Color = Color::from_rgb(0.803_921_6, 0.839_215_7, 0.956_862_75);
-pub const PEACH: Color = Color::from_rgb(0.980_392_16, 0.701_960_84, 0.529_411_85);
-pub const LAVENDER: Color = Color::from_rgb(0.705_882_4, 0.745_098_05, 0.996_078_43);
-pub const MAUVE: Color = Color::from_rgb(0.796_078_44, 0.650_980_4, 0.968_627_45);
-pub const RED: Color = Color::from_rgb(0.952_941_2, 0.545_098_07, 0.658_823_55);
-pub const YELLOW: Color = Color::from_rgb(0.976_470_6, 0.886_274_5, 0.686_274_5);
-pub const GREEN: Color = Color::from_rgb(0.650_980_4, 0.890_196_1, 0.631_372_6);
-
-pub fn ashell_theme() -> Theme {
-    // Theme::custom(
-    //     "local".to_string(),
-    //     Palette {
-    //         background: BASE,
-    //         text: TEXT,
-    //         primary: PEACH,
-    //         success: GREEN,
-    //         danger: RED,
-    //     }
-    // )
+pub fn ashell_theme(appearance: &Appearance) -> Theme {
     Theme::custom_with_fn(
         "local".to_string(),
         Palette {
-            background: BASE,
-            text: TEXT,
-            primary: PEACH,
-            success: GREEN,
-            danger: RED,
+            background: appearance.background_color.get_base(),
+            text: appearance.text_color.get_base(),
+            primary: appearance.primary_color.get_base(),
+            success: appearance.success_color.get_base(),
+            danger: appearance.danger_color.get_base(),
         },
         |palette| {
-            let default_bg = palette::Background::new(palette.background, palette.text);
-            let default_primary =
-                palette::Primary::generate(palette.primary, palette.background, palette.background);
-            let default_secondary = palette::Secondary::generate(CRUST, palette.text);
-            let default_success =
-                palette::Success::generate(palette.success, palette.background, palette.text);
-            let default_danger =
-                palette::Danger::generate(palette.danger, palette.background, palette.text);
+            let default_bg = palette::Background::new(
+                palette.background,
+                appearance
+                    .background_color
+                    .get_text()
+                    .unwrap_or(palette.text),
+            );
+            let default_primary = palette::Primary::generate(
+                palette.primary,
+                palette.background,
+                appearance.primary_color.get_text().unwrap_or(palette.text),
+            );
+            let default_secondary = palette::Primary::generate(
+                appearance.secondary_color.get_base(),
+                palette.background,
+                appearance
+                    .secondary_color
+                    .get_text()
+                    .unwrap_or(palette.text),
+            );
+            let default_success = palette::Success::generate(
+                palette.success,
+                palette.background,
+                appearance.success_color.get_text().unwrap_or(palette.text),
+            );
+            let default_danger = palette::Danger::generate(
+                palette.danger,
+                palette.background,
+                appearance.danger_color.get_text().unwrap_or(palette.text),
+            );
 
             palette::Extended {
                 background: palette::Background {
                     base: default_bg.base,
-                    weak: palette::Pair::new(SURFACE_0, palette.text),
-                    strong: palette::Pair::new(SURFACE_1, palette.text),
+                    weak: appearance
+                        .background_color
+                        .get_weak_pair(palette.text)
+                        .unwrap_or(default_bg.weak),
+                    strong: appearance
+                        .background_color
+                        .get_strong_pair(palette.text)
+                        .unwrap_or(default_bg.strong),
                 },
                 primary: palette::Primary {
                     base: default_primary.base,
-                    weak: default_primary.weak,
-                    strong: default_primary.strong,
+                    weak: appearance
+                        .primary_color
+                        .get_weak_pair(palette.text)
+                        .unwrap_or(default_primary.weak),
+                    strong: appearance
+                        .primary_color
+                        .get_strong_pair(palette.text)
+                        .unwrap_or(default_primary.strong),
                 },
                 secondary: palette::Secondary {
                     base: default_secondary.base,
-                    weak: default_secondary.weak,
-                    strong: palette::Pair::new(MANTLE, palette.text),
+                    weak: appearance
+                        .secondary_color
+                        .get_weak_pair(palette.text)
+                        .unwrap_or(default_secondary.weak),
+                    strong: appearance
+                        .secondary_color
+                        .get_strong_pair(palette.text)
+                        .unwrap_or(default_secondary.strong),
                 },
                 success: palette::Success {
                     base: default_success.base,
-                    weak: default_success.weak,
-                    strong: default_success.strong,
+                    weak: appearance
+                        .success_color
+                        .get_weak_pair(palette.text)
+                        .unwrap_or(default_success.weak),
+                    strong: appearance
+                        .success_color
+                        .get_strong_pair(palette.text)
+                        .unwrap_or(default_success.strong),
                 },
                 danger: palette::Danger {
                     base: default_danger.base,
-                    weak: default_danger.weak,
-                    strong: default_danger.strong,
+                    weak: appearance
+                        .danger_color
+                        .get_weak_pair(palette.text)
+                        .unwrap_or(default_danger.weak),
+                    strong: appearance
+                        .danger_color
+                        .get_strong_pair(palette.text)
+                        .unwrap_or(default_danger.strong),
                 },
                 is_dark: true,
             }
@@ -224,7 +254,7 @@ pub struct SliderStyle;
 //                 border_color: palette.primary.base.color,
 //                 ..handle
 //             },
-//             breakpoint: iced_style pv,
+//             breakpoint: Breakpoint { color: palette.background.base.color },
 //         }
 //     }
 //
