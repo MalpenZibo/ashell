@@ -1,5 +1,7 @@
-use iced::{widget::{text, Text}, Font};
-
+use iced::{
+    widget::{text, Text},
+    Font,
+};
 
 #[derive(Copy, Clone, Default)]
 pub enum Icons {

@@ -80,7 +80,7 @@ async fn main() {
         flags: (logger, config),
         id: None,
         fonts: Default::default(),
-        default_font: Font::default(),
+        default_font: Font::with_name("DejaVu Sans"),
         default_text_size: 14.into(),
     })
     .unwrap();
