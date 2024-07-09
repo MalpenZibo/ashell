@@ -1,7 +1,7 @@
 use crate::modules::settings::bluetooth::{BluetoothMessage, BluetoothState, Device};
 use iced::{
-    futures::{stream::select_all, FutureExt, SinkExt, StreamExt},
-    Subscription,
+    futures::{self, stream::select_all, FutureExt, SinkExt, StreamExt},
+    subscription, Subscription,
 };
 use std::collections::HashMap;
 use zbus::{
@@ -134,7 +134,7 @@ pub enum BluetoothCommand {
 pub fn subscription(
     rx: Option<tokio::sync::mpsc::UnboundedReceiver<BluetoothCommand>>,
 ) -> Subscription<BluetoothMessage> {
-    iced::subscription::channel(
+    subscription::channel(
         "bluez-dbus-connection-listener",
         100,
         |mut output| async move {
@@ -208,7 +208,7 @@ pub fn subscription(
                         .await;
 
                     if battery_signals.is_empty() {
-                        iced::futures::select! {
+                        futures::select! {
                             v = rx.recv().fuse() => {
                                 if let Some(v) = v {
                                     match v {
@@ -261,7 +261,7 @@ pub fn subscription(
                     } else {
                         let mut battery_signals = select_all(battery_signals);
 
-                        iced::futures::select! {
+                        futures::select! {
                             v = rx.recv().fuse() => {
                                 if let Some(v) = v {
                                     match v {

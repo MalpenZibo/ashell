@@ -1,10 +1,11 @@
 use iced::{
     theme::Button,
     widget::{button, container, row, text, Column, Row},
-    Element, Theme,
+    Command, Element, Subscription, Theme,
 };
 
 use crate::{
+    app::Message,
     components::icons::{icon, Icons},
     menu::{Menu, MenuType},
     style::HeaderButtonStyle,
@@ -52,13 +53,13 @@ impl Privacy {
     pub fn update(
         &mut self,
         message: PrivacyMessage,
-        menu: &mut Menu,
-    ) -> iced::Command<PrivacyMessage> {
+        menu: &mut Menu<Message>,
+    ) -> Command<Message> {
         match message {
             PrivacyMessage::Applications(applications) => {
                 self.applications = applications;
 
-                iced::Command::none()
+                Command::none()
             }
             PrivacyMessage::ToggleMenu => menu.toggle(MenuType::Privacy),
         }
@@ -118,7 +119,7 @@ impl Privacy {
         .into()
     }
 
-    pub fn subscription(&self) -> iced::Subscription<PrivacyMessage> {
+    pub fn subscription(&self) -> Subscription<PrivacyMessage> {
         crate::utils::privacy::subscription()
     }
 }

@@ -6,8 +6,7 @@ use crate::{
     },
 };
 use iced::{
-    widget::{container, row, text, Container},
-    Border, Element, Theme,
+    widget::{container, row, text, Container}, Alignment, Background, Border, Element, Theme
 };
 
 pub fn battery_indicator<'a, Message: 'static>(data: BatteryData) -> Element<'a, Message> {
@@ -17,7 +16,7 @@ pub fn battery_indicator<'a, Message: 'static>(data: BatteryData) -> Element<'a,
     container(
         row!(icon(icon_type), text(format!("{}%", data.capacity)))
             .spacing(4)
-            .align_items(iced::Alignment::Center),
+            .align_items(Alignment::Center),
     )
     .style(move |theme: &Theme| container::Appearance {
         text_color: Some(match state {
@@ -61,9 +60,9 @@ pub fn settings_battery_indicator<'a, Message: 'static>(
         }
     })
     .padding([8, 12])
-    .style(move |theme: &Theme| iced::widget::container::Appearance {
-        background: iced::Background::Color(theme.extended_palette().background.weak.color).into(),
+    .style(move |theme: &Theme| container::Appearance {
+        background: Background::Color(theme.extended_palette().background.weak.color).into(),
         border: Border::with_radius(32),
-        ..iced::widget::container::Appearance::default()
+        ..container::Appearance::default()
     })
 }

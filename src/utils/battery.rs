@@ -1,10 +1,8 @@
 use crate::{components::icons::Icons, modules::settings::BatteryMessage};
 use iced::{
     futures::{
-        stream::{self},
-        FutureExt, SinkExt, StreamExt,
-    },
-    Subscription,
+        self, stream, FutureExt, SinkExt, StreamExt
+    }, subscription, Subscription
 };
 use log::error;
 use std::time::Duration;
@@ -105,7 +103,7 @@ trait Device {
 }
 
 pub fn subscription() -> Subscription<BatteryMessage> {
-    iced::subscription::channel("battery-listener", 100, |mut output| async move {
+    subscription::channel("battery-listener", 100, |mut output| async move {
         let conn = Connection::system().await.unwrap();
         let upower = UPowerProxy::new(&conn).await.unwrap();
 
@@ -160,7 +158,7 @@ pub fn subscription() -> Subscription<BatteryMessage> {
                     let mut time_to_full_signal = battery.receive_time_to_full_changed().await;
                     let mut time_to_empty_signal = battery.receive_time_to_empty_changed().await;
 
-                    iced::futures::select! {
+                    futures::select! {
                         state = state_signal.next().fuse() => {
                             if let Some(state) = state {
                                 let value = state.get().await;

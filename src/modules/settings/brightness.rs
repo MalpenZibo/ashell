@@ -37,7 +37,7 @@ impl Brightness {
                         self.commander.send(value).unwrap();
                     }
                 }
-                iced::Command::none()
+                Command::none()
             }
         }
     }

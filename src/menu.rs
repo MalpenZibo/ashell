@@ -1,8 +1,10 @@
-use iced::widget::container;
-use iced::{window::Id, Theme};
-use iced::{Border, Command, Element};
-use iced_sctk::command::wayland::layer_surface::SctkLayerSurfaceSettings;
-use iced_sctk::commands::layer_surface::{self, get_layer_surface, set_layer, Anchor, KeyboardInteractivity, Layer};
+use iced::window::Id;
+use iced::Border;
+use iced_sctk::command::platform_specific::wayland::layer_surface::SctkLayerSurfaceSettings;
+use iced_sctk::commands::layer_surface::{
+    self, get_layer_surface, Anchor, KeyboardInteractivity, Layer,
+};
+use iced::{self, widget::container, Command, Element, Theme};
 
 fn open_menu<Message: 'static>() -> (Id, Command<Message>) {
     let id = Id::unique();
@@ -65,20 +67,22 @@ pub enum MenuType {
     Settings,
 }
 
-pub struct Menu {
+pub struct Menu<Message: 'static> {
     id: Option<Id>,
     menu_type: Option<MenuType>,
+    phantom: std::marker::PhantomData<Message>,
 }
 
-impl Menu {
+impl<Message: 'static> Menu<Message> {
     pub fn init() -> Self {
         Self {
             id: None,
             menu_type: None,
+            phantom: std::marker::PhantomData,
         }
     }
 
-    pub fn toggle<Msg: 'static>(&mut self, menu_type: MenuType) -> Command<Msg> {
+    pub fn toggle(&mut self, menu_type: MenuType) -> Command<Message> {
         let current = self.menu_type.take();
 
         match current {
@@ -104,7 +108,7 @@ impl Menu {
         }
     }
 
-    pub fn close_if<Msg: 'static>(&mut self, menu_type: MenuType) -> Command<Msg> {
+    pub fn close_if(&mut self, menu_type: MenuType) -> Command<Message> {
         if self.menu_type == Some(menu_type) {
             self.menu_type = None;
             if let Some(id) = self.id.take() {
@@ -117,7 +121,7 @@ impl Menu {
         }
     }
 
-    pub fn close<Msg: 'static>(&mut self) -> Command<Msg> {
+    pub fn close(&mut self) -> Command<Message> {
         self.menu_type = None;
 
         if let Some(id) = self.id.take() {
@@ -127,23 +131,17 @@ impl Menu {
         }
     }
 
-    pub fn set_keyboard_interactivity<Msg: 'static>(&mut self) -> Command<Msg> {
+    pub fn set_keyboard_interactivity(&mut self) -> Command<Message> {
         if let Some(id) = self.id {
-            layer_surface::set_keyboard_interactivity(
-                id,
-                KeyboardInteractivity::Exclusive,
-            )
+            layer_surface::set_keyboard_interactivity(id, KeyboardInteractivity::Exclusive)
         } else {
             iced::Command::none()
         }
     }
 
-    pub fn unset_keyboard_interactivity<Msg: 'static>(&mut self) -> Command<Msg> {
+    pub fn unset_keyboard_interactivity(&mut self) -> Command<Message> {
         if let Some(id) = self.id {
-            layer_surface::set_keyboard_interactivity(
-                id,
-                KeyboardInteractivity::None,
-            )
+            layer_surface::set_keyboard_interactivity(id, KeyboardInteractivity::None)
         } else {
             iced::Command::none()
         }

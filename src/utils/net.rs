@@ -1,10 +1,11 @@
 use crate::{components::icons::Icons, modules::settings::net::NetMessage};
 use iced::{
     futures::{
+        self,
         stream::{self, select_all, SelectAll},
         FutureExt, SinkExt, StreamExt,
     },
-    Subscription,
+    subscription, Subscription,
 };
 use log::{debug, info};
 use std::{cmp::Ordering, collections::HashMap, ops::Deref};
@@ -886,7 +887,7 @@ pub enum NetCommand {
 pub fn subscription(
     rx: Option<tokio::sync::mpsc::UnboundedReceiver<NetCommand>>,
 ) -> Subscription<NetMessage> {
-    iced::Subscription::batch(vec![iced::subscription::channel(
+    Subscription::batch(vec![subscription::channel(
         "nm-dbus-connection-listener",
         100,
         |mut output| async move {
@@ -931,7 +932,7 @@ pub fn subscription(
                     } else {
                         stream::pending().boxed()
                     };
-                iced::futures::select_biased! {
+                futures::select_biased! {
                     v = rx.recv().fuse() => {
                         if let Some(v) = v {
                             match v {

@@ -1,9 +1,7 @@
-use iced::{
-    theme::{palette, Palette},
-    widget::button,
-    Border, Theme,
-};
 use crate::config::Appearance;
+use iced::{
+    theme::{self, palette, Palette}, widget::{button, container}, Border, Color, Theme
+};
 
 pub fn ashell_theme(appearance: &Appearance) -> Theme {
     Theme::custom_with_fn(
@@ -109,28 +107,28 @@ pub fn ashell_theme(appearance: &Appearance) -> Theme {
     )
 }
 
-pub fn header_pills(theme: &Theme) -> iced::widget::container::Appearance {
+pub fn header_pills(theme: &Theme) -> container::Appearance {
     let palette = theme.palette();
-    iced::widget::container::Appearance {
+    container::Appearance {
         background: Some(palette.background.into()),
         border: Border {
             width: 0.0,
             radius: 12.0.into(),
-            color: iced::Color::TRANSPARENT,
+            color: Color::TRANSPARENT,
         },
         text_color: Some(palette.text),
         ..Default::default()
     }
 }
 
-pub fn left_header_pills(theme: &Theme) -> iced::widget::container::Appearance {
+pub fn left_header_pills(theme: &Theme) -> container::Appearance {
     let palette = theme.palette();
-    iced::widget::container::Appearance {
+    container::Appearance {
         background: Some(palette.background.into()),
         border: Border {
             width: 0.0,
             radius: [12.0, 0.0, 0.0, 12.0].into(),
-            color: iced::Color::TRANSPARENT,
+            color: Color::TRANSPARENT,
         },
         text_color: Some(palette.text),
         ..Default::default()
@@ -145,7 +143,7 @@ pub enum HeaderButtonStyle {
 }
 
 impl button::StyleSheet for HeaderButtonStyle {
-    type Style = iced::theme::Theme;
+    type Style = theme::Theme;
 
     fn active(&self, style: &Self::Style) -> button::Appearance {
         button::Appearance {
@@ -158,7 +156,7 @@ impl button::StyleSheet for HeaderButtonStyle {
                     HeaderButtonStyle::Right => [0.0, 12.0, 12.0, 0.0].into(),
                     HeaderButtonStyle::None => 0.0.into(),
                 },
-                color: iced::Color::TRANSPARENT,
+                color: Color::TRANSPARENT,
             },
             text_color: style.palette().text,
             ..button::Appearance::default()
@@ -176,7 +174,7 @@ impl button::StyleSheet for HeaderButtonStyle {
 pub struct GhostButtonStyle;
 
 impl button::StyleSheet for GhostButtonStyle {
-    type Style = iced::theme::Theme;
+    type Style = theme::Theme;
 
     fn active(&self, style: &Self::Style) -> button::Appearance {
         button::Appearance {
@@ -184,7 +182,7 @@ impl button::StyleSheet for GhostButtonStyle {
             border: Border {
                 width: 0.0,
                 radius: 4.0.into(),
-                color: iced::Color::TRANSPARENT,
+                color: Color::TRANSPARENT,
             },
             text_color: style.palette().text,
             ..button::Appearance::default()
@@ -202,7 +200,7 @@ impl button::StyleSheet for GhostButtonStyle {
 pub struct SettingsButtonStyle;
 
 impl button::StyleSheet for SettingsButtonStyle {
-    type Style = iced::theme::Theme;
+    type Style = theme::Theme;
 
     fn active(&self, style: &Self::Style) -> button::Appearance {
         button::Appearance {
@@ -210,7 +208,7 @@ impl button::StyleSheet for SettingsButtonStyle {
             border: Border {
                 width: 0.0,
                 radius: 32.0.into(),
-                color: iced::Color::TRANSPARENT,
+                color: Color::TRANSPARENT,
             },
             text_color: style.palette().text,
             ..button::Appearance::default()
@@ -270,7 +268,7 @@ pub struct SliderStyle;
 pub struct QuickSettingsButtonStyle(pub bool);
 
 impl button::StyleSheet for QuickSettingsButtonStyle {
-    type Style = iced::theme::Theme;
+    type Style = theme::Theme;
 
     fn active(&self, style: &Self::Style) -> button::Appearance {
         button::Appearance {
@@ -282,7 +280,7 @@ impl button::StyleSheet for QuickSettingsButtonStyle {
             border: Border {
                 width: 0.0,
                 radius: 32.0.into(),
-                color: iced::Color::TRANSPARENT,
+                color: Color::TRANSPARENT,
             },
             text_color: if self.0 {
                 style.extended_palette().primary.base.text
@@ -313,7 +311,7 @@ impl button::StyleSheet for QuickSettingsButtonStyle {
 pub struct QuickSettingsSubMenuButtonStyle(pub bool);
 
 impl button::StyleSheet for QuickSettingsSubMenuButtonStyle {
-    type Style = iced::theme::Theme;
+    type Style = theme::Theme;
 
     fn active(&self, style: &Self::Style) -> button::Appearance {
         button::Appearance {
@@ -321,7 +319,7 @@ impl button::StyleSheet for QuickSettingsSubMenuButtonStyle {
             border: Border {
                 width: 0.0,
                 radius: 16.0.into(),
-                color: iced::Color::TRANSPARENT,
+                color: Color::TRANSPARENT,
             },
             text_color: if self.0 {
                 style.extended_palette().primary.base.text

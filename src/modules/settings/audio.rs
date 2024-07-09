@@ -55,12 +55,12 @@ impl Audio {
         }
     }
 
-    pub fn update<Message: 'static>(
+    pub fn update(
         &mut self,
         message: AudioMessage,
-        menu: &mut Menu,
+        menu: &mut Menu<crate::app::Message>,
         config: &SettingsModuleConfig,
-    ) -> Command<Message> {
+    ) -> Command<crate::app::Message> {
         match message {
             AudioMessage::SinkChanges(sinks) => {
                 self.sinks = sinks;
@@ -85,7 +85,7 @@ impl Audio {
                     .unwrap_or_default()
                     * 100.) as i32;
 
-                iced::Command::none()
+                Command::none()
             }
             AudioMessage::SourceChanges(sources) => {
                 self.sources = sources;
@@ -110,7 +110,7 @@ impl Audio {
                     .unwrap_or_default()
                     * 100.) as i32;
 
-                iced::Command::none()
+                Command::none()
             }
             AudioMessage::DefaultSinkSourceChanged(sink, source) => {
                 self.default_sink = sink;
@@ -157,7 +157,7 @@ impl Audio {
                     .unwrap_or_default()
                     * 100.) as i32;
 
-                iced::Command::none()
+                Command::none()
             }
             AudioMessage::SinkToggleMute => {
                 if let Some(sink) = self
@@ -171,7 +171,7 @@ impl Audio {
                     ));
                 }
 
-                iced::Command::none()
+                Command::none()
             }
             AudioMessage::SinkVolumeChanged(volume) => {
                 self.cur_sink_volume = volume;
@@ -189,7 +189,7 @@ impl Audio {
                     }
                 }
 
-                iced::Command::none()
+                Command::none()
             }
             AudioMessage::DefaultSinkChanged(name, port) => {
                 self.default_sink.clone_from(&name);
@@ -203,7 +203,7 @@ impl Audio {
                     .audio_commander
                     .send(AudioCommand::DefaultSink(name, port));
 
-                iced::Command::none()
+                Command::none()
             }
             AudioMessage::SourceToggleMute => {
                 if let Some(source) = self
@@ -217,7 +217,7 @@ impl Audio {
                     ));
                 }
 
-                iced::Command::none()
+                Command::none()
             }
             AudioMessage::SourceVolumeChanged(volume) => {
                 self.cur_source_volume = volume;
@@ -236,7 +236,7 @@ impl Audio {
                     }
                 }
 
-                iced::Command::none()
+                Command::none()
             }
             AudioMessage::DefaultSourceChanged(name, port) => {
                 self.default_source.clone_from(&name);
@@ -250,14 +250,14 @@ impl Audio {
                     .audio_commander
                     .send(AudioCommand::DefaultSource(name, port));
 
-                iced::Command::none()
+                Command::none()
             }
             AudioMessage::SinksMore => {
                 if let Some(more_cmd) = &config.audio_sinks_more_cmd {
                     crate::utils::launcher::execute_command(more_cmd.to_string());
                     menu.close()
                 } else {
-                    iced::Command::none()
+                    Command::none()
                 }
             }
             AudioMessage::SourcesMore => {
@@ -265,7 +265,7 @@ impl Audio {
                     crate::utils::launcher::execute_command(more_cmd.to_string());
                     menu.close()
                 } else {
-                    iced::Command::none()
+                    Command::none()
                 }
             }
         }

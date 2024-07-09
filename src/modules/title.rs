@@ -1,7 +1,8 @@
 use hyprland::{data::Client, event_listener::EventListener, shared::HyprDataActiveOptional};
 use iced::{
+    subscription,
     widget::{container, text},
-    Element,
+    Element, Subscription,
 };
 use std::cell::RefCell;
 
@@ -55,8 +56,8 @@ impl Title {
         })
     }
 
-    pub fn subscription(&self) -> iced::Subscription<Message> {
-        iced::subscription::channel("title-listener", 10, |output| async move {
+    pub fn subscription(&self) -> Subscription<Message> {
+        subscription::channel("title-listener", 10, |output| async move {
             let output = RefCell::new(output);
             let mut event_listener = EventListener::new();
 

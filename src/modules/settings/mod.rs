@@ -24,11 +24,9 @@ use crate::{
 use bluetooth::Bluetooth;
 use brightness::{Brightness, BrightnessMessage};
 use iced::{
-    theme::Button,
-    widget::{
+    alignment::{Horizontal, Vertical}, theme::Button, widget::{
         button, column, container, horizontal_space, row, text, vertical_rule, Column, Row, Space,
-    },
-    Alignment, Border, Element, Length, Subscription, Theme,
+    }, Alignment, Background, Border, Command, Element, Length, Subscription, Theme
 };
 use net::Net;
 
@@ -103,13 +101,13 @@ impl Settings {
         &mut self,
         message: Message,
         config: &SettingsModuleConfig,
-        menu: &mut Menu,
-    ) -> iced::Command<Message> {
+        menu: &mut Menu<crate::app::Message>,
+    ) -> Command<crate::app::Message> {
         match message {
             Message::ToggleMenu => {
                 self.sub_menu = None;
                 self.password_dialog = None;
-                iced::Command::batch(vec![
+                Command::batch(vec![
                     menu.unset_keyboard_interactivity(),
                     menu.toggle(MenuType::Settings),
                 ])
@@ -137,7 +135,7 @@ impl Settings {
                         }
                     }
                 };
-                iced::Command::none()
+                Command::none()
             }
             Message::Net(msg) => self
                 .net
@@ -161,23 +159,23 @@ impl Settings {
                     };
                     self.sub_menu.replace(menu_type);
                 }
-                iced::Command::none()
+                Command::none()
             }
             Message::ToggleInhibitIdle => {
                 if let Some(idle_inhibitor) = &mut self.idle_inhibitor {
                     let _ = idle_inhibitor.toggle();
                 }
-                iced::Command::none()
+                Command::none()
             }
             Message::Lock => {
                 if let Some(lock_cmd) = &config.lock_cmd {
                     crate::utils::launcher::execute_command(lock_cmd.to_string());
                 }
-                iced::Command::none()
+                Command::none()
             }
             Message::Power(msg) => {
                 msg.update();
-                iced::Command::none()
+                Command::none()
             }
             Message::PasswordDialog(msg) => match msg {
                 password_dialog::Message::PasswordChanged(password) => {
@@ -185,21 +183,21 @@ impl Settings {
                         *current_password = password;
                     }
 
-                    iced::Command::none()
+                    Command::none()
                 }
                 password_dialog::Message::DialogConfirmed => {
                     if let Some((ssid, password)) = self.password_dialog.take() {
                         self.net.activate_wifi(ssid, password);
                         menu.unset_keyboard_interactivity()
                     } else {
-                        iced::Command::none()
+                        Command::none()
                     }
                 }
                 password_dialog::Message::DialogCancelled => {
                     if let Some((_, _)) = self.password_dialog.take() {
                         menu.unset_keyboard_interactivity()
                     } else {
-                        iced::Command::none()
+                        Command::none()
                     }
                 }
             },
@@ -223,9 +221,7 @@ impl Settings {
             }));
         }
 
-        if let Some(powerprofiles_indicator) =
-            self.powerprofiles.indicator()
-        {
+        if let Some(powerprofiles_indicator) = self.powerprofiles.indicator() {
             elements = elements.push(powerprofiles_indicator);
         }
 
@@ -234,10 +230,7 @@ impl Settings {
         }
 
         let mut net_elements = row!().spacing(4);
-        if let Some(indicator) = self
-            .net
-            .active_connection_indicator()
-        {
+        if let Some(indicator) = self.net.active_connection_indicator() {
             net_elements = net_elements.push(indicator);
         }
 
@@ -373,7 +366,7 @@ impl Settings {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        iced::Subscription::batch(vec![
+        Subscription::batch(vec![
             crate::utils::battery::subscription().map(Message::Battery),
             self.audio.subscription().map(Message::Audio),
             self.brightness.subscription().map(Message::Brightness),
@@ -426,11 +419,10 @@ fn quick_settings_section<'a>(
 
 fn sub_menu_wrapper<'a, Msg: 'static>(content: impl Into<Element<'a, Msg>>) -> Element<'a, Msg> {
     container(content.into())
-        .style(|theme: &Theme| iced::widget::container::Appearance {
-            background: iced::Background::Color(theme.extended_palette().secondary.strong.color)
-                .into(),
+        .style(|theme: &Theme| container::Appearance {
+            background: Background::Color(theme.extended_palette().secondary.strong.color).into(),
             border: Border::with_radius(16),
-            ..iced::widget::container::Appearance::default()
+            ..container::Appearance::default()
         })
         .padding(8)
         .width(Length::Fill)
@@ -475,8 +467,8 @@ fn quick_setting_button<'a, Msg: Clone + 'static>(
                         } else {
                             Icons::VerticalDots
                         }))
-                        .align_y(iced::alignment::Vertical::Center)
-                        .align_x(iced::alignment::Horizontal::Center),
+                        .align_y(Vertical::Center)
+                        .align_x(Horizontal::Center),
                     )
                     .padding([4, if Some(menu_type) == submenu { 9 } else { 12 }])
                     .style(Button::custom(QuickSettingsSubMenuButtonStyle(active)))

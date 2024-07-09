@@ -13,16 +13,17 @@ use crate::{
 use flexi_logger::LoggerHandle;
 use iced::{
     application::Appearance,
-    widget::{column, row, Row},
+    executor, theme,
+    widget::{row, Row},
     window::Id,
-    Alignment, Color, Length, Theme,
+    Alignment, Color, Command, Element, Length, Subscription, Theme,
 };
 use iced_sctk::multi_window::Application;
 
 pub struct App {
     logger: LoggerHandle,
     config: Config,
-    menu: Menu,
+    menu: Menu<Message>,
     updates: Updates,
     workspaces: Workspaces,
     window_title: Title,
@@ -48,12 +49,12 @@ pub enum Message {
 }
 
 impl Application for App {
-    type Executor = iced::executor::Default;
+    type Executor = executor::Default;
     type Theme = Theme;
     type Message = Message;
     type Flags = (LoggerHandle, Config);
 
-    fn new((logger, config): (LoggerHandle, Config)) -> (Self, iced::Command<Self::Message>) {
+    fn new((logger, config): (LoggerHandle, Config)) -> (Self, Command<Self::Message>) {
         (
             App {
                 logger,
@@ -67,7 +68,7 @@ impl Application for App {
                 privacy: Privacy::new(),
                 settings: Settings::new(),
             },
-            iced::Command::none(),
+            Command::none(),
         )
     }
 
@@ -79,7 +80,7 @@ impl Application for App {
         String::from("ashell")
     }
 
-    fn style(&self) -> iced::theme::Application {
+    fn style(&self) -> theme::Application {
         fn dark_background(theme: &Theme) -> Appearance {
             Appearance {
                 background_color: Color::TRANSPARENT,
@@ -87,65 +88,60 @@ impl Application for App {
             }
         }
 
-        iced::theme::Application::custom(dark_background as fn(&Theme) -> _)
+        theme::Application::custom(dark_background as fn(&Theme) -> _)
     }
 
-    fn update(&mut self, message: Self::Message) -> iced::Command<Self::Message> {
+    fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
         match message {
-            Message::None => iced::Command::none(),
+            Message::None => Command::none(),
             Message::ConfigChanged(config) => {
                 log::info!("New config: {:?}", config);
                 self.config = *config;
                 self.logger
                     .set_new_spec(get_log_spec(self.config.log_level));
-                iced::Command::none()
+                Command::none()
             }
             Message::CloseMenu => self.menu.close(),
             Message::Updates(message) => {
                 if let Some(updates_config) = self.config.updates.as_ref() {
-                    self.updates
-                        .update(message, updates_config, &mut self.menu)
-                        .map(Message::Updates)
+                    self.updates.update(message, updates_config, &mut self.menu)
                 } else {
-                    iced::Command::none()
+                    Command::none()
                 }
             }
             Message::OpenLauncher => {
                 if let Some(app_launcher_cmd) = self.config.app_launcher_cmd.as_ref() {
                     crate::utils::launcher::execute_command(app_launcher_cmd.to_string());
                 }
-                iced::Command::none()
+                Command::none()
             }
             Message::Workspaces(msg) => {
                 self.workspaces.update(msg);
 
-                iced::Command::none()
+                Command::none()
             }
             Message::Title(message) => {
                 self.window_title
                     .update(message, self.config.truncate_title_after_length);
-                iced::Command::none()
+                Command::none()
             }
             Message::SystemInfo(message) => {
                 self.system_info.update(message);
-                iced::Command::none()
+                Command::none()
             }
             Message::Clock(message) => {
                 self.clock.update(message);
-                iced::Command::none()
+                Command::none()
             }
-            Message::Privacy(message) => self
-                .privacy
-                .update(message, &mut self.menu)
-                .map(Message::Privacy),
-            Message::Settings(message) => self
-                .settings
-                .update(message, &self.config.settings, &mut self.menu)
-                .map(Message::Settings),
+            Message::Privacy(message) => self.privacy.update(message, &mut self.menu),
+            Message::Settings(message) => {
+                self.settings
+                    .update(message, &self.config.settings, &mut self.menu)
+            }
         }
     }
 
-    fn view(&self, id: Id) -> iced::Element<'_, Self::Message> {
+    fn view(&self, id: Id) -> Element<'_, Self::Message> {
         if Some(id) == self.menu.get_id() {
             if let Some(menu_type) = self.menu.get_menu_type() {
                 menu_wrapper(
@@ -246,8 +242,8 @@ impl Application for App {
         }
     }
 
-    fn subscription(&self) -> iced::Subscription<Self::Message> {
-        iced::Subscription::batch(
+    fn subscription(&self) -> Subscription<Self::Message> {
+        Subscription::batch(
             vec![
                 self.config.updates.as_ref().map(|updates_config| {
                     self.updates

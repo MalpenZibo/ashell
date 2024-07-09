@@ -9,7 +9,7 @@ use crate::{
 use iced::{
     theme::Button,
     widget::{button, column, container, horizontal_rule, row, text, Column, Row},
-    Element, Length, Theme,
+    Command, Element, Length, Subscription, Theme,
 };
 use log::debug;
 
@@ -52,10 +52,10 @@ impl Bluetooth {
     pub fn update(
         &mut self,
         msg: BluetoothMessage,
-        menu: &mut Menu,
+        menu: &mut Menu<crate::app::Message>,
         sub_menu: &mut Option<SubMenu>,
         config: &SettingsModuleConfig,
-    ) -> iced::Command<Message> {
+    ) -> Command<crate::app::Message> {
         match msg {
             BluetoothMessage::Status(state) => {
                 debug!("Bluetooth state: {:?}", state);
@@ -65,24 +65,24 @@ impl Bluetooth {
                     *sub_menu = None;
                 }
 
-                iced::Command::none()
+                Command::none()
             }
             BluetoothMessage::DeviceList(devices) => {
                 self.devices = devices;
 
-                iced::Command::none()
+                Command::none()
             }
             BluetoothMessage::Toggle => {
                 let _ = self.commander.send(BluetoothCommand::TogglePower);
 
-                iced::Command::none()
+                Command::none()
             }
             BluetoothMessage::More => {
                 if let Some(cmd) = &config.bluetooth_more_cmd {
                     crate::utils::launcher::execute_command(cmd.to_string());
                     menu.close()
                 } else {
-                    iced::Command::none()
+                    Command::none()
                 }
             }
         }
@@ -123,7 +123,7 @@ impl Bluetooth {
                     .map(|d| {
                         Row::with_children(
                             vec![
-                                Some(text(d.name.to_string()).width(iced::Length::Fill).into()),
+                                Some(text(d.name.to_string()).width(Length::Fill).into()),
                                 d.battery.map(Self::battery_level),
                             ]
                             .into_iter()
@@ -168,20 +168,20 @@ impl Bluetooth {
                 text(format!("{}%", battery))
             )
             .spacing(8)
-            .width(iced::Length::Shrink),
+            .width(Length::Shrink),
         )
-        .style(move |theme: &Theme| iced::widget::container::Appearance {
+        .style(move |theme: &Theme| container::Appearance {
             text_color: Some(if battery <= 20 {
                 theme.palette().danger
             } else {
                 theme.palette().text
             }),
-            ..iced::widget::container::Appearance::default()
+            ..container::Appearance::default()
         })
         .into()
     }
 
-    pub fn subscription(&self) -> iced::Subscription<BluetoothMessage> {
+    pub fn subscription(&self) -> Subscription<BluetoothMessage> {
         crate::utils::bluetooth::subscription(self.commander.give_receiver())
     }
 }

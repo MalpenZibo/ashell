@@ -4,8 +4,10 @@ use crate::{
     style::header_pills,
 };
 use iced::{
+    alignment::Vertical,
+    time,
     widget::{container, row, text},
-    Element, Theme,
+    Alignment, Element, Subscription, Theme,
 };
 use std::time::Duration;
 use sysinfo::{Components, System};
@@ -144,10 +146,10 @@ impl SystemInfo {
                             }
                         })
                     )
-                    .align_items(iced::Alignment::Center)
+                    .align_items(Alignment::Center)
                     .spacing(4),
                 )
-                .align_y(iced::alignment::Vertical::Center)
+                .align_y(Vertical::Center)
                 .padding([2, 7])
                 .style(header_pills)
                 .into(),
@@ -155,7 +157,7 @@ impl SystemInfo {
         }
     }
 
-    pub fn subscription(&self) -> iced::Subscription<Message> {
-        iced::time::every(Duration::from_secs(5)).map(|_| Message::Update)
+    pub fn subscription(&self) -> Subscription<Message> {
+        time::every(Duration::from_secs(5)).map(|_| Message::Update)
     }
 }

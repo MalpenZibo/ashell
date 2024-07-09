@@ -3,10 +3,10 @@ use config::read_config;
 use flexi_logger::{
     Age, Cleanup, Criterion, FileSpec, LogSpecBuilder, LogSpecification, Logger, Naming,
 };
-use iced::{window::Id, Font};
 use iced_sctk::{
-    command::wayland::layer_surface::SctkLayerSurfaceSettings,
+    command::platform_specific::wayland::layer_surface::SctkLayerSurfaceSettings,
     commands::layer_surface::{Anchor, KeyboardInteractivity, Layer},
+    core::{window::Id, Font},
     multi_window::{settings::Settings, Application},
     settings::InitialSurface,
 };

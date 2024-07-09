@@ -1,9 +1,9 @@
-use iced::{widget::container, Element, Theme};
+use super::{quick_setting_button, Message};
 use crate::{
     components::icons::{icon, Icons},
     utils::{powerprofiles::PowerProfilesCommand, Commander},
 };
-use super::{quick_setting_button, Message};
+use iced::{widget::container, Command, Element, Subscription, Theme};
 
 #[derive(Debug, Copy, Clone)]
 pub enum Profiles {
@@ -50,17 +50,17 @@ impl PowerProfiles {
         }
     }
 
-    pub fn update(&mut self, msg: PowerProfilesMessage) -> iced::Command<Message> {
+    pub fn update(&mut self, msg: PowerProfilesMessage) -> Command<crate::app::Message> {
         match msg {
             PowerProfilesMessage::Active(state) => {
                 self.profiles = Some(state);
 
-                iced::Command::none()
+                Command::none()
             }
             PowerProfilesMessage::Toggle => {
                 let _ = self.commander.send(PowerProfilesCommand::Toggle);
 
-                iced::Command::none()
+                Command::none()
             }
         }
     }
@@ -108,7 +108,7 @@ impl PowerProfiles {
         })
     }
 
-    pub fn subscription(&self) -> iced::Subscription<PowerProfilesMessage> {
+    pub fn subscription(&self) -> Subscription<PowerProfilesMessage> {
         crate::utils::powerprofiles::subscription(self.commander.give_receiver())
     }
 }

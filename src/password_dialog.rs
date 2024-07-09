@@ -1,6 +1,6 @@
 use iced::{
     widget::{button, column, container, horizontal_space, row, text, text_input},
-    Element,
+    Element, Length,
 };
 
 #[derive(Debug, Clone)]
@@ -28,8 +28,8 @@ pub fn view<'a>(wifi_ssid: &str, current_password: &str) -> Element<'a, Message>
                 button("Connect").on_press(Message::DialogConfirmed)
             )
             .spacing(8)
-            .width(iced::Length::Fill)
-            .height(iced::Length::Fixed(32.))
+            .width(Length::Fill)
+            .height(Length::Fixed(32.))
         )
         .spacing(16)
         .padding(16)

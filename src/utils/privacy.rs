@@ -1,14 +1,14 @@
 use itertools::Itertools;
 use std::thread;
 
-use iced::{futures::SinkExt, Subscription};
+use iced::{futures::SinkExt, subscription, Subscription};
 use log::{debug, warn};
 use pipewire::{context::Context, main_loop::MainLoop};
 
 use crate::modules::privacy::{ApplicationNode, Media, PrivacyMessage};
 
 pub fn subscription() -> Subscription<PrivacyMessage> {
-    iced::subscription::channel(
+    subscription::channel(
         "privacy-dbus-connection-listener",
         100,
         |mut output| async move {

@@ -1,8 +1,9 @@
 use crate::style::left_header_pills;
 use chrono::{DateTime, Local};
 use iced::{
+    time,
     widget::{container, text},
-    Element,
+    Element, Subscription,
 };
 use std::time::Duration;
 
@@ -35,7 +36,7 @@ impl Clock {
             .into()
     }
 
-    pub fn subscription(&self) -> iced::Subscription<Message> {
-        iced::time::every(Duration::from_secs(20)).map(|_| Message::Update)
+    pub fn subscription(&self) -> Subscription<Message> {
+        time::every(Duration::from_secs(20)).map(|_| Message::Update)
     }
 }

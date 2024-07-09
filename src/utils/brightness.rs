@@ -1,7 +1,7 @@
 use crate::modules::settings::brightness::BrightnessMessage;
 use iced::{
-    futures::{FutureExt, SinkExt, StreamExt},
-    Subscription,
+    futures::{self, FutureExt, SinkExt, StreamExt},
+    subscription, Subscription,
 };
 use inotify::{Inotify, WatchMask};
 use std::fs;
@@ -21,7 +21,7 @@ trait BrightnessCtrl {
 pub fn subscription(
     rx: Option<tokio::sync::mpsc::UnboundedReceiver<f64>>,
 ) -> Subscription<BrightnessMessage> {
-    iced::subscription::channel("brightness", 100, move |mut output| async move {
+    subscription::channel("brightness", 100, move |mut output| async move {
         let mut rx = rx.unwrap();
 
         let device_folder = fs::read_dir(DEVICES_FOLDER)
@@ -72,7 +72,7 @@ pub fn subscription(
                 .expect("Failed to create a brightness file event stream");
 
             loop {
-                iced::futures::select! {
+                futures::select! {
                     v = watcher_stream.next().fuse() => {
                         if let Some(Ok(_)) = v {
                             let v = get_actual_brightness();

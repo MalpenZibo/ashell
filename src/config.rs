@@ -1,8 +1,9 @@
 use hex_color::HexColor;
 use iced::{
     futures::{SinkExt, StreamExt},
+    subscription,
     theme::palette,
-    Color,
+    Color, Subscription,
 };
 use inotify::{EventMask, Inotify, WatchMask};
 use log::warn;
@@ -318,8 +319,8 @@ pub fn read_config() -> Result<Config, serde_yaml::Error> {
     }
 }
 
-pub fn subscription() -> iced::Subscription<Message> {
-    iced::subscription::channel("config-watcher", 100, move |mut output| async move {
+pub fn subscription() -> Subscription<Message> {
+    subscription::channel("config-watcher", 100, move |mut output| async move {
         let home_dir = env::var("HOME").expect("Could not get HOME environment variable");
         let file_path = format!("{}{}", home_dir, CONFIG_PATH.replace('~', ""));
 

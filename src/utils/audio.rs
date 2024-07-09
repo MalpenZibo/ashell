@@ -1,7 +1,7 @@
 extern crate libpulse_binding as pulse;
 
 use crate::{components::icons::Icons, modules::settings::audio::AudioMessage};
-use iced::{futures::SinkExt, Subscription};
+use iced::{futures::SinkExt, subscription, Subscription};
 use libpulse_binding::{
     context::Context,
     mainloop::standard::{IterateResult, Mainloop},
@@ -397,8 +397,8 @@ impl AudioCommander {
 pub fn subscription(
     rx: Option<tokio::sync::mpsc::UnboundedReceiver<AudioCommand>>,
 ) -> Subscription<AudioMessage> {
-    iced::Subscription::batch(vec![
-        iced::subscription::channel("audio-commander", 100, |_| async move {
+    Subscription::batch(vec![
+        subscription::channel("audio-commander", 100, |_| async move {
             let (_internal_tx, mut internal_rx) = tokio::sync::mpsc::unbounded_channel::<()>();
 
             thread::spawn(move || {
@@ -436,7 +436,7 @@ pub fn subscription(
                 trace!("Audio command receive");
             }
         }),
-        iced::subscription::channel("audio-listener", 100, |mut output| async move {
+        subscription::channel("audio-listener", 100, |mut output| async move {
             let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<AudioMessage>();
 
             thread::spawn(move || {

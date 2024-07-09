@@ -5,8 +5,7 @@ use hyprland::{
     shared::{HyprData, HyprDataActive, HyprDataVec},
 };
 use iced::{
-    widget::{container, mouse_area, text, Row},
-    Border, Color, Element, Length, Theme,
+    alignment, subscription, widget::{container, mouse_area, text, Row}, Background, Border, Color, Element, Length, Subscription, Theme
 };
 use std::cell::RefCell;
 
@@ -115,8 +114,8 @@ impl Workspaces {
                                                     .unwrap_or(theme.palette().primary)
                                             },
                                         );
-                                        iced::widget::container::Appearance {
-                                            background: Some(iced::Background::Color(if empty {
+                                        container::Appearance {
+                                            background: Some(Background::Color(if empty {
                                                 theme.extended_palette().background.weak.color
                                             } else {
                                                 bg_color
@@ -127,12 +126,12 @@ impl Workspaces {
                                                 radius: 16.0.into(),
                                             },
                                             text_color: Some(fg_color),
-                                            ..iced::widget::container::Appearance::default()
+                                            ..container::Appearance::default()
                                         }
                                     }
                                 })
-                                .align_x(iced::alignment::Horizontal::Center)
-                                .align_y(iced::alignment::Vertical::Center)
+                                .align_x(alignment::Horizontal::Center)
+                                .align_y(alignment::Vertical::Center)
                                 .width(if w.active { 32 } else { 16 })
                                 .height(16),
                         )
@@ -144,14 +143,14 @@ impl Workspaces {
             .spacing(4),
         )
         .padding([4, 8])
-        .align_y(iced::alignment::Vertical::Center)
+        .align_y(alignment::Vertical::Center)
         .height(Length::Shrink)
         .style(header_pills)
         .into()
     }
 
-    pub fn subscription(&self) -> iced::Subscription<Message> {
-        iced::subscription::channel("workspaces-listener", 10, |output| async move {
+    pub fn subscription(&self) -> Subscription<Message> {
+        subscription::channel("workspaces-listener", 10, |output| async move {
             let output = RefCell::new(output);
             let mut event_listener = EventListener::new();
 

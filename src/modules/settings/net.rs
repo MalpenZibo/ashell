@@ -12,9 +12,9 @@ use crate::{
     },
 };
 use iced::{
-    theme::Button,
+    theme::{self, Button},
     widget::{button, column, container, horizontal_rule, row, scrollable, text, toggler, Column},
-    Element, Length, Theme,
+    Alignment, Command, Element, Length, Subscription, Theme,
 };
 
 use super::{quick_setting_button, sub_menu_wrapper, Message, SubMenu};
@@ -58,35 +58,35 @@ impl Net {
         }
     }
 
-    pub fn update<Message: 'static>(
+    pub fn update(
         &mut self,
         msg: NetMessage,
-        menu: &mut Menu,
+        menu: &mut Menu<crate::app::Message>,
         password_dialog: &mut Option<(String, String)>,
         config: &SettingsModuleConfig,
-    ) -> iced::Command<Message> {
+    ) -> Command<crate::app::Message> {
         match msg {
             NetMessage::WifiDeviceState(state) => {
                 self.wifi_device_state = state;
 
-                iced::Command::none()
+                Command::none()
             }
             NetMessage::ActiveConnection(connection) => {
                 self.active_connection = connection;
 
-                iced::Command::none()
+                Command::none()
             }
             NetMessage::ToggleWifi => {
                 let _ = self.commander.send(NetCommand::ToggleWifi);
 
-                iced::Command::none()
+                Command::none()
             }
             NetMessage::ActivateWifi(ssid, password) => {
                 let _ = self
                     .commander
                     .send(NetCommand::ActivateWifiConnection(ssid, password));
 
-                iced::Command::none()
+                Command::none()
             }
             NetMessage::RequestWifiPassword(ssid) => {
                 *password_dialog = Some((ssid, "".to_string()));
@@ -97,17 +97,17 @@ impl Net {
                 self.scanning_nearby_wifi = true;
                 let _ = self.commander.send(NetCommand::ScanNearByWifi);
 
-                iced::Command::none()
+                Command::none()
             }
             NetMessage::VpnActive(active) => {
                 self.vpn_active = active;
 
-                iced::Command::none()
+                Command::none()
             }
             NetMessage::VpnConnections(connections) => {
                 self.vpn_connections = connections;
 
-                iced::Command::none()
+                Command::none()
             }
             NetMessage::VpnToggle(name) => {
                 if let Some(vpn) = self.vpn_connections.iter_mut().find(|vpn| vpn.name == name) {
@@ -119,20 +119,20 @@ impl Net {
                     }
                 }
 
-                iced::Command::none()
+                Command::none()
             }
             NetMessage::NearByWifi(connections) => {
                 self.scanning_nearby_wifi = false;
                 self.nearby_wifi = connections;
 
-                iced::Command::none()
+                Command::none()
             }
             NetMessage::WifiMore => {
                 if let Some(cmd) = &config.wifi_more_cmd {
                     crate::utils::launcher::execute_command(cmd.to_string());
                     menu.close()
                 } else {
-                    iced::Command::none()
+                    Command::none()
                 }
             }
             NetMessage::VpnMore => {
@@ -140,7 +140,7 @@ impl Net {
                     crate::utils::launcher::execute_command(cmd.to_string());
                     menu.close()
                 } else {
-                    iced::Command::none()
+                    Command::none()
                 }
             }
         }
@@ -293,8 +293,8 @@ impl Net {
                     .on_press(NetMessage::ScanNearByWifi),
             )
             .spacing(8)
-            .width(iced::Length::Fill)
-            .align_items(iced::Alignment::Center),
+            .width(Length::Fill)
+            .align_items(Alignment::Center),
             horizontal_rule(1),
             container(scrollable(
                 Column::with_children(
@@ -311,10 +311,10 @@ impl Net {
                                         } else {
                                             get_wifi_lock_icon(wifi.strength)
                                         })
-                                        .width(iced::Length::Shrink),
-                                        text(wifi.ssid.to_string()).width(iced::Length::Fill)
+                                        .width(Length::Shrink),
+                                        text(wifi.ssid.to_string()).width(Length::Fill)
                                     )
-                                    .align_items(iced::Alignment::Center)
+                                    .align_items(Alignment::Center)
                                     .spacing(8),
                                 )
                                 .style(move |theme: &Theme| {
@@ -328,7 +328,7 @@ impl Net {
                                     }
                                 }),
                             )
-                            .style(iced::theme::Button::custom(GhostButtonStyle))
+                            .style(theme::Button::custom(GhostButtonStyle))
                             .padding([8, 8])
                             .on_press_maybe(if !is_active {
                                 Some(if wifi.known {
@@ -373,11 +373,11 @@ impl Net {
                 .iter()
                 .map(|vpn| {
                     row!(
-                        text(vpn.name.to_string()).width(iced::Length::Fill),
+                        text(vpn.name.to_string()).width(Length::Fill),
                         toggler(None, vpn.is_active, |_| {
                             NetMessage::VpnToggle(vpn.name.clone())
                         })
-                        .width(iced::Length::Shrink)
+                        .width(Length::Shrink)
                     )
                     .into()
                 })
@@ -402,7 +402,7 @@ impl Net {
         }
     }
 
-    pub fn subscription(&self) -> iced::Subscription<NetMessage> {
+    pub fn subscription(&self) -> Subscription<NetMessage> {
         crate::utils::net::subscription(self.commander.give_receiver())
     }
 }

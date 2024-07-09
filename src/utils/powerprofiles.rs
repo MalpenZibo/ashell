@@ -1,7 +1,7 @@
 use crate::modules::settings::powerprofiles::{PowerProfilesMessage, Profiles};
 use iced::{
-    futures::{FutureExt, SinkExt, StreamExt},
-    Subscription,
+    futures::{self, FutureExt, SinkExt, StreamExt},
+    subscription, Subscription,
 };
 use zbus::{proxy, Result};
 
@@ -31,7 +31,7 @@ const POWER_PROFILES: [Profiles; 3] = [
 pub fn subscription(
     rx: Option<tokio::sync::mpsc::UnboundedReceiver<PowerProfilesCommand>>,
 ) -> Subscription<PowerProfilesMessage> {
-    iced::subscription::channel(
+    subscription::channel(
         "powerprofiles-dbus-connection-listener",
         100,
         |mut output| async move {
@@ -59,7 +59,7 @@ pub fn subscription(
             let mut active_profile_signal = powerprofiles.receive_active_profile_changed().await;
 
             loop {
-                iced::futures::select! {
+                futures::select! {
                     v = rx.recv().fuse() => {
                         if let Some(v) = v {
                             match v {
