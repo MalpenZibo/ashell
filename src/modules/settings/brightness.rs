@@ -1,10 +1,12 @@
 use iced::{
+    theme,
     widget::{container, row, slider},
     Alignment, Command, Element, Length, Subscription,
 };
 
 use crate::{
     components::icons::{icon, Icons},
+    style::SliderStyle,
     utils::Commander,
 };
 
@@ -48,6 +50,7 @@ impl Brightness {
             slider(0..=100, self.value, |v| Message::Brightness(
                 BrightnessMessage::Changed(v as f64 / 100., false)
             ))
+            .style(theme::Slider::Custom(Box::new(SliderStyle)))
             .step(1)
             .width(Length::Fill),
         )

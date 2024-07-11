@@ -1,5 +1,5 @@
 use iced::{
-    theme::Button,
+    theme::{self, Button},
     widget::{button, column, container, horizontal_rule, row, slider, text, Column, Row},
     Alignment, Command, Element, Length, Subscription, Theme,
 };
@@ -8,7 +8,7 @@ use crate::{
     components::icons::{icon, Icons},
     config::SettingsModuleConfig,
     menu::Menu,
-    style::{GhostButtonStyle, SettingsButtonStyle},
+    style::{GhostButtonStyle, SettingsButtonStyle, SliderStyle},
     utils::{
         audio::{AudioCommand, DeviceType, Sink, Sinks, Source, Volume},
         Commander,
@@ -423,7 +423,7 @@ pub fn audio_slider<'a, Message: 'a + Clone>(
                 slider(0..=100, volume, volume_changed)
                     .step(1)
                     .width(Length::Fill)
-                    // .style(SliderStyle)
+                    .style(theme::Slider::Custom(Box::new(SliderStyle)))
                     .into(),
             ),
             with_submenu.map(|(submenu, msg)| {

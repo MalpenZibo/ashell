@@ -1,6 +1,8 @@
 use crate::config::Appearance;
 use iced::{
-    theme::{self, palette, Palette}, widget::{button, container}, Border, Color, Theme
+    theme::{self, palette, Palette},
+    widget::{button, container, slider},
+    Border, Color, Theme,
 };
 
 pub fn ashell_theme(appearance: &Appearance) -> Theme {
@@ -225,45 +227,35 @@ impl button::StyleSheet for SettingsButtonStyle {
 
 pub struct SliderStyle;
 
-// impl iced::widget::slider::StyleSheet for SliderStyle {
-//     type Style = iced::theme::Theme;
-//
-//     fn active(&self, style: &Self::Style) -> iced::widget::slider::Appearance {
-//         let palette = style.extended_palette();
-//
-//         let handle = iced::widget::slider::Handle {
-//             shape: iced::widget::slider::HandleShape::Circle { radius: 8. } ,
-//             color: Color::WHITE,
-//             border_color: Color::WHITE,
-//             border_width: 1.0,
-//         };
-//
-//         iced::widget::slider::Appearance {
-//             rail: iced::widget::slider::Rail {
-//                 colors: iced::widget::slider::RailBackground::Pair(
-//                     palette.primary.base.color,
-//                     palette.secondary.base.color,
-//                 ),
-//                 width: 4.0,
-//                 border_radius: 2.0.into(),
-//             },
-//             handle: iced::widget::slider::Handle {
-//                 color: palette.background.base.color,
-//                 border_color: palette.primary.base.color,
-//                 ..handle
-//             },
-//             breakpoint: Breakpoint { color: palette.background.base.color },
-//         }
-//     }
-//
-//     fn hovered(&self, style: &Self::Style) -> iced::widget::slider::Appearance {
-//         self.active(style)
-//     }
-//
-//     fn dragging(&self, style: &Self::Style) -> iced::widget::slider::Appearance {
-//         self.active(style)
-//     }
-// }
+impl slider::StyleSheet for SliderStyle {
+    type Style = iced::theme::Theme;
+
+    fn active(&self, style: &Self::Style) -> iced::widget::slider::Appearance {
+        let palette = style.extended_palette();
+
+        slider::Appearance {
+            rail: slider::Rail {
+                colors: (palette.primary.base.color, palette.secondary.base.color),
+                width: 4.0,
+                border_radius: 2.0.into(),
+            },
+            handle: slider::Handle {
+                shape: iced::widget::slider::HandleShape::Circle { radius: 8. },
+                color: palette.primary.base.color,
+                border_color: palette.primary.base.color,
+                border_width: 0.0,
+            },
+        }
+    }
+
+    fn hovered(&self, style: &Self::Style) -> iced::widget::slider::Appearance {
+        self.active(style)
+    }
+
+    fn dragging(&self, style: &Self::Style) -> iced::widget::slider::Appearance {
+        self.active(style)
+    }
+}
 
 pub struct QuickSettingsButtonStyle(pub bool);
 
