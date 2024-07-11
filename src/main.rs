@@ -14,7 +14,7 @@ use log::{error, LevelFilter};
 use std::panic;
 
 mod app;
-// mod centerbox;
+mod centerbox;
 mod components;
 mod config;
 mod menu;

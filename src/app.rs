@@ -1,14 +1,9 @@
 use crate::{
     // centerbox,
-    config::{self, Config},
-    get_log_spec,
-    menu::{menu_wrapper, Menu, MenuType},
-    modules::{
+    centerbox, config::{self, Config}, get_log_spec, menu::{menu_wrapper, Menu, MenuType}, modules::{
         clock::Clock, launcher, privacy::Privacy, settings::Settings, system_info::SystemInfo,
         title::Title, updates::Updates, workspaces::Workspaces,
-    },
-    style::ashell_theme,
-    HEIGHT,
+    }, style::ashell_theme, HEIGHT
 };
 use flexi_logger::LoggerHandle;
 use iced::{
@@ -76,7 +71,7 @@ impl Application for App {
         ashell_theme(&self.config.appearance)
     }
 
-    fn title(&self, id: Id) -> String {
+    fn title(&self, _id: Id) -> String {
         String::from("ashell")
     }
 
@@ -225,14 +220,7 @@ impl Application for App {
             )
             .spacing(4);
 
-            // centerbox::Centerbox::new([left.into(), center.into(), right.into()])
-            //     .spacing(4)
-            //     .padding([0, 4])
-            //     .width(Length::Fill)
-            //     .height(Length::Fixed(HEIGHT as f32))
-            //     .align_items(Alignment::Center)
-            //     .into()
-            row!(left, center, right)
+            centerbox::Centerbox::new([left.into(), center.into(), right.into()])
                 .spacing(4)
                 .padding([0, 4])
                 .width(Length::Fill)

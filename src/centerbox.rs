@@ -1,12 +1,11 @@
 //! Distribute content horizontally.
-use iced::advanced::widget::OperationOutputWrapper;
-use iced::advanced::layout::{self, Layout, Node};
+use iced::advanced::layout::{self, Layout, Limits, Node};
 use iced::advanced::overlay;
 use iced::advanced::renderer;
 use iced::advanced::widget::{Operation, Tree};
 use iced::advanced::{mouse, Clipboard, Shell, Widget};
 use iced::{
-    event, Alignment, Element, Event, Length, Limits, Padding, Pixels, Point, Rectangle, Size,
+    event, Alignment, Element, Event, Length, Padding, Pixels, Point, Rectangle, Size, Vector,
 };
 
 /// A container that distributes its contents horizontally.
@@ -80,8 +79,8 @@ where
         self.children.iter().map(Tree::new).collect()
     }
 
-    fn diff(&mut self, tree: &mut Tree) {
-        tree.diff_children(&mut self.children)
+    fn diff(&self, tree: &mut Tree) {
+        tree.diff_children(&self.children)
     }
 
     fn size(&self) -> Size<Length> {
@@ -166,7 +165,10 @@ where
                 self.padding.top,
             ));
         } else {
-            nodes[1].move_to_mut(Point::new(limits.max().width / 2. + self.padding.horizontal() / 2.0, self.padding.top));
+            nodes[1].move_to_mut(Point::new(
+                limits.max().width / 2. + self.padding.horizontal() / 2.0,
+                self.padding.top,
+            ));
         }
         nodes[1].align_mut(Alignment::Center, self.align_items, Size::new(0.0, cross));
 
@@ -188,7 +190,7 @@ where
         tree: &mut Tree,
         layout: Layout<'_>,
         renderer: &Renderer,
-        operation: &mut dyn Operation<OperationOutputWrapper<Message>>,
+        operation: &mut dyn Operation<Message>,
     ) {
         operation.container(None, layout.bounds(), &mut |operation| {
             self.children
@@ -283,8 +285,9 @@ where
         tree: &'b mut Tree,
         layout: Layout<'_>,
         renderer: &Renderer,
+        translation: Vector,
     ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
-        overlay::from_children(&mut self.children, tree, layout, renderer)
+        overlay::from_children(&mut self.children, tree, layout, renderer, translation)
     }
 
     #[cfg(feature = "a11y")]
