@@ -1713,6 +1713,7 @@ dependencies = [
 [[package]]
 name = "iced_sctk"
 version = "0.1.0"
+source = "git+https://github.com/MalpenZibo/iced_sctk#96f9c9f773f39371da38f386a6cb69c4e1971b1a"
 dependencies = [
  "dnd",
  "float-cmp",

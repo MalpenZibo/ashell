@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 iced = { version = "0.12.1", features = ["tokio", "multi-window", "advanced", "wgpu"] }
-iced_sctk = { path = "../iced_sctk", features = ["no-hand-cursor"] } 
+iced_sctk = { git = "https://github.com/MalpenZibo/iced_sctk", features = ["no-hand-cursor"] } 
 chrono = "0.4"
 hyprland = { git = "https://github.com/MalpenZibo/hyprland-rs", branch="master" }
 serde = "1.0"
