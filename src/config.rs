@@ -102,6 +102,7 @@ pub struct SettingsModuleConfig {
     pub bluetooth_more_cmd: Option<String>,
 }
 
+
 #[derive(Deserialize, Clone, Debug)]
 #[serde(untagged)]
 #[serde(rename_all = "camelCase")]
@@ -162,50 +163,86 @@ impl AppearanceColor {
 #[derive(Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Appearance {
+    #[serde(default = "default_background_color")]
     pub background_color: AppearanceColor,
+    #[serde(default = "default_primary_color")]
     pub primary_color: AppearanceColor,
+    #[serde(default = "default_secondary_color")]
     pub secondary_color: AppearanceColor,
+    #[serde(default = "default_success_color")]
     pub success_color: AppearanceColor,
+    #[serde(default = "default_danger_color")]
     pub danger_color: AppearanceColor,
+    #[serde(default = "default_text_color")]
     pub text_color: AppearanceColor,
+    #[serde(default = "default_workspace_colors")]
     pub workspace_colors: Vec<HexColor>,
+}
+
+static PRIMARY: HexColor = HexColor::rgb(250, 179, 135);
+
+fn default_background_color() -> AppearanceColor {
+    AppearanceColor::Complete {
+        base: HexColor::rgb(30, 30, 46),
+        strong: Some(HexColor::rgb(69, 71, 90)),
+        weak: Some(HexColor::rgb(49, 50, 68)),
+        text: None,
+    }
+}
+
+fn default_primary_color() -> AppearanceColor {
+    AppearanceColor::Complete {
+        base: PRIMARY,
+        strong: None,
+        weak: None,
+        text: Some(HexColor::rgb(30, 30, 46)),
+    }
+}
+
+fn default_secondary_color() -> AppearanceColor {
+    AppearanceColor::Complete {
+        base: HexColor::rgb(17, 17, 27),
+        strong: Some(HexColor::rgb(24, 24, 37)),
+        weak: None,
+        text: None,
+    }
+}
+
+fn default_success_color() -> AppearanceColor {
+    AppearanceColor::Simple(HexColor::rgb(166, 227, 161))
+}
+
+fn default_danger_color() -> AppearanceColor {
+    AppearanceColor::Complete {
+        base: HexColor::rgb(243, 139, 168),
+        weak: Some(HexColor::rgb(249, 226, 175)),
+        strong: None,
+        text: None,
+    }
+}
+
+fn default_text_color() -> AppearanceColor {
+    AppearanceColor::Simple(HexColor::rgb(205, 214, 244))
+}
+
+fn default_workspace_colors() -> Vec<HexColor> {
+    vec![
+        PRIMARY,
+        HexColor::rgb(180, 190, 254),
+        HexColor::rgb(203, 166, 247),
+    ]
 }
 
 impl Default for Appearance {
     fn default() -> Self {
-        let primary = HexColor::rgb(250, 179, 135);
         Self {
-            background_color: AppearanceColor::Complete {
-                base: HexColor::rgb(30, 30, 46),
-                strong: Some(HexColor::rgb(69, 71, 90)),
-                weak: Some(HexColor::rgb(49, 50, 68)),
-                text: None,
-            },
-            primary_color: AppearanceColor::Complete {
-                base: primary,
-                strong: None,
-                weak: None,
-                text: Some(HexColor::rgb(30, 30, 46)),
-            },
-            secondary_color: AppearanceColor::Complete {
-                base: HexColor::rgb(17, 17, 27),
-                strong: Some(HexColor::rgb(24, 24, 37)),
-                weak: None,
-                text: None,
-            },
-            success_color: AppearanceColor::Simple(HexColor::rgb(166, 227, 161)),
-            danger_color: AppearanceColor::Complete {
-                base: HexColor::rgb(243, 139, 168),
-                weak: Some(HexColor::rgb(249, 226, 175)),
-                strong: None,
-                text: None,
-            },
-            text_color: AppearanceColor::Simple(HexColor::rgb(205, 214, 244)),
-            workspace_colors: vec![
-                primary,
-                HexColor::rgb(180, 190, 254),
-                HexColor::rgb(203, 166, 247)
-            ]
+            background_color: default_background_color(),
+            primary_color: default_primary_color(),
+            secondary_color: default_secondary_color(),
+            success_color: default_success_color(),
+            danger_color: default_danger_color(),
+            text_color: default_text_color(),
+            workspace_colors: default_workspace_colors(),
         }
     }
 }

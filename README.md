@@ -94,14 +94,14 @@ settings:
 #   weak: #448855 -- optional default autogenarated from base color
 #   text: #ffffff -- optional default base text color
 appearance:
-    background_color: "#1e1e2e" # used as a base background color for header module button
-    primary_color: "#fab387" # used as a accent color
-    secondary_color: "#11111b" # used for darker background color 
-    success_color: "#a6e3a1" # used for success message or happy state
-    danger_color: "#f38ba8" # used for danger message or danger state (the weak version is used for the warning state
-    text_color: "#f38ba8" # base default text color
+    backgroundColor: "#1e1e2e" # used as a base background color for header module button
+    primaryColor: "#fab387" # used as a accent color
+    secondaryColor: "#11111b" # used for darker background color 
+    successColor: "#a6e3a1" # used for success message or happy state
+    dangerColor: "#f38ba8" # used for danger message or danger state (the weak version is used for the warning state
+    textColor: "#f38ba8" # base default text color
     # this is a list of color that will be used in the workspace module (one color for each monitor)
-    workspace_colors: 
+    workspaceColors: 
       - "#fab387" 
       - "#b4befe"
 ```
