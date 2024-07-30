@@ -115,15 +115,12 @@ I tried with other great projects like [eww](https://github.com/elkowar/eww) but
 instead of writing or copy-paste eww configurations I prefered to create 
 my Wayland bar.
 
-So, using the pop-os fork of [iced](https://github.com/pop-os/iced), I started to 
-create this project.
+So, I <del>copy-pasted from iced pop-os fork</del> created a layer to interact 
+with wayland layer shell protocol from iced [Iced SCTK](https://github.com/MalpenZibo/iced_sctk) 
+and I started to create this project.
 
-In the end, what can this project do for you? 
-
-Almost nothing but it could be useful if you want to create your own status bar 
-or if you have to read some examples on how to get information from `dbus`.
-
-So feel free to fork this project and customize it for your needs.
+So feel free to fork this project and customize it for your needs 
+or you could try to compile and use it.
 
 ## Some screenshots
 
