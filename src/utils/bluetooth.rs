@@ -1,13 +1,18 @@
 use crate::modules::settings::bluetooth::{BluetoothMessage, BluetoothState, Device};
 use iced::{
-    futures::{self, stream::select_all, FutureExt, SinkExt, StreamExt},
+    futures::{
+        self,
+        channel::mpsc::Sender,
+        stream::{self, select_all},
+        FutureExt, SinkExt, Stream, StreamExt,
+    },
     subscription, Subscription,
 };
+use log::warn;
 use std::collections::HashMap;
 use zbus::{
     proxy,
     zvariant::{OwnedObjectPath, OwnedValue},
-    Result,
 };
 
 type ManagedObjects = HashMap<OwnedObjectPath, HashMap<String, HashMap<String, OwnedValue>>>;
@@ -18,7 +23,7 @@ type ManagedObjects = HashMap<OwnedObjectPath, HashMap<String, HashMap<String, O
     interface = "org.freedesktop.DBus.ObjectManager"
 )]
 trait BluezObjectManager {
-    fn get_managed_objects(&self) -> Result<ManagedObjects>;
+    fn get_managed_objects(&self) -> zbus::Result<ManagedObjects>;
 
     #[zbus(signal)]
     fn interfaces_added(&self) -> Result<()>;
@@ -34,25 +39,25 @@ trait BluezObjectManager {
 )]
 trait Adapter {
     #[zbus(property)]
-    fn powered(&self) -> Result<bool>;
+    fn powered(&self) -> zbus::Result<bool>;
 
     #[zbus(property)]
-    fn set_powered(&self, value: bool) -> Result<()>;
+    fn set_powered(&self, value: bool) -> zbus::Result<()>;
 }
 
 #[proxy(default_service = "org.bluez", interface = "org.bluez.Device1")]
 trait Device {
     #[zbus(property)]
-    fn name(&self) -> Result<String>;
+    fn name(&self) -> zbus::Result<String>;
 
     #[zbus(property)]
-    fn connected(&self) -> Result<bool>;
+    fn connected(&self) -> zbus::Result<bool>;
 }
 
 #[proxy(default_service = "org.bluez", interface = "org.bluez.Battery1")]
 trait Battery {
     #[zbus(property)]
-    fn percentage(&self) -> Result<u8>;
+    fn percentage(&self) -> zbus::Result<u8>;
 }
 
 async fn get_adapter<'a>(bluez: &BluezObjectManagerProxy<'a>) -> Option<OwnedObjectPath> {
@@ -131,6 +136,129 @@ pub enum BluetoothCommand {
     TogglePower,
 }
 
+async fn handle_bluetooth_command<'a>(
+    command: BluetoothCommand,
+    adapter: &AdapterProxy<'a>
+) -> Result<BluetoothMessage, ()> {
+    match command {
+        BluetoothCommand::TogglePower => {
+            if let Ok(current_state) = adapter.powered().await {
+                if adapter.set_powered(!current_state).await.is_ok() {
+                    Ok(BluetoothMessage::Status(if !current_state {
+                        BluetoothState::Inactive
+                    } else {
+                        BluetoothState::Active
+                    }))
+                } else {
+                    warn!("Failed to set adapter powered state");
+                    Err(())
+                }
+            } else {
+                warn!("Failed to get adapter powered state");
+                Err(())
+            }
+        }
+    }
+}
+
+async fn handle_adapter<'a>(
+    conn: &zbus::Connection,
+    bluez: &BluezObjectManagerProxy<'a>,
+    adapter: &AdapterProxy<'a>,
+    rx: &mut tokio::sync::mpsc::UnboundedReceiver<BluetoothCommand>,
+    output: &mut Sender<BluetoothMessage>,
+) {
+    let _ = output
+        .send(BluetoothMessage::Status(
+            if adapter
+                .powered()
+                .await
+                .expect("Failed to get adapter powered state")
+            {
+                BluetoothState::Active
+            } else {
+                BluetoothState::Inactive
+            },
+        ))
+        .await;
+
+    let mut powered_signal = adapter.receive_powered_changed().await;
+    let mut added_signal = bluez
+        .receive_interfaces_added()
+        .await
+        .expect("Failed to receive bluez interfaces added signal");
+    let mut removed_signal = bluez
+        .receive_interfaces_removed()
+        .await
+        .expect("Failed to receive bluez interfaces removed signal");
+
+    loop {
+        let devices = get_connected_devices(conn, bluez).await;
+        let mut battery_signals = Vec::new();
+        for (i, b) in devices.iter().enumerate().filter_map(|(i, (_, b))| {
+            if let Some((_, b)) = b {
+                Some((i, b))
+            } else {
+                None
+            }
+        }) {
+            battery_signals.push(b.receive_percentage_changed().await.map(move |v| (i, v)))
+        }
+
+        let _ = output
+            .send(BluetoothMessage::DeviceList(
+                devices
+                    .into_iter()
+                    .map(|(n, b)| Device {
+                        name: n.to_owned(),
+                        battery: b.as_ref().map(|(v, _)| *v),
+                    })
+                    .collect::<Vec<_>>(),
+            ))
+            .await;
+
+        let mut battery_signals: Box<
+            dyn Stream<Item = _> + Unpin + Send,
+        > = if battery_signals.is_empty() {
+            Box::new(stream::pending())
+        } else {
+            Box::new(select_all(battery_signals))
+        };
+
+        futures::select! {
+            v = rx.recv().fuse() => {
+                if let Some(v) = v {
+                    let res = handle_bluetooth_command(v, adapter).await;
+                    if let Ok(res) = res {
+                        let _ = output.send(res).await;
+                    } else {
+                        return;
+                    }
+                }
+            },
+            v = powered_signal.next().fuse() => {
+                if let Some(v) = v {
+                    if let Ok(value) = v.get().await {
+                        let _ = output.send(
+                            BluetoothMessage::Status(if value {
+                                BluetoothState::Active
+                            } else {
+                                BluetoothState::Inactive
+                            })
+                        ).await;
+                    }
+                }
+            },
+            _ = added_signal.next().fuse() => {
+            },
+            _ = removed_signal.next().fuse() => {
+            },
+            _ = battery_signals.next().fuse() => {
+            }
+        }
+    }
+}
+
 pub fn subscription(
     rx: Option<tokio::sync::mpsc::UnboundedReceiver<BluetoothCommand>>,
 ) -> Subscription<BluetoothMessage> {
@@ -147,177 +275,22 @@ pub fn subscription(
                 .await
                 .expect("Failed to create bluez obj manager proxy");
 
-            let adapter_path = get_adapter(&bluez).await;
+            loop {
+                let adapter_path = get_adapter(&bluez).await;
 
-            if let Some(adapter_path) = adapter_path {
-                let adapter = AdapterProxy::builder(&conn)
-                    .path(adapter_path)
-                    .expect("Failed to set adapter proxy path")
-                    .build()
-                    .await
-                    .expect("Failed to create adapter proxy");
+                if let Some(adapter_path) = adapter_path {
+                    let adapter = AdapterProxy::builder(&conn)
+                        .path(adapter_path)
+                        .expect("Failed to set adapter proxy path")
+                        .build()
+                        .await
+                        .expect("Failed to create adapter proxy");
 
-                let _ = output
-                    .send(BluetoothMessage::Status(
-                        if adapter
-                            .powered()
-                            .await
-                            .expect("Failed to get adapter powered state")
-                        {
-                            BluetoothState::Active
-                        } else {
-                            BluetoothState::Inactive
-                        },
-                    ))
-                    .await;
-
-                let mut powered_signal = adapter.receive_powered_changed().await;
-                let mut added_signal = bluez
-                    .receive_interfaces_added()
-                    .await
-                    .expect("Failed to receive bluez interfaces added signal");
-                let mut removed_signal = bluez
-                    .receive_interfaces_removed()
-                    .await
-                    .expect("Failed to receive bluez interfaces removed signal");
-
-                loop {
-                    let devices = get_connected_devices(&conn, &bluez).await;
-                    let mut battery_signals = Vec::new();
-                    for (i, b) in devices.iter().enumerate().filter_map(|(i, (_, b))| {
-                        if let Some((_, b)) = b {
-                            Some((i, b))
-                        } else {
-                            None
-                        }
-                    }) {
-                        battery_signals
-                            .push(b.receive_percentage_changed().await.map(move |v| (i, v)))
+                    handle_adapter(&conn, &bluez, &adapter, &mut rx, &mut output).await;
+                } else {
+                    loop {
+                        rx.recv().await;
                     }
-
-                    let _ = output
-                        .send(BluetoothMessage::DeviceList(
-                            devices
-                                .into_iter()
-                                .map(|(n, b)| Device {
-                                    name: n.to_owned(),
-                                    battery: b.as_ref().map(|(v, _)| *v),
-                                })
-                                .collect::<Vec<_>>(),
-                        ))
-                        .await;
-
-                    if battery_signals.is_empty() {
-                        futures::select! {
-                            v = rx.recv().fuse() => {
-                                if let Some(v) = v {
-                                    match v {
-                                        BluetoothCommand::TogglePower => {
-                                            let current_state = adapter
-                                                .powered()
-                                                .await
-                                                .expect(
-                                                    "Failed to get adapter powered state"
-                                                );
-                                            adapter
-                                                .set_powered(!current_state)
-                                                .await
-                                                .expect(
-                                                    "Failed to set adapter powered state"
-                                                );
-                                            let _ = output
-                                                .send(
-                                                    BluetoothMessage::Status(
-                                                        if !current_state {
-                                                            BluetoothState::Inactive
-                                                        } else {
-                                                            BluetoothState::Active
-                                                        }
-                                                    )
-                                                )
-                                                .await;
-                                        },
-                                    }
-                                }
-                            },
-                            v = powered_signal.next().fuse() => {
-                                if let Some(v) = v {
-                                    if let Ok(value) = v.get().await {
-                                        let _ = output.send(
-                                            BluetoothMessage::Status(if value {
-                                                BluetoothState::Active
-                                            } else {
-                                                BluetoothState::Inactive
-                                            })
-                                        ).await;
-                                    }
-                                }
-                            },
-                            _ = added_signal.next().fuse() => {
-                            },
-                            _ = removed_signal.next().fuse() => {
-                            },
-                        }
-                    } else {
-                        let mut battery_signals = select_all(battery_signals);
-
-                        futures::select! {
-                            v = rx.recv().fuse() => {
-                                if let Some(v) = v {
-                                    match v {
-                                        BluetoothCommand::TogglePower => {
-                                            let current_state = adapter
-                                                .powered()
-                                                .await
-                                                .expect(
-                                                    "Failed to get adapter powered state"
-                                                );
-                                            adapter
-                                                .set_powered(!current_state)
-                                                .await
-                                                .expect(
-                                                    "Failed to set adapter powered state"
-                                                );
-                                            let _ = output
-                                                .send(
-                                                    BluetoothMessage::Status(
-                                                        if !current_state {
-                                                            BluetoothState::Inactive
-                                                        } else {
-                                                            BluetoothState::Active
-                                                        }
-                                                    )
-                                                )
-                                                .await;
-                                        },
-                                    }
-                                }
-                            },
-                            v = powered_signal.next().fuse() => {
-                                if let Some(v) = v {
-                                    if let Ok(value) = v.get().await {
-                                        let _ = output.send(
-                                            BluetoothMessage::Status(if value {
-                                                BluetoothState::Active
-                                            } else {
-                                                BluetoothState::Inactive
-                                            })
-                                        ).await;
-                                    }
-                                }
-                            },
-                            _ = added_signal.next().fuse() => {
-                            },
-                            _ = removed_signal.next().fuse() => {
-                            },
-                            _ = battery_signals.next().fuse() => {
-                            }
-                        }
-                    };
-                }
-            } else {
-                loop {
-                    rx.recv().await;
                 }
             }
         },
