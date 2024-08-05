@@ -19,7 +19,6 @@ inotify = "0.10"
 log = { version = "0.4", features=["serde"] }
 flexi_logger = "0.28"
 serde_yaml = "0.9"
-nix = { version = "0.26.4", features = ["fs"] }
 pipewire = "0.8.0"
 wayland-client = "0.31.3"
 wayland-protocols = { version = "0.32.1", features = ["client", "unstable"] }
