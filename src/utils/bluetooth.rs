@@ -8,7 +8,7 @@ use iced::{
     },
     subscription, Subscription,
 };
-use log::warn;
+use log::{debug, warn};
 use std::collections::HashMap;
 use zbus::{
     proxy,
@@ -138,21 +138,25 @@ pub enum BluetoothCommand {
 
 async fn handle_bluetooth_command<'a>(
     command: BluetoothCommand,
-    adapter: &AdapterProxy<'a>
+    adapter: &AdapterProxy<'a>,
 ) -> Result<BluetoothMessage, ()> {
     match command {
         BluetoothCommand::TogglePower => {
             if let Ok(current_state) = adapter.powered().await {
-                if adapter.set_powered(!current_state).await.is_ok() {
-                    Ok(BluetoothMessage::Status(if !current_state {
-                        BluetoothState::Inactive
-                    } else {
-                        BluetoothState::Active
-                    }))
-                } else {
-                    warn!("Failed to set adapter powered state");
-                    Err(())
-                }
+                debug!("Current adapter powered state: {}", current_state);
+                adapter
+                    .set_powered(!current_state)
+                    .await
+                    .map_err(|e| {
+                        warn!("Failed to set adapter powered state: {:?}", e);
+                    })
+                    .map(|_| {
+                        BluetoothMessage::Status(if !current_state {
+                            BluetoothState::Inactive
+                        } else {
+                            BluetoothState::Active
+                        })
+                    })
             } else {
                 warn!("Failed to get adapter powered state");
                 Err(())
@@ -217,13 +221,12 @@ async fn handle_adapter<'a>(
             ))
             .await;
 
-        let mut battery_signals: Box<
-            dyn Stream<Item = _> + Unpin + Send,
-        > = if battery_signals.is_empty() {
-            Box::new(stream::pending())
-        } else {
-            Box::new(select_all(battery_signals))
-        };
+        let mut battery_signals: Box<dyn Stream<Item = _> + Unpin + Send> =
+            if battery_signals.is_empty() {
+                Box::new(stream::pending())
+            } else {
+                Box::new(select_all(battery_signals))
+            };
 
         futures::select! {
             v = rx.recv().fuse() => {
@@ -271,11 +274,12 @@ pub fn subscription(
                 .await
                 .expect("Failed to connect to system bus");
 
-            let bluez = BluezObjectManagerProxy::new(&conn)
-                .await
-                .expect("Failed to create bluez obj manager proxy");
-
             loop {
+                println!("Getting adapter");
+                let bluez = BluezObjectManagerProxy::new(&conn)
+                    .await
+                    .expect("Failed to create bluez obj manager proxy");
+
                 let adapter_path = get_adapter(&bluez).await;
 
                 if let Some(adapter_path) = adapter_path {
