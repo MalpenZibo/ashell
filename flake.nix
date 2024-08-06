@@ -22,6 +22,18 @@
           pkgs = import nixpkgs {
             inherit system overlays;
           };
+          manifest = (pkgs.lib.importTOML ./Cargo.toml).package;
+          buildInputs = [
+            rust-bin.stable.latest.default
+            rustPlatform.bindgenHook
+            pkg-config
+            libxkbcommon
+            libGL
+            pipewire
+            libpulseaudio
+            wayland
+            vulkan-loader
+          ];
           libPath = with pkgs; lib.makeLibraryPath [
             libpulseaudio
             wayland
@@ -29,19 +41,23 @@
             vulkan-loader
             libGL
           ];
-
         in
         with pkgs;
         {
           # `nix build`
-          defaultPackage = naersk-lib.buildPackage {
-            pname = "ashell";
+          defaultPackage = rustPlatform.buildRustPackage rec {
+            pname = manifest.name;
+            version = manifest.version;
+            cargoLock.lockFile = ./Cargo.lock;
+
             src = ./.;
-            doCheck = true;
+
+            cargoHash = lib.fakeHash;
+
             nativeBuildInputs = [ pkgs.makeWrapper ];
-            # buildInputs = with pkgs; [
-            #   xorg.libxcb
-            # ];
+
+            buildInputs = buildInputs;
+
             postInstall = ''
               wrapProgram "$out/bin/ashell" --prefix LD_LIBRARY_PATH : "${libPath}"
             '';
@@ -54,17 +70,7 @@
 
           # `nix develop`
           devShells.default = mkShell {
-            buildInputs = [
-              rust-bin.stable.latest.default
-              rustPlatform.bindgenHook
-              pkg-config
-              libxkbcommon
-              libGL
-              pipewire
-              libpulseaudio
-              wayland
-              vulkan-loader
-            ];
+            buildInputs = buildInputs;
 
             LD_LIBRARY_PATH = libPath;
           };

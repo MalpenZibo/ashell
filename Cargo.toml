@@ -1,5 +1,7 @@
 [package]
 name = "ashell"
+description = "Barely customizable Wayland status bar for Hyprland compositor."
+homepage = "https://github.com/MalpenZibo/ashell"
 version = "0.1.0"
 edition = "2021"
 
