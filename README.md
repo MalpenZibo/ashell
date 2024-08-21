@@ -4,6 +4,8 @@ Barely customizable Wayland status bar for Hyprland compositor.
 
 WIP, highly unstable
 
+> If you have an issue with the transparency you could try launching ashell with WGPU_BACKEND=gl. This env var forces wgpu to use OpenGL instead of Vulkan. It seems that wgpu has some issues with AMD GPU and Vulkan transparency.
+
 ### Does it only work on Hyprland?
 While it's currently tailored for Hyprland, it could work with other compositors. 
 
