@@ -1,10 +1,11 @@
-use hyprland::{data::Client, event_listener::EventListener, shared::HyprDataActiveOptional};
+use hyprland::{data::Client, event_listener::AsyncEventListener, shared::HyprDataActiveOptional};
 use iced::{
     subscription,
     widget::{container, text},
     Element, Subscription,
 };
-use std::cell::RefCell;
+use log::{debug, error};
+use std::sync::{Arc, RwLock};
 
 use crate::style::header_pills;
 
@@ -19,9 +20,7 @@ pub enum Message {
 
 impl Title {
     pub fn new() -> Self {
-        let init = Client::get_active()
-            .ok()
-            .and_then(|w| w.map(|w| w.initial_title));
+        let init = Client::get_active().ok().and_then(|w| w.map(|w| w.title));
 
         Self { value: init }
     }
@@ -58,33 +57,48 @@ impl Title {
 
     pub fn subscription(&self) -> Subscription<Message> {
         subscription::channel("title-listener", 10, |output| async move {
-            let output = RefCell::new(output);
-            let mut event_listener = EventListener::new();
+            let output = Arc::new(RwLock::new(output));
+            loop {
+                let mut event_listener = AsyncEventListener::new();
 
-            event_listener.add_active_window_change_handler({
-                let output = output.clone();
-                move |e| {
-                    let mut output = output.borrow_mut();
-                    output
-                        .try_send(Message::TitleChanged(e.map(|e| e.window_title)))
-                        .unwrap();
+                event_listener.add_active_window_changed_handler({
+                    let output = output.clone();
+                    move |e| {
+                        let output = output.clone();
+                        Box::pin(async move {
+                            debug!("Active window changed: {:?}", e);
+                            if let Ok(mut output) = output.write() {
+                                debug!("Sending title changed message");
+                                output
+                                    .try_send(Message::TitleChanged(e.map(|e| e.title)))
+                                    .unwrap();
+                            }
+                        })
+                    }
+                });
+
+                event_listener.add_window_closed_handler({
+                    let output = output.clone();
+                    move |_| {
+                        let output = output.clone();
+                        Box::pin(async move {
+                            debug!("Window closed");
+                            if let Ok(mut output) = output.write() {
+                                debug!("Sending title changed message");
+                                output.try_send(Message::TitleChanged(None)).unwrap();
+                            }
+                        })
+                    }
+                });
+
+                debug!("Starting title listener");
+
+                let res = event_listener.start_listener_async().await;
+
+                if let Err(e) = res {
+                    error!("restarting active window listener due to error: {:?}", e);
                 }
-            });
-
-            event_listener.add_window_close_handler({
-                let output = output.clone();
-                move |_| {
-                    let mut output = output.borrow_mut();
-                    output.try_send(Message::TitleChanged(None)).unwrap();
-                }
-            });
-
-            event_listener
-                .start_listener_async()
-                .await
-                .expect("failed to start active window listener");
-
-            panic!("Exiting hyprland event listener");
+            }
         })
     }
 }
