@@ -82,10 +82,19 @@ impl Workspaces {
                 self.workspaces = workspaces;
             }
             Message::ChangeWorkspace(id) => {
-                hyprland::dispatch::Dispatch::call(hyprland::dispatch::DispatchType::Workspace(
-                    hyprland::dispatch::WorkspaceIdentifierWithSpecial::Id(id),
-                ))
-                .expect("failed to dispatch workspace change");
+                let active_workspace = self.workspaces.iter().find(|w| w.active);
+
+                if active_workspace.is_none() || active_workspace.map(|w| w.id) != Some(id) {
+                    let res = hyprland::dispatch::Dispatch::call(
+                        hyprland::dispatch::DispatchType::Workspace(
+                            hyprland::dispatch::WorkspaceIdentifierWithSpecial::Id(id),
+                        ),
+                    );
+
+                    if let Err(e) = res {
+                        error!("failed to dispatch workspace change: {:?}", e);
+                    }
+                }
             }
         }
     }
@@ -98,48 +107,52 @@ impl Workspaces {
                     .map(|w| {
                         let empty = w.windows == 0;
                         let monitor = w.monitor;
-                        mouse_area(
-                            container(text(w.id).size(10))
-                                .style({
-                                    let workspace_colors = workspace_colors.to_vec();
-                                    move |theme: &Theme| {
-                                        let fg_color = if empty {
-                                            theme.palette().text
+                        let container = container(text(w.id).size(10))
+                            .style({
+                                let workspace_colors = workspace_colors.to_vec();
+                                move |theme: &Theme| {
+                                    let fg_color = if empty {
+                                        theme.palette().text
+                                    } else {
+                                        theme.palette().background
+                                    };
+                                    let bg_color = monitor.map_or(
+                                        theme.extended_palette().background.weak.color,
+                                        |m| {
+                                            workspace_colors
+                                                .get(m)
+                                                .map(|c| Color::from_rgb8(c.r, c.g, c.b))
+                                                .unwrap_or(theme.palette().primary)
+                                        },
+                                    );
+                                    container::Appearance {
+                                        background: Some(Background::Color(if empty {
+                                            theme.extended_palette().background.weak.color
                                         } else {
-                                            theme.palette().background
-                                        };
-                                        let bg_color = monitor.map_or(
-                                            theme.extended_palette().background.weak.color,
-                                            |m| {
-                                                workspace_colors
-                                                    .get(m)
-                                                    .map(|c| Color::from_rgb8(c.r, c.g, c.b))
-                                                    .unwrap_or(theme.palette().primary)
-                                            },
-                                        );
-                                        container::Appearance {
-                                            background: Some(Background::Color(if empty {
-                                                theme.extended_palette().background.weak.color
-                                            } else {
-                                                bg_color
-                                            })),
-                                            border: Border {
-                                                width: if empty { 1.0 } else { 0.0 },
-                                                color: bg_color,
-                                                radius: 16.0.into(),
-                                            },
-                                            text_color: Some(fg_color),
-                                            ..container::Appearance::default()
-                                        }
+                                            bg_color
+                                        })),
+                                        border: Border {
+                                            width: if empty { 1.0 } else { 0.0 },
+                                            color: bg_color,
+                                            radius: 16.0.into(),
+                                        },
+                                        text_color: Some(fg_color),
+                                        ..container::Appearance::default()
                                     }
-                                })
-                                .align_x(alignment::Horizontal::Center)
-                                .align_y(alignment::Vertical::Center)
-                                .width(if w.active { 32 } else { 16 })
-                                .height(16),
-                        )
-                        .on_release(Message::ChangeWorkspace(w.id))
-                        .into()
+                                }
+                            })
+                            .align_x(alignment::Horizontal::Center)
+                            .align_y(alignment::Vertical::Center)
+                            .width(if w.active { 32 } else { 16 })
+                            .height(16);
+
+                        if w.active {
+                            container.into()
+                        } else {
+                            mouse_area(container)
+                                .on_release(Message::ChangeWorkspace(w.id))
+                                .into()
+                        }
                     })
                     .collect::<Vec<Element<'_, _, _>>>(),
             )
