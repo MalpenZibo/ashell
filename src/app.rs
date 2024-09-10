@@ -1,9 +1,14 @@
 use crate::{
-    // centerbox,
-    centerbox, config::{self, Config}, get_log_spec, menu::{menu_wrapper, Menu, MenuType}, modules::{
+    centerbox,
+    config::{self, Config},
+    get_log_spec,
+    menu::{menu_wrapper, Menu, MenuType},
+    modules::{
         clock::Clock, launcher, privacy::Privacy, settings::Settings, system_info::SystemInfo,
         title::Title, updates::Updates, workspaces::Workspaces,
-    }, style::ashell_theme, HEIGHT
+    },
+    style::ashell_theme,
+    HEIGHT,
 };
 use flexi_logger::LoggerHandle;
 use iced::{
@@ -153,6 +158,7 @@ impl Application for App {
                         MenuType::Privacy => crate::menu::MenuPosition::Right,
                         MenuType::Settings => crate::menu::MenuPosition::Right,
                     },
+                    self.config.position
                 )
             } else {
                 row!().into()

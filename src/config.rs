@@ -248,11 +248,20 @@ impl Default for Appearance {
     }
 }
 
+#[derive(Deserialize, Clone, Copy, Debug, Default)]
+pub enum Position {
+    #[default]
+    Top,
+    Bottom,
+}
+
 #[derive(Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Config {
     #[serde(default = "default_log_level")]
     pub log_level: log::LevelFilter,
+    #[serde(default)]
+    pub position: Position,
     pub app_launcher_cmd: Option<String>,
     #[serde(default = "default_truncate_title_after_length")]
     pub truncate_title_after_length: u32,
@@ -295,6 +304,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             log_level: default_log_level(),
+            position: Position::Top,
             app_launcher_cmd: None,
             truncate_title_after_length: default_truncate_title_after_length(),
             updates: None,
