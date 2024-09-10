@@ -1,8 +1,6 @@
 # Ashell
 
-Barely customizable Wayland status bar for Hyprland compositor. 
-
-WIP, highly unstable
+A ready to go Wayland status bar for Hyprland
 
 > If you have an issue with the transparency you could try launching ashell with WGPU_BACKEND=gl. This env var forces wgpu to use OpenGL instead of Vulkan. It seems that wgpu has some issues with AMD GPU and Vulkan transparency.
 
@@ -12,6 +10,18 @@ While it's currently tailored for Hyprland, it could work with other compositors
 However, it currently relies on [hyprland-rs](https://github.com/hyprland-community/hyprland-rs) 
 to gather information about the active window and workspaces. I haven't implemented any 
 feature flags to disable these functionalities or alternative methods to obtain this data.
+
+## Install
+
+[![Packaging status](https://repology.org/badge/vertical-allrepos/ashell.svg)](https://repology.org/project/ashell/versions)
+
+### Arch Linux
+
+You can get the official Arch Linux package from the AUR:
+
+```
+paru/yay -S ashell-git # to get the latest source version
+```
 
 ## Features
 
