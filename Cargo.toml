@@ -9,7 +9,7 @@ edition = "2021"
 iced = { version = "0.12.1", features = ["tokio", "multi-window", "advanced", "wgpu"] }
 iced_sctk = { git = "https://github.com/MalpenZibo/iced_sctk", features = ["no-hand-cursor"] } 
 chrono = "0.4"
-hyprland = { git = "https://github.com/MalpenZibo/hyprland-rs", branch="master" }
+hyprland = { git = "https://github.com/hyprland-community/hyprland-rs", branch="add-events" }
 serde = "1.0"
 serde_json = "1.0"
 sysinfo = "0.30"
