@@ -1,5 +1,5 @@
 use app::App;
-use config::read_config;
+use config::{read_config, Position};
 use flexi_logger::{
     Age, Cleanup, Criterion, FileSpec, LogSpecBuilder, LogSpecification, Logger, Naming,
 };
@@ -73,7 +73,12 @@ async fn main() {
             namespace: "ashell".into(),
             layer: Layer::Top,
             size: Some((None, Some(HEIGHT))),
-            anchor: Anchor::TOP.union(Anchor::LEFT).union(Anchor::RIGHT),
+            anchor: match config.position {
+                Position::Top => Anchor::TOP,
+                Position::Bottom => Anchor::BOTTOM,
+            }
+            .union(Anchor::LEFT)
+            .union(Anchor::RIGHT),
             exclusive_zone: HEIGHT as i32,
             ..Default::default()
         }),

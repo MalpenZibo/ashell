@@ -6,6 +6,8 @@ use iced_sctk::commands::layer_surface::{
 };
 use iced::{self, widget::container, Command, Element, Theme};
 
+use crate::config::Position;
+
 fn open_menu<Message: 'static>() -> (Id, Command<Message>) {
     let id = Id::unique();
 
@@ -164,6 +166,7 @@ pub enum MenuPosition {
 pub fn menu_wrapper(
     content: Element<crate::app::Message>,
     position: MenuPosition,
+    bar_position: Position
 ) -> Element<crate::app::Message> {
     iced::widget::mouse_area(
         container(
@@ -183,6 +186,10 @@ pub fn menu_wrapper(
             )
             .on_release(crate::app::Message::None),
         )
+        .align_y(match bar_position {
+            Position::Top => iced::alignment::Vertical::Top,
+            Position::Bottom => iced::alignment::Vertical::Bottom,
+        })
         .align_x(match position {
             MenuPosition::Left => iced::alignment::Horizontal::Left,
             MenuPosition::Right => iced::alignment::Horizontal::Right,
