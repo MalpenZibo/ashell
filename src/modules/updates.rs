@@ -1,11 +1,15 @@
 use crate::{
     components::icons::{icon, Icons},
-    config::UpdatesModuleConfig,
+    config::{Orientation, UpdatesModuleConfig},
     menu::{Menu, MenuType},
     style::{GhostButtonStyle, HeaderButtonStyle},
 };
 use iced::{
-    alignment::Horizontal, subscription, theme::{self, Button}, widget::{button, column, container, horizontal_rule, row, scrollable, text, Column}, Alignment, Command, Element, Length, Subscription
+    alignment::Horizontal,
+    subscription,
+    theme::{self, Button},
+    widget::{button, column, container, horizontal_rule, row, scrollable, text, Column, Row},
+    Alignment, Command, Element, Length, Subscription,
 };
 use log::error;
 use serde::Deserialize;
@@ -153,18 +157,29 @@ impl Updates {
         }
     }
 
-    pub fn view(&self) -> Element<Message> {
-        let mut content = row!(container(icon(match self.state {
-            State::Checking => Icons::Refresh,
-            State::Ready if self.updates.is_empty() => Icons::NoUpdatesAvailable,
-            _ => Icons::UpdatesAvailable,
-        })))
-        .align_items(Alignment::Center)
-        .spacing(4);
+    pub fn view(&self, orientation: Orientation) -> Element<Message> {
+        let icon = Some(
+            icon(match self.state {
+                State::Checking => Icons::Refresh,
+                State::Ready if self.updates.is_empty() => Icons::NoUpdatesAvailable,
+                _ => Icons::UpdatesAvailable,
+            })
+            .into(),
+        );
 
-        if !self.updates.is_empty() {
-            content = content.push(text(self.updates.len()));
-        }
+        let label = (!self.updates.is_empty()).then(|| text(self.updates.len()).into());
+
+        let content = vec![icon, label].into_iter().flatten().collect::<Vec<_>>();
+        let content: Element<Message> = match orientation {
+            Orientation::Horizontal => Row::with_children(content)
+                .align_items(Alignment::Center)
+                .spacing(4)
+                .into(),
+            Orientation::Vertical => Column::with_children(content)
+                .align_items(Alignment::Center)
+                .spacing(4)
+                .into(),
+        };
 
         button(content)
             .padding([2, 7])

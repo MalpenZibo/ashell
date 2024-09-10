@@ -1,15 +1,19 @@
 use crate::{
-    // centerbox,
-    centerbox, config::{self, Config}, get_log_spec, menu::{menu_wrapper, Menu, MenuType}, modules::{
+    centerbox,
+    config::{self, Config, Orientation},
+    get_log_spec,
+    menu::{menu_wrapper, Menu, MenuType},
+    modules::{
         clock::Clock, launcher, privacy::Privacy, settings::Settings, system_info::SystemInfo,
         title::Title, updates::Updates, workspaces::Workspaces,
-    }, style::ashell_theme, HEIGHT
+    },
+    style::ashell_theme,
 };
 use flexi_logger::LoggerHandle;
 use iced::{
     application::Appearance,
     executor, theme,
-    widget::{row, Row},
+    widget::{column, row, Column, Row},
     window::Id,
     Alignment, Color, Command, Element, Length, Subscription, Theme,
 };
@@ -149,38 +153,48 @@ impl Application for App {
                             .map(Message::Settings),
                     },
                     match menu_type {
-                        MenuType::Updates => crate::menu::MenuPosition::Left,
-                        MenuType::Privacy => crate::menu::MenuPosition::Right,
-                        MenuType::Settings => crate::menu::MenuPosition::Right,
+                        MenuType::Updates => crate::menu::MenuPosition::Start,
+                        MenuType::Privacy => crate::menu::MenuPosition::End,
+                        MenuType::Settings => crate::menu::MenuPosition::End,
                     },
+                    self.config.orientation,
                 )
             } else {
                 row!().into()
             }
         } else {
-            let left = Row::with_children(
-                vec![
-                    self.config
-                        .app_launcher_cmd
-                        .as_ref()
-                        .map(|_| launcher::launcher()),
-                    self.config
-                        .updates
-                        .as_ref()
-                        .map(|_| self.updates.view().map(Message::Updates)),
-                    Some(
-                        self.workspaces
-                            .view(&self.config.appearance.workspace_colors)
-                            .map(Message::Workspaces),
-                    ),
-                ]
-                .into_iter()
-                .flatten()
-                .collect::<Vec<_>>(),
-            )
-            .height(Length::Shrink)
-            .align_items(Alignment::Center)
-            .spacing(4);
+            let start_content = vec![
+                self.config
+                    .app_launcher_cmd
+                    .as_ref()
+                    .map(|_| launcher::launcher()),
+                self.config.updates.as_ref().map(|_| {
+                    self.updates
+                        .view(self.config.orientation)
+                        .map(Message::Updates)
+                }),
+                Some(
+                    self.workspaces
+                        .view(&self.config.appearance.workspace_colors)
+                        .map(Message::Workspaces),
+                ),
+            ]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+
+            let start: Element<Message> = match self.config.orientation {
+                Orientation::Horizontal => Row::with_children(start_content)
+                    .height(Length::Shrink)
+                    .align_items(Alignment::Center)
+                    .spacing(4)
+                    .into(),
+                Orientation::Vertical => Column::with_children(start_content)
+                    .height(Length::Shrink)
+                    .align_items(Alignment::Center)
+                    .spacing(4)
+                    .into(),
+            };
 
             let mut center = row!().spacing(4);
             if let Some(title) = self.window_title.view() {
@@ -220,13 +234,28 @@ impl Application for App {
             )
             .spacing(4);
 
-            centerbox::Centerbox::new([left.into(), center.into(), right.into()])
+            match self.config.orientation {
+                Orientation::Horizontal => {
+                    centerbox::Centerbox::new([start, center.into(), right.into()])
+                        .spacing(4)
+                        .padding([0, 4])
+                        .width(Length::Fill)
+                        .height(Length::Fixed(self.config.size as f32))
+                        .align_items(Alignment::Center)
+                        .into()
+                }
+                Orientation::Vertical => column! {
+                    start,
+                    center,
+                    right
+                }
                 .spacing(4)
                 .padding([0, 4])
-                .width(Length::Fill)
-                .height(Length::Fixed(HEIGHT as f32))
+                .height(Length::Fill)
+                .width(Length::Fixed(self.config.size as f32))
                 .align_items(Alignment::Center)
-                .into()
+                .into(),
+            }
         }
     }
 

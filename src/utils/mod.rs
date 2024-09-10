@@ -1,5 +1,9 @@
 use std::{cell::RefCell, ops::Deref, time::Duration};
 
+use iced_sctk::commands::layer_surface::Anchor;
+
+use crate::config::Orientation;
+
 pub mod audio;
 pub mod battery;
 pub mod brightness;
@@ -51,5 +55,12 @@ pub fn format_duration(duration: &Duration) -> String {
         format!("{}h {:>2}m", h, m)
     } else {
         format!("{:>2}m", m)
+    }
+}
+
+pub fn get_anchor(orientation: Orientation) -> Anchor {
+    match orientation {
+        Orientation::Horizontal => Anchor::TOP.union(Anchor::LEFT).union(Anchor::RIGHT),
+        Orientation::Vertical => Anchor::LEFT.union(Anchor::TOP).union(Anchor::BOTTOM),
     }
 }

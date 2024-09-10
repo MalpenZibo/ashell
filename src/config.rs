@@ -248,11 +248,22 @@ impl Default for Appearance {
     }
 }
 
+#[derive(Deserialize, Copy, Clone, Debug, Default)]
+pub enum Orientation {
+    #[default]
+    Horizontal,
+    Vertical,
+}
+
 #[derive(Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Config {
     #[serde(default = "default_log_level")]
     pub log_level: log::LevelFilter,
+    #[serde(default)]
+    pub orientation: Orientation,
+    #[serde(default = "default_size")]
+    pub size: u32,
     pub app_launcher_cmd: Option<String>,
     #[serde(default = "default_truncate_title_after_length")]
     pub truncate_title_after_length: u32,
@@ -287,6 +298,10 @@ fn default_log_level() -> log::LevelFilter {
     log::LevelFilter::Warn
 }
 
+fn default_size() -> u32 {
+    34
+}
+
 fn default_truncate_title_after_length() -> u32 {
     150
 }
@@ -295,6 +310,8 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             log_level: default_log_level(),
+            orientation: Orientation::Horizontal,
+            size: default_size(),
             app_launcher_cmd: None,
             truncate_title_after_length: default_truncate_title_after_length(),
             updates: None,

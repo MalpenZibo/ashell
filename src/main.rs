@@ -1,5 +1,5 @@
 use app::App;
-use config::read_config;
+use config::{read_config, Orientation};
 use flexi_logger::{
     Age, Cleanup, Criterion, FileSpec, LogSpecBuilder, LogSpecification, Logger, Naming,
 };
@@ -11,6 +11,7 @@ use iced_sctk::{
     settings::InitialSurface,
 };
 use log::{error, LevelFilter};
+use utils::get_anchor;
 use std::panic;
 
 mod app;
@@ -22,8 +23,6 @@ mod modules;
 mod password_dialog;
 mod style;
 mod utils;
-
-const HEIGHT: u32 = 34;
 
 fn get_log_spec(log_level: LevelFilter) -> LogSpecification {
     LogSpecBuilder::new()
@@ -72,9 +71,12 @@ async fn main() {
             keyboard_interactivity: KeyboardInteractivity::None,
             namespace: "ashell".into(),
             layer: Layer::Top,
-            size: Some((None, Some(HEIGHT))),
-            anchor: Anchor::TOP.union(Anchor::LEFT).union(Anchor::RIGHT),
-            exclusive_zone: HEIGHT as i32,
+            size: match config.orientation {
+                Orientation::Horizontal => Some((None, Some(config.size))),
+                Orientation::Vertical => Some((Some(config.size), None)),
+            },
+            anchor: get_anchor(config.orientation),
+            exclusive_zone: config.size as i32,
             ..Default::default()
         }),
         flags: (logger, config),
