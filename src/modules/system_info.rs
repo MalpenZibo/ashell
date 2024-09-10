@@ -1,12 +1,12 @@
 use crate::{
     components::icons::{icon, Icons},
-    config::SystemModuleConfig,
+    config::{Orientation, SystemModuleConfig},
     style::header_pills,
 };
 use iced::{
     alignment::Vertical,
     time,
-    widget::{container, row, text},
+    widget::{container, row, text, Column, Row},
     Alignment, Element, Subscription, Theme,
 };
 use std::time::Duration;
@@ -75,7 +75,11 @@ impl SystemInfo {
         }
     }
 
-    pub fn view(&self, config: &SystemModuleConfig) -> Option<Element<Message>> {
+    pub fn view(
+        &self,
+        config: &SystemModuleConfig,
+        orientation: Orientation,
+    ) -> Option<Element<Message>> {
         if config.disabled {
             None
         } else {
@@ -91,68 +95,101 @@ impl SystemInfo {
 
             let temp_warn_threshold = config.temp_warn_threshold;
             let temp_alert_threshold = config.temp_alert_threshold;
-            Some(
-                container(
-                    row!(
-                        container(
-                            row!(icon(Icons::Cpu), text(format!("{}%", cpu_usage))).spacing(4)
-                        )
-                        .style(move |theme: &Theme| {
-                            container::Appearance {
-                                text_color: if cpu_usage > cpu_warn_threshold
-                                    && cpu_usage < cpu_alert_threshold
-                                {
-                                    Some(theme.extended_palette().danger.weak.color)
-                                } else if cpu_usage >= cpu_alert_threshold {
-                                    Some(theme.palette().danger)
-                                } else {
-                                    None
-                                },
-                                ..Default::default()
-                            }
-                        }),
-                        container(
-                            row!(icon(Icons::Mem), text(format!("{}%", memory_usage))).spacing(4)
-                        )
-                        .style(move |theme: &Theme| {
-                            container::Appearance {
-                                text_color: if memory_usage > mem_warn_threshold
-                                    && memory_usage < mem_alert_threshold
-                                {
-                                    Some(theme.extended_palette().danger.weak.color)
-                                } else if memory_usage >= mem_alert_threshold {
-                                    Some(theme.palette().danger)
-                                } else {
-                                    None
-                                },
-                                ..Default::default()
-                            }
-                        }),
-                        container(
-                            row!(icon(Icons::Temp), text(format!("{}°", temperature))).spacing(4)
-                        )
-                        .style(move |theme: &Theme| {
-                            container::Appearance {
-                                text_color: if temperature > temp_warn_threshold
-                                    && temperature < temp_alert_threshold
-                                {
-                                    Some(theme.extended_palette().danger.weak.color)
-                                } else if temperature >= temp_alert_threshold {
-                                    Some(theme.palette().danger)
-                                } else {
-                                    None
-                                },
-                                ..Default::default()
-                            }
-                        })
-                    )
+
+            let cpu = vec![
+                icon(Icons::Cpu).into(),
+                text(format!("{}%", cpu_usage)).into(),
+            ];
+            let mem = vec![
+                icon(Icons::Mem).into(),
+                text(format!("{}%", memory_usage)).into(),
+            ];
+            let temp = vec![
+                icon(Icons::Temp).into(),
+                text(format!("{}°", temperature)).into(),
+            ];
+
+            let cpu_content: Element<Message> = match orientation {
+                Orientation::Horizontal => Row::with_children(cpu).spacing(4).into(),
+                Orientation::Vertical => Column::with_children(cpu)
                     .align_items(Alignment::Center)
-                    .spacing(4),
-                )
-                .align_y(Vertical::Center)
-                .padding([2, 7])
-                .style(header_pills)
-                .into(),
+                    .spacing(4)
+                    .into(),
+            };
+            let mem_content: Element<Message> = match orientation {
+                Orientation::Horizontal => Row::with_children(mem).spacing(4).into(),
+                Orientation::Vertical => Column::with_children(mem)
+                    .align_items(Alignment::Center)
+                    .spacing(4)
+                    .into(),
+            };
+            let temp_content: Element<Message> = match orientation {
+                Orientation::Horizontal => Row::with_children(temp).spacing(4).into(),
+                Orientation::Vertical => Column::with_children(temp)
+                    .align_items(Alignment::Center)
+                    .spacing(4)
+                    .into(),
+            };
+
+            let content = vec![
+                container(cpu_content)
+                    .style(move |theme: &Theme| container::Appearance {
+                        text_color: if cpu_usage > cpu_warn_threshold
+                            && cpu_usage < cpu_alert_threshold
+                        {
+                            Some(theme.extended_palette().danger.weak.color)
+                        } else if cpu_usage >= cpu_alert_threshold {
+                            Some(theme.palette().danger)
+                        } else {
+                            None
+                        },
+                        ..Default::default()
+                    })
+                    .into(),
+                container(mem_content)
+                    .style(move |theme: &Theme| container::Appearance {
+                        text_color: if memory_usage > mem_warn_threshold
+                            && memory_usage < mem_alert_threshold
+                        {
+                            Some(theme.extended_palette().danger.weak.color)
+                        } else if memory_usage >= mem_alert_threshold {
+                            Some(theme.palette().danger)
+                        } else {
+                            None
+                        },
+                        ..Default::default()
+                    })
+                    .into(),
+                container(temp_content)
+                    .style(move |theme: &Theme| container::Appearance {
+                        text_color: if temperature > temp_warn_threshold
+                            && temperature < temp_alert_threshold
+                        {
+                            Some(theme.extended_palette().danger.weak.color)
+                        } else if temperature >= temp_alert_threshold {
+                            Some(theme.palette().danger)
+                        } else {
+                            None
+                        },
+                        ..Default::default()
+                    })
+                    .into(),
+            ];
+            let main_content: Element<Message> = match orientation {
+                Orientation::Horizontal => Row::with_children(content)
+                    .align_items(Alignment::Center)
+                    .into(),
+                Orientation::Vertical => Column::with_children(content)
+                    .align_items(Alignment::Center)
+                    .spacing(4)
+                    .into(),
+            };
+            Some(
+                container(main_content)
+                    .align_y(Vertical::Center)
+                    .padding([2, 7])
+                    .style(header_pills)
+                    .into(),
             )
         }
     }

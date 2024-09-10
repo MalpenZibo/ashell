@@ -1,4 +1,4 @@
-use crate::style::header_pills;
+use crate::{config::Orientation, style::header_pills};
 use hex_color::HexColor;
 use hyprland::{
     event_listener::AsyncEventListener,
@@ -6,7 +6,7 @@ use hyprland::{
 };
 use iced::{
     alignment, subscription,
-    widget::{container, mouse_area, text, Row},
+    widget::{container, mouse_area, text, Column, Row},
     Background, Border, Color, Element, Length, Subscription, Theme,
 };
 use log::error;
@@ -99,70 +99,88 @@ impl Workspaces {
         }
     }
 
-    pub fn view(&self, workspace_colors: &[HexColor]) -> Element<Message> {
-        container(
-            Row::with_children(
-                self.workspaces
-                    .iter()
-                    .map(|w| {
-                        let empty = w.windows == 0;
-                        let monitor = w.monitor;
-                        let container = container(text(w.id).size(10))
-                            .style({
-                                let workspace_colors = workspace_colors.to_vec();
-                                move |theme: &Theme| {
-                                    let fg_color = if empty {
-                                        theme.palette().text
-                                    } else {
-                                        theme.palette().background
-                                    };
-                                    let bg_color = monitor.map_or(
-                                        theme.extended_palette().background.weak.color,
-                                        |m| {
-                                            workspace_colors
-                                                .get(m)
-                                                .map(|c| Color::from_rgb8(c.r, c.g, c.b))
-                                                .unwrap_or(theme.palette().primary)
-                                        },
-                                    );
-                                    container::Appearance {
-                                        background: Some(Background::Color(if empty {
-                                            theme.extended_palette().background.weak.color
-                                        } else {
-                                            bg_color
-                                        })),
-                                        border: Border {
-                                            width: if empty { 1.0 } else { 0.0 },
-                                            color: bg_color,
-                                            radius: 16.0.into(),
-                                        },
-                                        text_color: Some(fg_color),
-                                        ..container::Appearance::default()
-                                    }
-                                }
-                            })
-                            .align_x(alignment::Horizontal::Center)
-                            .align_y(alignment::Vertical::Center)
-                            .width(if w.active { 32 } else { 16 })
-                            .height(16);
-
-                        if w.active {
-                            container.into()
-                        } else {
-                            mouse_area(container)
-                                .on_release(Message::ChangeWorkspace(w.id))
-                                .into()
+    pub fn view(
+        &self,
+        workspace_colors: &[HexColor],
+        orientation: Orientation,
+    ) -> Element<Message> {
+        let workspaces = self
+            .workspaces
+            .iter()
+            .map(|w| {
+                let empty = w.windows == 0;
+                let monitor = w.monitor;
+                let container = container(text(w.id).size(10))
+                    .style({
+                        let workspace_colors = workspace_colors.to_vec();
+                        move |theme: &Theme| {
+                            let fg_color = if empty {
+                                theme.palette().text
+                            } else {
+                                theme.palette().background
+                            };
+                            let bg_color = monitor.map_or(
+                                theme.extended_palette().background.weak.color,
+                                |m| {
+                                    workspace_colors
+                                        .get(m)
+                                        .map(|c| Color::from_rgb8(c.r, c.g, c.b))
+                                        .unwrap_or(theme.palette().primary)
+                                },
+                            );
+                            container::Appearance {
+                                background: Some(Background::Color(if empty {
+                                    theme.extended_palette().background.weak.color
+                                } else {
+                                    bg_color
+                                })),
+                                border: Border {
+                                    width: if empty { 1.0 } else { 0.0 },
+                                    color: bg_color,
+                                    radius: 16.0.into(),
+                                },
+                                text_color: Some(fg_color),
+                                ..container::Appearance::default()
+                            }
                         }
                     })
-                    .collect::<Vec<Element<'_, _, _>>>(),
-            )
-            .spacing(4),
-        )
-        .padding([4, 8])
-        .align_y(alignment::Vertical::Center)
-        .height(Length::Shrink)
-        .style(header_pills)
-        .into()
+                    .align_x(alignment::Horizontal::Center)
+                    .align_y(alignment::Vertical::Center);
+
+                let container: Element<Message> = match orientation {
+                    Orientation::Horizontal => {
+                        container.width(if w.active { 32 } else { 16 }).height(16)
+                    }
+                    Orientation::Vertical => {
+                        container.width(16).height(if w.active { 32 } else { 16 })
+                    }
+                }
+                .into();
+
+                if w.active {
+                    container
+                } else {
+                    mouse_area(container)
+                        .on_release(Message::ChangeWorkspace(w.id))
+                        .into()
+                }
+            })
+            .collect::<Vec<Element<'_, _, _>>>();
+
+        let content: Element<Message> = match orientation {
+            Orientation::Horizontal => Row::with_children(workspaces).spacing(4).into(),
+            Orientation::Vertical => Column::with_children(workspaces).spacing(4).into(),
+        };
+
+        container(content)
+            .padding(match orientation {
+                Orientation::Horizontal => [4, 8],
+                Orientation::Vertical => [8, 4],
+            })
+            .height(Length::Shrink)
+            .align_y(alignment::Vertical::Center)
+            .style(header_pills)
+            .into()
     }
 
     pub fn subscription(&self) -> Subscription<Message> {

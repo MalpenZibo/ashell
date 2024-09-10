@@ -175,14 +175,16 @@ impl Application for App {
                 }),
                 Some(
                     self.workspaces
-                        .view(&self.config.appearance.workspace_colors)
+                        .view(
+                            &self.config.appearance.workspace_colors,
+                            self.config.orientation,
+                        )
                         .map(Message::Workspaces),
                 ),
             ]
             .into_iter()
             .flatten()
             .collect::<Vec<_>>();
-
             let start: Element<Message> = match self.config.orientation {
                 Orientation::Horizontal => Row::with_children(start_content)
                     .height(Length::Shrink)
@@ -196,15 +198,27 @@ impl Application for App {
                     .into(),
             };
 
-            let mut center = row!().spacing(4);
-            if let Some(title) = self.window_title.view() {
-                center = center.push(title.map(Message::Title));
-            }
+            let center_content = vec![self.window_title.view().map(|c| c.map(Message::Title))]
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>();
+            let center: Element<Message> = match self.config.orientation {
+                Orientation::Horizontal => Row::with_children(center_content)
+                    .height(Length::Shrink)
+                    .align_items(Alignment::Center)
+                    .spacing(4)
+                    .into(),
+                Orientation::Vertical => Column::with_children(center_content)
+                    .height(Length::Shrink)
+                    .align_items(Alignment::Center)
+                    .spacing(4)
+                    .into(),
+            };
 
-            let right = Row::with_children(
+            let end_content = 
                 vec![
                     self.system_info
-                        .view(&self.config.system)
+                        .view(&self.config.system, self.config.orientation)
                         .map(|c| c.map(Message::SystemInfo)),
                     Some(
                         Row::with_children(
@@ -230,13 +244,23 @@ impl Application for App {
                 ]
                 .into_iter()
                 .flatten()
-                .collect::<Vec<_>>(),
-            )
-            .spacing(4);
+                .collect::<Vec<_>>();
+            let end: Element<Message> = match self.config.orientation {
+                Orientation::Horizontal => Row::with_children(end_content)
+                    .height(Length::Shrink)
+                    .align_items(Alignment::Center)
+                    .spacing(4)
+                    .into(),
+                Orientation::Vertical => Column::with_children(end_content)
+                    .height(Length::Shrink)
+                    .align_items(Alignment::Center)
+                    .spacing(4)
+                    .into(),
+            };
 
             match self.config.orientation {
                 Orientation::Horizontal => {
-                    centerbox::Centerbox::new([start, center.into(), right.into()])
+                    centerbox::Centerbox::new([start, center, end])
                         .spacing(4)
                         .padding([0, 4])
                         .width(Length::Fill)
@@ -247,7 +271,7 @@ impl Application for App {
                 Orientation::Vertical => column! {
                     start,
                     center,
-                    right
+                    end
                 }
                 .spacing(4)
                 .padding([0, 4])
