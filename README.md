@@ -48,6 +48,8 @@ The configuration uses the yaml file format and is named `~/.config/ashell.yml`
 ``` yaml
 # Ashell log level filter, possible values "DEBUG" | "INFO" | "WARNING" | "ERROR"
 logLevel: "INFO" # optional, default "INFO"
+# Ashell bar position, possible values Top | Bottom
+position: Top # optional, default Top
 # App lancher commanda, it will be used to open the launcher,
 # without a value the related button will not appear
 appLauncherCmd: "~/.config/rofi/launcher.sh" # optional, default None 
