@@ -103,7 +103,6 @@ pub struct SettingsModuleConfig {
     pub bluetooth_more_cmd: Option<String>,
 }
 
-
 #[derive(Deserialize, Clone, Debug)]
 #[serde(untagged)]
 #[serde(rename_all = "camelCase")]

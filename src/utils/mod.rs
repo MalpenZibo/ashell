@@ -2,13 +2,13 @@ use std::{cell::RefCell, ops::Deref, time::Duration};
 
 pub mod audio;
 pub mod battery;
+pub mod bluetooth;
 pub mod brightness;
+pub mod idle_inhibitor;
 pub mod launcher;
 pub mod net;
-pub mod bluetooth;
 pub mod powerprofiles;
 pub mod privacy;
-pub mod idle_inhibitor;
 
 pub struct Commander<T> {
     sender: tokio::sync::mpsc::UnboundedSender<T>,

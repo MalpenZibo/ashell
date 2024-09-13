@@ -1,8 +1,7 @@
 use crate::{components::icons::Icons, modules::settings::BatteryMessage};
 use iced::{
-    futures::{
-        self, stream, FutureExt, SinkExt, StreamExt
-    }, subscription, Subscription
+    futures::{self, stream, FutureExt, SinkExt, StreamExt},
+    subscription, Subscription,
 };
 use log::error;
 use std::time::Duration;

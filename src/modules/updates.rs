@@ -5,7 +5,11 @@ use crate::{
     style::{GhostButtonStyle, HeaderButtonStyle},
 };
 use iced::{
-    alignment::Horizontal, subscription, theme::{self, Button}, widget::{button, column, container, horizontal_rule, row, scrollable, text, Column}, Alignment, Command, Element, Length, Subscription
+    alignment::Horizontal,
+    subscription,
+    theme::{self, Button},
+    widget::{button, column, container, horizontal_rule, row, scrollable, text, Column},
+    Alignment, Command, Element, Length, Subscription,
 };
 use log::error;
 use serde::Deserialize;

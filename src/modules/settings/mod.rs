@@ -24,9 +24,12 @@ use crate::{
 use bluetooth::Bluetooth;
 use brightness::{Brightness, BrightnessMessage};
 use iced::{
-    alignment::{Horizontal, Vertical}, theme::Button, widget::{
+    alignment::{Horizontal, Vertical},
+    theme::Button,
+    widget::{
         button, column, container, horizontal_space, row, text, vertical_rule, Column, Row, Space,
-    }, Alignment, Background, Border, Command, Element, Length, Subscription, Theme
+    },
+    Alignment, Background, Border, Command, Element, Length, Subscription, Theme,
 };
 use net::Net;
 

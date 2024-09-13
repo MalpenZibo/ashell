@@ -1,10 +1,10 @@
 use iced::window::Id;
 use iced::Border;
+use iced::{self, widget::container, Command, Element, Theme};
 use iced_sctk::command::platform_specific::wayland::layer_surface::SctkLayerSurfaceSettings;
 use iced_sctk::commands::layer_surface::{
     self, get_layer_surface, Anchor, KeyboardInteractivity, Layer,
 };
-use iced::{self, widget::container, Command, Element, Theme};
 
 use crate::config::Position;
 
@@ -166,7 +166,7 @@ pub enum MenuPosition {
 pub fn menu_wrapper(
     content: Element<crate::app::Message>,
     position: MenuPosition,
-    bar_position: Position
+    bar_position: Position,
 ) -> Element<crate::app::Message> {
     iced::widget::mouse_area(
         container(
