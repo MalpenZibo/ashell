@@ -289,24 +289,6 @@ where
     ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
         overlay::from_children(&mut self.children, tree, layout, renderer, translation)
     }
-
-    #[cfg(feature = "a11y")]
-    /// get the a11y nodes for the widget
-    fn a11y_nodes(
-        &self,
-        layout: Layout<'_>,
-        state: &Tree,
-        cursor: mouse::Cursor,
-    ) -> iced_accessibility::A11yTree {
-        use iced_accessibility::A11yTree;
-        A11yTree::join(
-            self.children
-                .iter()
-                .zip(layout.children())
-                .zip(state.children.iter())
-                .map(|((c, c_layout), state)| c.as_widget().a11y_nodes(c_layout, state, cursor)),
-        )
-    }
 }
 
 impl<'a, Message, Theme, Renderer> From<Centerbox<'a, Message, Theme, Renderer>>
