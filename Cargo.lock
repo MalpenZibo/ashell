@@ -169,7 +169,6 @@ dependencies = [
  "inotify",
  "itertools 0.13.0",
  "libpulse-binding",
- "libpulse-tokio",
  "log",
  "pipewire",
  "serde",
@@ -2043,17 +2042,6 @@ dependencies = [
  "num-traits",
  "pkg-config",
  "winapi",
-]
-
-[[package]]
-name = "libpulse-tokio"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "25fdd1dcef143d476edde7cac2094a40cecdcd29a96ff0b1e8095f761c81a693"
-dependencies = [
- "libc",
- "libpulse-binding",
- "tokio",
 ]
 
 [[package]]
