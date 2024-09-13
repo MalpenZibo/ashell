@@ -158,7 +158,7 @@ impl Application for App {
                         MenuType::Privacy => crate::menu::MenuPosition::Right,
                         MenuType::Settings => crate::menu::MenuPosition::Right,
                     },
-                    self.config.position
+                    self.config.position,
                 )
             } else {
                 row!().into()

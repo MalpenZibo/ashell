@@ -6,7 +6,8 @@ use crate::{
     },
 };
 use iced::{
-    widget::{container, row, text, Container}, Alignment, Background, Border, Element, Theme
+    widget::{container, row, text, Container},
+    Alignment, Background, Border, Element, Theme,
 };
 
 pub fn battery_indicator<'a, Message: 'static>(data: BatteryData) -> Element<'a, Message> {

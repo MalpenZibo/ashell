@@ -1,5 +1,5 @@
-use std::error::Error;
 use log::{debug, info, warn};
+use std::error::Error;
 use wayland_client::{
     protocol::{
         wl_compositor::WlCompositor,
