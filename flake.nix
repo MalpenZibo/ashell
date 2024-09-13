@@ -1,5 +1,5 @@
 {
-  description = "Barely customizable Wayland status bar for Hyprland compositor.";
+  description = "A ready to go Wayland status bar for Hyprland";
 
   inputs = {
     naersk.url = "github:nmattia/naersk/master";
@@ -23,7 +23,7 @@
             inherit system overlays;
           };
           manifest = (pkgs.lib.importTOML ./Cargo.toml).package;
-          buildInputs = [
+          buildInputs = with pkgs; [
             rust-bin.stable.latest.default
             rustPlatform.bindgenHook
             pkg-config
