@@ -13,15 +13,18 @@
       };
     };
   };
+
   outputs = { self, naersk, nixpkgs, flake-utils, rust-overlay }:
     flake-utils.lib.eachDefaultSystem
       (system:
         let
           overlays = [ (import rust-overlay) ];
-          naersk-lib = pkgs.callPackage naersk { };
           pkgs = import nixpkgs {
             inherit system overlays;
           };
+
+          naersk-lib = pkgs.callPackage naersk { };
+
           # Fetch all the git dependencies
           clipboard_macos_src = builtins.fetchGit {
             url = "https://github.com/pop-os/window_clipboard.git";
@@ -62,7 +65,9 @@
             url = "https://github.com/pop-os/smithay-clipboard";
             rev = "ab422ddcc95a9a1717df094f9c8fe69e2fdb2a27";
           };
+
           manifest = (pkgs.lib.importTOML ./Cargo.toml).package;
+
           deps = with pkgs; [
             rust-bin.stable.latest.default
             rustPlatform.bindgenHook
@@ -74,6 +79,7 @@
             wayland
             vulkan-loader
           ];
+
           libPath = with pkgs; lib.makeLibraryPath [
             libpulseaudio
             wayland
@@ -88,8 +94,10 @@
           defaultPackage = rustPlatform.buildRustPackage rec {
             pname = manifest.name;
             version = manifest.version;
+
             cargoDeps = importCargoLock {
               lockFile = ./Cargo.lock;
+
               # Add all git dependencies' sources here
               sources = {
                 "clipboard_macos" = clipboard_macos_src;
@@ -101,6 +109,7 @@
                 "iced_sctk" = iced_sctk_src;
                 "smithay-clipboard" = smithay_clipboard_src;
               };
+
               outputHashes = {
                 "clipboard_macos-0.1.0" = lib.fakeHash;
                 "clipboard_wayland-0.2.2" = lib.fakeHash;
@@ -140,3 +149,4 @@
         }
       );
 }
+
