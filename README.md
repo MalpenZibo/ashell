@@ -35,9 +35,7 @@ nix profile install github:MalpenZibo/ashell
 
 I haven't tested ashell on NixOS.
 
-To enable this flake use (I'm not an expert and I haven't tested this configuration
-but I'm quite sure that if you use NixOS you are smart enoght to add ashell to your configuration :D
-
+To enable this flake use
 ```nix
 { pkgs, ... }:
 
