@@ -25,14 +25,13 @@
       "locked": {
         "lastModified": 1721727458,
         "narHash": "sha256-r/xppY958gmZ4oTfLiHN0ZGuQ+RSTijDblVgVLFi1mw=",
-        "owner": "nmattia",
+        "owner": "nix-community",
         "repo": "naersk",
         "rev": "3fb418eaf352498f6b6c30592e3beb63df42ef11",
         "type": "github"
       },
       "original": {
-        "owner": "nmattia",
-        "ref": "master",
+        "owner": "nix-community",
         "repo": "naersk",
         "type": "github"
       }
