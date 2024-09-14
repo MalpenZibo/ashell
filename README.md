@@ -23,6 +23,40 @@ You can get the official Arch Linux package from the AUR:
 paru/yay -S ashell-git # to get the latest source version
 ```
 
+### Nix
+
+To install ashell using the nix package be sure to enable flakes and then run
+
+```
+nix profile install github:MalpenZibo/ashell
+```
+
+### NixOS
+
+I haven't tested ashell on NixOS.
+
+To enable this flake use (I'm not an expert and I haven't tested this configuration
+but I'm quite sure that if you use NixOS you are smart enoght to add ashell to your configuration :D
+
+```nix
+{ pkgs, ... }:
+
+{
+  environment.systemPackages = with pkgs; [
+    (import (pkgs.callPackage (pkgs.fetchFromGitHub {
+      owner = "MalpenZibo";
+      repo = "ashell";
+      rev = "refs/heads/main"; # Or specify the branch/tag you need
+      sha256 = "sha256-PLACEHOLDER"; # Replace with the correct hash
+    }) {}).defaultPackage.x86_64-linux)
+  ];
+}
+```
+
+> I'm not an expert and I haven't tested this configuration
+but I'm quite sure that if you use NixOS you are smart enough to add ashell to your configuration :D
+
+
 ## Features
 
 - Lancher button
