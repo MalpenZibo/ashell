@@ -1,0 +1,22 @@
+name: Nix CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  checks-build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: nixbuild/nix-quick-install-action@v28
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - run: nix build 
