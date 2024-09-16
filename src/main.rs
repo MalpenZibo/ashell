@@ -21,6 +21,7 @@ mod menu;
 mod modules;
 mod password_dialog;
 mod style;
+mod services;
 mod utils;
 
 const HEIGHT: u32 = 34;

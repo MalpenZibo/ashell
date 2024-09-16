@@ -1,7 +1,7 @@
 use std::{cell::RefCell, ops::Deref, time::Duration};
 
 pub mod audio;
-pub mod battery;
+// pub mod battery;
 pub mod bluetooth;
 pub mod brightness;
 pub mod idle_inhibitor;

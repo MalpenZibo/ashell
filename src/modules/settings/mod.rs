@@ -7,19 +7,10 @@ use self::{
     powerprofiles::{PowerProfiles, PowerProfilesMessage},
 };
 use crate::{
-    components::icons::{icon, Icons},
-    config::SettingsModuleConfig,
-    menu::{Menu, MenuType},
-    modules::settings::power::power_menu,
-    password_dialog,
-    style::{
+    components::icons::{icon, Icons}, config::SettingsModuleConfig, menu::{Menu, MenuType}, modules::settings::power::power_menu, password_dialog, services::battery::{BatteryData, BatteryMessage, BatteryStatus}, style::{
         HeaderButtonStyle, QuickSettingsButtonStyle, QuickSettingsSubMenuButtonStyle,
         SettingsButtonStyle,
-    },
-    utils::{
-        battery::{BatteryData, BatteryStatus},
-        idle_inhibitor::WaylandIdleInhibitor,
-    },
+    }, utils::idle_inhibitor::WaylandIdleInhibitor
 };
 use bluetooth::Bluetooth;
 use brightness::{Brightness, BrightnessMessage};
@@ -51,12 +42,6 @@ pub struct Settings {
     sub_menu: Option<SubMenu>,
     battery_data: Option<BatteryData>,
     pub password_dialog: Option<(String, String)>,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum BatteryMessage {
-    PercentageChanged(i64),
-    StatusChanged(BatteryStatus),
 }
 
 #[derive(Debug, Clone)]
@@ -370,7 +355,7 @@ impl Settings {
 
     pub fn subscription(&self) -> Subscription<Message> {
         Subscription::batch(vec![
-            crate::utils::battery::subscription().map(Message::Battery),
+            crate::services::battery::subscription().map(Message::Battery),
             self.audio.subscription().map(Message::Audio),
             self.brightness.subscription().map(Message::Brightness),
             self.net.subscription().map(Message::Net),
