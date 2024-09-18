@@ -1,13 +1,13 @@
-use super::service::{AccessPoint, ActiveConnectionInfo, KnownConnection};
 use iced::futures::StreamExt;
 use itertools::Itertools;
-use log::debug;
 use std::{collections::HashMap, ops::Deref};
 use zbus::{
     proxy,
     zvariant::{OwnedObjectPath, OwnedValue, Value},
     Result,
 };
+
+use super::{AccessPoint, ActiveConnectionInfo, KnownConnection};
 
 pub struct NetworkDbus<'a>(NetworkManagerProxy<'a>);
 
