@@ -3,9 +3,16 @@ use iced::Subscription;
 pub mod battery;
 pub mod network;
 
-pub trait Service {
-    type Data;
-    type Message;
+pub trait Service: ReadOnlyService {
+    type Command;
 
-    fn subscribe() -> Subscription<Self::Message>;
+    fn command<Message>(&self, command: Self::Command) -> iced::Command<Message>;
 }
+
+pub trait ReadOnlyService {
+    type Data;
+    type Event;
+
+    fn subscribe() -> Subscription<Self::Event>;
+}
+

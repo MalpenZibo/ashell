@@ -2,16 +2,28 @@ use self::{
     audio::{Audio, AudioMessage},
     battery::{battery_indicator, settings_battery_indicator},
     bluetooth::BluetoothMessage,
-    net::NetMessage,
+    net::NetworkMessage,
     power::PowerMessage,
     powerprofiles::{PowerProfiles, PowerProfilesMessage},
 };
 use crate::{
-    components::icons::{icon, Icons}, config::SettingsModuleConfig, menu::{Menu, MenuType}, modules::settings::power::power_menu, password_dialog, services::battery::{BatteryData, BatteryMessage, BatteryStatus}, style::{
+    components::icons::{icon, Icons},
+    config::SettingsModuleConfig,
+    menu::{Menu, MenuType},
+    modules::settings::power::power_menu,
+    password_dialog,
+    services::{
+        battery::{BatteryData, BatteryEvent, BatteryService, BatteryStatus},
+        network::service::{ActiveConnectionInfo, NetworkEvent, NetworkService},
+        ReadOnlyService, Service,
+    },
+    style::{
         HeaderButtonStyle, QuickSettingsButtonStyle, QuickSettingsSubMenuButtonStyle,
         SettingsButtonStyle,
-    }, utils::idle_inhibitor::WaylandIdleInhibitor
+    },
+    utils::idle_inhibitor::WaylandIdleInhibitor,
 };
+use battery::BatteryMessage;
 use bluetooth::Bluetooth;
 use brightness::{Brightness, BrightnessMessage};
 use iced::{
@@ -22,7 +34,6 @@ use iced::{
     },
     Alignment, Background, Border, Command, Element, Length, Subscription, Theme,
 };
-use net::Net;
 
 pub mod audio;
 mod battery;
@@ -35,12 +46,12 @@ pub mod powerprofiles;
 pub struct Settings {
     audio: Audio,
     brightness: Brightness,
-    net: Net,
+    network: Option<NetworkService>,
     bluetooth: Bluetooth,
     powerprofiles: PowerProfiles,
     idle_inhibitor: Option<WaylandIdleInhibitor>,
     sub_menu: Option<SubMenu>,
-    battery_data: Option<BatteryData>,
+    battery: Option<BatteryService>,
     pub password_dialog: Option<(String, String)>,
 }
 
@@ -48,7 +59,7 @@ pub struct Settings {
 pub enum Message {
     ToggleMenu,
     Battery(BatteryMessage),
-    Net(NetMessage),
+    Network(NetworkMessage),
     Bluetooth(BluetoothMessage),
     PowerProfiles(PowerProfilesMessage),
     Audio(AudioMessage),
@@ -75,12 +86,12 @@ impl Settings {
         Settings {
             audio: Audio::new(),
             brightness: Brightness::new(),
-            net: Net::new(),
+            network: None,
             bluetooth: Bluetooth::new(),
             powerprofiles: PowerProfiles::new(),
             idle_inhibitor: WaylandIdleInhibitor::new().ok(),
             sub_menu: None,
-            battery_data: None,
+            battery: None,
             password_dialog: None,
         }
     }
@@ -102,32 +113,29 @@ impl Settings {
             }
             Message::Battery(msg) => {
                 match msg {
-                    BatteryMessage::PercentageChanged(percentage) => {
-                        if let Some(battery_data) = &mut self.battery_data {
-                            battery_data.capacity = percentage;
-                        } else {
-                            self.battery_data = Some(BatteryData {
-                                capacity: percentage,
-                                status: BatteryStatus::Full,
-                            });
+                    BatteryMessage::Event(event) => match event {
+                        BatteryEvent::Init(service) => {
+                            self.battery = Some(service);
                         }
-                    }
-                    BatteryMessage::StatusChanged(status) => {
-                        if let Some(battery_data) = &mut self.battery_data {
-                            battery_data.status = status;
-                        } else {
-                            self.battery_data = Some(BatteryData {
-                                capacity: 100,
-                                status,
-                            });
+                        BatteryEvent::Update(data) => {
+                            if let Some(battery) = self.battery.as_mut() {
+                                battery.update(data);
+                            }
                         }
-                    }
+                    },
                 };
                 Command::none()
             }
-            Message::Net(msg) => self
-                .net
-                .update(msg, menu, &mut self.password_dialog, config),
+            Message::Network(msg) => match msg {
+                NetworkMessage::Event(event) => match event {
+                    NetworkEvent::Init(service) => {
+                        self.network = Some(service);
+                        Command::none()
+                    }
+                    _ => Command::none(),
+                },
+                _ => Command::none(),
+            },
             Message::Bluetooth(msg) => self.bluetooth.update(msg, menu, &mut self.sub_menu, config),
             Message::PowerProfiles(msg) => self.powerprofiles.update(msg),
             Message::Audio(msg) => self.audio.update(msg, menu, config),
@@ -136,15 +144,15 @@ impl Settings {
                 if self.sub_menu == Some(menu_type) {
                     self.sub_menu.take();
                 } else {
-                    match menu_type {
-                        SubMenu::Vpn => {
-                            self.net.get_vpn_connections();
-                        }
-                        SubMenu::Wifi => {
-                            self.net.get_nearby_wifi();
-                        }
-                        _ => {}
-                    };
+                    // match menu_type {
+                    //     SubMenu::Vpn => {
+                    //         self.net.get_vpn_connections();
+                    //     }
+                    //     SubMenu::Wifi => {
+                    //         self.net.get_nearby_wifi();
+                    //     }
+                    //     _ => {}
+                    // };
                     self.sub_menu.replace(menu_type);
                 }
                 Command::none()
@@ -175,7 +183,7 @@ impl Settings {
                 }
                 password_dialog::Message::DialogConfirmed => {
                     if let Some((ssid, password)) = self.password_dialog.take() {
-                        self.net.activate_wifi(ssid, password);
+                        // self.net.activate_wifi(ssid, password);
                         menu.unset_keyboard_interactivity()
                     } else {
                         Command::none()
@@ -218,18 +226,22 @@ impl Settings {
         }
 
         let mut net_elements = row!().spacing(4);
-        if let Some(indicator) = self.net.active_connection_indicator() {
+        if let Some(indicator) = self
+            .network
+            .as_ref()
+            .and_then(|n| n.get_connection_indicator())
+        {
             net_elements = net_elements.push(indicator);
         }
 
-        if let Some(indicator) = self.net.vpn_indicator() {
+        if let Some(indicator) = self.network.as_ref().and_then(|n| n.get_vpn_indicator()) {
             net_elements = net_elements.push(indicator);
         }
 
         elements = elements.push(net_elements);
 
-        if let Some(battery_data) = self.battery_data {
-            elements = elements.push(battery_indicator(battery_data));
+        if let Some(battery) = self.battery.as_ref() {
+            elements = elements.push(battery_indicator(battery.data));
         }
 
         button(elements)
@@ -243,7 +255,10 @@ impl Settings {
         Column::with_children(if let Some((_, current_password)) = &self.password_dialog {
             vec![password_dialog::view("ssid", current_password).map(Message::PasswordDialog)]
         } else {
-            let battery_data = self.battery_data.map(settings_battery_indicator);
+            let battery_data = self
+                .battery
+                .as_ref()
+                .map(|d| settings_battery_indicator(d.data));
             let right_buttons = Row::with_children(
                 vec![
                     config.lock_cmd.as_ref().map(|_| {
@@ -281,14 +296,15 @@ impl Settings {
 
             let (sink_slider, source_slider) = self.audio.audio_sliders(self.sub_menu);
 
-            let wifi_setting_button = self
-                .net
-                .get_wifi_quick_setting_button(self.sub_menu, config.wifi_more_cmd.is_some());
+            let wifi_setting_button = self.network.as_ref().and_then(|n| {
+                n.get_wifi_quick_setting_button(self.sub_menu, config.wifi_more_cmd.is_some())
+            });
             let quick_settings = quick_settings_section(
                 vec![
                     wifi_setting_button,
-                    self.net
-                        .get_vpn_quick_setting_button(self.sub_menu, config.vpn_more_cmd.is_some()),
+                    self.network.as_ref().map(|n| {
+                        n.get_vpn_quick_setting_button(self.sub_menu, config.vpn_more_cmd.is_some())
+                    }),
                     self.bluetooth.get_quick_setting_button(
                         self.sub_menu,
                         config.bluetooth_more_cmd.is_some(),
@@ -355,10 +371,10 @@ impl Settings {
 
     pub fn subscription(&self) -> Subscription<Message> {
         Subscription::batch(vec![
-            crate::services::battery::subscription().map(Message::Battery),
+            BatteryService::subscribe().map(|event| Message::Battery(BatteryMessage::Event(event))),
             self.audio.subscription().map(Message::Audio),
             self.brightness.subscription().map(Message::Brightness),
-            self.net.subscription().map(Message::Net),
+            NetworkService::subscribe().map(|event| Message::Network(NetworkMessage::Event(event))),
             self.bluetooth.subscription().map(Message::Bluetooth),
             self.powerprofiles
                 .subscription()

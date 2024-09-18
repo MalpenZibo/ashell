@@ -1,14 +1,17 @@
 use crate::{
     components::icons::icon,
-    utils::{
-        battery::{BatteryData, BatteryStatus},
-        format_duration, IndicatorState,
-    },
+    services::battery::{BatteryData, BatteryEvent, BatteryStatus},
+    utils::{format_duration, IndicatorState},
 };
 use iced::{
     widget::{container, row, text, Container},
     Alignment, Background, Border, Element, Theme,
 };
+
+#[derive(Clone, Debug)]
+pub enum BatteryMessage {
+    Event(BatteryEvent),
+}
 
 pub fn battery_indicator<'a, Message: 'static>(data: BatteryData) -> Element<'a, Message> {
     let icon_type = data.get_icon();

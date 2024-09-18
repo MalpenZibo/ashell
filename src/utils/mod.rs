@@ -6,7 +6,7 @@ pub mod bluetooth;
 pub mod brightness;
 pub mod idle_inhibitor;
 pub mod launcher;
-pub mod net;
+// pub mod net;
 pub mod powerprofiles;
 pub mod privacy;
 

@@ -1,27 +1,35 @@
-use std::time::Duration;
-
 use iced::{
     futures::{
+        channel::mpsc::Sender,
         stream::{self, select_all},
-        SinkExt, StreamExt,
+        stream_select, SinkExt, Stream, StreamExt,
     },
     subscription::channel,
     Subscription,
 };
 use log::info;
-use zbus::{proxy, zvariant::OwnedObjectPath, Connection, Result};
+use std::{any::TypeId, ops::{Deref, DerefMut}, time::Duration};
+use zbus::{
+    proxy,
+    zvariant::{ObjectPath, OwnedObjectPath},
+    Connection, Result,
+};
 
 use crate::{components::icons::Icons, utils::IndicatorState};
 
-use super::Service;
+use super::{ReadOnlyService, Service};
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct BatteryData {
     pub capacity: i64,
     pub status: BatteryStatus,
 }
 
 impl BatteryData {
+    pub fn update(&mut self, new_data: Self) {
+        *self = new_data;
+    }
+
     pub fn get_indicator_state(&self) -> IndicatorState {
         match self {
             BatteryData {
@@ -64,9 +72,16 @@ impl BatteryData {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum BatteryMessage {
+pub enum BatteryEvent2 {
+    Init,
     PercentageChanged(i64),
     StatusChanged(BatteryStatus),
+}
+
+#[derive(Debug, Clone)]
+pub enum BatteryEvent {
+    Init(BatteryService),
+    Update(BatteryData),
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -76,284 +91,184 @@ pub enum BatteryStatus {
     Full,
 }
 
-pub struct BatteryService;
+#[derive(Debug, Clone)]
+pub struct BatteryService {
+    pub data: BatteryData,
+    conn: zbus::Connection,
+}
 
-impl Service for BatteryService {
+impl Deref for BatteryService {
+    type Target = BatteryData;
+
+    fn deref(&self) -> &Self::Target {
+        &self.data
+    }
+}
+
+impl DerefMut for BatteryService {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.data
+    }
+}
+
+enum State {
+    Init,
+    Active(zbus::Connection, ObjectPath<'static>),
+    NoBattery,
+    Error,
+}
+
+impl ReadOnlyService for BatteryService {
     type Data = BatteryData;
+    type Event = BatteryEvent;
 
-    type Message = BatteryMessage;
+    fn subscribe() -> Subscription<Self::Event> {
+        let id = TypeId::of::<Self>();
 
-    fn subscribe() -> Subscription<Self::Message> {
-        channel("battery-listener", 100, |mut output| async move {
-            let conn = Connection::system().await.unwrap();
-            let upower = UPowerProxy::new(&conn).await.unwrap();
+        channel(id, 100, |mut output| async move {
+            let mut state = State::Init;
 
             loop {
-                let devices = upower.enumerate_devices().await.unwrap();
-
-                let battery = stream::iter(devices.into_iter())
-                    .filter_map(|device| {
-                        let conn = conn.clone();
-                        async move {
-                            let device = DeviceProxy::builder(&conn)
-                                .path(device)
-                                .unwrap()
-                                .build()
-                                .await
-                                .unwrap();
-                            let device_type = device.device_type().await.unwrap();
-                            let power_supply = device.power_supply().await.unwrap();
-                            if device_type == 2 && power_supply {
-                                Some(device)
-                            } else {
-                                None
-                            }
-                        }
-                    })
-                    .collect::<Vec<_>>()
-                    .await;
-
-                if let Some(battery) = battery.first() {
-                    let state = battery.state().await.unwrap();
-                    let state = match state {
-                        1 => BatteryStatus::Charging(Duration::from_secs(
-                            battery.time_to_full().await.unwrap_or_default() as u64,
-                        )),
-                        2 => BatteryStatus::Discharging(Duration::from_secs(
-                            battery.time_to_empty().await.unwrap_or_default() as u64,
-                        )),
-                        4 => BatteryStatus::Full,
-                        _ => BatteryStatus::Discharging(Duration::from_secs(0)),
-                    };
-                    let percentage = battery.percentage().await.unwrap_or_default() as i64;
-
-                    let _ = output.feed(BatteryMessage::StatusChanged(state)).await;
-                    let _ = output
-                        .feed(BatteryMessage::PercentageChanged(percentage))
-                        .await;
-                    let _ = output.flush().await;
-
-                    let state_signal = battery
-                        .receive_state_changed()
-                        .await
-                        .then(|v| async move {
-                            if let Ok(value) = v.get().await {
-                                Some(BatteryMessage::StatusChanged(match value {
-                                    1 => BatteryStatus::Charging(Duration::from_secs(
-                                        battery.time_to_full().await.unwrap_or_default() as u64,
-                                    )),
-                                    2 => BatteryStatus::Discharging(Duration::from_secs(
-                                        battery.time_to_empty().await.unwrap_or_default() as u64,
-                                    )),
-                                    4 => BatteryStatus::Full,
-                                    _ => BatteryStatus::Discharging(Duration::from_secs(0)),
-                                }))
-                            } else {
-                                None
-                            }
-                        })
-                        .boxed();
-                    let percentage_signal = battery
-                        .receive_percentage_changed()
-                        .await
-                        .then(|v| async move {
-                            if let Ok(value) = v.get().await {
-                                Some(BatteryMessage::PercentageChanged(value as i64))
-                            } else {
-                                None
-                            }
-                        })
-                        .boxed();
-                    let time_to_full_signal = battery
-                        .receive_time_to_full_changed()
-                        .await
-                        .then(|v| async move {
-                            if let Ok(value) = v.get().await {
-                                if value > 0 {
-                                    Some(BatteryMessage::StatusChanged(BatteryStatus::Charging(
-                                        Duration::from_secs(value as u64),
-                                    )))
-                                } else {
-                                    None
-                                }
-                            } else {
-                                None
-                            }
-                        })
-                        .boxed();
-                    let time_to_empty_signal = battery
-                        .receive_time_to_empty_changed()
-                        .await
-                        .then(|v| async move {
-                            if let Ok(value) = v.get().await {
-                                if value > 0 {
-                                    Some(BatteryMessage::StatusChanged(BatteryStatus::Discharging(
-                                        Duration::from_secs(value as u64),
-                                    )))
-                                } else {
-                                    None
-                                }
-                            } else {
-                                None
-                            }
-                        })
-                        .boxed();
-
-                    let mut combined = select_all(vec![
-                        state_signal,
-                        percentage_signal,
-                        time_to_full_signal,
-                        time_to_empty_signal,
-                    ]);
-
-                    while let Some(event) = combined.next().await {
-                        if let Some(battery_message) = event {
-                            let _ = output.send(battery_message).await;
-                        }
-                    }
-                } else {
-                    let _ = upower.receive_device_added().await;
-                    info!("upower device added");
-                }
+                state = BatteryService::start_listening(state, &mut output).await;
             }
         })
     }
 }
 
-pub fn subscription() -> Subscription<BatteryMessage> {
-    channel("battery-listener", 100, |mut output| async move {
-        let conn = Connection::system().await.unwrap();
-        let upower = UPowerProxy::new(&conn).await.unwrap();
+impl BatteryService {
+    async fn get_battery_device(conn: &zbus::Connection) -> anyhow::Result<Option<DeviceProxy>> {
+        let upower = UPowerProxy::new(conn).await?;
+        let devices = upower.enumerate_devices().await?;
 
-        loop {
-            let devices = upower.enumerate_devices().await.unwrap();
-
-            let battery = stream::iter(devices.into_iter())
-                .filter_map(|device| {
-                    let conn = conn.clone();
-                    async move {
-                        let device = DeviceProxy::builder(&conn)
-                            .path(device)
-                            .unwrap()
-                            .build()
-                            .await
-                            .unwrap();
-                        let device_type = device.device_type().await.unwrap();
-                        let power_supply = device.power_supply().await.unwrap();
-                        if device_type == 2 && power_supply {
-                            Some(device)
-                        } else {
-                            None
-                        }
-                    }
-                })
-                .collect::<Vec<_>>()
-                .await;
-
-            if let Some(battery) = battery.first() {
-                let state = battery.state().await.unwrap();
-                let state = match state {
-                    1 => BatteryStatus::Charging(Duration::from_secs(
-                        battery.time_to_full().await.unwrap_or_default() as u64,
-                    )),
-                    2 => BatteryStatus::Discharging(Duration::from_secs(
-                        battery.time_to_empty().await.unwrap_or_default() as u64,
-                    )),
-                    4 => BatteryStatus::Full,
-                    _ => BatteryStatus::Discharging(Duration::from_secs(0)),
-                };
-                let percentage = battery.percentage().await.unwrap_or_default() as i64;
-
-                let _ = output.feed(BatteryMessage::StatusChanged(state)).await;
-                let _ = output
-                    .feed(BatteryMessage::PercentageChanged(percentage))
-                    .await;
-                let _ = output.flush().await;
-
-                let state_signal = battery
-                    .receive_state_changed()
-                    .await
-                    .then(|v| async move {
-                        if let Ok(value) = v.get().await {
-                            Some(BatteryMessage::StatusChanged(match value {
-                                1 => BatteryStatus::Charging(Duration::from_secs(
-                                    battery.time_to_full().await.unwrap_or_default() as u64,
-                                )),
-                                2 => BatteryStatus::Discharging(Duration::from_secs(
-                                    battery.time_to_empty().await.unwrap_or_default() as u64,
-                                )),
-                                4 => BatteryStatus::Full,
-                                _ => BatteryStatus::Discharging(Duration::from_secs(0)),
-                            }))
-                        } else {
-                            None
-                        }
-                    })
-                    .boxed();
-                let percentage_signal = battery
-                    .receive_percentage_changed()
-                    .await
-                    .then(|v| async move {
-                        if let Ok(value) = v.get().await {
-                            Some(BatteryMessage::PercentageChanged(value as i64))
-                        } else {
-                            None
-                        }
-                    })
-                    .boxed();
-                let time_to_full_signal = battery
-                    .receive_time_to_full_changed()
-                    .await
-                    .then(|v| async move {
-                        if let Ok(value) = v.get().await {
-                            if value > 0 {
-                                Some(BatteryMessage::StatusChanged(BatteryStatus::Charging(
-                                    Duration::from_secs(value as u64),
-                                )))
-                            } else {
-                                None
-                            }
-                        } else {
-                            None
-                        }
-                    })
-                    .boxed();
-                let time_to_empty_signal = battery
-                    .receive_time_to_empty_changed()
-                    .await
-                    .then(|v| async move {
-                        if let Ok(value) = v.get().await {
-                            if value > 0 {
-                                Some(BatteryMessage::StatusChanged(BatteryStatus::Discharging(
-                                    Duration::from_secs(value as u64),
-                                )))
-                            } else {
-                                None
-                            }
-                        } else {
-                            None
-                        }
-                    })
-                    .boxed();
-
-                let mut combined = select_all(vec![
-                    state_signal,
-                    percentage_signal,
-                    time_to_full_signal,
-                    time_to_empty_signal,
-                ]);
-
-                while let Some(event) = combined.next().await {
-                    if let Some(battery_message) = event {
-                        let _ = output.send(battery_message).await;
-                    }
-                }
-            } else {
-                let _ = upower.receive_device_added().await;
-                info!("upower device added");
+        for device in devices {
+            let device = DeviceProxy::builder(conn).path(device)?.build().await?;
+            let device_type = device.device_type().await?;
+            let power_supply = device.power_supply().await?;
+            if device_type == 2 && power_supply {
+                return Ok(Some(device));
             }
         }
-    })
+
+        Ok(None)
+    }
+
+    async fn initialize_data(
+        conn: &zbus::Connection,
+    ) -> anyhow::Result<Option<(BatteryData, ObjectPath<'static>)>> {
+        let battery = Self::get_battery_device(conn).await?;
+
+        if let Some(battery) = battery {
+            let state = battery.state().await?;
+            let state = match state {
+                1 => BatteryStatus::Charging(Duration::from_secs(
+                    battery.time_to_full().await.unwrap_or_default() as u64,
+                )),
+                2 => BatteryStatus::Discharging(Duration::from_secs(
+                    battery.time_to_empty().await.unwrap_or_default() as u64,
+                )),
+                4 => BatteryStatus::Full,
+                _ => BatteryStatus::Discharging(Duration::from_secs(0)),
+            };
+            let percentage = battery.percentage().await.unwrap_or_default() as i64;
+
+            Ok(Some((
+                BatteryData {
+                    capacity: percentage,
+                    status: state,
+                },
+                battery.inner().path().to_owned(),
+            )))
+        } else {
+            Ok(None)
+        }
+    }
+
+    async fn events(
+        conn: &zbus::Connection,
+        device_path: &ObjectPath<'static>,
+    ) -> anyhow::Result<impl Stream<Item = BatteryEvent>> {
+        let device = DeviceProxy::builder(conn)
+            .path(device_path)?
+            .build()
+            .await?;
+
+        let combined = stream_select!(
+            device.receive_state_changed().await.map(|_| ()),
+            device.receive_percentage_changed().await.map(|_| ()),
+            device.receive_time_to_full_changed().await.map(|_| ()),
+            device.receive_time_to_empty_changed().await.map(|_| ()),
+        )
+        .map(move |_| {
+            let state = device
+                .cached_state()
+                .unwrap_or_default()
+                .unwrap_or_default();
+            let state = match state {
+                1 => BatteryStatus::Charging(Duration::from_secs(
+                    device
+                        .cached_time_to_full()
+                        .unwrap_or_default()
+                        .unwrap_or_default() as u64,
+                )),
+                2 => BatteryStatus::Discharging(Duration::from_secs(
+                    device
+                        .cached_time_to_empty()
+                        .unwrap_or_default()
+                        .unwrap_or_default() as u64,
+                )),
+                4 => BatteryStatus::Full,
+                _ => BatteryStatus::Discharging(Duration::from_secs(0)),
+            };
+
+            BatteryEvent::Update(BatteryData {
+                capacity: device
+                    .cached_percentage()
+                    .unwrap_or_default()
+                    .unwrap_or_default() as i64,
+                status: state,
+            })
+        });
+
+        Ok(combined)
+    }
+
+    async fn start_listening(
+        state: State,
+        output: &mut Sender<<Self as ReadOnlyService>::Event>,
+    ) -> State {
+        match state {
+            State::Init => match zbus::Connection::system().await {
+                Ok(conn) => {
+                    let (data, path) = match BatteryService::initialize_data(&conn).await {
+                        Ok(Some(data)) => data,
+                        Ok(None) => return State::NoBattery,
+                        Err(_) => return State::Error,
+                    };
+
+                    let service = BatteryService {
+                        data,
+                        conn: conn.clone(),
+                    };
+                    let _ = output.send(BatteryEvent::Init(service)).await;
+
+                    State::Active(conn, path)
+                }
+                Err(_) => State::Error,
+            },
+            State::Active(conn, path) => match BatteryService::events(&conn, &path).await {
+                Ok(mut events) => {
+                    while let Some(event) = events.next().await {
+                        let _ = output.send(event).await;
+                    }
+
+                    State::Active(conn, path)
+                }
+                Err(_) => State::Error,
+            },
+            State::NoBattery => State::NoBattery,
+            State::Error => State::Error,
+        }
+    }
 }
 
 #[proxy(
