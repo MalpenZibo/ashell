@@ -1,27 +1,41 @@
-use super::ServiceEvent;
+use super::{Service, ServiceEvent};
 use crate::services::ReadOnlyService;
 use dbus::{ActiveConnectionState, ConnectivityState, DeviceState, NetworkDbus};
 use iced::{
     futures::{
         channel::mpsc::{unbounded, Sender, UnboundedReceiver, UnboundedSender},
         stream::pending,
-        SinkExt, StreamExt,
+        SinkExt, Stream, StreamExt,
     },
     subscription::channel,
     Subscription,
 };
 use log::{debug, error, info};
 use std::{any::TypeId, ops::Deref};
+use tokio::process::Command;
 use zbus::zvariant::ObjectPath;
 
 mod dbus;
 
 #[derive(Debug, Clone)]
-pub enum NetworkEvent {}
+pub enum NetworkEvent {
+    WiFiEnabled(bool),
+    AirplaneMode(bool),
+    Connectivity(ConnectivityState),
+    WirelessAccessPoints(Vec<AccessPoint>),
+    ActiveConnections(Vec<ActiveConnectionInfo>),
+    KnownConnections(Vec<KnownConnection>),
+    ScanningNearbyWifi(bool),
+}
 
 #[derive(Debug, Clone)]
 pub enum NetworkCommand {
     ScanNearbyWifi,
+    ToggleWiFi,
+    ToggleAirplaneMode,
+    ActivateWiFi(String, Option<String>),
+    RequestWiFiPassword(String),
+    ToggleConnection(String),
 }
 
 #[derive(Debug, Clone)]
@@ -102,7 +116,18 @@ impl ReadOnlyService for NetworkService {
     type UpdateEvent = NetworkEvent;
     type Error = ();
 
-    fn update(&mut self, _event: Self::UpdateEvent) {}
+    fn update(&mut self, event: Self::UpdateEvent) {
+        match event {
+            NetworkEvent::AirplaneMode(airplane_mode) => {
+                self.data.airplane_mode = airplane_mode;
+            }
+            NetworkEvent::WiFiEnabled(wifi_enabled) => {
+                debug!("WiFi enabled: {}", wifi_enabled);
+                self.data.wifi_enabled = wifi_enabled;
+            }
+            _ => {}
+        }
+    }
 
     fn subscribe() -> Subscription<ServiceEvent<Self>> {
         let id = TypeId::of::<Self>();
@@ -194,9 +219,27 @@ impl NetworkService {
             },
             State::Active(conn, mut rx) => {
                 info!("Listening for network events");
-                let _ = rx.next().await;
 
-                State::Active(conn, rx)
+                match NetworkService::events(&conn).await {
+                    Ok(mut events) => {
+                        while let Some(event) = events.next().await {
+                            match event {
+                                NetworkEvent::WiFiEnabled(wifi_enabled) => {
+                                    debug!("WiFi enabled: {}", wifi_enabled);
+                                    let _ = output
+                                        .send(ServiceEvent::Update(NetworkEvent::WiFiEnabled(
+                                            wifi_enabled,
+                                        )))
+                                        .await;
+                                }
+                                _ => {}
+                            }
+                        }
+
+                        State::Active(conn, rx)
+                    }
+                    Err(_) => State::Error,
+                }
             }
             State::Error => {
                 error!("Network service error");
@@ -205,6 +248,60 @@ impl NetworkService {
 
                 State::Error
             }
+        }
+    }
+
+    async fn events(conn: &zbus::Connection) -> anyhow::Result<impl Stream<Item = NetworkEvent>> {
+        let nm = NetworkDbus::new(conn).await?;
+
+        Ok(nm.receive_wireless_enabled_changed().await.map(move |_| {
+            debug!("WiFi enabled changed");
+            NetworkEvent::WiFiEnabled(
+                nm.cached_wireless_enabled()
+                    .unwrap_or_default()
+                    .unwrap_or_default(),
+            )
+        }))
+    }
+
+    async fn set_airplane_mode(conn: &zbus::Connection, airplane_mode: bool) -> anyhow::Result<()> {
+        Command::new("rfkill")
+            .arg(if airplane_mode { "block" } else { "unblock" })
+            .arg("bluetooth")
+            .output()
+            .await?;
+
+        let nm = NetworkDbus::new(conn).await?;
+        nm.set_wireless_enabled(!airplane_mode).await?;
+
+        Ok(())
+    }
+}
+
+impl Service for NetworkService {
+    type Command = NetworkCommand;
+
+    fn command(&self, command: Self::Command) -> iced::Command<ServiceEvent<Self>> {
+        debug!("Command: {:?}", command);
+        match command {
+            NetworkCommand::ToggleAirplaneMode => iced::Command::perform(
+                {
+                    let conn = self.conn.clone();
+                    let airplane_mode = self.airplane_mode;
+                    async move {
+                        debug!("Toggling airplane mode to: {}", !airplane_mode);
+                        let res = Self::set_airplane_mode(&conn, !airplane_mode).await;
+
+                        if res.is_ok() {
+                            !airplane_mode
+                        } else {
+                            airplane_mode
+                        }
+                    }
+                },
+                |airplane_mode| ServiceEvent::Update(NetworkEvent::AirplaneMode(airplane_mode)),
+            ),
+            _ => iced::Command::none(),
         }
     }
 }

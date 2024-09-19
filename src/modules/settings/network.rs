@@ -27,6 +27,7 @@ pub enum NetworkMessage {
     ActivateWiFi(String, Option<String>),
     RequestWiFiPassword(String),
     VpnToggle(String),
+    ToggleAirplaneMode,
 }
 
 static WIFI_SIGNAL_ICONS: [Icons; 5] = [
@@ -163,29 +164,33 @@ impl NetworkData {
     // }
 
     pub fn get_connection_indicator<Message: 'static>(&self) -> Option<Element<Message>> {
-        self.active_connections
-            .iter()
-            .find(|c| {
-                matches!(c, ActiveConnectionInfo::WiFi { .. })
-                    || matches!(c, ActiveConnectionInfo::Wired { .. })
-            })
-            .map(|a| {
-                let icon_type = a.get_icon();
-                let state = a.get_indicator_state();
+        if self.airplane_mode {
+            None
+        } else {
+            self.active_connections
+                .iter()
+                .find(|c| {
+                    matches!(c, ActiveConnectionInfo::WiFi { .. })
+                        || matches!(c, ActiveConnectionInfo::Wired { .. })
+                })
+                .map(|a| {
+                    let icon_type = a.get_icon();
+                    let state = a.get_indicator_state();
 
-                container(icon(icon_type))
-                    .style(move |theme: &Theme| container::Appearance {
-                        text_color: match state {
-                            IndicatorState::Warning => {
-                                Some(theme.extended_palette().danger.weak.color)
-                            }
-                            IndicatorState::Danger => Some(theme.palette().danger),
-                            _ => None,
-                        },
-                        ..Default::default()
-                    })
-                    .into()
-            })
+                    container(icon(icon_type))
+                        .style(move |theme: &Theme| container::Appearance {
+                            text_color: match state {
+                                IndicatorState::Warning => {
+                                    Some(theme.extended_palette().danger.weak.color)
+                                }
+                                IndicatorState::Danger => Some(theme.palette().danger),
+                                _ => None,
+                            },
+                            ..Default::default()
+                        })
+                        .into()
+                })
+        }
     }
 
     pub fn get_vpn_indicator<Message: 'static>(&self) -> Option<Element<Message>> {
@@ -257,69 +262,46 @@ impl NetworkData {
         sub_menu: Option<SubMenu>,
         show_more_button: bool,
     ) -> Option<(Element<Message>, Option<Element<Message>>)> {
-        self.active_connections
-            .iter()
-            .find_map(|c| match c {
+        if self.wireless_access_points.is_empty() {
+            None
+        } else {
+            let active_connection = self.active_connections.iter().find_map(|c| match c {
                 ActiveConnectionInfo::WiFi {
                     name,
                     strength,
                     state,
                 } => Some((name, strength, state, c.get_icon())),
                 _ => None,
-            })
-            .map_or_else(
-                || {
-                    if !self.wireless_access_points.is_empty() {
-                        Some((
-                            quick_setting_button(
-                                Icons::Wifi0,
-                                "Wi-Fi".to_string(),
-                                None,
-                                self.wifi_enabled,
-                                Message::Network(NetworkMessage::ToggleWiFi),
-                                Some((
-                                    SubMenu::Wifi,
-                                    sub_menu,
-                                    Message::ToggleSubMenu(SubMenu::Wifi),
-                                ))
-                                .filter(|_| self.wifi_enabled),
-                            ),
-                            sub_menu
-                                .filter(|menu_type| *menu_type == SubMenu::Wifi)
-                                .map(|_| {
-                                    sub_menu_wrapper(self.wifi_menu(None, show_more_button))
-                                        .map(Message::Network)
-                                }),
-                        ))
-                    } else {
-                        None
-                    }
-                },
-                |(name, strength, _state, icon)| {
+            });
+
+            Some((
+                quick_setting_button(
+                    active_connection.map_or_else(|| Icons::Wifi0, |(_, _, _, icon)| icon),
+                    "Wi-Fi".to_string(),
+                    active_connection.map(|(name, _, _, _)| name.clone()),
+                    self.wifi_enabled,
+                    Message::Network(NetworkMessage::ToggleWiFi),
                     Some((
-                        quick_setting_button(
-                            icon,
-                            "WiFi".to_string(),
-                            Some(name.clone()),
-                            true,
-                            Message::Network(NetworkMessage::ToggleWiFi),
-                            Some((
-                                SubMenu::Wifi,
-                                sub_menu,
-                                Message::ToggleSubMenu(SubMenu::Wifi),
-                            )),
-                        ),
-                        sub_menu
-                            .filter(|menu_type| *menu_type == SubMenu::Wifi)
-                            .map(|_| {
-                                sub_menu_wrapper(
-                                    self.wifi_menu(Some((name, *strength)), show_more_button),
-                                )
-                                .map(Message::Network)
-                            }),
+                        SubMenu::Wifi,
+                        sub_menu,
+                        Message::ToggleSubMenu(SubMenu::Wifi),
                     ))
-                },
-            )
+                    .filter(|_| self.wifi_enabled),
+                ),
+                sub_menu
+                    .filter(|menu_type| *menu_type == SubMenu::Wifi)
+                    .map(|_| {
+                        sub_menu_wrapper(
+                            self.wifi_menu(
+                                active_connection
+                                    .map(|(name, strengh, _, _)| (name.as_str(), *strengh)),
+                                show_more_button,
+                            ),
+                        )
+                        .map(Message::Network)
+                    }),
+            ))
+        }
     }
 
     pub fn get_vpn_quick_setting_button(
@@ -486,5 +468,21 @@ impl NetworkData {
         } else {
             main.into()
         }
+    }
+
+    pub fn get_airplane_mode_quick_setting_button(
+        &self,
+    ) -> (Element<Message>, Option<Element<Message>>) {
+        (
+            quick_setting_button(
+                Icons::Airplane,
+                "Airplane Mode".to_string(),
+                None,
+                self.airplane_mode,
+                Message::Network(NetworkMessage::ToggleAirplaneMode),
+                None,
+            ),
+            None,
+        )
     }
 }

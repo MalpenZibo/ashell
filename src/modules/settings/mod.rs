@@ -1,7 +1,7 @@
 use self::{
     audio::{Audio, AudioMessage},
     bluetooth::BluetoothMessage,
-    net::NetworkMessage,
+    network::NetworkMessage,
     power::PowerMessage,
     upower::{battery_indicator, settings_battery_indicator},
 };
@@ -12,7 +12,7 @@ use crate::{
     modules::settings::power::power_menu,
     password_dialog,
     services::{
-        network::NetworkService,
+        network::{NetworkCommand, NetworkService},
         upower::{PowerProfileCommand, UPowerService},
         ReadOnlyService, Service, ServiceEvent,
     },
@@ -37,7 +37,7 @@ use upower::UPowerMessage;
 pub mod audio;
 pub mod bluetooth;
 pub mod brightness;
-pub mod net;
+pub mod network;
 mod power;
 mod upower;
 
@@ -138,8 +138,27 @@ impl Settings {
                         self.network = Some(service);
                         Command::none()
                     }
+                    ServiceEvent::Update(data) => {
+                        if let Some(network) = self.network.as_mut() {
+                            network.update(data);
+                        }
+                        Command::none()
+                    }
                     _ => Command::none(),
                 },
+                NetworkMessage::ToggleAirplaneMode => {
+                    if let Some(network) = self.network.as_ref() {
+                        network
+                            .command(NetworkCommand::ToggleAirplaneMode)
+                            .map(|event| {
+                                crate::app::Message::Settings(Message::Network(
+                                    NetworkMessage::Event(event),
+                                ))
+                            })
+                    } else {
+                        Command::none()
+                    }
+                }
                 _ => Command::none(),
             },
             Message::Bluetooth(msg) => self.bluetooth.update(msg, menu, &mut self.sub_menu, config),
@@ -246,7 +265,6 @@ impl Settings {
         if let Some(indicator) = self.network.as_ref().and_then(|n| n.get_vpn_indicator()) {
             net_elements = net_elements.push(indicator);
         }
-
         elements = elements.push(net_elements);
 
         if let Some(battery) = self.upower.as_ref().and_then(|upower| upower.battery) {
@@ -319,6 +337,9 @@ impl Settings {
                         self.sub_menu,
                         config.bluetooth_more_cmd.is_some(),
                     ),
+                    self.network
+                        .as_ref()
+                        .map(|n| n.get_airplane_mode_quick_setting_button()),
                     self.upower
                         .as_ref()
                         .and_then(|u| u.power_profile.get_quick_setting_button()),
