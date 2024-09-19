@@ -1,26 +1,25 @@
 use crate::{
     components::icons::{icon, Icons},
-    config::SettingsModuleConfig,
-    menu::Menu,
-    services::network::service::{
-        AccessPoint, ActiveConnectionInfo, KnownConnection, NetworkData, NetworkEvent,
+    services::{
+        network::{
+            AccessPoint, ActiveConnectionInfo, KnownConnection, NetworkData, NetworkService,
+        },
+        ServiceEvent,
     },
     style::{GhostButtonStyle, SettingsButtonStyle},
-    utils::{
-        Commander, IndicatorState,
-    },
+    utils::IndicatorState,
 };
 use iced::{
     theme::{self, Button},
     widget::{button, column, container, horizontal_rule, row, scrollable, text, toggler, Column},
-    Alignment, Command, Element, Length, Subscription, Theme,
+    Alignment, Element, Length, Theme,
 };
 
 use super::{quick_setting_button, sub_menu_wrapper, Message, SubMenu};
 
 #[derive(Debug, Clone)]
 pub enum NetworkMessage {
-    Event(NetworkEvent),
+    Event(ServiceEvent<NetworkService>),
     ToggleWiFi,
     ScanNearByWiFi,
     WiFiMore,
@@ -296,7 +295,7 @@ impl NetworkData {
                         None
                     }
                 },
-                |(name, strength, state, icon)| {
+                |(name, strength, _state, icon)| {
                     Some((
                         quick_setting_button(
                             icon,

@@ -1,23 +1,20 @@
+use super::{ReadOnlyService, ServiceEvent};
+use crate::{components::icons::Icons, utils::IndicatorState};
 use iced::{
-    futures::{
-        channel::mpsc::Sender,
-        stream::{self, select_all},
-        stream_select, SinkExt, Stream, StreamExt,
-    },
+    futures::{channel::mpsc::Sender, stream_select, SinkExt, Stream, StreamExt},
     subscription::channel,
     Subscription,
 };
-use log::info;
-use std::{any::TypeId, ops::{Deref, DerefMut}, time::Duration};
+use std::{
+    any::TypeId,
+    ops::{Deref, DerefMut},
+    time::Duration,
+};
 use zbus::{
     proxy,
     zvariant::{ObjectPath, OwnedObjectPath},
-    Connection, Result,
+    Result,
 };
-
-use crate::{components::icons::Icons, utils::IndicatorState};
-
-use super::{ReadOnlyService, Service};
 
 #[derive(Clone, Copy, Debug)]
 pub struct BatteryData {
@@ -26,10 +23,6 @@ pub struct BatteryData {
 }
 
 impl BatteryData {
-    pub fn update(&mut self, new_data: Self) {
-        *self = new_data;
-    }
-
     pub fn get_indicator_state(&self) -> IndicatorState {
         match self {
             BatteryData {
@@ -71,16 +64,8 @@ impl BatteryData {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum BatteryEvent2 {
-    Init,
-    PercentageChanged(i64),
-    StatusChanged(BatteryStatus),
-}
-
 #[derive(Debug, Clone)]
 pub enum BatteryEvent {
-    Init(BatteryService),
     Update(BatteryData),
 }
 
@@ -119,10 +104,18 @@ enum State {
 }
 
 impl ReadOnlyService for BatteryService {
-    type Data = BatteryData;
-    type Event = BatteryEvent;
+    type UpdateEvent = BatteryEvent;
+    type Error = ();
 
-    fn subscribe() -> Subscription<Self::Event> {
+    fn update(&mut self, event: Self::UpdateEvent) {
+        match event {
+            BatteryEvent::Update(data) => {
+                self.data = data;
+            }
+        }
+    }
+
+    fn subscribe() -> Subscription<ServiceEvent<Self>> {
         let id = TypeId::of::<Self>();
 
         channel(id, 100, |mut output| async move {
@@ -232,10 +225,7 @@ impl BatteryService {
         Ok(combined)
     }
 
-    async fn start_listening(
-        state: State,
-        output: &mut Sender<<Self as ReadOnlyService>::Event>,
-    ) -> State {
+    async fn start_listening(state: State, output: &mut Sender<ServiceEvent<Self>>) -> State {
         match state {
             State::Init => match zbus::Connection::system().await {
                 Ok(conn) => {
@@ -249,7 +239,7 @@ impl BatteryService {
                         data,
                         conn: conn.clone(),
                     };
-                    let _ = output.send(BatteryEvent::Init(service)).await;
+                    let _ = output.send(ServiceEvent::Init(service)).await;
 
                     State::Active(conn, path)
                 }
@@ -258,7 +248,7 @@ impl BatteryService {
             State::Active(conn, path) => match BatteryService::events(&conn, &path).await {
                 Ok(mut events) => {
                     while let Some(event) = events.next().await {
-                        let _ = output.send(event).await;
+                        let _ = output.send(ServiceEvent::Update(event)).await;
                     }
 
                     State::Active(conn, path)

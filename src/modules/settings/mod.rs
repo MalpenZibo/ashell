@@ -12,11 +12,7 @@ use crate::{
     menu::{Menu, MenuType},
     modules::settings::power::power_menu,
     password_dialog,
-    services::{
-        battery::{BatteryData, BatteryEvent, BatteryService, BatteryStatus},
-        network::service::{ActiveConnectionInfo, NetworkEvent, NetworkService},
-        ReadOnlyService, Service,
-    },
+    services::{battery::BatteryService, network::NetworkService, ReadOnlyService, ServiceEvent},
     style::{
         HeaderButtonStyle, QuickSettingsButtonStyle, QuickSettingsSubMenuButtonStyle,
         SettingsButtonStyle,
@@ -114,21 +110,22 @@ impl Settings {
             Message::Battery(msg) => {
                 match msg {
                     BatteryMessage::Event(event) => match event {
-                        BatteryEvent::Init(service) => {
+                        ServiceEvent::Init(service) => {
                             self.battery = Some(service);
                         }
-                        BatteryEvent::Update(data) => {
+                        ServiceEvent::Update(data) => {
                             if let Some(battery) = self.battery.as_mut() {
                                 battery.update(data);
                             }
                         }
+                        ServiceEvent::Error(_) => {}
                     },
                 };
                 Command::none()
             }
             Message::Network(msg) => match msg {
                 NetworkMessage::Event(event) => match event {
-                    NetworkEvent::Init(service) => {
+                    ServiceEvent::Init(service) => {
                         self.network = Some(service);
                         Command::none()
                     }

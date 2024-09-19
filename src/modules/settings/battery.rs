@@ -1,6 +1,9 @@
 use crate::{
     components::icons::icon,
-    services::battery::{BatteryData, BatteryEvent, BatteryStatus},
+    services::{
+        battery::{BatteryData, BatteryService, BatteryStatus},
+        ServiceEvent,
+    },
     utils::{format_duration, IndicatorState},
 };
 use iced::{
@@ -10,7 +13,7 @@ use iced::{
 
 #[derive(Clone, Debug)]
 pub enum BatteryMessage {
-    Event(BatteryEvent),
+    Event(ServiceEvent<BatteryService>),
 }
 
 pub fn battery_indicator<'a, Message: 'static>(data: BatteryData) -> Element<'a, Message> {

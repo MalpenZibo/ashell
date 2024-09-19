@@ -1,4 +1,4 @@
-use crate::services::{ReadOnlyService, Service};
+use crate::services::ReadOnlyService;
 use dbus::{ActiveConnectionState, ConnectivityState, DeviceState, NetworkDbus};
 use iced::{
     futures::{
@@ -13,12 +13,12 @@ use log::{debug, error, info};
 use std::{any::TypeId, ops::Deref};
 use zbus::zvariant::ObjectPath;
 
+use super::ServiceEvent;
+
 mod dbus;
 
 #[derive(Debug, Clone)]
-pub enum NetworkEvent {
-    Init(NetworkService),
-}
+pub enum NetworkEvent {}
 
 #[derive(Debug, Clone)]
 pub enum NetworkCommand {
@@ -100,10 +100,12 @@ enum State {
 }
 
 impl ReadOnlyService for NetworkService {
-    type Data = NetworkData;
-    type Event = NetworkEvent;
+    type UpdateEvent = NetworkEvent;
+    type Error = ();
 
-    fn subscribe() -> Subscription<Self::Event> {
+    fn update(&mut self, _event: Self::UpdateEvent) {}
+
+    fn subscribe() -> Subscription<ServiceEvent<Self>> {
         let id = TypeId::of::<Self>();
 
         channel(id, 50, |mut output| async move {
@@ -158,7 +160,7 @@ impl NetworkService {
 
     async fn start_listening(
         state: State,
-        output: &mut Sender<<Self as ReadOnlyService>::Event>,
+        output: &mut Sender<ServiceEvent<Self>>,
     ) -> State {
         match state {
             State::Init => match zbus::Connection::system().await {
@@ -172,7 +174,7 @@ impl NetworkService {
                             info!("Network service initialized");
 
                             let _ = output
-                                .send(NetworkEvent::Init(NetworkService {
+                                .send(ServiceEvent::Init(NetworkService {
                                     data,
                                     conn: conn.clone(),
                                     commander: tx,
