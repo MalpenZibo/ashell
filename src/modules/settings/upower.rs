@@ -1,7 +1,7 @@
 use crate::{
-    components::icons::icon,
+    components::icons::{icon, Icons},
     services::{
-        battery::{BatteryData, BatteryService, BatteryStatus},
+        upower::{BatteryData, BatteryStatus, PowerProfile, UPowerService},
         ServiceEvent,
     },
     utils::{format_duration, IndicatorState},
@@ -11,9 +11,12 @@ use iced::{
     Alignment, Background, Border, Element, Theme,
 };
 
+use super::{quick_setting_button, Message};
+
 #[derive(Clone, Debug)]
-pub enum BatteryMessage {
-    Event(ServiceEvent<BatteryService>),
+pub enum UPowerMessage {
+    Event(ServiceEvent<UPowerService>),
+    TogglePowerProfile,
 }
 
 pub fn battery_indicator<'a, Message: 'static>(data: BatteryData) -> Element<'a, Message> {
@@ -72,4 +75,53 @@ pub fn settings_battery_indicator<'a, Message: 'static>(
         border: Border::with_radius(32),
         ..container::Appearance::default()
     })
+}
+
+impl PowerProfile {
+    pub fn indicator<Message: 'static>(&self) -> Option<Element<Message>> {
+        match self {
+            PowerProfile::Balanced => None,
+            PowerProfile::Performance => Some(
+                container(icon(Icons::Performance))
+                    .style(|theme: &Theme| container::Appearance {
+                        text_color: Some(theme.palette().danger),
+                        ..Default::default()
+                    })
+                    .into(),
+            ),
+            PowerProfile::PowerSaver => Some(
+                container(icon(Icons::PowerSaver))
+                    .style(|theme: &Theme| container::Appearance {
+                        text_color: Some(theme.palette().success),
+                        ..Default::default()
+                    })
+                    .into(),
+            ),
+            PowerProfile::Unknown => None,
+        }
+    }
+
+    pub fn get_quick_setting_button(&self) -> Option<(Element<Message>, Option<Element<Message>>)> {
+        if !matches!(self, PowerProfile::Unknown) {
+            Some((
+                quick_setting_button(
+                    (*self).into(),
+                    match self {
+                        PowerProfile::Balanced => "Balanced",
+                        PowerProfile::Performance => "Performance",
+                        PowerProfile::PowerSaver => "Power Saver",
+                        PowerProfile::Unknown => "",
+                    }
+                    .to_string(),
+                    None,
+                    true,
+                    Message::UPower(UPowerMessage::TogglePowerProfile),
+                    None,
+                ),
+                None,
+            ))
+        } else {
+            None
+        }
+    }
 }

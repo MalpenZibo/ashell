@@ -1,7 +1,7 @@
 use iced::Subscription;
 
-pub mod battery;
 pub mod network;
+pub mod upower;
 
 #[derive(Debug, Clone)]
 pub enum ServiceEvent<S: ReadOnlyService> {
@@ -13,7 +13,10 @@ pub enum ServiceEvent<S: ReadOnlyService> {
 pub trait Service: ReadOnlyService {
     type Command;
 
-    fn command<Message>(&self, command: Self::Command) -> iced::Command<Message>;
+    fn command(
+        &self,
+        command: Self::Command,
+    ) -> iced::Command<ServiceEvent<Self>>;
 }
 
 pub trait ReadOnlyService: Sized {

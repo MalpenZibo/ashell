@@ -1,10 +1,9 @@
 use self::{
     audio::{Audio, AudioMessage},
-    battery::{battery_indicator, settings_battery_indicator},
     bluetooth::BluetoothMessage,
     net::NetworkMessage,
     power::PowerMessage,
-    powerprofiles::{PowerProfiles, PowerProfilesMessage},
+    upower::{battery_indicator, settings_battery_indicator},
 };
 use crate::{
     components::icons::{icon, Icons},
@@ -12,14 +11,17 @@ use crate::{
     menu::{Menu, MenuType},
     modules::settings::power::power_menu,
     password_dialog,
-    services::{battery::BatteryService, network::NetworkService, ReadOnlyService, ServiceEvent},
+    services::{
+        network::NetworkService,
+        upower::{PowerProfileCommand, UPowerService},
+        ReadOnlyService, Service, ServiceEvent,
+    },
     style::{
         HeaderButtonStyle, QuickSettingsButtonStyle, QuickSettingsSubMenuButtonStyle,
         SettingsButtonStyle,
     },
     utils::idle_inhibitor::WaylandIdleInhibitor,
 };
-use battery::BatteryMessage;
 use bluetooth::Bluetooth;
 use brightness::{Brightness, BrightnessMessage};
 use iced::{
@@ -30,34 +32,32 @@ use iced::{
     },
     Alignment, Background, Border, Command, Element, Length, Subscription, Theme,
 };
+use upower::UPowerMessage;
 
 pub mod audio;
-mod battery;
 pub mod bluetooth;
 pub mod brightness;
 pub mod net;
 mod power;
-pub mod powerprofiles;
+mod upower;
 
 pub struct Settings {
     audio: Audio,
     brightness: Brightness,
     network: Option<NetworkService>,
     bluetooth: Bluetooth,
-    powerprofiles: PowerProfiles,
     idle_inhibitor: Option<WaylandIdleInhibitor>,
     sub_menu: Option<SubMenu>,
-    battery: Option<BatteryService>,
+    upower: Option<UPowerService>,
     pub password_dialog: Option<(String, String)>,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
     ToggleMenu,
-    Battery(BatteryMessage),
+    UPower(UPowerMessage),
     Network(NetworkMessage),
     Bluetooth(BluetoothMessage),
-    PowerProfiles(PowerProfilesMessage),
     Audio(AudioMessage),
     Brightness(BrightnessMessage),
     ToggleInhibitIdle,
@@ -84,10 +84,9 @@ impl Settings {
             brightness: Brightness::new(),
             network: None,
             bluetooth: Bluetooth::new(),
-            powerprofiles: PowerProfiles::new(),
             idle_inhibitor: WaylandIdleInhibitor::new().ok(),
             sub_menu: None,
-            battery: None,
+            upower: None,
             password_dialog: None,
         }
     }
@@ -107,22 +106,32 @@ impl Settings {
                     menu.toggle(MenuType::Settings),
                 ])
             }
-            Message::Battery(msg) => {
-                match msg {
-                    BatteryMessage::Event(event) => match event {
-                        ServiceEvent::Init(service) => {
-                            self.battery = Some(service);
+            Message::UPower(msg) => match msg {
+                UPowerMessage::Event(event) => match event {
+                    ServiceEvent::Init(service) => {
+                        self.upower = Some(service);
+                        Command::none()
+                    }
+                    ServiceEvent::Update(data) => {
+                        if let Some(upower) = self.upower.as_mut() {
+                            upower.update(data);
                         }
-                        ServiceEvent::Update(data) => {
-                            if let Some(battery) = self.battery.as_mut() {
-                                battery.update(data);
-                            }
-                        }
-                        ServiceEvent::Error(_) => {}
-                    },
-                };
-                Command::none()
-            }
+                        Command::none()
+                    }
+                    ServiceEvent::Error(_) => Command::none(),
+                },
+                UPowerMessage::TogglePowerProfile => {
+                    if let Some(upower) = self.upower.as_ref() {
+                        upower.command(PowerProfileCommand::Toggle).map(|event| {
+                            crate::app::Message::Settings(Message::UPower(UPowerMessage::Event(
+                                event,
+                            )))
+                        })
+                    } else {
+                        Command::none()
+                    }
+                }
+            },
             Message::Network(msg) => match msg {
                 NetworkMessage::Event(event) => match event {
                     ServiceEvent::Init(service) => {
@@ -134,7 +143,6 @@ impl Settings {
                 _ => Command::none(),
             },
             Message::Bluetooth(msg) => self.bluetooth.update(msg, menu, &mut self.sub_menu, config),
-            Message::PowerProfiles(msg) => self.powerprofiles.update(msg),
             Message::Audio(msg) => self.audio.update(msg, menu, config),
             Message::Brightness(msg) => self.brightness.update(msg),
             Message::ToggleSubMenu(menu_type) => {
@@ -214,7 +222,11 @@ impl Settings {
             }));
         }
 
-        if let Some(powerprofiles_indicator) = self.powerprofiles.indicator() {
+        if let Some(powerprofiles_indicator) = self
+            .upower
+            .as_ref()
+            .and_then(|p| p.power_profile.indicator())
+        {
             elements = elements.push(powerprofiles_indicator);
         }
 
@@ -237,8 +249,8 @@ impl Settings {
 
         elements = elements.push(net_elements);
 
-        if let Some(battery) = self.battery.as_ref() {
-            elements = elements.push(battery_indicator(battery.data));
+        if let Some(battery) = self.upower.as_ref().and_then(|upower| upower.battery) {
+            elements = elements.push(battery_indicator(battery));
         }
 
         button(elements)
@@ -253,9 +265,10 @@ impl Settings {
             vec![password_dialog::view("ssid", current_password).map(Message::PasswordDialog)]
         } else {
             let battery_data = self
-                .battery
+                .upower
                 .as_ref()
-                .map(|d| settings_battery_indicator(d.data));
+                .and_then(|upower| upower.battery)
+                .map(settings_battery_indicator);
             let right_buttons = Row::with_children(
                 vec![
                     config.lock_cmd.as_ref().map(|_| {
@@ -306,7 +319,9 @@ impl Settings {
                         self.sub_menu,
                         config.bluetooth_more_cmd.is_some(),
                     ),
-                    self.powerprofiles.get_quick_setting_button(),
+                    self.upower
+                        .as_ref()
+                        .and_then(|u| u.power_profile.get_quick_setting_button()),
                     self.idle_inhibitor.as_ref().map(|idle_inhibitor| {
                         (
                             quick_setting_button(
@@ -368,14 +383,11 @@ impl Settings {
 
     pub fn subscription(&self) -> Subscription<Message> {
         Subscription::batch(vec![
-            BatteryService::subscribe().map(|event| Message::Battery(BatteryMessage::Event(event))),
+            UPowerService::subscribe().map(|event| Message::UPower(UPowerMessage::Event(event))),
             self.audio.subscription().map(Message::Audio),
             self.brightness.subscription().map(Message::Brightness),
             NetworkService::subscribe().map(|event| Message::Network(NetworkMessage::Event(event))),
             self.bluetooth.subscription().map(Message::Bluetooth),
-            self.powerprofiles
-                .subscription()
-                .map(Message::PowerProfiles),
         ])
     }
 }

@@ -1,3 +1,4 @@
+use super::ServiceEvent;
 use crate::services::ReadOnlyService;
 use dbus::{ActiveConnectionState, ConnectivityState, DeviceState, NetworkDbus};
 use iced::{
@@ -12,8 +13,6 @@ use iced::{
 use log::{debug, error, info};
 use std::{any::TypeId, ops::Deref};
 use zbus::zvariant::ObjectPath;
-
-use super::ServiceEvent;
 
 mod dbus;
 
@@ -158,10 +157,7 @@ impl NetworkService {
         })
     }
 
-    async fn start_listening(
-        state: State,
-        output: &mut Sender<ServiceEvent<Self>>,
-    ) -> State {
+    async fn start_listening(state: State, output: &mut Sender<ServiceEvent<Self>>) -> State {
         match state {
             State::Init => match zbus::Connection::system().await {
                 Ok(conn) => {
