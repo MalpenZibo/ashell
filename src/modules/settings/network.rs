@@ -14,6 +14,8 @@ use iced::{
     widget::{button, column, container, horizontal_rule, row, scrollable, text, toggler, Column},
     Alignment, Element, Length, Theme,
 };
+use itertools::Itertools;
+use log::debug;
 
 use super::{quick_setting_button, sub_menu_wrapper, Message, SubMenu};
 
@@ -24,7 +26,7 @@ pub enum NetworkMessage {
     ScanNearByWiFi,
     WiFiMore,
     VpnMore,
-    ActivateWiFi(String, Option<String>),
+    SelectAccessPoint(AccessPoint),
     RequestWiFiPassword(String),
     VpnToggle(String),
     ToggleAirplaneMode,
@@ -352,10 +354,13 @@ impl NetworkData {
             container(scrollable(
                 Column::with_children(
                     self.wireless_access_points
+                    .iter()
+                    .filter_map(|ac| if active_connection.is_some_and(|(ssid, _)| ssid == ac.ssid) {Some((ac, true))} else {None })
+                    .chain(self.wireless_access_points
                         .iter()
-                        .map(|ac| {
-                            let is_active =
-                                active_connection.is_some_and(|(ssid, _)| ssid == ac.ssid);
+                        .filter_map(|ac| if active_connection.is_some_and(|(ssid, _)| ssid == ac.ssid) {None} else {Some((ac, false))})
+                    )
+                        .map(|(ac, is_active)| {
                             let is_known = self.known_connections.iter().any(|c| {
                                 matches!(
                                     c,
@@ -392,7 +397,7 @@ impl NetworkData {
                             .padding([8, 8])
                             .on_press_maybe(if !is_active {
                                 Some(if is_known {
-                                    NetworkMessage::ActivateWiFi(ac.ssid.clone(), None)
+                                    NetworkMessage::SelectAccessPoint(ac.clone())
                                 } else {
                                     NetworkMessage::RequestWiFiPassword(ac.ssid.clone())
                                 })

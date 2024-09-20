@@ -159,6 +159,63 @@ impl Settings {
                         Command::none()
                     }
                 }
+                NetworkMessage::ToggleWiFi => {
+                    if let Some(network) = self.network.as_ref() {
+                        network.command(NetworkCommand::ToggleWiFi).map(|event| {
+                            crate::app::Message::Settings(Message::Network(NetworkMessage::Event(
+                                event,
+                            )))
+                        })
+                    } else {
+                        Command::none()
+                    }
+                }
+                NetworkMessage::SelectAccessPoint(ac) => {
+                    if let Some(network) = self.network.as_ref() {
+                        network
+                            .command(NetworkCommand::SelectAccessPoint(ac))
+                            .map(|event| {
+                                crate::app::Message::Settings(Message::Network(
+                                    NetworkMessage::Event(event),
+                                ))
+                            })
+                    } else {
+                        Command::none()
+                    }
+                }
+                NetworkMessage::RequestWiFiPassword(ssid) => {
+                    self.password_dialog = Some((ssid, "".to_string()));
+                    menu.set_keyboard_interactivity()
+                }
+                NetworkMessage::ScanNearByWiFi => {
+                    if let Some(network) = self.network.as_ref() {
+                        network
+                            .command(NetworkCommand::ScanNearByWiFi)
+                            .map(|event| {
+                                crate::app::Message::Settings(Message::Network(
+                                    NetworkMessage::Event(event),
+                                ))
+                            })
+                    } else {
+                        Command::none()
+                    }
+                }
+                NetworkMessage::WiFiMore => {
+                    if let Some(cmd) = &config.wifi_more_cmd {
+                        crate::utils::launcher::execute_command(cmd.to_string());
+                        menu.close()
+                    } else {
+                        Command::none()
+                    }
+                }
+                NetworkMessage::VpnMore => {
+                    if let Some(cmd) = &config.vpn_more_cmd {
+                        crate::utils::launcher::execute_command(cmd.to_string());
+                        menu.close()
+                    } else {
+                        Command::none()
+                    }
+                }
                 _ => Command::none(),
             },
             Message::Bluetooth(msg) => self.bluetooth.update(msg, menu, &mut self.sub_menu, config),

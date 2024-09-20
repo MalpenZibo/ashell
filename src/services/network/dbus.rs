@@ -1,10 +1,11 @@
 use super::{AccessPoint, ActiveConnectionInfo, KnownConnection};
 use iced::futures::StreamExt;
 use itertools::Itertools;
+use log::debug;
 use std::{collections::HashMap, ops::Deref};
 use zbus::{
     proxy,
-    zvariant::{OwnedObjectPath, OwnedValue, Value},
+    zvariant::{self, ObjectPath, OwnedObjectPath, OwnedValue, Value},
     Result,
 };
 
@@ -136,11 +137,14 @@ impl<'a> NetworkDbus<'a> {
             let s = c.get_settings().await.unwrap();
             let wifi = s.get("802-11-wireless");
 
-            if let Some(wifi) = wifi {
-                let ssid = wifi.get("ssid").map(|s| match s.deref() {
-                    Value::Str(v) => v.to_string(),
-                    _ => "".to_string(),
-                });
+            if wifi.is_some() {
+                let ssid = s
+                    .get("connection")
+                    .and_then(|c| c.get("id"))
+                    .map(|s| match s.deref() {
+                        Value::Str(v) => v.to_string(),
+                        _ => "".to_string(),
+                    });
 
                 if let Some(cur_ssid) = ssid {
                     known_ssid.push(cur_ssid);
@@ -148,8 +152,7 @@ impl<'a> NetworkDbus<'a> {
             } else if s.contains_key("vpn") {
                 let id = s
                     .get("connection")
-                    .unwrap()
-                    .get("id")
+                    .and_then(|c| c.get("id"))
                     .map(|v| match v.deref() {
                         Value::Str(v) => v.to_string(),
                         _ => "".to_string(),
@@ -163,9 +166,7 @@ impl<'a> NetworkDbus<'a> {
         let known_connections: Vec<_> = wireless_access_points
             .iter()
             .filter_map(|a| {
-                if known_ssid.contains(&a.ssid)
-                    && !active_connections.iter().any(|ac| ac.name() == a.ssid)
-                {
+                if known_ssid.contains(&a.ssid) {
                     Some(KnownConnection::AccessPoint(a.clone()))
                 } else {
                     None
@@ -187,9 +188,7 @@ impl<'a> NetworkDbus<'a> {
                     .build()
                     .await?;
 
-                if let Some(DeviceType::Wifi) =
-                    device.device_type().await.map(DeviceType::from).ok()
-                {
+                if let Ok(DeviceType::Wifi) = device.device_type().await.map(DeviceType::from) {
                     let wireless_device = WirelessDeviceProxy::builder(self.0.inner().connection())
                         .path(device.0.path())?
                         .build()
@@ -235,6 +234,7 @@ impl<'a> NetworkDbus<'a> {
                                 public,
                                 working: false,
                                 path: ap.inner().path().to_owned(),
+                                device_path: device.0.path().to_owned(),
                             },
                         );
                     }
@@ -263,6 +263,58 @@ impl<'a> NetworkDbus<'a> {
 
         Ok(wireless_access_points)
     }
+
+    pub async fn select_access_point(&self, access_point: &AccessPoint) -> anyhow::Result<()> {
+        let settings = NetworkSettingsDbus::new(self.0.inner().connection()).await?;
+        let connection = settings.find_connection(&access_point.ssid).await?;
+
+        if let Some(connection) = connection {
+            self.activate_connection(
+                connection,
+                access_point.device_path.to_owned().into(),
+                OwnedObjectPath::try_from("/")?,
+            )
+            .await?;
+        } else {
+            let name = access_point.ssid.clone();
+            debug!("Create new wifi connection: {}", name);
+
+            let conn_settings: HashMap<&str, HashMap<&str, zvariant::Value>> = HashMap::from([
+                (
+                    "802-11-wireless",
+                    HashMap::from([("ssid", Value::Array(name.as_bytes().into()))]),
+                ),
+                (
+                    "connection",
+                    HashMap::from([
+                        ("id", Value::Str(name.into())),
+                        ("type", Value::Str("802-11-wireless".into())),
+                    ]),
+                ),
+            ]);
+
+            // if let Some(pass) = password {
+            //     conn_settings.insert(
+            //         "802-11-wireless-security",
+            //         HashMap::from([
+            //             ("psk", Value::Str(pass.into())),
+            //             ("key-mgmt", Value::Str("wpa-psk".into())),
+            //         ]),
+            //     );
+            // }
+            //
+            // Combine these all in a single configuration.
+            //
+            self.add_and_activate_connection(
+                conn_settings,
+                &access_point.device_path,
+                &access_point.path,
+            )
+            .await?;
+        }
+
+        Ok(())
+    }
 }
 
 pub struct NetworkSettingsDbus<'a>(SettingsProxy<'a>);
@@ -284,6 +336,33 @@ impl<'a> NetworkSettingsDbus<'a> {
 
     pub async fn know_connections(&self) -> anyhow::Result<Vec<OwnedObjectPath>> {
         Ok(self.list_connections().await?)
+    }
+
+    pub async fn find_connection(&self, name: &str) -> anyhow::Result<Option<OwnedObjectPath>> {
+        let connections = self.list_connections().await?;
+
+        for connection in connections {
+            let connection = ConnectionSettingsProxy::builder(self.inner().connection())
+                .path(connection)?
+                .build()
+                .await?;
+
+            let s = connection.get_settings().await?;
+            let id = s
+                .get("connection")
+                .unwrap()
+                .get("id")
+                .map(|v| match v.deref() {
+                    Value::Str(v) => v.to_string(),
+                    _ => "".to_string(),
+                })
+                .unwrap();
+            if id == name {
+                return Ok(Some(connection.inner().path().to_owned().into()));
+            }
+        }
+
+        Ok(None)
     }
 }
 
@@ -408,6 +487,13 @@ trait NetworkManager {
         specific_object: OwnedObjectPath,
     ) -> Result<OwnedObjectPath>;
 
+    fn add_and_activate_connection(
+        &self,
+        connection: HashMap<&str, HashMap<&str, Value<'_>>>,
+        device: &ObjectPath<'_>,
+        specific_object: &ObjectPath<'_>,
+    ) -> Result<(OwnedObjectPath, OwnedObjectPath)>;
+
     fn deactivate_connection(&self, connection: OwnedObjectPath) -> Result<()>;
 
     #[zbus(property)]
@@ -423,7 +509,7 @@ trait NetworkManager {
     fn set_wireless_enabled(&self, value: bool) -> Result<()>;
 
     #[zbus(property)]
-    fn connectivity(&self) -> zbus::Result<u32>;
+    fn connectivity(&self) -> Result<u32>;
 }
 
 #[proxy(

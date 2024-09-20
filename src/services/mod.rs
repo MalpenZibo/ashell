@@ -13,10 +13,7 @@ pub enum ServiceEvent<S: ReadOnlyService> {
 pub trait Service: ReadOnlyService {
     type Command;
 
-    fn command(
-        &self,
-        command: Self::Command,
-    ) -> iced::Command<ServiceEvent<Self>>;
+    fn command(&self, command: Self::Command) -> iced::Command<ServiceEvent<Self>>;
 }
 
 pub trait ReadOnlyService: Sized {

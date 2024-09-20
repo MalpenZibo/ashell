@@ -1,17 +1,20 @@
 use super::{Service, ServiceEvent};
 use crate::services::ReadOnlyService;
-use dbus::{ActiveConnectionState, ConnectivityState, DeviceState, NetworkDbus};
+use dbus::{
+    ActiveConnectionState, ConnectivityState, DeviceState, NetworkDbus, NetworkSettingsDbus,
+    WirelessDeviceProxy,
+};
 use iced::{
     futures::{
         channel::mpsc::{unbounded, Sender, UnboundedReceiver, UnboundedSender},
-        stream::pending,
-        SinkExt, Stream, StreamExt,
+        stream::{pending, select_all},
+        stream_select, SinkExt, Stream, StreamExt,
     },
     subscription::channel,
     Subscription,
 };
 use log::{debug, error, info};
-use std::{any::TypeId, ops::Deref};
+use std::{any::TypeId, collections::HashMap, ops::Deref};
 use tokio::process::Command;
 use zbus::zvariant::ObjectPath;
 
@@ -25,17 +28,15 @@ pub enum NetworkEvent {
     WirelessAccessPoints(Vec<AccessPoint>),
     ActiveConnections(Vec<ActiveConnectionInfo>),
     KnownConnections(Vec<KnownConnection>),
-    ScanningNearbyWifi(bool),
+    ScanningNearbyWifi,
 }
 
 #[derive(Debug, Clone)]
 pub enum NetworkCommand {
-    ScanNearbyWifi,
+    ScanNearByWiFi,
     ToggleWiFi,
     ToggleAirplaneMode,
-    ActivateWiFi(String, Option<String>),
-    RequestWiFiPassword(String),
-    ToggleConnection(String),
+    SelectAccessPoint(AccessPoint),
 }
 
 #[derive(Debug, Clone)]
@@ -46,6 +47,7 @@ pub struct AccessPoint {
     pub public: bool,
     pub working: bool,
     pub path: ObjectPath<'static>,
+    pub device_path: ObjectPath<'static>,
 }
 
 #[derive(Debug, Clone)]
@@ -124,6 +126,19 @@ impl ReadOnlyService for NetworkService {
             NetworkEvent::WiFiEnabled(wifi_enabled) => {
                 debug!("WiFi enabled: {}", wifi_enabled);
                 self.data.wifi_enabled = wifi_enabled;
+            }
+            NetworkEvent::ScanningNearbyWifi => {
+                self.data.scanning_nearby_wifi = true;
+            }
+            NetworkEvent::WirelessAccessPoints(wireless_access_points) => {
+                self.data.scanning_nearby_wifi = false;
+                self.data.wireless_access_points = wireless_access_points;
+            }
+            NetworkEvent::ActiveConnections(active_connections) => {
+                self.data.active_connections = active_connections;
+            }
+            NetworkEvent::KnownConnections(known_connections) => {
+                self.data.known_connections = known_connections;
             }
             _ => {}
         }
@@ -232,6 +247,32 @@ impl NetworkService {
                                         )))
                                         .await;
                                 }
+                                NetworkEvent::ActiveConnections(active_connections) => {
+                                    debug!("Active connections: {:?}", active_connections);
+                                    let _ = output
+                                        .send(ServiceEvent::Update(
+                                            NetworkEvent::ActiveConnections(active_connections),
+                                        ))
+                                        .await;
+                                }
+                                NetworkEvent::WirelessAccessPoints(wireless_access_points) => {
+                                    debug!("Wireless access points: {:?}", wireless_access_points);
+                                    let _ = output
+                                        .send(ServiceEvent::Update(
+                                            NetworkEvent::WirelessAccessPoints(
+                                                wireless_access_points,
+                                            ),
+                                        ))
+                                        .await;
+                                }
+                                NetworkEvent::KnownConnections(known_connections) => {
+                                    debug!("Known connections: {:?}", known_connections);
+                                    let _ = output
+                                        .send(ServiceEvent::Update(NetworkEvent::KnownConnections(
+                                            known_connections,
+                                        )))
+                                        .await;
+                                }
                                 _ => {}
                             }
                         }
@@ -253,15 +294,97 @@ impl NetworkService {
 
     async fn events(conn: &zbus::Connection) -> anyhow::Result<impl Stream<Item = NetworkEvent>> {
         let nm = NetworkDbus::new(conn).await?;
+        let settings = NetworkSettingsDbus::new(conn).await?;
 
-        Ok(nm.receive_wireless_enabled_changed().await.map(move |_| {
+        enum ReceiveEvent {
+            WiFiEnabled,
+            ActiveConnections,
+            Device,
+            KnownConnections,
+        }
+
+        let wireless_enabled = nm.receive_wireless_enabled_changed().await.map(|_| {
             debug!("WiFi enabled changed");
-            NetworkEvent::WiFiEnabled(
-                nm.cached_wireless_enabled()
-                    .unwrap_or_default()
-                    .unwrap_or_default(),
-            )
-        }))
+            ReceiveEvent::WiFiEnabled
+        });
+
+        let active_connections = nm.receive_active_connections_changed().await.map(|_| {
+            debug!("Active connections changed");
+            ReceiveEvent::ActiveConnections
+        });
+
+        let devices = nm.receive_devices_changed().await.map(|_| {
+            debug!("Wireless access points changed");
+            ReceiveEvent::Device
+        });
+
+        let wireless_ac = nm.wireless_access_points().await?;
+        let mut ac_changes = Vec::with_capacity(wireless_ac.len());
+        for ac in wireless_ac {
+            let dp = WirelessDeviceProxy::builder(conn)
+                .path(ac.device_path.clone())?
+                .build()
+                .await?;
+
+            ac_changes.push(dp.receive_access_points_changed().await);
+        }
+
+        let access_points = select_all(ac_changes).map(|_| {
+            debug!("Wireless access points changed");
+            ReceiveEvent::Device
+        });
+
+        let known_connections = settings.receive_connections_changed().await.map(|_| {
+            debug!("Known connections changed");
+            ReceiveEvent::KnownConnections
+        });
+
+        let events = stream_select!(
+            wireless_enabled,
+            active_connections,
+            devices,
+            access_points,
+            known_connections
+        )
+        .then({
+            let conn = conn.clone();
+
+            move |event| {
+                let conn = conn.clone();
+
+                async move {
+                    let nm = NetworkDbus::new(&conn).await.unwrap();
+
+                    match event {
+                        ReceiveEvent::WiFiEnabled => NetworkEvent::WiFiEnabled(
+                            nm.wireless_enabled().await.unwrap_or_default(),
+                        ),
+                        ReceiveEvent::ActiveConnections => NetworkEvent::ActiveConnections(
+                            nm.active_connections().await.unwrap_or_default(),
+                        ),
+                        ReceiveEvent::Device => NetworkEvent::WirelessAccessPoints(
+                            nm.wireless_access_points().await.unwrap_or_default(),
+                        ),
+                        ReceiveEvent::KnownConnections => {
+                            let active_connections =
+                                nm.active_connections().await.unwrap_or_default();
+                            let wireless_access_points =
+                                nm.wireless_access_points().await.unwrap_or_default();
+
+                            let known_connections = nm
+                                .known_connections(&wireless_access_points, &active_connections)
+                                .await
+                                .unwrap_or_default();
+
+                            NetworkEvent::KnownConnections(known_connections)
+                        }
+                    }
+                }
+            }
+        })
+        .boxed();
+
+        Ok(events)
     }
 
     async fn set_airplane_mode(conn: &zbus::Connection, airplane_mode: bool) -> anyhow::Result<()> {
@@ -276,6 +399,39 @@ impl NetworkService {
 
         Ok(())
     }
+
+    async fn scan_nearby_wifi(
+        conn: &zbus::Connection,
+        wireless_devices: Vec<ObjectPath<'static>>,
+    ) -> anyhow::Result<()> {
+        for device_path in wireless_devices {
+            let device = WirelessDeviceProxy::builder(conn)
+                .path(device_path)?
+                .build()
+                .await?;
+
+            device.request_scan(HashMap::new()).await?;
+        }
+
+        Ok(())
+    }
+
+    async fn set_wifi_enabled(conn: &zbus::Connection, enabled: bool) -> anyhow::Result<()> {
+        let nm = NetworkDbus::new(conn).await?;
+        nm.set_wireless_enabled(enabled).await?;
+
+        Ok(())
+    }
+
+    async fn select_access_point(
+        conn: &zbus::Connection,
+        access_point: &AccessPoint,
+    ) -> anyhow::Result<Vec<AccessPoint>> {
+        let nm = NetworkDbus::new(conn).await?;
+        nm.select_access_point(access_point).await?;
+
+        nm.wireless_access_points().await
+    }
 }
 
 impl Service for NetworkService {
@@ -284,10 +440,11 @@ impl Service for NetworkService {
     fn command(&self, command: Self::Command) -> iced::Command<ServiceEvent<Self>> {
         debug!("Command: {:?}", command);
         match command {
-            NetworkCommand::ToggleAirplaneMode => iced::Command::perform(
-                {
-                    let conn = self.conn.clone();
-                    let airplane_mode = self.airplane_mode;
+            NetworkCommand::ToggleAirplaneMode => {
+                let conn = self.conn.clone();
+                let airplane_mode = self.airplane_mode;
+
+                iced::Command::perform(
                     async move {
                         debug!("Toggling airplane mode to: {}", !airplane_mode);
                         let res = Self::set_airplane_mode(&conn, !airplane_mode).await;
@@ -297,10 +454,56 @@ impl Service for NetworkService {
                         } else {
                             airplane_mode
                         }
-                    }
-                },
-                |airplane_mode| ServiceEvent::Update(NetworkEvent::AirplaneMode(airplane_mode)),
-            ),
+                    },
+                    |airplane_mode| ServiceEvent::Update(NetworkEvent::AirplaneMode(airplane_mode)),
+                )
+            }
+            NetworkCommand::ScanNearByWiFi => {
+                let conn = self.conn.clone();
+                let wireless_ac = self
+                    .wireless_access_points
+                    .iter()
+                    .map(|ap| ap.path.clone())
+                    .collect();
+
+                iced::Command::perform(
+                    async move {
+                        let _ = NetworkService::scan_nearby_wifi(&conn, wireless_ac).await;
+                    },
+                    |_| ServiceEvent::Update(NetworkEvent::ScanningNearbyWifi),
+                )
+            }
+            NetworkCommand::ToggleWiFi => {
+                let conn = self.conn.clone();
+                let wifi_enabled = self.wifi_enabled;
+
+                iced::Command::perform(
+                    async move {
+                        let res = NetworkService::set_wifi_enabled(&conn, !wifi_enabled).await;
+
+                        if res.is_ok() {
+                            !wifi_enabled
+                        } else {
+                            wifi_enabled
+                        }
+                    },
+                    |wifi_enabled| ServiceEvent::Update(NetworkEvent::WiFiEnabled(wifi_enabled)),
+                )
+            }
+            NetworkCommand::SelectAccessPoint(access_point) => {
+                let conn = self.conn.clone();
+
+                iced::Command::perform(
+                    async move {
+                        let res = NetworkService::select_access_point(&conn, &access_point).await;
+
+                        res.unwrap_or_default()
+                    },
+                    |access_points| {
+                        ServiceEvent::Update(NetworkEvent::WirelessAccessPoints(access_points))
+                    },
+                )
+            }
             _ => iced::Command::none(),
         }
     }
