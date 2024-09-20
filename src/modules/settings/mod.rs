@@ -12,7 +12,7 @@ use crate::{
     modules::settings::power::power_menu,
     password_dialog,
     services::{
-        network::{NetworkCommand, NetworkService},
+        network::{NetworkCommand, NetworkEvent, NetworkService},
         upower::{PowerProfileCommand, UPowerService},
         ReadOnlyService, Service, ServiceEvent,
     },
@@ -138,6 +138,10 @@ impl Settings {
                         self.network = Some(service);
                         Command::none()
                     }
+                    ServiceEvent::Update(NetworkEvent::RequestPasswordForSSID(ssid)) => {
+                        self.password_dialog = Some((ssid, "".to_string()));
+                        menu.set_keyboard_interactivity()
+                    }
                     ServiceEvent::Update(data) => {
                         if let Some(network) = self.network.as_mut() {
                             network.update(data);
@@ -173,7 +177,7 @@ impl Settings {
                 NetworkMessage::SelectAccessPoint(ac) => {
                     if let Some(network) = self.network.as_ref() {
                         network
-                            .command(NetworkCommand::SelectAccessPoint(ac))
+                            .command(NetworkCommand::SelectAccessPoint((ac, None)))
                             .map(|event| {
                                 crate::app::Message::Settings(Message::Network(
                                     NetworkMessage::Event(event),
@@ -264,8 +268,30 @@ impl Settings {
                 }
                 password_dialog::Message::DialogConfirmed => {
                     if let Some((ssid, password)) = self.password_dialog.take() {
-                        // self.net.activate_wifi(ssid, password);
-                        menu.unset_keyboard_interactivity()
+                        let network_command = if let Some(network) = self.network.as_ref() {
+                            let ap = network
+                                .wireless_access_points
+                                .iter()
+                                .find(|ap| ap.ssid == ssid)
+                                .cloned();
+                            if let Some(ap) = ap {
+                                network
+                                    .command(NetworkCommand::SelectAccessPoint((
+                                        ap,
+                                        Some(password),
+                                    )))
+                                    .map(|event| {
+                                        crate::app::Message::Settings(Message::Network(
+                                            NetworkMessage::Event(event),
+                                        ))
+                                    })
+                            } else {
+                                Command::none()
+                            }
+                        } else {
+                            Command::none()
+                        };
+                        Command::batch(vec![menu.unset_keyboard_interactivity(), network_command])
                     } else {
                         Command::none()
                     }

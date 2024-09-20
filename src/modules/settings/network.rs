@@ -1,3 +1,4 @@
+use super::{quick_setting_button, sub_menu_wrapper, Message, SubMenu};
 use crate::{
     components::icons::{icon, Icons},
     services::{
@@ -14,10 +15,6 @@ use iced::{
     widget::{button, column, container, horizontal_rule, row, scrollable, text, toggler, Column},
     Alignment, Element, Length, Theme,
 };
-use itertools::Itertools;
-use log::debug;
-
-use super::{quick_setting_button, sub_menu_wrapper, Message, SubMenu};
 
 #[derive(Debug, Clone)]
 pub enum NetworkMessage {
@@ -264,9 +261,7 @@ impl NetworkData {
         sub_menu: Option<SubMenu>,
         show_more_button: bool,
     ) -> Option<(Element<Message>, Option<Element<Message>>)> {
-        if self.wireless_access_points.is_empty() {
-            None
-        } else {
+        if self.wifi_present {
             let active_connection = self.active_connections.iter().find_map(|c| match c {
                 ActiveConnectionInfo::WiFi {
                     name,
@@ -303,6 +298,8 @@ impl NetworkData {
                         .map(Message::Network)
                     }),
             ))
+        } else {
+            None
         }
     }
 

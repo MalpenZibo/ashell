@@ -21,13 +21,32 @@ impl<'a> Deref for NetworkDbus<'a> {
 
 impl<'a> NetworkDbus<'a> {
     pub async fn new(conn: &zbus::Connection) -> anyhow::Result<Self> {
-        let nm = NetworkManagerProxy::new(&conn).await?;
+        let nm = NetworkManagerProxy::new(conn).await?;
 
         Ok(Self(nm))
     }
 
     pub async fn connectivity(&self) -> Result<ConnectivityState> {
         self.0.connectivity().await.map(ConnectivityState::from)
+    }
+
+    pub async fn wifi_device_present(&self) -> anyhow::Result<bool> {
+        let devices = self.devices().await?;
+        for d in devices {
+            let device = DeviceProxy::builder(self.0.inner().connection())
+                .path(d)?
+                .build()
+                .await?;
+
+            if matches!(
+                device.device_type().await.map(DeviceType::from),
+                Ok(DeviceType::Wifi)
+            ) {
+                return Ok(true);
+            }
+        }
+
+        Ok(false)
     }
 
     pub async fn active_connections(&self) -> anyhow::Result<Vec<ActiveConnectionInfo>> {
@@ -39,7 +58,7 @@ impl<'a> NetworkDbus<'a> {
                 .path(active_connection)?
                 .build()
                 .await?;
-            ac_proxies.push(active_connection.into());
+            ac_proxies.push(active_connection);
         }
 
         let mut info = Vec::<ActiveConnectionInfo>::with_capacity(active_connections.len());
@@ -121,7 +140,6 @@ impl<'a> NetworkDbus<'a> {
     pub async fn known_connections(
         &self,
         wireless_access_points: &[AccessPoint],
-        active_connections: &[ActiveConnectionInfo],
     ) -> anyhow::Result<Vec<KnownConnection>> {
         let settings = NetworkSettingsDbus::new(self.0.inner().connection()).await?;
 
@@ -264,13 +282,32 @@ impl<'a> NetworkDbus<'a> {
         Ok(wireless_access_points)
     }
 
-    pub async fn select_access_point(&self, access_point: &AccessPoint) -> anyhow::Result<()> {
+    pub async fn select_access_point(
+        &self,
+        access_point: &AccessPoint,
+        password: Option<String>,
+    ) -> anyhow::Result<()> {
         let settings = NetworkSettingsDbus::new(self.0.inner().connection()).await?;
         let connection = settings.find_connection(&access_point.ssid).await?;
 
-        if let Some(connection) = connection {
+        if let Some(connection) = connection.as_ref() {
+            if let Some(password) = password {
+                let connection = ConnectionSettingsProxy::builder(self.0.inner().connection())
+                    .path(connection)?
+                    .build()
+                    .await?;
+
+                let mut s = connection.get_settings().await?;
+                if let Some(wifi_settings) = s.get_mut("802-11-wireless-security") {
+                    let new_password = zvariant::Value::from(password.clone()).try_to_owned()?;
+                    wifi_settings.insert("psk".to_string(), new_password);
+                }
+
+                connection.update(s).await?;
+            }
+
             self.activate_connection(
-                connection,
+                connection.clone(),
                 access_point.device_path.to_owned().into(),
                 OwnedObjectPath::try_from("/")?,
             )
@@ -279,7 +316,7 @@ impl<'a> NetworkDbus<'a> {
             let name = access_point.ssid.clone();
             debug!("Create new wifi connection: {}", name);
 
-            let conn_settings: HashMap<&str, HashMap<&str, zvariant::Value>> = HashMap::from([
+            let mut conn_settings: HashMap<&str, HashMap<&str, zvariant::Value>> = HashMap::from([
                 (
                     "802-11-wireless",
                     HashMap::from([("ssid", Value::Array(name.as_bytes().into()))]),
@@ -293,18 +330,16 @@ impl<'a> NetworkDbus<'a> {
                 ),
             ]);
 
-            // if let Some(pass) = password {
-            //     conn_settings.insert(
-            //         "802-11-wireless-security",
-            //         HashMap::from([
-            //             ("psk", Value::Str(pass.into())),
-            //             ("key-mgmt", Value::Str("wpa-psk".into())),
-            //         ]),
-            //     );
-            // }
-            //
-            // Combine these all in a single configuration.
-            //
+            if let Some(pass) = password {
+                conn_settings.insert(
+                    "802-11-wireless-security",
+                    HashMap::from([
+                        ("psk", Value::Str(pass.into())),
+                        ("key-mgmt", Value::Str("wpa-psk".into())),
+                    ]),
+                );
+            }
+
             self.add_and_activate_connection(
                 conn_settings,
                 &access_point.device_path,
