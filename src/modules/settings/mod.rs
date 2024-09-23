@@ -413,13 +413,13 @@ impl Settings {
             let quick_settings = quick_settings_section(
                 vec![
                     wifi_setting_button,
-                    self.network.as_ref().map(|n| {
-                        n.get_vpn_quick_setting_button(self.sub_menu, config.vpn_more_cmd.is_some())
-                    }),
                     self.bluetooth.get_quick_setting_button(
                         self.sub_menu,
                         config.bluetooth_more_cmd.is_some(),
                     ),
+                    self.network.as_ref().map(|n| {
+                        n.get_vpn_quick_setting_button(self.sub_menu, config.vpn_more_cmd.is_some())
+                    }),
                     self.network
                         .as_ref()
                         .map(|n| n.get_airplane_mode_quick_setting_button()),

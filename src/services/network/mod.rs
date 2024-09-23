@@ -31,6 +31,7 @@ pub enum NetworkEvent {
     },
     ActiveConnections(Vec<ActiveConnectionInfo>),
     KnownConnections(Vec<KnownConnection>),
+    Strenght((usize, u8)),
     RequestPasswordForSSID(String),
     ScanningNearbyWifi,
 }
@@ -147,6 +148,23 @@ impl ReadOnlyService for NetworkService {
             }
             NetworkEvent::KnownConnections(known_connections) => {
                 self.data.known_connections = known_connections;
+            }
+            NetworkEvent::Strenght((index, new_strenght)) => {
+                if let Some(ap) = self.data.wireless_access_points.get_mut(index) {
+                    ap.strength = new_strenght;
+
+                    if let Some(ActiveConnectionInfo::WiFi {
+                        strength,
+                        ..
+                    }) = self
+                        .data
+                        .active_connections
+                        .iter_mut()
+                        .find(|ac| ac.name() == ap.ssid)
+                    {
+                        *strength = new_strenght;
+                    }
+                }
             }
             _ => {}
         }
@@ -308,7 +326,7 @@ impl NetworkService {
             WiFiEnabled,
             ActiveConnections,
             Device,
-            Strength,
+            Strength((usize, u8)),
             KnownConnections,
             PasswordRequested(AccessPoint),
         }
@@ -367,29 +385,18 @@ impl NetworkService {
             ac_changes.push(dp.receive_access_points_changed().await);
         }
 
-        let active_wifi_connections = nm
-            .active_connections()
-            .await?
-            .iter()
-            .filter_map(|ac| {
-                if matches!(ac, ActiveConnectionInfo::WiFi { .. }) {
-                    wireless_ac.iter().find(|ap| ap.ssid == ac.name()).cloned()
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>();
-        let mut strength_changes = Vec::with_capacity(active_wifi_connections.len());
-        for ac in active_wifi_connections.iter() {
-            let ap = AccessPointProxy::builder(conn)
-                .path(ac.path.clone())?
+        let wireless_access_points = nm.wireless_access_points().await?;
+        let mut strength_changes = Vec::with_capacity(wireless_access_points.len());
+        for (index, ap) in wireless_access_points.iter().enumerate() {
+            let app = AccessPointProxy::builder(conn)
+                .path(ap.path.clone())?
                 .build()
                 .await?;
 
-            let current_strength = ac.strength;
+            let current_strength = ap.strength;
 
             strength_changes.push(
-                ap.receive_strength_changed()
+                app.receive_strength_changed()
                     .await
                     .filter_map(move |val| async move {
                         let value = val.get().await.unwrap_or_default();
@@ -399,12 +406,14 @@ impl NetworkService {
                             None
                         }
                     })
-                    .map(|_| {
-                        debug!("Strength changed");
-                        ReceiveEvent::Strength
-                    }),
+                    .map(move |v| {
+                        debug!("Strength changed value: {}", v);
+                        ReceiveEvent::Strength((index, v))
+                    })
+                    .boxed(),
             );
         }
+        let strength_changes = select_all(strength_changes);
 
         let access_points = select_all(ac_changes).map(|_| {
             debug!("Wireless access points changed");
@@ -421,6 +430,7 @@ impl NetworkService {
             active_connections,
             devices,
             access_points,
+            strength_changes,
             known_connections
         )
         .then({
@@ -446,13 +456,9 @@ impl NetworkService {
                                 .await
                                 .unwrap_or_default(),
                         },
-                        ReceiveEvent::Strength => NetworkEvent::Device {
-                            wifi_present: nm.wifi_device_present().await.unwrap_or_default(),
-                            wireless_access_points: nm
-                                .wireless_access_points()
-                                .await
-                                .unwrap_or_default(),
-                        },
+                        ReceiveEvent::Strength((index, strength)) => {
+                            NetworkEvent::Strenght((index, strength))
+                        }
                         ReceiveEvent::KnownConnections => {
                             let wireless_access_points =
                                 nm.wireless_access_points().await.unwrap_or_default();
