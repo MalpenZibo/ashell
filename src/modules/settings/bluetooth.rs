@@ -1,93 +1,26 @@
 use super::{quick_setting_button, sub_menu_wrapper, Message, SubMenu};
 use crate::{
     components::icons::{icon, Icons},
-    config::SettingsModuleConfig,
-    menu::Menu,
+    services::{
+        bluetooth::{BluetoothData, BluetoothService, BluetoothState},
+        ServiceEvent,
+    },
     style::GhostButtonStyle,
-    utils::{bluetooth::BluetoothCommand, Commander},
 };
 use iced::{
     theme::Button,
     widget::{button, column, container, horizontal_rule, row, text, Column, Row},
-    Command, Element, Length, Subscription, Theme,
+    Element, Length, Theme,
 };
-use log::debug;
-
-#[derive(PartialEq, Eq, Debug, Clone)]
-pub enum BluetoothState {
-    Unavailable,
-    Active,
-    Inactive,
-}
-
-#[derive(Debug, Clone)]
-pub struct Device {
-    pub name: String,
-    pub battery: Option<u8>,
-}
 
 #[derive(Debug, Clone)]
 pub enum BluetoothMessage {
-    Status(BluetoothState),
-    DeviceList(Vec<Device>),
+    Event(ServiceEvent<BluetoothService>),
     Toggle,
     More,
 }
 
-pub struct Bluetooth {
-    commander: Commander<BluetoothCommand>,
-    state: BluetoothState,
-    devices: Vec<Device>,
-}
-
-impl Bluetooth {
-    pub fn new() -> Self {
-        Self {
-            commander: Commander::new(),
-            state: BluetoothState::Unavailable,
-            devices: Vec::new(),
-        }
-    }
-
-    pub fn update(
-        &mut self,
-        msg: BluetoothMessage,
-        menu: &mut Menu<crate::app::Message>,
-        sub_menu: &mut Option<SubMenu>,
-        config: &SettingsModuleConfig,
-    ) -> Command<crate::app::Message> {
-        match msg {
-            BluetoothMessage::Status(state) => {
-                debug!("Bluetooth state: {:?}", state);
-                self.state = state;
-
-                if self.state != BluetoothState::Active && *sub_menu == Some(SubMenu::Bluetooth) {
-                    *sub_menu = None;
-                }
-
-                Command::none()
-            }
-            BluetoothMessage::DeviceList(devices) => {
-                self.devices = devices;
-
-                Command::none()
-            }
-            BluetoothMessage::Toggle => {
-                let _ = self.commander.send(BluetoothCommand::TogglePower);
-
-                Command::none()
-            }
-            BluetoothMessage::More => {
-                if let Some(cmd) = &config.bluetooth_more_cmd {
-                    crate::utils::launcher::execute_command(cmd.to_string());
-                    menu.close()
-                } else {
-                    Command::none()
-                }
-            }
-        }
-    }
-
+impl BluetoothData {
     pub fn get_quick_setting_button(
         &self,
         sub_menu: Option<SubMenu>,
@@ -179,9 +112,5 @@ impl Bluetooth {
             ..container::Appearance::default()
         })
         .into()
-    }
-
-    pub fn subscription(&self) -> Subscription<BluetoothMessage> {
-        crate::utils::bluetooth::subscription(self.commander.give_receiver())
     }
 }

@@ -12,6 +12,7 @@ use crate::{
     modules::settings::power::power_menu,
     password_dialog,
     services::{
+        bluetooth::{BluetoothCommand, BluetoothService},
         network::{NetworkCommand, NetworkEvent, NetworkService},
         upower::{PowerProfileCommand, UPowerService},
         ReadOnlyService, Service, ServiceEvent,
@@ -22,7 +23,6 @@ use crate::{
     },
     utils::idle_inhibitor::WaylandIdleInhibitor,
 };
-use bluetooth::Bluetooth;
 use brightness::{Brightness, BrightnessMessage};
 use iced::{
     alignment::{Horizontal, Vertical},
@@ -45,7 +45,7 @@ pub struct Settings {
     audio: Audio,
     brightness: Brightness,
     network: Option<NetworkService>,
-    bluetooth: Bluetooth,
+    bluetooth: Option<BluetoothService>,
     idle_inhibitor: Option<WaylandIdleInhibitor>,
     sub_menu: Option<SubMenu>,
     upower: Option<UPowerService>,
@@ -83,7 +83,7 @@ impl Settings {
             audio: Audio::new(),
             brightness: Brightness::new(),
             network: None,
-            bluetooth: Bluetooth::new(),
+            bluetooth: None,
             idle_inhibitor: WaylandIdleInhibitor::new().ok(),
             sub_menu: None,
             upower: None,
@@ -222,24 +222,61 @@ impl Settings {
                 }
                 _ => Command::none(),
             },
-            Message::Bluetooth(msg) => self.bluetooth.update(msg, menu, &mut self.sub_menu, config),
+            Message::Bluetooth(msg) => match msg {
+                BluetoothMessage::Event(event) => match event {
+                    ServiceEvent::Init(service) => {
+                        self.bluetooth = Some(service);
+                        Command::none()
+                    }
+                    ServiceEvent::Update(data) => {
+                        if let Some(bluetooth) = self.bluetooth.as_mut() {
+                            bluetooth.update(data);
+                        }
+                        Command::none()
+                    }
+                    _ => Command::none(),
+                },
+                BluetoothMessage::Toggle => {
+                    if let Some(bluetooth) = self.bluetooth.as_ref() {
+                        bluetooth.command(BluetoothCommand::Toggle).map(|event| {
+                            crate::app::Message::Settings(Message::Bluetooth(
+                                BluetoothMessage::Event(event),
+                            ))
+                        })
+                    } else {
+                        Command::none()
+                    }
+                }
+                BluetoothMessage::More => {
+                    if let Some(cmd) = &config.bluetooth_more_cmd {
+                        crate::utils::launcher::execute_command(cmd.to_string());
+                        menu.close()
+                    } else {
+                        Command::none()
+                    }
+                }
+            },
             Message::Audio(msg) => self.audio.update(msg, menu, config),
             Message::Brightness(msg) => self.brightness.update(msg),
             Message::ToggleSubMenu(menu_type) => {
                 if self.sub_menu == Some(menu_type) {
                     self.sub_menu.take();
                 } else {
-                    // match menu_type {
-                    //     SubMenu::Vpn => {
-                    //         self.net.get_vpn_connections();
-                    //     }
-                    //     SubMenu::Wifi => {
-                    //         self.net.get_nearby_wifi();
-                    //     }
-                    //     _ => {}
-                    // };
                     self.sub_menu.replace(menu_type);
+
+                    if menu_type == SubMenu::Wifi {
+                        if let Some(network) = self.network.as_ref() {
+                            return network
+                                .command(NetworkCommand::ScanNearByWiFi)
+                                .map(|event| {
+                                    crate::app::Message::Settings(Message::Network(
+                                        NetworkMessage::Event(event),
+                                    ))
+                                });
+                        }
+                    }
                 }
+
                 Command::none()
             }
             Message::ToggleInhibitIdle => {
@@ -413,10 +450,12 @@ impl Settings {
             let quick_settings = quick_settings_section(
                 vec![
                     wifi_setting_button,
-                    self.bluetooth.get_quick_setting_button(
-                        self.sub_menu,
-                        config.bluetooth_more_cmd.is_some(),
-                    ),
+                    self.bluetooth.as_ref().and_then(|b| {
+                        b.get_quick_setting_button(
+                            self.sub_menu,
+                            config.bluetooth_more_cmd.is_some(),
+                        )
+                    }),
                     self.network.as_ref().map(|n| {
                         n.get_vpn_quick_setting_button(self.sub_menu, config.vpn_more_cmd.is_some())
                     }),
@@ -491,7 +530,8 @@ impl Settings {
             self.audio.subscription().map(Message::Audio),
             self.brightness.subscription().map(Message::Brightness),
             NetworkService::subscribe().map(|event| Message::Network(NetworkMessage::Event(event))),
-            self.bluetooth.subscription().map(Message::Bluetooth),
+            BluetoothService::subscribe()
+                .map(|event| Message::Bluetooth(BluetoothMessage::Event(event))),
         ])
     }
 }

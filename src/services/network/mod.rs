@@ -1,5 +1,5 @@
 use super::{Service, ServiceEvent};
-use crate::services::ReadOnlyService;
+use crate::services::{bluetooth::BluetoothService, ReadOnlyService};
 use dbus::{
     AccessPointProxy, ActiveConnectionState, ConnectivityState, DeviceProxy, DeviceState,
     NetworkDbus, NetworkSettingsDbus, WirelessDeviceProxy,
@@ -153,10 +153,7 @@ impl ReadOnlyService for NetworkService {
                 if let Some(ap) = self.data.wireless_access_points.get_mut(index) {
                     ap.strength = new_strenght;
 
-                    if let Some(ActiveConnectionInfo::WiFi {
-                        strength,
-                        ..
-                    }) = self
+                    if let Some(ActiveConnectionInfo::WiFi { strength, .. }) = self
                         .data
                         .active_connections
                         .iter_mut()
@@ -188,19 +185,14 @@ impl NetworkService {
         let nm = NetworkDbus::new(conn).await?;
 
         // airplane mode
-        let airplaine_mode = tokio::process::Command::new("rfkill")
-            .arg("list")
-            .arg("bluetooth")
-            .output()
-            .await?;
-        let airplane_mode = std::str::from_utf8(&airplaine_mode.stdout).unwrap_or_default();
+        let bluetooth_soft_blocked = BluetoothService::check_rfkill_soft_block().await?;
 
         let wifi_present = nm.wifi_device_present().await?;
 
         let wifi_enabled = nm.wireless_enabled().await.unwrap_or_default();
         debug!("Wifi enabled: {}", wifi_enabled);
 
-        let airplane_mode = airplane_mode.contains("Soft blocked: yes") && !wifi_enabled;
+        let airplane_mode = bluetooth_soft_blocked && !wifi_enabled;
         debug!("Airplane mode: {}", airplane_mode);
 
         let active_connections = nm.active_connections().await?;
