@@ -13,6 +13,7 @@ use crate::{
     password_dialog,
     services::{
         bluetooth::{BluetoothCommand, BluetoothService},
+        brightness::{BrightnessCommand, BrightnessService},
         network::{NetworkCommand, NetworkEvent, NetworkService},
         upower::{PowerProfileCommand, UPowerService},
         ReadOnlyService, Service, ServiceEvent,
@@ -23,7 +24,7 @@ use crate::{
     },
     utils::idle_inhibitor::WaylandIdleInhibitor,
 };
-use brightness::{Brightness, BrightnessMessage};
+use brightness::BrightnessMessage;
 use iced::{
     alignment::{Horizontal, Vertical},
     theme::Button,
@@ -43,7 +44,7 @@ mod upower;
 
 pub struct Settings {
     audio: Audio,
-    brightness: Brightness,
+    brightness: Option<BrightnessService>,
     network: Option<NetworkService>,
     bluetooth: Option<BluetoothService>,
     idle_inhibitor: Option<WaylandIdleInhibitor>,
@@ -81,7 +82,7 @@ impl Settings {
     pub fn new() -> Self {
         Settings {
             audio: Audio::new(),
-            brightness: Brightness::new(),
+            brightness: None,
             network: None,
             bluetooth: None,
             idle_inhibitor: WaylandIdleInhibitor::new().ok(),
@@ -257,7 +258,32 @@ impl Settings {
                 }
             },
             Message::Audio(msg) => self.audio.update(msg, menu, config),
-            Message::Brightness(msg) => self.brightness.update(msg),
+            Message::Brightness(msg) => match msg {
+                BrightnessMessage::Event(event) => match event {
+                    ServiceEvent::Init(service) => {
+                        self.brightness = Some(service);
+                        Command::none()
+                    }
+                    ServiceEvent::Update(data) => {
+                        if let Some(brightness) = self.brightness.as_mut() {
+                            brightness.update(data);
+                        }
+                        Command::none()
+                    }
+                    _ => Command::none(),
+                },
+                BrightnessMessage::Change(value) => {
+                    if let Some(brightness) = self.brightness.as_ref() {
+                        brightness.command(BrightnessCommand::Set(value)).map(|event| {
+                            crate::app::Message::Settings(Message::Brightness(
+                                BrightnessMessage::Event(event),
+                            ))
+                        })
+                    } else {
+                        Command::none()
+                    }
+                }
+            },
             Message::ToggleSubMenu(menu_type) => {
                 if self.sub_menu == Some(menu_type) {
                     self.sub_menu.take();
@@ -511,7 +537,7 @@ impl Settings {
                                 .sources_submenu(config.audio_sources_more_cmd.is_some()),
                         )
                     }),
-                Some(self.brightness.brightness_slider()),
+                self.brightness.as_ref().map(|b| b.brightness_slider()),
                 Some(quick_settings),
             ]
             .into_iter()
@@ -528,7 +554,8 @@ impl Settings {
         Subscription::batch(vec![
             UPowerService::subscribe().map(|event| Message::UPower(UPowerMessage::Event(event))),
             self.audio.subscription().map(Message::Audio),
-            self.brightness.subscription().map(Message::Brightness),
+            BrightnessService::subscribe()
+                .map(|event| Message::Brightness(BrightnessMessage::Event(event))),
             NetworkService::subscribe().map(|event| Message::Network(NetworkMessage::Event(event))),
             BluetoothService::subscribe()
                 .map(|event| Message::Bluetooth(BluetoothMessage::Event(event))),
