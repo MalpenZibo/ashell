@@ -4,9 +4,10 @@ use crate::{
     get_log_spec,
     menu::{menu_wrapper, Menu, MenuType},
     modules::{
-        clock::Clock, launcher, privacy::Privacy, settings::Settings, system_info::SystemInfo,
-        title::Title, updates::Updates, workspaces::Workspaces,
+        clock::Clock, launcher, privacy::PrivacyMessage, settings::Settings,
+        system_info::SystemInfo, title::Title, updates::Updates, workspaces::Workspaces,
     },
+    services::{privacy::PrivacyService, ReadOnlyService, ServiceEvent},
     style::ashell_theme,
     HEIGHT,
 };
@@ -29,7 +30,7 @@ pub struct App {
     window_title: Title,
     system_info: SystemInfo,
     clock: Clock,
-    privacy: Privacy,
+    privacy: Option<PrivacyService>,
     pub settings: Settings,
 }
 
@@ -65,7 +66,7 @@ impl Application for App {
                 window_title: Title::new(),
                 system_info: SystemInfo::new(),
                 clock: Clock::new(),
-                privacy: Privacy::new(),
+                privacy: None,
                 settings: Settings::new(),
             },
             Command::none(),
@@ -133,7 +134,22 @@ impl Application for App {
                 self.clock.update(message);
                 Command::none()
             }
-            Message::Privacy(message) => self.privacy.update(message, &mut self.menu),
+            Message::Privacy(msg) => match msg {
+                PrivacyMessage::Event(event) => match event {
+                    ServiceEvent::Init(service) => {
+                        self.privacy = Some(service);
+                        Command::none()
+                    }
+                    ServiceEvent::Update(data) => {
+                        if let Some(privacy) = self.privacy.as_mut() {
+                            privacy.update(data);
+                        }
+                        Command::none()
+                    }
+                    ServiceEvent::Error(_) => Command::none(),
+                },
+                PrivacyMessage::ToggleMenu => self.menu.toggle(MenuType::Privacy),
+            },
             Message::Settings(message) => {
                 self.settings
                     .update(message, &self.config.settings, &mut self.menu)
@@ -147,7 +163,11 @@ impl Application for App {
                 menu_wrapper(
                     match menu_type {
                         MenuType::Updates => self.updates.menu_view().map(Message::Updates),
-                        MenuType::Privacy => self.privacy.menu_view().map(Message::Privacy),
+                        MenuType::Privacy => self
+                            .privacy
+                            .as_ref()
+                            .map(|p| p.menu_view().map(Message::Privacy))
+                            .unwrap_or_else(|| row!().into()),
                         MenuType::Settings => self
                             .settings
                             .menu_view(&self.config.settings)
@@ -206,11 +226,10 @@ impl Application for App {
                                         .view(&self.config.clock.format)
                                         .map(Message::Clock),
                                 ),
-                                if self.privacy.applications.is_empty() {
-                                    None
-                                } else {
-                                    Some(self.privacy.view().map(Message::Privacy))
-                                },
+                                self.privacy
+                                    .as_ref()
+                                    .and_then(|privacy| privacy.view())
+                                    .map(|e| e.map(Message::Privacy)),
                                 Some(self.settings.view().map(Message::Settings)),
                             ]
                             .into_iter()
@@ -248,7 +267,9 @@ impl Application for App {
                 Some(self.window_title.subscription().map(Message::Title)),
                 Some(self.system_info.subscription().map(Message::SystemInfo)),
                 Some(self.clock.subscription().map(Message::Clock)),
-                Some(self.privacy.subscription().map(Message::Privacy)),
+                Some(
+                    PrivacyService::subscribe().map(|e| Message::Privacy(PrivacyMessage::Event(e))),
+                ),
                 Some(self.settings.subscription().map(Message::Settings)),
                 Some(config::subscription()),
             ]

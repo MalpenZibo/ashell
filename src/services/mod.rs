@@ -3,6 +3,7 @@ use iced::Subscription;
 pub mod network;
 pub mod upower;
 pub mod bluetooth;
+pub mod privacy;
 
 #[derive(Debug, Clone)]
 pub enum ServiceEvent<S: ReadOnlyService> {

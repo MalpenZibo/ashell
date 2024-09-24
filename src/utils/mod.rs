@@ -4,7 +4,6 @@ pub mod audio;
 pub mod brightness;
 pub mod idle_inhibitor;
 pub mod launcher;
-pub mod privacy;
 
 pub struct Commander<T> {
     sender: tokio::sync::mpsc::UnboundedSender<T>,
