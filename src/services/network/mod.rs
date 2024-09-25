@@ -527,7 +527,7 @@ impl NetworkService {
 impl Service for NetworkService {
     type Command = NetworkCommand;
 
-    fn command(&self, command: Self::Command) -> iced::Command<ServiceEvent<Self>> {
+    fn command(&mut self, command: Self::Command) -> iced::Command<ServiceEvent<Self>> {
         debug!("Command: {:?}", command);
         match command {
             NetworkCommand::ToggleAirplaneMode => {

@@ -322,7 +322,7 @@ pub enum PowerProfileCommand {
 impl Service for UPowerService {
     type Command = PowerProfileCommand;
 
-    fn command(&self, command: Self::Command) -> iced::Command<ServiceEvent<Self>> {
+    fn command(&mut self, command: Self::Command) -> iced::Command<ServiceEvent<Self>> {
         iced::Command::perform(
             {
                 let conn = self.conn.clone();

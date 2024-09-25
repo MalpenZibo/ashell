@@ -229,7 +229,7 @@ impl ReadOnlyService for BluetoothService {
 impl Service for BluetoothService {
     type Command = BluetoothCommand;
 
-    fn command(&self, command: Self::Command) -> iced::Command<ServiceEvent<Self>> {
+    fn command(&mut self, command: Self::Command) -> iced::Command<ServiceEvent<Self>> {
         match command {
             BluetoothCommand::Toggle => {
                 let conn = self.conn.clone();

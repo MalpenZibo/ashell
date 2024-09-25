@@ -5,6 +5,7 @@ pub mod upower;
 pub mod bluetooth;
 pub mod privacy;
 pub mod brightness;
+pub mod idle_inhibitor;
 
 #[derive(Debug, Clone)]
 pub enum ServiceEvent<S: ReadOnlyService> {
@@ -16,7 +17,7 @@ pub enum ServiceEvent<S: ReadOnlyService> {
 pub trait Service: ReadOnlyService {
     type Command;
 
-    fn command(&self, command: Self::Command) -> iced::Command<ServiceEvent<Self>>;
+    fn command(&mut self, command: Self::Command) -> iced::Command<ServiceEvent<Self>>;
 }
 
 pub trait ReadOnlyService: Sized {

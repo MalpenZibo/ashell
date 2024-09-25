@@ -14,6 +14,7 @@ use crate::{
     services::{
         bluetooth::{BluetoothCommand, BluetoothService},
         brightness::{BrightnessCommand, BrightnessService},
+        idle_inhibitor::IdleInhibitorManager,
         network::{NetworkCommand, NetworkEvent, NetworkService},
         upower::{PowerProfileCommand, UPowerService},
         ReadOnlyService, Service, ServiceEvent,
@@ -22,7 +23,6 @@ use crate::{
         HeaderButtonStyle, QuickSettingsButtonStyle, QuickSettingsSubMenuButtonStyle,
         SettingsButtonStyle,
     },
-    utils::idle_inhibitor::WaylandIdleInhibitor,
 };
 use brightness::BrightnessMessage;
 use iced::{
@@ -47,7 +47,7 @@ pub struct Settings {
     brightness: Option<BrightnessService>,
     network: Option<NetworkService>,
     bluetooth: Option<BluetoothService>,
-    idle_inhibitor: Option<WaylandIdleInhibitor>,
+    idle_inhibitor: Option<IdleInhibitorManager>,
     sub_menu: Option<SubMenu>,
     upower: Option<UPowerService>,
     pub password_dialog: Option<(String, String)>,
@@ -85,7 +85,7 @@ impl Settings {
             brightness: None,
             network: None,
             bluetooth: None,
-            idle_inhibitor: WaylandIdleInhibitor::new().ok(),
+            idle_inhibitor: IdleInhibitorManager::new(),
             sub_menu: None,
             upower: None,
             password_dialog: None,
@@ -122,7 +122,7 @@ impl Settings {
                     ServiceEvent::Error(_) => Command::none(),
                 },
                 UPowerMessage::TogglePowerProfile => {
-                    if let Some(upower) = self.upower.as_ref() {
+                    if let Some(upower) = self.upower.as_mut() {
                         upower.command(PowerProfileCommand::Toggle).map(|event| {
                             crate::app::Message::Settings(Message::UPower(UPowerMessage::Event(
                                 event,
@@ -152,7 +152,7 @@ impl Settings {
                     _ => Command::none(),
                 },
                 NetworkMessage::ToggleAirplaneMode => {
-                    if let Some(network) = self.network.as_ref() {
+                    if let Some(network) = self.network.as_mut() {
                         network
                             .command(NetworkCommand::ToggleAirplaneMode)
                             .map(|event| {
@@ -165,7 +165,7 @@ impl Settings {
                     }
                 }
                 NetworkMessage::ToggleWiFi => {
-                    if let Some(network) = self.network.as_ref() {
+                    if let Some(network) = self.network.as_mut() {
                         network.command(NetworkCommand::ToggleWiFi).map(|event| {
                             crate::app::Message::Settings(Message::Network(NetworkMessage::Event(
                                 event,
@@ -176,7 +176,7 @@ impl Settings {
                     }
                 }
                 NetworkMessage::SelectAccessPoint(ac) => {
-                    if let Some(network) = self.network.as_ref() {
+                    if let Some(network) = self.network.as_mut() {
                         network
                             .command(NetworkCommand::SelectAccessPoint((ac, None)))
                             .map(|event| {
@@ -193,7 +193,7 @@ impl Settings {
                     menu.set_keyboard_interactivity()
                 }
                 NetworkMessage::ScanNearByWiFi => {
-                    if let Some(network) = self.network.as_ref() {
+                    if let Some(network) = self.network.as_mut() {
                         network
                             .command(NetworkCommand::ScanNearByWiFi)
                             .map(|event| {
@@ -238,7 +238,7 @@ impl Settings {
                     _ => Command::none(),
                 },
                 BluetoothMessage::Toggle => {
-                    if let Some(bluetooth) = self.bluetooth.as_ref() {
+                    if let Some(bluetooth) = self.bluetooth.as_mut() {
                         bluetooth.command(BluetoothCommand::Toggle).map(|event| {
                             crate::app::Message::Settings(Message::Bluetooth(
                                 BluetoothMessage::Event(event),
@@ -273,12 +273,14 @@ impl Settings {
                     _ => Command::none(),
                 },
                 BrightnessMessage::Change(value) => {
-                    if let Some(brightness) = self.brightness.as_ref() {
-                        brightness.command(BrightnessCommand::Set(value)).map(|event| {
-                            crate::app::Message::Settings(Message::Brightness(
-                                BrightnessMessage::Event(event),
-                            ))
-                        })
+                    if let Some(brightness) = self.brightness.as_mut() {
+                        brightness
+                            .command(BrightnessCommand::Set(value))
+                            .map(|event| {
+                                crate::app::Message::Settings(Message::Brightness(
+                                    BrightnessMessage::Event(event),
+                                ))
+                            })
                     } else {
                         Command::none()
                     }
@@ -291,7 +293,7 @@ impl Settings {
                     self.sub_menu.replace(menu_type);
 
                     if menu_type == SubMenu::Wifi {
-                        if let Some(network) = self.network.as_ref() {
+                        if let Some(network) = self.network.as_mut() {
                             return network
                                 .command(NetworkCommand::ScanNearByWiFi)
                                 .map(|event| {
@@ -307,7 +309,7 @@ impl Settings {
             }
             Message::ToggleInhibitIdle => {
                 if let Some(idle_inhibitor) = &mut self.idle_inhibitor {
-                    let _ = idle_inhibitor.toggle();
+                    idle_inhibitor.toggle();
                 }
                 Command::none()
             }
@@ -331,7 +333,7 @@ impl Settings {
                 }
                 password_dialog::Message::DialogConfirmed => {
                     if let Some((ssid, password)) = self.password_dialog.take() {
-                        let network_command = if let Some(network) = self.network.as_ref() {
+                        let network_command = if let Some(network) = self.network.as_mut() {
                             let ap = network
                                 .wireless_access_points
                                 .iter()
@@ -488,9 +490,6 @@ impl Settings {
                     self.network
                         .as_ref()
                         .map(|n| n.get_airplane_mode_quick_setting_button()),
-                    self.upower
-                        .as_ref()
-                        .and_then(|u| u.power_profile.get_quick_setting_button()),
                     self.idle_inhibitor.as_ref().map(|idle_inhibitor| {
                         (
                             quick_setting_button(
@@ -508,6 +507,9 @@ impl Settings {
                             None,
                         )
                     }),
+                    self.upower
+                        .as_ref()
+                        .and_then(|u| u.power_profile.get_quick_setting_button()),
                 ]
                 .into_iter()
                 .flatten()

@@ -1,7 +1,6 @@
 use std::{cell::RefCell, ops::Deref, time::Duration};
 
 pub mod audio;
-pub mod idle_inhibitor;
 pub mod launcher;
 
 pub struct Commander<T> {

@@ -163,7 +163,7 @@ impl BrightnessService {
                 }
             }
             State::Error => {
-                error!("Privacy service error");
+                error!("Brightness service error");
 
                 let _ = pending::<u8>().next().await;
                 State::Error
@@ -224,7 +224,7 @@ pub enum BrightnessCommand {
 impl Service for BrightnessService {
     type Command = BrightnessCommand;
 
-    fn command(&self, command: Self::Command) -> Command<ServiceEvent<Self>> {
+    fn command(&mut self, command: Self::Command) -> Command<ServiceEvent<Self>> {
         iced::Command::perform(
             {
                 let conn = self.conn.clone();
