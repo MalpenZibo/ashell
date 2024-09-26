@@ -6,6 +6,7 @@ pub mod bluetooth;
 pub mod privacy;
 pub mod brightness;
 pub mod idle_inhibitor;
+pub mod audio;
 
 #[derive(Debug, Clone)]
 pub enum ServiceEvent<S: ReadOnlyService> {

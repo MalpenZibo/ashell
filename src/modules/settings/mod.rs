@@ -1,5 +1,5 @@
 use self::{
-    audio::{Audio, AudioMessage},
+    audio::AudioMessage,
     bluetooth::BluetoothMessage,
     network::NetworkMessage,
     power::PowerMessage,
@@ -12,6 +12,7 @@ use crate::{
     modules::settings::power::power_menu,
     password_dialog,
     services::{
+        audio::{AudioCommand, AudioService},
         bluetooth::{BluetoothCommand, BluetoothService},
         brightness::{BrightnessCommand, BrightnessService},
         idle_inhibitor::IdleInhibitorManager,
@@ -43,7 +44,7 @@ mod power;
 mod upower;
 
 pub struct Settings {
-    audio: Audio,
+    audio: Option<AudioService>,
     brightness: Option<BrightnessService>,
     network: Option<NetworkService>,
     bluetooth: Option<BluetoothService>,
@@ -81,7 +82,7 @@ pub enum SubMenu {
 impl Settings {
     pub fn new() -> Self {
         Settings {
-            audio: Audio::new(),
+            audio: None,
             brightness: None,
             network: None,
             bluetooth: None,
@@ -107,6 +108,73 @@ impl Settings {
                     menu.toggle(MenuType::Settings),
                 ])
             }
+            Message::Audio(msg) => match msg {
+                AudioMessage::Event(event) => match event {
+                    ServiceEvent::Init(service) => {
+                        self.audio = Some(service);
+                        Command::none()
+                    }
+                    ServiceEvent::Update(data) => {
+                        if let Some(audio) = self.audio.as_mut() {
+                            audio.update(data);
+                        }
+                        Command::none()
+                    }
+                    ServiceEvent::Error(_) => Command::none(),
+                },
+                AudioMessage::ToggleSinkMute => {
+                    if let Some(audio) = self.audio.as_mut() {
+                        let _ = audio.command(AudioCommand::ToggleSinkMute);
+                    }
+                    Command::none()
+                }
+                AudioMessage::SinkVolumeChanged(value) => {
+                    if let Some(audio) = self.audio.as_mut() {
+                        let _ = audio.command(AudioCommand::SinkVolume(value));
+                    }
+                    Command::none()
+                }
+                AudioMessage::DefaultSinkChanged(name, port) => {
+                    if let Some(audio) = self.audio.as_mut() {
+                        let _ = audio.command(AudioCommand::DefaultSink(name, port));
+                    }
+                    Command::none()
+                }
+                AudioMessage::ToggleSourceMute => {
+                    if let Some(audio) = self.audio.as_mut() {
+                        let _ = audio.command(AudioCommand::ToggleSourceMute);
+                    }
+                    Command::none()
+                }
+                AudioMessage::SourceVolumeChanged(value) => {
+                    if let Some(audio) = self.audio.as_mut() {
+                        let _ = audio.command(AudioCommand::SourceVolume(value));
+                    }
+                    Command::none()
+                }
+                AudioMessage::DefaultSourceChanged(name, port) => {
+                    if let Some(audio) = self.audio.as_mut() {
+                        let _ = audio.command(AudioCommand::DefaultSource(name, port));
+                    }
+                    Command::none()
+                }
+                AudioMessage::SinksMore => {
+                    if let Some(cmd) = &config.audio_sinks_more_cmd {
+                        crate::utils::launcher::execute_command(cmd.to_string());
+                        menu.close()
+                    } else {
+                        Command::none()
+                    }
+                }
+                AudioMessage::SourcesMore => {
+                    if let Some(cmd) = &config.audio_sources_more_cmd {
+                        crate::utils::launcher::execute_command(cmd.to_string());
+                        menu.close()
+                    } else {
+                        Command::none()
+                    }
+                }
+            },
             Message::UPower(msg) => match msg {
                 UPowerMessage::Event(event) => match event {
                     ServiceEvent::Init(service) => {
@@ -257,7 +325,6 @@ impl Settings {
                     }
                 }
             },
-            Message::Audio(msg) => self.audio.update(msg, menu, config),
             Message::Brightness(msg) => match msg {
                 BrightnessMessage::Event(event) => match event {
                     ServiceEvent::Init(service) => {
@@ -397,7 +464,7 @@ impl Settings {
             elements = elements.push(powerprofiles_indicator);
         }
 
-        if let Some(sink_indicator) = self.audio.sink_indicator() {
+        if let Some(sink_indicator) = self.audio.as_ref().and_then(|a| a.sink_indicator()) {
             elements = elements.push(sink_indicator);
         }
 
@@ -470,7 +537,11 @@ impl Settings {
                 row!(Space::with_width(Length::Fill), right_buttons).width(Length::Fill)
             };
 
-            let (sink_slider, source_slider) = self.audio.audio_sliders(self.sub_menu);
+            let (sink_slider, source_slider) = self
+                .audio
+                .as_ref()
+                .map(|a| a.audio_sliders(self.sub_menu))
+                .unwrap_or((None, None));
 
             let wifi_setting_button = self.network.as_ref().and_then(|n| {
                 n.get_wifi_quick_setting_button(self.sub_menu, config.wifi_more_cmd.is_some())
@@ -524,20 +595,20 @@ impl Settings {
                 sink_slider,
                 self.sub_menu
                     .filter(|menu_type| *menu_type == SubMenu::Sinks)
-                    .map(|_| {
-                        sub_menu_wrapper(
-                            self.audio
-                                .sinks_submenu(config.audio_sinks_more_cmd.is_some()),
-                        )
+                    .and_then(|_| {
+                        self.audio.as_ref().map(|a| {
+                            sub_menu_wrapper(a.sinks_submenu(config.audio_sinks_more_cmd.is_some()))
+                        })
                     }),
                 source_slider,
                 self.sub_menu
                     .filter(|menu_type| *menu_type == SubMenu::Sources)
-                    .map(|_| {
-                        sub_menu_wrapper(
-                            self.audio
-                                .sources_submenu(config.audio_sources_more_cmd.is_some()),
-                        )
+                    .and_then(|_| {
+                        self.audio.as_ref().map(|a| {
+                            sub_menu_wrapper(
+                                a.sources_submenu(config.audio_sources_more_cmd.is_some()),
+                            )
+                        })
                     }),
                 self.brightness.as_ref().map(|b| b.brightness_slider()),
                 Some(quick_settings),
@@ -555,7 +626,7 @@ impl Settings {
     pub fn subscription(&self) -> Subscription<Message> {
         Subscription::batch(vec![
             UPowerService::subscribe().map(|event| Message::UPower(UPowerMessage::Event(event))),
-            self.audio.subscription().map(Message::Audio),
+            AudioService::subscribe().map(|evenet| Message::Audio(AudioMessage::Event(evenet))),
             BrightnessService::subscribe()
                 .map(|event| Message::Brightness(BrightnessMessage::Event(event))),
             NetworkService::subscribe().map(|event| Message::Network(NetworkMessage::Event(event))),
@@ -603,8 +674,8 @@ fn quick_settings_section<'a>(
     section.into()
 }
 
-fn sub_menu_wrapper<'a, Msg: 'static>(content: impl Into<Element<'a, Msg>>) -> Element<'a, Msg> {
-    container(content.into())
+fn sub_menu_wrapper<Msg: 'static>(content: Element<Msg>) -> Element<Msg> {
+    container(content)
         .style(|theme: &Theme| container::Appearance {
             background: Background::Color(theme.extended_palette().secondary.strong.color).into(),
             border: Border::with_radius(16),

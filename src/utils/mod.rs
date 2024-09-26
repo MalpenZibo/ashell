@@ -1,34 +1,6 @@
-use std::{cell::RefCell, ops::Deref, time::Duration};
+use std::time::Duration;
 
-pub mod audio;
 pub mod launcher;
-
-pub struct Commander<T> {
-    sender: tokio::sync::mpsc::UnboundedSender<T>,
-    receiver: RefCell<Option<tokio::sync::mpsc::UnboundedReceiver<T>>>,
-}
-
-impl<T> Commander<T> {
-    pub fn new() -> Self {
-        let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
-        Self {
-            sender,
-            receiver: RefCell::new(Some(receiver)),
-        }
-    }
-
-    pub fn give_receiver(&self) -> Option<tokio::sync::mpsc::UnboundedReceiver<T>> {
-        self.receiver.borrow_mut().take()
-    }
-}
-
-impl<T> Deref for Commander<T> {
-    type Target = tokio::sync::mpsc::UnboundedSender<T>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.sender
-    }
-}
 
 pub enum IndicatorState {
     Normal,
