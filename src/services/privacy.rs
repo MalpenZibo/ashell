@@ -6,7 +6,11 @@ use iced::{
 };
 use log::{debug, error, info, warn};
 use pipewire::{context::Context, main_loop::MainLoop};
-use std::{any::TypeId, ops::{Deref, DerefMut}, thread};
+use std::{
+    any::TypeId,
+    ops::{Deref, DerefMut},
+    thread,
+};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
