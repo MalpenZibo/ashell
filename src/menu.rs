@@ -1,12 +1,15 @@
+use crate::app;
+use crate::config::Position;
+use iced::alignment::{Horizontal, Vertical};
+use iced::widget::container::Appearance;
+use iced::widget::mouse_area;
 use iced::window::Id;
-use iced::Border;
 use iced::{self, widget::container, Command, Element, Theme};
+use iced::{Border, Length};
 use iced_sctk::command::platform_specific::wayland::layer_surface::SctkLayerSurfaceSettings;
 use iced_sctk::commands::layer_surface::{
     self, get_layer_surface, Anchor, KeyboardInteractivity, Layer,
 };
-
-use crate::config::Position;
 
 fn open_menu<Message: 'static>() -> (Id, Command<Message>) {
     let id = Id::unique();
@@ -62,12 +65,12 @@ impl Menu {
                 if let Some(id) = self.id.take() {
                     close_menu(id)
                 } else {
-                    iced::Command::none()
+                    Command::none()
                 }
             }
             Some(_) => {
                 self.menu_type = Some(menu_type);
-                iced::Command::none()
+                Command::none()
             }
         }
     }
@@ -78,10 +81,10 @@ impl Menu {
             if let Some(id) = self.id.take() {
                 close_menu(id)
             } else {
-                iced::Command::none()
+                Command::none()
             }
         } else {
-            iced::Command::none()
+            Command::none()
         }
     }
 
@@ -91,7 +94,7 @@ impl Menu {
         if let Some(id) = self.id.take() {
             close_menu(id)
         } else {
-            iced::Command::none()
+            Command::none()
         }
     }
 
@@ -99,7 +102,7 @@ impl Menu {
         if let Some(id) = self.id {
             layer_surface::set_keyboard_interactivity(id, KeyboardInteractivity::Exclusive)
         } else {
-            iced::Command::none()
+            Command::none()
         }
     }
 
@@ -107,7 +110,7 @@ impl Menu {
         if let Some(id) = self.id {
             layer_surface::set_keyboard_interactivity(id, KeyboardInteractivity::None)
         } else {
-            iced::Command::none()
+            Command::none()
         }
     }
 
@@ -126,17 +129,17 @@ pub enum MenuPosition {
 }
 
 pub fn menu_wrapper(
-    content: Element<crate::app::Message>,
+    content: Element<app::Message>,
     position: MenuPosition,
     bar_position: Position,
-) -> Element<crate::app::Message> {
-    iced::widget::mouse_area(
+) -> Element<app::Message> {
+    mouse_area(
         container(
-            iced::widget::mouse_area(
+            mouse_area(
                 container(content)
-                    .height(iced::Length::Shrink)
-                    .width(iced::Length::Shrink)
-                    .style(|theme: &Theme| iced::widget::container::Appearance {
+                    .height(Length::Shrink)
+                    .width(Length::Shrink)
+                    .style(|theme: &Theme| Appearance {
                         background: Some(theme.palette().background.into()),
                         border: Border {
                             color: theme.extended_palette().secondary.base.color,
@@ -146,20 +149,20 @@ pub fn menu_wrapper(
                         ..Default::default()
                     }),
             )
-            .on_release(crate::app::Message::None),
+            .on_release(app::Message::None),
         )
         .align_y(match bar_position {
-            Position::Top => iced::alignment::Vertical::Top,
-            Position::Bottom => iced::alignment::Vertical::Bottom,
+            Position::Top => Vertical::Top,
+            Position::Bottom => Vertical::Bottom,
         })
         .align_x(match position {
-            MenuPosition::Left => iced::alignment::Horizontal::Left,
-            MenuPosition::Right => iced::alignment::Horizontal::Right,
+            MenuPosition::Left => Horizontal::Left,
+            MenuPosition::Right => Horizontal::Right,
         })
         .padding([0, 8, 8, 8])
-        .width(iced::Length::Fill)
-        .height(iced::Length::Fill),
+        .width(Length::Fill)
+        .height(Length::Fill),
     )
-    .on_release(crate::app::Message::CloseMenu)
+    .on_release(app::Message::CloseMenu)
     .into()
 }

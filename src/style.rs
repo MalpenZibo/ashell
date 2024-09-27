@@ -228,7 +228,7 @@ pub struct SliderStyle;
 impl slider::StyleSheet for SliderStyle {
     type Style = iced::theme::Theme;
 
-    fn active(&self, style: &Self::Style) -> iced::widget::slider::Appearance {
+    fn active(&self, style: &Self::Style) -> slider::Appearance {
         let palette = style.extended_palette();
 
         slider::Appearance {
@@ -246,11 +246,11 @@ impl slider::StyleSheet for SliderStyle {
         }
     }
 
-    fn hovered(&self, style: &Self::Style) -> iced::widget::slider::Appearance {
+    fn hovered(&self, style: &Self::Style) -> slider::Appearance {
         self.active(style)
     }
 
-    fn dragging(&self, style: &Self::Style) -> iced::widget::slider::Appearance {
+    fn dragging(&self, style: &Self::Style) -> slider::Appearance {
         self.active(style)
     }
 }

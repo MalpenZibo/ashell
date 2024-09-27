@@ -1,7 +1,7 @@
 use crate::style::left_header_pills;
 use chrono::{DateTime, Local};
 use iced::{
-    time,
+    time::every,
     widget::{container, text},
     Element, Subscription,
 };
@@ -13,9 +13,7 @@ pub struct Clock {
 
 impl Default for Clock {
     fn default() -> Self {
-        Self { 
-            date: Local::now()
-        }
+        Self { date: Local::now() }
     }
 }
 
@@ -41,6 +39,6 @@ impl Clock {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        time::every(Duration::from_secs(20)).map(|_| Message::Update)
+        every(Duration::from_secs(20)).map(|_| Message::Update)
     }
 }

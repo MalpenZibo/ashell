@@ -1,12 +1,15 @@
 use crate::style::header_pills;
 use hyprland::{data::Client, event_listener::AsyncEventListener, shared::HyprDataActiveOptional};
 use iced::{
-    subscription,
+    subscription::channel,
     widget::{container, text},
     Element, Subscription,
 };
 use log::{debug, error};
-use std::sync::{Arc, RwLock};
+use std::{
+    any::TypeId,
+    sync::{Arc, RwLock},
+};
 
 pub struct Title {
     value: Option<String>,
@@ -57,7 +60,8 @@ impl Title {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        subscription::channel("title-listener", 10, |output| async move {
+        let id = TypeId::of::<Self>();
+        channel(id, 10, |output| async move {
             let output = Arc::new(RwLock::new(output));
             loop {
                 let mut event_listener = AsyncEventListener::new();

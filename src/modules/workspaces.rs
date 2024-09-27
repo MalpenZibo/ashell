@@ -5,12 +5,16 @@ use hyprland::{
     shared::{HyprData, HyprDataActive, HyprDataVec},
 };
 use iced::{
-    alignment, subscription,
+    alignment,
+    subscription::channel,
     widget::{container, mouse_area, text, Row},
     Background, Border, Color, Element, Length, Subscription, Theme,
 };
 use log::error;
-use std::sync::{Arc, RwLock};
+use std::{
+    any::TypeId,
+    sync::{Arc, RwLock},
+};
 
 #[derive(Debug, Clone)]
 pub struct Workspace {
@@ -168,7 +172,9 @@ impl Workspaces {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        subscription::channel("workspaces-listener", 10, |output| async move {
+        let id = TypeId::of::<Self>();
+
+        channel(id, 10, |output| async move {
             let output = Arc::new(RwLock::new(output));
             loop {
                 let mut event_listener = AsyncEventListener::new();
