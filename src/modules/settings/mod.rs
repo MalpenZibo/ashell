@@ -475,7 +475,7 @@ impl Settings {
                         .and_then(|upower| upower.battery)
                         .map(|battery| battery.indicator()),
                 )
-                .spacing(4),
+                .spacing(8),
         )
         .style(Button::custom(HeaderButtonStyle::Right))
         .padding([2, 8])
@@ -484,12 +484,8 @@ impl Settings {
     }
 
     pub fn menu_view(&self, config: &SettingsModuleConfig) -> Element<Message> {
-        if let Some((_, current_password)) = &self.password_dialog {
-            column!(password_dialog::view("ssid", current_password).map(Message::PasswordDialog))
-                .spacing(16)
-                .padding(16)
-                .max_width(350.)
-                .into()
+        if let Some((ssid, current_password)) = &self.password_dialog {
+            password_dialog::view(ssid, current_password).map(Message::PasswordDialog)
         } else {
             let battery_data = self
                 .upower
