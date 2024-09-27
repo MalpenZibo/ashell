@@ -54,6 +54,21 @@ pub struct Settings {
     pub password_dialog: Option<(String, String)>,
 }
 
+impl Default for Settings {
+    fn default() -> Self {
+        Settings {
+            audio: None,
+            brightness: None,
+            network: None,
+            bluetooth: None,
+            idle_inhibitor: IdleInhibitorManager::new(),
+            sub_menu: None,
+            upower: None,
+            password_dialog: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Message {
     ToggleMenu,
@@ -80,24 +95,11 @@ pub enum SubMenu {
 }
 
 impl Settings {
-    pub fn new() -> Self {
-        Settings {
-            audio: None,
-            brightness: None,
-            network: None,
-            bluetooth: None,
-            idle_inhibitor: IdleInhibitorManager::new(),
-            sub_menu: None,
-            upower: None,
-            password_dialog: None,
-        }
-    }
-
     pub fn update(
         &mut self,
         message: Message,
         config: &SettingsModuleConfig,
-        menu: &mut Menu<crate::app::Message>,
+        menu: &mut Menu,
     ) -> Command<crate::app::Message> {
         match message {
             Message::ToggleMenu => {

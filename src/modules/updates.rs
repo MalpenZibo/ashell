@@ -78,31 +78,27 @@ pub enum Message {
     Update,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Default, Clone, Eq, PartialEq)]
 enum State {
+    #[default]
     Checking,
     Ready,
 }
+
+#[derive(Debug, Default, Clone)]
 pub struct Updates {
     state: State,
     pub updates: Vec<Update>,
     is_updates_list_open: bool,
 }
 
-impl Updates {
-    pub fn new() -> Self {
-        Self {
-            state: State::Checking,
-            updates: vec![],
-            is_updates_list_open: false,
-        }
-    }
 
+impl Updates {
     pub fn update(
         &mut self,
         message: Message,
         config: &UpdatesModuleConfig,
-        menu: &mut Menu<crate::app::Message>,
+        menu: &mut Menu,
     ) -> Command<crate::app::Message> {
         match message {
             Message::UpdatesCheckCompleted(updates) => {

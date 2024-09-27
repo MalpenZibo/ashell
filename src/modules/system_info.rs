@@ -48,13 +48,8 @@ pub struct SystemInfo {
     data: SystemInfoData,
 }
 
-#[derive(Debug, Clone)]
-pub enum Message {
-    Update,
-}
-
-impl SystemInfo {
-    pub fn new() -> Self {
+impl Default for SystemInfo {
+    fn default() -> Self {
         let mut system = System::new();
         let mut components = Components::new_with_refreshed_list();
         let data = get_system_info(&mut system, &mut components);
@@ -65,7 +60,14 @@ impl SystemInfo {
             data,
         }
     }
+}
 
+#[derive(Debug, Clone)]
+pub enum Message {
+    Update,
+}
+
+impl SystemInfo {
     pub fn update(&mut self, message: Message) {
         match message {
             Message::Update => {

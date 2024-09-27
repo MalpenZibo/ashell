@@ -11,16 +11,20 @@ pub struct Clock {
     date: DateTime<Local>,
 }
 
+impl Default for Clock {
+    fn default() -> Self {
+        Self { 
+            date: Local::now()
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Message {
     Update,
 }
 
 impl Clock {
-    pub fn new() -> Self {
-        Self { date: Local::now() }
-    }
-
     pub fn update(&mut self, message: Message) {
         match message {
             Message::Update => {

@@ -32,36 +32,6 @@ fn close_menu<Message: 'static>(id: Id) -> Command<Message> {
     layer_surface::destroy_layer_surface(id)
 }
 
-// fn create_menu_surface<Message>() -> (Id, Command<Message>) {
-//     let id = Id::unique();
-//     (
-//         id,
-//         iced::wayland::layer_surface::get_layer_surface(SctkLayerSurfaceSettings {
-//             id,
-//             keyboard_interactivity: KeyboardInteractivity::None,
-//             namespace: "ashell-menu".into(),
-//             layer: Layer::Background,
-//             size: Some((None, None)),
-//             anchor: Anchor::TOP
-//                 .union(Anchor::LEFT)
-//                 .union(Anchor::RIGHT)
-//                 .union(Anchor::BOTTOM),
-//             ..Default::default()
-//         }),
-//     )
-// }
-//
-// fn open_menu<Message>(id: Id) -> Command<Message> {
-//     iced::Command::batch(vec![iced::wayland::layer_surface::set_layer(
-//         id,
-//         Layer::Overlay,
-//     )])
-// }
-//
-// fn close_menu<Message>(id: Id) -> Command<Message> {
-//     iced::wayland::layer_surface::set_layer(id, Layer::Background)
-// }
-
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub enum MenuType {
     Updates,
@@ -69,22 +39,14 @@ pub enum MenuType {
     Settings,
 }
 
-pub struct Menu<Message: 'static> {
+#[derive(Debug, Default)]
+pub struct Menu {
     id: Option<Id>,
     menu_type: Option<MenuType>,
-    phantom: std::marker::PhantomData<Message>,
 }
 
-impl<Message: 'static> Menu<Message> {
-    pub fn init() -> Self {
-        Self {
-            id: None,
-            menu_type: None,
-            phantom: std::marker::PhantomData,
-        }
-    }
-
-    pub fn toggle(&mut self, menu_type: MenuType) -> Command<Message> {
+impl Menu {
+    pub fn toggle<Message: 'static>(&mut self, menu_type: MenuType) -> Command<Message> {
         let current = self.menu_type.take();
 
         match current {
@@ -110,7 +72,7 @@ impl<Message: 'static> Menu<Message> {
         }
     }
 
-    pub fn close_if(&mut self, menu_type: MenuType) -> Command<Message> {
+    pub fn close_if<Message: 'static>(&mut self, menu_type: MenuType) -> Command<Message> {
         if self.menu_type == Some(menu_type) {
             self.menu_type = None;
             if let Some(id) = self.id.take() {
@@ -123,7 +85,7 @@ impl<Message: 'static> Menu<Message> {
         }
     }
 
-    pub fn close(&mut self) -> Command<Message> {
+    pub fn close<Message: 'static>(&mut self) -> Command<Message> {
         self.menu_type = None;
 
         if let Some(id) = self.id.take() {
@@ -133,7 +95,7 @@ impl<Message: 'static> Menu<Message> {
         }
     }
 
-    pub fn set_keyboard_interactivity(&mut self) -> Command<Message> {
+    pub fn set_keyboard_interactivity<Message: 'static>(&mut self) -> Command<Message> {
         if let Some(id) = self.id {
             layer_surface::set_keyboard_interactivity(id, KeyboardInteractivity::Exclusive)
         } else {
@@ -141,7 +103,7 @@ impl<Message: 'static> Menu<Message> {
         }
     }
 
-    pub fn unset_keyboard_interactivity(&mut self) -> Command<Message> {
+    pub fn unset_keyboard_interactivity<Message: 'static>(&mut self) -> Command<Message> {
         if let Some(id) = self.id {
             layer_surface::set_keyboard_interactivity(id, KeyboardInteractivity::None)
         } else {

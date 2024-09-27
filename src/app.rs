@@ -2,14 +2,14 @@ use crate::{
     centerbox,
     config::{self, Config},
     get_log_spec,
-    menu::{menu_wrapper, Menu, MenuType},
+    menu::{menu_wrapper, Menu, MenuPosition, MenuType},
     modules::{
-        clock::Clock, launcher, privacy::PrivacyMessage, settings::Settings,
+        self, clock::Clock, launcher, privacy::PrivacyMessage, settings::Settings,
         system_info::SystemInfo, title::Title, updates::Updates, workspaces::Workspaces,
     },
     services::{privacy::PrivacyService, ReadOnlyService, ServiceEvent},
     style::ashell_theme,
-    HEIGHT,
+    utils, HEIGHT,
 };
 use flexi_logger::LoggerHandle;
 use iced::{
@@ -20,11 +20,12 @@ use iced::{
     Alignment, Color, Command, Element, Length, Subscription, Theme,
 };
 use iced_sctk::multi_window::Application;
+use log::info;
 
 pub struct App {
     logger: LoggerHandle,
     config: Config,
-    menu: Menu<Message>,
+    menu: Menu,
     updates: Updates,
     workspaces: Workspaces,
     window_title: Title,
@@ -40,13 +41,13 @@ pub enum Message {
     ConfigChanged(Box<Config>),
     CloseMenu,
     OpenLauncher,
-    Updates(crate::modules::updates::Message),
-    Workspaces(crate::modules::workspaces::Message),
-    Title(crate::modules::title::Message),
-    SystemInfo(crate::modules::system_info::Message),
-    Clock(crate::modules::clock::Message),
-    Privacy(crate::modules::privacy::PrivacyMessage),
-    Settings(crate::modules::settings::Message),
+    Updates(modules::updates::Message),
+    Workspaces(modules::workspaces::Message),
+    Title(modules::title::Message),
+    SystemInfo(modules::system_info::Message),
+    Clock(modules::clock::Message),
+    Privacy(modules::privacy::PrivacyMessage),
+    Settings(modules::settings::Message),
 }
 
 impl Application for App {
@@ -60,14 +61,14 @@ impl Application for App {
             App {
                 logger,
                 config,
-                menu: Menu::init(),
-                updates: Updates::new(),
-                workspaces: Workspaces::new(),
-                window_title: Title::new(),
-                system_info: SystemInfo::new(),
-                clock: Clock::new(),
+                menu: Menu::default(),
+                updates: Updates::default(),
+                workspaces: Workspaces::default(),
+                window_title: Title::default(),
+                system_info: SystemInfo::default(),
+                clock: Clock::default(),
                 privacy: None,
-                settings: Settings::new(),
+                settings: Settings::default(),
             },
             Command::none(),
         )
@@ -96,7 +97,7 @@ impl Application for App {
         match message {
             Message::None => Command::none(),
             Message::ConfigChanged(config) => {
-                log::info!("New config: {:?}", config);
+                info!("New config: {:?}", config);
                 self.config = *config;
                 self.logger
                     .set_new_spec(get_log_spec(self.config.log_level));
@@ -112,7 +113,7 @@ impl Application for App {
             }
             Message::OpenLauncher => {
                 if let Some(app_launcher_cmd) = self.config.app_launcher_cmd.as_ref() {
-                    crate::utils::launcher::execute_command(app_launcher_cmd.to_string());
+                    utils::launcher::execute_command(app_launcher_cmd.to_string());
                 }
                 Command::none()
             }
@@ -174,9 +175,9 @@ impl Application for App {
                             .map(Message::Settings),
                     },
                     match menu_type {
-                        MenuType::Updates => crate::menu::MenuPosition::Left,
-                        MenuType::Privacy => crate::menu::MenuPosition::Right,
-                        MenuType::Settings => crate::menu::MenuPosition::Right,
+                        MenuType::Updates => MenuPosition::Left,
+                        MenuType::Privacy => MenuPosition::Right,
+                        MenuType::Settings => MenuPosition::Right,
                     },
                     self.config.position,
                 )
@@ -184,66 +185,54 @@ impl Application for App {
                 row!().into()
             }
         } else {
-            let left = Row::with_children(
-                vec![
+            let left = Row::new()
+                .push_maybe(
                     self.config
                         .app_launcher_cmd
                         .as_ref()
                         .map(|_| launcher::launcher()),
+                )
+                .push_maybe(
                     self.config
                         .updates
                         .as_ref()
                         .map(|_| self.updates.view().map(Message::Updates)),
-                    Some(
-                        self.workspaces
-                            .view(&self.config.appearance.workspace_colors)
-                            .map(Message::Workspaces),
-                    ),
-                ]
-                .into_iter()
-                .flatten()
-                .collect::<Vec<_>>(),
-            )
-            .height(Length::Shrink)
-            .align_items(Alignment::Center)
-            .spacing(4);
+                )
+                .push(
+                    self.workspaces
+                        .view(&self.config.appearance.workspace_colors)
+                        .map(Message::Workspaces),
+                )
+                .height(Length::Shrink)
+                .align_items(Alignment::Center)
+                .spacing(4);
 
-            let mut center = row!().spacing(4);
-            if let Some(title) = self.window_title.view() {
-                center = center.push(title.map(Message::Title));
-            }
+            let center = Row::new()
+                .push_maybe(self.window_title.view().map(|v| v.map(Message::Title)))
+                .spacing(4);
 
-            let right = Row::with_children(
-                vec![
+            let right = Row::new()
+                .push_maybe(
                     self.system_info
                         .view(&self.config.system)
                         .map(|c| c.map(Message::SystemInfo)),
-                    Some(
-                        Row::with_children(
-                            vec![
-                                Some(
-                                    self.clock
-                                        .view(&self.config.clock.format)
-                                        .map(Message::Clock),
-                                ),
-                                self.privacy
-                                    .as_ref()
-                                    .and_then(|privacy| privacy.view())
-                                    .map(|e| e.map(Message::Privacy)),
-                                Some(self.settings.view().map(Message::Settings)),
-                            ]
-                            .into_iter()
-                            .flatten()
-                            .collect::<Vec<_>>(),
+                )
+                .push(
+                    Row::new()
+                        .push(
+                            self.clock
+                                .view(&self.config.clock.format)
+                                .map(Message::Clock),
                         )
-                        .into(),
-                    ),
-                ]
-                .into_iter()
-                .flatten()
-                .collect::<Vec<_>>(),
-            )
-            .spacing(4);
+                        .push_maybe(
+                            self.privacy
+                                .as_ref()
+                                .and_then(|privacy| privacy.view())
+                                .map(|e| e.map(Message::Privacy)),
+                        )
+                        .push(self.settings.view().map(Message::Settings)),
+                )
+                .spacing(4);
 
             centerbox::Centerbox::new([left.into(), center.into(), right.into()])
                 .spacing(4)

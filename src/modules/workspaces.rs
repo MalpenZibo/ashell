@@ -63,6 +63,14 @@ pub struct Workspaces {
     workspaces: Vec<Workspace>,
 }
 
+impl Default for Workspaces {
+    fn default() -> Self {
+        Self {
+            workspaces: get_workspaces(),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Message {
     WorkspacesChanged(Vec<Workspace>),
@@ -70,12 +78,6 @@ pub enum Message {
 }
 
 impl Workspaces {
-    pub fn new() -> Self {
-        Self {
-            workspaces: get_workspaces(),
-        }
-    }
-
     pub fn update(&mut self, message: Message) {
         match message {
             Message::WorkspacesChanged(workspaces) => {
