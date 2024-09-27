@@ -1,9 +1,5 @@
 use self::{
-    audio::AudioMessage,
-    bluetooth::BluetoothMessage,
-    network::NetworkMessage,
-    power::PowerMessage,
-    upower::{battery_indicator, settings_battery_indicator},
+    audio::AudioMessage, bluetooth::BluetoothMessage, network::NetworkMessage, power::PowerMessage,
 };
 use crate::{
     components::icons::{icon, Icons},
@@ -442,102 +438,89 @@ impl Settings {
     }
 
     pub fn view(&self) -> Element<Message> {
-        let mut elements = row!().spacing(8);
-
-        if self
-            .idle_inhibitor
-            .as_ref()
-            .filter(|i| i.is_inhibited())
-            .is_some()
-        {
-            elements = elements.push(container(icon(Icons::EyeOpened)).style(|theme: &Theme| {
-                container::Appearance {
-                    text_color: Some(theme.palette().danger),
-                    ..Default::default()
-                }
-            }));
-        }
-
-        if let Some(powerprofiles_indicator) = self
-            .upower
-            .as_ref()
-            .and_then(|p| p.power_profile.indicator())
-        {
-            elements = elements.push(powerprofiles_indicator);
-        }
-
-        if let Some(sink_indicator) = self.audio.as_ref().and_then(|a| a.sink_indicator()) {
-            elements = elements.push(sink_indicator);
-        }
-
-        let mut net_elements = row!().spacing(4);
-        if let Some(indicator) = self
-            .network
-            .as_ref()
-            .and_then(|n| n.get_connection_indicator())
-        {
-            net_elements = net_elements.push(indicator);
-        }
-
-        if let Some(indicator) = self.network.as_ref().and_then(|n| n.get_vpn_indicator()) {
-            net_elements = net_elements.push(indicator);
-        }
-        elements = elements.push(net_elements);
-
-        if let Some(battery) = self.upower.as_ref().and_then(|upower| upower.battery) {
-            elements = elements.push(battery_indicator(battery));
-        }
-
-        button(elements)
-            .style(Button::custom(HeaderButtonStyle::Right))
-            .padding([2, 8])
-            .on_press(Message::ToggleMenu)
-            .into()
+        button(
+            Row::new()
+                .push_maybe(
+                    self.idle_inhibitor
+                        .as_ref()
+                        .filter(|i| i.is_inhibited())
+                        .map(|_| {
+                            container(icon(Icons::EyeOpened)).style(|theme: &Theme| {
+                                container::Appearance {
+                                    text_color: Some(theme.palette().danger),
+                                    ..Default::default()
+                                }
+                            })
+                        }),
+                )
+                .push_maybe(
+                    self.upower
+                        .as_ref()
+                        .and_then(|p| p.power_profile.indicator()),
+                )
+                .push_maybe(self.audio.as_ref().and_then(|a| a.sink_indicator()))
+                .push(
+                    Row::new()
+                        .push_maybe(
+                            self.network
+                                .as_ref()
+                                .and_then(|n| n.get_connection_indicator()),
+                        )
+                        .push_maybe(self.network.as_ref().and_then(|n| n.get_vpn_indicator()))
+                        .spacing(4),
+                )
+                .push_maybe(
+                    self.upower
+                        .as_ref()
+                        .and_then(|upower| upower.battery)
+                        .map(|battery| battery.indicator()),
+                )
+                .spacing(4),
+        )
+        .style(Button::custom(HeaderButtonStyle::Right))
+        .padding([2, 8])
+        .on_press(Message::ToggleMenu)
+        .into()
     }
 
     pub fn menu_view(&self, config: &SettingsModuleConfig) -> Element<Message> {
-        Column::with_children(if let Some((_, current_password)) = &self.password_dialog {
-            vec![password_dialog::view("ssid", current_password).map(Message::PasswordDialog)]
+        if let Some((_, current_password)) = &self.password_dialog {
+            column!(password_dialog::view("ssid", current_password).map(Message::PasswordDialog))
+                .spacing(16)
+                .padding(16)
+                .max_width(350.)
+                .into()
         } else {
             let battery_data = self
                 .upower
                 .as_ref()
                 .and_then(|upower| upower.battery)
-                .map(settings_battery_indicator);
-            let right_buttons = Row::with_children(
-                vec![
-                    config.lock_cmd.as_ref().map(|_| {
-                        button(icon(Icons::Lock))
-                            .padding([8, 13])
-                            .on_press(Message::Lock)
-                            .style(Button::custom(SettingsButtonStyle))
-                            .into()
-                    }),
-                    Some(
-                        button(icon(if self.sub_menu == Some(SubMenu::Power) {
-                            Icons::Close
-                        } else {
-                            Icons::Power
-                        }))
+                .map(|battery| battery.settings_indicator());
+            let right_buttons = Row::new()
+                .push_maybe(config.lock_cmd.as_ref().map(|_| {
+                    button(icon(Icons::Lock))
                         .padding([8, 13])
-                        .on_press(Message::ToggleSubMenu(SubMenu::Power))
+                        .on_press(Message::Lock)
                         .style(Button::custom(SettingsButtonStyle))
-                        .into(),
-                    ),
-                ]
-                .into_iter()
-                .flatten()
-                .collect::<Vec<_>>(),
-            )
-            .spacing(8);
+                }))
+                .push(
+                    button(icon(if self.sub_menu == Some(SubMenu::Power) {
+                        Icons::Close
+                    } else {
+                        Icons::Power
+                    }))
+                    .padding([8, 13])
+                    .on_press(Message::ToggleSubMenu(SubMenu::Power))
+                    .style(Button::custom(SettingsButtonStyle)),
+                )
+                .spacing(8);
 
-            let header = if let Some(battery_data) = battery_data {
-                row!(battery_data, Space::with_width(Length::Fill), right_buttons)
-                    .spacing(8)
-                    .width(Length::Fill)
-            } else {
-                row!(Space::with_width(Length::Fill), right_buttons).width(Length::Fill)
-            };
+            let header = Row::new()
+                .push_maybe(battery_data)
+                .push(Space::with_width(Length::Fill))
+                .push(right_buttons)
+                .spacing(8)
+                .width(Length::Fill);
 
             let (sink_slider, source_slider) = self
                 .audio
@@ -589,40 +572,44 @@ impl Settings {
                 .collect::<Vec<_>>(),
             );
 
-            vec![
-                Some(header.into()),
-                self.sub_menu
-                    .filter(|menu_type| *menu_type == SubMenu::Power)
-                    .map(|_| sub_menu_wrapper(power_menu().map(Message::Power))),
-                sink_slider,
-                self.sub_menu
-                    .filter(|menu_type| *menu_type == SubMenu::Sinks)
-                    .and_then(|_| {
-                        self.audio.as_ref().map(|a| {
-                            sub_menu_wrapper(a.sinks_submenu(config.audio_sinks_more_cmd.is_some()))
-                        })
-                    }),
-                source_slider,
-                self.sub_menu
-                    .filter(|menu_type| *menu_type == SubMenu::Sources)
-                    .and_then(|_| {
-                        self.audio.as_ref().map(|a| {
-                            sub_menu_wrapper(
-                                a.sources_submenu(config.audio_sources_more_cmd.is_some()),
-                            )
-                        })
-                    }),
-                self.brightness.as_ref().map(|b| b.brightness_slider()),
-                Some(quick_settings),
-            ]
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>()
-        })
-        .spacing(16)
-        .padding(16)
-        .max_width(350.)
-        .into()
+            Column::new()
+                .push(header)
+                .push_maybe(
+                    self.sub_menu
+                        .filter(|menu_type| *menu_type == SubMenu::Power)
+                        .map(|_| sub_menu_wrapper(power_menu().map(Message::Power))),
+                )
+                .push_maybe(sink_slider)
+                .push_maybe(
+                    self.sub_menu
+                        .filter(|menu_type| *menu_type == SubMenu::Sinks)
+                        .and_then(|_| {
+                            self.audio.as_ref().map(|a| {
+                                sub_menu_wrapper(
+                                    a.sinks_submenu(config.audio_sinks_more_cmd.is_some()),
+                                )
+                            })
+                        }),
+                )
+                .push_maybe(source_slider)
+                .push_maybe(
+                    self.sub_menu
+                        .filter(|menu_type| *menu_type == SubMenu::Sources)
+                        .and_then(|_| {
+                            self.audio.as_ref().map(|a| {
+                                sub_menu_wrapper(
+                                    a.sources_submenu(config.audio_sources_more_cmd.is_some()),
+                                )
+                            })
+                        }),
+                )
+                .push_maybe(self.brightness.as_ref().map(|b| b.brightness_slider()))
+                .push(quick_settings)
+                .spacing(16)
+                .padding(16)
+                .max_width(350.)
+                .into()
+        }
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
@@ -698,16 +685,10 @@ fn quick_setting_button<'a, Msg: Clone + 'static>(
 ) -> Element<'a, Msg> {
     let main_content = row!(
         icon(icon_type).size(20),
-        Column::with_children(
-            vec![
-                Some(text(title).size(12).into()),
-                subtitle.map(|s| text(s).size(10).into()),
-            ]
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>(),
-        )
-        .spacing(4)
+        Column::new()
+            .push(text(title).size(12))
+            .push_maybe(subtitle.map(|s| text(s).size(10)))
+            .spacing(4)
     )
     .spacing(8)
     .padding([0, 0, 0, 4])
@@ -715,35 +696,28 @@ fn quick_setting_button<'a, Msg: Clone + 'static>(
     .align_items(Alignment::Center);
 
     button(
-        Row::with_children(
-            vec![
-                Some(main_content.into()),
-                with_submenu.as_ref().map(|_| vertical_rule(1).into()),
-                with_submenu.map(|(menu_type, submenu, msg)| {
-                    button(
-                        container(icon(if Some(menu_type) == submenu {
-                            Icons::Close
-                        } else {
-                            Icons::VerticalDots
-                        }))
-                        .align_y(Vertical::Center)
-                        .align_x(Horizontal::Center),
-                    )
-                    .padding([4, if Some(menu_type) == submenu { 9 } else { 12 }])
-                    .style(Button::custom(QuickSettingsSubMenuButtonStyle(active)))
-                    .width(Length::Shrink)
-                    .height(Length::Shrink)
-                    .on_press(msg)
-                    .into()
-                }),
-            ]
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>(),
-        )
-        .spacing(4)
-        .align_items(Alignment::Center)
-        .height(Length::Fill),
+        Row::new()
+            .push(main_content)
+            .push_maybe(with_submenu.as_ref().map(|_| vertical_rule(1)))
+            .push_maybe(with_submenu.map(|(menu_type, submenu, msg)| {
+                button(
+                    container(icon(if Some(menu_type) == submenu {
+                        Icons::Close
+                    } else {
+                        Icons::VerticalDots
+                    }))
+                    .align_y(Vertical::Center)
+                    .align_x(Horizontal::Center),
+                )
+                .padding([4, if Some(menu_type) == submenu { 9 } else { 12 }])
+                .style(Button::custom(QuickSettingsSubMenuButtonStyle(active)))
+                .width(Length::Shrink)
+                .height(Length::Shrink)
+                .on_press(msg)
+            }))
+            .spacing(4)
+            .align_items(Alignment::Center)
+            .height(Length::Fill),
     )
     .padding([4, 8])
     .on_press(on_press)
