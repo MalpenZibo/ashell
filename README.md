@@ -170,25 +170,16 @@ or you could try to compile and use it.
 
 ## Some screenshots
 
-#### Main bar
-![MainBar](https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/ashell.png)
+I will try my best to keep these screenshots as updated as possible but some details
+could be different
 
-#### Updates
-![Updates](https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/updates-panel.png)
+<img src="https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/ashell.png"></img> 
 
-#### Settings
-![Settings](https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/settings-panel.png)
+| ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/updates-panel.png) | ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/settings-panel.png) |
+| --- | --- |
+| ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/power-menu.png)    | ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/sinks-selection.png)  |
+| ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/network-menu.png)  | ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/bluetooth-menu.png)   |
+| ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/vpn-menu.png)      | ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/airplane-mode.png)    |
 
-#### Power menu
-![PowerMenu](https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/power-menu.png)
-
-#### Pulse Audio
-![PulseAudio](https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/sinks-selection.png)
-
-#### Network
-![Network](https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/network-menu.png)
-
-#### Bluetooth
-![Bluetooth](https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/bluetooth-menu.png)
 
 
