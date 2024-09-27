@@ -1,10 +1,9 @@
 use self::{
-    audio::{Audio, AudioMessage},
-    battery::{battery_indicator, settings_battery_indicator},
+    audio::AudioMessage,
     bluetooth::BluetoothMessage,
-    net::NetMessage,
+    network::NetworkMessage,
     power::PowerMessage,
-    powerprofiles::{PowerProfiles, PowerProfilesMessage},
+    upower::{battery_indicator, settings_battery_indicator},
 };
 use crate::{
     components::icons::{icon, Icons},
@@ -12,17 +11,21 @@ use crate::{
     menu::{Menu, MenuType},
     modules::settings::power::power_menu,
     password_dialog,
+    services::{
+        audio::{AudioCommand, AudioService},
+        bluetooth::{BluetoothCommand, BluetoothService},
+        brightness::{BrightnessCommand, BrightnessService},
+        idle_inhibitor::IdleInhibitorManager,
+        network::{NetworkCommand, NetworkEvent, NetworkService},
+        upower::{PowerProfileCommand, UPowerService},
+        ReadOnlyService, Service, ServiceEvent,
+    },
     style::{
         HeaderButtonStyle, QuickSettingsButtonStyle, QuickSettingsSubMenuButtonStyle,
         SettingsButtonStyle,
     },
-    utils::{
-        battery::{BatteryData, BatteryStatus},
-        idle_inhibitor::WaylandIdleInhibitor,
-    },
 };
-use bluetooth::Bluetooth;
-use brightness::{Brightness, BrightnessMessage};
+use brightness::BrightnessMessage;
 use iced::{
     alignment::{Horizontal, Vertical},
     theme::Button,
@@ -31,41 +34,32 @@ use iced::{
     },
     Alignment, Background, Border, Command, Element, Length, Subscription, Theme,
 };
-use net::Net;
+use upower::UPowerMessage;
 
 pub mod audio;
-mod battery;
 pub mod bluetooth;
 pub mod brightness;
-pub mod net;
+pub mod network;
 mod power;
-pub mod powerprofiles;
+mod upower;
 
 pub struct Settings {
-    audio: Audio,
-    brightness: Brightness,
-    net: Net,
-    bluetooth: Bluetooth,
-    powerprofiles: PowerProfiles,
-    idle_inhibitor: Option<WaylandIdleInhibitor>,
+    audio: Option<AudioService>,
+    brightness: Option<BrightnessService>,
+    network: Option<NetworkService>,
+    bluetooth: Option<BluetoothService>,
+    idle_inhibitor: Option<IdleInhibitorManager>,
     sub_menu: Option<SubMenu>,
-    battery_data: Option<BatteryData>,
+    upower: Option<UPowerService>,
     pub password_dialog: Option<(String, String)>,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum BatteryMessage {
-    PercentageChanged(i64),
-    StatusChanged(BatteryStatus),
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
     ToggleMenu,
-    Battery(BatteryMessage),
-    Net(NetMessage),
+    UPower(UPowerMessage),
+    Network(NetworkMessage),
     Bluetooth(BluetoothMessage),
-    PowerProfiles(PowerProfilesMessage),
     Audio(AudioMessage),
     Brightness(BrightnessMessage),
     ToggleInhibitIdle,
@@ -88,14 +82,13 @@ pub enum SubMenu {
 impl Settings {
     pub fn new() -> Self {
         Settings {
-            audio: Audio::new(),
-            brightness: Brightness::new(),
-            net: Net::new(),
-            bluetooth: Bluetooth::new(),
-            powerprofiles: PowerProfiles::new(),
-            idle_inhibitor: WaylandIdleInhibitor::new().ok(),
+            audio: None,
+            brightness: None,
+            network: None,
+            bluetooth: None,
+            idle_inhibitor: IdleInhibitorManager::new(),
             sub_menu: None,
-            battery_data: None,
+            upower: None,
             password_dialog: None,
         }
     }
@@ -115,58 +108,275 @@ impl Settings {
                     menu.toggle(MenuType::Settings),
                 ])
             }
-            Message::Battery(msg) => {
-                match msg {
-                    BatteryMessage::PercentageChanged(percentage) => {
-                        if let Some(battery_data) = &mut self.battery_data {
-                            battery_data.capacity = percentage;
-                        } else {
-                            self.battery_data = Some(BatteryData {
-                                capacity: percentage,
-                                status: BatteryStatus::Full,
-                            });
-                        }
+            Message::Audio(msg) => match msg {
+                AudioMessage::Event(event) => match event {
+                    ServiceEvent::Init(service) => {
+                        self.audio = Some(service);
+                        Command::none()
                     }
-                    BatteryMessage::StatusChanged(status) => {
-                        if let Some(battery_data) = &mut self.battery_data {
-                            battery_data.status = status;
-                        } else {
-                            self.battery_data = Some(BatteryData {
-                                capacity: 100,
-                                status,
-                            });
+                    ServiceEvent::Update(data) => {
+                        if let Some(audio) = self.audio.as_mut() {
+                            audio.update(data);
                         }
+                        Command::none()
                     }
-                };
-                Command::none()
-            }
-            Message::Net(msg) => self
-                .net
-                .update(msg, menu, &mut self.password_dialog, config),
-            Message::Bluetooth(msg) => self.bluetooth.update(msg, menu, &mut self.sub_menu, config),
-            Message::PowerProfiles(msg) => self.powerprofiles.update(msg),
-            Message::Audio(msg) => self.audio.update(msg, menu, config),
-            Message::Brightness(msg) => self.brightness.update(msg),
+                    ServiceEvent::Error(_) => Command::none(),
+                },
+                AudioMessage::ToggleSinkMute => {
+                    if let Some(audio) = self.audio.as_mut() {
+                        let _ = audio.command(AudioCommand::ToggleSinkMute);
+                    }
+                    Command::none()
+                }
+                AudioMessage::SinkVolumeChanged(value) => {
+                    if let Some(audio) = self.audio.as_mut() {
+                        let _ = audio.command(AudioCommand::SinkVolume(value));
+                    }
+                    Command::none()
+                }
+                AudioMessage::DefaultSinkChanged(name, port) => {
+                    if let Some(audio) = self.audio.as_mut() {
+                        let _ = audio.command(AudioCommand::DefaultSink(name, port));
+                    }
+                    Command::none()
+                }
+                AudioMessage::ToggleSourceMute => {
+                    if let Some(audio) = self.audio.as_mut() {
+                        let _ = audio.command(AudioCommand::ToggleSourceMute);
+                    }
+                    Command::none()
+                }
+                AudioMessage::SourceVolumeChanged(value) => {
+                    if let Some(audio) = self.audio.as_mut() {
+                        let _ = audio.command(AudioCommand::SourceVolume(value));
+                    }
+                    Command::none()
+                }
+                AudioMessage::DefaultSourceChanged(name, port) => {
+                    if let Some(audio) = self.audio.as_mut() {
+                        let _ = audio.command(AudioCommand::DefaultSource(name, port));
+                    }
+                    Command::none()
+                }
+                AudioMessage::SinksMore => {
+                    if let Some(cmd) = &config.audio_sinks_more_cmd {
+                        crate::utils::launcher::execute_command(cmd.to_string());
+                        menu.close()
+                    } else {
+                        Command::none()
+                    }
+                }
+                AudioMessage::SourcesMore => {
+                    if let Some(cmd) = &config.audio_sources_more_cmd {
+                        crate::utils::launcher::execute_command(cmd.to_string());
+                        menu.close()
+                    } else {
+                        Command::none()
+                    }
+                }
+            },
+            Message::UPower(msg) => match msg {
+                UPowerMessage::Event(event) => match event {
+                    ServiceEvent::Init(service) => {
+                        self.upower = Some(service);
+                        Command::none()
+                    }
+                    ServiceEvent::Update(data) => {
+                        if let Some(upower) = self.upower.as_mut() {
+                            upower.update(data);
+                        }
+                        Command::none()
+                    }
+                    ServiceEvent::Error(_) => Command::none(),
+                },
+                UPowerMessage::TogglePowerProfile => {
+                    if let Some(upower) = self.upower.as_mut() {
+                        upower.command(PowerProfileCommand::Toggle).map(|event| {
+                            crate::app::Message::Settings(Message::UPower(UPowerMessage::Event(
+                                event,
+                            )))
+                        })
+                    } else {
+                        Command::none()
+                    }
+                }
+            },
+            Message::Network(msg) => match msg {
+                NetworkMessage::Event(event) => match event {
+                    ServiceEvent::Init(service) => {
+                        self.network = Some(service);
+                        Command::none()
+                    }
+                    ServiceEvent::Update(NetworkEvent::RequestPasswordForSSID(ssid)) => {
+                        self.password_dialog = Some((ssid, "".to_string()));
+                        menu.set_keyboard_interactivity()
+                    }
+                    ServiceEvent::Update(data) => {
+                        if let Some(network) = self.network.as_mut() {
+                            network.update(data);
+                        }
+                        Command::none()
+                    }
+                    _ => Command::none(),
+                },
+                NetworkMessage::ToggleAirplaneMode => {
+                    if let Some(network) = self.network.as_mut() {
+                        network
+                            .command(NetworkCommand::ToggleAirplaneMode)
+                            .map(|event| {
+                                crate::app::Message::Settings(Message::Network(
+                                    NetworkMessage::Event(event),
+                                ))
+                            })
+                    } else {
+                        Command::none()
+                    }
+                }
+                NetworkMessage::ToggleWiFi => {
+                    if let Some(network) = self.network.as_mut() {
+                        network.command(NetworkCommand::ToggleWiFi).map(|event| {
+                            crate::app::Message::Settings(Message::Network(NetworkMessage::Event(
+                                event,
+                            )))
+                        })
+                    } else {
+                        Command::none()
+                    }
+                }
+                NetworkMessage::SelectAccessPoint(ac) => {
+                    if let Some(network) = self.network.as_mut() {
+                        network
+                            .command(NetworkCommand::SelectAccessPoint((ac, None)))
+                            .map(|event| {
+                                crate::app::Message::Settings(Message::Network(
+                                    NetworkMessage::Event(event),
+                                ))
+                            })
+                    } else {
+                        Command::none()
+                    }
+                }
+                NetworkMessage::RequestWiFiPassword(ssid) => {
+                    self.password_dialog = Some((ssid, "".to_string()));
+                    menu.set_keyboard_interactivity()
+                }
+                NetworkMessage::ScanNearByWiFi => {
+                    if let Some(network) = self.network.as_mut() {
+                        network
+                            .command(NetworkCommand::ScanNearByWiFi)
+                            .map(|event| {
+                                crate::app::Message::Settings(Message::Network(
+                                    NetworkMessage::Event(event),
+                                ))
+                            })
+                    } else {
+                        Command::none()
+                    }
+                }
+                NetworkMessage::WiFiMore => {
+                    if let Some(cmd) = &config.wifi_more_cmd {
+                        crate::utils::launcher::execute_command(cmd.to_string());
+                        menu.close()
+                    } else {
+                        Command::none()
+                    }
+                }
+                NetworkMessage::VpnMore => {
+                    if let Some(cmd) = &config.vpn_more_cmd {
+                        crate::utils::launcher::execute_command(cmd.to_string());
+                        menu.close()
+                    } else {
+                        Command::none()
+                    }
+                }
+                _ => Command::none(),
+            },
+            Message::Bluetooth(msg) => match msg {
+                BluetoothMessage::Event(event) => match event {
+                    ServiceEvent::Init(service) => {
+                        self.bluetooth = Some(service);
+                        Command::none()
+                    }
+                    ServiceEvent::Update(data) => {
+                        if let Some(bluetooth) = self.bluetooth.as_mut() {
+                            bluetooth.update(data);
+                        }
+                        Command::none()
+                    }
+                    _ => Command::none(),
+                },
+                BluetoothMessage::Toggle => {
+                    if let Some(bluetooth) = self.bluetooth.as_mut() {
+                        bluetooth.command(BluetoothCommand::Toggle).map(|event| {
+                            crate::app::Message::Settings(Message::Bluetooth(
+                                BluetoothMessage::Event(event),
+                            ))
+                        })
+                    } else {
+                        Command::none()
+                    }
+                }
+                BluetoothMessage::More => {
+                    if let Some(cmd) = &config.bluetooth_more_cmd {
+                        crate::utils::launcher::execute_command(cmd.to_string());
+                        menu.close()
+                    } else {
+                        Command::none()
+                    }
+                }
+            },
+            Message::Brightness(msg) => match msg {
+                BrightnessMessage::Event(event) => match event {
+                    ServiceEvent::Init(service) => {
+                        self.brightness = Some(service);
+                        Command::none()
+                    }
+                    ServiceEvent::Update(data) => {
+                        if let Some(brightness) = self.brightness.as_mut() {
+                            brightness.update(data);
+                        }
+                        Command::none()
+                    }
+                    _ => Command::none(),
+                },
+                BrightnessMessage::Change(value) => {
+                    if let Some(brightness) = self.brightness.as_mut() {
+                        brightness
+                            .command(BrightnessCommand::Set(value))
+                            .map(|event| {
+                                crate::app::Message::Settings(Message::Brightness(
+                                    BrightnessMessage::Event(event),
+                                ))
+                            })
+                    } else {
+                        Command::none()
+                    }
+                }
+            },
             Message::ToggleSubMenu(menu_type) => {
                 if self.sub_menu == Some(menu_type) {
                     self.sub_menu.take();
                 } else {
-                    match menu_type {
-                        SubMenu::Vpn => {
-                            self.net.get_vpn_connections();
-                        }
-                        SubMenu::Wifi => {
-                            self.net.get_nearby_wifi();
-                        }
-                        _ => {}
-                    };
                     self.sub_menu.replace(menu_type);
+
+                    if menu_type == SubMenu::Wifi {
+                        if let Some(network) = self.network.as_mut() {
+                            return network
+                                .command(NetworkCommand::ScanNearByWiFi)
+                                .map(|event| {
+                                    crate::app::Message::Settings(Message::Network(
+                                        NetworkMessage::Event(event),
+                                    ))
+                                });
+                        }
+                    }
                 }
+
                 Command::none()
             }
             Message::ToggleInhibitIdle => {
                 if let Some(idle_inhibitor) = &mut self.idle_inhibitor {
-                    let _ = idle_inhibitor.toggle();
+                    idle_inhibitor.toggle();
                 }
                 Command::none()
             }
@@ -190,8 +400,30 @@ impl Settings {
                 }
                 password_dialog::Message::DialogConfirmed => {
                     if let Some((ssid, password)) = self.password_dialog.take() {
-                        self.net.activate_wifi(ssid, password);
-                        menu.unset_keyboard_interactivity()
+                        let network_command = if let Some(network) = self.network.as_mut() {
+                            let ap = network
+                                .wireless_access_points
+                                .iter()
+                                .find(|ap| ap.ssid == ssid)
+                                .cloned();
+                            if let Some(ap) = ap {
+                                network
+                                    .command(NetworkCommand::SelectAccessPoint((
+                                        ap,
+                                        Some(password),
+                                    )))
+                                    .map(|event| {
+                                        crate::app::Message::Settings(Message::Network(
+                                            NetworkMessage::Event(event),
+                                        ))
+                                    })
+                            } else {
+                                Command::none()
+                            }
+                        } else {
+                            Command::none()
+                        };
+                        Command::batch(vec![menu.unset_keyboard_interactivity(), network_command])
                     } else {
                         Command::none()
                     }
@@ -224,27 +456,34 @@ impl Settings {
             }));
         }
 
-        if let Some(powerprofiles_indicator) = self.powerprofiles.indicator() {
+        if let Some(powerprofiles_indicator) = self
+            .upower
+            .as_ref()
+            .and_then(|p| p.power_profile.indicator())
+        {
             elements = elements.push(powerprofiles_indicator);
         }
 
-        if let Some(sink_indicator) = self.audio.sink_indicator() {
+        if let Some(sink_indicator) = self.audio.as_ref().and_then(|a| a.sink_indicator()) {
             elements = elements.push(sink_indicator);
         }
 
         let mut net_elements = row!().spacing(4);
-        if let Some(indicator) = self.net.active_connection_indicator() {
+        if let Some(indicator) = self
+            .network
+            .as_ref()
+            .and_then(|n| n.get_connection_indicator())
+        {
             net_elements = net_elements.push(indicator);
         }
 
-        if let Some(indicator) = self.net.vpn_indicator() {
+        if let Some(indicator) = self.network.as_ref().and_then(|n| n.get_vpn_indicator()) {
             net_elements = net_elements.push(indicator);
         }
-
         elements = elements.push(net_elements);
 
-        if let Some(battery_data) = self.battery_data {
-            elements = elements.push(battery_indicator(battery_data));
+        if let Some(battery) = self.upower.as_ref().and_then(|upower| upower.battery) {
+            elements = elements.push(battery_indicator(battery));
         }
 
         button(elements)
@@ -258,7 +497,11 @@ impl Settings {
         Column::with_children(if let Some((_, current_password)) = &self.password_dialog {
             vec![password_dialog::view("ssid", current_password).map(Message::PasswordDialog)]
         } else {
-            let battery_data = self.battery_data.map(settings_battery_indicator);
+            let battery_data = self
+                .upower
+                .as_ref()
+                .and_then(|upower| upower.battery)
+                .map(settings_battery_indicator);
             let right_buttons = Row::with_children(
                 vec![
                     config.lock_cmd.as_ref().map(|_| {
@@ -294,21 +537,30 @@ impl Settings {
                 row!(Space::with_width(Length::Fill), right_buttons).width(Length::Fill)
             };
 
-            let (sink_slider, source_slider) = self.audio.audio_sliders(self.sub_menu);
+            let (sink_slider, source_slider) = self
+                .audio
+                .as_ref()
+                .map(|a| a.audio_sliders(self.sub_menu))
+                .unwrap_or((None, None));
 
-            let wifi_setting_button = self
-                .net
-                .get_wifi_quick_setting_button(self.sub_menu, config.wifi_more_cmd.is_some());
+            let wifi_setting_button = self.network.as_ref().and_then(|n| {
+                n.get_wifi_quick_setting_button(self.sub_menu, config.wifi_more_cmd.is_some())
+            });
             let quick_settings = quick_settings_section(
                 vec![
                     wifi_setting_button,
-                    self.net
-                        .get_vpn_quick_setting_button(self.sub_menu, config.vpn_more_cmd.is_some()),
-                    self.bluetooth.get_quick_setting_button(
-                        self.sub_menu,
-                        config.bluetooth_more_cmd.is_some(),
-                    ),
-                    self.powerprofiles.get_quick_setting_button(),
+                    self.bluetooth.as_ref().and_then(|b| {
+                        b.get_quick_setting_button(
+                            self.sub_menu,
+                            config.bluetooth_more_cmd.is_some(),
+                        )
+                    }),
+                    self.network.as_ref().map(|n| {
+                        n.get_vpn_quick_setting_button(self.sub_menu, config.vpn_more_cmd.is_some())
+                    }),
+                    self.network
+                        .as_ref()
+                        .map(|n| n.get_airplane_mode_quick_setting_button()),
                     self.idle_inhibitor.as_ref().map(|idle_inhibitor| {
                         (
                             quick_setting_button(
@@ -326,6 +578,9 @@ impl Settings {
                             None,
                         )
                     }),
+                    self.upower
+                        .as_ref()
+                        .and_then(|u| u.power_profile.get_quick_setting_button()),
                 ]
                 .into_iter()
                 .flatten()
@@ -340,22 +595,22 @@ impl Settings {
                 sink_slider,
                 self.sub_menu
                     .filter(|menu_type| *menu_type == SubMenu::Sinks)
-                    .map(|_| {
-                        sub_menu_wrapper(
-                            self.audio
-                                .sinks_submenu(config.audio_sinks_more_cmd.is_some()),
-                        )
+                    .and_then(|_| {
+                        self.audio.as_ref().map(|a| {
+                            sub_menu_wrapper(a.sinks_submenu(config.audio_sinks_more_cmd.is_some()))
+                        })
                     }),
                 source_slider,
                 self.sub_menu
                     .filter(|menu_type| *menu_type == SubMenu::Sources)
-                    .map(|_| {
-                        sub_menu_wrapper(
-                            self.audio
-                                .sources_submenu(config.audio_sources_more_cmd.is_some()),
-                        )
+                    .and_then(|_| {
+                        self.audio.as_ref().map(|a| {
+                            sub_menu_wrapper(
+                                a.sources_submenu(config.audio_sources_more_cmd.is_some()),
+                            )
+                        })
                     }),
-                Some(self.brightness.brightness_slider()),
+                self.brightness.as_ref().map(|b| b.brightness_slider()),
                 Some(quick_settings),
             ]
             .into_iter()
@@ -370,14 +625,13 @@ impl Settings {
 
     pub fn subscription(&self) -> Subscription<Message> {
         Subscription::batch(vec![
-            crate::utils::battery::subscription().map(Message::Battery),
-            self.audio.subscription().map(Message::Audio),
-            self.brightness.subscription().map(Message::Brightness),
-            self.net.subscription().map(Message::Net),
-            self.bluetooth.subscription().map(Message::Bluetooth),
-            self.powerprofiles
-                .subscription()
-                .map(Message::PowerProfiles),
+            UPowerService::subscribe().map(|event| Message::UPower(UPowerMessage::Event(event))),
+            AudioService::subscribe().map(|evenet| Message::Audio(AudioMessage::Event(evenet))),
+            BrightnessService::subscribe()
+                .map(|event| Message::Brightness(BrightnessMessage::Event(event))),
+            NetworkService::subscribe().map(|event| Message::Network(NetworkMessage::Event(event))),
+            BluetoothService::subscribe()
+                .map(|event| Message::Bluetooth(BluetoothMessage::Event(event))),
         ])
     }
 }
@@ -420,8 +674,8 @@ fn quick_settings_section<'a>(
     section.into()
 }
 
-fn sub_menu_wrapper<'a, Msg: 'static>(content: impl Into<Element<'a, Msg>>) -> Element<'a, Msg> {
-    container(content.into())
+fn sub_menu_wrapper<Msg: 'static>(content: Element<Msg>) -> Element<Msg> {
+    container(content)
         .style(|theme: &Theme| container::Appearance {
             background: Background::Color(theme.extended_palette().secondary.strong.color).into(),
             border: Border::with_radius(16),

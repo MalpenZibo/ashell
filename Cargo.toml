@@ -20,9 +20,10 @@ inotify = "0.10"
 log = { version = "0.4", features=["serde"] }
 flexi_logger = "0.28"
 serde_yaml = "0.9"
-pipewire = "0.8.0"
+pipewire = "0.8"
 wayland-client = "0.31.3"
 wayland-protocols = { version = "0.32.1", features = ["client", "unstable"] }
-itertools = "0.13.0"
-hex_color = { version = "3.0.0", features = ["serde"] }
+itertools = "0.13"
+hex_color = { version = "3.0", features = ["serde"] }
+anyhow = "1"
 

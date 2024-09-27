@@ -61,6 +61,23 @@ impl Title {
             loop {
                 let mut event_listener = AsyncEventListener::new();
 
+                event_listener.add_workspace_changed_handler({
+                    let output = output.clone();
+                    move |_| {
+                        let output = output.clone();
+                        Box::pin(async move {
+                            debug!("Window closed");
+                            if let Ok(mut output) = output.write() {
+                                let current =
+                                    Client::get_active().ok().and_then(|w| w.map(|w| w.title));
+
+                                debug!("Sending title changed message");
+                                output.try_send(Message::TitleChanged(current)).unwrap();
+                            }
+                        })
+                    }
+                });
+
                 event_listener.add_active_window_changed_handler({
                     let output = output.clone();
                     move |e| {

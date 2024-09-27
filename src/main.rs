@@ -20,6 +20,7 @@ mod config;
 mod menu;
 mod modules;
 mod password_dialog;
+mod services;
 mod style;
 mod utils;
 
@@ -52,12 +53,17 @@ async fn main() {
         Criterion::Age(Age::Day),
         Naming::Timestamps,
         Cleanup::KeepLogFiles(7),
-    )
-    .start()
-    .unwrap();
+    );
+    let logger = if cfg!(debug_assertions) {
+        logger.duplicate_to_stdout(flexi_logger::Duplicate::All)
+    } else {
+        logger
+    };
+    let logger = logger.start().unwrap();
     panic::set_hook(Box::new(|info| {
         error!("Panic: {}", info);
     }));
+
     let config = read_config().unwrap_or_else(|err| {
         panic!("Failed to parse config file: {}", err);
     });

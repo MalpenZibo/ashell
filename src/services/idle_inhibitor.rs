@@ -1,5 +1,4 @@
 use log::{debug, info, warn};
-use std::error::Error;
 use wayland_client::{
     protocol::{
         wl_compositor::WlCompositor,
@@ -13,103 +12,114 @@ use wayland_protocols::wp::idle_inhibit::zv1::client::{
     zwp_idle_inhibit_manager_v1::ZwpIdleInhibitManagerV1, zwp_idle_inhibitor_v1::ZwpIdleInhibitorV1,
 };
 
-/// Wrapper to the Wayland objects and the idle inhibitor protocol
-pub struct WaylandIdleInhibitor {
+pub struct IdleInhibitorManager {
     _connection: Connection,
     _display: WlDisplay,
-    event_queue: EventQueue<AppData>,
-    qhandle: QueueHandle<AppData>,
     _registry: WlRegistry,
-    data: AppData,
+    event_queue: EventQueue<IdleInhibitorManagerData>,
+    handle: QueueHandle<IdleInhibitorManagerData>,
+    data: IdleInhibitorManagerData,
 }
 
-impl WaylandIdleInhibitor {
-    /// Builds the connection struct and fires the initial events, necessary to receive and store
-    /// wayland objects
-    pub fn new() -> Result<Self, Box<dyn Error>> {
-        let connection = Connection::connect_to_env()?;
-        let display = connection.display();
-        let event_queue = connection.new_event_queue();
-        let qhandle = event_queue.handle();
-        let registry = display.get_registry(&qhandle, ());
+impl IdleInhibitorManager {
+    pub fn new() -> Option<Self> {
+        let init = || -> anyhow::Result<Self> {
+            let connection = Connection::connect_to_env()?;
+            let display = connection.display();
+            let event_queue = connection.new_event_queue();
+            let handle = event_queue.handle();
+            let registry = display.get_registry(&handle, ());
 
-        let mut obj = Self {
-            _connection: connection,
-            _display: display,
-            event_queue,
-            qhandle,
-            _registry: registry,
-            data: AppData::default(),
+            let mut obj = Self {
+                _connection: connection,
+                _display: display,
+                _registry: registry,
+                event_queue,
+                handle,
+                data: IdleInhibitorManagerData::default(),
+            };
+
+            obj.roundtrip()?;
+
+            Ok(obj)
         };
-        obj.roundtrip()?;
-        Ok(obj)
-    }
 
-    pub fn is_inhibited(&self) -> bool {
-        self.data._idle_inhibitor.is_some()
-    }
-
-    pub fn toggle(&mut self) -> Result<(), Box<dyn Error>> {
-        if self.is_inhibited() {
-            self.set_inhibit_idle(false)
-        } else {
-            self.set_inhibit_idle(true)
+        match init() {
+            Ok(obj) => Some(obj),
+            Err(err) => {
+                warn!("Failed to initialize idle inhibitor: {}", err);
+                None
+            }
         }
     }
 
-    /// Fires enqueued Wayland events to be treated
-    fn roundtrip(&mut self) -> Result<usize, DispatchError> {
+    fn roundtrip(&mut self) -> anyhow::Result<usize, DispatchError> {
         self.event_queue.roundtrip(&mut self.data)
     }
 
-    /// Enables or disables Idle inhibiting using the Wayland protocol
-    fn set_inhibit_idle(&mut self, inhibit_idle: bool) -> Result<(), Box<dyn Error>> {
+    pub fn is_inhibited(&self) -> bool {
+        self.data.idle_inhibitor_state.is_some()
+    }
+
+    pub fn toggle(&mut self) {
+        let res = if self.is_inhibited() {
+            self.set_inhibit_idle(false)
+        } else {
+            self.set_inhibit_idle(true)
+        };
+
+        if let Err(err) = res {
+            warn!("Failed to toggle idle inhibitor: {}", err);
+        }
+    }
+
+    fn set_inhibit_idle(&mut self, inhibit_idle: bool) -> anyhow::Result<()> {
         let data = &self.data;
         let Some((idle_manager, _)) = &data.idle_manager else {
-            warn!(target: "WaylandIdleInhibitor::set_inhibit_idle", "Tried to change idle inhibitor status without loaded idle inhibitor manager!");
+            warn!(target: "IdleInhibitor::set_inhibit_idle", "Tried to change idle inhibitor status without loaded idle inhibitor manager!");
             return Ok(());
         };
 
         if inhibit_idle {
-            if data._idle_inhibitor.is_none() {
+            if data.idle_inhibitor_state.is_none() {
                 let Some(surface) = &data.surface else {
-                    warn!(target: "WaylandIdleInhibitor::set_inhibit_idle", "Tried to change idle inhibitor status without loaded WlSurface!");
+                    warn!(target: "IdleInhibitor::set_inhibit_idle", "Tried to change idle inhibitor status without loaded WlSurface!");
                     return Ok(());
                 };
-                self.data._idle_inhibitor =
-                    Some(idle_manager.create_inhibitor(surface, &self.qhandle, ()));
+                self.data.idle_inhibitor_state =
+                    Some(idle_manager.create_inhibitor(surface, &self.handle, ()));
+
                 self.roundtrip()?;
-                info!(target: "WaylandIdleInhibitor::set_inhibit_idle", "Idle Inhibitor was ENABLED");
+                info!(target: "IdleInhibitor::set_inhibit_idle", "Idle Inhibitor was ENABLED");
             }
-        } else if let Some(indle_inhibitor) = &self.data._idle_inhibitor {
-            indle_inhibitor.destroy();
-            self.data._idle_inhibitor = None;
+        } else if let Some(state) = &self.data.idle_inhibitor_state {
+            state.destroy();
+            self.data.idle_inhibitor_state = None;
+
             self.roundtrip()?;
-            info!(target: "WaylandIdleInhibitor::set_inhibit_idle", "Idle Inhibitor was DISABLED");
+            info!(target: "IdleInhibitor::set_inhibit_idle", "Idle Inhibitor was DISABLED");
         }
 
         Ok(())
     }
 }
 
-/// Wayland connection and main objects
 #[derive(Default)]
-struct AppData {
+struct IdleInhibitorManagerData {
     compositor: Option<(WlCompositor, u32)>,
     surface: Option<WlSurface>,
     idle_manager: Option<(ZwpIdleInhibitManagerV1, u32)>,
-    _idle_inhibitor: Option<ZwpIdleInhibitorV1>,
+    idle_inhibitor_state: Option<ZwpIdleInhibitorV1>,
 }
 
-/// Subscribes to the [WlRegistry] events, mainly to treat added and removed objects
-impl Dispatch<WlRegistry, ()> for AppData {
+impl Dispatch<WlRegistry, ()> for IdleInhibitorManagerData {
     fn event(
         state: &mut Self,
         proxy: &WlRegistry,
         event: <WlRegistry as wayland_client::Proxy>::Event,
         _data: &(),
         _conn: &wayland_client::Connection,
-        qhandle: &wayland_client::QueueHandle<Self>,
+        handle: &wayland_client::QueueHandle<Self>,
     ) {
         match event {
             wl_registry::Event::Global {
@@ -118,27 +128,30 @@ impl Dispatch<WlRegistry, ()> for AppData {
                 version,
             } => {
                 if interface == WlCompositor::interface().name && state.compositor.is_none() {
-                    debug!(target: "WaylandIdleInhibitor::WlRegistry::Event::Global", "Adding Compositor with name {name} and version {version}");
-                    let compositor: WlCompositor = proxy.bind(name, version, qhandle, ());
-                    state.surface = Some(compositor.create_surface(qhandle, ()));
+                    debug!(target: "IdleInhibitor::WlRegistry::Event::Global", "Adding Compositor with name {name} and version {version}");
+                    let compositor: WlCompositor = proxy.bind(name, version, handle, ());
+
+                    state.surface = Some(compositor.create_surface(handle, ()));
                     state.compositor = Some((compositor, name));
                 } else if interface == ZwpIdleInhibitManagerV1::interface().name
                     && state.idle_manager.is_none()
                 {
-                    debug!(target: "WaylandIdleInhibitor::WlRegistry::Event::Global", "Adding IdleInhibitManager with name {name} and version {version}");
-                    state.idle_manager = Some((proxy.bind(name, version, qhandle, ()), name));
+                    debug!(target: "IdleInhibitor::WlRegistry::Event::Global", "Adding IdleInhibitManager with name {name} and version {version}");
+                    state.idle_manager = Some((proxy.bind(name, version, handle, ()), name));
                 };
             }
             wl_registry::Event::GlobalRemove { name } => {
                 if let Some((_, compositor_name)) = &state.compositor {
                     if name == *compositor_name {
-                        warn!(target: "WaylandIdleInhibitor::GlobalRemove", "Compositor was removed!");
+                        warn!(target: "IdleInhibitor::GlobalRemove", "Compositor was removed!");
+
                         state.compositor = None;
                         state.surface = None;
                     }
                 } else if let Some((_, idle_manager_name)) = &state.idle_manager {
                     if name == *idle_manager_name {
-                        warn!(target: "WaylandIdleInhibitor::GlobalRemove", "IdleInhibitManager was removed!");
+                        warn!(target: "IdleInhibitor::GlobalRemove", "IdleInhibitManager was removed!");
+
                         state.idle_manager = None;
                     }
                 }
@@ -148,7 +161,7 @@ impl Dispatch<WlRegistry, ()> for AppData {
     }
 }
 
-impl Dispatch<WlCompositor, ()> for AppData {
+impl Dispatch<WlCompositor, ()> for IdleInhibitorManagerData {
     fn event(
         _state: &mut Self,
         _proxy: &WlCompositor,
@@ -160,7 +173,7 @@ impl Dispatch<WlCompositor, ()> for AppData {
     } // This interface has no events.
 }
 
-impl Dispatch<WlSurface, ()> for AppData {
+impl Dispatch<WlSurface, ()> for IdleInhibitorManagerData {
     fn event(
         _state: &mut Self,
         _proxy: &WlSurface,
@@ -172,7 +185,7 @@ impl Dispatch<WlSurface, ()> for AppData {
     }
 }
 
-impl Dispatch<ZwpIdleInhibitManagerV1, ()> for AppData {
+impl Dispatch<ZwpIdleInhibitManagerV1, ()> for IdleInhibitorManagerData {
     fn event(
         _state: &mut Self,
         _proxy: &ZwpIdleInhibitManagerV1,
@@ -184,7 +197,7 @@ impl Dispatch<ZwpIdleInhibitManagerV1, ()> for AppData {
     } // This interface has no events.
 }
 
-impl Dispatch<ZwpIdleInhibitorV1, ()> for AppData {
+impl Dispatch<ZwpIdleInhibitorV1, ()> for IdleInhibitorManagerData {
     fn event(
         _state: &mut Self,
         _proxy: &ZwpIdleInhibitorV1,
