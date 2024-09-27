@@ -73,6 +73,7 @@ but I'm quite sure that if you use NixOS you are smart enough to add ashell to y
     - Bluetooth
     - Power profiles
     - Idle inhibitor
+    - Airplane mode
 
 ## Configuration
 The configuration uses the yaml file format and is named `~/.config/ashell.yml`
