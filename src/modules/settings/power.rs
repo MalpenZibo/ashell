@@ -1,6 +1,7 @@
 use crate::{
     components::icons::{icon, Icons},
-    style::GhostButtonStyle, utils,
+    style::GhostButtonStyle,
+    utils,
 };
 use iced::{
     theme::Button,

@@ -1,9 +1,13 @@
 use crate::{
-    app, components::icons::{icon, Icons}, config::UpdatesModuleConfig, menu::{Menu, MenuType}, style::{GhostButtonStyle, HeaderButtonStyle}
+    app,
+    components::icons::{icon, Icons},
+    config::UpdatesModuleConfig,
+    menu::{Menu, MenuType},
+    style::{GhostButtonStyle, HeaderButtonStyle},
 };
 use iced::{
     alignment::Horizontal,
-    subscription::{self, channel},
+    subscription::channel,
     theme::{self, Button},
     widget::{button, column, container, horizontal_rule, row, scrollable, text, Column},
     Alignment, Command, Element, Length, Subscription,
@@ -89,7 +93,6 @@ pub struct Updates {
     is_updates_list_open: bool,
 }
 
-
 impl Updates {
     pub fn update(
         &mut self,
@@ -124,9 +127,7 @@ impl Updates {
                 let check_command = config.check_cmd.clone();
                 Command::perform(
                     async move { check_update_now(&check_command).await },
-                    move |updates| {
-                        app::Message::Updates(Message::UpdatesCheckCompleted(updates))
-                    },
+                    move |updates| app::Message::Updates(Message::UpdatesCheckCompleted(updates)),
                 )
             }
             Message::Update => {

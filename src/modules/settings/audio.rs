@@ -173,7 +173,7 @@ pub fn audio_slider<'a, Message: 'a + Clone>(
             slider(0..=100, volume, volume_changed)
                 .step(1)
                 .width(Length::Fill)
-                .style(theme::Slider::Custom(Box::new(SliderStyle)))
+                .style(theme::Slider::Custom(Box::new(SliderStyle))),
         )
         .push_maybe(with_submenu.map(|(submenu, msg)| {
             button(icon(match (slider_type, submenu) {

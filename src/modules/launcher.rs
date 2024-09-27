@@ -12,4 +12,3 @@ pub fn launcher<'a>() -> Element<'a, Message> {
         .style(theme::Button::custom(HeaderButtonStyle::Full))
         .into()
 }
-
