@@ -1,6 +1,6 @@
 use crate::{
     components::icons::{icon, Icons},
-    style::GhostButtonStyle,
+    style::GhostButtonStyle, utils,
 };
 use iced::{
     theme::Button,
@@ -20,16 +20,16 @@ impl PowerMessage {
     pub fn update(self) {
         match self {
             PowerMessage::Suspend => {
-                crate::utils::launcher::suspend();
+                utils::launcher::suspend();
             }
             PowerMessage::Reboot => {
-                crate::utils::launcher::reboot();
+                utils::launcher::reboot();
             }
             PowerMessage::Shutdown => {
-                crate::utils::launcher::shutdown();
+                utils::launcher::shutdown();
             }
             PowerMessage::Logout => {
-                crate::utils::launcher::logout();
+                utils::launcher::logout();
             }
         }
     }

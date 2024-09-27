@@ -146,57 +146,48 @@ pub fn audio_slider<'a, Message: 'a + Clone>(
     volume_changed: impl Fn(i32) -> Message + 'a,
     with_submenu: Option<(Option<SubMenu>, Message)>,
 ) -> Element<'a, Message> {
-    Row::with_children(
-        vec![
-            Some(
-                button(icon(if is_mute {
-                    match slider_type {
-                        SliderType::Sink => Icons::Speaker0,
-                        SliderType::Source => Icons::Mic0,
-                    }
-                } else {
-                    match slider_type {
-                        SliderType::Sink => Icons::Speaker3,
-                        SliderType::Source => Icons::Mic1,
-                    }
-                }))
-                .padding([
-                    8,
-                    match slider_type {
-                        SliderType::Sink => 13,
-                        SliderType::Source => 14,
-                    },
-                ])
-                .on_press(toggle_mute)
-                .style(Button::custom(SettingsButtonStyle))
-                .into(),
-            ),
-            Some(
-                slider(0..=100, volume, volume_changed)
-                    .step(1)
-                    .width(Length::Fill)
-                    .style(theme::Slider::Custom(Box::new(SliderStyle)))
-                    .into(),
-            ),
-            with_submenu.map(|(submenu, msg)| {
-                button(icon(match (slider_type, submenu) {
-                    (SliderType::Sink, Some(SubMenu::Sinks)) => Icons::Close,
-                    (SliderType::Source, Some(SubMenu::Sources)) => Icons::Close,
-                    _ => Icons::RightArrow,
-                }))
-                .padding([8, 13])
-                .on_press(msg)
-                .style(Button::custom(SettingsButtonStyle))
-                .into()
-            }),
-        ]
-        .into_iter()
-        .flatten()
-        .collect::<Vec<_>>(),
-    )
-    .align_items(Alignment::Center)
-    .spacing(8)
-    .into()
+    Row::new()
+        .push(
+            button(icon(if is_mute {
+                match slider_type {
+                    SliderType::Sink => Icons::Speaker0,
+                    SliderType::Source => Icons::Mic0,
+                }
+            } else {
+                match slider_type {
+                    SliderType::Sink => Icons::Speaker3,
+                    SliderType::Source => Icons::Mic1,
+                }
+            }))
+            .padding([
+                8,
+                match slider_type {
+                    SliderType::Sink => 13,
+                    SliderType::Source => 14,
+                },
+            ])
+            .on_press(toggle_mute)
+            .style(Button::custom(SettingsButtonStyle)),
+        )
+        .push(
+            slider(0..=100, volume, volume_changed)
+                .step(1)
+                .width(Length::Fill)
+                .style(theme::Slider::Custom(Box::new(SliderStyle)))
+        )
+        .push_maybe(with_submenu.map(|(submenu, msg)| {
+            button(icon(match (slider_type, submenu) {
+                (SliderType::Sink, Some(SubMenu::Sinks)) => Icons::Close,
+                (SliderType::Source, Some(SubMenu::Sources)) => Icons::Close,
+                _ => Icons::RightArrow,
+            }))
+            .padding([8, 13])
+            .on_press(msg)
+            .style(Button::custom(SettingsButtonStyle))
+        }))
+        .align_items(Alignment::Center)
+        .spacing(8)
+        .into()
 }
 
 pub struct SubmenuEntry<Message> {
