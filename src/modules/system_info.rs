@@ -5,7 +5,7 @@ use crate::{
 };
 use iced::{
     alignment::Vertical,
-    time,
+    time::every,
     widget::{container, row, text},
     Alignment, Element, Subscription, Theme,
 };
@@ -48,13 +48,8 @@ pub struct SystemInfo {
     data: SystemInfoData,
 }
 
-#[derive(Debug, Clone)]
-pub enum Message {
-    Update,
-}
-
-impl SystemInfo {
-    pub fn new() -> Self {
+impl Default for SystemInfo {
+    fn default() -> Self {
         let mut system = System::new();
         let mut components = Components::new_with_refreshed_list();
         let data = get_system_info(&mut system, &mut components);
@@ -65,12 +60,18 @@ impl SystemInfo {
             data,
         }
     }
+}
 
+#[derive(Debug, Clone)]
+pub enum Message {
+    Update,
+}
+
+impl SystemInfo {
     pub fn update(&mut self, message: Message) {
         match message {
             Message::Update => {
-                let data = get_system_info(&mut self.system, &mut self.components);
-                self.data = data;
+                self.data = get_system_info(&mut self.system, &mut self.components);
             }
         }
     }
@@ -91,6 +92,7 @@ impl SystemInfo {
 
             let temp_warn_threshold = config.temp_warn_threshold;
             let temp_alert_threshold = config.temp_alert_threshold;
+
             Some(
                 container(
                     row!(
@@ -158,6 +160,6 @@ impl SystemInfo {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        time::every(Duration::from_secs(5)).map(|_| Message::Update)
+        every(Duration::from_secs(5)).map(|_| Message::Update)
     }
 }

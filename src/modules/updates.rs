@@ -1,4 +1,5 @@
 use crate::{
+    app,
     components::icons::{icon, Icons},
     config::UpdatesModuleConfig,
     menu::{Menu, MenuType},
@@ -6,15 +7,15 @@ use crate::{
 };
 use iced::{
     alignment::Horizontal,
-    subscription,
+    subscription::channel,
     theme::{self, Button},
     widget::{button, column, container, horizontal_rule, row, scrollable, text, Column},
     Alignment, Command, Element, Length, Subscription,
 };
 use log::error;
 use serde::Deserialize;
-use std::{process::Stdio, time::Duration};
-use tokio::time::sleep;
+use std::{any::TypeId, convert, process::Stdio, time::Duration};
+use tokio::{process, spawn, time::sleep};
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct Update {
@@ -24,7 +25,7 @@ pub struct Update {
 }
 
 async fn check_update_now(check_cmd: &str) -> Vec<Update> {
-    let check_update_cmd = tokio::process::Command::new("bash")
+    let check_update_cmd = process::Command::new("bash")
         .arg("-c")
         .arg(check_cmd)
         .stdout(Stdio::piped())
@@ -61,7 +62,7 @@ async fn check_update_now(check_cmd: &str) -> Vec<Update> {
 }
 
 async fn update(update_cmd: &str) {
-    let _ = tokio::process::Command::new("bash")
+    let _ = process::Command::new("bash")
         .arg("-c")
         .arg(update_cmd)
         .output()
@@ -78,11 +79,14 @@ pub enum Message {
     Update,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Default, Clone, Eq, PartialEq)]
 enum State {
+    #[default]
     Checking,
     Ready,
 }
+
+#[derive(Debug, Default, Clone)]
 pub struct Updates {
     state: State,
     pub updates: Vec<Update>,
@@ -90,19 +94,11 @@ pub struct Updates {
 }
 
 impl Updates {
-    pub fn new() -> Self {
-        Self {
-            state: State::Checking,
-            updates: vec![],
-            is_updates_list_open: false,
-        }
-    }
-
     pub fn update(
         &mut self,
         message: Message,
         config: &UpdatesModuleConfig,
-        menu: &mut Menu<crate::app::Message>,
+        menu: &mut Menu,
     ) -> Command<crate::app::Message> {
         match message {
             Message::UpdatesCheckCompleted(updates) => {
@@ -131,23 +127,21 @@ impl Updates {
                 let check_command = config.check_cmd.clone();
                 Command::perform(
                     async move { check_update_now(&check_command).await },
-                    move |updates| {
-                        crate::app::Message::Updates(Message::UpdatesCheckCompleted(updates))
-                    },
+                    move |updates| app::Message::Updates(Message::UpdatesCheckCompleted(updates)),
                 )
             }
             Message::Update => {
                 let update_command = config.update_cmd.clone();
                 let mut cmds = vec![Command::perform(
                     async move {
-                        tokio::spawn({
+                        spawn({
                             async move {
                                 update(&update_command).await;
                             }
                         })
                         .await
                     },
-                    move |_| crate::app::Message::Updates(Message::UpdateFinished),
+                    move |_| app::Message::Updates(Message::UpdateFinished),
                 )];
 
                 cmds.push(menu.close_if(MenuType::Updates));
@@ -180,7 +174,7 @@ impl Updates {
     pub fn menu_view(&self) -> Element<Message> {
         column!(
             if self.updates.is_empty() {
-                std::convert::Into::<Element<'_, _, _>>::into(
+                convert::Into::<Element<'_, _, _>>::into(
                     container(text("Up to date ;)")).padding([8, 8]),
                 )
             } else {
@@ -268,7 +262,9 @@ impl Updates {
 
     pub fn subscription(&self, config: &UpdatesModuleConfig) -> Subscription<Message> {
         let check_cmd = config.check_cmd.clone();
-        subscription::channel("update-checker", 10, |mut output| async move {
+        let id = TypeId::of::<Self>();
+
+        channel(id, 10, |mut output| async move {
             loop {
                 let updates = check_update_now(&check_cmd).await;
 

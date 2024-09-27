@@ -24,28 +24,22 @@ impl PrivacyData {
             Some(
                 button(
                     container(
-                        Row::with_children(
-                            vec![
-                                self.iter().find_map(|app| {
-                                    if app.media == Media::Video {
-                                        Some(icon(app.media.to_icon()).into())
-                                    } else {
-                                        None
-                                    }
-                                }),
-                                self.iter().find_map(|app| {
-                                    if app.media == Media::Audio {
-                                        Some(icon(app.media.to_icon()).into())
-                                    } else {
-                                        None
-                                    }
-                                }),
-                            ]
-                            .into_iter()
-                            .flatten()
-                            .collect::<Vec<_>>(),
-                        )
-                        .spacing(8),
+                        Row::new()
+                            .push_maybe(self.iter().find_map(|app| {
+                                if app.media == Media::Video {
+                                    Some(icon(app.media.to_icon()))
+                                } else {
+                                    None
+                                }
+                            }))
+                            .push_maybe(self.iter().find_map(|app| {
+                                if app.media == Media::Audio {
+                                    Some(icon(app.media.to_icon()))
+                                } else {
+                                    None
+                                }
+                            }))
+                            .spacing(8),
                     )
                     .style(|theme: &Theme| container::Appearance {
                         text_color: Some(theme.extended_palette().danger.weak.color),

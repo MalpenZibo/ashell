@@ -54,16 +54,10 @@ impl BluetoothData {
                 self.devices
                     .iter()
                     .map(|d| {
-                        Row::with_children(
-                            vec![
-                                Some(text(d.name.to_string()).width(Length::Fill).into()),
-                                d.battery.map(Self::battery_level),
-                            ]
-                            .into_iter()
-                            .flatten()
-                            .collect::<Vec<_>>(),
-                        )
-                        .into()
+                        Row::new()
+                            .push(text(d.name.to_string()).width(Length::Fill))
+                            .push_maybe(d.battery.map(Self::battery_level))
+                            .into()
                     })
                     .collect::<Vec<Element<Message>>>(),
             )

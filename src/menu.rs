@@ -1,12 +1,15 @@
+use crate::app;
+use crate::config::Position;
+use iced::alignment::{Horizontal, Vertical};
+use iced::widget::container::Appearance;
+use iced::widget::mouse_area;
 use iced::window::Id;
-use iced::Border;
 use iced::{self, widget::container, Command, Element, Theme};
+use iced::{Border, Length};
 use iced_sctk::command::platform_specific::wayland::layer_surface::SctkLayerSurfaceSettings;
 use iced_sctk::commands::layer_surface::{
     self, get_layer_surface, Anchor, KeyboardInteractivity, Layer,
 };
-
-use crate::config::Position;
 
 fn open_menu<Message: 'static>() -> (Id, Command<Message>) {
     let id = Id::unique();
@@ -32,36 +35,6 @@ fn close_menu<Message: 'static>(id: Id) -> Command<Message> {
     layer_surface::destroy_layer_surface(id)
 }
 
-// fn create_menu_surface<Message>() -> (Id, Command<Message>) {
-//     let id = Id::unique();
-//     (
-//         id,
-//         iced::wayland::layer_surface::get_layer_surface(SctkLayerSurfaceSettings {
-//             id,
-//             keyboard_interactivity: KeyboardInteractivity::None,
-//             namespace: "ashell-menu".into(),
-//             layer: Layer::Background,
-//             size: Some((None, None)),
-//             anchor: Anchor::TOP
-//                 .union(Anchor::LEFT)
-//                 .union(Anchor::RIGHT)
-//                 .union(Anchor::BOTTOM),
-//             ..Default::default()
-//         }),
-//     )
-// }
-//
-// fn open_menu<Message>(id: Id) -> Command<Message> {
-//     iced::Command::batch(vec![iced::wayland::layer_surface::set_layer(
-//         id,
-//         Layer::Overlay,
-//     )])
-// }
-//
-// fn close_menu<Message>(id: Id) -> Command<Message> {
-//     iced::wayland::layer_surface::set_layer(id, Layer::Background)
-// }
-
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub enum MenuType {
     Updates,
@@ -69,22 +42,14 @@ pub enum MenuType {
     Settings,
 }
 
-pub struct Menu<Message: 'static> {
+#[derive(Debug, Default)]
+pub struct Menu {
     id: Option<Id>,
     menu_type: Option<MenuType>,
-    phantom: std::marker::PhantomData<Message>,
 }
 
-impl<Message: 'static> Menu<Message> {
-    pub fn init() -> Self {
-        Self {
-            id: None,
-            menu_type: None,
-            phantom: std::marker::PhantomData,
-        }
-    }
-
-    pub fn toggle(&mut self, menu_type: MenuType) -> Command<Message> {
+impl Menu {
+    pub fn toggle<Message: 'static>(&mut self, menu_type: MenuType) -> Command<Message> {
         let current = self.menu_type.take();
 
         match current {
@@ -100,52 +65,52 @@ impl<Message: 'static> Menu<Message> {
                 if let Some(id) = self.id.take() {
                     close_menu(id)
                 } else {
-                    iced::Command::none()
+                    Command::none()
                 }
             }
             Some(_) => {
                 self.menu_type = Some(menu_type);
-                iced::Command::none()
+                Command::none()
             }
         }
     }
 
-    pub fn close_if(&mut self, menu_type: MenuType) -> Command<Message> {
+    pub fn close_if<Message: 'static>(&mut self, menu_type: MenuType) -> Command<Message> {
         if self.menu_type == Some(menu_type) {
             self.menu_type = None;
             if let Some(id) = self.id.take() {
                 close_menu(id)
             } else {
-                iced::Command::none()
+                Command::none()
             }
         } else {
-            iced::Command::none()
+            Command::none()
         }
     }
 
-    pub fn close(&mut self) -> Command<Message> {
+    pub fn close<Message: 'static>(&mut self) -> Command<Message> {
         self.menu_type = None;
 
         if let Some(id) = self.id.take() {
             close_menu(id)
         } else {
-            iced::Command::none()
+            Command::none()
         }
     }
 
-    pub fn set_keyboard_interactivity(&mut self) -> Command<Message> {
+    pub fn set_keyboard_interactivity<Message: 'static>(&mut self) -> Command<Message> {
         if let Some(id) = self.id {
             layer_surface::set_keyboard_interactivity(id, KeyboardInteractivity::Exclusive)
         } else {
-            iced::Command::none()
+            Command::none()
         }
     }
 
-    pub fn unset_keyboard_interactivity(&mut self) -> Command<Message> {
+    pub fn unset_keyboard_interactivity<Message: 'static>(&mut self) -> Command<Message> {
         if let Some(id) = self.id {
             layer_surface::set_keyboard_interactivity(id, KeyboardInteractivity::None)
         } else {
-            iced::Command::none()
+            Command::none()
         }
     }
 
@@ -164,17 +129,17 @@ pub enum MenuPosition {
 }
 
 pub fn menu_wrapper(
-    content: Element<crate::app::Message>,
+    content: Element<app::Message>,
     position: MenuPosition,
     bar_position: Position,
-) -> Element<crate::app::Message> {
-    iced::widget::mouse_area(
+) -> Element<app::Message> {
+    mouse_area(
         container(
-            iced::widget::mouse_area(
+            mouse_area(
                 container(content)
-                    .height(iced::Length::Shrink)
-                    .width(iced::Length::Shrink)
-                    .style(|theme: &Theme| iced::widget::container::Appearance {
+                    .height(Length::Shrink)
+                    .width(Length::Shrink)
+                    .style(|theme: &Theme| Appearance {
                         background: Some(theme.palette().background.into()),
                         border: Border {
                             color: theme.extended_palette().secondary.base.color,
@@ -184,20 +149,20 @@ pub fn menu_wrapper(
                         ..Default::default()
                     }),
             )
-            .on_release(crate::app::Message::None),
+            .on_release(app::Message::None),
         )
         .align_y(match bar_position {
-            Position::Top => iced::alignment::Vertical::Top,
-            Position::Bottom => iced::alignment::Vertical::Bottom,
+            Position::Top => Vertical::Top,
+            Position::Bottom => Vertical::Bottom,
         })
         .align_x(match position {
-            MenuPosition::Left => iced::alignment::Horizontal::Left,
-            MenuPosition::Right => iced::alignment::Horizontal::Right,
+            MenuPosition::Left => Horizontal::Left,
+            MenuPosition::Right => Horizontal::Right,
         })
         .padding([0, 8, 8, 8])
-        .width(iced::Length::Fill)
-        .height(iced::Length::Fill),
+        .width(Length::Fill)
+        .height(Length::Fill),
     )
-    .on_release(crate::app::Message::CloseMenu)
+    .on_release(app::Message::CloseMenu)
     .into()
 }
