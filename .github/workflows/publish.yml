@@ -1,4 +1,6 @@
 name: Publish
+permissions:
+  contents: write
 
 on:
   pull_request:
