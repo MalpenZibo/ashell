@@ -1,0 +1,81 @@
+name: Release
+permissions:
+  contents: write
+
+on:
+  workflow_dispatch:
+    inputs:
+      level:
+        description: "Version Level major|minor|patch"
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  prepare-release:
+    name: Release
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          export DEBIAN_FRONTED=noninteractive
+          sudo apt-get update
+          sudo apt-get install -y pkg-config llvm-dev libclang-dev clang libxkbcommon-dev libwayland-dev dbus libpipewire-0.3-dev libpulse-dev
+
+      - name: Config Git
+        uses: oleksiyrudenko/gha-git-credentials@v2-latest
+        with:
+          token: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Install cargo binary dependencies
+        uses: baptiste0928/cargo-install@v3
+        with:
+          crate: cargo-release
+
+      - name: Release
+        run: cargo release ${PUBLISH_LEVEL} --execute --no-tag --no-confirm --no-publish --no-push 
+        env:
+          PUBLISH_LEVEL: ${{ github.event.inputs.level }}
+
+      - name: Get New version
+        id: gettag
+        run: |
+          echo "TAG_NAME=$(cargo pkgid | cut -d# -f2 | cut -d@ -f2)" >> $GITHUB_OUTPUT
+
+      - name: Update Changelog
+        run: |
+          date=$(date '+%Y-%m-%d')
+          sed -i "s/\[Unreleased\]/\[${{ steps.gettag.outputs.TAG_NAME }}\] - $(date '+%Y-%m-%d')/" ./CHANGELOG.md
+          git add CHANGELOG.md
+          git commit -m "update CHANGELOG.md"
+
+      - name: Get Changelog Entry
+        id: changelog_reader
+        uses: mindsers/changelog-reader-action@v2
+        with:
+          validation_level: warn
+          version: ${{ steps.gettag.outputs.TAG_NAME }}
+          path: ./CHANGELOG.md
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          title: Release ${{ steps.gettag.outputs.TAG_NAME }}
+          body: |
+            # New version ${{ steps.gettag.outputs.TAG_NAME }}
+
+            The new version will be published after merging this PR
+
+            ## Changelog
+            ${{ steps.changelog_reader.outputs.changes }}
+          branch: release-${{ steps.gettag.outputs.TAG_NAME }}
+          delete-branch: true

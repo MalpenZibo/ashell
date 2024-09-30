@@ -1,0 +1,59 @@
+name: Publish
+
+on:
+  pull_request:
+    types:
+      - closed
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  if_publish:
+    if: |
+      github.event.pull_request.merged == true 
+      && startsWith(github.event.pull_request.head.ref, 'release-')
+      && startsWith(github.event.pull_request.title, 'Release')
+
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+        with:
+          ref: "main"
+
+      - name: Install dependencies
+        run: |
+          export DEBIAN_FRONTED=noninteractive
+          sudo apt-get update
+          sudo apt-get install -y pkg-config llvm-dev libclang-dev clang libxkbcommon-dev libwayland-dev dbus libpipewire-0.3-dev libpulse-dev
+
+      - name: Config Git
+        uses: oleksiyrudenko/gha-git-credentials@v2-latest
+        with:
+          token: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Install cargo binary dependencies
+        uses: baptiste0928/cargo-install@v3
+        with:
+          crate: cargo-release
+
+      - name: Get New version
+        id: gettag
+        run: |
+          echo "TAG_NAME=$(cargo pkgid | cut -d# -f2 | cut -d@ -f2)" >> $GITHUB_OUTPUT
+
+      - name: Get Changelog Entry
+        id: changelog_reader
+        uses: mindsers/changelog-reader-action@v2
+        with:
+          validation_level: warn
+          version: ${{ steps.gettag.outputs.TAG_NAME }}
+          path: ./CHANGELOG.md
+
+      - name: Create a Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.gettag.outputs.TAG_NAME }}
+          body: ${{ steps.changelog_reader.outputs.changes }}
