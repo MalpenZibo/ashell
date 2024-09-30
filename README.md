@@ -19,16 +19,29 @@ feature flags to disable these functionalities or alternative methods to obtain 
 
 You can get the official Arch Linux package from the AUR:
 
+#### Tagged release
 ```
-paru/yay -S ashell-git # to get the latest source version
+paru/yay -S ashell 
+```
+
+#### Main branch
+```
+paru/yay -S ashell-git 
 ```
 
 ### Nix
 
 To install ashell using the nix package be sure to enable flakes and then run
 
+#### Tagged release
 ```
-nix profile install github:MalpenZibo/ashell
+nix profile install github:MalpenZibo/ashell?ref=0.1.0 
+```
+
+#### Main branch
+
+```
+nix profile install github:MalpenZibo/ashell 
 ```
 
 ### NixOS
