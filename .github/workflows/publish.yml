@@ -23,21 +23,10 @@ jobs:
         with:
           ref: "main"
 
-      - name: Install dependencies
-        run: |
-          export DEBIAN_FRONTED=noninteractive
-          sudo apt-get update
-          sudo apt-get install -y pkg-config llvm-dev libclang-dev clang libxkbcommon-dev libwayland-dev dbus libpipewire-0.3-dev libpulse-dev
-
       - name: Config Git
         uses: oleksiyrudenko/gha-git-credentials@v2-latest
         with:
           token: "${{ secrets.GITHUB_TOKEN }}"
-
-      - name: Install cargo binary dependencies
-        uses: baptiste0928/cargo-install@v3
-        with:
-          crate: cargo-release
 
       - name: Get New version
         id: gettag

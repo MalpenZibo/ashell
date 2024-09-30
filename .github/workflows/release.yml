@@ -1,6 +1,7 @@
 name: Release
 permissions:
   contents: write
+  pull-requests: write
 
 on:
   workflow_dispatch:
@@ -24,12 +25,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install dependencies
-        run: |
-          export DEBIAN_FRONTED=noninteractive
-          sudo apt-get update
-          sudo apt-get install -y pkg-config llvm-dev libclang-dev clang libxkbcommon-dev libwayland-dev dbus libpipewire-0.3-dev libpulse-dev
 
       - name: Config Git
         uses: oleksiyrudenko/gha-git-credentials@v2-latest
