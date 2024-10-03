@@ -1,4 +1,4 @@
-use super::{AccessPoint, ActiveConnectionInfo, KnownConnection};
+use super::{AccessPoint, ActiveConnectionInfo, KnownConnection, Vpn};
 use iced::futures::StreamExt;
 use itertools::Itertools;
 use log::debug;
@@ -72,6 +72,7 @@ impl<'a> NetworkDbus<'a> {
             if connection.vpn().await.unwrap_or_default() {
                 info.push(ActiveConnectionInfo::Vpn {
                     name: connection.id().await?,
+                    object_path: connection.inner().path().to_owned().into(),
                 });
                 continue;
             }
@@ -118,6 +119,7 @@ impl<'a> NetworkDbus<'a> {
                     Some(DeviceType::WireGuard) => {
                         info.push(ActiveConnectionInfo::Vpn {
                             name: connection.id().await?,
+                            object_path: connection.inner().path().to_owned().into(),
                         });
                     }
                     _ => {}
@@ -148,11 +150,11 @@ impl<'a> NetworkDbus<'a> {
         let mut known_ssid = Vec::with_capacity(known_connections.len());
         let mut known_vpn = Vec::new();
         for c in known_connections {
-            let c = ConnectionSettingsProxy::builder(self.0.inner().connection())
-                .path(c)?
+            let cs = ConnectionSettingsProxy::builder(self.0.inner().connection())
+                .path(c.clone())?
                 .build()
                 .await?;
-            let s = c.get_settings().await.unwrap();
+            let s = cs.get_settings().await.unwrap();
             let wifi = s.get("802-11-wireless");
 
             if wifi.is_some() {
@@ -177,7 +179,7 @@ impl<'a> NetworkDbus<'a> {
                     });
 
                 if let Some(id) = id {
-                    known_vpn.push(id);
+                    known_vpn.push(Vpn { name: id, path: c });
                 }
             }
         }

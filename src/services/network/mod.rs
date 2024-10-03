@@ -16,7 +16,7 @@ use iced::{
 use log::{debug, error, info};
 use std::{any::TypeId, collections::HashMap, ops::Deref};
 use tokio::process::Command;
-use zbus::zvariant::ObjectPath;
+use zbus::zvariant::{ObjectPath, OwnedObjectPath};
 
 mod dbus;
 
@@ -42,6 +42,7 @@ pub enum NetworkCommand {
     ToggleWiFi,
     ToggleAirplaneMode,
     SelectAccessPoint((AccessPoint, Option<String>)),
+    ToggleVpn(Vpn),
 }
 
 #[derive(Debug, Clone)]
@@ -56,9 +57,15 @@ pub struct AccessPoint {
 }
 
 #[derive(Debug, Clone)]
+pub struct Vpn {
+    pub name: String,
+    pub path: OwnedObjectPath,
+}
+
+#[derive(Debug, Clone)]
 pub enum KnownConnection {
     AccessPoint(AccessPoint),
-    Vpn(String),
+    Vpn(Vpn),
 }
 
 #[derive(Debug, Clone)]
@@ -74,6 +81,7 @@ pub enum ActiveConnectionInfo {
     },
     Vpn {
         name: String,
+        object_path: OwnedObjectPath,
     },
 }
 
@@ -522,6 +530,31 @@ impl NetworkService {
         let known_connections = nm.known_connections(&wireless_ac).await?;
         Ok(known_connections)
     }
+
+    async fn set_vpn(
+        conn: &zbus::Connection,
+        connection: OwnedObjectPath,
+        state: bool,
+    ) -> anyhow::Result<Vec<KnownConnection>> {
+        let nm = NetworkDbus::new(conn).await?;
+
+        if state {
+            debug!("Activating VPN: {:?}", connection);
+            nm.activate_connection(
+                connection,
+                OwnedObjectPath::try_from("/").unwrap(),
+                OwnedObjectPath::try_from("/").unwrap(),
+            )
+            .await?;
+        } else {
+            debug!("Deactivating VPN: {:?}", connection);
+            nm.deactivate_connection(connection).await?;
+        }
+
+        let wireless_ac = nm.wireless_access_points().await?;
+        let known_connections = nm.known_connections(&wireless_ac).await?;
+        Ok(known_connections)
+    }
 }
 
 impl Service for NetworkService {
@@ -591,8 +624,35 @@ impl Service for NetworkService {
 
                         res.unwrap_or_default()
                     },
-                    |know_connections| {
-                        ServiceEvent::Update(NetworkEvent::KnownConnections(know_connections))
+                    |known_connections| {
+                        ServiceEvent::Update(NetworkEvent::KnownConnections(known_connections))
+                    },
+                )
+            }
+            NetworkCommand::ToggleVpn(vpn) => {
+                let conn = self.conn.clone();
+                let mut active_vpn = self.active_connections.iter().find_map(|kc| match kc {
+                    ActiveConnectionInfo::Vpn { name, object_path } if name == &vpn.name => {
+                        Some(object_path.clone())
+                    }
+                    _ => None,
+                });
+
+                iced::Command::perform(
+                    async move {
+                        let (object_path, new_state) = if let Some(active_vpn) = active_vpn.take() {
+                            (active_vpn, false)
+                        } else {
+                            (vpn.path, true)
+                        };
+                        let res = NetworkService::set_vpn(&conn, object_path, new_state).await;
+
+                        debug!("VPN toggled: {:?}", res);
+
+                        res.unwrap_or_default()
+                    },
+                    |known_connections| {
+                        ServiceEvent::Update(NetworkEvent::KnownConnections(known_connections))
                     },
                 )
             }
