@@ -6,8 +6,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-iced = { version = "0.12.1", features = ["tokio", "multi-window", "advanced", "wgpu"] }
-iced_sctk = { git = "https://github.com/MalpenZibo/iced_sctk", features = ["no-hand-cursor"] } 
+iced = { version = "0.13.1", features = ["tokio", "wgpu"] }
+iced_runtime = { version = "0.13.1", features = ["multi-window"] }
+iced_layershell = { path="../exwlshelleventloop/iced_layershell" }
 chrono = "0.4"
 hyprland = { git = "https://github.com/MalpenZibo/hyprland-rs" }
 serde = "1.0"
@@ -21,8 +22,8 @@ log = { version = "0.4", features=["serde"] }
 flexi_logger = "0.28"
 serde_yaml = "0.9"
 pipewire = "0.8"
-wayland-client = "0.31.3"
-wayland-protocols = { version = "0.32.1", features = ["client", "unstable"] }
+wayland-client = "0.31.5"
+wayland-protocols = { version = "0.32.3", features = ["client", "unstable"] }
 itertools = "0.13"
 hex_color = { version = "3.0", features = ["serde"] }
 anyhow = "1"

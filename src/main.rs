@@ -3,24 +3,23 @@ use config::{read_config, Position};
 use flexi_logger::{
     Age, Cleanup, Criterion, FileSpec, LogSpecBuilder, LogSpecification, Logger, Naming,
 };
-use iced_sctk::{
-    command::platform_specific::wayland::layer_surface::SctkLayerSurfaceSettings,
-    commands::layer_surface::{Anchor, KeyboardInteractivity, Layer},
-    core::{window::Id, Font},
-    multi_window::{settings::Settings, Application},
-    settings::InitialSurface,
+use iced::Font;
+use iced_layershell::{
+    reexport::{Anchor, KeyboardInteractivity, Layer},
+    settings::{LayerShellSettings, Settings},
+    MultiApplication,
 };
 use log::{error, LevelFilter};
 use std::panic;
 
 mod app;
-mod centerbox;
+// mod centerbox;
 mod components;
 mod config;
 mod menu;
 mod modules;
-mod password_dialog;
-mod services;
+// mod password_dialog;
+// mod services;
 mod style;
 mod utils;
 
@@ -41,7 +40,7 @@ fn get_log_spec(log_level: LevelFilter) -> LogSpecification {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), iced_layershell::Error> {
     let logger = Logger::with(
         LogSpecBuilder::new()
             .default(log::LevelFilter::Info)
@@ -71,28 +70,24 @@ async fn main() {
     logger.set_new_spec(get_log_spec(config.log_level));
 
     App::run(Settings {
-        antialiasing: true,
-        exit_on_close_request: false,
-        initial_surface: InitialSurface::LayerSurface(SctkLayerSurfaceSettings {
-            id: Id::MAIN,
-            keyboard_interactivity: KeyboardInteractivity::None,
-            namespace: "ashell".into(),
-            layer: Layer::Top,
-            size: Some((None, Some(HEIGHT))),
+        layer_settings: LayerShellSettings {
+            size: Some((0, HEIGHT)),
             anchor: match config.position {
-                Position::Top => Anchor::TOP,
-                Position::Bottom => Anchor::BOTTOM,
-            }
-            .union(Anchor::LEFT)
-            .union(Anchor::RIGHT),
+                Position::Top => Anchor::Top,
+                Position::Bottom => Anchor::Bottom,
+            } | Anchor::Left
+                | Anchor::Right,
             exclusive_zone: HEIGHT as i32,
+            binded_output_name: Some("eDP-1".to_string()),
             ..Default::default()
-        }),
+        },
         flags: (logger, config),
-        id: None,
-        fonts: Default::default(),
         default_font: Font::with_name("DejaVu Sans"),
         default_text_size: 14.into(),
+        id: None,
+        fonts: Default::default(),
+        antialiasing: false,
+        virtual_keyboard_support: None,
     })
-    .unwrap();
 }
+
