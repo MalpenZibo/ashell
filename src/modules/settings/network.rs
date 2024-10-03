@@ -3,7 +3,7 @@ use crate::{
     components::icons::{icon, Icons},
     services::{
         network::{
-            AccessPoint, ActiveConnectionInfo, KnownConnection, NetworkData, NetworkService,
+            AccessPoint, ActiveConnectionInfo, KnownConnection, NetworkData, NetworkService, Vpn,
         },
         ServiceEvent,
     },
@@ -25,7 +25,7 @@ pub enum NetworkMessage {
     VpnMore,
     SelectAccessPoint(AccessPoint),
     RequestWiFiPassword(String),
-    VpnToggle(String),
+    ToggleVpn(Vpn),
     ToggleAirplaneMode,
 }
 
@@ -303,13 +303,13 @@ impl NetworkData {
                 })
                 .map(|vpn| {
                     let is_active = self.active_connections.iter().any(
-                        |c| matches!(c, ActiveConnectionInfo::Vpn { name, .. } if name == vpn),
+                        |c| matches!(c, ActiveConnectionInfo::Vpn { name, .. } if name == &vpn.name),
                     );
 
                     row!(
-                        text(vpn.to_string()).width(Length::Fill),
+                        text(vpn.name.to_string()).width(Length::Fill),
                         toggler(None, is_active, |_| {
-                            NetworkMessage::VpnToggle(vpn.clone())
+                            NetworkMessage::ToggleVpn(vpn.clone())
                         })
                         .width(Length::Shrink)
                     )

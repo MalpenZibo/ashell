@@ -287,7 +287,19 @@ impl Settings {
                         Command::none()
                     }
                 }
-                _ => Command::none(),
+                NetworkMessage::ToggleVpn(vpn) => {
+                    if let Some(network) = self.network.as_mut() {
+                        network
+                            .command(NetworkCommand::ToggleVpn(vpn))
+                            .map(|event| {
+                                crate::app::Message::Settings(Message::Network(
+                                    NetworkMessage::Event(event),
+                                ))
+                            })
+                    } else {
+                        Command::none()
+                    }
+                }
             },
             Message::Bluetooth(msg) => match msg {
                 BluetoothMessage::Event(event) => match event {
