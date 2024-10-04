@@ -49,7 +49,7 @@ jobs:
       - name: Update Changelog
         run: |
           date=$(date '+%Y-%m-%d')
-          sed -i "s/\[Unreleased\]/\[${{ steps.gettag.outputs.TAG_NAME }}\] - $(date '+%Y-%m-%d')/" ./CHANGELOG.md
+          sed -i "s/\[Unreleased\]/&\n\n## [${{ steps.gettag.outputs.TAG_NAME }}] - $(date '+%Y-%m-%d')/g" ./CHANGELOG.md
           git add CHANGELOG.md
           git commit -m "update CHANGELOG.md"
 
