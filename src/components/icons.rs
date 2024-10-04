@@ -61,6 +61,7 @@ pub enum Icons {
     Close,
     VerticalDots,
     Airplane,
+    Webcam,
 }
 
 impl From<Icons> for &'static str {
@@ -121,6 +122,7 @@ impl From<Icons> for &'static str {
             Icons::Close => "󰅖",
             Icons::VerticalDots => "󰇙",
             Icons::Airplane => "󰀝",
+            Icons::Webcam => "",
         }
     }
 }
