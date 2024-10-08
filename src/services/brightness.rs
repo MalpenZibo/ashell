@@ -1,8 +1,8 @@
 use super::{ReadOnlyService, Service, ServiceEvent};
 use iced::{
     futures::{channel::mpsc::Sender, stream::pending, SinkExt, Stream, StreamExt},
-    subscription::channel,
-    Command,
+    stream::channel,
+    Subscription, Task,
 };
 use inotify::{Inotify, WatchMask};
 use log::{debug, error, info, warn};
@@ -206,13 +206,16 @@ impl ReadOnlyService for BrightnessService {
     fn subscribe() -> iced::Subscription<ServiceEvent<Self>> {
         let id = TypeId::of::<Self>();
 
-        channel(id, 100, |mut output| async move {
-            let mut state = State::Init;
+        Subscription::run_with_id(
+            id,
+            channel(100, |mut output| async move {
+                let mut state = State::Init;
 
-            loop {
-                state = BrightnessService::start_listening(state, &mut output).await;
-            }
-        })
+                loop {
+                    state = BrightnessService::start_listening(state, &mut output).await;
+                }
+            }),
+        )
     }
 }
 
@@ -224,8 +227,8 @@ pub enum BrightnessCommand {
 impl Service for BrightnessService {
     type Command = BrightnessCommand;
 
-    fn command(&mut self, command: Self::Command) -> Command<ServiceEvent<Self>> {
-        iced::Command::perform(
+    fn command(&mut self, command: Self::Command) -> Task<ServiceEvent<Self>> {
+        Task::perform(
             {
                 let conn = self.conn.clone();
                 let device_name = self.device_name.clone();

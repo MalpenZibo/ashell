@@ -10,8 +10,8 @@ use iced::{
         stream::{pending, select_all},
         stream_select, SinkExt, Stream, StreamExt,
     },
-    subscription::channel,
-    Subscription,
+    stream::channel,
+    Subscription, Task,
 };
 use log::{debug, error, info};
 use std::{any::TypeId, collections::HashMap, ops::Deref};
@@ -170,13 +170,16 @@ impl ReadOnlyService for NetworkService {
     fn subscribe() -> Subscription<ServiceEvent<Self>> {
         let id = TypeId::of::<Self>();
 
-        channel(id, 50, |mut output| async move {
-            let mut state = State::Init;
+        Subscription::run_with_id(
+            id,
+            channel(50, |mut output| async move {
+                let mut state = State::Init;
 
-            loop {
-                state = NetworkService::start_listening(state, &mut output).await;
-            }
-        })
+                loop {
+                    state = NetworkService::start_listening(state, &mut output).await;
+                }
+            }),
+        )
     }
 }
 
@@ -527,14 +530,14 @@ impl NetworkService {
 impl Service for NetworkService {
     type Command = NetworkCommand;
 
-    fn command(&mut self, command: Self::Command) -> iced::Command<ServiceEvent<Self>> {
+    fn command(&mut self, command: Self::Command) -> Task<ServiceEvent<Self>> {
         debug!("Command: {:?}", command);
         match command {
             NetworkCommand::ToggleAirplaneMode => {
                 let conn = self.conn.clone();
                 let airplane_mode = self.airplane_mode;
 
-                iced::Command::perform(
+                Task::perform(
                     async move {
                         debug!("Toggling airplane mode to: {}", !airplane_mode);
                         let res = Self::set_airplane_mode(&conn, !airplane_mode).await;
@@ -556,7 +559,7 @@ impl Service for NetworkService {
                     .map(|ap| ap.path.clone())
                     .collect();
 
-                iced::Command::perform(
+                Task::perform(
                     async move {
                         let _ = NetworkService::scan_nearby_wifi(&conn, wireless_ac).await;
                     },
@@ -567,7 +570,7 @@ impl Service for NetworkService {
                 let conn = self.conn.clone();
                 let wifi_enabled = self.wifi_enabled;
 
-                iced::Command::perform(
+                Task::perform(
                     async move {
                         let res = NetworkService::set_wifi_enabled(&conn, !wifi_enabled).await;
 
@@ -583,7 +586,7 @@ impl Service for NetworkService {
             NetworkCommand::SelectAccessPoint((access_point, password)) => {
                 let conn = self.conn.clone();
 
-                iced::Command::perform(
+                Task::perform(
                     async move {
                         let res =
                             NetworkService::select_access_point(&conn, &access_point, password)

@@ -6,7 +6,7 @@ use flexi_logger::{
 use iced::Font;
 use iced_layershell::{
     reexport::{Anchor, KeyboardInteractivity, Layer},
-    settings::{LayerShellSettings, Settings},
+    settings::{LayerShellSettings, Settings, StartMode},
     MultiApplication,
 };
 use log::{error, LevelFilter};
@@ -19,7 +19,7 @@ mod config;
 mod menu;
 mod modules;
 // mod password_dialog;
-// mod services;
+mod services;
 mod style;
 mod utils;
 
@@ -78,7 +78,8 @@ async fn main() -> Result<(), iced_layershell::Error> {
             } | Anchor::Left
                 | Anchor::Right,
             exclusive_zone: HEIGHT as i32,
-            binded_output_name: Some("eDP-1".to_string()),
+            start_mode: StartMode::Active,
+            keyboard_interactivity: KeyboardInteractivity::None,
             ..Default::default()
         },
         flags: (logger, config),

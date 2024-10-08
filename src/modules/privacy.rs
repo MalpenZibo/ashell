@@ -7,7 +7,6 @@ use crate::{
     style::HeaderButtonStyle,
 };
 use iced::{
-    theme::Button,
     widget::{button, container, row, text, Column, Row},
     Element, Theme,
 };
@@ -41,12 +40,12 @@ impl PrivacyData {
                             }))
                             .spacing(8),
                     )
-                    .style(|theme: &Theme| container::Appearance {
+                    .style(|theme: &Theme| container::Style {
                         text_color: Some(theme.extended_palette().danger.weak.color),
                         ..Default::default()
                     }),
                 )
-                .style(Button::custom(HeaderButtonStyle::None))
+                .style(HeaderButtonStyle::None.into_style())
                 .padding([2, 8])
                 .on_press(PrivacyMessage::ToggleMenu)
                 .into(),

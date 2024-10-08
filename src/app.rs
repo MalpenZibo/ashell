@@ -5,7 +5,11 @@ use crate::{
     config::{self, Config},
     get_log_spec,
     menu::{self, menu_wrapper, MenuPosition},
-    modules::{self, settings::Settings, updates::Updates},
+    modules::{
+        self, clock::Clock, launcher, privacy::PrivacyMessage, settings::Settings,
+        system_info::SystemInfo, title::Title, updates::Updates, workspaces::Workspaces,
+    },
+    services::{privacy::PrivacyService, ReadOnlyService, ServiceEvent},
     style::ashell_theme,
     utils,
     HEIGHT,
@@ -26,11 +30,11 @@ pub struct App {
     config: Config,
     menu: Option<WindowInfo>,
     updates: Updates,
-    // workspaces: Workspaces,
-    // window_title: Title,
-    // system_info: SystemInfo,
-    // clock: Clock,
-    // privacy: Option<PrivacyService>,
+    workspaces: Workspaces,
+    window_title: Title,
+    system_info: SystemInfo,
+    clock: Clock,
+    privacy: Option<PrivacyService>,
     pub settings: Settings,
     ids: HashMap<iced::window::Id, WindowInfo>,
 }
@@ -49,11 +53,11 @@ pub enum Message {
     CloseMenu,
     OpenLauncher,
     Updates(modules::updates::Message),
-    // Workspaces(modules::workspaces::Message),
-    // Title(modules::title::Message),
-    // SystemInfo(modules::system_info::Message),
-    // Clock(modules::clock::Message),
-    // Privacy(modules::privacy::PrivacyMessage),
+    Workspaces(modules::workspaces::Message),
+    Title(modules::title::Message),
+    SystemInfo(modules::system_info::Message),
+    Clock(modules::clock::Message),
+    Privacy(modules::privacy::PrivacyMessage),
     Settings(modules::settings::Message),
     IcedEvent(iced::Event),
 }
@@ -72,11 +76,11 @@ impl MultiApplication for App {
                 config,
                 menu: None,
                 updates: Updates::default(),
-                // workspaces: Workspaces::default(),
-                // window_title: Title::default(),
-                // system_info: SystemInfo::default(),
-                // clock: Clock::default(),
-                // privacy: None,
+                workspaces: Workspaces::default(),
+                window_title: Title::default(),
+                system_info: SystemInfo::default(),
+                clock: Clock::default(),
+                privacy: None,
                 settings: Settings::default(),
                 ids: HashMap::new(),
             },
@@ -143,45 +147,45 @@ impl MultiApplication for App {
                 }
                 Task::none()
             }
-            // Message::Workspaces(msg) => {
-            //     self.workspaces.update(msg);
-            //
-            //     Task::none()
-            // }
-            // Message::Title(message) => {
-            //     self.window_title
-            //         .update(message, self.config.truncate_title_after_length);
-            //     Task::none()
-            // }
-            // Message::SystemInfo(message) => {
-            //     self.system_info.update(message);
-            //     Task::none()
-            // }
-            // Message::Clock(message) => {
-            //     self.clock.update(message);
-            //     Task::none()
-            // }
-            // Message::Privacy(msg) => match msg {
-            //     PrivacyMessage::Event(event) => match event {
-            //         ServiceEvent::Init(service) => {
-            //             self.privacy = Some(service);
-            //             Task::none()
-            //         }
-            //         ServiceEvent::Update(data) => {
-            //             if let Some(privacy) = self.privacy.as_mut() {
-            //                 privacy.update(data);
-            //             }
-            //             Task::none()
-            //         }
-            //         ServiceEvent::Error(_) => Task::none(),
-            //     },
-            //     PrivacyMessage::ToggleMenu => self.menu.toggle(MenuType::Privacy),
-            // },
+            Message::Workspaces(msg) => {
+                self.workspaces.update(msg);
+
+                Task::none()
+            }
+            Message::Title(message) => {
+                self.window_title
+                    .update(message, self.config.truncate_title_after_length);
+                Task::none()
+            }
+            Message::SystemInfo(message) => {
+                self.system_info.update(message);
+                Task::none()
+            }
+            Message::Clock(message) => {
+                self.clock.update(message);
+                Task::none()
+            }
+            Message::Privacy(msg) => match msg {
+                PrivacyMessage::Event(event) => match event {
+                    ServiceEvent::Init(service) => {
+                        self.privacy = Some(service);
+                        Task::none()
+                    }
+                    ServiceEvent::Update(data) => {
+                        if let Some(privacy) = self.privacy.as_mut() {
+                            privacy.update(data);
+                        }
+                        Task::none()
+                    }
+                    ServiceEvent::Error(_) => Task::none(),
+                },
+                PrivacyMessage::ToggleMenu => Task::none(),
+            },
             Message::Settings(message) => {
                 self.settings
                     .update(message, &self.config.settings, self.ids.iter_mut().next())
             }
-            Message::IcedEvent(event) => Task::none(),
+            Message::IcedEvent(_) => Task::none(),
             _ => Task::none(),
         }
     }
@@ -206,63 +210,65 @@ impl MultiApplication for App {
                     self.config.position,
                 )
             }
-            None => row!(
-                button("Open Updates").on_press(Message::OpenLauncher),
-                self.updates.view().map(Message::Updates),
-                self.settings.view().map(Message::Settings)
-            )
-            .into(),
-        }
+            None => {
+                let left = Row::new()
+                    .push_maybe(
+                        self.config
+                            .app_launcher_cmd
+                            .as_ref()
+                            .map(|_| launcher::launcher()),
+                    )
+                    .push_maybe(
+                        self.config
+                            .updates
+                            .as_ref()
+                            .map(|_| self.updates.view().map(Message::Updates)),
+                    )
+                    .push(
+                        self.workspaces
+                            .view(&self.config.appearance.workspace_colors)
+                            .map(Message::Workspaces),
+                    )
+                    .height(Length::Shrink)
+                    .align_y(Alignment::Center)
+                    .spacing(4);
 
-        // let left = Row::new()
-        //     .push_maybe(
-        //         self.config
-        //             .app_launcher_cmd
-        //             .as_ref()
-        //             .map(|_| launcher::launcher()),
-        //     )
-        //     .push_maybe(
-        //         self.config
-        //             .updates
-        //             .as_ref()
-        //             .map(|_| self.updates.view().map(Message::Updates)),
-        //     )
-        //     .push(
-        //         self.workspaces
-        //             .view(&self.config.appearance.workspace_colors)
-        //             .map(Message::Workspaces),
-        //     )
-        //     .height(Length::Shrink)
-        //     .align_items(Alignment::Center)
-        //     .spacing(4);
-        //
-        // let center = Row::new()
-        //     .push_maybe(self.window_title.view().map(|v| v.map(Message::Title)))
-        //     .spacing(4);
-        //
-        // let right = Row::new()
-        //     .push_maybe(
-        //         self.system_info
-        //             .view(&self.config.system)
-        //             .map(|c| c.map(Message::SystemInfo)),
-        //     )
-        //     .push(
-        //         Row::new()
-        //             .push(
-        //                 self.clock
-        //                     .view(&self.config.clock.format)
-        //                     .map(Message::Clock),
-        //             )
-        //             .push_maybe(
-        //                 self.privacy
-        //                     .as_ref()
-        //                     .and_then(|privacy| privacy.view())
-        //                     .map(|e| e.map(Message::Privacy)),
-        //             )
-        //             .push(self.settings.view().map(Message::Settings)),
-        //     )
-        //     .spacing(4);
-        //
+                let center = Row::new()
+                    .push_maybe(self.window_title.view().map(|v| v.map(Message::Title)))
+                    .spacing(4);
+
+                let right = Row::new()
+                    .push_maybe(
+                        self.system_info
+                            .view(&self.config.system)
+                            .map(|c| c.map(Message::SystemInfo)),
+                    )
+                    .push(
+                        Row::new()
+                            .push(
+                                self.clock
+                                    .view(&self.config.clock.format)
+                                    .map(Message::Clock),
+                            )
+                            .push_maybe(
+                                self.privacy
+                                    .as_ref()
+                                    .and_then(|privacy| privacy.view())
+                                    .map(|e| e.map(Message::Privacy)),
+                            )
+                            .push(self.settings.view().map(Message::Settings)),
+                    )
+                    .spacing(4);
+
+                Row::with_children(vec![left.into(), center.into(), right.into()])
+                    .spacing(4)
+                    .padding([0, 4])
+                    .width(Length::Fill)
+                    .height(Length::Fixed(HEIGHT as f32))
+                    .align_y(Alignment::Center)
+                    .into()
+            }
+        }
         // centerbox::Centerbox::new([left.into(), center.into(), right.into()])
         //     .spacing(4)
         //     .padding([0, 4])
@@ -280,15 +286,15 @@ impl MultiApplication for App {
                         .subscription(updates_config)
                         .map(Message::Updates)
                 }),
-                // Some(self.workspaces.subscription().map(Message::Workspaces)),
-                // Some(self.window_title.subscription().map(Message::Title)),
-                // Some(self.system_info.subscription().map(Message::SystemInfo)),
-                // Some(self.clock.subscription().map(Message::Clock)),
-                // Some(
-                //     PrivacyService::subscribe().map(|e| Message::Privacy(PrivacyMessage::Event(e))),
-                // ),
+                Some(self.workspaces.subscription().map(Message::Workspaces)),
+                Some(self.window_title.subscription().map(Message::Title)),
+                Some(self.system_info.subscription().map(Message::SystemInfo)),
+                Some(self.clock.subscription().map(Message::Clock)),
+                Some(
+                    PrivacyService::subscribe().map(|e| Message::Privacy(PrivacyMessage::Event(e))),
+                ),
                 Some(self.settings.subscription().map(Message::Settings)),
-                // Some(config::subscription()),
+                Some(config::subscription()),
                 Some(iced::event::listen().map(Message::IcedEvent)),
             ]
             .into_iter()

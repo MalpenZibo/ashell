@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 iced = { version = "0.13.1", features = ["tokio", "wgpu"] }
 iced_runtime = { version = "0.13.1", features = ["multi-window"] }
-iced_layershell = { path="../exwlshelleventloop/iced_layershell" }
+iced_layershell = "=0.9.0-rc1"
 chrono = "0.4"
 hyprland = { git = "https://github.com/MalpenZibo/hyprland-rs" }
 serde = "1.0"

@@ -2,7 +2,8 @@ use super::{ReadOnlyService, ServiceEvent};
 use crate::components::icons::Icons;
 use iced::{
     futures::{channel::mpsc::Sender, stream::pending, SinkExt, StreamExt},
-    subscription::channel,
+    stream::channel,
+    Subscription,
 };
 use log::{debug, error, info, warn};
 use pipewire::{context::Context, main_loop::MainLoop};
@@ -185,12 +186,15 @@ impl ReadOnlyService for PrivacyService {
     fn subscribe() -> iced::Subscription<ServiceEvent<Self>> {
         let id = TypeId::of::<Self>();
 
-        channel(id, 100, |mut output| async move {
-            let mut state = State::Init;
+        Subscription::run_with_id(
+            id,
+            channel(100, |mut output| async move {
+                let mut state = State::Init;
 
-            loop {
-                state = PrivacyService::start_listening(state, &mut output).await;
-            }
-        })
+                loop {
+                    state = PrivacyService::start_listening(state, &mut output).await;
+                }
+            }),
+        )
     }
 }

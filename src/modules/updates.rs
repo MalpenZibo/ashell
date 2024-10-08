@@ -266,28 +266,18 @@ impl Updates {
         let check_cmd = config.check_cmd.clone();
         let id = TypeId::of::<Self>();
 
-        Subscription::run(|| {
+        Subscription::run_with_id(
+            id,
             channel(10, |mut output| async move {
                 loop {
-                    let updates = check_update_now("checkupdates; paru -Qua").await;
+                    let updates = check_update_now(&check_cmd).await;
 
                     let _ = output.try_send(Message::UpdatesCheckCompleted(updates));
 
                     sleep(Duration::from_secs(10)).await;
                 }
-            })
-        })
-    }
-
-    fn test() -> impl Stream<Item = Message> {
-        channel(10, |mut output| async move {
-            loop {
-                let updates = check_update_now("checkupdates; paru -Qua").await;
-
-                let _ = output.try_send(Message::UpdatesCheckCompleted(updates));
-
-                sleep(Duration::from_secs(10)).await;
-            }
-        })
+            }),
+        )
     }
 }
+
