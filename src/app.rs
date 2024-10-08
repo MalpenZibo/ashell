@@ -149,7 +149,6 @@ impl Application for App {
                     }
                     ServiceEvent::Error(_) => Command::none(),
                 },
-                PrivacyMessage::ToggleMenu => self.menu.toggle(MenuType::Privacy),
             },
             Message::Settings(message) => {
                 self.settings
@@ -164,11 +163,6 @@ impl Application for App {
                 menu_wrapper(
                     match menu_type {
                         MenuType::Updates => self.updates.menu_view().map(Message::Updates),
-                        MenuType::Privacy => self
-                            .privacy
-                            .as_ref()
-                            .map(|p| p.menu_view().map(Message::Privacy))
-                            .unwrap_or_else(|| row!().into()),
                         MenuType::Settings => self
                             .settings
                             .menu_view(&self.config.settings)
@@ -176,7 +170,6 @@ impl Application for App {
                     },
                     match menu_type {
                         MenuType::Updates => MenuPosition::Left,
-                        MenuType::Privacy => MenuPosition::Right,
                         MenuType::Settings => MenuPosition::Right,
                     },
                     self.config.position,

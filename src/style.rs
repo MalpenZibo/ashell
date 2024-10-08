@@ -142,7 +142,6 @@ pub fn left_header_pills(theme: &Theme) -> container::Appearance {
 
 pub enum HeaderButtonStyle {
     Full,
-    None,
     Right,
 }
 
@@ -157,7 +156,6 @@ impl button::StyleSheet for HeaderButtonStyle {
                 radius: match self {
                     HeaderButtonStyle::Full => 12.0.into(),
                     HeaderButtonStyle::Right => [0.0, 12.0, 12.0, 0.0].into(),
-                    HeaderButtonStyle::None => 0.0.into(),
                 },
                 color: Color::TRANSPARENT,
             },

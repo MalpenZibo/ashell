@@ -1,16 +1,14 @@
 use super::{ReadOnlyService, ServiceEvent};
-use crate::components::icons::Icons;
 use iced::{
-    futures::{channel::mpsc::Sender, stream::pending, SinkExt, StreamExt},
+    futures::{
+        channel::mpsc::Sender, select, stream::pending, FutureExt, SinkExt, Stream, StreamExt,
+    },
     subscription::channel,
 };
+use inotify::{EventMask, Inotify, WatchMask};
 use log::{debug, error, info, warn};
 use pipewire::{context::Context, main_loop::MainLoop};
-use std::{
-    any::TypeId,
-    ops::{Deref, DerefMut},
-    thread,
-};
+use std::{any::TypeId, ops::Deref, thread};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -19,36 +17,33 @@ pub enum Media {
     Audio,
 }
 
-impl Media {
-    pub fn to_icon(self) -> Icons {
-        match self {
-            Media::Video => Icons::ScreenShare,
-            Media::Audio => Icons::Mic1,
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct ApplicationNode {
     pub id: u32,
     pub media: Media,
-    pub application: String,
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct PrivacyData(Vec<ApplicationNode>);
-
-impl Deref for PrivacyData {
-    type Target = Vec<ApplicationNode>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
+pub struct PrivacyData {
+    nodes: Vec<ApplicationNode>,
+    webcam_access: bool,
 }
 
-impl DerefMut for PrivacyData {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+impl PrivacyData {
+    pub fn no_access(&self) -> bool {
+        self.nodes.is_empty() && !self.webcam_access
+    }
+
+    pub fn microphone_access(&self) -> bool {
+        self.nodes.iter().any(|n| n.media == Media::Audio)
+    }
+
+    pub fn webcam_access(&self) -> bool {
+        self.webcam_access
+    }
+
+    pub fn screenshare_access(&self) -> bool {
+        self.nodes.iter().any(|n| n.media == Media::Video)
     }
 }
 
@@ -66,7 +61,7 @@ impl Deref for PrivacyService {
 }
 
 impl PrivacyService {
-    async fn create_listener() -> anyhow::Result<UnboundedReceiver<PrivacyEvent>> {
+    async fn create_pipewire_listener() -> anyhow::Result<UnboundedReceiver<PrivacyEvent>> {
         let (tx, rx) = unbounded_channel::<PrivacyEvent>();
 
         thread::spawn(move || {
@@ -92,10 +87,6 @@ impl PrivacyService {
                                     } else {
                                         Media::Audio
                                     },
-                                    application: props.get("node.name").map_or_else(
-                                        || "generic".to_string(),
-                                        |name| name.to_lowercase(),
-                                    ),
                                 }));
                             }
                         }
@@ -118,32 +109,102 @@ impl PrivacyService {
         Ok(rx)
     }
 
+    async fn webcam_listener() -> anyhow::Result<Box<dyn Stream<Item = PrivacyEvent> + Unpin + Send>>
+    {
+        let inotify = Inotify::init()?;
+
+        inotify.watches().add(
+            "/dev/video0",
+            WatchMask::CLOSE_WRITE
+                | WatchMask::CLOSE_NOWRITE
+                | WatchMask::DELETE_SELF
+                | WatchMask::OPEN
+                | WatchMask::ATTRIB,
+        )?;
+
+        let buffer = [0; 512];
+        Ok(Box::new(
+            inotify
+                .into_event_stream(buffer)?
+                .filter_map({
+                    move |event| async move {
+                        if let Ok(event) = event {
+                            match event.mask {
+                                EventMask::OPEN => Some(PrivacyEvent::WebcamAccess(true)),
+                                EventMask::CLOSE_WRITE => Some(PrivacyEvent::WebcamAccess(false)),
+                                _ => None,
+                            }
+                        } else {
+                            None
+                        }
+                    }
+                })
+                .boxed(),
+        ))
+    }
+
     async fn start_listening(state: State, output: &mut Sender<ServiceEvent<Self>>) -> State {
         match state {
-            State::Init => match Self::create_listener().await {
-                Ok(rx) => {
-                    let data = PrivacyData::default();
+            State::Init => {
+                let pipewire = Self::create_pipewire_listener().await;
+                let webcam = Self::webcam_listener().await;
+                match (pipewire, webcam) {
+                    (Ok(pipewire), Ok(webcam)) => {
+                        let data = PrivacyData::default();
 
-                    let _ = output
-                        .send(ServiceEvent::Init(PrivacyService { data }))
-                        .await;
+                        let _ = output
+                            .send(ServiceEvent::Init(PrivacyService { data }))
+                            .await;
 
-                    State::Active(rx)
+                        State::Active((pipewire, webcam))
+                    }
+                    _ => {
+                        error!("Failed to connect to pipewire or webcam data");
+
+                        State::Error
+                    }
                 }
-                Err(err) => {
-                    error!("Failed to connect to pipewire: {}", err);
-
-                    State::Error
-                }
-            },
-            State::Active(mut rx) => {
+            }
+            State::Active((mut pipewire, mut webcam)) => {
                 info!("Listening for privacy events");
 
-                while let Some(event) = rx.recv().await {
-                    let _ = output.send(ServiceEvent::Update(event)).await;
-                }
+                // let stream = select_all(vec![pipewire.recv(), webcam.next()]);
+                //
+                // while let Some(event) = stream.next().await {
+                //     match event {
+                //         Some(event) => {
+                //             let _ = output.send(ServiceEvent::Update(event)).await;
+                //         }
+                //         None => {
+                //             error!("Listener exited");
+                //         }
+                //     }
+                // }
 
-                State::Active(rx)
+                select! {
+                    value = pipewire.recv().fuse() => {
+                        match value {
+                            Some(event) => {
+                                let _ = output.send(ServiceEvent::Update(event)).await;
+                            }
+                            None => {
+                                error!("Pipewire listener exited");
+                            }
+                        }
+                    },
+                    value = webcam.next().fuse() => {
+                        match value {
+                            Some(event) => {
+                                let _ = output.send(ServiceEvent::Update(event)).await;
+                            }
+                            None => {
+                                error!("Webcam listener exited");
+                            }
+                        }
+                    }
+                };
+
+                State::Active((pipewire, webcam))
             }
             State::Error => {
                 error!("Privacy service error");
@@ -157,7 +218,12 @@ impl PrivacyService {
 
 enum State {
     Init,
-    Active(UnboundedReceiver<PrivacyEvent>),
+    Active(
+        (
+            UnboundedReceiver<PrivacyEvent>,
+            Box<dyn Stream<Item = PrivacyEvent> + Unpin + Send>,
+        ),
+    ),
     Error,
 }
 
@@ -165,6 +231,7 @@ enum State {
 pub enum PrivacyEvent {
     AddNode(ApplicationNode),
     RemoveNode(u32),
+    WebcamAccess(bool),
 }
 
 impl ReadOnlyService for PrivacyService {
@@ -174,10 +241,13 @@ impl ReadOnlyService for PrivacyService {
     fn update(&mut self, event: Self::UpdateEvent) {
         match event {
             PrivacyEvent::AddNode(node) => {
-                self.data.push(node);
+                self.data.nodes.push(node);
             }
             PrivacyEvent::RemoveNode(id) => {
-                self.data.retain(|n| n.id != id);
+                self.data.nodes.retain(|n| n.id != id);
+            }
+            PrivacyEvent::WebcamAccess(access) => {
+                self.data.webcam_access = access;
             }
         }
     }
