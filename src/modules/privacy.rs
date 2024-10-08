@@ -6,7 +6,10 @@ use crate::{
     },
 };
 use iced::{
-    advanced::Widget, alignment::Vertical, widget::{container, Row}, Alignment, Element, Theme
+    advanced::Widget,
+    alignment::Vertical,
+    widget::{container, Row},
+    Alignment, Element, Theme,
 };
 
 #[derive(Debug, Clone)]
