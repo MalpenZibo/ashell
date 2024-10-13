@@ -7,7 +7,6 @@ use crate::{
     style::SliderStyle,
 };
 use iced::{
-    theme,
     widget::{container, row, slider},
     Alignment, Element, Length,
 };
@@ -27,11 +26,11 @@ impl BrightnessData {
             slider(0..=100, self.current * 100 / self.max, |v| {
                 Message::Brightness(BrightnessMessage::Change(v * self.max / 100))
             })
-            .style(theme::Slider::Custom(Box::new(SliderStyle)))
+            .style(SliderStyle.into_style())
             .step(1_u32)
             .width(Length::Fill),
         )
-        .align_items(Alignment::Center)
+        .align_y(Alignment::Center)
         .spacing(8)
         .into()
     }

@@ -5,7 +5,7 @@ use flexi_logger::{
 };
 use iced::Font;
 use iced_layershell::{
-    reexport::{Anchor, KeyboardInteractivity, Layer},
+    reexport::{Anchor, KeyboardInteractivity},
     settings::{LayerShellSettings, Settings, StartMode},
     MultiApplication,
 };
@@ -13,12 +13,12 @@ use log::{error, LevelFilter};
 use std::panic;
 
 mod app;
-// mod centerbox;
+mod centerbox;
 mod components;
 mod config;
 mod menu;
 mod modules;
-// mod password_dialog;
+mod password_dialog;
 mod services;
 mod style;
 mod utils;
@@ -27,7 +27,7 @@ const HEIGHT: u32 = 34;
 
 fn get_log_spec(log_level: LevelFilter) -> LogSpecification {
     LogSpecBuilder::new()
-        .default(log::LevelFilter::Warn)
+        .default(log::LevelFilter::Error)
         .module(
             "ashell",
             if cfg!(debug_assertions) {

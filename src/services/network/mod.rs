@@ -13,7 +13,7 @@ use iced::{
     stream::channel,
     Subscription, Task,
 };
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use std::{any::TypeId, collections::HashMap, ops::Deref};
 use tokio::process::Command;
 use zbus::zvariant::ObjectPath;
@@ -343,6 +343,8 @@ impl NetworkService {
 
         let wireless_ac = nm.wireless_access_points().await?;
 
+        warn!("Wireless access points: {:?}", wireless_ac);
+
         let mut device_state_changes = Vec::with_capacity(wireless_ac.len());
         for ac in wireless_ac.iter() {
             let dp = DeviceProxy::builder(conn)
@@ -350,12 +352,16 @@ impl NetworkService {
                 .build()
                 .await?;
 
+            warn!("Device path: {:?}", ac.device_path);
+
             device_state_changes.push(
                 dp.receive_state_changed()
                     .await
                     .filter_map(|val| async move {
                         let val = val.get().await;
+                        warn!("Device state changed {:?}", val);
                         let val = val.map(DeviceState::from).unwrap_or_default();
+                        warn!("Device state changed val converted {:?}", val);
 
                         if val == DeviceState::NeedAuth {
                             Some(val)

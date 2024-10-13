@@ -1,10 +1,13 @@
 use crate::config::Appearance;
 use iced::{
-    border::Radius, theme::{self, palette, Palette}, widget::{
+    border::Radius,
+    theme::{palette, Palette},
+    widget::{
         button::{self, Status},
         container, slider,
         text_input::{self},
-    }, Border, Color, Padding, Theme
+    },
+    Border, Color, Theme,
 };
 
 pub fn ashell_theme(appearance: &Appearance) -> Theme {
@@ -146,7 +149,7 @@ pub enum HeaderButtonStyle {
 }
 
 impl HeaderButtonStyle {
-    pub fn into_style(self) -> Box<dyn Fn(&Theme, Status) -> button::Style> {
+    pub fn into_style<'a>(self) -> button::StyleFn<'a, Theme> {
         Box::new(move |theme, status| {
             let mut base = button::Style {
                 background: Some(theme.palette().background.into()),
@@ -177,7 +180,7 @@ impl HeaderButtonStyle {
 pub struct GhostButtonStyle;
 
 impl GhostButtonStyle {
-    pub fn into_style(self) -> Box<dyn Fn(&Theme, Status) -> button::Style> {
+    pub fn into_style<'a>(self) -> button::StyleFn<'a, Theme> {
         Box::new(move |theme, status| {
             let mut base = button::Style {
                 background: None,
@@ -204,7 +207,7 @@ impl GhostButtonStyle {
 pub struct OutlineButtonStyle;
 
 impl OutlineButtonStyle {
-    pub fn into_style(self) -> Box<dyn Fn(&Theme, Status) -> button::Style> {
+    pub fn into_style<'a>(self) -> button::StyleFn<'a, Theme> {
         Box::new(move |theme, status| {
             let mut base = button::Style {
                 background: None,
@@ -231,7 +234,7 @@ impl OutlineButtonStyle {
 pub struct ConfirmButtonStyle;
 
 impl ConfirmButtonStyle {
-    pub fn into_style(self) -> Box<dyn Fn(&Theme, Status) -> button::Style> {
+    pub fn into_style<'a>(self) -> button::StyleFn<'a, Theme> {
         Box::new(move |theme, status| {
             let mut base = button::Style {
                 background: Some(theme.extended_palette().background.weak.color.into()),
@@ -258,7 +261,7 @@ impl ConfirmButtonStyle {
 pub struct SettingsButtonStyle;
 
 impl SettingsButtonStyle {
-    pub fn into_style(self) -> Box<dyn Fn(&Theme, Status) -> button::Style> {
+    pub fn into_style<'a>(self) -> button::StyleFn<'a, Theme> {
         Box::new(move |theme, status| {
             let mut base = button::Style {
                 background: Some(theme.extended_palette().background.weak.color.into()),
@@ -285,13 +288,16 @@ impl SettingsButtonStyle {
 pub struct SliderStyle;
 
 impl SliderStyle {
-    pub fn into_style(self) -> Box<dyn Fn(&Theme, slider::Status) -> slider::Style> {
-        Box::new(move |theme, status| {
+    pub fn into_style<'a>(self) -> slider::StyleFn<'a, Theme> {
+        Box::new(move |theme, _| {
             let palette = theme.extended_palette();
-            let base = slider::Style {
+            slider::Style {
                 rail: slider::Rail {
-                    backgrounds: (palette.primary.base.color.into(), palette.secondary.base.color.into()),
-                    width: 4.0,
+                    backgrounds: (
+                        palette.primary.base.color.into(),
+                        palette.secondary.base.color.into(),
+                    ),
+                    width: 8.0,
                     border: Border {
                         color: Color::TRANSPARENT,
                         width: 2.0,
@@ -304,9 +310,6 @@ impl SliderStyle {
                     border_color: palette.primary.base.color,
                     border_width: 0.0,
                 },
-            };
-            match status {
-                _ => base,
             }
         })
     }
@@ -315,7 +318,7 @@ impl SliderStyle {
 pub struct QuickSettingsButtonStyle(pub bool);
 
 impl QuickSettingsButtonStyle {
-    pub fn into_style(self) -> Box<dyn Fn(&Theme, Status) -> button::Style> {
+    pub fn into_style<'a>(self) -> button::StyleFn<'a, Theme> {
         Box::new(move |theme, status| {
             let mut base = button::Style {
                 background: Some(if self.0 {
@@ -358,7 +361,7 @@ impl QuickSettingsButtonStyle {
 pub struct QuickSettingsSubMenuButtonStyle(pub bool);
 
 impl QuickSettingsSubMenuButtonStyle {
-    pub fn into_style(self) -> Box<dyn Fn(&Theme, Status) -> button::Style> {
+    pub fn into_style<'a>(self) -> button::StyleFn<'a, Theme> {
         Box::new(move |theme, status| {
             let mut base = button::Style {
                 background: None,
@@ -390,7 +393,7 @@ impl QuickSettingsSubMenuButtonStyle {
 pub struct TextInputStyle;
 
 impl TextInputStyle {
-    pub fn into_style(self) -> Box<dyn Fn(&Theme, text_input::Status) -> text_input::Style> {
+    pub fn into_style<'a>(self) -> text_input::StyleFn<'a, Theme> {
         Box::new(move |theme, status| {
             let mut base = text_input::Style {
                 background: theme.palette().background.into(),

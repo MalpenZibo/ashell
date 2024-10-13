@@ -11,7 +11,6 @@ use crate::{
     utils::IndicatorState,
 };
 use iced::{
-    theme::{self, Button},
     widget::{button, column, container, horizontal_rule, row, scrollable, text, toggler, Column},
     Alignment, Element, Length, Theme,
 };
@@ -89,7 +88,7 @@ impl NetworkData {
                     let state = a.get_indicator_state();
 
                     container(icon(icon_type))
-                        .style(move |theme: &Theme| container::Appearance {
+                        .style(move |theme: &Theme| container::Style {
                             text_color: match state {
                                 IndicatorState::Warning => {
                                     Some(theme.extended_palette().danger.weak.color)
@@ -112,7 +111,7 @@ impl NetworkData {
                 let icon_type = a.get_icon();
 
                 container(icon(icon_type))
-                    .style(|theme: &Theme| container::Appearance {
+                    .style(|theme: &Theme| container::Style {
                         text_color: Some(theme.extended_palette().danger.weak.color),
                         ..Default::default()
                     })
@@ -205,12 +204,12 @@ impl NetworkData {
                 .size(12),
                 button(icon(Icons::Refresh))
                     .padding([4, 10])
-                    .style(Button::custom(SettingsButtonStyle))
+                    .style(SettingsButtonStyle.into_style())
                     .on_press(NetworkMessage::ScanNearByWiFi),
             )
             .spacing(8)
             .width(Length::Fill)
-            .align_items(Alignment::Center),
+            .align_y(Alignment::Center),
             horizontal_rule(1),
             container(scrollable(
                 Column::with_children(
@@ -240,11 +239,11 @@ impl NetworkData {
                                         .width(Length::Shrink),
                                         text(ac.ssid.clone()).width(Length::Fill)
                                     )
-                                    .align_items(Alignment::Center)
+                                    .align_y(Alignment::Center)
                                     .spacing(8),
                                 )
                                 .style(move |theme: &Theme| {
-                                    container::Appearance {
+                                    container::Style {
                                         text_color: if is_active {
                                             Some(theme.palette().success)
                                         } else {
@@ -254,7 +253,7 @@ impl NetworkData {
                                     }
                                 }),
                             )
-                            .style(theme::Button::custom(GhostButtonStyle))
+                            .style(GhostButtonStyle.into_style())
                             .padding([8, 8])
                             .on_press_maybe(if !is_active {
                                 Some(if is_known {
@@ -284,7 +283,7 @@ impl NetworkData {
                     .on_press(NetworkMessage::WiFiMore)
                     .padding([4, 12])
                     .width(Length::Fill)
-                    .style(Button::custom(GhostButtonStyle)),
+                    .style(GhostButtonStyle.into_style()),
             )
             .spacing(12)
             .into()
@@ -308,10 +307,9 @@ impl NetworkData {
 
                     row!(
                         text(vpn.to_string()).width(Length::Fill),
-                        toggler(None, is_active, |_| {
-                            NetworkMessage::VpnToggle(vpn.clone())
-                        })
-                        .width(Length::Shrink)
+                        toggler(is_active)
+                            .on_toggle(|_| { NetworkMessage::VpnToggle(vpn.clone()) })
+                            .width(Length::Shrink)
                     )
                     .into()
                 })
@@ -327,7 +325,7 @@ impl NetworkData {
                     .on_press(NetworkMessage::VpnMore)
                     .padding([4, 12])
                     .width(Length::Fill)
-                    .style(Button::custom(GhostButtonStyle)),
+                    .style(GhostButtonStyle.into_style()),
             )
             .spacing(12)
             .into()

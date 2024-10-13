@@ -8,7 +8,6 @@ use crate::{
     style::{GhostButtonStyle, SettingsButtonStyle, SliderStyle},
 };
 use iced::{
-    theme::{self, Button},
     widget::{button, column, container, horizontal_rule, row, slider, text, Column, Row},
     Alignment, Element, Length, Theme,
 };
@@ -167,13 +166,13 @@ pub fn audio_slider<'a, Message: 'a + Clone>(
                 },
             ])
             .on_press(toggle_mute)
-            .style(Button::custom(SettingsButtonStyle)),
+            .style(SettingsButtonStyle.into_style()),
         )
         .push(
             slider(0..=100, volume, volume_changed)
                 .step(1)
                 .width(Length::Fill)
-                .style(theme::Slider::Custom(Box::new(SliderStyle))),
+                .style(SliderStyle.into_style()),
         )
         .push_maybe(with_submenu.map(|(submenu, msg)| {
             button(icon(match (slider_type, submenu) {
@@ -183,9 +182,9 @@ pub fn audio_slider<'a, Message: 'a + Clone>(
             }))
             .padding([8, 13])
             .on_press(msg)
-            .style(Button::custom(SettingsButtonStyle))
+            .style(SettingsButtonStyle.into_style())
         }))
-        .align_items(Alignment::Center)
+        .align_y(Alignment::Center)
         .spacing(8)
         .into()
 }
@@ -208,11 +207,11 @@ pub fn audio_submenu<'a, Message: 'a + Clone>(
                 if e.active {
                     container(
                         row!(icon(e.device.get_icon()), text(e.name))
-                            .align_items(Alignment::Center)
+                            .align_y(Alignment::Center)
                             .spacing(16)
                             .padding([4, 12]),
                     )
-                    .style(|theme: &Theme| container::Appearance {
+                    .style(|theme: &Theme| container::Style {
                         text_color: Some(theme.palette().success),
                         ..Default::default()
                     })
@@ -221,12 +220,12 @@ pub fn audio_submenu<'a, Message: 'a + Clone>(
                     button(
                         row!(icon(e.device.get_icon()), text(e.name))
                             .spacing(16)
-                            .align_items(Alignment::Center),
+                            .align_y(Alignment::Center),
                     )
                     .on_press(e.msg)
                     .padding([4, 12])
                     .width(Length::Fill)
-                    .style(Button::custom(GhostButtonStyle))
+                    .style(GhostButtonStyle.into_style())
                     .into()
                 }
             })
@@ -243,7 +242,7 @@ pub fn audio_submenu<'a, Message: 'a + Clone>(
                 .on_press(more_msg)
                 .padding([4, 12])
                 .width(Length::Fill)
-                .style(Button::custom(GhostButtonStyle)),
+                .style(GhostButtonStyle.into_style()),
         )
         .spacing(12)
         .into()

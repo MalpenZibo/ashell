@@ -2,17 +2,12 @@ use crate::app::{self, WindowInfo};
 use crate::config::Position;
 use iced::alignment::{Horizontal, Vertical};
 use iced::widget::container::Style;
-// use iced::widget::container::Appearance;
 use iced::widget::mouse_area;
 use iced::window::Id;
 use iced::{self, widget::container, Element, Task, Theme};
 use iced::{Border, Length, Padding};
 use iced_layershell::reexport::{Anchor, KeyboardInteractivity, Layer};
 use iced_runtime::{task, Action};
-// use iced_sctk::command::platform_specific::wayland::layer_surface::SctkLayerSurfaceSettings;
-// use iced_sctk::commands::layer_surface::{
-//     self, get_layer_surface, Anchor, KeyboardInteractivity, Layer,
-// };
 
 fn open_menu(menu_type: WindowInfo) -> Task<app::Message> {
     Task::done(app::Message::NewLayerShell {
@@ -61,36 +56,6 @@ pub fn close_if<Message: 'static>(
         Task::none()
     }
 }
-
-pub fn close<Message: 'static>(mut id: Option<Id>) -> Task<Message> {
-    if let Some(id) = id.take() {
-        close_menu(id)
-    } else {
-        Task::none()
-    }
-}
-
-// pub fn set_keyboard_interactivity<Message: 'static>(id: Id) -> Task<Message> {
-//         layer_surface::set_keyboard_interactivity(id, KeyboardInteractivity::Exclusive)
-//
-// }
-//
-// pub fn unset_keyboard_interactivity<Message: 'static>(&mut self) -> Task<Message> {
-//     if let Some(id) = self.id {
-//         // layer_surface::set_keyboard_interactivity(id, KeyboardInteractivity::None)
-//         Task::none()
-//     } else {
-//         Task::none()
-//     }
-// }
-
-// pub fn get_id(&self) -> Option<Id> {
-//     self.id
-// }
-//
-// pub fn get_menu_type(&self) -> Option<MenuType> {
-//     self.menu_type
-// }
 
 pub enum MenuPosition {
     Left,

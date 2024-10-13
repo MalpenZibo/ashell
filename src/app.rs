@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    // centerbox,
+    centerbox,
     config::{self, Config},
     get_log_spec,
     menu::{self, menu_wrapper, MenuPosition},
@@ -11,24 +11,18 @@ use crate::{
     },
     services::{privacy::PrivacyService, ReadOnlyService, ServiceEvent},
     style::ashell_theme,
-    utils,
-    HEIGHT,
+    utils, HEIGHT,
 };
 use flexi_logger::LoggerHandle;
 use iced::{
-    application::Appearance,
-    executor, theme,
-    widget::{button, row, Row},
-    window::Id,
-    Alignment, Color, Element, Length, Subscription, Task, Theme,
+    executor, widget::Row, window::Id, Alignment, Color, Element, Length, Subscription, Task, Theme,
 };
-use iced_layershell::{to_layer_message, Application, MultiApplication};
-use log::{error, info};
+use iced_layershell::{to_layer_message, MultiApplication};
+use log::info;
 
 pub struct App {
     logger: LoggerHandle,
     config: Config,
-    menu: Option<WindowInfo>,
     updates: Updates,
     workspaces: Workspaces,
     window_title: Title,
@@ -59,7 +53,7 @@ pub enum Message {
     Clock(modules::clock::Message),
     Privacy(modules::privacy::PrivacyMessage),
     Settings(modules::settings::Message),
-    IcedEvent(iced::Event),
+    IcedEvent,
 }
 
 impl MultiApplication for App {
@@ -74,7 +68,6 @@ impl MultiApplication for App {
             App {
                 logger,
                 config,
-                menu: None,
                 updates: Updates::default(),
                 workspaces: Workspaces::default(),
                 window_title: Title::default(),
@@ -127,8 +120,8 @@ impl MultiApplication for App {
             }
             Message::CloseMenu => {
                 let mut tasks = Vec::with_capacity(self.ids.len());
-                for (id, _) in self.ids.drain() {
-                    tasks.push(menu::close_menu(id));
+                for (id, _) in self.ids.iter() {
+                    tasks.push(menu::close_menu(*id));
                 }
 
                 Task::batch(tasks)
@@ -185,7 +178,7 @@ impl MultiApplication for App {
                 self.settings
                     .update(message, &self.config.settings, self.ids.iter_mut().next())
             }
-            Message::IcedEvent(_) => Task::none(),
+            Message::IcedEvent => Task::none(),
             _ => Task::none(),
         }
     }
@@ -193,7 +186,6 @@ impl MultiApplication for App {
     fn view(&self, id: Id) -> Element<'_, Self::Message> {
         match self.id_info(id) {
             Some(WindowInfo::Updates) => {
-                info!("Updates menu");
                 menu_wrapper(
                     self.updates.menu_view().map(Message::Updates),
                     MenuPosition::Left,
@@ -201,7 +193,6 @@ impl MultiApplication for App {
                 )
             }
             Some(WindowInfo::Settings) => {
-                info!("Settings menu");
                 menu_wrapper(
                     self.settings
                         .menu_view(&self.config.settings)
@@ -260,22 +251,15 @@ impl MultiApplication for App {
                     )
                     .spacing(4);
 
-                Row::with_children(vec![left.into(), center.into(), right.into()])
+                centerbox::Centerbox::new([left.into(), center.into(), right.into()])
                     .spacing(4)
                     .padding([0, 4])
                     .width(Length::Fill)
                     .height(Length::Fixed(HEIGHT as f32))
-                    .align_y(Alignment::Center)
+                    .align_items(Alignment::Center)
                     .into()
             }
         }
-        // centerbox::Centerbox::new([left.into(), center.into(), right.into()])
-        //     .spacing(4)
-        //     .padding([0, 4])
-        //     .width(Length::Fill)
-        //     .height(Length::Fixed(HEIGHT as f32))
-        //     .align_items(Alignment::Center)
-        //     .into()
     }
 
     fn subscription(&self) -> Subscription<Self::Message> {
@@ -295,7 +279,7 @@ impl MultiApplication for App {
                 ),
                 Some(self.settings.subscription().map(Message::Settings)),
                 Some(config::subscription()),
-                Some(iced::event::listen().map(Message::IcedEvent)),
+                Some(iced::event::listen().map(|_| Message::IcedEvent)),
             ]
             .into_iter()
             .flatten()
