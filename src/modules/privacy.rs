@@ -6,7 +6,6 @@ use crate::{
     },
 };
 use iced::{
-    alignment::Vertical,
     widget::{container, Row},
     Alignment, Element, Theme,
 };
@@ -23,12 +22,11 @@ impl PrivacyData {
                 container(
                     Row::new()
                         .push_maybe(self.screenshare_access().then(|| icon(Icons::ScreenShare)))
-                        .push_maybe(self.webcam_access().then(|| icon(Icons::Webcam).size(12)))
+                        .push_maybe(self.webcam_access().then(|| icon(Icons::Webcam)))
                         .push_maybe(self.microphone_access().then(|| icon(Icons::Mic1)))
                         .align_items(Alignment::Center)
                         .spacing(8),
                 )
-                .align_y(Vertical::Center)
                 .padding([2, 8])
                 .style(|theme: &Theme| container::Appearance {
                     background: Some(theme.palette().background.into()),
