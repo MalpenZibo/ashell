@@ -76,6 +76,7 @@ but I'm quite sure that if you use NixOS you are smart enough to add ashell to y
 - Hyprland Workspaces
 - System Information (CPU, RAM, Temperature)
 - Date time
+- Privacy module (check microphone, camera and screenshare usage)
 - Settings panel
     - Power menu
     - Battery information
