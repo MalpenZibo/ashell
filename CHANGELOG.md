@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Privacy module: removed privacy sub-menu
 
+### Fixed
+
+- Improve wifi indicator
+
 ## [0.1.1] - 2024-10-03
 
 ### Fixed

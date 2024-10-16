@@ -3,7 +3,8 @@ use crate::{
     components::icons::{icon, Icons},
     services::{
         network::{
-            AccessPoint, ActiveConnectionInfo, KnownConnection, NetworkData, NetworkService, Vpn,
+            dbus::ConnectivityState, AccessPoint, ActiveConnectionInfo, KnownConnection,
+            NetworkData, NetworkService, Vpn,
         },
         ServiceEvent,
     },
@@ -29,28 +30,30 @@ pub enum NetworkMessage {
     ToggleAirplaneMode,
 }
 
-static WIFI_SIGNAL_ICONS: [Icons; 5] = [
+static WIFI_SIGNAL_ICONS: [Icons; 6] = [
     Icons::Wifi0,
     Icons::Wifi1,
     Icons::Wifi2,
     Icons::Wifi3,
     Icons::Wifi4,
+    Icons::Wifi5,
 ];
 
-static WIFI_LOCK_SIGNAL_ICONS: [Icons; 4] = [
+static WIFI_LOCK_SIGNAL_ICONS: [Icons; 5] = [
     Icons::WifiLock1,
     Icons::WifiLock2,
     Icons::WifiLock3,
     Icons::WifiLock4,
+    Icons::WifiLock5,
 ];
 
 impl ActiveConnectionInfo {
     pub fn get_wifi_icon(signal: u8) -> Icons {
-        WIFI_SIGNAL_ICONS[1 + f32::round(signal as f32 / 100. * 3.) as usize]
+        WIFI_SIGNAL_ICONS[1 + f32::round(signal as f32 / 100. * 4.) as usize]
     }
 
     pub fn get_wifi_lock_icon(signal: u8) -> Icons {
-        WIFI_LOCK_SIGNAL_ICONS[f32::round(signal as f32 / 100. * 3.) as usize]
+        WIFI_LOCK_SIGNAL_ICONS[f32::round(signal as f32 / 100. * 4.) as usize]
     }
 
     pub fn get_icon(&self) -> Icons {
@@ -63,11 +66,9 @@ impl ActiveConnectionInfo {
 
     pub fn get_indicator_state(&self) -> IndicatorState {
         match self {
-            Self::WiFi { strength, .. } => match *strength {
-                0 => IndicatorState::Danger,
-                1 => IndicatorState::Warning,
-                _ => IndicatorState::Normal,
-            },
+            Self::WiFi {
+                strength: 0 | 1, ..
+            } => IndicatorState::Warning,
             _ => IndicatorState::Normal,
         }
     }
@@ -75,32 +76,37 @@ impl ActiveConnectionInfo {
 
 impl NetworkData {
     pub fn get_connection_indicator<Message: 'static>(&self) -> Option<Element<Message>> {
-        if self.airplane_mode {
+        if self.airplane_mode || !self.wifi_present {
             None
         } else {
-            self.active_connections
-                .iter()
-                .find(|c| {
-                    matches!(c, ActiveConnectionInfo::WiFi { .. })
-                        || matches!(c, ActiveConnectionInfo::Wired { .. })
-                })
-                .map(|a| {
-                    let icon_type = a.get_icon();
-                    let state = a.get_indicator_state();
+            Some(
+                self.active_connections
+                    .iter()
+                    .find(|c| {
+                        matches!(c, ActiveConnectionInfo::WiFi { .. })
+                            || matches!(c, ActiveConnectionInfo::Wired { .. })
+                    })
+                    .map_or_else(
+                        || icon(Icons::Wifi0).into(),
+                        |a| {
+                            let icon_type = a.get_icon();
+                            let state = (self.connectivity, a.get_indicator_state());
 
-                    container(icon(icon_type))
-                        .style(move |theme: &Theme| container::Appearance {
-                            text_color: match state {
-                                IndicatorState::Warning => {
-                                    Some(theme.extended_palette().danger.weak.color)
-                                }
-                                IndicatorState::Danger => Some(theme.palette().danger),
-                                _ => None,
-                            },
-                            ..Default::default()
-                        })
-                        .into()
-                })
+                            container(icon(icon_type))
+                                .style(move |theme: &Theme| container::Appearance {
+                                    text_color: match state {
+                                        (ConnectivityState::Full, IndicatorState::Warning) => {
+                                            Some(theme.extended_palette().danger.weak.color)
+                                        }
+                                        (ConnectivityState::Full, _) => None,
+                                        _ => Some(theme.palette().danger),
+                                    },
+                                    ..Default::default()
+                                })
+                                .into()
+                        },
+                    ),
+            )
         }
     }
 
@@ -127,19 +133,17 @@ impl NetworkData {
     ) -> Option<(Element<Message>, Option<Element<Message>>)> {
         if self.wifi_present {
             let active_connection = self.active_connections.iter().find_map(|c| match c {
-                ActiveConnectionInfo::WiFi {
-                    name,
-                    strength,
-                    state,
-                } => Some((name, strength, state, c.get_icon())),
+                ActiveConnectionInfo::WiFi { name, strength, .. } => {
+                    Some((name, strength, c.get_icon()))
+                }
                 _ => None,
             });
 
             Some((
                 quick_setting_button(
-                    active_connection.map_or_else(|| Icons::Wifi0, |(_, _, _, icon)| icon),
+                    active_connection.map_or_else(|| Icons::Wifi0, |(_, _, icon)| icon),
                     "Wi-Fi".to_string(),
-                    active_connection.map(|(name, _, _, _)| name.clone()),
+                    active_connection.map(|(name, _, _)| name.clone()),
                     self.wifi_enabled,
                     Message::Network(NetworkMessage::ToggleWiFi),
                     Some((
@@ -152,13 +156,10 @@ impl NetworkData {
                 sub_menu
                     .filter(|menu_type| *menu_type == SubMenu::Wifi)
                     .map(|_| {
-                        sub_menu_wrapper(
-                            self.wifi_menu(
-                                active_connection
-                                    .map(|(name, strengh, _, _)| (name.as_str(), *strengh)),
-                                show_more_button,
-                            ),
-                        )
+                        sub_menu_wrapper(self.wifi_menu(
+                            active_connection.map(|(name, strengh, _)| (name.as_str(), *strengh)),
+                            show_more_button,
+                        ))
                         .map(Message::Network)
                     }),
             ))
@@ -238,7 +239,7 @@ impl NetworkData {
                                             ActiveConnectionInfo::get_wifi_lock_icon(ac.strength)
                                         })
                                         .width(Length::Shrink),
-                                        text(ac.ssid.clone()).width(Length::Fill)
+                                        text(ac.ssid.clone()).width(Length::Fill),
                                     )
                                     .align_items(Alignment::Center)
                                     .spacing(8),
