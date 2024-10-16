@@ -13,7 +13,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Reduced clock refresh rate to 5 sec
-- Moved to https://github.com/hyprland-community/hyprland-rs add-events branch
 
 ### Removed
 

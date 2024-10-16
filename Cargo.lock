@@ -1630,7 +1630,7 @@ checksum = "dfa686283ad6dd069f105e5ab091b04c62850d3e4cf5d67debad1933f55023df"
 [[package]]
 name = "hyprland"
 version = "0.4.0-beta.1"
-source = "git+https://github.com/hyprland-community/hyprland-rs?branch=add-events#a6dbb00ae60cb5cfe8c073aff1cfc8d0c19bb052"
+source = "git+https://github.com/MalpenZibo/hyprland-rs#842902401345e838b69ff6d4c253b18ca284bbcd"
 dependencies = [
  "ahash",
  "async-stream",
@@ -1651,7 +1651,7 @@ dependencies = [
 [[package]]
 name = "hyprland-macros"
 version = "0.4.0-beta.1"
-source = "git+https://github.com/hyprland-community/hyprland-rs?branch=add-events#a6dbb00ae60cb5cfe8c073aff1cfc8d0c19bb052"
+source = "git+https://github.com/MalpenZibo/hyprland-rs#842902401345e838b69ff6d4c253b18ca284bbcd"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2860,9 +2860,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.87"
+version = "1.0.88"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b3e4daa0dcf6feba26f985457cdf104d4b4256fc5a09547140f3631bb076b19a"
+checksum = "7c3a7fc5db1e57d5a779a352c8cdb57b29aa4c40cc69c3a68a7fedc815fbf2f9"
 dependencies = [
  "unicode-ident",
 ]
