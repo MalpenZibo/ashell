@@ -132,7 +132,9 @@ impl PrivacyService {
                             debug!("Webcam event: {:?}", event);
                             match event.mask {
                                 EventMask::OPEN => Some(PrivacyEvent::WebcamOpen),
-                                EventMask::CLOSE_WRITE | EventMask::CLOSE_NOWRITE => Some(PrivacyEvent::WebcamClose),
+                                EventMask::CLOSE_WRITE | EventMask::CLOSE_NOWRITE => {
+                                    Some(PrivacyEvent::WebcamClose)
+                                }
                                 _ => None,
                             }
                         } else {
