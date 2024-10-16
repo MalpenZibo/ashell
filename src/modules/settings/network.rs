@@ -66,10 +66,9 @@ impl ActiveConnectionInfo {
 
     pub fn get_indicator_state(&self) -> IndicatorState {
         match self {
-            Self::WiFi { strength, .. } => match *strength {
-                0 | 1 => IndicatorState::Warning,
-                _ => IndicatorState::Normal,
-            },
+            Self::WiFi {
+                strength: 0 | 1, ..
+            } => IndicatorState::Warning,
             _ => IndicatorState::Normal,
         }
     }
@@ -240,7 +239,7 @@ impl NetworkData {
                                             ActiveConnectionInfo::get_wifi_lock_icon(ac.strength)
                                         })
                                         .width(Length::Shrink),
-                                        text(ac.ssid.clone()).width(Length::Fill)
+                                        text(ac.ssid.clone()).width(Length::Fill),
                                     )
                                     .align_items(Alignment::Center)
                                     .spacing(8),

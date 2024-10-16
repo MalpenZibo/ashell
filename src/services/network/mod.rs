@@ -1,8 +1,8 @@
 use super::{Service, ServiceEvent};
 use crate::services::{bluetooth::BluetoothService, ReadOnlyService};
 use dbus::{
-    AccessPointProxy, ActiveConnectionState, ConnectivityState, DeviceProxy, DeviceState,
-    NetworkDbus, NetworkSettingsDbus, WirelessDeviceProxy,
+    AccessPointProxy, ConnectivityState, DeviceProxy, DeviceState, NetworkDbus,
+    NetworkSettingsDbus, WirelessDeviceProxy,
 };
 use iced::{
     futures::{
@@ -32,7 +32,7 @@ pub enum NetworkEvent {
     ActiveConnections(Vec<ActiveConnectionInfo>),
     KnownConnections(Vec<KnownConnection>),
     WirelessAccessPoint(Vec<AccessPoint>),
-    Strength((usize, u8)),
+    Strength((String, u8)),
     RequestPasswordForSSID(String),
     ScanningNearbyWifi,
 }
@@ -158,9 +158,14 @@ impl ReadOnlyService for NetworkService {
             NetworkEvent::KnownConnections(known_connections) => {
                 self.data.known_connections = known_connections;
             }
-            NetworkEvent::Strength((index, new_strenght)) => {
-                if let Some(ap) = self.data.wireless_access_points.get_mut(index) {
-                    ap.strength = new_strenght;
+            NetworkEvent::Strength((ssid, new_strength)) => {
+                if let Some(ap) = self
+                    .data
+                    .wireless_access_points
+                    .iter_mut()
+                    .find(|ap| ap.ssid == ssid)
+                {
+                    ap.strength = new_strength;
 
                     if let Some(ActiveConnectionInfo::WiFi { strength, .. }) = self
                         .data
@@ -168,7 +173,7 @@ impl ReadOnlyService for NetworkService {
                         .iter_mut()
                         .find(|ac| ac.name() == ap.ssid)
                     {
-                        *strength = new_strenght;
+                        *strength = new_strength;
                     }
                 }
             }
@@ -422,7 +427,7 @@ impl NetworkService {
                     .await
                     .then({
                         let conn = conn.clone();
-                        move |_val| {
+                        move |_| {
                             let conn = conn.clone();
                             async move {
                                 let nm = NetworkDbus::new(&conn).await.unwrap();
@@ -440,28 +445,23 @@ impl NetworkService {
 
         // When devices list change I need to update the wireless strength changes
         let mut strength_changes = Vec::with_capacity(wireless_ac.len());
-        for (index, ap) in wireless_ac.iter().enumerate() {
+        for ap in wireless_ac {
+            let ssid = ap.ssid.clone();
             let app = AccessPointProxy::builder(conn)
                 .path(ap.path.clone())?
                 .build()
                 .await?;
 
-            let current_strength = ap.strength;
-
             strength_changes.push(
                 app.receive_strength_changed()
                     .await
-                    .filter_map(move |val| async move {
-                        let value = val.get().await.unwrap_or_default();
-                        if value.abs_diff(current_strength) > 10 {
-                            Some(value)
-                        } else {
-                            None
+                    .then(move |val| {
+                        let ssid = ssid.clone();
+                        async move {
+                            let value = val.get().await.unwrap_or_default();
+                            debug!("Strength changed value: {}, {}", &ssid, value);
+                            NetworkEvent::Strength((ssid.clone(), value))
                         }
-                    })
-                    .map(move |v| {
-                        debug!("Strength changed value: {}", v);
-                        NetworkEvent::Strength((index, v))
                     })
                     .boxed(),
             );

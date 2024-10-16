@@ -69,12 +69,6 @@ impl<'a> NetworkDbus<'a> {
 
         let mut info = Vec::<ActiveConnectionInfo>::with_capacity(active_connections.len());
         for connection in ac_proxies {
-            let state = connection
-                .state()
-                .await
-                .map(ActiveConnectionState::from)
-                .unwrap_or(ActiveConnectionState::Unknown);
-
             if connection.vpn().await.unwrap_or_default() {
                 info.push(ActiveConnectionInfo::Vpn {
                     name: connection.id().await?,
