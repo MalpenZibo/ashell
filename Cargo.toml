@@ -11,7 +11,6 @@ iced_sctk = { git = "https://github.com/MalpenZibo/iced_sctk", features = ["no-h
 chrono = "0.4"
 hyprland = { git = "https://github.com/MalpenZibo/hyprland-rs" }
 serde = "1.0"
-serde_json = "1.0"
 sysinfo = "0.30"
 tokio = { version = "1", features = ["full"] }
 zbus = "4.2"

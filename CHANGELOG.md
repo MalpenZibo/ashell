@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Privacy module: webcam usage indicator
 
+### Changed
+- Reduced clock refresh rate to 5 sec
+
 ### Removed
 
 - Privacy module: removed privacy sub-menu
