@@ -49,8 +49,14 @@ impl<'a> NetworkDbus<'a> {
         Ok(false)
     }
 
-    pub async fn active_connections(&self) -> anyhow::Result<Vec<ActiveConnectionInfo>> {
-        let active_connections = self.0.active_connections().await?;
+    pub async fn active_connections(&self) -> anyhow::Result<Vec<OwnedObjectPath>> {
+        let connections = self.0.active_connections().await?;
+
+        Ok(connections)
+    }
+
+    pub async fn active_connections_info(&self) -> anyhow::Result<Vec<ActiveConnectionInfo>> {
+        let active_connections = self.active_connections().await?;
         let mut ac_proxies: Vec<ActiveConnectionProxy> =
             Vec::with_capacity(active_connections.len());
         for active_connection in &active_connections {
@@ -109,9 +115,9 @@ impl<'a> NetworkDbus<'a> {
                                     .await?;
 
                             info.push(ActiveConnectionInfo::WiFi {
+                                id: connection.id().await?,
                                 name: String::from_utf8_lossy(&access_point.ssid().await?)
                                     .into_owned(),
-                                state,
                                 strength: access_point.strength().await.unwrap_or_default(),
                             });
                         }
@@ -198,76 +204,91 @@ impl<'a> NetworkDbus<'a> {
         Ok(known_connections)
     }
 
+    pub async fn wireless_devices(&self) -> anyhow::Result<Vec<OwnedObjectPath>> {
+        let devices = self.devices().await?;
+        let mut wireless_devices = Vec::new();
+        for d in devices {
+            let device = DeviceProxy::builder(self.0.inner().connection())
+                .path(&d)?
+                .build()
+                .await?;
+
+            if matches!(
+                device.device_type().await.map(DeviceType::from),
+                Ok(DeviceType::Wifi)
+            ) {
+                wireless_devices.push(d);
+            }
+        }
+
+        Ok(wireless_devices)
+    }
+
     pub async fn wireless_access_points(&self) -> anyhow::Result<Vec<AccessPoint>> {
-        let devices = self.devices().await.ok().unwrap_or_default();
-        let wireless_access_point_futures: Vec<_> = devices
+        let wireless_devices = self.wireless_devices().await?;
+        let wireless_access_point_futures: Vec<_> = wireless_devices
             .into_iter()
-            .map(|device| async move {
+            .map(|path| async move {
                 let device = DeviceProxy::builder(self.0.inner().connection())
-                    .path(device)?
+                    .path(&path)?
                     .build()
                     .await?;
+                let wireless_device = WirelessDeviceProxy::builder(self.0.inner().connection())
+                    .path(&path)?
+                    .build()
+                    .await?;
+                wireless_device.request_scan(HashMap::new()).await?;
+                let mut scan_changed = wireless_device.receive_last_scan_changed().await;
+                if let Some(t) = scan_changed.next().await {
+                    if let Ok(-1) = t.get().await {
+                        eprintln!("scan errored");
+                        return Ok(Default::default());
+                    }
+                }
+                let access_points = wireless_device.get_access_points().await?;
+                let state: DeviceState = device
+                    .cached_state()
+                    .unwrap_or_default()
+                    .map(DeviceState::from)
+                    .unwrap_or_else(|| DeviceState::Unknown);
 
-                if let Ok(DeviceType::Wifi) = device.device_type().await.map(DeviceType::from) {
-                    let wireless_device = WirelessDeviceProxy::builder(self.0.inner().connection())
-                        .path(device.0.path())?
+                // Sort by strength and remove duplicates
+                let mut aps = HashMap::<String, AccessPoint>::new();
+                for ap in access_points {
+                    let ap = AccessPointProxy::builder(self.0.inner().connection())
+                        .path(ap)?
                         .build()
                         .await?;
-                    wireless_device.request_scan(HashMap::new()).await?;
-                    let mut scan_changed = wireless_device.receive_last_scan_changed().await;
-                    if let Some(t) = scan_changed.next().await {
-                        if let Ok(-1) = t.get().await {
-                            eprintln!("scan errored");
-                            return Ok(Default::default());
+
+                    let ssid = String::from_utf8_lossy(&ap.ssid().await?.clone()).into_owned();
+                    let public = ap.flags().await.unwrap_or_default() == 0;
+                    let strength = ap.strength().await?;
+                    if let Some(access_point) = aps.get(&ssid) {
+                        if access_point.strength > strength {
+                            continue;
                         }
                     }
-                    let access_points = wireless_device.get_access_points().await?;
-                    let state: DeviceState = device
-                        .cached_state()
-                        .unwrap_or_default()
-                        .map(DeviceState::from)
-                        .unwrap_or_else(|| DeviceState::Unknown);
 
-                    // Sort by strength and remove duplicates
-                    let mut aps = HashMap::<String, AccessPoint>::new();
-                    for ap in access_points {
-                        let ap = AccessPointProxy::builder(self.0.inner().connection())
-                            .path(ap)?
-                            .build()
-                            .await?;
-
-                        let ssid = String::from_utf8_lossy(&ap.ssid().await?.clone()).into_owned();
-                        let public = ap.flags().await.unwrap_or_default() == 0;
-                        let strength = ap.strength().await?;
-                        if let Some(access_point) = aps.get(&ssid) {
-                            if access_point.strength > strength {
-                                continue;
-                            }
-                        }
-
-                        aps.insert(
-                            ssid.clone(),
-                            AccessPoint {
-                                ssid,
-                                strength,
-                                state,
-                                public,
-                                working: false,
-                                path: ap.inner().path().to_owned(),
-                                device_path: device.0.path().to_owned(),
-                            },
-                        );
-                    }
-
-                    let aps = aps
-                        .into_values()
-                        .sorted_by(|a, b| b.strength.cmp(&a.strength))
-                        .collect();
-
-                    Ok(aps)
-                } else {
-                    Ok(Vec::new())
+                    aps.insert(
+                        ssid.clone(),
+                        AccessPoint {
+                            ssid,
+                            strength,
+                            state,
+                            public,
+                            working: false,
+                            path: ap.inner().path().to_owned(),
+                            device_path: device.0.path().to_owned(),
+                        },
+                    );
                 }
+
+                let aps = aps
+                    .into_values()
+                    .sorted_by(|a, b| b.strength.cmp(&a.strength))
+                    .collect();
+
+                Ok(aps)
             })
             .collect();
 
