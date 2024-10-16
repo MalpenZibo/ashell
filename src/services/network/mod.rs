@@ -13,7 +13,7 @@ use iced::{
     subscription::channel,
     Subscription,
 };
-use log::{debug, error, info, warn};
+use log::{debug, error, info};
 use std::{any::TypeId, collections::HashMap, ops::Deref};
 use tokio::process::Command;
 use zbus::zvariant::{ObjectPath, OwnedObjectPath};
@@ -285,7 +285,7 @@ impl NetworkService {
                             }
                         }
 
-                        warn!("Network service exit events stream");
+                        debug!("Network service exit events stream");
 
                         State::Active(conn)
                     }
