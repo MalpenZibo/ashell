@@ -26,12 +26,12 @@ pub struct ApplicationNode {
 #[derive(Debug, Clone, Default)]
 pub struct PrivacyData {
     nodes: Vec<ApplicationNode>,
-    webcam_access: bool,
+    webcam_access: i32,
 }
 
 impl PrivacyData {
     pub fn no_access(&self) -> bool {
-        self.nodes.is_empty() && !self.webcam_access
+        self.nodes.is_empty() && self.webcam_access == 0
     }
 
     pub fn microphone_access(&self) -> bool {
@@ -39,7 +39,7 @@ impl PrivacyData {
     }
 
     pub fn webcam_access(&self) -> bool {
-        self.webcam_access
+        self.webcam_access > 0
     }
 
     pub fn screenshare_access(&self) -> bool {
@@ -129,9 +129,12 @@ impl PrivacyService {
                 .filter_map({
                     move |event| async move {
                         if let Ok(event) = event {
+                            debug!("Webcam event: {:?}", event);
                             match event.mask {
-                                EventMask::OPEN => Some(PrivacyEvent::WebcamAccess(true)),
-                                EventMask::CLOSE_WRITE => Some(PrivacyEvent::WebcamAccess(false)),
+                                EventMask::OPEN => Some(PrivacyEvent::WebcamOpen),
+                                EventMask::CLOSE_WRITE | EventMask::CLOSE_NOWRITE => {
+                                    Some(PrivacyEvent::WebcamClose)
+                                }
                                 _ => None,
                             }
                         } else {
@@ -167,19 +170,6 @@ impl PrivacyService {
             }
             State::Active((mut pipewire, mut webcam)) => {
                 info!("Listening for privacy events");
-
-                // let stream = select_all(vec![pipewire.recv(), webcam.next()]);
-                //
-                // while let Some(event) = stream.next().await {
-                //     match event {
-                //         Some(event) => {
-                //             let _ = output.send(ServiceEvent::Update(event)).await;
-                //         }
-                //         None => {
-                //             error!("Listener exited");
-                //         }
-                //     }
-                // }
 
                 select! {
                     value = pipewire.recv().fuse() => {
@@ -231,7 +221,8 @@ enum State {
 pub enum PrivacyEvent {
     AddNode(ApplicationNode),
     RemoveNode(u32),
-    WebcamAccess(bool),
+    WebcamOpen,
+    WebcamClose,
 }
 
 impl ReadOnlyService for PrivacyService {
@@ -246,8 +237,13 @@ impl ReadOnlyService for PrivacyService {
             PrivacyEvent::RemoveNode(id) => {
                 self.data.nodes.retain(|n| n.id != id);
             }
-            PrivacyEvent::WebcamAccess(access) => {
-                self.data.webcam_access = access;
+            PrivacyEvent::WebcamOpen => {
+                self.data.webcam_access += 1;
+                debug!("Webcam opened {}", self.data.webcam_access);
+            }
+            PrivacyEvent::WebcamClose => {
+                self.data.webcam_access = i32::max(self.data.webcam_access - 1, 0);
+                debug!("Webcam closed {}", self.data.webcam_access);
             }
         }
     }
