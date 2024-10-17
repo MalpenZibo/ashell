@@ -270,7 +270,7 @@ impl Updates {
 
                 let _ = output.try_send(Message::UpdatesCheckCompleted(updates));
 
-                sleep(Duration::from_secs(10)).await;
+                sleep(Duration::from_secs(3600)).await;
             }
         })
     }
