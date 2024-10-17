@@ -4,7 +4,6 @@ use crate::{
         brightness::{BrightnessData, BrightnessService},
         ServiceEvent,
     },
-    style::SliderStyle,
 };
 use iced::{
     widget::{container, row, slider},
@@ -26,7 +25,6 @@ impl BrightnessData {
             slider(0..=100, self.current * 100 / self.max, |v| {
                 Message::Brightness(BrightnessMessage::Change(v * self.max / 100))
             })
-            .style(SliderStyle.into_style())
             .step(1_u32)
             .width(Length::Fill),
         )

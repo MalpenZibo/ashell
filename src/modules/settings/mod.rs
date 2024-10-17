@@ -2,18 +2,25 @@ use self::{
     audio::AudioMessage, bluetooth::BluetoothMessage, network::NetworkMessage, power::PowerMessage,
 };
 use crate::{
-    app::WindowInfo, components::icons::{icon, Icons}, config::SettingsModuleConfig, menu::{self}, modules::settings::power::power_menu, password_dialog, services::{
+    app::WindowInfo,
+    components::icons::{icon, Icons},
+    config::SettingsModuleConfig,
+    menu::{self},
+    modules::settings::power::power_menu,
+    password_dialog,
+    services::{
         audio::{AudioCommand, AudioService},
-        bluetooth::{BluetoothCommand, BluetoothService},
+        bluetooth::{BluetoothCommand, BluetoothService, BluetoothState},
         brightness::{BrightnessCommand, BrightnessService},
         idle_inhibitor::IdleInhibitorManager,
         network::{NetworkCommand, NetworkEvent, NetworkService},
         upower::{PowerProfileCommand, UPowerService},
         ReadOnlyService, Service, ServiceEvent,
-    }, style::{
+    },
+    style::{
         HeaderButtonStyle, QuickSettingsButtonStyle, QuickSettingsSubMenuButtonStyle,
         SettingsButtonStyle,
-    }
+    },
 };
 use brightness::BrightnessMessage;
 use iced::{
@@ -298,7 +305,19 @@ impl Settings {
                         Task::none()
                     }
                 }
-                _ => Task::none(),
+                NetworkMessage::ToggleVpn(vpn) => {
+                    if let Some(network) = self.network.as_mut() {
+                        network
+                            .command(NetworkCommand::ToggleVpn(vpn))
+                            .map(|event| {
+                                crate::app::Message::Settings(Message::Network(
+                                    NetworkMessage::Event(event),
+                                ))
+                            })
+                    } else {
+                        Task::none()
+                    }
+                }
             },
             Message::Bluetooth(msg) => match msg {
                 BluetoothMessage::Event(event) => match event {
@@ -402,54 +421,54 @@ impl Settings {
             Message::Power(msg) => {
                 msg.update();
                 Task::none()
-            } 
+            }
             Message::PasswordDialog(msg) => match msg {
-                  password_dialog::Message::PasswordChanged(password) => {
-                      if let Some((_, current_password)) = &mut self.password_dialog {
-                          *current_password = password;
-                      }
+                password_dialog::Message::PasswordChanged(password) => {
+                    if let Some((_, current_password)) = &mut self.password_dialog {
+                        *current_password = password;
+                    }
 
-                      Task::none()
-                  }
-                  password_dialog::Message::DialogConfirmed => {
-                      if let Some((ssid, password)) = self.password_dialog.take() {
-                          let network_command = if let Some(network) = self.network.as_mut() {
-                              let ap = network
-                                  .wireless_access_points
-                                  .iter()
-                                  .find(|ap| ap.ssid == ssid)
-                                  .cloned();
-                              if let Some(ap) = ap {
-                                  network
-                                      .command(NetworkCommand::SelectAccessPoint((
-                                          ap,
-                                          Some(password),
-                                      )))
-                                      .map(|event| {
-                                          crate::app::Message::Settings(Message::Network(
-                                              NetworkMessage::Event(event),
-                                          ))
-                                      })
-                              } else {
-                                  Task::none()
-                              }
-                          } else {
-                              Task::none()
-                          };
-                          Task::batch(vec![network_command])
-                      } else {
-                          Task::none()
-                      }
-                  }
-                  password_dialog::Message::DialogCancelled => {
-                      if let Some((_, _)) = self.password_dialog.take() {
-                          Task::none()
-                          // menu.unset_keyboard_interactivity()
-                      } else {
-                          Task::none()
-                      }
-                  }
-              },
+                    Task::none()
+                }
+                password_dialog::Message::DialogConfirmed => {
+                    if let Some((ssid, password)) = self.password_dialog.take() {
+                        let network_command = if let Some(network) = self.network.as_mut() {
+                            let ap = network
+                                .wireless_access_points
+                                .iter()
+                                .find(|ap| ap.ssid == ssid)
+                                .cloned();
+                            if let Some(ap) = ap {
+                                network
+                                    .command(NetworkCommand::SelectAccessPoint((
+                                        ap,
+                                        Some(password),
+                                    )))
+                                    .map(|event| {
+                                        crate::app::Message::Settings(Message::Network(
+                                            NetworkMessage::Event(event),
+                                        ))
+                                    })
+                            } else {
+                                Task::none()
+                            }
+                        } else {
+                            Task::none()
+                        };
+                        Task::batch(vec![network_command])
+                    } else {
+                        Task::none()
+                    }
+                }
+                password_dialog::Message::DialogCancelled => {
+                    if let Some((_, _)) = self.password_dialog.take() {
+                        Task::none()
+                        // menu.unset_keyboard_interactivity()
+                    } else {
+                        Task::none()
+                    }
+                }
+            },
         }
     }
 
@@ -546,12 +565,15 @@ impl Settings {
             let quick_settings = quick_settings_section(
                 vec![
                     wifi_setting_button,
-                    self.bluetooth.as_ref().and_then(|b| {
-                        b.get_quick_setting_button(
-                            self.sub_menu,
-                            config.bluetooth_more_cmd.is_some(),
-                        )
-                    }),
+                    self.bluetooth
+                        .as_ref()
+                        .filter(|b| b.state != BluetoothState::Unavailable)
+                        .and_then(|b| {
+                            b.get_quick_setting_button(
+                                self.sub_menu,
+                                config.bluetooth_more_cmd.is_some(),
+                            )
+                        }),
                     self.network.as_ref().map(|n| {
                         n.get_vpn_quick_setting_button(self.sub_menu, config.vpn_more_cmd.is_some())
                     }),

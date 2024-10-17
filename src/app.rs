@@ -6,7 +6,7 @@ use crate::{
     get_log_spec,
     menu::{self, menu_wrapper, MenuPosition},
     modules::{
-        self, clock::Clock, launcher, privacy::PrivacyMessage, settings::Settings,
+        self, clipboard, clock::Clock, launcher, privacy::PrivacyMessage, settings::Settings,
         system_info::SystemInfo, title::Title, updates::Updates, workspaces::Workspaces,
     },
     services::{privacy::PrivacyService, ReadOnlyService, ServiceEvent},
@@ -46,6 +46,7 @@ pub enum Message {
     ConfigChanged(Box<Config>),
     CloseMenu,
     OpenLauncher,
+    OpenClipboard,
     Updates(modules::updates::Message),
     Workspaces(modules::workspaces::Message),
     Title(modules::title::Message),
@@ -115,7 +116,7 @@ impl MultiApplication for App {
                 info!("New config: {:?}", config);
                 self.config = *config;
                 self.logger
-                    .set_new_spec(get_log_spec(self.config.log_level));
+                    .set_new_spec(get_log_spec(&self.config.log_level));
                 Task::none()
             }
             Message::CloseMenu => {
@@ -137,6 +138,12 @@ impl MultiApplication for App {
             Message::OpenLauncher => {
                 if let Some(app_launcher_cmd) = self.config.app_launcher_cmd.as_ref() {
                     utils::launcher::execute_command(app_launcher_cmd.to_string());
+                }
+                Task::none()
+            }
+            Message::OpenClipboard => {
+                if let Some(clipboard_cmd) = self.config.clipboard_cmd.as_ref() {
+                    utils::launcher::execute_command(clipboard_cmd.to_string());
                 }
                 Task::none()
             }
@@ -172,7 +179,6 @@ impl MultiApplication for App {
                     }
                     ServiceEvent::Error(_) => Task::none(),
                 },
-                PrivacyMessage::ToggleMenu => Task::none(),
             },
             Message::Settings(message) => {
                 self.settings
@@ -185,22 +191,18 @@ impl MultiApplication for App {
 
     fn view(&self, id: Id) -> Element<'_, Self::Message> {
         match self.id_info(id) {
-            Some(WindowInfo::Updates) => {
-                menu_wrapper(
-                    self.updates.menu_view().map(Message::Updates),
-                    MenuPosition::Left,
-                    self.config.position,
-                )
-            }
-            Some(WindowInfo::Settings) => {
-                menu_wrapper(
-                    self.settings
-                        .menu_view(&self.config.settings)
-                        .map(Message::Settings),
-                    MenuPosition::Right,
-                    self.config.position,
-                )
-            }
+            Some(WindowInfo::Updates) => menu_wrapper(
+                self.updates.menu_view().map(Message::Updates),
+                MenuPosition::Left,
+                self.config.position,
+            ),
+            Some(WindowInfo::Settings) => menu_wrapper(
+                self.settings
+                    .menu_view(&self.config.settings)
+                    .map(Message::Settings),
+                MenuPosition::Right,
+                self.config.position,
+            ),
             None => {
                 let left = Row::new()
                     .push_maybe(
@@ -211,13 +213,22 @@ impl MultiApplication for App {
                     )
                     .push_maybe(
                         self.config
+                            .clipboard_cmd
+                            .as_ref()
+                            .map(|_| clipboard::clipboard()),
+                    )
+                    .push_maybe(
+                        self.config
                             .updates
                             .as_ref()
                             .map(|_| self.updates.view().map(Message::Updates)),
                     )
                     .push(
                         self.workspaces
-                            .view(&self.config.appearance.workspace_colors)
+                            .view(
+                                &self.config.appearance.workspace_colors,
+                                self.config.appearance.special_workspace_colors.as_deref(),
+                            )
                             .map(Message::Workspaces),
                     )
                     .height(Length::Shrink)

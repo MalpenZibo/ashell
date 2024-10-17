@@ -29,6 +29,13 @@ paru/yay -S ashell
 paru/yay -S ashell-git 
 ```
 
+### ALT Linux
+
+```
+su -
+apt-get install ashell
+```
+
 ### Nix
 
 To install ashell using the nix package be sure to enable flakes and then run
@@ -76,6 +83,7 @@ but I'm quite sure that if you use NixOS you are smart enough to add ashell to y
 - Hyprland Workspaces
 - System Information (CPU, RAM, Temperature)
 - Date time
+- Privacy (check microphone, camera and screenshare usage)
 - Settings panel
     - Power menu
     - Battery information
@@ -99,6 +107,9 @@ position: Top # optional, default Top
 # App lancher commanda, it will be used to open the launcher,
 # without a value the related button will not appear
 appLauncherCmd: "~/.config/rofi/launcher.sh" # optional, default None 
+# Clipboard command, it will be used to open the clipboard menu,
+# without a value the related button will not appear
+clipboardCmd: "cliphist-rofi-img | wl-copy"  # optional, default None 
 # Update module configuration. 
 # Without a value the related button will not appear.
 updates: # optional, default None 
@@ -164,10 +175,17 @@ appearance:
     workspaceColors: 
       - "#fab387" 
       - "#b4befe"
+    # this is a list of color that will be used in the workspace module 
+    # for the special workspace (one color for each monitor)
+    # optional, default None
+    # without a value the workspaceColors list will be used
+    specialWorkspaceColors:
+      - "#a6e3a1" 
+      - "#f38ba8"
 ```
 
 ### So, what's the purpose of this project?
-While, I could have used [waybar](https://github.com/Alexays/Waybar) that's for sure is a 
+I could have used [waybar](https://github.com/Alexays/Waybar) that's for sure is a 
 a great project but I wanted something more sophisticated 
 with submenus and other stuff.
 
@@ -179,8 +197,8 @@ So, I <del>copy-pasted from iced pop-os fork</del> created a layer to interact
 with wayland layer shell protocol from iced [Iced SCTK](https://github.com/MalpenZibo/iced_sctk) 
 and I started to create this project.
 
-So feel free to fork this project and customize it for your needs 
-or you could try to compile and use it.
+Feel free to fork this project and customize it for your needs or just open an
+issue to request a particular feature.
 
 ## Some screenshots
 

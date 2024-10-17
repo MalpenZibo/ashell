@@ -1,14 +1,14 @@
 use super::{Service, ServiceEvent};
 use crate::services::{bluetooth::BluetoothService, ReadOnlyService};
 use dbus::{
-    AccessPointProxy, ActiveConnectionState, ConnectivityState, DeviceProxy, DeviceState,
-    NetworkDbus, NetworkSettingsDbus, WirelessDeviceProxy,
+    AccessPointProxy, ConnectivityState, DeviceProxy, DeviceState, NetworkDbus,
+    NetworkSettingsDbus, WirelessDeviceProxy,
 };
 use iced::{
     futures::{
         channel::mpsc::Sender,
         stream::{pending, select_all},
-        stream_select, SinkExt, Stream, StreamExt,
+        SinkExt, Stream, StreamExt,
     },
     stream::channel,
     Subscription, Task,
@@ -16,22 +16,23 @@ use iced::{
 use log::{debug, error, info, warn};
 use std::{any::TypeId, collections::HashMap, ops::Deref};
 use tokio::process::Command;
-use zbus::zvariant::ObjectPath;
+use zbus::zvariant::{ObjectPath, OwnedObjectPath};
 
-mod dbus;
+pub mod dbus;
 
 #[derive(Debug, Clone)]
 pub enum NetworkEvent {
     WiFiEnabled(bool),
     AirplaneMode(bool),
     Connectivity(ConnectivityState),
-    Device {
+    WirelessDevice {
         wifi_present: bool,
         wireless_access_points: Vec<AccessPoint>,
     },
     ActiveConnections(Vec<ActiveConnectionInfo>),
     KnownConnections(Vec<KnownConnection>),
-    Strenght((usize, u8)),
+    WirelessAccessPoint(Vec<AccessPoint>),
+    Strength((String, u8)),
     RequestPasswordForSSID(String),
     ScanningNearbyWifi,
 }
@@ -42,9 +43,10 @@ pub enum NetworkCommand {
     ToggleWiFi,
     ToggleAirplaneMode,
     SelectAccessPoint((AccessPoint, Option<String>)),
+    ToggleVpn(Vpn),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct AccessPoint {
     pub ssid: String,
     pub strength: u8,
@@ -56,9 +58,15 @@ pub struct AccessPoint {
 }
 
 #[derive(Debug, Clone)]
+pub struct Vpn {
+    pub name: String,
+    pub path: OwnedObjectPath,
+}
+
+#[derive(Debug, Clone)]
 pub enum KnownConnection {
     AccessPoint(AccessPoint),
-    Vpn(String),
+    Vpn(Vpn),
 }
 
 #[derive(Debug, Clone)]
@@ -68,12 +76,13 @@ pub enum ActiveConnectionInfo {
         speed: u32,
     },
     WiFi {
+        id: String,
         name: String,
-        state: ActiveConnectionState,
         strength: u8,
     },
     Vpn {
         name: String,
+        object_path: OwnedObjectPath,
     },
 }
 
@@ -135,7 +144,7 @@ impl ReadOnlyService for NetworkService {
             NetworkEvent::ScanningNearbyWifi => {
                 self.data.scanning_nearby_wifi = true;
             }
-            NetworkEvent::Device {
+            NetworkEvent::WirelessDevice {
                 wifi_present,
                 wireless_access_points,
             } => {
@@ -149,9 +158,14 @@ impl ReadOnlyService for NetworkService {
             NetworkEvent::KnownConnections(known_connections) => {
                 self.data.known_connections = known_connections;
             }
-            NetworkEvent::Strenght((index, new_strenght)) => {
-                if let Some(ap) = self.data.wireless_access_points.get_mut(index) {
-                    ap.strength = new_strenght;
+            NetworkEvent::Strength((ssid, new_strength)) => {
+                if let Some(ap) = self
+                    .data
+                    .wireless_access_points
+                    .iter_mut()
+                    .find(|ap| ap.ssid == ssid)
+                {
+                    ap.strength = new_strength;
 
                     if let Some(ActiveConnectionInfo::WiFi { strength, .. }) = self
                         .data
@@ -159,11 +173,17 @@ impl ReadOnlyService for NetworkService {
                         .iter_mut()
                         .find(|ac| ac.name() == ap.ssid)
                     {
-                        *strength = new_strenght;
+                        *strength = new_strength;
                     }
                 }
             }
-            _ => {}
+            NetworkEvent::Connectivity(connectivity) => {
+                self.data.connectivity = connectivity;
+            }
+            NetworkEvent::WirelessAccessPoint(wireless_access_points) => {
+                self.data.wireless_access_points = wireless_access_points;
+            }
+            NetworkEvent::RequestPasswordForSSID(_) => {}
         }
     }
 
@@ -188,7 +208,9 @@ impl NetworkService {
         let nm = NetworkDbus::new(conn).await?;
 
         // airplane mode
-        let bluetooth_soft_blocked = BluetoothService::check_rfkill_soft_block().await?;
+        let bluetooth_soft_blocked = BluetoothService::check_rfkill_soft_block()
+            .await
+            .unwrap_or_default();
 
         let wifi_present = nm.wifi_device_present().await?;
 
@@ -198,7 +220,7 @@ impl NetworkService {
         let airplane_mode = bluetooth_soft_blocked && !wifi_enabled;
         debug!("Airplane mode: {}", airplane_mode);
 
-        let active_connections = nm.active_connections().await?;
+        let active_connections = nm.active_connections_info().await?;
         debug!("Active connections: {:?}", active_connections);
 
         let wireless_access_points = nm.wireless_access_points().await?;
@@ -257,50 +279,26 @@ impl NetworkService {
                 match NetworkService::events(&conn).await {
                     Ok(mut events) => {
                         while let Some(event) = events.next().await {
-                            match event {
-                                NetworkEvent::WiFiEnabled(wifi_enabled) => {
-                                    debug!("WiFi enabled: {}", wifi_enabled);
-                                    let _ = output
-                                        .send(ServiceEvent::Update(NetworkEvent::WiFiEnabled(
-                                            wifi_enabled,
-                                        )))
-                                        .await;
-                                }
-                                NetworkEvent::ActiveConnections(active_connections) => {
-                                    debug!("Active connections: {:?}", active_connections);
-                                    let _ = output
-                                        .send(ServiceEvent::Update(
-                                            NetworkEvent::ActiveConnections(active_connections),
-                                        ))
-                                        .await;
-                                }
-                                NetworkEvent::Device {
-                                    wifi_present,
-                                    wireless_access_points,
-                                } => {
-                                    debug!("Wireless access points: {:?}", wireless_access_points);
-                                    let _ = output
-                                        .send(ServiceEvent::Update(NetworkEvent::Device {
-                                            wifi_present,
-                                            wireless_access_points,
-                                        }))
-                                        .await;
-                                }
-                                NetworkEvent::KnownConnections(known_connections) => {
-                                    debug!("Known connections: {:?}", known_connections);
-                                    let _ = output
-                                        .send(ServiceEvent::Update(NetworkEvent::KnownConnections(
-                                            known_connections,
-                                        )))
-                                        .await;
-                                }
-                                _ => {}
+                            let mut exit_loop = false;
+                            if let NetworkEvent::WirelessDevice { .. } = event {
+                                exit_loop = true;
+                            }
+                            let _ = output.send(ServiceEvent::Update(event)).await;
+
+                            if exit_loop {
+                                break;
                             }
                         }
 
+                        debug!("Network service exit events stream");
+
                         State::Active(conn)
                     }
-                    Err(_) => State::Error,
+                    Err(err) => {
+                        error!("Failed to listen for network events: {}", err);
+
+                        State::Error
+                    }
                 }
             }
             State::Error => {
@@ -317,30 +315,83 @@ impl NetworkService {
         let nm = NetworkDbus::new(conn).await?;
         let settings = NetworkSettingsDbus::new(conn).await?;
 
-        enum ReceiveEvent {
-            WiFiEnabled,
-            ActiveConnections,
-            Device,
-            Strength((usize, u8)),
-            KnownConnections,
-            PasswordRequested(AccessPoint),
-        }
+        let wireless_enabled = nm
+            .receive_wireless_enabled_changed()
+            .await
+            .then(|v| async move {
+                let value = v.get().await.unwrap_or_default();
 
-        let wireless_enabled = nm.receive_wireless_enabled_changed().await.map(|_| {
-            debug!("WiFi enabled changed");
-            ReceiveEvent::WiFiEnabled
-        });
+                debug!("WiFi enabled changed: {}", value);
+                NetworkEvent::WiFiEnabled(value)
+            })
+            .boxed();
 
-        let active_connections = nm.receive_active_connections_changed().await.map(|_| {
-            debug!("Active connections changed");
-            ReceiveEvent::ActiveConnections
-        });
+        let connectivity_changed = nm
+            .receive_connectivity_changed()
+            .await
+            .then(|val| async move {
+                let value = val.get().await.unwrap_or_default().into();
 
-        let devices = nm.receive_devices_changed().await.map(|_| {
-            debug!("Wireless access points changed");
-            ReceiveEvent::Device
-        });
+                debug!("Connectivity changed: {:?}", value);
+                NetworkEvent::Connectivity(value)
+            })
+            .boxed();
 
+        let active_connections_changes = nm
+            .receive_active_connections_changed()
+            .await
+            .then({
+                let conn = conn.clone();
+                move |_| {
+                    let conn = conn.clone();
+                    async move {
+                        let nm = NetworkDbus::new(&conn).await.unwrap();
+                        let value = nm.active_connections_info().await.unwrap_or_default();
+
+                        debug!("Active connections changed: {:?}", value);
+                        NetworkEvent::ActiveConnections(value)
+                    }
+                }
+            })
+            .boxed();
+
+        let devices = nm.wireless_devices().await.unwrap_or_default();
+
+        let wireless_devices_changed = nm
+            .receive_devices_changed()
+            .await
+            .filter_map({
+                let conn = conn.clone();
+                let devices = devices.clone();
+                move |_| {
+                    let conn = conn.clone();
+                    let devices = devices.clone();
+                    async move {
+                        let nm = NetworkDbus::new(&conn).await.unwrap();
+
+                        let current_devices = nm.wireless_devices().await.unwrap_or_default();
+                        if current_devices != devices {
+                            let wifi_present = nm.wifi_device_present().await.unwrap_or_default();
+                            let wireless_access_points =
+                                nm.wireless_access_points().await.unwrap_or_default();
+
+                            debug!(
+                                "Wireless device changed: wifi present {:?}, wireless_access_points {:?}",
+                                wifi_present, wireless_access_points,
+                            );
+                            Some(NetworkEvent::WirelessDevice {
+                                wifi_present,
+                                wireless_access_points,
+                            })
+                        } else {
+                            None
+                        }
+                    }
+                }
+            })
+            .boxed();
+
+        // When devices list change I need to update the wireless device state changes
         let wireless_ac = nm.wireless_access_points().await?;
 
         warn!("Wireless access points: {:?}", wireless_ac);
@@ -370,12 +421,15 @@ impl NetworkService {
                         }
                     })
                     .map(|_| {
-                        debug!("Device state changed");
-                        ReceiveEvent::PasswordRequested(ac.clone())
+                        let ssid = ac.ssid.clone();
+
+                        debug!("Request password for ssid {}", ssid);
+                        NetworkEvent::RequestPasswordForSSID(ssid)
                     }),
             );
         }
 
+        // When devices list change I need to update the access points changes
         let mut ac_changes = Vec::with_capacity(wireless_ac.len());
         for ac in wireless_ac.iter() {
             let dp = WirelessDeviceProxy::builder(conn)
@@ -383,108 +437,93 @@ impl NetworkService {
                 .build()
                 .await?;
 
-            ac_changes.push(dp.receive_access_points_changed().await);
+            ac_changes.push(
+                dp.receive_access_points_changed()
+                    .await
+                    .then({
+                        let conn = conn.clone();
+                        move |_| {
+                            let conn = conn.clone();
+                            async move {
+                                let nm = NetworkDbus::new(&conn).await.unwrap();
+                                let wireless_access_point =
+                                    nm.wireless_access_points().await.unwrap_or_default();
+                                debug!("access_points_changed {:?}", wireless_access_point);
+
+                                NetworkEvent::WirelessAccessPoint(wireless_access_point)
+                            }
+                        }
+                    })
+                    .boxed(),
+            );
         }
 
-        let wireless_access_points = nm.wireless_access_points().await?;
-        let mut strength_changes = Vec::with_capacity(wireless_access_points.len());
-        for (index, ap) in wireless_access_points.iter().enumerate() {
+        // When devices list change I need to update the wireless strength changes
+        let mut strength_changes = Vec::with_capacity(wireless_ac.len());
+        for ap in wireless_ac {
+            let ssid = ap.ssid.clone();
             let app = AccessPointProxy::builder(conn)
                 .path(ap.path.clone())?
                 .build()
                 .await?;
 
-            let current_strength = ap.strength;
-
             strength_changes.push(
                 app.receive_strength_changed()
                     .await
-                    .filter_map(move |val| async move {
-                        let value = val.get().await.unwrap_or_default();
-                        if value.abs_diff(current_strength) > 10 {
-                            Some(value)
-                        } else {
-                            None
+                    .then(move |val| {
+                        let ssid = ssid.clone();
+                        async move {
+                            let value = val.get().await.unwrap_or_default();
+                            debug!("Strength changed value: {}, {}", &ssid, value);
+                            NetworkEvent::Strength((ssid.clone(), value))
                         }
-                    })
-                    .map(move |v| {
-                        debug!("Strength changed value: {}", v);
-                        ReceiveEvent::Strength((index, v))
                     })
                     .boxed(),
             );
         }
-        let strength_changes = select_all(strength_changes);
+        let strength_changes = select_all(strength_changes).boxed();
 
-        let access_points = select_all(ac_changes).map(|_| {
-            debug!("Wireless access points changed");
-            ReceiveEvent::Device
-        });
+        let access_points = select_all(ac_changes).boxed();
 
-        let known_connections = settings.receive_connections_changed().await.map(|_| {
-            debug!("Known connections changed");
-            ReceiveEvent::KnownConnections
-        });
-
-        let events = stream_select!(
-            wireless_enabled,
-            active_connections,
-            devices,
-            access_points,
-            strength_changes,
-            known_connections
-        )
-        .then({
-            let conn = conn.clone();
-
-            move |event| {
+        let known_connections = settings
+            .receive_connections_changed()
+            .await
+            .then({
                 let conn = conn.clone();
+                move |_| {
+                    let conn = conn.clone();
+                    async move {
+                        let nm = NetworkDbus::new(&conn).await.unwrap();
+                        let wireless_access_points =
+                            nm.wireless_access_points().await.unwrap_or_default();
 
-                async move {
-                    let nm = NetworkDbus::new(&conn).await.unwrap();
+                        let known_connections = nm
+                            .known_connections(&wireless_access_points)
+                            .await
+                            .unwrap_or_default();
 
-                    match event {
-                        ReceiveEvent::WiFiEnabled => NetworkEvent::WiFiEnabled(
-                            nm.wireless_enabled().await.unwrap_or_default(),
-                        ),
-                        ReceiveEvent::ActiveConnections => NetworkEvent::ActiveConnections(
-                            nm.active_connections().await.unwrap_or_default(),
-                        ),
-                        ReceiveEvent::Device => NetworkEvent::Device {
-                            wifi_present: nm.wifi_device_present().await.unwrap_or_default(),
-                            wireless_access_points: nm
-                                .wireless_access_points()
-                                .await
-                                .unwrap_or_default(),
-                        },
-                        ReceiveEvent::Strength((index, strength)) => {
-                            NetworkEvent::Strenght((index, strength))
-                        }
-                        ReceiveEvent::KnownConnections => {
-                            let wireless_access_points =
-                                nm.wireless_access_points().await.unwrap_or_default();
-
-                            let known_connections = nm
-                                .known_connections(&wireless_access_points)
-                                .await
-                                .unwrap_or_default();
-
-                            NetworkEvent::KnownConnections(known_connections)
-                        }
-                        ReceiveEvent::PasswordRequested(ac) => {
-                            NetworkEvent::RequestPasswordForSSID(ac.ssid)
-                        }
+                        debug!("Known connections changed");
+                        NetworkEvent::KnownConnections(known_connections)
                     }
                 }
-            }
-        })
-        .boxed();
+            })
+            .boxed();
+
+        let events = select_all(vec![
+            wireless_enabled,
+            wireless_devices_changed,
+            connectivity_changed,
+            active_connections_changes,
+            access_points,
+            strength_changes,
+            known_connections,
+        ]);
 
         Ok(events)
     }
 
     async fn set_airplane_mode(conn: &zbus::Connection, airplane_mode: bool) -> anyhow::Result<()> {
-        Command::new("rfkill")
+        Command::new("/usr/sbin/rfkill")
             .arg(if airplane_mode { "block" } else { "unblock" })
             .arg("bluetooth")
             .output()
@@ -526,6 +565,31 @@ impl NetworkService {
     ) -> anyhow::Result<Vec<KnownConnection>> {
         let nm = NetworkDbus::new(conn).await?;
         nm.select_access_point(access_point, password).await?;
+
+        let wireless_ac = nm.wireless_access_points().await?;
+        let known_connections = nm.known_connections(&wireless_ac).await?;
+        Ok(known_connections)
+    }
+
+    async fn set_vpn(
+        conn: &zbus::Connection,
+        connection: OwnedObjectPath,
+        state: bool,
+    ) -> anyhow::Result<Vec<KnownConnection>> {
+        let nm = NetworkDbus::new(conn).await?;
+
+        if state {
+            debug!("Activating VPN: {:?}", connection);
+            nm.activate_connection(
+                connection,
+                OwnedObjectPath::try_from("/").unwrap(),
+                OwnedObjectPath::try_from("/").unwrap(),
+            )
+            .await?;
+        } else {
+            debug!("Deactivating VPN: {:?}", connection);
+            nm.deactivate_connection(connection).await?;
+        }
 
         let wireless_ac = nm.wireless_access_points().await?;
         let known_connections = nm.known_connections(&wireless_ac).await?;
@@ -600,8 +664,35 @@ impl Service for NetworkService {
 
                         res.unwrap_or_default()
                     },
-                    |know_connections| {
-                        ServiceEvent::Update(NetworkEvent::KnownConnections(know_connections))
+                    |known_connections| {
+                        ServiceEvent::Update(NetworkEvent::KnownConnections(known_connections))
+                    },
+                )
+            }
+            NetworkCommand::ToggleVpn(vpn) => {
+                let conn = self.conn.clone();
+                let mut active_vpn = self.active_connections.iter().find_map(|kc| match kc {
+                    ActiveConnectionInfo::Vpn { name, object_path } if name == &vpn.name => {
+                        Some(object_path.clone())
+                    }
+                    _ => None,
+                });
+
+                Task::perform(
+                    async move {
+                        let (object_path, new_state) = if let Some(active_vpn) = active_vpn.take() {
+                            (active_vpn, false)
+                        } else {
+                            (vpn.path, true)
+                        };
+                        let res = NetworkService::set_vpn(&conn, object_path, new_state).await;
+
+                        debug!("VPN toggled: {:?}", res);
+
+                        res.unwrap_or_default()
+                    },
+                    |known_connections| {
+                        ServiceEvent::Update(NetworkEvent::KnownConnections(known_connections))
                     },
                 )
             }

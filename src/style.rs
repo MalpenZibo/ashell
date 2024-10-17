@@ -1,13 +1,13 @@
-use crate::config::Appearance;
+use crate::config::{Appearance, AppearanceColor};
 use iced::{
     border::Radius,
     theme::{palette, Palette},
     widget::{
         button::{self, Status},
-        container, slider,
+        container,
         text_input::{self},
     },
-    Border, Color, Theme,
+    Background, Border, Color, Theme,
 };
 
 pub fn ashell_theme(appearance: &Appearance) -> Theme {
@@ -144,7 +144,6 @@ pub fn left_header_pills(theme: &Theme) -> container::Style {
 
 pub enum HeaderButtonStyle {
     Full,
-    None,
     Right,
 }
 
@@ -158,7 +157,6 @@ impl HeaderButtonStyle {
                     radius: match self {
                         HeaderButtonStyle::Full => 12.0.into(),
                         HeaderButtonStyle::Right => Radius::default().right(12),
-                        HeaderButtonStyle::None => 0.0.into(),
                     },
                     color: Color::TRANSPARENT,
                 },
@@ -285,31 +283,90 @@ impl SettingsButtonStyle {
     }
 }
 
-pub struct SliderStyle;
+pub struct WorkspaceButtonStyle(pub bool, pub Option<Option<AppearanceColor>>);
 
-impl SliderStyle {
-    pub fn into_style<'a>(self) -> slider::StyleFn<'a, Theme> {
-        Box::new(move |theme, _| {
-            let palette = theme.extended_palette();
-            slider::Style {
-                rail: slider::Rail {
-                    backgrounds: (
-                        palette.primary.base.color.into(),
-                        palette.secondary.base.color.into(),
-                    ),
-                    width: 8.0,
-                    border: Border {
-                        color: Color::TRANSPARENT,
-                        width: 2.0,
-                        radius: 32.0.into(),
-                    },
+impl WorkspaceButtonStyle {
+    pub fn into_style<'a>(self) -> button::StyleFn<'a, Theme> {
+        Box::new(move |theme, status| {
+            let (bg_color, fg_color) = self
+                .1
+                .map(|c| {
+                    c.map_or(
+                        (
+                            theme.extended_palette().primary.base.color,
+                            theme.extended_palette().primary.base.text,
+                        ),
+                        |c| {
+                            let color = palette::Primary::generate(
+                                c.get_base(),
+                                theme.palette().background,
+                                c.get_text().unwrap_or(theme.palette().text),
+                            );
+                            (color.base.color, color.base.text)
+                        },
+                    )
+                })
+                .unwrap_or((
+                    theme.extended_palette().background.weak.color,
+                    theme.palette().text,
+                ));
+            let mut base = button::Style {
+                background: Some(Background::Color(if self.0 {
+                    theme.extended_palette().background.weak.color
+                } else {
+                    bg_color
+                })),
+                border: Border {
+                    width: if self.0 { 1.0 } else { 0.0 },
+                    color: bg_color,
+                    radius: 16.0.into(),
                 },
-                handle: slider::Handle {
-                    shape: iced::widget::slider::HandleShape::Circle { radius: 8. },
-                    background: palette.primary.base.color.into(),
-                    border_color: palette.primary.base.color,
-                    border_width: 0.0,
+                text_color: if self.0 {
+                    theme.extended_palette().background.weak.text
+                } else {
+                    fg_color
                 },
+                ..button::Style::default()
+            };
+            match status {
+                Status::Active => base,
+                Status::Hovered => {
+                    let (bg_color, fg_color) = self
+                        .1
+                        .map(|c| {
+                            c.map_or(
+                                (
+                                    theme.extended_palette().primary.strong.color,
+                                    theme.extended_palette().primary.strong.text,
+                                ),
+                                |c| {
+                                    let color = palette::Primary::generate(
+                                        c.get_base(),
+                                        theme.palette().background,
+                                        c.get_text().unwrap_or(theme.palette().text),
+                                    );
+                                    (color.strong.color, color.strong.text)
+                                },
+                            )
+                        })
+                        .unwrap_or((
+                            theme.extended_palette().background.strong.color,
+                            theme.palette().text,
+                        ));
+
+                    base.background = Some(Background::Color(if self.0 {
+                        theme.extended_palette().background.strong.color
+                    } else {
+                        bg_color
+                    }));
+                    base.text_color = if self.0 {
+                        theme.extended_palette().background.weak.text
+                    } else {
+                        fg_color
+                    };
+                    base
+                }
+                _ => base,
             }
         })
     }

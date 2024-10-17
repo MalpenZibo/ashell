@@ -31,7 +31,10 @@ pub fn close_menu<Message: 'static>(id: Id) -> Task<Message> {
     task::effect(Action::Window(iced_runtime::window::Action::Close(id)))
 }
 
-pub fn toggle(current: Option<(&Id, &mut WindowInfo)>, menu_type: WindowInfo) -> Task<app::Message> {
+pub fn toggle(
+    current: Option<(&Id, &mut WindowInfo)>,
+    menu_type: WindowInfo,
+) -> Task<app::Message> {
     match current {
         None => open_menu(menu_type),
         Some((id, current)) if *current == menu_type => close_menu(*id),

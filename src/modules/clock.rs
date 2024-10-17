@@ -39,6 +39,6 @@ impl Clock {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        every(Duration::from_secs(20)).map(|_| Message::Update)
+        every(Duration::from_secs(5)).map(|_| Message::Update)
     }
 }

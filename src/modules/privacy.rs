@@ -1,73 +1,43 @@
 use crate::{
-    components::icons::icon,
+    components::icons::{icon, Icons},
     services::{
-        privacy::{Media, PrivacyData, PrivacyService},
+        privacy::{PrivacyData, PrivacyService},
         ServiceEvent,
     },
-    style::HeaderButtonStyle,
 };
 use iced::{
-    widget::{button, container, row, text, Column, Row},
+    alignment::Vertical,
+    widget::{container, Row},
     Element, Theme,
 };
 
 #[derive(Debug, Clone)]
 pub enum PrivacyMessage {
     Event(ServiceEvent<PrivacyService>),
-    ToggleMenu,
 }
 
 impl PrivacyData {
     pub fn view(&self) -> Option<Element<PrivacyMessage>> {
-        if !self.is_empty() {
+        if !self.no_access() {
             Some(
-                button(
-                    container(
-                        Row::new()
-                            .push_maybe(self.iter().find_map(|app| {
-                                if app.media == Media::Video {
-                                    Some(icon(app.media.to_icon()))
-                                } else {
-                                    None
-                                }
-                            }))
-                            .push_maybe(self.iter().find_map(|app| {
-                                if app.media == Media::Audio {
-                                    Some(icon(app.media.to_icon()))
-                                } else {
-                                    None
-                                }
-                            }))
-                            .spacing(8),
-                    )
-                    .style(|theme: &Theme| container::Style {
-                        text_color: Some(theme.extended_palette().danger.weak.color),
-                        ..Default::default()
-                    }),
+                container(
+                    Row::new()
+                        .push_maybe(self.screenshare_access().then(|| icon(Icons::ScreenShare)))
+                        .push_maybe(self.webcam_access().then(|| icon(Icons::Webcam)))
+                        .push_maybe(self.microphone_access().then(|| icon(Icons::Mic1)))
+                        .align_y(Vertical::Center)
+                        .spacing(8),
                 )
-                .style(HeaderButtonStyle::None.into_style())
                 .padding([2, 8])
-                .on_press(PrivacyMessage::ToggleMenu)
+                .style(|theme: &Theme| container::Style {
+                    background: Some(theme.palette().background.into()),
+                    text_color: Some(theme.extended_palette().danger.weak.color),
+                    ..Default::default()
+                })
                 .into(),
             )
         } else {
             None
         }
-    }
-
-    pub fn menu_view(&self) -> Element<PrivacyMessage> {
-        Column::with_children(
-            self.iter()
-                .map(|app| {
-                    row![icon(app.media.to_icon()), text(app.application.clone()),]
-                        .spacing(8)
-                        .into()
-                })
-                .collect::<Vec<_>>(),
-        )
-        .spacing(4)
-        .padding(16)
-        .width(250)
-        .into()
     }
 }

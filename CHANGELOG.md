@@ -5,9 +5,95 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.2.0] - 2024-11-08
+
+### Added
+
+- Support for special workspaces
+
+### Fixed
+
+- Ashell crash when the title module try to split a multi-byte character 
+- Removed fixed monitor name in the workspace module
+- Fix privacy webcam usage check during initialization
+- Fix microphone selection
+- Fix sink and source slider toggle button state
+- Fix brightness initial value
+
+### Thanks
+
+- @fiersik for all the feedback
+- @leftas for the PRs to fix the special workspace crash and the title module
+
+## [0.1.5] - 2024-11-04
+
+### Added
+
+- Added a clipboard button
+
+### Fixed
+
+- Fix workspace indicator foreground color selection
+
+### Changed
+
+- Nerd fonts are now included in the binary
+- Workspace indicator now has an hover state
+
+### Thanks
+
+- @fiersik for the clipboard button and the ALT Linux package
+
+## [0.1.4] - 2024-10-23
+
+### Fixed
+
+- bluetooth quick toggle button no longer appear when no bluetooth device is available
+- rfkill absence doesn't cause an error during network service initialization
+- rfkill is launched using absolute path to avoid issues with $PATH
+- webcam absence doesn't cause an error during privacy service initialization
+
+### Changed
+
+- added more logging to the services in case of errors
+
+## [0.1.3] - 2024-10-22
+
+### Fixed
+
+- resolved problem with `cargo vendor` command
+
+## [0.1.2] - 2024-10-17
+
+### Added
+
+- Privacy module: webcam usage indicator
+
+### Changed
+
+- Reduced clock refresh rate to 5 sec
+- Increased update check frequency to 3600 sec
+
+### Removed
+
+- Privacy module: removed privacy sub-menu
+
+### Fixed
+
+- Improve wifi indicator
+
+## [0.1.1] - 2024-10-03
+
+### Fixed
+
+- re-added vpn toggle functionality that was removed during the services refactor
+
 ## [0.1.0] - 2024-09-30
 
 ### Added
+
 - First release
 - Configuration system
 - Lancher button
@@ -17,13 +103,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - System Information (CPU, RAM, Temperature)
 - Date time
 - Settings panel
-    - Power menu
-    - Battery information
-    - Audio sources and sinks
-    - Screen brightness
-    - Network stuff
-    - VPN
-    - Bluetooth
-    - Power profiles
-    - Idle inhibitor
-    - Airplane mode
+  - Power menu
+  - Battery information
+  - Audio sources and sinks
+  - Screen brightness
+  - Network stuff
+  - VPN
+  - Bluetooth
+  - Power profiles
+  - Idle inhibitor
+  - Airplane mode

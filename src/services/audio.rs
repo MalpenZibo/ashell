@@ -13,13 +13,13 @@ use libpulse_binding::{
         subscribe::InterestMaskSet,
         Context, FlagSet,
     },
-    def::{DevicePortType, PortAvailable, SourceState},
+    def::{DevicePortType, PortAvailable, SinkState, SourceState},
     mainloop::standard::{IterateResult, Mainloop},
     operation::{self, Operation},
     proplist::{properties::APPLICATION_NAME, Proplist},
     volume::ChannelVolumes,
 };
-use log::error;
+use log::{debug, error, trace};
 use std::{
     any::TypeId,
     cell::RefCell,
@@ -35,6 +35,7 @@ pub struct Device {
     pub description: String,
     pub volume: ChannelVolumes,
     pub is_mute: bool,
+    pub in_use: bool,
     pub ports: Vec<Port>,
 }
 
@@ -179,7 +180,10 @@ impl AudioService {
                         .await;
                     State::Active(handle)
                 }
-                Err(_) => State::Error,
+                Err(err) => {
+                    error!("Failed to initialize audio service: {}", err);
+                    State::Error
+                }
             },
             State::Active(mut handle) => match handle.receiver.recv().await {
                 Some(PulseAudioServerEvent::Error) => {
@@ -210,7 +214,7 @@ impl AudioService {
                 None => State::Active(handle),
             },
             State::Error => {
-                error!("Brightness service error");
+                error!("Audio service error");
 
                 let _ = pending::<u8>().next().await;
                 State::Error
@@ -724,10 +728,12 @@ impl PulseAudioServer {
                     .iter()
                     .any(|port| port.available != PortAvailable::No)
                 {
+                    debug!("Adding sink data: {:?}", data);
                     sinks.push(data.into());
                 }
             }
             ListResult::End => {
+                debug!("New sink list {:?}", sinks);
                 let _ = tx.send(PulseAudioServerEvent::Sinks(sinks.clone()));
                 sinks.clear();
             }
@@ -742,14 +748,20 @@ impl PulseAudioServer {
     ) {
         match info {
             ListResult::Item(data) => {
-                if data.state == SourceState::Running
-                    && data.ports.iter().any(|p| p.available != PortAvailable::No)
-                    && data.monitor_of_sink.is_none()
+                trace!("Receved source data: {:?}", data);
+
+                if data
+                    .name
+                    .as_ref()
+                    .map(|name| !name.contains("monitor"))
+                    .unwrap_or_default()
                 {
+                    debug!("Adding source data: {:?}", data);
                     sources.push(data.into());
                 }
             }
             ListResult::End => {
+                debug!("New sources list {:?}", sources);
                 let _ = tx.send(PulseAudioServerEvent::Sources(sources.clone()));
                 sources.clear();
             }
@@ -830,6 +842,7 @@ impl From<&SinkInfo<'_>> for Device {
                 .map_or(String::default(), |d| d.to_string()),
             volume: value.volume,
             is_mute: value.mute,
+            in_use: value.state == SinkState::Running,
             ports: value
                 .ports
                 .iter()
@@ -873,6 +886,7 @@ impl From<&SourceInfo<'_>> for Device {
                 .map_or(String::default(), |d| d.to_string()),
             volume: value.volume,
             is_mute: value.mute,
+            in_use: value.state == SourceState::Running,
             ports: value
                 .ports
                 .iter()

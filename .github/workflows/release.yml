@@ -37,7 +37,7 @@ jobs:
           crate: cargo-release
 
       - name: Release
-        run: cargo release ${PUBLISH_LEVEL} --execute --no-tag --no-confirm --no-publish --no-push 
+        run: cargo release ${PUBLISH_LEVEL} --execute --no-tag --no-confirm --no-publish --no-push
         env:
           PUBLISH_LEVEL: ${{ github.event.inputs.level }}
 
@@ -49,7 +49,7 @@ jobs:
       - name: Update Changelog
         run: |
           date=$(date '+%Y-%m-%d')
-          sed -i "s/\[Unreleased\]/\[${{ steps.gettag.outputs.TAG_NAME }}\] - $(date '+%Y-%m-%d')/" ./CHANGELOG.md
+          sed -i "s/\[Unreleased\]/&\n\n## [${{ steps.gettag.outputs.TAG_NAME }}] - $(date '+%Y-%m-%d')/g" ./CHANGELOG.md
           git add CHANGELOG.md
           git commit -m "update CHANGELOG.md"
 

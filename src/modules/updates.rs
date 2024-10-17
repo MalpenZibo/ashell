@@ -4,11 +4,9 @@ use crate::{
     config::UpdatesModuleConfig,
     menu::{self},
     style::{GhostButtonStyle, HeaderButtonStyle},
-    // style::{GhostButtonStyle, HeaderButtonStyle},
 };
 use iced::{
     alignment::Horizontal,
-    futures::Stream,
     stream::channel,
     widget::{button, column, container, horizontal_rule, row, scrollable, text, Column},
     window::Id,
@@ -274,10 +272,9 @@ impl Updates {
 
                     let _ = output.try_send(Message::UpdatesCheckCompleted(updates));
 
-                    sleep(Duration::from_secs(10)).await;
+                    sleep(Duration::from_secs(3600)).await;
                 }
             }),
         )
     }
 }
-

@@ -22,7 +22,7 @@
             inherit system overlays;
           };
 
-          naersk' = pkgs.callPackage naersk {};
+          naersk' = pkgs.callPackage naersk { };
 
           manifest = (pkgs.lib.importTOML ./Cargo.toml).package;
 
@@ -49,7 +49,7 @@
         with pkgs;
         {
           # `nix build` and `nix run`
-          defaultPackage =  naersk'.buildPackage {
+          defaultPackage = naersk'.buildPackage {
             src = ./.;
 
             nativeBuildInputs = [ pkgs.makeWrapper ];

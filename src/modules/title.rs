@@ -37,8 +37,8 @@ impl Title {
 
                     self.value = Some(if length > truncate_title_after_length as usize {
                         let split = truncate_title_after_length as usize / 2;
-                        let first_part = &value[0..split];
-                        let last_part = &value[length - split..length];
+                        let first_part = value.chars().take(split).collect::<String>();
+                        let last_part = value.chars().skip(length - split).collect::<String>();
                         format!("{}...{}", first_part, last_part)
                     } else {
                         value
