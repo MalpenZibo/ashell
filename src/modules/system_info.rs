@@ -100,7 +100,7 @@ impl SystemInfo {
                             row!(icon(Icons::Cpu), text(format!("{}%", cpu_usage))).spacing(4)
                         )
                         .style(move |theme: &Theme| {
-                            container::Appearance {
+                            container::Style {
                                 text_color: if cpu_usage > cpu_warn_threshold
                                     && cpu_usage < cpu_alert_threshold
                                 {
@@ -117,7 +117,7 @@ impl SystemInfo {
                             row!(icon(Icons::Mem), text(format!("{}%", memory_usage))).spacing(4)
                         )
                         .style(move |theme: &Theme| {
-                            container::Appearance {
+                            container::Style {
                                 text_color: if memory_usage > mem_warn_threshold
                                     && memory_usage < mem_alert_threshold
                                 {
@@ -134,7 +134,7 @@ impl SystemInfo {
                             row!(icon(Icons::Temp), text(format!("{}°", temperature))).spacing(4)
                         )
                         .style(move |theme: &Theme| {
-                            container::Appearance {
+                            container::Style {
                                 text_color: if temperature > temp_warn_threshold
                                     && temperature < temp_alert_threshold
                                 {
@@ -148,7 +148,7 @@ impl SystemInfo {
                             }
                         })
                     )
-                    .align_items(Alignment::Center)
+                    .align_y(Alignment::Center)
                     .spacing(4),
                 )
                 .align_y(Vertical::Center)

@@ -24,11 +24,11 @@ impl PrivacyData {
                         .push_maybe(self.screenshare_access().then(|| icon(Icons::ScreenShare)))
                         .push_maybe(self.webcam_access().then(|| icon(Icons::Webcam)))
                         .push_maybe(self.microphone_access().then(|| icon(Icons::Mic1)))
-                        .align_items(Alignment::Center)
+                        .align_y(Alignment::Center)
                         .spacing(8),
                 )
                 .padding([2, 8])
-                .style(|theme: &Theme| container::Appearance {
+                .style(|theme: &Theme| container::Style {
                     background: Some(theme.palette().background.into()),
                     text_color: Some(theme.extended_palette().danger.weak.color),
                     ..Default::default()
