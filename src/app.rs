@@ -172,7 +172,6 @@ impl MultiApplication for App {
                     }
                     ServiceEvent::Error(_) => Task::none(),
                 },
-                PrivacyMessage::ToggleMenu => Task::none(),
             },
             Message::Settings(message) => {
                 self.settings

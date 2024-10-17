@@ -203,7 +203,7 @@ impl ReadOnlyService for BrightnessService {
         self.data.current = event.0;
     }
 
-    fn subscribe() -> iced::Subscription<ServiceEvent<Self>> {
+    fn subscribe() -> Subscription<ServiceEvent<Self>> {
         let id = TypeId::of::<Self>();
 
         Subscription::run_with_id(

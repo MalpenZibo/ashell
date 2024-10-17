@@ -76,6 +76,7 @@ but I'm quite sure that if you use NixOS you are smart enough to add ashell to y
 - Hyprland Workspaces
 - System Information (CPU, RAM, Temperature)
 - Date time
+- Privacy (check microphone, camera and screenshare usage)
 - Settings panel
     - Power menu
     - Battery information
@@ -167,7 +168,7 @@ appearance:
 ```
 
 ### So, what's the purpose of this project?
-While, I could have used [waybar](https://github.com/Alexays/Waybar) that's for sure is a 
+I could have used [waybar](https://github.com/Alexays/Waybar) that's for sure is a 
 a great project but I wanted something more sophisticated 
 with submenus and other stuff.
 
@@ -179,8 +180,8 @@ So, I <del>copy-pasted from iced pop-os fork</del> created a layer to interact
 with wayland layer shell protocol from iced [Iced SCTK](https://github.com/MalpenZibo/iced_sctk) 
 and I started to create this project.
 
-So feel free to fork this project and customize it for your needs 
-or you could try to compile and use it.
+Feel free to fork this project and customize it for your needs or just open an
+issue to request a particular feature.
 
 ## Some screenshots
 

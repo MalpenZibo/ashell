@@ -38,10 +38,12 @@ pub enum Icons {
     Wifi2,
     Wifi3,
     Wifi4,
+    Wifi5,
     WifiLock1,
     WifiLock2,
     WifiLock3,
     WifiLock4,
+    WifiLock5,
     Ethernet,
     Vpn,
     Bluetooth,
@@ -61,6 +63,7 @@ pub enum Icons {
     Close,
     VerticalDots,
     Airplane,
+    Webcam,
 }
 
 impl From<Icons> for &'static str {
@@ -94,14 +97,16 @@ impl From<Icons> for &'static str {
             Icons::Battery4 => "󰁹",
             Icons::BatteryCharging => "󰂄",
             Icons::Wifi0 => "󰤭",
-            Icons::Wifi1 => "󰤟",
-            Icons::Wifi2 => "󰤢",
-            Icons::Wifi3 => "󰤥",
-            Icons::Wifi4 => "󰤨",
-            Icons::WifiLock1 => "󰤡",
-            Icons::WifiLock2 => "󰤤",
-            Icons::WifiLock3 => "󰤧",
-            Icons::WifiLock4 => "󰤪",
+            Icons::Wifi1 => "󰤯",
+            Icons::Wifi2 => "󰤟",
+            Icons::Wifi3 => "󰤢",
+            Icons::Wifi4 => "󰤥",
+            Icons::Wifi5 => "󰤨",
+            Icons::WifiLock1 => "󰤬",
+            Icons::WifiLock2 => "󰤡",
+            Icons::WifiLock3 => "󰤤",
+            Icons::WifiLock4 => "󰤧",
+            Icons::WifiLock5 => "󰤪",
             Icons::Ethernet => "󰈀",
             Icons::Vpn => "󰖂",
             Icons::Bluetooth => "󰂯",
@@ -121,6 +126,7 @@ impl From<Icons> for &'static str {
             Icons::Close => "󰅖",
             Icons::VerticalDots => "󰇙",
             Icons::Airplane => "󰀝",
+            Icons::Webcam => "",
         }
     }
 }
