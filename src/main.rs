@@ -4,11 +4,6 @@ use flexi_logger::{
     Age, Cleanup, Criterion, FileSpec, LogSpecBuilder, LogSpecification, Logger, Naming,
 };
 use iced::Font;
-use iced_layershell::{
-    reexport::{Anchor, KeyboardInteractivity},
-    settings::{LayerShellSettings, Settings, StartMode},
-    MultiApplication,
-};
 use log::{error, LevelFilter};
 use std::panic;
 
@@ -27,7 +22,7 @@ const HEIGHT: u32 = 34;
 
 fn get_log_spec(log_level: LevelFilter) -> LogSpecification {
     LogSpecBuilder::new()
-        .default(log::LevelFilter::Error)
+        .default(log::LevelFilter::Warn)
         .module(
             "ashell",
             if cfg!(debug_assertions) {
@@ -40,7 +35,7 @@ fn get_log_spec(log_level: LevelFilter) -> LogSpecification {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), iced_layershell::Error> {
+async fn main() -> iced::Result {
     let logger = Logger::with(
         LogSpecBuilder::new()
             .default(log::LevelFilter::Info)
@@ -69,26 +64,9 @@ async fn main() -> Result<(), iced_layershell::Error> {
 
     logger.set_new_spec(get_log_spec(config.log_level));
 
-    App::run(Settings {
-        layer_settings: LayerShellSettings {
-            size: Some((0, HEIGHT)),
-            anchor: match config.position {
-                Position::Top => Anchor::Top,
-                Position::Bottom => Anchor::Bottom,
-            } | Anchor::Left
-                | Anchor::Right,
-            exclusive_zone: HEIGHT as i32,
-            start_mode: StartMode::Active,
-            keyboard_interactivity: KeyboardInteractivity::None,
-            ..Default::default()
-        },
-        flags: (logger, config),
-        default_font: Font::with_name("DejaVu Sans"),
-        default_text_size: 14.into(),
-        id: None,
-        fonts: Default::default(),
-        antialiasing: false,
-        virtual_keyboard_support: None,
-    })
+    iced::daemon(App::title, App::update, App::view)
+        .subscription(App::subscription)
+        .theme(App::theme)
+        .style(App::style)
+        .run_with(App::new((logger, config)))
 }
-

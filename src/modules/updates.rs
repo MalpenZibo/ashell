@@ -1,15 +1,14 @@
 use crate::{
-    app::{self, WindowInfo},
+    app::{self, MenuType},
     components::icons::{icon, Icons},
     config::UpdatesModuleConfig,
-    menu::{self},
+    menu::Menu,
     style::{GhostButtonStyle, HeaderButtonStyle},
 };
 use iced::{
     alignment::Horizontal,
     stream::channel,
     widget::{button, column, container, horizontal_rule, row, scrollable, text, Column},
-    window::Id,
     Alignment, Element, Length, Padding, Subscription, Task,
 };
 use log::error;
@@ -98,7 +97,7 @@ impl Updates {
         &mut self,
         message: Message,
         config: &UpdatesModuleConfig,
-        menu: Option<(&Id, &mut WindowInfo)>,
+        menu: &mut Menu,
     ) -> Task<crate::app::Message> {
         match message {
             Message::UpdatesCheckCompleted(updates) => {
@@ -109,7 +108,7 @@ impl Updates {
             }
             Message::ToggleMenu => {
                 self.is_updates_list_open = false;
-                menu::toggle(menu, WindowInfo::Updates)
+                menu.toggle(MenuType::Updates)
             }
             Message::UpdateFinished => {
                 self.updates.clear();
@@ -144,7 +143,7 @@ impl Updates {
                     move |_| app::Message::Updates(Message::UpdateFinished),
                 )];
 
-                cmds.push(menu::close_if(menu, WindowInfo::Updates));
+                cmds.push(menu.close_if(MenuType::Updates));
 
                 Task::batch(cmds)
             }

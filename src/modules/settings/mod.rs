@@ -2,7 +2,13 @@ use self::{
     audio::AudioMessage, bluetooth::BluetoothMessage, network::NetworkMessage, power::PowerMessage,
 };
 use crate::{
-    app::WindowInfo, components::icons::{icon, Icons}, config::SettingsModuleConfig, menu::{self}, modules::settings::power::power_menu, password_dialog, services::{
+    app::MenuType,
+    components::icons::{icon, Icons},
+    config::SettingsModuleConfig,
+    menu::Menu,
+    modules::settings::power::power_menu,
+    password_dialog,
+    services::{
         audio::{AudioCommand, AudioService},
         bluetooth::{BluetoothCommand, BluetoothService},
         brightness::{BrightnessCommand, BrightnessService},
@@ -10,10 +16,11 @@ use crate::{
         network::{NetworkCommand, NetworkEvent, NetworkService},
         upower::{PowerProfileCommand, UPowerService},
         ReadOnlyService, Service, ServiceEvent,
-    }, style::{
+    },
+    style::{
         HeaderButtonStyle, QuickSettingsButtonStyle, QuickSettingsSubMenuButtonStyle,
         SettingsButtonStyle,
-    }
+    },
 };
 use brightness::BrightnessMessage;
 use iced::{
@@ -21,7 +28,6 @@ use iced::{
     widget::{
         button, column, container, horizontal_space, row, text, vertical_rule, Column, Row, Space,
     },
-    window::Id,
     Alignment, Background, Border, Element, Length, Padding, Subscription, Task, Theme,
 };
 use log::info;
@@ -90,13 +96,13 @@ impl Settings {
         &mut self,
         message: Message,
         config: &SettingsModuleConfig,
-        menu: Option<(&Id, &mut WindowInfo)>,
+        menu: &mut Menu,
     ) -> Task<crate::app::Message> {
         match message {
             Message::ToggleMenu => {
                 self.sub_menu = None;
                 self.password_dialog = None;
-                Task::batch(vec![menu::toggle(menu, WindowInfo::Settings)])
+                Task::batch(vec![menu.toggle(MenuType::Settings)])
             }
             Message::Audio(msg) => match msg {
                 AudioMessage::Event(event) => match event {
@@ -151,11 +157,7 @@ impl Settings {
                 AudioMessage::SinksMore => {
                     if let Some(cmd) = &config.audio_sinks_more_cmd {
                         crate::utils::launcher::execute_command(cmd.to_string());
-                        if let Some((id, _)) = menu {
-                            menu::close_menu(*id)
-                        } else {
-                            Task::none()
-                        }
+                        menu.close()
                     } else {
                         Task::none()
                     }
@@ -163,11 +165,7 @@ impl Settings {
                 AudioMessage::SourcesMore => {
                     if let Some(cmd) = &config.audio_sources_more_cmd {
                         crate::utils::launcher::execute_command(cmd.to_string());
-                        if let Some((id, _)) = menu {
-                            menu::close_menu(*id)
-                        } else {
-                            Task::none()
-                        }
+                        menu.close()
                     } else {
                         Task::none()
                     }
@@ -277,11 +275,7 @@ impl Settings {
                 NetworkMessage::WiFiMore => {
                     if let Some(cmd) = &config.wifi_more_cmd {
                         crate::utils::launcher::execute_command(cmd.to_string());
-                        if let Some((id, _)) = menu {
-                            menu::close_menu(*id)
-                        } else {
-                            Task::none()
-                        }
+                        menu.close()
                     } else {
                         Task::none()
                     }
@@ -289,11 +283,7 @@ impl Settings {
                 NetworkMessage::VpnMore => {
                     if let Some(cmd) = &config.vpn_more_cmd {
                         crate::utils::launcher::execute_command(cmd.to_string());
-                        if let Some((id, _)) = menu {
-                            menu::close_menu(*id)
-                        } else {
-                            Task::none()
-                        }
+                        menu.close()
                     } else {
                         Task::none()
                     }
@@ -340,11 +330,7 @@ impl Settings {
                 BluetoothMessage::More => {
                     if let Some(cmd) = &config.bluetooth_more_cmd {
                         crate::utils::launcher::execute_command(cmd.to_string());
-                        if let Some((id, _)) = menu {
-                            menu::close_menu(*id)
-                        } else {
-                            Task::none()
-                        }
+                        menu.close()
                     } else {
                         Task::none()
                     }
@@ -414,54 +400,54 @@ impl Settings {
             Message::Power(msg) => {
                 msg.update();
                 Task::none()
-            } 
+            }
             Message::PasswordDialog(msg) => match msg {
-                  password_dialog::Message::PasswordChanged(password) => {
-                      if let Some((_, current_password)) = &mut self.password_dialog {
-                          *current_password = password;
-                      }
+                password_dialog::Message::PasswordChanged(password) => {
+                    if let Some((_, current_password)) = &mut self.password_dialog {
+                        *current_password = password;
+                    }
 
-                      Task::none()
-                  }
-                  password_dialog::Message::DialogConfirmed => {
-                      if let Some((ssid, password)) = self.password_dialog.take() {
-                          let network_command = if let Some(network) = self.network.as_mut() {
-                              let ap = network
-                                  .wireless_access_points
-                                  .iter()
-                                  .find(|ap| ap.ssid == ssid)
-                                  .cloned();
-                              if let Some(ap) = ap {
-                                  network
-                                      .command(NetworkCommand::SelectAccessPoint((
-                                          ap,
-                                          Some(password),
-                                      )))
-                                      .map(|event| {
-                                          crate::app::Message::Settings(Message::Network(
-                                              NetworkMessage::Event(event),
-                                          ))
-                                      })
-                              } else {
-                                  Task::none()
-                              }
-                          } else {
-                              Task::none()
-                          };
-                          Task::batch(vec![network_command])
-                      } else {
-                          Task::none()
-                      }
-                  }
-                  password_dialog::Message::DialogCancelled => {
-                      if let Some((_, _)) = self.password_dialog.take() {
-                          Task::none()
-                          // menu.unset_keyboard_interactivity()
-                      } else {
-                          Task::none()
-                      }
-                  }
-              },
+                    Task::none()
+                }
+                password_dialog::Message::DialogConfirmed => {
+                    if let Some((ssid, password)) = self.password_dialog.take() {
+                        let network_command = if let Some(network) = self.network.as_mut() {
+                            let ap = network
+                                .wireless_access_points
+                                .iter()
+                                .find(|ap| ap.ssid == ssid)
+                                .cloned();
+                            if let Some(ap) = ap {
+                                network
+                                    .command(NetworkCommand::SelectAccessPoint((
+                                        ap,
+                                        Some(password),
+                                    )))
+                                    .map(|event| {
+                                        crate::app::Message::Settings(Message::Network(
+                                            NetworkMessage::Event(event),
+                                        ))
+                                    })
+                            } else {
+                                Task::none()
+                            }
+                        } else {
+                            Task::none()
+                        };
+                        Task::batch(vec![network_command])
+                    } else {
+                        Task::none()
+                    }
+                }
+                password_dialog::Message::DialogCancelled => {
+                    if let Some((_, _)) = self.password_dialog.take() {
+                        Task::none()
+                        // menu.unset_keyboard_interactivity()
+                    } else {
+                        Task::none()
+                    }
+                }
+            },
         }
     }
 

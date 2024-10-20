@@ -4,7 +4,8 @@ use iced::{
     theme::{palette, Palette},
     widget::{
         button::{self, Status},
-        container, slider,
+        container,
+        slider::{self, Breakpoint, Handle, HandleShape, Rail},
         text_input::{self},
     },
     Border, Color, Theme,
@@ -290,23 +291,23 @@ impl SliderStyle {
         Box::new(move |theme, _| {
             let palette = theme.extended_palette();
             slider::Style {
-                rail: slider::Rail {
-                    backgrounds: (
-                        palette.primary.base.color.into(),
-                        palette.secondary.base.color.into(),
-                    ),
-                    width: 8.0,
+                rail: Rail {
+                    backgrounds: (color.into(), palette.secondary.base.color.into()),
+                    width: 4.0,
                     border: Border {
+                        radius: 2.0.into(),
+                        width: 0.0,
                         color: Color::TRANSPARENT,
-                        width: 2.0,
-                        radius: 32.0.into(),
                     },
                 },
-                handle: slider::Handle {
-                    shape: iced::widget::slider::HandleShape::Circle { radius: 8. },
-                    background: palette.primary.base.color.into(),
-                    border_color: palette.primary.base.color,
+                handle: Handle {
+                    shape: HandleShape::Circle { radius: 7.0 },
+                    background: color.into(),
+                    border_color: Color::TRANSPARENT,
                     border_width: 0.0,
+                },
+                breakpoint: Breakpoint {
+                    color: palette.background.weak.text,
                 },
             }
         })

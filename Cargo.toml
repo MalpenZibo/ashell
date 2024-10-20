@@ -6,9 +6,7 @@ version = "0.1.2"
 edition = "2021"
 
 [dependencies]
-iced = { version = "0.13.1", features = ["tokio", "wgpu", "advanced"] }
-iced_runtime = { version = "0.13.1", features = ["multi-window"] }
-iced_layershell = { path="../exwlshelleventloop/iced_layershell" }
+iced = { git = "https://github.com/pop-os/iced", features = ["tokio", "multi-window", "advanced", "wgpu", "winit", "wayland"] }
 chrono = "0.4"
 hyprland = { git = "https://github.com/MalpenZibo/hyprland-rs" }
 serde = "1.0"
