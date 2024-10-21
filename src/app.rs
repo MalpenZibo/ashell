@@ -17,7 +17,7 @@ use iced::{
     platform_specific::shell::commands::layer_surface::{
         get_layer_surface, Anchor, KeyboardInteractivity,
     },
-    runtime::platform_specific::wayland::layer_surface::SctkLayerSurfaceSettings,
+    runtime::platform_specific::wayland::layer_surface::{IcedOutput, SctkLayerSurfaceSettings},
     widget::Row,
     window::Id,
     Alignment, Color, Element, Length, Subscription, Task, Theme,
@@ -80,6 +80,7 @@ impl App {
                     pointer_interactivity: true,
                     keyboard_interactivity: KeyboardInteractivity::None,
                     exclusive_zone: HEIGHT as i32,
+                    output: IcedOutput::All,
                     anchor: match pos {
                         Position::Top => Anchor::TOP,
                         Position::Bottom => Anchor::BOTTOM,
