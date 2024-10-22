@@ -2,7 +2,7 @@
 name = "ashell"
 description = "Barely customizable Wayland status bar for Hyprland compositor."
 homepage = "https://github.com/MalpenZibo/ashell"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
 
 [dependencies]
