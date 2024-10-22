@@ -9,7 +9,7 @@ rust-version = "1.81"
 [dependencies]
 iced = { version = "0.13.1", features = ["tokio", "wgpu", "advanced"] }
 iced_runtime = { version = "0.13.1", features = ["multi-window"] }
-iced_layershell = { path = "../exwlshelleventloop/iced_layershell" }
+iced_layershell = "0.9.6"
 chrono = "0.4"
 hyprland = { git = "https://github.com/MalpenZibo/hyprland-rs" }
 serde = "1.0"
