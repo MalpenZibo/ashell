@@ -303,6 +303,8 @@ pub struct Config {
     pub log_level: String,
     #[serde(default)]
     pub position: Position,
+    #[serde(default)]
+    pub outputs: Vec<String>,
     pub app_launcher_cmd: Option<String>,
     pub clipboard_cmd: Option<String>,
     #[serde(default = "default_truncate_title_after_length")]
@@ -349,6 +351,7 @@ impl Default for Config {
         Self {
             log_level: default_log_level(),
             position: Position::Top,
+            outputs: vec![],
             app_launcher_cmd: None,
             clipboard_cmd: None,
             truncate_title_after_length: default_truncate_title_after_length(),
