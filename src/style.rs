@@ -5,7 +5,6 @@ use iced::{
     widget::{
         button::{self, Status},
         container,
-        slider::{self, Breakpoint},
         text_input::{self},
     },
     Border, Color, Theme,
@@ -279,39 +278,6 @@ impl SettingsButtonStyle {
                     base
                 }
                 _ => base,
-            }
-        })
-    }
-}
-
-pub struct SliderStyle;
-
-impl SliderStyle {
-    pub fn into_style<'a>(self) -> slider::StyleFn<'a, Theme> {
-        Box::new(move |theme, _| {
-            let palette = theme.extended_palette();
-            slider::Style {
-                rail: slider::Rail {
-                    backgrounds: (
-                        palette.primary.base.color.into(),
-                        palette.secondary.base.color.into(),
-                    ),
-                    width: 8.0,
-                    border: Border {
-                        color: Color::TRANSPARENT,
-                        width: 2.0,
-                        radius: 32.0.into(),
-                    },
-                },
-                handle: slider::Handle {
-                    shape: iced::widget::slider::HandleShape::Circle { radius: 8. },
-                    background: palette.primary.base.color.into(),
-                    border_color: palette.primary.base.color,
-                    border_width: 0.0,
-                },
-                breakpoint: Breakpoint {
-                    color: Color::TRANSPARENT,
-                },
             }
         })
     }

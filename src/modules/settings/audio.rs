@@ -5,7 +5,7 @@ use crate::{
         audio::{AudioData, AudioService, DeviceType, Sinks},
         ServiceEvent,
     },
-    style::{GhostButtonStyle, SettingsButtonStyle, SliderStyle},
+    style::{GhostButtonStyle, SettingsButtonStyle},
 };
 use iced::{
     widget::{button, column, container, horizontal_rule, row, slider, text, Column, Row},
@@ -172,7 +172,6 @@ pub fn audio_slider<'a, Message: 'a + Clone>(
             slider(0..=100, volume, volume_changed)
                 .step(1)
                 .width(Length::Fill)
-                .style(SliderStyle.into_style()),
         )
         .push_maybe(with_submenu.map(|(submenu, msg)| {
             button(icon(match (slider_type, submenu) {
