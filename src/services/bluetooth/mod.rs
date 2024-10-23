@@ -179,7 +179,7 @@ impl BluetoothService {
     }
 
     pub async fn check_rfkill_soft_block() -> anyhow::Result<bool> {
-        let output = Command::new("rfkill")
+        let output = Command::new("/usr/sbin/rfkill")
             .arg("list")
             .arg("bluetooth")
             .output()

@@ -514,7 +514,7 @@ impl NetworkService {
     }
 
     async fn set_airplane_mode(conn: &zbus::Connection, airplane_mode: bool) -> anyhow::Result<()> {
-        Command::new("rfkill")
+        Command::new("/usr/sbin/rfkill")
             .arg(if airplane_mode { "block" } else { "unblock" })
             .arg("bluetooth")
             .output()
