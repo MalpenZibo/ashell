@@ -18,6 +18,7 @@ inotify = "0.10"
 log = { version = "0.4", features=["serde"] }
 flexi_logger = "0.28"
 serde_yaml = "0.9"
+sctk = { package = "smithay-client-toolkit", version = "0.19.1" }
 pipewire = "0.8"
 wayland-client = "0.31.5"
 wayland-protocols = { version = "0.32.3", features = ["client", "unstable"] }

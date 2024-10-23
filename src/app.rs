@@ -1,12 +1,13 @@
 use crate::{
     centerbox,
-    config::{self, Config, Position},
+    config::{self, Config},
     get_log_spec,
     menu::{menu_wrapper, Menu, MenuPosition},
     modules::{
         self, clock::Clock, launcher, privacy::PrivacyMessage, settings::Settings,
         system_info::SystemInfo, title::Title, updates::Updates, workspaces::Workspaces,
     },
+    outputs::Outputs,
     services::{privacy::PrivacyService, ReadOnlyService, ServiceEvent},
     style::ashell_theme,
     utils, HEIGHT,
@@ -14,19 +15,17 @@ use crate::{
 use flexi_logger::LoggerHandle;
 use iced::{
     daemon::Appearance,
-    platform_specific::shell::commands::layer_surface::{
-        get_layer_surface, Anchor, KeyboardInteractivity,
-    },
-    runtime::platform_specific::wayland::layer_surface::{IcedOutput, SctkLayerSurfaceSettings},
-    widget::Row,
+    event::{listen_with, wayland::Event as WaylandEvent},
+    widget::{row, Row},
     window::Id,
     Alignment, Color, Element, Length, Subscription, Task, Theme,
 };
-use log::info;
+use log::{debug, info};
 
 pub struct App {
     logger: LoggerHandle,
     config: Config,
+    outputs: Outputs,
     updates: Updates,
     workspaces: Workspaces,
     window_title: Title,
@@ -56,16 +55,17 @@ pub enum Message {
     Clock(modules::clock::Message),
     Privacy(modules::privacy::PrivacyMessage),
     Settings(modules::settings::Message),
+    WaylandEvent(WaylandEvent),
 }
 
 impl App {
     pub fn new((logger, config): (LoggerHandle, Config)) -> impl FnOnce() -> (Self, Task<Message>) {
         || {
-            let pos = config.position;
             (
                 App {
                     logger,
                     config,
+                    outputs: Outputs::default(),
                     updates: Updates::default(),
                     workspaces: Workspaces::default(),
                     window_title: Title::default(),
@@ -75,19 +75,7 @@ impl App {
                     settings: Settings::default(),
                     menu: Menu::default(),
                 },
-                get_layer_surface(SctkLayerSurfaceSettings {
-                    size: Some((None, Some(HEIGHT))),
-                    pointer_interactivity: true,
-                    keyboard_interactivity: KeyboardInteractivity::None,
-                    exclusive_zone: HEIGHT as i32,
-                    output: IcedOutput::All,
-                    anchor: match pos {
-                        Position::Top => Anchor::TOP,
-                        Position::Bottom => Anchor::BOTTOM,
-                    } | Anchor::LEFT
-                        | Anchor::RIGHT,
-                    ..Default::default()
-                }),
+                Task::none(),
             )
         }
     }
@@ -169,90 +157,110 @@ impl App {
                 self.settings
                     .update(message, &self.config.settings, &mut self.menu)
             }
+            Message::WaylandEvent(event) => match event {
+                WaylandEvent::Output(event, wl_output) => match event {
+                    iced::event::wayland::OutputEvent::Created(info) => {
+                        info!("Output created: {:?}", info);
+                        self.outputs.add(
+                            &self.config.outputs,
+                            self.config.position,
+                            info,
+                            wl_output,
+                        )
+                    }
+                    iced::event::wayland::OutputEvent::Removed => {
+                        info!("Output destroyed");
+                        self.outputs.remove(self.config.position, wl_output)
+                    }
+                    _ => Task::none(),
+                },
+                _ => Task::none(),
+            },
         }
     }
 
     pub fn view(&self, id: Id) -> Element<Message> {
-        let menu =
-            self.menu
-                .get_menu_type_to_render(id)
-                .map(|menu_type| match menu_type {
-                    MenuType::Updates => menu_wrapper(
-                        self.updates.menu_view().map(Message::Updates),
-                        MenuPosition::Left,
-                        self.config.position,
-                    ),
-                    MenuType::Settings => menu_wrapper(
-                        self.settings
-                            .menu_view(&self.config.settings)
-                            .map(Message::Settings),
-                        MenuPosition::Right,
-                        self.config.position,
-                    ),
-                });
+        let menu = self
+            .menu
+            .get_menu_type_to_render(id)
+            .map(|menu_type| match menu_type {
+                MenuType::Updates => menu_wrapper(
+                    self.updates.menu_view().map(Message::Updates),
+                    MenuPosition::Left,
+                    self.config.position,
+                ),
+                MenuType::Settings => menu_wrapper(
+                    self.settings
+                        .menu_view(&self.config.settings)
+                        .map(Message::Settings),
+                    MenuPosition::Right,
+                    self.config.position,
+                ),
+            });
 
         if let Some(menu) = menu {
-            return menu;
+            menu
+        } else if self.outputs.has(id) {
+            let left = Row::new()
+                .push_maybe(
+                    self.config
+                        .app_launcher_cmd
+                        .as_ref()
+                        .map(|_| launcher::launcher()),
+                )
+                .push_maybe(
+                    self.config
+                        .updates
+                        .as_ref()
+                        .map(|_| self.updates.view().map(Message::Updates)),
+                )
+                .push(
+                    self.workspaces
+                        .view(&self.config.appearance.workspace_colors)
+                        .map(Message::Workspaces),
+                )
+                .height(Length::Shrink)
+                .align_y(Alignment::Center)
+                .spacing(4);
+
+            let center = Row::new()
+                .push_maybe(self.window_title.view().map(|v| v.map(Message::Title)))
+                .spacing(4);
+
+            let right = Row::new()
+                .push_maybe(
+                    self.system_info
+                        .view(&self.config.system)
+                        .map(|c| c.map(Message::SystemInfo)),
+                )
+                .push(
+                    Row::new()
+                        .push(
+                            self.clock
+                                .view(&self.config.clock.format)
+                                .map(Message::Clock),
+                        )
+                        .push_maybe(
+                            self.privacy
+                                .as_ref()
+                                .and_then(|privacy| privacy.view())
+                                .map(|e| e.map(Message::Privacy)),
+                        )
+                        .push(self.settings.view().map(Message::Settings)),
+                )
+                .spacing(4);
+
+            centerbox::Centerbox::new([left.into(), center.into(), right.into()])
+                .spacing(4)
+                .padding([0, 4])
+                .width(Length::Fill)
+                .height(Length::Fixed(HEIGHT as f32))
+                .align_items(Alignment::Center)
+                .into()
+        } else {
+            info!("No output found for id: {:?}", id);
+            row!().into()
         }
-
-        let left = Row::new()
-            .push_maybe(
-                self.config
-                    .app_launcher_cmd
-                    .as_ref()
-                    .map(|_| launcher::launcher()),
-            )
-            .push_maybe(
-                self.config
-                    .updates
-                    .as_ref()
-                    .map(|_| self.updates.view().map(Message::Updates)),
-            )
-            .push(
-                self.workspaces
-                    .view(&self.config.appearance.workspace_colors)
-                    .map(Message::Workspaces),
-            )
-            .height(Length::Shrink)
-            .align_y(Alignment::Center)
-            .spacing(4);
-
-        let center = Row::new()
-            .push_maybe(self.window_title.view().map(|v| v.map(Message::Title)))
-            .spacing(4);
-
-        let right = Row::new()
-            .push_maybe(
-                self.system_info
-                    .view(&self.config.system)
-                    .map(|c| c.map(Message::SystemInfo)),
-            )
-            .push(
-                Row::new()
-                    .push(
-                        self.clock
-                            .view(&self.config.clock.format)
-                            .map(Message::Clock),
-                    )
-                    .push_maybe(
-                        self.privacy
-                            .as_ref()
-                            .and_then(|privacy| privacy.view())
-                            .map(|e| e.map(Message::Privacy)),
-                    )
-                    .push(self.settings.view().map(Message::Settings)),
-            )
-            .spacing(4);
-
-        centerbox::Centerbox::new([left.into(), center.into(), right.into()])
-            .spacing(4)
-            .padding([0, 4])
-            .width(Length::Fill)
-            .height(Length::Fixed(HEIGHT as f32))
-            .align_items(Alignment::Center)
-            .into()
-        //     }
-        // }
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
@@ -272,6 +280,21 @@ impl App {
                 ),
                 Some(self.settings.subscription().map(Message::Settings)),
                 Some(config::subscription()),
+                Some(listen_with(|evt, _, _| {
+                    if let iced::Event::PlatformSpecific(iced::event::PlatformSpecific::Wayland(
+                        evt,
+                    )) = evt
+                    {
+                        if matches!(evt, WaylandEvent::Output(_, _)) {
+                            debug!("Wayland event: {:?}", evt);
+                            Some(Message::WaylandEvent(evt))
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                })),
             ]
             .into_iter()
             .flatten()

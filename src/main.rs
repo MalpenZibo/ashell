@@ -1,9 +1,8 @@
 use app::App;
-use config::{read_config, Position};
+use config::read_config;
 use flexi_logger::{
     Age, Cleanup, Criterion, FileSpec, LogSpecBuilder, LogSpecification, Logger, Naming,
 };
-use iced::Font;
 use log::{error, LevelFilter};
 use std::panic;
 
@@ -13,6 +12,7 @@ mod components;
 mod config;
 mod menu;
 mod modules;
+mod outputs;
 mod password_dialog;
 mod services;
 mod style;

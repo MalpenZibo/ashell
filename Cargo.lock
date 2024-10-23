@@ -253,6 +253,7 @@ dependencies = [
  "pipewire",
  "serde",
  "serde_yaml",
+ "smithay-client-toolkit",
  "sysinfo",
  "tokio",
  "wayland-client",
