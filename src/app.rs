@@ -1,8 +1,8 @@
 use crate::{
     centerbox,
-    config::{self, Config},
+    config::{self, Config, Position},
     get_log_spec,
-    menu::{menu_wrapper, Menu, MenuPosition, MenuType},
+    menu::{menu_wrapper, Menu, MenuPosition},
     modules::{
         self, clock::Clock, launcher, privacy::PrivacyMessage, settings::Settings,
         system_info::SystemInfo, title::Title, updates::Updates, workspaces::Workspaces,
@@ -13,19 +13,20 @@ use crate::{
 };
 use flexi_logger::LoggerHandle;
 use iced::{
-    application::Appearance,
-    executor, theme,
-    widget::{row, Row},
+    daemon::Appearance,
+    platform_specific::shell::commands::layer_surface::{
+        get_layer_surface, Anchor, KeyboardInteractivity,
+    },
+    runtime::platform_specific::wayland::layer_surface::{IcedOutput, SctkLayerSurfaceSettings},
+    widget::Row,
     window::Id,
-    Alignment, Color, Command, Element, Length, Subscription, Theme,
+    Alignment, Color, Element, Length, Subscription, Task, Theme,
 };
-use iced_sctk::multi_window::Application;
 use log::info;
 
 pub struct App {
     logger: LoggerHandle,
     config: Config,
-    menu: Menu,
     updates: Updates,
     workspaces: Workspaces,
     window_title: Title,
@@ -33,6 +34,13 @@ pub struct App {
     clock: Clock,
     privacy: Option<PrivacyService>,
     pub settings: Settings,
+    menu: Menu,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MenuType {
+    Updates,
+    Settings,
 }
 
 #[derive(Debug, Clone)]
@@ -50,104 +58,111 @@ pub enum Message {
     Settings(modules::settings::Message),
 }
 
-impl Application for App {
-    type Executor = executor::Default;
-    type Theme = Theme;
-    type Message = Message;
-    type Flags = (LoggerHandle, Config);
-
-    fn new((logger, config): (LoggerHandle, Config)) -> (Self, Command<Self::Message>) {
-        (
-            App {
-                logger,
-                config,
-                menu: Menu::default(),
-                updates: Updates::default(),
-                workspaces: Workspaces::default(),
-                window_title: Title::default(),
-                system_info: SystemInfo::default(),
-                clock: Clock::default(),
-                privacy: None,
-                settings: Settings::default(),
-            },
-            Command::none(),
-        )
+impl App {
+    pub fn new((logger, config): (LoggerHandle, Config)) -> impl FnOnce() -> (Self, Task<Message>) {
+        || {
+            let pos = config.position;
+            (
+                App {
+                    logger,
+                    config,
+                    updates: Updates::default(),
+                    workspaces: Workspaces::default(),
+                    window_title: Title::default(),
+                    system_info: SystemInfo::default(),
+                    clock: Clock::default(),
+                    privacy: None,
+                    settings: Settings::default(),
+                    menu: Menu::default(),
+                },
+                get_layer_surface(SctkLayerSurfaceSettings {
+                    size: Some((None, Some(HEIGHT))),
+                    pointer_interactivity: true,
+                    keyboard_interactivity: KeyboardInteractivity::None,
+                    exclusive_zone: HEIGHT as i32,
+                    output: IcedOutput::All,
+                    anchor: match pos {
+                        Position::Top => Anchor::TOP,
+                        Position::Bottom => Anchor::BOTTOM,
+                    } | Anchor::LEFT
+                        | Anchor::RIGHT,
+                    ..Default::default()
+                }),
+            )
+        }
     }
 
-    fn theme(&self, _id: Id) -> Self::Theme {
-        ashell_theme(&self.config.appearance)
-    }
-
-    fn title(&self, _id: Id) -> String {
+    pub fn title(&self, _id: Id) -> String {
         String::from("ashell")
     }
 
-    fn style(&self) -> theme::Application {
-        fn dark_background(theme: &Theme) -> Appearance {
-            Appearance {
-                background_color: Color::TRANSPARENT,
-                text_color: theme.palette().text,
-            }
-        }
-
-        theme::Application::custom(dark_background as fn(&Theme) -> _)
+    pub fn theme(&self, _id: Id) -> Theme {
+        ashell_theme(&self.config.appearance)
     }
 
-    fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
+    pub fn style(&self, theme: &Theme) -> Appearance {
+        Appearance {
+            background_color: Color::TRANSPARENT,
+            text_color: theme.palette().text,
+            icon_color: theme.palette().text,
+        }
+    }
+
+    pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::None => Command::none(),
+            Message::None => Task::none(),
             Message::ConfigChanged(config) => {
                 info!("New config: {:?}", config);
                 self.config = *config;
                 self.logger
                     .set_new_spec(get_log_spec(self.config.log_level));
-                Command::none()
+                Task::none()
             }
             Message::CloseMenu => self.menu.close(),
             Message::Updates(message) => {
                 if let Some(updates_config) = self.config.updates.as_ref() {
                     self.updates.update(message, updates_config, &mut self.menu)
                 } else {
-                    Command::none()
+                    Task::none()
                 }
             }
             Message::OpenLauncher => {
                 if let Some(app_launcher_cmd) = self.config.app_launcher_cmd.as_ref() {
                     utils::launcher::execute_command(app_launcher_cmd.to_string());
                 }
-                Command::none()
+                Task::none()
             }
             Message::Workspaces(msg) => {
                 self.workspaces.update(msg);
 
-                Command::none()
+                Task::none()
             }
             Message::Title(message) => {
                 self.window_title
                     .update(message, self.config.truncate_title_after_length);
-                Command::none()
+                Task::none()
             }
             Message::SystemInfo(message) => {
                 self.system_info.update(message);
-                Command::none()
+                Task::none()
             }
             Message::Clock(message) => {
                 self.clock.update(message);
-                Command::none()
+                Task::none()
             }
             Message::Privacy(msg) => match msg {
                 PrivacyMessage::Event(event) => match event {
                     ServiceEvent::Init(service) => {
                         self.privacy = Some(service);
-                        Command::none()
+                        Task::none()
                     }
                     ServiceEvent::Update(data) => {
                         if let Some(privacy) = self.privacy.as_mut() {
                             privacy.update(data);
                         }
-                        Command::none()
+                        Task::none()
                     }
-                    ServiceEvent::Error(_) => Command::none(),
+                    ServiceEvent::Error(_) => Task::none(),
                 },
             },
             Message::Settings(message) => {
@@ -157,87 +172,90 @@ impl Application for App {
         }
     }
 
-    fn view(&self, id: Id) -> Element<'_, Self::Message> {
-        if Some(id) == self.menu.get_id() {
-            if let Some(menu_type) = self.menu.get_menu_type() {
-                menu_wrapper(
-                    match menu_type {
-                        MenuType::Updates => self.updates.menu_view().map(Message::Updates),
-                        MenuType::Settings => self
-                            .settings
+    pub fn view(&self, id: Id) -> Element<Message> {
+        let menu =
+            self.menu
+                .get_menu_type_to_render(id)
+                .map(|menu_type| match menu_type {
+                    MenuType::Updates => menu_wrapper(
+                        self.updates.menu_view().map(Message::Updates),
+                        MenuPosition::Left,
+                        self.config.position,
+                    ),
+                    MenuType::Settings => menu_wrapper(
+                        self.settings
                             .menu_view(&self.config.settings)
                             .map(Message::Settings),
-                    },
-                    match menu_type {
-                        MenuType::Updates => MenuPosition::Left,
-                        MenuType::Settings => MenuPosition::Right,
-                    },
-                    self.config.position,
-                )
-            } else {
-                row!().into()
-            }
-        } else {
-            let left = Row::new()
-                .push_maybe(
-                    self.config
-                        .app_launcher_cmd
-                        .as_ref()
-                        .map(|_| launcher::launcher()),
-                )
-                .push_maybe(
-                    self.config
-                        .updates
-                        .as_ref()
-                        .map(|_| self.updates.view().map(Message::Updates)),
-                )
-                .push(
-                    self.workspaces
-                        .view(&self.config.appearance.workspace_colors)
-                        .map(Message::Workspaces),
-                )
-                .height(Length::Shrink)
-                .align_items(Alignment::Center)
-                .spacing(4);
+                        MenuPosition::Right,
+                        self.config.position,
+                    ),
+                });
 
-            let center = Row::new()
-                .push_maybe(self.window_title.view().map(|v| v.map(Message::Title)))
-                .spacing(4);
-
-            let right = Row::new()
-                .push_maybe(
-                    self.system_info
-                        .view(&self.config.system)
-                        .map(|c| c.map(Message::SystemInfo)),
-                )
-                .push(
-                    Row::new()
-                        .push(
-                            self.clock
-                                .view(&self.config.clock.format)
-                                .map(Message::Clock),
-                        )
-                        .push_maybe(
-                            self.privacy
-                                .as_ref()
-                                .and_then(|privacy| privacy.view())
-                                .map(|e| e.map(Message::Privacy)),
-                        )
-                        .push(self.settings.view().map(Message::Settings)),
-                )
-                .spacing(4);
-
-            centerbox::Centerbox::new([left.into(), center.into(), right.into()])
-                .spacing(4)
-                .padding([0, 4])
-                .width(Length::Fill)
-                .height(Length::Fixed(HEIGHT as f32))
-                .align_items(Alignment::Center)
-                .into()
+        if let Some(menu) = menu {
+            return menu;
         }
+
+        let left = Row::new()
+            .push_maybe(
+                self.config
+                    .app_launcher_cmd
+                    .as_ref()
+                    .map(|_| launcher::launcher()),
+            )
+            .push_maybe(
+                self.config
+                    .updates
+                    .as_ref()
+                    .map(|_| self.updates.view().map(Message::Updates)),
+            )
+            .push(
+                self.workspaces
+                    .view(&self.config.appearance.workspace_colors)
+                    .map(Message::Workspaces),
+            )
+            .height(Length::Shrink)
+            .align_y(Alignment::Center)
+            .spacing(4);
+
+        let center = Row::new()
+            .push_maybe(self.window_title.view().map(|v| v.map(Message::Title)))
+            .spacing(4);
+
+        let right = Row::new()
+            .push_maybe(
+                self.system_info
+                    .view(&self.config.system)
+                    .map(|c| c.map(Message::SystemInfo)),
+            )
+            .push(
+                Row::new()
+                    .push(
+                        self.clock
+                            .view(&self.config.clock.format)
+                            .map(Message::Clock),
+                    )
+                    .push_maybe(
+                        self.privacy
+                            .as_ref()
+                            .and_then(|privacy| privacy.view())
+                            .map(|e| e.map(Message::Privacy)),
+                    )
+                    .push(self.settings.view().map(Message::Settings)),
+            )
+            .spacing(4);
+
+        centerbox::Centerbox::new([left.into(), center.into(), right.into()])
+            .spacing(4)
+            .padding([0, 4])
+            .width(Length::Fill)
+            .height(Length::Fixed(HEIGHT as f32))
+            .align_items(Alignment::Center)
+            .into()
+        //     }
+        // }
     }
 
-    fn subscription(&self) -> Subscription<Self::Message> {
+    pub fn subscription(&self) -> Subscription<Message> {
         Subscription::batch(
             vec![
                 self.config.updates.as_ref().map(|updates_config| {

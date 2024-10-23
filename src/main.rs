@@ -3,13 +3,7 @@ use config::{read_config, Position};
 use flexi_logger::{
     Age, Cleanup, Criterion, FileSpec, LogSpecBuilder, LogSpecification, Logger, Naming,
 };
-use iced_sctk::{
-    command::platform_specific::wayland::layer_surface::SctkLayerSurfaceSettings,
-    commands::layer_surface::{Anchor, KeyboardInteractivity, Layer},
-    core::{window::Id, Font},
-    multi_window::{settings::Settings, Application},
-    settings::InitialSurface,
-};
+use iced::Font;
 use log::{error, LevelFilter};
 use std::panic;
 
@@ -41,7 +35,7 @@ fn get_log_spec(log_level: LevelFilter) -> LogSpecification {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> iced::Result {
     let logger = Logger::with(
         LogSpecBuilder::new()
             .default(log::LevelFilter::Info)
@@ -70,29 +64,9 @@ async fn main() {
 
     logger.set_new_spec(get_log_spec(config.log_level));
 
-    App::run(Settings {
-        antialiasing: true,
-        exit_on_close_request: false,
-        initial_surface: InitialSurface::LayerSurface(SctkLayerSurfaceSettings {
-            id: Id::MAIN,
-            keyboard_interactivity: KeyboardInteractivity::None,
-            namespace: "ashell".into(),
-            layer: Layer::Top,
-            size: Some((None, Some(HEIGHT))),
-            anchor: match config.position {
-                Position::Top => Anchor::TOP,
-                Position::Bottom => Anchor::BOTTOM,
-            }
-            .union(Anchor::LEFT)
-            .union(Anchor::RIGHT),
-            exclusive_zone: HEIGHT as i32,
-            ..Default::default()
-        }),
-        flags: (logger, config),
-        id: None,
-        fonts: Default::default(),
-        default_font: Font::with_name("DejaVu Sans"),
-        default_text_size: 14.into(),
-    })
-    .unwrap();
+    iced::daemon(App::title, App::update, App::view)
+        .subscription(App::subscription)
+        .theme(App::theme)
+        .style(App::style)
+        .run_with(App::new((logger, config)))
 }

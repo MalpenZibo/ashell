@@ -1,124 +1,73 @@
-use crate::app;
+use crate::app::{self, MenuType};
 use crate::config::Position;
 use iced::alignment::{Horizontal, Vertical};
-use iced::widget::container::Appearance;
+use iced::platform_specific::shell::commands::layer_surface::{
+    destroy_layer_surface, get_layer_surface, Anchor, KeyboardInteractivity, Layer,
+};
+use iced::runtime::platform_specific::wayland::layer_surface::SctkLayerSurfaceSettings;
+use iced::widget::container::Style;
 use iced::widget::mouse_area;
 use iced::window::Id;
-use iced::{self, widget::container, Command, Element, Theme};
-use iced::{Border, Length};
-use iced_sctk::command::platform_specific::wayland::layer_surface::SctkLayerSurfaceSettings;
-use iced_sctk::commands::layer_surface::{
-    self, get_layer_surface, Anchor, KeyboardInteractivity, Layer,
-};
+use iced::{self, widget::container, Element, Task, Theme};
+use iced::{Border, Length, Padding};
 
-fn open_menu<Message: 'static>() -> (Id, Command<Message>) {
-    let id = Id::unique();
-
-    (
-        id,
-        get_layer_surface(SctkLayerSurfaceSettings {
-            id,
-            keyboard_interactivity: KeyboardInteractivity::None,
-            namespace: "ashell-menu".into(),
-            layer: Layer::Overlay,
-            size: Some((None, None)),
-            anchor: Anchor::TOP
-                .union(Anchor::LEFT)
-                .union(Anchor::RIGHT)
-                .union(Anchor::BOTTOM),
-            ..Default::default()
-        }),
-    )
-}
-
-fn close_menu<Message: 'static>(id: Id) -> Command<Message> {
-    layer_surface::destroy_layer_surface(id)
-}
-
-#[derive(Eq, PartialEq, Copy, Clone, Debug)]
-pub enum MenuType {
-    Updates,
-    Settings,
-}
-
-#[derive(Debug, Default)]
-pub struct Menu {
-    id: Option<Id>,
-    menu_type: Option<MenuType>,
-}
+#[derive(Debug, Default, Clone)]
+pub struct Menu(Option<(Id, MenuType)>);
 
 impl Menu {
-    pub fn toggle<Message: 'static>(&mut self, menu_type: MenuType) -> Command<Message> {
-        let current = self.menu_type.take();
+    pub fn open(&mut self, menu_type: MenuType) -> Task<app::Message> {
+        let id = Id::unique();
+        let task = get_layer_surface(SctkLayerSurfaceSettings {
+            id,
+            size: None,
+            layer: Layer::Overlay,
+            pointer_interactivity: true,
+            keyboard_interactivity: KeyboardInteractivity::OnDemand,
+            anchor: Anchor::TOP | Anchor::BOTTOM | Anchor::LEFT | Anchor::RIGHT,
+            ..Default::default()
+        });
 
-        match current {
-            None => {
-                self.menu_type = Some(menu_type);
-                let (id, cmd) = open_menu();
-                self.id = Some(id);
+        self.0.replace((id, menu_type));
 
-                cmd
-            }
-            Some(current) if current == menu_type => {
-                self.menu_type = None;
-                if let Some(id) = self.id.take() {
-                    close_menu(id)
-                } else {
-                    Command::none()
-                }
-            }
-            Some(_) => {
-                self.menu_type = Some(menu_type);
-                Command::none()
+        task
+    }
+
+    pub fn close<Message: 'static>(&mut self) -> Task<Message> {
+        if let Some((id, _)) = self.0.take() {
+            destroy_layer_surface(id)
+        } else {
+            Task::none()
+        }
+    }
+
+    pub fn toggle(&mut self, menu_type: MenuType) -> Task<app::Message> {
+        match self.0.as_mut() {
+            None => self.open(menu_type),
+            Some((_, current)) if *current == menu_type => self.close(),
+            Some((_, current)) => {
+                *current = menu_type;
+                Task::none()
             }
         }
     }
 
-    pub fn close_if<Message: 'static>(&mut self, menu_type: MenuType) -> Command<Message> {
-        if self.menu_type == Some(menu_type) {
-            self.menu_type = None;
-            if let Some(id) = self.id.take() {
-                close_menu(id)
+    pub fn close_if<Message: 'static>(&mut self, menu_type: MenuType) -> Task<Message> {
+        if let Some((_, current)) = self.0.as_ref() {
+            if *current == menu_type {
+                self.close()
             } else {
-                Command::none()
+                Task::none()
             }
         } else {
-            Command::none()
+            Task::none()
         }
     }
 
-    pub fn close<Message: 'static>(&mut self) -> Command<Message> {
-        self.menu_type = None;
-
-        if let Some(id) = self.id.take() {
-            close_menu(id)
-        } else {
-            Command::none()
-        }
-    }
-
-    pub fn set_keyboard_interactivity<Message: 'static>(&mut self) -> Command<Message> {
-        if let Some(id) = self.id {
-            layer_surface::set_keyboard_interactivity(id, KeyboardInteractivity::Exclusive)
-        } else {
-            Command::none()
-        }
-    }
-
-    pub fn unset_keyboard_interactivity<Message: 'static>(&mut self) -> Command<Message> {
-        if let Some(id) = self.id {
-            layer_surface::set_keyboard_interactivity(id, KeyboardInteractivity::None)
-        } else {
-            Command::none()
-        }
-    }
-
-    pub fn get_id(&self) -> Option<Id> {
-        self.id
-    }
-
-    pub fn get_menu_type(&self) -> Option<MenuType> {
-        self.menu_type
+    pub fn get_menu_type_to_render(&self, id: Id) -> Option<MenuType> {
+        self.0
+            .as_ref()
+            .filter(|(menu_id, _)| *menu_id == id)
+            .map(|(_, menu_type)| *menu_type)
     }
 }
 
@@ -138,7 +87,7 @@ pub fn menu_wrapper(
                 container(content)
                     .height(Length::Shrink)
                     .width(Length::Shrink)
-                    .style(|theme: &Theme| Appearance {
+                    .style(|theme: &Theme| Style {
                         background: Some(theme.palette().background.into()),
                         border: Border {
                             color: theme.extended_palette().secondary.base.color,
@@ -158,7 +107,7 @@ pub fn menu_wrapper(
             MenuPosition::Left => Horizontal::Left,
             MenuPosition::Right => Horizontal::Right,
         })
-        .padding([0, 8, 8, 8])
+        .padding(Padding::new(8.).top(0))
         .width(Length::Fill)
         .height(Length::Fill),
     )
