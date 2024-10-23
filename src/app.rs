@@ -4,7 +4,7 @@ use crate::{
     get_log_spec,
     menu::{menu_wrapper, Menu, MenuPosition},
     modules::{
-        self, clock::Clock, launcher, privacy::PrivacyMessage, settings::Settings,
+        self, clipboard, clock::Clock, launcher, privacy::PrivacyMessage, settings::Settings,
         system_info::SystemInfo, title::Title, updates::Updates, workspaces::Workspaces,
     },
     services::{privacy::PrivacyService, ReadOnlyService, ServiceEvent},
@@ -49,6 +49,7 @@ pub enum Message {
     ConfigChanged(Box<Config>),
     CloseMenu,
     OpenLauncher,
+    OpenClipboard,
     Updates(modules::updates::Message),
     Workspaces(modules::workspaces::Message),
     Title(modules::title::Message),
@@ -115,7 +116,7 @@ impl App {
                 info!("New config: {:?}", config);
                 self.config = *config;
                 self.logger
-                    .set_new_spec(get_log_spec(self.config.log_level));
+                    .set_new_spec(get_log_spec(&self.config.log_level));
                 Task::none()
             }
             Message::CloseMenu => self.menu.close(),
@@ -131,6 +132,12 @@ impl App {
                     utils::launcher::execute_command(app_launcher_cmd.to_string());
                 }
                 Task::none()
+            }
+            Message::OpenClipboard => {
+                if let Some(clipboard_cmd) = self.config.clipboard_cmd.as_ref() {
+                    utils::launcher::execute_command(clipboard_cmd.to_string());
+                }
+                Command::none()
             }
             Message::Workspaces(msg) => {
                 self.workspaces.update(msg);
@@ -173,24 +180,23 @@ impl App {
     }
 
     pub fn view(&self, id: Id) -> Element<Message> {
-        let menu =
-            self.menu
-                .get_menu_type_to_render(id)
-                .map(|menu_type| match menu_type {
-                    MenuType::Updates => menu_wrapper(
-                        self.updates.menu_view().map(Message::Updates),
-                        MenuPosition::Left,
-                        self.config.position,
-                    ),
-                    MenuType::Settings => menu_wrapper(
-                        self.settings
-                            .menu_view(&self.config.settings)
-                            .map(Message::Settings),
-                        MenuPosition::Right,
-                        self.config.position,
-                    ),
-                });
-
+        let menu = self
+            .menu
+            .get_menu_type_to_render(id)
+            .map(|menu_type| match menu_type {
+                MenuType::Updates => menu_wrapper(
+                    self.updates.menu_view().map(Message::Updates),
+                    MenuPosition::Left,
+                    self.config.position,
+                ),
+                MenuType::Settings => menu_wrapper(
+                    self.settings
+                        .menu_view(&self.config.settings)
+                        .map(Message::Settings),
+                    MenuPosition::Right,
+                    self.config.position,
+                ),
+            });
         if let Some(menu) = menu {
             return menu;
         }
@@ -204,13 +210,22 @@ impl App {
             )
             .push_maybe(
                 self.config
+                    .clipboard_cmd
+                    .as_ref()
+                    .map(|_| clipboard::clipboard()),
+            )
+            .push_maybe(
+                self.config
                     .updates
                     .as_ref()
                     .map(|_| self.updates.view().map(Message::Updates)),
             )
             .push(
                 self.workspaces
-                    .view(&self.config.appearance.workspace_colors)
+                    .view(
+                        &self.config.appearance.workspace_colors,
+                        self.config.appearance.special_workspace_colors.as_deref(),
+                    )
                     .map(Message::Workspaces),
             )
             .height(Length::Shrink)
@@ -251,8 +266,6 @@ impl App {
             .height(Length::Fixed(HEIGHT as f32))
             .align_items(Alignment::Center)
             .into()
-        //     }
-        // }
     }
 
     pub fn subscription(&self) -> Subscription<Message> {

@@ -7,6 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Support for special workspaces
+
+### Fixed
+
+- Ashell crash when the title module try to split a multi-byte character 
+- Removed fixed monitor name in the workspace module
+- Fix privacy webcam usage check during initialization
+- Fix microphone selection
+- Fix sink and source slider toggle button state
+- Fix brightness initial value
+
+## [0.1.5] - 2024-11-04
+
+### Added
+
+- Added a clipboard button
+
+### Fixed
+
+- Fix workspace indicator foreground color selection
+
+### Changed
+
+- Nerd fonts are now included in the binary
+- Workspace indicator now has an hover state
+
+### Thanks
+
+- @fiersik for the clipboard button and the ALT Linux package
+
+## [0.1.4] - 2024-10-23
+
+### Fixed
+
+- bluetooth quick toggle button no longer appear when no bluetooth device is available
+- rfkill absence doesn't cause an error during network service initialization
+- rfkill is launched using absolute path to avoid issues with $PATH
+- webcam absence doesn't cause an error during privacy service initialization
+
+### Changed
+
+- added more logging to the services in case of errors
+
+## [0.1.3] - 2024-10-22
+
+### Fixed
+
+- resolved problem with `cargo vendor` command
+
 ## [0.1.2] - 2024-10-17
 
 ### Added

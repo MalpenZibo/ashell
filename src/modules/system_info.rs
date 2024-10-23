@@ -25,7 +25,7 @@ fn get_system_info(system: &mut System, components: &mut Components) -> SystemIn
     components.refresh_list();
     components.refresh();
 
-    let cpu_usage = system.global_cpu_info().cpu_usage().floor() as u32;
+    let cpu_usage = system.global_cpu_usage().floor() as u32;
     let memory_usage = ((system.total_memory() - system.available_memory()) as f32
         / system.total_memory() as f32
         * 100.) as u32;

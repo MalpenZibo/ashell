@@ -1,4 +1,4 @@
-use crate::config::Appearance;
+use crate::config::{Appearance, AppearanceColor};
 use iced::{
     border::Radius,
     theme::{palette, Palette},
@@ -7,7 +7,7 @@ use iced::{
         container,
         text_input::{self},
     },
-    Border, Color, Theme,
+    Background, Border, Color, Theme,
 };
 
 pub fn ashell_theme(appearance: &Appearance) -> Theme {
@@ -275,6 +275,95 @@ impl SettingsButtonStyle {
                 Status::Active => base,
                 Status::Hovered => {
                     base.background = Some(theme.extended_palette().background.strong.color.into());
+                    base
+                }
+                _ => base,
+            }
+        })
+    }
+}
+
+pub struct WorkspaceButtonStyle(pub bool, pub Option<Option<AppearanceColor>>);
+
+impl WorkspaceButtonStyle {
+    pub fn into_style<'a>(self) -> button::StyleFn<'a, Theme> {
+        Box::new(move |theme, status| {
+            let (bg_color, fg_color) = self
+                .1
+                .map(|c| {
+                    c.map_or(
+                        (
+                            theme.extended_palette().primary.base.color,
+                            theme.extended_palette().primary.base.text,
+                        ),
+                        |c| {
+                            let color = palette::Primary::generate(
+                                c.get_base(),
+                                theme.palette().background,
+                                c.get_text().unwrap_or(theme.palette().text),
+                            );
+                            (color.base.color, color.base.text)
+                        },
+                    )
+                })
+                .unwrap_or((
+                    theme.extended_palette().background.weak.color,
+                    theme.palette().text,
+                ));
+            let mut base = button::Style {
+                background: Some(Background::Color(if self.0 {
+                    theme.extended_palette().background.weak.color
+                } else {
+                    bg_color
+                })),
+                border: Border {
+                    width: if self.0 { 1.0 } else { 0.0 },
+                    color: bg_color,
+                    radius: 16.0.into(),
+                },
+                text_color: if self.0 {
+                    theme.extended_palette().background.weak.text
+                } else {
+                    fg_color
+                },
+                ..button::Style::default()
+            };
+            match status {
+                Status::Active => base,
+                Status::Hovered => {
+                    let (bg_color, fg_color) = self
+                        .1
+                        .map(|c| {
+                            c.map_or(
+                                (
+                                    theme.extended_palette().primary.strong.color,
+                                    theme.extended_palette().primary.strong.text,
+                                ),
+                                |c| {
+                                    let color = palette::Primary::generate(
+                                        c.get_base(),
+                                        theme.palette().background,
+                                        c.get_text().unwrap_or(theme.palette().text),
+                                    );
+                                    (color.strong.color, color.strong.text)
+                                },
+                            )
+                        })
+                        .unwrap_or((
+                            theme.extended_palette().background.strong.color,
+                            theme.palette().text,
+                        ));
+
+                    base.background = Some(Background::Color(if self.0 {
+                        theme.extended_palette().background.strong.color
+                    } else {
+                        bg_color
+                    }));
+                    base.text_color = if self.0 {
+                        theme.extended_palette().background.weak.text
+                    } else {
+                        fg_color
+                    };
                     base
                 }
                 _ => base,

@@ -2,21 +2,29 @@
 name = "ashell"
 description = "Barely customizable Wayland status bar for Hyprland compositor."
 homepage = "https://github.com/MalpenZibo/ashell"
-version = "0.1.2"
+version = "0.1.5"
 edition = "2021"
+rust-version = "1.81"
 
 [dependencies]
-iced = { git = "https://github.com/pop-os/iced", features = ["tokio", "multi-window", "advanced", "wgpu", "winit", "wayland"] }
+iced = { git = "https://github.com/pop-os/iced", features = [
+  "tokio",
+  "multi-window",
+  "advanced",
+  "wgpu",
+  "winit",
+  "wayland",
+] }
 chrono = "0.4"
-hyprland = { git = "https://github.com/MalpenZibo/hyprland-rs" }
+hyprland = { git = "https://github.com/MalpenZibo/hyprland-rs", branch = "nix-fix" }
 serde = "1.0"
-sysinfo = "0.30"
+sysinfo = "0.32"
 tokio = { version = "1", features = ["full"] }
-zbus = "4.2"
+zbus = "5"
 libpulse-binding = { version = "2.28", features = ["pa_v15"] }
-inotify = "0.10"
-log = { version = "0.4", features=["serde"] }
-flexi_logger = "0.28"
+inotify = "0.11"
+log = { version = "0.4", features = ["serde"] }
+flexi_logger = "0.29"
 serde_yaml = "0.9"
 pipewire = "0.8"
 wayland-client = "0.31.5"
@@ -24,4 +32,3 @@ wayland-protocols = { version = "0.32.3", features = ["client", "unstable"] }
 itertools = "0.13"
 hex_color = { version = "3.0", features = ["serde"] }
 anyhow = "1"
-

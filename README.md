@@ -29,6 +29,13 @@ paru/yay -S ashell
 paru/yay -S ashell-git 
 ```
 
+### ALT Linux
+
+```
+su -
+apt-get install ashell
+```
+
 ### Nix
 
 To install ashell using the nix package be sure to enable flakes and then run
@@ -100,6 +107,9 @@ position: Top # optional, default Top
 # App lancher commanda, it will be used to open the launcher,
 # without a value the related button will not appear
 appLauncherCmd: "~/.config/rofi/launcher.sh" # optional, default None 
+# Clipboard command, it will be used to open the clipboard menu,
+# without a value the related button will not appear
+clipboardCmd: "cliphist-rofi-img | wl-copy"  # optional, default None 
 # Update module configuration. 
 # Without a value the related button will not appear.
 updates: # optional, default None 
@@ -165,6 +175,13 @@ appearance:
     workspaceColors: 
       - "#fab387" 
       - "#b4befe"
+    # this is a list of color that will be used in the workspace module 
+    # for the special workspace (one color for each monitor)
+    # optional, default None
+    # without a value the workspaceColors list will be used
+    specialWorkspaceColors:
+      - "#a6e3a1" 
+      - "#f38ba8"
 ```
 
 ### So, what's the purpose of this project?
