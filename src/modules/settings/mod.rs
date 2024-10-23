@@ -10,7 +10,7 @@ use crate::{
     password_dialog,
     services::{
         audio::{AudioCommand, AudioService},
-        bluetooth::{BluetoothCommand, BluetoothService},
+        bluetooth::{BluetoothCommand, BluetoothService, BluetoothState},
         brightness::{BrightnessCommand, BrightnessService},
         idle_inhibitor::IdleInhibitorManager,
         network::{NetworkCommand, NetworkEvent, NetworkService},
@@ -205,7 +205,6 @@ impl Settings {
                     }
                     ServiceEvent::Update(NetworkEvent::RequestPasswordForSSID(ssid)) => {
                         self.password_dialog = Some((ssid, "".to_string()));
-                        // menu.set_keyboard_interactivity()
                         Task::none()
                     }
                     ServiceEvent::Update(data) => {
@@ -256,8 +255,7 @@ impl Settings {
                 NetworkMessage::RequestWiFiPassword(ssid) => {
                     info!("Requesting password for {}", ssid);
                     self.password_dialog = Some((ssid, "".to_string()));
-                    // menu.set_keyboard_interactivity()
-                    Task::none()
+                    menu.request_keyboard()
                 }
                 NetworkMessage::ScanNearByWiFi => {
                     if let Some(network) = self.network.as_mut() {
@@ -434,18 +432,15 @@ impl Settings {
                         } else {
                             Task::none()
                         };
-                        Task::batch(vec![network_command])
+                        Task::batch(vec![network_command, menu.release_keyboard()])
                     } else {
-                        Task::none()
+                        menu.release_keyboard()
                     }
                 }
                 password_dialog::Message::DialogCancelled => {
-                    if let Some((_, _)) = self.password_dialog.take() {
-                        Task::none()
-                        // menu.unset_keyboard_interactivity()
-                    } else {
-                        Task::none()
-                    }
+                    self.password_dialog = None;
+
+                    menu.release_keyboard()
                 }
             },
         }
@@ -544,12 +539,15 @@ impl Settings {
             let quick_settings = quick_settings_section(
                 vec![
                     wifi_setting_button,
-                    self.bluetooth.as_ref().and_then(|b| {
-                        b.get_quick_setting_button(
-                            self.sub_menu,
-                            config.bluetooth_more_cmd.is_some(),
-                        )
-                    }),
+                    self.bluetooth
+                        .as_ref()
+                        .filter(|b| b.state != BluetoothState::Unavailable)
+                        .and_then(|b| {
+                            b.get_quick_setting_button(
+                                self.sub_menu,
+                                config.bluetooth_more_cmd.is_some(),
+                            )
+                        }),
                     self.network.as_ref().map(|n| {
                         n.get_vpn_quick_setting_button(self.sub_menu, config.vpn_more_cmd.is_some())
                     }),

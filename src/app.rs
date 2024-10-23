@@ -4,7 +4,8 @@ use crate::{
     get_log_spec,
     menu::{menu_wrapper, Menu, MenuPosition},
     modules::{
-        self, clock::Clock, launcher, privacy::PrivacyMessage, settings::Settings,
+        self, clipboard, clock::Clock, keyboard_layout::KeyboardLayout,
+        keyboard_submap::KeyboardSubmap, launcher, privacy::PrivacyMessage, settings::Settings,
         system_info::SystemInfo, title::Title, updates::Updates, workspaces::Workspaces,
     },
     services::{privacy::PrivacyService, ReadOnlyService, ServiceEvent},
@@ -15,7 +16,7 @@ use flexi_logger::LoggerHandle;
 use iced::{
     daemon::Appearance,
     platform_specific::shell::commands::layer_surface::{
-        get_layer_surface, Anchor, KeyboardInteractivity,
+        get_layer_surface, Anchor, KeyboardInteractivity, Layer,
     },
     runtime::platform_specific::wayland::layer_surface::{IcedOutput, SctkLayerSurfaceSettings},
     widget::Row,
@@ -24,6 +25,36 @@ use iced::{
 };
 use log::info;
 
+fn create_layer(pos: Position) -> (Id, Vec<Task<Message>>) {
+    let main = get_layer_surface(SctkLayerSurfaceSettings {
+        size: Some((None, Some(HEIGHT))),
+        layer: Layer::Bottom,
+        pointer_interactivity: true,
+        keyboard_interactivity: KeyboardInteractivity::None,
+        exclusive_zone: HEIGHT as i32,
+        output: IcedOutput::All,
+        anchor: match pos {
+            Position::Top => Anchor::TOP,
+            Position::Bottom => Anchor::BOTTOM,
+        } | Anchor::LEFT
+            | Anchor::RIGHT,
+        ..Default::default()
+    });
+
+    let menu_id = Id::unique();
+    let menu = get_layer_surface(SctkLayerSurfaceSettings {
+        id: menu_id,
+        size: Some((None, None)),
+        layer: Layer::Background,
+        pointer_interactivity: true,
+        keyboard_interactivity: KeyboardInteractivity::None,
+        anchor: Anchor::TOP | Anchor::BOTTOM | Anchor::LEFT | Anchor::RIGHT,
+        ..Default::default()
+    });
+
+    (menu_id, vec![main, menu])
+}
+
 pub struct App {
     logger: LoggerHandle,
     config: Config,
@@ -31,6 +62,8 @@ pub struct App {
     workspaces: Workspaces,
     window_title: Title,
     system_info: SystemInfo,
+    keyboard_layout: KeyboardLayout,
+    keyboard_submap: KeyboardSubmap,
     clock: Clock,
     privacy: Option<PrivacyService>,
     pub settings: Settings,
@@ -49,10 +82,13 @@ pub enum Message {
     ConfigChanged(Box<Config>),
     CloseMenu,
     OpenLauncher,
+    OpenClipboard,
     Updates(modules::updates::Message),
     Workspaces(modules::workspaces::Message),
     Title(modules::title::Message),
     SystemInfo(modules::system_info::Message),
+    KeyboardLayout(modules::keyboard_layout::Message),
+    KeyboardSubmap(modules::keyboard_submap::Message),
     Clock(modules::clock::Message),
     Privacy(modules::privacy::PrivacyMessage),
     Settings(modules::settings::Message),
@@ -60,8 +96,8 @@ pub enum Message {
 
 impl App {
     pub fn new((logger, config): (LoggerHandle, Config)) -> impl FnOnce() -> (Self, Task<Message>) {
-        || {
-            let pos = config.position;
+        let (menu_id, tasks) = create_layer(config.position);
+        move || {
             (
                 App {
                     logger,
@@ -70,24 +106,14 @@ impl App {
                     workspaces: Workspaces::default(),
                     window_title: Title::default(),
                     system_info: SystemInfo::default(),
+                    keyboard_layout: KeyboardLayout::default(),
+                    keyboard_submap: KeyboardSubmap::default(),
                     clock: Clock::default(),
                     privacy: None,
                     settings: Settings::default(),
-                    menu: Menu::default(),
+                    menu: Menu::new(menu_id),
                 },
-                get_layer_surface(SctkLayerSurfaceSettings {
-                    size: Some((None, Some(HEIGHT))),
-                    pointer_interactivity: true,
-                    keyboard_interactivity: KeyboardInteractivity::None,
-                    exclusive_zone: HEIGHT as i32,
-                    output: IcedOutput::All,
-                    anchor: match pos {
-                        Position::Top => Anchor::TOP,
-                        Position::Bottom => Anchor::BOTTOM,
-                    } | Anchor::LEFT
-                        | Anchor::RIGHT,
-                    ..Default::default()
-                }),
+                Task::batch(tasks),
             )
         }
     }
@@ -115,7 +141,7 @@ impl App {
                 info!("New config: {:?}", config);
                 self.config = *config;
                 self.logger
-                    .set_new_spec(get_log_spec(self.config.log_level));
+                    .set_new_spec(get_log_spec(&self.config.log_level));
                 Task::none()
             }
             Message::CloseMenu => self.menu.close(),
@@ -132,6 +158,12 @@ impl App {
                 }
                 Task::none()
             }
+            Message::OpenClipboard => {
+                if let Some(clipboard_cmd) = self.config.clipboard_cmd.as_ref() {
+                    utils::launcher::execute_command(clipboard_cmd.to_string());
+                }
+                Task::none()
+            }
             Message::Workspaces(msg) => {
                 self.workspaces.update(msg);
 
@@ -144,6 +176,14 @@ impl App {
             }
             Message::SystemInfo(message) => {
                 self.system_info.update(message);
+                Task::none()
+            }
+            Message::KeyboardLayout(message) => {
+                self.keyboard_layout.update(message);
+                Task::none()
+            }
+            Message::KeyboardSubmap(message) => {
+                self.keyboard_submap.update(message);
                 Task::none()
             }
             Message::Clock(message) => {
@@ -173,86 +213,99 @@ impl App {
     }
 
     pub fn view(&self, id: Id) -> Element<Message> {
-        let menu =
-            self.menu
-                .get_menu_type_to_render(id)
-                .map(|menu_type| match menu_type {
-                    MenuType::Updates => menu_wrapper(
-                        self.updates.menu_view().map(Message::Updates),
-                        MenuPosition::Left,
-                        self.config.position,
-                    ),
-                    MenuType::Settings => menu_wrapper(
-                        self.settings
-                            .menu_view(&self.config.settings)
-                            .map(Message::Settings),
-                        MenuPosition::Right,
-                        self.config.position,
-                    ),
-                });
+        if self.menu.is_menu(id) {
+            match self.menu.get_menu_type_to_render(id) {
+                Some(MenuType::Updates) => menu_wrapper(
+                    self.updates.menu_view().map(Message::Updates),
+                    MenuPosition::Left,
+                    self.config.position,
+                ),
+                Some(MenuType::Settings) => menu_wrapper(
+                    self.settings
+                        .menu_view(&self.config.settings)
+                        .map(Message::Settings),
+                    MenuPosition::Right,
+                    self.config.position,
+                ),
+                None => Row::new().into(),
+            }
+        } else {
+            let left = Row::new()
+                .push_maybe(
+                    self.config
+                        .app_launcher_cmd
+                        .as_ref()
+                        .map(|_| launcher::launcher()),
+                )
+                .push_maybe(
+                    self.config
+                        .clipboard_cmd
+                        .as_ref()
+                        .map(|_| clipboard::clipboard()),
+                )
+                .push_maybe(
+                    self.config
+                        .updates
+                        .as_ref()
+                        .map(|_| self.updates.view().map(Message::Updates)),
+                )
+                .push(
+                    self.workspaces
+                        .view(
+                            &self.config.appearance.workspace_colors,
+                            self.config.appearance.special_workspace_colors.as_deref(),
+                        )
+                        .map(Message::Workspaces),
+                )
+                .height(Length::Shrink)
+                .align_y(Alignment::Center)
+                .spacing(4);
 
-        if let Some(menu) = menu {
-            return menu;
+            let center = Row::new()
+                .push_maybe(self.window_title.view().map(|v| v.map(Message::Title)))
+                .spacing(4);
+
+            let right = Row::new()
+                .push_maybe(
+                    self.system_info
+                        .view(&self.config.system)
+                        .map(|c| c.map(Message::SystemInfo)),
+                )
+                .push_maybe(
+                    self.keyboard_submap
+                        .view(&self.config.keyboard.submap)
+                        .map(|l| l.map(Message::KeyboardSubmap)),
+                )
+                .push_maybe(
+                    self.keyboard_layout
+                        .view(&self.config.keyboard.layout)
+                        .map(|l| l.map(Message::KeyboardLayout)),
+                )
+                .push(
+                    Row::new()
+                        .push(
+                            self.clock
+                                .view(&self.config.clock.format)
+                                .map(Message::Clock),
+                        )
+                        .push_maybe(
+                            self.privacy
+                                .as_ref()
+                                .and_then(|privacy| privacy.view())
+                                .map(|e| e.map(Message::Privacy)),
+                        )
+                        .push(self.settings.view().map(Message::Settings)),
+                )
+                .spacing(4);
+
+            centerbox::Centerbox::new([left.into(), center.into(), right.into()])
+                .spacing(4)
+                .padding([0, 4])
+                .width(Length::Fill)
+                .height(Length::Fixed(HEIGHT as f32))
+                .align_items(Alignment::Center)
+                .into()
         }
-
-        let left = Row::new()
-            .push_maybe(
-                self.config
-                    .app_launcher_cmd
-                    .as_ref()
-                    .map(|_| launcher::launcher()),
-            )
-            .push_maybe(
-                self.config
-                    .updates
-                    .as_ref()
-                    .map(|_| self.updates.view().map(Message::Updates)),
-            )
-            .push(
-                self.workspaces
-                    .view(&self.config.appearance.workspace_colors)
-                    .map(Message::Workspaces),
-            )
-            .height(Length::Shrink)
-            .align_y(Alignment::Center)
-            .spacing(4);
-
-        let center = Row::new()
-            .push_maybe(self.window_title.view().map(|v| v.map(Message::Title)))
-            .spacing(4);
-
-        let right = Row::new()
-            .push_maybe(
-                self.system_info
-                    .view(&self.config.system)
-                    .map(|c| c.map(Message::SystemInfo)),
-            )
-            .push(
-                Row::new()
-                    .push(
-                        self.clock
-                            .view(&self.config.clock.format)
-                            .map(Message::Clock),
-                    )
-                    .push_maybe(
-                        self.privacy
-                            .as_ref()
-                            .and_then(|privacy| privacy.view())
-                            .map(|e| e.map(Message::Privacy)),
-                    )
-                    .push(self.settings.view().map(Message::Settings)),
-            )
-            .spacing(4);
-
-        centerbox::Centerbox::new([left.into(), center.into(), right.into()])
-            .spacing(4)
-            .padding([0, 4])
-            .width(Length::Fill)
-            .height(Length::Fixed(HEIGHT as f32))
-            .align_items(Alignment::Center)
-            .into()
-        //     }
-        // }
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
@@ -266,6 +319,16 @@ impl App {
                 Some(self.workspaces.subscription().map(Message::Workspaces)),
                 Some(self.window_title.subscription().map(Message::Title)),
                 Some(self.system_info.subscription().map(Message::SystemInfo)),
+                Some(
+                    self.keyboard_layout
+                        .subscription()
+                        .map(Message::KeyboardLayout),
+                ),
+                Some(
+                    self.keyboard_submap
+                        .subscription()
+                        .map(Message::KeyboardSubmap),
+                ),
                 Some(self.clock.subscription().map(Message::Clock)),
                 Some(
                     PrivacyService::subscribe().map(|e| Message::Privacy(PrivacyMessage::Event(e))),

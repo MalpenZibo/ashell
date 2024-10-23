@@ -43,7 +43,7 @@ impl AudioData {
         let active_sink = self
             .sinks
             .iter()
-            .find(|sink| sink.ports.iter().any(|p| p.active));
+            .find(|sink| sink.name == self.server_info.default_sink);
 
         let sink_slider = active_sink.map(|s| {
             audio_slider(
@@ -60,27 +60,31 @@ impl AudioData {
             )
         });
 
-        let active_source = self
-            .sources
-            .iter()
-            .find(|source| source.ports.iter().any(|p| p.active));
+        if self.sources.iter().any(|source| source.in_use) {
+            let active_source = self
+                .sources
+                .iter()
+                .find(|source| source.name == self.server_info.default_source);
 
-        let source_slider = active_source.map(|s| {
-            audio_slider(
-                SliderType::Source,
-                s.is_mute,
-                Message::Audio(AudioMessage::ToggleSourceMute),
-                self.cur_source_volume,
-                |v| Message::Audio(AudioMessage::SourceVolumeChanged(v)),
-                if self.sources.iter().map(|s| s.ports.len()).sum::<usize>() > 1 {
-                    Some((sub_menu, Message::ToggleSubMenu(SubMenu::Sources)))
-                } else {
-                    None
-                },
-            )
-        });
+            let source_slider = active_source.map(|s| {
+                audio_slider(
+                    SliderType::Source,
+                    s.is_mute,
+                    Message::Audio(AudioMessage::ToggleSourceMute),
+                    self.cur_source_volume,
+                    |v| Message::Audio(AudioMessage::SourceVolumeChanged(v)),
+                    if self.sources.iter().map(|s| s.ports.len()).sum::<usize>() > 1 {
+                        Some((sub_menu, Message::ToggleSubMenu(SubMenu::Sources)))
+                    } else {
+                        None
+                    },
+                )
+            });
 
-        (sink_slider, source_slider)
+            (sink_slider, source_slider)
+        } else {
+            (sink_slider, None)
+        }
     }
 
     pub fn sinks_submenu(&self, show_more: bool) -> Element<Message> {
@@ -171,7 +175,7 @@ pub fn audio_slider<'a, Message: 'a + Clone>(
         .push(
             slider(0..=100, volume, volume_changed)
                 .step(1)
-                .width(Length::Fill)
+                .width(Length::Fill),
         )
         .push_maybe(with_submenu.map(|(submenu, msg)| {
             button(icon(match (slider_type, submenu) {

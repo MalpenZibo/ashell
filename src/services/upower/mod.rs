@@ -2,10 +2,12 @@ use super::{ReadOnlyService, Service, ServiceEvent};
 use crate::{components::icons::Icons, utils::IndicatorState};
 use dbus::{PowerProfilesProxy, UPowerDbus};
 use iced::{
-    futures::{channel::mpsc::Sender, stream::once, stream_select, SinkExt, Stream, StreamExt},
+    futures::stream::{once, pending},
+    futures::{channel::mpsc::Sender, stream_select, SinkExt, Stream, StreamExt},
     stream::channel,
     Subscription,
 };
+use log::{error, warn};
 use std::{any::TypeId, time::Duration};
 use zbus::zvariant::ObjectPath;
 
@@ -156,11 +158,21 @@ impl UPowerService {
         conn: &zbus::Connection,
     ) -> anyhow::Result<(Option<(BatteryData, ObjectPath<'static>)>, PowerProfile)> {
         let battery = UPowerService::initialize_battery_data(conn).await?;
-        let power_profile = UPowerService::initialize_power_profile_data(conn).await?;
+        let power_profile = UPowerService::initialize_power_profile_data(conn).await;
 
         match (battery, power_profile) {
-            (Some(battery), power_profile) => Ok((Some((battery.0, battery.1)), power_profile)),
-            _ => Ok((None, power_profile)),
+            (Some(battery), Ok(power_profile)) => Ok((Some((battery.0, battery.1)), power_profile)),
+            (Some(battery), Err(err)) => {
+                warn!("Failed to get power profile: {}", err);
+
+                Ok((Some((battery.0, battery.1)), PowerProfile::Unknown))
+            }
+            (None, Ok(power_profile)) => Ok((None, power_profile)),
+            (None, Err(err)) => {
+                warn!("Failed to get power profile: {}", err);
+
+                Ok((None, PowerProfile::Unknown))
+            }
         }
     }
 
@@ -287,7 +299,11 @@ impl UPowerService {
                                 (Some(battery_data), Some(battery_path), power_profile)
                             }
                             Ok((None, power_profile)) => (None, None, power_profile),
-                            Err(_) => return State::Error,
+                            Err(err) => {
+                                error!("Failed to initialize upower service: {}", err);
+
+                                return State::Error;
+                            }
                         };
 
                     let service = UPowerService {
@@ -299,7 +315,10 @@ impl UPowerService {
 
                     State::Active(conn, battery_path)
                 }
-                Err(_) => State::Error,
+                Err(err) => {
+                    error!("Failed to connect to system bus for upower: {}", err);
+                    State::Error
+                }
             },
             State::Active(conn, battery_path) => {
                 match UPowerService::events(&conn, &battery_path).await {
@@ -310,10 +329,18 @@ impl UPowerService {
 
                         State::Active(conn, battery_path)
                     }
-                    Err(_) => State::Error,
+                    Err(err) => {
+                        error!("Failed to listen for upower events: {}", err);
+
+                        State::Error
+                    }
                 }
             }
-            State::Error => State::Error,
+            State::Error => {
+                let _ = pending::<u8>().next().await;
+
+                State::Error
+            }
         }
     }
 }

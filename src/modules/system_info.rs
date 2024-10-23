@@ -6,7 +6,7 @@ use crate::{
 use iced::{
     alignment::Vertical,
     time::every,
-    widget::{container, row, text},
+    widget::{container, row, text, Row},
     Alignment, Element, Subscription, Theme,
 };
 use std::time::Duration;
@@ -15,7 +15,7 @@ use sysinfo::{Components, System};
 struct SystemInfoData {
     pub cpu_usage: u32,
     pub memory_usage: u32,
-    pub temperature: Option<f32>,
+    pub temperature: Option<i32>,
 }
 
 fn get_system_info(system: &mut System, components: &mut Components) -> SystemInfoData {
@@ -25,7 +25,7 @@ fn get_system_info(system: &mut System, components: &mut Components) -> SystemIn
     components.refresh_list();
     components.refresh();
 
-    let cpu_usage = system.global_cpu_info().cpu_usage().floor() as u32;
+    let cpu_usage = system.global_cpu_usage().floor() as u32;
     let memory_usage = ((system.total_memory() - system.available_memory()) as f32
         / system.total_memory() as f32
         * 100.) as u32;
@@ -33,7 +33,7 @@ fn get_system_info(system: &mut System, components: &mut Components) -> SystemIn
     let temperature = components
         .iter()
         .find(|c| c.label() == "acpitz temp1")
-        .map(|c| c.temperature());
+        .map(|c| c.temperature() as i32);
 
     SystemInfoData {
         cpu_usage,
@@ -82,7 +82,7 @@ impl SystemInfo {
         } else {
             let cpu_usage = self.data.cpu_usage;
             let memory_usage = self.data.memory_usage;
-            let temperature = self.data.temperature.unwrap_or_default() as i32;
+            let temperature = self.data.temperature;
 
             let cpu_warn_threshold = config.cpu_warn_threshold;
             let cpu_alert_threshold = config.cpu_alert_threshold;
@@ -95,61 +95,68 @@ impl SystemInfo {
 
             Some(
                 container(
-                    row!(
-                        container(
-                            row!(icon(Icons::Cpu), text(format!("{}%", cpu_usage))).spacing(4)
+                    Row::new()
+                        .push(
+                            container(
+                                row!(icon(Icons::Cpu), text(format!("{}%", cpu_usage))).spacing(4),
+                            )
+                            .style(move |theme: &Theme| {
+                                container::Style {
+                                    text_color: if cpu_usage > cpu_warn_threshold
+                                        && cpu_usage < cpu_alert_threshold
+                                    {
+                                        Some(theme.extended_palette().danger.weak.color)
+                                    } else if cpu_usage >= cpu_alert_threshold {
+                                        Some(theme.palette().danger)
+                                    } else {
+                                        None
+                                    },
+                                    ..Default::default()
+                                }
+                            }),
                         )
-                        .style(move |theme: &Theme| {
-                            container::Style {
-                                text_color: if cpu_usage > cpu_warn_threshold
-                                    && cpu_usage < cpu_alert_threshold
-                                {
-                                    Some(theme.extended_palette().danger.weak.color)
-                                } else if cpu_usage >= cpu_alert_threshold {
-                                    Some(theme.palette().danger)
-                                } else {
-                                    None
-                                },
-                                ..Default::default()
-                            }
-                        }),
-                        container(
-                            row!(icon(Icons::Mem), text(format!("{}%", memory_usage))).spacing(4)
+                        .push(
+                            container(
+                                row!(icon(Icons::Mem), text(format!("{}%", memory_usage)))
+                                    .spacing(4),
+                            )
+                            .style(move |theme: &Theme| {
+                                container::Style {
+                                    text_color: if memory_usage > mem_warn_threshold
+                                        && memory_usage < mem_alert_threshold
+                                    {
+                                        Some(theme.extended_palette().danger.weak.color)
+                                    } else if memory_usage >= mem_alert_threshold {
+                                        Some(theme.palette().danger)
+                                    } else {
+                                        None
+                                    },
+                                    ..Default::default()
+                                }
+                            }),
                         )
-                        .style(move |theme: &Theme| {
-                            container::Style {
-                                text_color: if memory_usage > mem_warn_threshold
-                                    && memory_usage < mem_alert_threshold
-                                {
-                                    Some(theme.extended_palette().danger.weak.color)
-                                } else if memory_usage >= mem_alert_threshold {
-                                    Some(theme.palette().danger)
-                                } else {
-                                    None
-                                },
-                                ..Default::default()
-                            }
-                        }),
-                        container(
-                            row!(icon(Icons::Temp), text(format!("{}°", temperature))).spacing(4)
-                        )
-                        .style(move |theme: &Theme| {
-                            container::Style {
-                                text_color: if temperature > temp_warn_threshold
-                                    && temperature < temp_alert_threshold
-                                {
-                                    Some(theme.extended_palette().danger.weak.color)
-                                } else if temperature >= temp_alert_threshold {
-                                    Some(theme.palette().danger)
-                                } else {
-                                    None
-                                },
-                                ..Default::default()
-                            }
-                        })
-                    )
-                    .align_y(Alignment::Center)
-                    .spacing(4),
+                        .push_maybe(temperature.map(|temperature| {
+                            container(
+                                row!(icon(Icons::Temp), text(format!("{}°", temperature)))
+                                    .spacing(4),
+                            )
+                            .style(move |theme: &Theme| {
+                                container::Style {
+                                    text_color: if temperature > temp_warn_threshold
+                                        && temperature < temp_alert_threshold
+                                    {
+                                        Some(theme.extended_palette().danger.weak.color)
+                                    } else if temperature >= temp_alert_threshold {
+                                        Some(theme.palette().danger)
+                                    } else {
+                                        None
+                                    },
+                                    ..Default::default()
+                                }
+                            })
+                        }))
+                        .align_y(Alignment::Center)
+                        .spacing(4),
                 )
                 .align_y(Vertical::Center)
                 .padding([2, 7])
