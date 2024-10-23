@@ -7,9 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- bluetooth quick toggle button no longer appear when no bluetooth device is available
+- rfkill absence doesn't cause an error during network service initialization
+- rfkill is launched using absolute path to avoid issues with $PATH
+- webcam absence doesn't cause an error during privacy service initialization
+
+### Changed
+
+- added more logging to the services in case of errors
+
 ## [0.1.3] - 2024-10-22
 
-### Fix
+### Fixed
 
 - resolved problem with `cargo vendor` command
 

@@ -205,7 +205,9 @@ impl NetworkService {
         let nm = NetworkDbus::new(conn).await?;
 
         // airplane mode
-        let bluetooth_soft_blocked = BluetoothService::check_rfkill_soft_block().await?;
+        let bluetooth_soft_blocked = BluetoothService::check_rfkill_soft_block()
+            .await
+            .unwrap_or_default();
 
         let wifi_present = nm.wifi_device_present().await?;
 
@@ -289,7 +291,11 @@ impl NetworkService {
 
                         State::Active(conn)
                     }
-                    Err(_) => State::Error,
+                    Err(err) => {
+                        error!("Failed to listen for network events: {}", err);
+
+                        State::Error
+                    }
                 }
             }
             State::Error => {
@@ -508,7 +514,7 @@ impl NetworkService {
     }
 
     async fn set_airplane_mode(conn: &zbus::Connection, airplane_mode: bool) -> anyhow::Result<()> {
-        Command::new("rfkill")
+        Command::new("/usr/sbin/rfkill")
             .arg(if airplane_mode { "block" } else { "unblock" })
             .arg("bluetooth")
             .output()

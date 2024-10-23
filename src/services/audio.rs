@@ -179,7 +179,10 @@ impl AudioService {
                         .await;
                     State::Active(handle)
                 }
-                Err(_) => State::Error,
+                Err(err) => {
+                    error!("Failed to initialize audio service: {}", err);
+                    State::Error
+                }
             },
             State::Active(mut handle) => match handle.receiver.recv().await {
                 Some(PulseAudioServerEvent::Error) => {
@@ -210,7 +213,7 @@ impl AudioService {
                 None => State::Active(handle),
             },
             State::Error => {
-                error!("Brightness service error");
+                error!("Audio service error");
 
                 let _ = pending::<u8>().next().await;
                 State::Error

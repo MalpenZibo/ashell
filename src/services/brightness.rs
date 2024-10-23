@@ -159,7 +159,11 @@ impl BrightnessService {
 
                         State::Active(device_path)
                     }
-                    Err(_) => State::Error,
+                    Err(err) => {
+                        error!("Failed to listen for brightness events: {}", err);
+
+                        State::Error
+                    }
                 }
             }
             State::Error => {
