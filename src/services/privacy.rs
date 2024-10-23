@@ -161,8 +161,19 @@ impl PrivacyService {
 
                         State::Active((pipewire, webcam))
                     }
-                    _ => {
-                        error!("Failed to connect to pipewire or webcam data");
+                    (Err(pipewire_error), Ok(_)) => {
+                        error!("Failed to connect to pipewire: {}", pipewire_error);
+
+                        State::Error
+                    }
+                    (Ok(pipewire), Err(webcam_error)) => {
+                        warn!("Failed to connect to webcam: {}", webcam_error);
+
+                        State::Active((pipewire, Box::new(pending::<PrivacyEvent>().boxed())))
+                    }
+                    (Err(pipewire_error), Err(webcam_error)) => {
+                        error!("Failed to connect to pipewire: {}", pipewire_error);
+                        error!("Failed to connect to webcam: {}", webcam_error);
 
                         State::Error
                     }

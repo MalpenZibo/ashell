@@ -205,7 +205,9 @@ impl NetworkService {
         let nm = NetworkDbus::new(conn).await?;
 
         // airplane mode
-        let bluetooth_soft_blocked = BluetoothService::check_rfkill_soft_block().await?;
+        let bluetooth_soft_blocked = BluetoothService::check_rfkill_soft_block()
+            .await
+            .unwrap_or_default();
 
         let wifi_present = nm.wifi_device_present().await?;
 
