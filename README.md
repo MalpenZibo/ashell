@@ -29,6 +29,13 @@ paru/yay -S ashell
 paru/yay -S ashell-git 
 ```
 
+### ALT Linux
+
+```
+su -
+apt-get install ashell
+```
+
 ### Nix
 
 To install ashell using the nix package be sure to enable flakes and then run
@@ -71,10 +78,13 @@ but I'm quite sure that if you use NixOS you are smart enough to add ashell to y
 ## Features
 
 - Lancher button
+- Сlipboard button
 - OS Updates indicator
 - Hyprland Active Window
 - Hyprland Workspaces
 - System Information (CPU, RAM, Temperature)
+- Hyprland Keyboard Layout
+- Hyprland Keyboard Submap
 - Date time
 - Privacy (check microphone, camera and screenshare usage)
 - Settings panel
@@ -100,6 +110,9 @@ position: Top # optional, default Top
 # App lancher commanda, it will be used to open the launcher,
 # without a value the related button will not appear
 appLauncherCmd: "~/.config/rofi/launcher.sh" # optional, default None 
+# Clipboard command, it will be used to open the clipboard menu,
+# without a value the related button will not appear
+clipboardCmd: "cliphist-rofi-img | wl-copy"  # optional, default None 
 # Update module configuration. 
 # Without a value the related button will not appear.
 updates: # optional, default None 
@@ -120,6 +133,12 @@ system:
   memAlertThreshold: 85 # mem indicator alert level (default 85)
   tempWarnThreshold: 6O # temperature indicator warning level (default 60)
   tempAlertThreshold: 8O # temperature indicator alert level (default 80)
+# Keyboard modules configuration
+keyboard:
+  layout:
+    disabled: false # Enable or disable the keyboard layout module
+  submap: # see: https://wiki.hyprland.org/Configuring/Binds/#submaps
+    disabled: false # Enable or disable the keyboard submap module
 # Clock module configuration
 clock:
   # clock format see: https://docs.rs/chrono/latest/chrono/format/strftime/index.html 
@@ -165,6 +184,13 @@ appearance:
     workspaceColors: 
       - "#fab387" 
       - "#b4befe"
+    # this is a list of color that will be used in the workspace module 
+    # for the special workspace (one color for each monitor)
+    # optional, default None
+    # without a value the workspaceColors list will be used
+    specialWorkspaceColors:
+      - "#a6e3a1" 
+      - "#f38ba8"
 ```
 
 ### So, what's the purpose of this project?

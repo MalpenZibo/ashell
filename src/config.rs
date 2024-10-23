@@ -78,6 +78,46 @@ impl Default for SystemModuleConfig {
     }
 }
 
+#[derive(Deserialize, Clone, Debug, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct KeyboardLayoutModule {
+    #[serde(default)]
+    pub disabled: bool,
+}
+
+#[derive(Deserialize, Clone, Debug, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct KeyboardSubmapModule {
+    #[serde(default)]
+    pub disabled: bool,
+}
+
+#[derive(Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct KeyboardModuleConfig {
+    #[serde(default = "default_keyboard_layout")]
+    pub layout: KeyboardLayoutModule,
+    #[serde(default = "default_keyboard_submap")]
+    pub submap: KeyboardSubmapModule,
+}
+
+fn default_keyboard_layout() -> KeyboardLayoutModule {
+    KeyboardLayoutModule { disabled: false }
+}
+
+fn default_keyboard_submap() -> KeyboardSubmapModule {
+    KeyboardSubmapModule { disabled: false }
+}
+
+impl Default for KeyboardModuleConfig {
+    fn default() -> Self {
+        Self {
+            layout: default_keyboard_layout(),
+            submap: default_keyboard_submap(),
+        }
+    }
+}
+
 #[derive(Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct ClockModuleConfig {
@@ -103,7 +143,7 @@ pub struct SettingsModuleConfig {
     pub bluetooth_more_cmd: Option<String>,
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Clone, Copy, Debug)]
 #[serde(untagged)]
 #[serde(rename_all = "camelCase")]
 pub enum AppearanceColor {
@@ -176,7 +216,8 @@ pub struct Appearance {
     #[serde(default = "default_text_color")]
     pub text_color: AppearanceColor,
     #[serde(default = "default_workspace_colors")]
-    pub workspace_colors: Vec<HexColor>,
+    pub workspace_colors: Vec<AppearanceColor>,
+    pub special_workspace_colors: Option<Vec<AppearanceColor>>,
 }
 
 static PRIMARY: HexColor = HexColor::rgb(250, 179, 135);
@@ -225,11 +266,11 @@ fn default_text_color() -> AppearanceColor {
     AppearanceColor::Simple(HexColor::rgb(205, 214, 244))
 }
 
-fn default_workspace_colors() -> Vec<HexColor> {
+fn default_workspace_colors() -> Vec<AppearanceColor> {
     vec![
-        PRIMARY,
-        HexColor::rgb(180, 190, 254),
-        HexColor::rgb(203, 166, 247),
+        AppearanceColor::Simple(PRIMARY),
+        AppearanceColor::Simple(HexColor::rgb(180, 190, 254)),
+        AppearanceColor::Simple(HexColor::rgb(203, 166, 247)),
     ]
 }
 
@@ -243,6 +284,7 @@ impl Default for Appearance {
             danger_color: default_danger_color(),
             text_color: default_text_color(),
             workspace_colors: default_workspace_colors(),
+            special_workspace_colors: None,
         }
     }
 }
@@ -258,16 +300,19 @@ pub enum Position {
 #[serde(rename_all = "camelCase")]
 pub struct Config {
     #[serde(default = "default_log_level")]
-    pub log_level: log::LevelFilter,
+    pub log_level: String,
     #[serde(default)]
     pub position: Position,
     pub app_launcher_cmd: Option<String>,
+    pub clipboard_cmd: Option<String>,
     #[serde(default = "default_truncate_title_after_length")]
     pub truncate_title_after_length: u32,
     #[serde(deserialize_with = "try_default")]
     pub updates: Option<UpdatesModuleConfig>,
     #[serde(default)]
     pub system: SystemModuleConfig,
+    #[serde(default)]
+    pub keyboard: KeyboardModuleConfig,
     #[serde(default)]
     pub clock: ClockModuleConfig,
     #[serde(default)]
@@ -291,8 +336,8 @@ where
     })
 }
 
-fn default_log_level() -> log::LevelFilter {
-    log::LevelFilter::Warn
+fn default_log_level() -> String {
+    "warn".to_owned()
 }
 
 fn default_truncate_title_after_length() -> u32 {
@@ -305,9 +350,11 @@ impl Default for Config {
             log_level: default_log_level(),
             position: Position::Top,
             app_launcher_cmd: None,
+            clipboard_cmd: None,
             truncate_title_after_length: default_truncate_title_after_length(),
             updates: None,
             system: SystemModuleConfig::default(),
+            keyboard: KeyboardModuleConfig::default(),
             clock: ClockModuleConfig::default(),
             settings: SettingsModuleConfig::default(),
             appearance: Appearance::default(),

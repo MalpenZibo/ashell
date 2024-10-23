@@ -62,7 +62,7 @@ impl BrightnessService {
         );
 
         Ok(BrightnessData {
-            current: actual_brightness * 100 / max_brightness,
+            current: actual_brightness,
             max: max_brightness,
         })
     }
@@ -159,7 +159,11 @@ impl BrightnessService {
 
                         State::Active(device_path)
                     }
-                    Err(_) => State::Error,
+                    Err(err) => {
+                        error!("Failed to listen for brightness events: {}", err);
+
+                        State::Error
+                    }
                 }
             }
             State::Error => {

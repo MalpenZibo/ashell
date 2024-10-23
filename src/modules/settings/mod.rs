@@ -10,7 +10,7 @@ use crate::{
     password_dialog,
     services::{
         audio::{AudioCommand, AudioService},
-        bluetooth::{BluetoothCommand, BluetoothService},
+        bluetooth::{BluetoothCommand, BluetoothService, BluetoothState},
         brightness::{BrightnessCommand, BrightnessService},
         idle_inhibitor::IdleInhibitorManager,
         network::{NetworkCommand, NetworkEvent, NetworkService},
@@ -544,12 +544,15 @@ impl Settings {
             let quick_settings = quick_settings_section(
                 vec![
                     wifi_setting_button,
-                    self.bluetooth.as_ref().and_then(|b| {
-                        b.get_quick_setting_button(
-                            self.sub_menu,
-                            config.bluetooth_more_cmd.is_some(),
-                        )
-                    }),
+                    self.bluetooth
+                        .as_ref()
+                        .filter(|b| b.state != BluetoothState::Unavailable)
+                        .and_then(|b| {
+                            b.get_quick_setting_button(
+                                self.sub_menu,
+                                config.bluetooth_more_cmd.is_some(),
+                            )
+                        }),
                     self.network.as_ref().map(|n| {
                         n.get_vpn_quick_setting_button(self.sub_menu, config.vpn_more_cmd.is_some())
                     }),

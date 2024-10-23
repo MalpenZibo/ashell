@@ -108,7 +108,7 @@ impl<'a> BluetoothDbus<'a> {
     default_path = "/",
     interface = "org.freedesktop.DBus.ObjectManager"
 )]
-trait BluezObjectManager {
+pub trait BluezObjectManager {
     fn get_managed_objects(&self) -> zbus::Result<ManagedObjects>;
 
     #[zbus(signal)]
@@ -123,7 +123,7 @@ trait BluezObjectManager {
     default_path = "/org/bluez/hci0",
     interface = "org.bluez.Adapter1"
 )]
-trait Adapter {
+pub trait Adapter {
     #[zbus(property)]
     fn powered(&self) -> zbus::Result<bool>;
 
@@ -141,7 +141,7 @@ trait Device {
 }
 
 #[proxy(default_service = "org.bluez", interface = "org.bluez.Battery1")]
-trait Battery {
+pub trait Battery {
     #[zbus(property)]
     fn percentage(&self) -> zbus::Result<u8>;
 }

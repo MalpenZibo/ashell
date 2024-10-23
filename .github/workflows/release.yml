@@ -37,7 +37,7 @@ jobs:
           crate: cargo-release
 
       - name: Release
-        run: cargo release ${PUBLISH_LEVEL} --execute --no-tag --no-confirm --no-publish --no-push 
+        run: cargo release ${PUBLISH_LEVEL} --execute --no-tag --no-confirm --no-publish --no-push
         env:
           PUBLISH_LEVEL: ${{ github.event.inputs.level }}
 

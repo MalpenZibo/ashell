@@ -8,6 +8,7 @@ pub enum Icons {
     #[default]
     None,
     Launcher,
+    Clipboard,
     Refresh,
     NoUpdatesAvailable,
     UpdatesAvailable,
@@ -71,6 +72,7 @@ impl From<Icons> for &'static str {
         match icon {
             Icons::None => "",
             Icons::Launcher => "󱗼",
+            Icons::Clipboard => "󰅌",
             Icons::Refresh => "󰑐",
             Icons::NoUpdatesAvailable => "󰗠",
             Icons::UpdatesAvailable => "󰳛",
