@@ -13,11 +13,11 @@ mod components;
 mod config;
 mod menu;
 mod modules;
+mod outputs;
 mod password_dialog;
 mod services;
 mod style;
 mod utils;
-mod outputs;
 
 const ICON_FONT: &[u8] = include_bytes!("../assets/SymbolsNerdFont-Regular.ttf");
 const HEIGHT: u32 = 34;
