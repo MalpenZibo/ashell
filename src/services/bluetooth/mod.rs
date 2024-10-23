@@ -163,7 +163,10 @@ impl BluetoothService {
 
                         State::Active(conn)
                     }
-                    Err(_) => State::Error,
+                    Err(err) => {
+                        error!("Failed to listen for bluetooth events: {}", err);
+                        State::Error
+                    }
                 }
             }
             State::Error => {

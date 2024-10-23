@@ -291,7 +291,11 @@ impl NetworkService {
 
                         State::Active(conn)
                     }
-                    Err(_) => State::Error,
+                    Err(err) => {
+                        error!("Failed to listen for network events: {}", err);
+
+                        State::Error
+                    }
                 }
             }
             State::Error => {

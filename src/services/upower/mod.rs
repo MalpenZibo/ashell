@@ -2,10 +2,15 @@ use super::{ReadOnlyService, Service, ServiceEvent};
 use crate::{components::icons::Icons, utils::IndicatorState};
 use dbus::{PowerProfilesProxy, UPowerDbus};
 use iced::{
-    futures::{channel::mpsc::Sender, stream::once, stream_select, SinkExt, Stream, StreamExt},
+    futures::{
+        channel::mpsc::Sender,
+        stream::{once, pending},
+        stream_select, SinkExt, Stream, StreamExt,
+    },
     subscription::channel,
     Subscription,
 };
+use log::error;
 use std::{any::TypeId, time::Duration};
 use zbus::zvariant::ObjectPath;
 
@@ -284,7 +289,11 @@ impl UPowerService {
                                 (Some(battery_data), Some(battery_path), power_profile)
                             }
                             Ok((None, power_profile)) => (None, None, power_profile),
-                            Err(_) => return State::Error,
+                            Err(err) => {
+                                error!("Failed to initialize upower service: {}", err);
+
+                                return State::Error;
+                            }
                         };
 
                     let service = UPowerService {
@@ -296,7 +305,10 @@ impl UPowerService {
 
                     State::Active(conn, battery_path)
                 }
-                Err(_) => State::Error,
+                Err(err) => {
+                    error!("Failed to connect to system bus for upower: {}", err);
+                    State::Error
+                }
             },
             State::Active(conn, battery_path) => {
                 match UPowerService::events(&conn, &battery_path).await {
@@ -307,10 +319,18 @@ impl UPowerService {
 
                         State::Active(conn, battery_path)
                     }
-                    Err(_) => State::Error,
+                    Err(err) => {
+                        error!("Failed to listen for upower events: {}", err);
+
+                        State::Error
+                    }
                 }
             }
-            State::Error => State::Error,
+            State::Error => {
+                let _ = pending::<u8>().next().await;
+
+                State::Error
+            }
         }
     }
 }
