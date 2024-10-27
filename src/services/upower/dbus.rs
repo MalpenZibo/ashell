@@ -60,7 +60,7 @@ impl<'a> UPowerDbus<'a> {
     default_service = "org.freedesktop.UPower",
     default_path = "/org/freedesktop/UPower"
 )]
-trait UPower {
+pub trait UPower {
     fn enumerate_devices(&self) -> Result<Vec<OwnedObjectPath>>;
 
     #[zbus(signal)]
@@ -72,7 +72,7 @@ trait UPower {
     default_path = "/org/freedesktop/UPower/Device",
     interface = "org.freedesktop.UPower.Device"
 )]
-trait Device {
+pub trait Device {
     #[zbus(property, name = "Type")]
     fn device_type(&self) -> Result<u32>;
 
@@ -97,7 +97,7 @@ trait Device {
     default_path = "/org/freedesktop/UPower/PowerProfiles",
     interface = "org.freedesktop.UPower.PowerProfiles"
 )]
-trait PowerProfiles {
+pub trait PowerProfiles {
     #[zbus(property)]
     fn active_profile(&self) -> Result<String>;
 
