@@ -11,7 +11,7 @@ use iced_sctk::{
     settings::InitialSurface,
 };
 use log::{error, LevelFilter};
-use std::panic;
+use std::{borrow::Cow, panic};
 
 mod app;
 mod centerbox;
@@ -24,6 +24,7 @@ mod services;
 mod style;
 mod utils;
 
+const ICON_FONT: &[u8] = include_bytes!("../assets/SymbolsNerdFont-Regular.ttf");
 const HEIGHT: u32 = 34;
 
 fn get_log_spec(log_level: LevelFilter) -> LogSpecification {
@@ -90,8 +91,8 @@ async fn main() {
         }),
         flags: (logger, config),
         id: None,
-        fonts: Default::default(),
-        default_font: Font::with_name("DejaVu Sans"),
+        fonts: vec![Cow::from(ICON_FONT)],
+        default_font: Font::DEFAULT,
         default_text_size: 14.into(),
     })
     .unwrap();
