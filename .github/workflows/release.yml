@@ -21,8 +21,7 @@ env:
 jobs:
   prepare-release:
     name: Release
-    runs-on: ubuntu-24.04
-
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -37,7 +36,7 @@ jobs:
           crate: cargo-release
 
       - name: Release
-        run: cargo release ${PUBLISH_LEVEL} --execute --no-tag --no-confirm --no-publish --no-push 
+        run: cargo release ${PUBLISH_LEVEL} --execute --no-tag --no-confirm --no-publish --no-push
         env:
           PUBLISH_LEVEL: ${{ github.event.inputs.level }}
 

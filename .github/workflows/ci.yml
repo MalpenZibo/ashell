@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
     types:
       - opened
       - reopened
@@ -16,7 +16,7 @@ env:
 
 jobs:
   checks:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -28,12 +28,10 @@ jobs:
           sudo apt-get install -y pkg-config llvm-dev libclang-dev clang libxkbcommon-dev libwayland-dev dbus libpipewire-0.3-dev libpulse-dev
 
       - name: Format
-        run: cargo fmt --all -- --check 
+        run: cargo fmt --all -- --check
 
       - name: Clippy
-        run: cargo clippy --all-features -- -D warnings 
+        run: cargo clippy --all-features -- -D warnings
 
       - name: Build
         run: cargo build
-
-
