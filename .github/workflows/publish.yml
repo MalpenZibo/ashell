@@ -17,7 +17,7 @@ jobs:
       && startsWith(github.event.pull_request.head.ref, 'release-')
       && startsWith(github.event.pull_request.title, 'Release')
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout sources
