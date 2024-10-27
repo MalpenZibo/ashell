@@ -4,6 +4,7 @@ description = "Barely customizable Wayland status bar for Hyprland compositor."
 homepage = "https://github.com/MalpenZibo/ashell"
 version = "0.1.4"
 edition = "2021"
+rust-version = "1.81"
 
 [dependencies]
 iced = { version = "0.12.1", features = [
