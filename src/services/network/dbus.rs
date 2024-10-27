@@ -531,7 +531,7 @@ impl From<u32> for DeviceState {
     default_service = "org.freedesktop.NetworkManager",
     default_path = "/org/freedesktop/NetworkManager"
 )]
-trait NetworkManager {
+pub trait NetworkManager {
     fn activate_connection(
         &self,
         connection: OwnedObjectPath,
@@ -594,7 +594,7 @@ trait ActiveConnection {
     default_path = "/org/freedesktop/NetworkManager/Device",
     interface = "org.freedesktop.NetworkManager.Device"
 )]
-trait Device {
+pub trait Device {
     #[zbus(property)]
     fn device_type(&self) -> Result<u32>;
 
@@ -639,7 +639,7 @@ trait WiredDevice {
     default_path = "/org/freedesktop/NetworkManager/Device/Wireless",
     interface = "org.freedesktop.NetworkManager.Device.Wireless"
 )]
-trait WirelessDevice {
+pub trait WirelessDevice {
     /// GetAccessPoints method
     fn get_access_points(&self) -> zbus::Result<Vec<zbus::zvariant::OwnedObjectPath>>;
 
@@ -660,7 +660,7 @@ trait WirelessDevice {
     default_path = "/org/freedesktop/NetworkManager/AccessPoint",
     interface = "org.freedesktop.NetworkManager.AccessPoint"
 )]
-trait AccessPoint {
+pub trait AccessPoint {
     #[zbus(property)]
     fn ssid(&self) -> Result<Vec<u8>>;
 
@@ -676,7 +676,7 @@ trait AccessPoint {
     default_path = "/org/freedesktop/NetworkManager/Settings",
     interface = "org.freedesktop.NetworkManager.Settings"
 )]
-trait Settings {
+pub trait Settings {
     fn add_connection(
         &self,
         connection: HashMap<String, HashMap<String, OwnedValue>>,
