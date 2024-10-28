@@ -1,11 +1,11 @@
-use crate::config::Appearance;
+use crate::config::{Appearance, AppearanceColor};
 use iced::{
     theme::{self, palette, Palette},
     widget::{
         button, container, slider,
         text_input::{self},
     },
-    Border, Color, Theme,
+    Background, Border, Color, Theme,
 };
 
 pub fn ashell_theme(appearance: &Appearance) -> Theme {
@@ -271,6 +271,87 @@ impl button::StyleSheet for SettingsButtonStyle {
     fn hovered(&self, style: &Self::Style) -> button::Appearance {
         button::Appearance {
             background: Some(style.extended_palette().background.strong.color.into()),
+            ..self.active(style)
+        }
+    }
+}
+
+pub struct WorkspaceButtonStyle(pub bool, pub Option<Option<AppearanceColor>>);
+
+impl button::StyleSheet for WorkspaceButtonStyle {
+    type Style = theme::Theme;
+
+    fn active(&self, style: &Self::Style) -> button::Appearance {
+        let (bg_color, fg_color) = self
+            .1
+            .map(|c| {
+                c.map_or(
+                    (
+                        style.extended_palette().primary.base.color,
+                        style.extended_palette().primary.base.text,
+                    ),
+                    |c| {
+                        let color = palette::Primary::generate(
+                            c.get_base(),
+                            style.palette().background,
+                            c.get_text().unwrap_or(style.palette().text),
+                        );
+                        (color.base.color, color.base.text)
+                    },
+                )
+            })
+            .unwrap_or((
+                style.extended_palette().background.weak.color,
+                style.palette().text,
+            ));
+
+        button::Appearance {
+            background: Some(Background::Color(if self.0 {
+                style.extended_palette().background.weak.color
+            } else {
+                bg_color
+            })),
+            border: Border {
+                width: if self.0 { 1.0 } else { 0.0 },
+                color: bg_color,
+                radius: 16.0.into(),
+            },
+            text_color: fg_color,
+            ..button::Appearance::default()
+        }
+    }
+
+    fn hovered(&self, style: &Self::Style) -> button::Appearance {
+        let (bg_color, fg_color) = self
+            .1
+            .map(|c| {
+                c.map_or(
+                    (
+                        style.extended_palette().primary.strong.color,
+                        style.extended_palette().primary.strong.text,
+                    ),
+                    |c| {
+                        let color = palette::Primary::generate(
+                            c.get_base(),
+                            style.palette().background,
+                            c.get_text().unwrap_or(style.palette().text),
+                        );
+                        (color.strong.color, color.strong.text)
+                    },
+                )
+            })
+            .unwrap_or((
+                style.extended_palette().background.strong.color,
+                style.palette().text,
+            ));
+
+        button::Appearance {
+            background: Some(Background::Color(if self.0 {
+                style.extended_palette().background.strong.color
+            } else {
+                bg_color
+            })),
+            text_color: { fg_color },
             ..self.active(style)
         }
     }
