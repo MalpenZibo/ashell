@@ -103,7 +103,7 @@ pub struct SettingsModuleConfig {
     pub bluetooth_more_cmd: Option<String>,
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Clone, Copy, Debug)]
 #[serde(untagged)]
 #[serde(rename_all = "camelCase")]
 pub enum AppearanceColor {
@@ -176,7 +176,7 @@ pub struct Appearance {
     #[serde(default = "default_text_color")]
     pub text_color: AppearanceColor,
     #[serde(default = "default_workspace_colors")]
-    pub workspace_colors: Vec<HexColor>,
+    pub workspace_colors: Vec<AppearanceColor>,
 }
 
 static PRIMARY: HexColor = HexColor::rgb(250, 179, 135);
@@ -225,11 +225,11 @@ fn default_text_color() -> AppearanceColor {
     AppearanceColor::Simple(HexColor::rgb(205, 214, 244))
 }
 
-fn default_workspace_colors() -> Vec<HexColor> {
+fn default_workspace_colors() -> Vec<AppearanceColor> {
     vec![
-        PRIMARY,
-        HexColor::rgb(180, 190, 254),
-        HexColor::rgb(203, 166, 247),
+        AppearanceColor::Simple(PRIMARY),
+        AppearanceColor::Simple(HexColor::rgb(180, 190, 254)),
+        AppearanceColor::Simple(HexColor::rgb(203, 166, 247)),
     ]
 }
 

@@ -1,5 +1,7 @@
-use crate::style::header_pills;
-use hex_color::HexColor;
+use crate::{
+    config::AppearanceColor,
+    style::{header_pills, WorkspaceButtonStyle},
+};
 use hyprland::{
     event_listener::AsyncEventListener,
     shared::{HyprData, HyprDataActive, HyprDataVec},
@@ -7,8 +9,9 @@ use hyprland::{
 use iced::{
     alignment,
     subscription::channel,
-    widget::{container, mouse_area, text, Row},
-    Background, Border, Color, Element, Length, Subscription, Theme,
+    theme::Button,
+    widget::{button, container, text, Row},
+    Element, Length, Subscription,
 };
 use log::error;
 use std::{
@@ -105,7 +108,7 @@ impl Workspaces {
         }
     }
 
-    pub fn view(&self, workspace_colors: &[HexColor]) -> Element<Message> {
+    pub fn view(&self, workspace_colors: &[AppearanceColor]) -> Element<Message> {
         container(
             Row::with_children(
                 self.workspaces
@@ -113,52 +116,20 @@ impl Workspaces {
                     .map(|w| {
                         let empty = w.windows == 0;
                         let monitor = w.monitor;
-                        let container = container(text(w.id).size(10))
-                            .style({
-                                let workspace_colors = workspace_colors.to_vec();
-                                move |theme: &Theme| {
-                                    let fg_color = if empty {
-                                        theme.palette().text
-                                    } else {
-                                        theme.palette().background
-                                    };
-                                    let bg_color = monitor.map_or(
-                                        theme.extended_palette().background.weak.color,
-                                        |m| {
-                                            workspace_colors
-                                                .get(m)
-                                                .map(|c| Color::from_rgb8(c.r, c.g, c.b))
-                                                .unwrap_or(theme.palette().primary)
-                                        },
-                                    );
-                                    container::Appearance {
-                                        background: Some(Background::Color(if empty {
-                                            theme.extended_palette().background.weak.color
-                                        } else {
-                                            bg_color
-                                        })),
-                                        border: Border {
-                                            width: if empty { 1.0 } else { 0.0 },
-                                            color: bg_color,
-                                            radius: 16.0.into(),
-                                        },
-                                        text_color: Some(fg_color),
-                                        ..container::Appearance::default()
-                                    }
-                                }
-                            })
-                            .align_x(alignment::Horizontal::Center)
-                            .align_y(alignment::Vertical::Center)
-                            .width(if w.active { 32 } else { 16 })
-                            .height(16);
 
-                        if w.active {
-                            container.into()
-                        } else {
-                            mouse_area(container)
-                                .on_release(Message::ChangeWorkspace(w.id))
-                                .into()
-                        }
+                        let color = monitor.map(|m| workspace_colors.get(m).copied());
+
+                        button(
+                            container(text(w.id).size(10))
+                                .align_x(alignment::Horizontal::Center)
+                                .align_y(alignment::Vertical::Center),
+                        )
+                        .style(Button::custom(WorkspaceButtonStyle(empty, color)))
+                        .padding(0)
+                        .on_press(Message::ChangeWorkspace(w.id))
+                        .width(if w.active { 32 } else { 16 })
+                        .height(16)
+                        .into()
                     })
                     .collect::<Vec<Element<'_, _, _>>>(),
             )
