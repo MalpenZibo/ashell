@@ -316,7 +316,11 @@ impl button::StyleSheet for WorkspaceButtonStyle {
                 color: bg_color,
                 radius: 16.0.into(),
             },
-            text_color: fg_color,
+            text_color: if self.0 {
+                style.extended_palette().background.weak.text
+            } else {
+                fg_color
+            },
             ..button::Appearance::default()
         }
     }
