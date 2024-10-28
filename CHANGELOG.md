@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Nerd fonts are now included in the binary
+
 ## [0.1.4] - 2024-10-23
 
 ### Fixed
