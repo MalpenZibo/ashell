@@ -7,7 +7,7 @@ use crate::{
         self, clipboard, clock::Clock, launcher, privacy::PrivacyMessage, settings::Settings,
         system_info::SystemInfo, title::Title, updates::Updates, workspaces::Workspaces,
     },
-    services::{privacy::PrivacyService, ReadOnlyService, ServiceEvent},
+    services::{privacy::PrivacyService, tray, ReadOnlyService, ServiceEvent},
     style::ashell_theme,
     utils, HEIGHT,
 };
@@ -269,6 +269,7 @@ impl Application for App {
                     PrivacyService::subscribe().map(|e| Message::Privacy(PrivacyMessage::Event(e))),
                 ),
                 Some(self.settings.subscription().map(Message::Settings)),
+                Some(tray::TrayService::subscribe().map(|_| Message::None)),
                 Some(config::subscription()),
             ]
             .into_iter()
