@@ -9,7 +9,7 @@ use crate::{
         system_info::SystemInfo, title::Title, updates::Updates, workspaces::Workspaces,
     },
     outputs::{HasOutput, Outputs},
-    services::{privacy::PrivacyService, ReadOnlyService, ServiceEvent},
+    services::{privacy::PrivacyService, tray, ReadOnlyService, ServiceEvent},
     style::ashell_theme,
     utils, HEIGHT,
 };
@@ -343,6 +343,7 @@ impl App {
                     PrivacyService::subscribe().map(|e| Message::Privacy(PrivacyMessage::Event(e))),
                 ),
                 Some(self.settings.subscription().map(Message::Settings)),
+                Some(tray::TrayService::subscribe().map(|_| Message::None)),
                 Some(config::subscription()),
                 Some(listen_with(|evt, _, _| {
                     if let iced::Event::PlatformSpecific(iced::event::PlatformSpecific::Wayland(

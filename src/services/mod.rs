@@ -6,6 +6,7 @@ pub mod brightness;
 pub mod idle_inhibitor;
 pub mod network;
 pub mod privacy;
+pub mod tray;
 pub mod upower;
 
 #[derive(Debug, Clone)]
