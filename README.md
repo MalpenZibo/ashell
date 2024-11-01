@@ -29,6 +29,13 @@ paru/yay -S ashell
 paru/yay -S ashell-git 
 ```
 
+### ALT Linux
+
+```
+su -
+apt-get install ashell
+```
+
 ### Nix
 
 To install ashell using the nix package be sure to enable flakes and then run
