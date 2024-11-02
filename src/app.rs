@@ -4,7 +4,7 @@ use crate::{
     get_log_spec,
     menu::{menu_wrapper, Menu, MenuPosition, MenuType},
     modules::{
-        self, clock::Clock, launcher, privacy::PrivacyMessage, settings::Settings,
+        self, clipboard, clock::Clock, launcher, privacy::PrivacyMessage, settings::Settings,
         system_info::SystemInfo, title::Title, updates::Updates, workspaces::Workspaces,
     },
     services::{privacy::PrivacyService, ReadOnlyService, ServiceEvent},
@@ -41,6 +41,7 @@ pub enum Message {
     ConfigChanged(Box<Config>),
     CloseMenu,
     OpenLauncher,
+    OpenClipboard,
     Updates(modules::updates::Message),
     Workspaces(modules::workspaces::Message),
     Title(modules::title::Message),
@@ -117,6 +118,12 @@ impl Application for App {
                 }
                 Command::none()
             }
+            Message::OpenClipboard => {
+                if let Some(clipboard_cmd) = self.config.clipboard_cmd.as_ref() {
+                    utils::launcher::execute_command(clipboard_cmd.to_string());
+                }
+                Command::none()
+            }
             Message::Workspaces(msg) => {
                 self.workspaces.update(msg);
 
@@ -184,6 +191,12 @@ impl Application for App {
                         .app_launcher_cmd
                         .as_ref()
                         .map(|_| launcher::launcher()),
+                )
+                .push_maybe(
+                    self.config
+                        .clipboard_cmd
+                        .as_ref()
+                        .map(|_| clipboard::clipboard()),
                 )
                 .push_maybe(
                     self.config

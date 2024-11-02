@@ -1,3 +1,4 @@
+pub mod clipboard;
 pub mod clock;
 pub mod launcher;
 pub mod privacy;
