@@ -107,6 +107,9 @@ position: Top # optional, default Top
 # App lancher commanda, it will be used to open the launcher,
 # without a value the related button will not appear
 appLauncherCmd: "~/.config/rofi/launcher.sh" # optional, default None 
+# Clipboard command, it will be used to open the clipboard menu,
+# without a value the related button will not appear
+clipboardCmd: "cliphist-rofi-img | wl-copy"  # optional, default None 
 # Update module configuration. 
 # Without a value the related button will not appear.
 updates: # optional, default None 

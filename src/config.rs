@@ -262,6 +262,7 @@ pub struct Config {
     #[serde(default)]
     pub position: Position,
     pub app_launcher_cmd: Option<String>,
+    pub clipboard_cmd: Option<String>,
     #[serde(default = "default_truncate_title_after_length")]
     pub truncate_title_after_length: u32,
     #[serde(deserialize_with = "try_default")]
@@ -305,6 +306,7 @@ impl Default for Config {
             log_level: default_log_level(),
             position: Position::Top,
             app_launcher_cmd: None,
+            clipboard_cmd: None,
             truncate_title_after_length: default_truncate_title_after_length(),
             updates: None,
             system: SystemModuleConfig::default(),
