@@ -258,7 +258,7 @@ pub enum Position {
 #[serde(rename_all = "camelCase")]
 pub struct Config {
     #[serde(default = "default_log_level")]
-    pub log_level: log::LevelFilter,
+    pub log_level: String,
     #[serde(default)]
     pub position: Position,
     pub app_launcher_cmd: Option<String>,
@@ -292,8 +292,8 @@ where
     })
 }
 
-fn default_log_level() -> log::LevelFilter {
-    log::LevelFilter::Warn
+fn default_log_level() -> String {
+    "warn".to_owned()
 }
 
 fn default_truncate_title_after_length() -> u32 {
