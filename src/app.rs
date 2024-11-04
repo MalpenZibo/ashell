@@ -6,10 +6,11 @@ use crate::{
     modules::{
         self, clipboard, clock::Clock, keyboard_layout::KeyboardLayout,
         keyboard_submap::KeyboardSubmap, launcher, privacy::PrivacyMessage, settings::Settings,
-        system_info::SystemInfo, title::Title, updates::Updates, workspaces::Workspaces,
+        system_info::SystemInfo, title::Title, tray::TrayMessage, updates::Updates,
+        workspaces::Workspaces,
     },
     outputs::{HasOutput, Outputs},
-    services::{privacy::PrivacyService, tray, ReadOnlyService, ServiceEvent},
+    services::{privacy::PrivacyService, tray::TrayService, ReadOnlyService, ServiceEvent},
     style::ashell_theme,
     utils, HEIGHT,
 };
@@ -33,6 +34,7 @@ pub struct App {
     system_info: SystemInfo,
     keyboard_layout: KeyboardLayout,
     keyboard_submap: KeyboardSubmap,
+    tray: Option<TrayService>,
     clock: Clock,
     privacy: Option<PrivacyService>,
     pub settings: Settings,
@@ -57,6 +59,7 @@ pub enum Message {
     SystemInfo(modules::system_info::Message),
     KeyboardLayout(modules::keyboard_layout::Message),
     KeyboardSubmap(modules::keyboard_submap::Message),
+    Tray(modules::tray::TrayMessage),
     Clock(modules::clock::Message),
     Privacy(modules::privacy::PrivacyMessage),
     Settings(modules::settings::Message),
@@ -78,6 +81,7 @@ impl App {
                     system_info: SystemInfo::default(),
                     keyboard_layout: KeyboardLayout::default(),
                     keyboard_submap: KeyboardSubmap::default(),
+                    tray: None,
                     clock: Clock::default(),
                     privacy: None,
                     settings: Settings::default(),
@@ -167,6 +171,21 @@ impl App {
                 self.keyboard_submap.update(message);
                 Task::none()
             }
+            Message::Tray(msg) => match msg {
+                TrayMessage::Event(event) => match event {
+                    ServiceEvent::Init(service) => {
+                        self.tray = Some(service);
+                        Task::none()
+                    }
+                    ServiceEvent::Update(data) => {
+                        if let Some(tray) = self.tray.as_mut() {
+                            tray.update(data);
+                        }
+                        Task::none()
+                    }
+                    ServiceEvent::Error(_) => Task::none(),
+                },
+            },
             Message::Clock(message) => {
                 self.clock.update(message);
                 Task::none()
@@ -271,6 +290,11 @@ impl App {
                             .view(&self.config.keyboard.layout)
                             .map(|l| l.map(Message::KeyboardLayout)),
                     )
+                    .push_maybe(
+                        self.tray
+                            .as_ref()
+                            .map(|tray| tray.view().map(Message::Tray)),
+                    )
                     .push(
                         Row::new()
                             .push(
@@ -338,12 +362,12 @@ impl App {
                         .subscription()
                         .map(Message::KeyboardSubmap),
                 ),
+                Some(TrayService::subscribe().map(|e| Message::Tray(TrayMessage::Event(e)))),
                 Some(self.clock.subscription().map(Message::Clock)),
                 Some(
                     PrivacyService::subscribe().map(|e| Message::Privacy(PrivacyMessage::Event(e))),
                 ),
                 Some(self.settings.subscription().map(Message::Settings)),
-                Some(tray::TrayService::subscribe().map(|_| Message::None)),
                 Some(config::subscription()),
                 Some(listen_with(|evt, _, _| {
                     if let iced::Event::PlatformSpecific(iced::event::PlatformSpecific::Wayland(

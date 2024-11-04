@@ -1,30 +1,99 @@
-use std::any::TypeId;
-
-use dbus::{
-    StatusNotifierItemRegistered, StatusNotifierWatcher, StatusNotifierWatcherProxy,
-    StatusNotifierWatcherSignals,
-};
-use iced::{
-    futures::{channel::mpsc::Sender, stream::pending, FutureExt, SinkExt, Stream, StreamExt},
-    subscription::channel,
-};
-use log::{debug, error, info, warn};
-
 use super::{ReadOnlyService, ServiceEvent};
+use dbus::{StatusNotifierItemProxy, StatusNotifierWatcher, StatusNotifierWatcherProxy};
+use iced::{
+    futures::{channel::mpsc::Sender, stream::pending, stream_select, SinkExt, Stream, StreamExt},
+    stream::channel,
+    widget::image::Handle,
+    Subscription,
+};
+use log::{debug, error, info, trace};
+use std::{any::TypeId, ops::Deref};
 
 mod dbus;
 
-#[derive(Debug, Clone, Default)]
-pub struct TrayData {
-    pub current: u32,
-    pub max: u32,
+#[derive(Debug, Clone)]
+pub enum TrayEvent {
+    ItemRegistered(StatusNotifierItem),
+    ItemUnregistered(String),
+}
+
+#[derive(Debug, Clone)]
+pub struct StatusNotifierItem {
+    pub name: String,
+    pub icon_pixmap: Option<Handle>,
+    // _item_proxy: StatusNotifierItemProxy<'static>,
+    // menu_proxy: DBusMenuProxy<'static>,
+}
+
+impl StatusNotifierItem {
+    pub async fn new(connection: &zbus::Connection, name: String) -> zbus::Result<Self> {
+        let (dest, path) = if let Some(idx) = name.find('/') {
+            (&name[..idx], &name[idx..])
+        } else {
+            (name.as_str(), "/StatusNotifierItem")
+        };
+
+        let item_proxy = StatusNotifierItemProxy::builder(connection)
+            .destination(dest.to_string())?
+            .path(path.to_string())?
+            .build()
+            .await?;
+
+        let icon_pixmap = item_proxy
+            .icon_pixmap()
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .max_by_key(|i| {
+                trace!("tray icon w {}, h {}", i.width, i.height);
+                (i.width, i.height)
+            })
+            .map(|mut i| {
+                // Convert ARGB to RGBA
+                for pixel in i.bytes.chunks_exact_mut(4) {
+                    pixel.rotate_left(1);
+                }
+                Handle::from_rgba(i.width as u32, i.height as u32, i.bytes)
+            });
+
+        // let menu_path = item_proxy.menu().await?;
+        // let menu_proxy = DBusMenuProxy::builder(connection)
+        //     .destination(dest.to_string())?
+        //     .path(menu_path)?
+        //     .build()
+        //     .await?;
+
+        Ok(Self {
+            name,
+            icon_pixmap,
+            // _item_proxy: item_proxy,
+            // menu_proxy,
+        })
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct TrayData(Vec<StatusNotifierItem>);
+
+impl Deref for TrayData {
+    type Target = Vec<StatusNotifierItem>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct TrayService {
     data: TrayData,
-    device_name: String,
-    conn: zbus::Connection,
+    _conn: zbus::Connection,
+}
+
+impl Deref for TrayService {
+    type Target = TrayData;
+
+    fn deref(&self) -> &Self::Target {
+        &self.data
+    }
 }
 
 enum State {
@@ -36,29 +105,60 @@ enum State {
 impl TrayService {
     async fn initialize_data(conn: &zbus::Connection) -> anyhow::Result<TrayData> {
         debug!("initializing tray data");
-        let proxy = StatusNotifierWatcherProxy::new(&conn).await?;
+        let proxy = StatusNotifierWatcherProxy::new(conn).await?;
 
-        debug!("created proxy");
-        let test = proxy.registered_status_notifier_items().await?;
+        let items = proxy.registered_status_notifier_items().await?;
 
-        debug!("get registered items");
-        println!("{:?}", test);
+        let mut status_items = Vec::with_capacity(items.len());
+        for item in items {
+            let item = StatusNotifierItem::new(conn, item.to_string()).await?;
+            status_items.push(item);
+        }
 
-        Ok(TrayData::default())
+        debug!("created items: {:?}", status_items);
+
+        Ok(TrayData(status_items))
     }
 
-    async fn events(conn: &zbus::Connection) -> anyhow::Result<impl Stream<Item = Vec<String>>> {
-        let proxy = StatusNotifierWatcherProxy::new(&conn).await?;
+    async fn events(conn: &zbus::Connection) -> anyhow::Result<impl Stream<Item = TrayEvent>> {
+        let proxy = StatusNotifierWatcherProxy::new(conn).await?;
 
-        Ok(proxy
-            .receive_registered_status_notifier_items_changed()
-            .await
-            .map(move |_| {
-                proxy
-                    .cached_registered_status_notifier_items()
-                    .unwrap_or_default()
-                    .unwrap_or_default()
-            }))
+        let registered = proxy
+            .receive_status_notifier_item_registered()
+            .await?
+            .filter_map({
+                let conn = conn.clone();
+                move |e| {
+                    let conn = conn.clone();
+                    async move {
+                        debug!("registered {:?}", e);
+                        if let Ok(args) = e.args() {
+                            let item =
+                                StatusNotifierItem::new(&conn, args.service.to_string()).await;
+
+                            item.map(TrayEvent::ItemRegistered).ok()
+                        } else {
+                            None
+                        }
+                    }
+                }
+            })
+            .boxed();
+        let unregistered = proxy
+            .receive_status_notifier_item_unregistered()
+            .await?
+            .filter_map(|e| async move {
+                debug!("unregistered {:?}", e);
+
+                if let Ok(args) = e.args() {
+                    Some(TrayEvent::ItemUnregistered(args.service.to_string()))
+                } else {
+                    None
+                }
+            })
+            .boxed();
+
+        Ok(stream_select!(registered, unregistered).boxed())
     }
 
     async fn start_listening(state: State, output: &mut Sender<ServiceEvent<Self>>) -> State {
@@ -71,12 +171,12 @@ impl TrayService {
                         Ok(data) => {
                             info!("Tray service initialized");
 
-                            // let _ = output
-                            //     .send(ServiceEvent::Init(TrayService {
-                            //         data,
-                            //         conn: conn.clone(),
-                            //     }))
-                            //     .await;
+                            let _ = output
+                                .send(ServiceEvent::Init(TrayService {
+                                    data,
+                                    _conn: conn.clone(),
+                                }))
+                                .await;
 
                             State::Active(conn)
                         }
@@ -98,9 +198,9 @@ impl TrayService {
 
                 match TrayService::events(&conn).await {
                     Ok(mut events) => {
-                        while let Some(data) = events.next().await {
-                            warn!("tray data {:?}", data);
-                            // let _ = output.send(ServiceEvent::Update(data)).await;
+                        while let Some(event) = events.next().await {
+                            debug!("tray data {:?}", event);
+                            let _ = output.send(ServiceEvent::Update(event)).await;
                         }
 
                         State::Active(conn)
@@ -122,22 +222,41 @@ impl TrayService {
 }
 
 impl ReadOnlyService for TrayService {
-    type UpdateEvent = TrayData;
+    type UpdateEvent = TrayEvent;
     type Error = ();
 
     fn update(&mut self, event: Self::UpdateEvent) {
-        self.data = event;
+        match event {
+            TrayEvent::ItemRegistered(new_item) => {
+                if let Some(existing_item) = self
+                    .data
+                    .0
+                    .iter_mut()
+                    .find(|item| item.name == new_item.name)
+                {
+                    *existing_item = new_item;
+                } else {
+                    self.data.0.push(new_item);
+                }
+            }
+            TrayEvent::ItemUnregistered(name) => {
+                self.data.0.retain(|item| item.name != name);
+            }
+        }
     }
 
     fn subscribe() -> iced::Subscription<ServiceEvent<Self>> {
         let id = TypeId::of::<Self>();
 
-        channel(id, 100, |mut output| async move {
-            let mut state = State::Init;
+        Subscription::run_with_id(
+            id,
+            channel(100, |mut output| async move {
+                let mut state = State::Init;
 
-            loop {
-                state = TrayService::start_listening(state, &mut output).await;
-            }
-        })
+                loop {
+                    state = TrayService::start_listening(state, &mut output).await;
+                }
+            }),
+        )
     }
 }
