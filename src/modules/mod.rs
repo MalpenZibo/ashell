@@ -5,5 +5,6 @@ pub mod privacy;
 pub mod settings;
 pub mod system_info;
 pub mod title;
+pub mod tray;
 pub mod updates;
 pub mod workspaces;

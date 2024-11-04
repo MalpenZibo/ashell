@@ -1,12 +1,13 @@
-use iced::futures::stream::iter;
 use iced::futures::StreamExt;
-use log::debug;
+use log::{info, warn};
 use zbus::{
     fdo::{DBusProxy, RequestNameFlags, RequestNameReply},
     interface,
     message::Header,
     names::{BusName, UniqueName, WellKnownName},
-    object_server::{SignalContext, SignalEmitter},
+    object_server::SignalEmitter,
+    proxy,
+    zvariant::{self, OwnedObjectPath},
     Connection, Result,
 };
 
@@ -36,7 +37,7 @@ impl StatusNotifierWatcher {
 
         let flags = RequestNameFlags::AllowReplacement.into();
         if dbus_proxy.request_name(NAME, flags).await? == RequestNameReply::InQueue {
-            eprintln!("Bus name '{}' already owned", NAME);
+            warn!("Bus name '{}' already owned", NAME);
         }
 
         let internal_connection = connection.clone();
@@ -52,10 +53,10 @@ impl StatusNotifierWatcher {
                 };
                 if args.name.as_ref() == NAME {
                     if args.new_owner.as_ref() == unique_name.as_ref() {
-                        eprintln!("Acquired bus name: {}", NAME);
+                        info!("Acquired bus name: {}", NAME);
                         have_bus_name = true;
                     } else if have_bus_name {
-                        eprintln!("Lost bus name: {}", NAME);
+                        info!("Lost bus name: {}", NAME);
                         have_bus_name = false;
                     }
                 } else if let BusName::Unique(name) = &args.name {
@@ -144,4 +145,24 @@ impl StatusNotifierWatcher {
 
     #[zbus(signal)]
     async fn status_notifier_host_unregistered(emitter: &SignalEmitter<'_>) -> Result<()>;
+}
+
+#[derive(Clone, Debug, zvariant::Value)]
+pub struct Icon {
+    pub width: i32,
+    pub height: i32,
+    pub bytes: Vec<u8>,
+}
+
+#[proxy(interface = "org.kde.StatusNotifierItem")]
+pub trait StatusNotifierItem {
+    #[zbus(property)]
+    fn icon_name(&self) -> zbus::Result<String>;
+
+    // https://www.freedesktop.org/wiki/Specifications/StatusNotifierItem/Icons
+    #[zbus(property)]
+    fn icon_pixmap(&self) -> zbus::Result<Vec<Icon>>;
+
+    #[zbus(property)]
+    fn menu(&self) -> zbus::Result<OwnedObjectPath>;
 }

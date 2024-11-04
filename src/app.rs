@@ -5,9 +5,10 @@ use crate::{
     menu::{menu_wrapper, Menu, MenuPosition, MenuType},
     modules::{
         self, clipboard, clock::Clock, launcher, privacy::PrivacyMessage, settings::Settings,
-        system_info::SystemInfo, title::Title, updates::Updates, workspaces::Workspaces,
+        system_info::SystemInfo, title::Title, tray::TrayMessage, updates::Updates,
+        workspaces::Workspaces,
     },
-    services::{privacy::PrivacyService, tray, ReadOnlyService, ServiceEvent},
+    services::{privacy::PrivacyService, tray::TrayService, ReadOnlyService, ServiceEvent},
     style::ashell_theme,
     utils, HEIGHT,
 };
@@ -30,6 +31,7 @@ pub struct App {
     workspaces: Workspaces,
     window_title: Title,
     system_info: SystemInfo,
+    tray: Option<TrayService>,
     clock: Clock,
     privacy: Option<PrivacyService>,
     pub settings: Settings,
@@ -46,6 +48,7 @@ pub enum Message {
     Workspaces(modules::workspaces::Message),
     Title(modules::title::Message),
     SystemInfo(modules::system_info::Message),
+    Tray(modules::tray::TrayMessage),
     Clock(modules::clock::Message),
     Privacy(modules::privacy::PrivacyMessage),
     Settings(modules::settings::Message),
@@ -67,6 +70,7 @@ impl Application for App {
                 workspaces: Workspaces::default(),
                 window_title: Title::default(),
                 system_info: SystemInfo::default(),
+                tray: None,
                 clock: Clock::default(),
                 privacy: None,
                 settings: Settings::default(),
@@ -138,6 +142,21 @@ impl Application for App {
                 self.system_info.update(message);
                 Command::none()
             }
+            Message::Tray(msg) => match msg {
+                TrayMessage::Event(event) => match event {
+                    ServiceEvent::Init(service) => {
+                        self.tray = Some(service);
+                        Command::none()
+                    }
+                    ServiceEvent::Update(data) => {
+                        if let Some(tray) = self.tray.as_mut() {
+                            tray.update(data);
+                        }
+                        Command::none()
+                    }
+                    ServiceEvent::Error(_) => Command::none(),
+                },
+            },
             Message::Clock(message) => {
                 self.clock.update(message);
                 Command::none()
@@ -226,6 +245,11 @@ impl Application for App {
                         .view(&self.config.system)
                         .map(|c| c.map(Message::SystemInfo)),
                 )
+                .push_maybe(
+                    self.tray
+                        .as_ref()
+                        .map(|tray| tray.view().map(Message::Tray)),
+                )
                 .push(
                     Row::new()
                         .push(
@@ -264,12 +288,12 @@ impl Application for App {
                 Some(self.workspaces.subscription().map(Message::Workspaces)),
                 Some(self.window_title.subscription().map(Message::Title)),
                 Some(self.system_info.subscription().map(Message::SystemInfo)),
+                Some(TrayService::subscribe().map(|e| Message::Tray(TrayMessage::Event(e)))),
                 Some(self.clock.subscription().map(Message::Clock)),
                 Some(
                     PrivacyService::subscribe().map(|e| Message::Privacy(PrivacyMessage::Event(e))),
                 ),
                 Some(self.settings.subscription().map(Message::Settings)),
-                Some(tray::TrayService::subscribe().map(|_| Message::None)),
                 Some(config::subscription()),
             ]
             .into_iter()
