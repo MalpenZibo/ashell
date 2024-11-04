@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Nerd fonts are now included in the binary
 - Workspace indicator now has an hover state
 
+### Thanks
+
+- @fiersik for the clipboard button and the ALT Linux package
+
 ## [0.1.4] - 2024-10-23
 
 ### Fixed
