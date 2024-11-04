@@ -101,7 +101,7 @@ impl Application for App {
                 info!("New config: {:?}", config);
                 self.config = *config;
                 self.logger
-                    .set_new_spec(get_log_spec(self.config.log_level));
+                    .set_new_spec(get_log_spec(&self.config.log_level));
                 Command::none()
             }
             Message::CloseMenu => self.menu.close(),
