@@ -355,7 +355,11 @@ impl button::StyleSheet for WorkspaceButtonStyle {
             } else {
                 bg_color
             })),
-            text_color: { fg_color },
+            text_color: if self.0 {
+                style.extended_palette().background.weak.text
+            } else {
+                fg_color
+            },
             ..self.active(style)
         }
     }
