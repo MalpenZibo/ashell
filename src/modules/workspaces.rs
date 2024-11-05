@@ -22,6 +22,7 @@ use std::{
 #[derive(Debug, Clone)]
 pub struct Workspace {
     pub id: i32,
+    pub name: String,
     pub monitor: Option<usize>,
     pub active: bool,
     pub windows: u16,
@@ -38,32 +39,47 @@ fn get_workspaces() -> Vec<Workspace> {
     workspaces.sort_by_key(|w| w.id);
 
     let mut current: usize = 1;
-    let s = workspaces
-        .iter()
+
+    workspaces
+        .into_iter()
         .flat_map(|w| {
-            let missing: usize = w.id as usize - current;
-            let mut res = Vec::with_capacity(missing + 1);
-            for i in 0..missing {
+            if w.id < 0 {
+                vec![Workspace {
+                    id: w.id,
+                    name: w
+                        .name
+                        .split(":")
+                        .last()
+                        .map_or_else(|| "".to_string(), |s| s.to_owned()),
+                    monitor: MONITOR.iter().position(|m| w.monitor == *m),
+                    active: w.id == active.id,
+                    windows: w.windows,
+                }]
+            } else {
+                let missing: usize = w.id as usize - current;
+                let mut res = Vec::with_capacity(missing + 1);
+                for i in 0..missing {
+                    res.push(Workspace {
+                        id: (current + i) as i32,
+                        name: (current + i).to_string(),
+                        monitor: None,
+                        active: false,
+                        windows: 0,
+                    });
+                }
+                current += missing + 1;
                 res.push(Workspace {
-                    id: (current + i) as i32,
-                    monitor: None,
-                    active: false,
-                    windows: 0,
+                    id: w.id,
+                    name: w.name.clone(),
+                    monitor: MONITOR.iter().position(|m| w.monitor == *m),
+                    active: w.id == active.id,
+                    windows: w.windows,
                 });
+
+                res
             }
-            current += missing + 1;
-            res.push(Workspace {
-                id: w.id,
-                monitor: MONITOR.iter().position(|m| w.monitor == *m),
-                active: w.id == active.id,
-                windows: w.windows,
-            });
-
-            res
         })
-        .collect::<Vec<Workspace>>();
-
-    s
+        .collect::<Vec<Workspace>>()
 }
 
 pub struct Workspaces {
@@ -120,14 +136,35 @@ impl Workspaces {
                         let color = monitor.map(|m| workspace_colors.get(m).copied());
 
                         button(
-                            container(text(w.id).size(10))
-                                .align_x(alignment::Horizontal::Center)
-                                .align_y(alignment::Vertical::Center),
+                            container(
+                                if w.id < 0 {
+                                    text(w.name.as_str())
+                                } else {
+                                    text(w.id)
+                                }
+                                .size(10),
+                            )
+                            .align_x(alignment::Horizontal::Center)
+                            .align_y(alignment::Vertical::Center),
                         )
                         .style(Button::custom(WorkspaceButtonStyle(empty, color)))
-                        .padding(0)
+                        .padding(if w.id < 0 {
+                            if w.active {
+                                [0, 16]
+                            } else {
+                                [0, 8]
+                            }
+                        } else {
+                            [0, 0]
+                        })
                         .on_press(Message::ChangeWorkspace(w.id))
-                        .width(if w.active { 32 } else { 16 })
+                        .width(if w.id < 0 {
+                            Length::Shrink
+                        } else if w.active {
+                            Length::Fixed(32.)
+                        } else {
+                            Length::Fixed(16.)
+                        })
                         .height(16)
                         .into()
                     })
