@@ -7,8 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Support for special workspaces
+
 ### Fixed
 
+- Ashell crash when the title module try to split a multi-byte character 
+- Removed fixed monitor name in the workspace module
 - Fix privacy webcam usage check during initialization
 - Fix microphone selection
 - Fix brightness initial value
