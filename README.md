@@ -175,6 +175,13 @@ appearance:
     workspaceColors: 
       - "#fab387" 
       - "#b4befe"
+    # this is a list of color that will be used in the workspace module 
+    # for the special workspace (one color for each monitor)
+    # optional, default None
+    # without a value the workspaceColors list will be used
+    specialWorkspaceColors:
+      - "#a6e3a1" 
+      - "#f38ba8"
 ```
 
 ### So, what's the purpose of this project?

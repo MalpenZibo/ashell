@@ -23,12 +23,10 @@ use std::{
 pub struct Workspace {
     pub id: i32,
     pub name: String,
-    pub monitor: Option<usize>,
+    pub monitor_id: Option<usize>,
     pub active: bool,
     pub windows: u16,
 }
-
-const MONITOR: [&str; 3] = ["eDP-1", "DP-1", "DP-2"];
 
 fn get_workspaces() -> Vec<Workspace> {
     let active = hyprland::data::Workspace::get_active().unwrap();
@@ -51,7 +49,7 @@ fn get_workspaces() -> Vec<Workspace> {
                         .split(":")
                         .last()
                         .map_or_else(|| "".to_string(), |s| s.to_owned()),
-                    monitor: MONITOR.iter().position(|m| w.monitor == *m),
+                    monitor_id: Some(w.monitor_id as usize),
                     active: w.id == active.id,
                     windows: w.windows,
                 }]
@@ -62,7 +60,7 @@ fn get_workspaces() -> Vec<Workspace> {
                     res.push(Workspace {
                         id: (current + i) as i32,
                         name: (current + i).to_string(),
-                        monitor: None,
+                        monitor_id: None,
                         active: false,
                         windows: 0,
                     });
@@ -71,7 +69,7 @@ fn get_workspaces() -> Vec<Workspace> {
                 res.push(Workspace {
                     id: w.id,
                     name: w.name.clone(),
-                    monitor: MONITOR.iter().position(|m| w.monitor == *m),
+                    monitor_id: Some(w.monitor_id as usize),
                     active: w.id == active.id,
                     windows: w.windows,
                 });
@@ -124,16 +122,29 @@ impl Workspaces {
         }
     }
 
-    pub fn view(&self, workspace_colors: &[AppearanceColor]) -> Element<Message> {
+    pub fn view(
+        &self,
+        workspace_colors: &[AppearanceColor],
+        special_workspace_colors: Option<&[AppearanceColor]>,
+    ) -> Element<Message> {
         container(
             Row::with_children(
                 self.workspaces
                     .iter()
                     .map(|w| {
                         let empty = w.windows == 0;
-                        let monitor = w.monitor;
+                        let monitor = w.monitor_id;
 
-                        let color = monitor.map(|m| workspace_colors.get(m).copied());
+                        let color = monitor.map(|m| {
+                            if w.id > 0 {
+                                workspace_colors.get(m).copied()
+                            } else {
+                                special_workspace_colors
+                                    .unwrap_or(workspace_colors)
+                                    .get(m)
+                                    .copied()
+                            }
+                        });
 
                         button(
                             container(

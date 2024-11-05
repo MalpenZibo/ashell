@@ -206,7 +206,10 @@ impl Application for App {
                 )
                 .push(
                     self.workspaces
-                        .view(&self.config.appearance.workspace_colors)
+                        .view(
+                            &self.config.appearance.workspace_colors,
+                            self.config.appearance.special_workspace_colors.as_deref(),
+                        )
                         .map(Message::Workspaces),
                 )
                 .height(Length::Shrink)

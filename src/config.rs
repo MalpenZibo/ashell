@@ -177,6 +177,7 @@ pub struct Appearance {
     pub text_color: AppearanceColor,
     #[serde(default = "default_workspace_colors")]
     pub workspace_colors: Vec<AppearanceColor>,
+    pub special_workspace_colors: Option<Vec<AppearanceColor>>,
 }
 
 static PRIMARY: HexColor = HexColor::rgb(250, 179, 135);
@@ -243,6 +244,7 @@ impl Default for Appearance {
             danger_color: default_danger_color(),
             text_color: default_text_color(),
             workspace_colors: default_workspace_colors(),
+            special_workspace_colors: None,
         }
     }
 }
