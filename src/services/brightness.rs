@@ -62,7 +62,7 @@ impl BrightnessService {
         );
 
         Ok(BrightnessData {
-            current: actual_brightness * 100 / max_brightness,
+            current: actual_brightness,
             max: max_brightness,
         })
     }
