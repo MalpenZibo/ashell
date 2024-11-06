@@ -1,7 +1,11 @@
 use super::{ReadOnlyService, ServiceEvent};
 use dbus::{StatusNotifierItemProxy, StatusNotifierWatcher, StatusNotifierWatcherProxy};
 use iced::{
-    futures::{channel::mpsc::Sender, stream::pending, stream_select, SinkExt, Stream, StreamExt},
+    futures::{
+        channel::mpsc::Sender,
+        stream::{pending, select_all},
+        stream_select, SinkExt, Stream, StreamExt,
+    },
     stream::channel,
     widget::image::Handle,
     Subscription,
@@ -13,15 +17,16 @@ mod dbus;
 
 #[derive(Debug, Clone)]
 pub enum TrayEvent {
-    ItemRegistered(StatusNotifierItem),
-    ItemUnregistered(String),
+    Registered(StatusNotifierItem),
+    IconChanged((String, Handle)),
+    Unregistered(String),
 }
 
 #[derive(Debug, Clone)]
 pub struct StatusNotifierItem {
     pub name: String,
     pub icon_pixmap: Option<Handle>,
-    // _item_proxy: StatusNotifierItemProxy<'static>,
+    pub item_proxy: StatusNotifierItemProxy<'static>,
     // menu_proxy: DBusMenuProxy<'static>,
 }
 
@@ -66,7 +71,7 @@ impl StatusNotifierItem {
         Ok(Self {
             name,
             icon_pixmap,
-            // _item_proxy: item_proxy,
+            item_proxy,
             // menu_proxy,
         })
     }
@@ -121,9 +126,9 @@ impl TrayService {
     }
 
     async fn events(conn: &zbus::Connection) -> anyhow::Result<impl Stream<Item = TrayEvent>> {
-        let proxy = StatusNotifierWatcherProxy::new(conn).await?;
+        let watcher = StatusNotifierWatcherProxy::new(conn).await?;
 
-        let registered = proxy
+        let registered = watcher
             .receive_status_notifier_item_registered()
             .await?
             .filter_map({
@@ -136,7 +141,7 @@ impl TrayService {
                             let item =
                                 StatusNotifierItem::new(&conn, args.service.to_string()).await;
 
-                            item.map(TrayEvent::ItemRegistered).ok()
+                            item.map(TrayEvent::Registered).ok()
                         } else {
                             None
                         }
@@ -144,21 +149,64 @@ impl TrayService {
                 }
             })
             .boxed();
-        let unregistered = proxy
+        let unregistered = watcher
             .receive_status_notifier_item_unregistered()
             .await?
             .filter_map(|e| async move {
                 debug!("unregistered {:?}", e);
 
                 if let Ok(args) = e.args() {
-                    Some(TrayEvent::ItemUnregistered(args.service.to_string()))
+                    Some(TrayEvent::Unregistered(args.service.to_string()))
                 } else {
                     None
                 }
             })
             .boxed();
 
-        Ok(stream_select!(registered, unregistered).boxed())
+        let items = watcher.registered_status_notifier_items().await?;
+        let mut icon_pixel_change = Vec::with_capacity(items.len());
+
+        for name in items {
+            let item = StatusNotifierItem::new(conn, name.to_string()).await?;
+
+            icon_pixel_change.push(
+                item.item_proxy
+                    .receive_icon_pixmap_changed()
+                    .await
+                    .filter_map({
+                        let name = name.clone();
+                        move |icon| {
+                            let name = name.clone();
+                            async move {
+                                icon.get().await.ok().and_then(|icon| {
+                                    icon.into_iter()
+                                        .max_by_key(|i| {
+                                            trace!("tray icon w {}, h {}", i.width, i.height);
+                                            (i.width, i.height)
+                                        })
+                                        .map(|mut i| {
+                                            // Convert ARGB to RGBA
+                                            for pixel in i.bytes.chunks_exact_mut(4) {
+                                                pixel.rotate_left(1);
+                                            }
+                                            TrayEvent::IconChanged((
+                                                name.to_owned(),
+                                                Handle::from_rgba(
+                                                    i.width as u32,
+                                                    i.height as u32,
+                                                    i.bytes,
+                                                ),
+                                            ))
+                                        })
+                                })
+                            }
+                        }
+                    })
+                    .boxed(),
+            );
+        }
+
+        Ok(stream_select!(registered, unregistered, select_all(icon_pixel_change)).boxed())
     }
 
     async fn start_listening(state: State, output: &mut Sender<ServiceEvent<Self>>) -> State {
@@ -227,7 +275,7 @@ impl ReadOnlyService for TrayService {
 
     fn update(&mut self, event: Self::UpdateEvent) {
         match event {
-            TrayEvent::ItemRegistered(new_item) => {
+            TrayEvent::Registered(new_item) => {
                 if let Some(existing_item) = self
                     .data
                     .0
@@ -239,7 +287,12 @@ impl ReadOnlyService for TrayService {
                     self.data.0.push(new_item);
                 }
             }
-            TrayEvent::ItemUnregistered(name) => {
+            TrayEvent::IconChanged((name, handle)) => {
+                if let Some(item) = self.data.0.iter_mut().find(|item| item.name == name) {
+                    item.icon_pixmap = Some(handle);
+                }
+            }
+            TrayEvent::Unregistered(name) => {
                 self.data.0.retain(|item| item.name != name);
             }
         }
