@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fix privacy webcam usage check during initialization
+
 ## [0.1.5] - 2024-11-04
 
 ### Added
