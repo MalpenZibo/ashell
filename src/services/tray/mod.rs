@@ -248,7 +248,14 @@ impl TrayService {
                     Ok(mut events) => {
                         while let Some(event) = events.next().await {
                             debug!("tray data {:?}", event);
+
+                            let reload_events = matches!(event, TrayEvent::Registered(_));
+
                             let _ = output.send(ServiceEvent::Update(event)).await;
+
+                            if reload_events {
+                                break;
+                            }
                         }
 
                         State::Active(conn)
