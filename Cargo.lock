@@ -1551,8 +1551,8 @@ checksum = "dfa686283ad6dd069f105e5ab091b04c62850d3e4cf5d67debad1933f55023df"
 
 [[package]]
 name = "hyprland"
-version = "0.4.0-beta.1"
-source = "git+https://github.com/MalpenZibo/hyprland-rs#708fb208605f125511a5a45bff7b6ce4cf7a5fe1"
+version = "0.4.0-beta.1-revision"
+source = "git+https://github.com/MalpenZibo/hyprland-rs?branch=nix-fix#f00fa64d5a8cde74966a0e906d44365a67ada860"
 dependencies = [
  "ahash",
  "async-stream",
@@ -1572,8 +1572,8 @@ dependencies = [
 
 [[package]]
 name = "hyprland-macros"
-version = "0.4.0-beta.1"
-source = "git+https://github.com/MalpenZibo/hyprland-rs#708fb208605f125511a5a45bff7b6ce4cf7a5fe1"
+version = "0.4.0-beta.1-revision"
+source = "git+https://github.com/MalpenZibo/hyprland-rs?branch=nix-fix#f00fa64d5a8cde74966a0e906d44365a67ada860"
 dependencies = [
  "proc-macro2",
  "quote",
