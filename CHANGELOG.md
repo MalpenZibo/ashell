@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Fix privacy webcam usage check during initialization
+- Fix microphone selection
 
 ## [0.1.5] - 2024-11-04
 
