@@ -44,7 +44,7 @@ impl AudioData {
         let active_sink = self
             .sinks
             .iter()
-            .find(|sink| sink.ports.iter().any(|p| p.active));
+            .find(|sink| sink.name == self.server_info.default_sink);
 
         let sink_slider = active_sink.map(|s| {
             audio_slider(
@@ -65,7 +65,7 @@ impl AudioData {
             let active_source = self
                 .sources
                 .iter()
-                .find(|source| source.ports.iter().any(|p| p.active));
+                .find(|source| source.name == self.server_info.default_source);
 
             let source_slider = active_source.map(|s| {
                 audio_slider(

@@ -725,10 +725,12 @@ impl PulseAudioServer {
                     .iter()
                     .any(|port| port.available != PortAvailable::No)
                 {
+                    debug!("Adding sink data: {:?}", data);
                     sinks.push(data.into());
                 }
             }
             ListResult::End => {
+                debug!("New sink list {:?}", sinks);
                 let _ = tx.send(PulseAudioServerEvent::Sinks(sinks.clone()));
                 sinks.clear();
             }
