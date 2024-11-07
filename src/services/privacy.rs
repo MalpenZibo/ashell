@@ -8,8 +8,10 @@ use iced::{
 use inotify::{EventMask, Inotify, WatchMask};
 use log::{debug, error, info, warn};
 use pipewire::{context::Context, main_loop::MainLoop};
-use std::{any::TypeId, ops::Deref, thread};
+use std::{any::TypeId, fs, ops::Deref, path::Path, thread};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver};
+
+const WEBCAM_DEVICE_PATH: &str = "/dev/video0";
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Media {
@@ -23,13 +25,20 @@ pub struct ApplicationNode {
     pub media: Media,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct PrivacyData {
     nodes: Vec<ApplicationNode>,
     webcam_access: i32,
 }
 
 impl PrivacyData {
+    fn new() -> Self {
+        Self {
+            nodes: Vec::new(),
+            webcam_access: is_device_in_use(WEBCAM_DEVICE_PATH),
+        }
+    }
+
     pub fn no_access(&self) -> bool {
         self.nodes.is_empty() && self.webcam_access == 0
     }
@@ -114,7 +123,7 @@ impl PrivacyService {
         let inotify = Inotify::init()?;
 
         inotify.watches().add(
-            "/dev/video0",
+            WEBCAM_DEVICE_PATH,
             WatchMask::CLOSE_WRITE
                 | WatchMask::CLOSE_NOWRITE
                 | WatchMask::DELETE_SELF
@@ -153,7 +162,7 @@ impl PrivacyService {
                 let webcam = Self::webcam_listener().await;
                 match (pipewire, webcam) {
                     (Ok(pipewire), Ok(webcam)) => {
-                        let data = PrivacyData::default();
+                        let data = PrivacyData::new();
 
                         let _ = output
                             .send(ServiceEvent::Init(PrivacyService { data }))
@@ -270,4 +279,31 @@ impl ReadOnlyService for PrivacyService {
             }
         })
     }
+}
+
+fn is_device_in_use(target: &str) -> i32 {
+    let mut used_by = 0;
+    if let Ok(entries) = fs::read_dir("/proc") {
+        for entry in entries.flatten() {
+            let pid_path = entry.path();
+
+            // Skip non-numeric directories (not process folders)
+            if !pid_path.join("fd").exists() {
+                continue;
+            }
+
+            // Check file descriptors in each process folder
+            if let Ok(fd_entries) = fs::read_dir(pid_path.join("fd")) {
+                for fd_entry in fd_entries.flatten() {
+                    if let Ok(link_path) = fs::read_link(fd_entry.path()) {
+                        if link_path == Path::new(target) {
+                            used_by += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    used_by
 }
