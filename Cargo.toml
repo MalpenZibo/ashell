@@ -17,7 +17,7 @@ iced_sctk = { git = "https://github.com/MalpenZibo/iced_sctk", features = [
   "no-hand-cursor",
 ] }
 chrono = "0.4"
-hyprland = { git = "https://github.com/MalpenZibo/hyprland-rs", branch = "nix-fix" }
+hyprland = { git = "https://github.com/MalpenZibo/hyprland-rs" }
 serde = "1.0"
 sysinfo = "0.32"
 tokio = { version = "1", features = ["full"] }
