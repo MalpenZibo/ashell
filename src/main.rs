@@ -1,12 +1,11 @@
 use app::App;
-use config::{read_config, Position};
+use config::read_config;
 use flexi_logger::{
     Age, Cleanup, Criterion, FileSpec, LogSpecBuilder, LogSpecification, Logger, Naming,
 };
-use iced::Font;
-use log::{error, LevelFilter};
+use log::error;
 use std::panic;
-use std::{backtrace::Backtrace, borrow::Cow, panic};
+use std::{backtrace::Backtrace, borrow::Cow};
 
 mod app;
 mod centerbox;

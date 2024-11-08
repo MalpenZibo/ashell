@@ -11,8 +11,7 @@ use iced::{
     alignment,
     stream::channel,
     widget::{button, container, text, Row},
-    widget::{container, mouse_area, text, Row},
-    Background, Border, Color, Element, Element, Length, Length, Subscription, Subscription, Theme,
+    Element, Length, Subscription,
 };
 use log::{debug, error};
 use std::{
@@ -238,18 +237,13 @@ impl Workspaces {
                         move |e| {
                             debug!("workspace added: {:?}", e);
                             let output = output.clone();
-                            move |_| {
-                                let output = output.clone();
-                                Box::pin(async move {
-                                    if let Ok(mut output) = output.write() {
-                                        output
-                                            .try_send(Message::WorkspacesChanged(get_workspaces()))
-                                            .expect(
-                                                "error getting workspaces: workspace added event",
-                                            );
-                                    }
-                                })
-                            }
+                            Box::pin(async move {
+                                if let Ok(mut output) = output.write() {
+                                    output
+                                        .try_send(Message::WorkspacesChanged(get_workspaces()))
+                                        .expect("error getting workspaces: workspace added event");
+                                }
+                            })
                         }
                     });
 
@@ -258,18 +252,13 @@ impl Workspaces {
                         move |e| {
                             debug!("workspace changed: {:?}", e);
                             let output = output.clone();
-                            move |_| {
-                                let output = output.clone();
-                                Box::pin(async move {
-                                    if let Ok(mut output) = output.write() {
-                                        output
-                                            .try_send(Message::WorkspacesChanged(get_workspaces()))
-                                            .expect(
-                                                "error getting workspaces: workspace change event",
-                                            );
-                                    }
-                                })
-                            }
+                            Box::pin(async move {
+                                if let Ok(mut output) = output.write() {
+                                    output
+                                        .try_send(Message::WorkspacesChanged(get_workspaces()))
+                                        .expect("error getting workspaces: workspace change event");
+                                }
+                            })
                         }
                     });
 
@@ -278,18 +267,15 @@ impl Workspaces {
                         move |e| {
                             debug!("workspace deleted: {:?}", e);
                             let output = output.clone();
-                            move |_| {
-                                let output = output.clone();
-                                Box::pin(async move {
-                                    if let Ok(mut output) = output.write() {
-                                        output
-                                            .try_send(Message::WorkspacesChanged(get_workspaces()))
-                                            .expect(
-                                                "error getting workspaces: workspace destroy event",
-                                            );
-                                    }
-                                })
-                            }
+                            Box::pin(async move {
+                                if let Ok(mut output) = output.write() {
+                                    output
+                                        .try_send(Message::WorkspacesChanged(get_workspaces()))
+                                        .expect(
+                                            "error getting workspaces: workspace destroy event",
+                                        );
+                                }
+                            })
                         }
                     });
 
@@ -298,18 +284,13 @@ impl Workspaces {
                         move |e| {
                             debug!("workspace moved: {:?}", e);
                             let output = output.clone();
-                            move |_| {
-                                let output = output.clone();
-                                Box::pin(async move {
-                                    if let Ok(mut output) = output.write() {
-                                        output
-                                            .try_send(Message::WorkspacesChanged(get_workspaces()))
-                                            .expect(
-                                                "error getting workspaces: workspace moved event",
-                                            );
-                                    }
-                                })
-                            }
+                            Box::pin(async move {
+                                if let Ok(mut output) = output.write() {
+                                    output
+                                        .try_send(Message::WorkspacesChanged(get_workspaces()))
+                                        .expect("error getting workspaces: workspace moved event");
+                                }
+                            })
                         }
                     });
 
@@ -351,16 +332,13 @@ impl Workspaces {
                         let output = output.clone();
                         move |_| {
                             let output = output.clone();
-                            move |_| {
-                                let output = output.clone();
-                                Box::pin(async move {
-                                    if let Ok(mut output) = output.write() {
-                                        output
-                                            .try_send(Message::WorkspacesChanged(get_workspaces()))
-                                            .expect("error getting workspaces: window close event");
-                                    }
-                                })
-                            }
+                            Box::pin(async move {
+                                if let Ok(mut output) = output.write() {
+                                    output
+                                        .try_send(Message::WorkspacesChanged(get_workspaces()))
+                                        .expect("error getting workspaces: window close event");
+                                }
+                            })
                         }
                     });
 

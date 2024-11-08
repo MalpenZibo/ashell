@@ -137,7 +137,7 @@ impl App {
                 if let Some(clipboard_cmd) = self.config.clipboard_cmd.as_ref() {
                     utils::launcher::execute_command(clipboard_cmd.to_string());
                 }
-                Command::none()
+                Task::none()
             }
             Message::Workspaces(msg) => {
                 self.workspaces.update(msg);
