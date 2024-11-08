@@ -293,7 +293,8 @@ impl App {
                     .push_maybe(
                         self.tray
                             .as_ref()
-                            .map(|tray| tray.view().map(Message::Tray)),
+                            .and_then(|tray| tray.view())
+                            .map(|e| e.map(Message::Tray)),
                     )
                     .push(
                         Row::new()
