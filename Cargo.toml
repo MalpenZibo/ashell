@@ -2,7 +2,7 @@
 name = "ashell"
 description = "Barely customizable Wayland status bar for Hyprland compositor."
 homepage = "https://github.com/MalpenZibo/ashell"
-version = "0.1.5"
+version = "0.2.0"
 edition = "2021"
 rust-version = "1.81"
 
@@ -17,7 +17,7 @@ iced_sctk = { git = "https://github.com/MalpenZibo/iced_sctk", features = [
   "no-hand-cursor",
 ] }
 chrono = "0.4"
-hyprland = { git = "https://github.com/MalpenZibo/hyprland-rs", branch = "nix-fix" }
+hyprland = { git = "https://github.com/MalpenZibo/hyprland-rs" }
 serde = "1.0"
 sysinfo = "0.32"
 tokio = { version = "1", features = ["full"] }
