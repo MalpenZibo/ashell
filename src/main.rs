@@ -11,7 +11,7 @@ use iced_sctk::{
     settings::InitialSurface,
 };
 use log::error;
-use std::{borrow::Cow, panic};
+use std::{backtrace::Backtrace, borrow::Cow, panic};
 
 mod app;
 mod centerbox;
@@ -54,7 +54,8 @@ async fn main() {
     };
     let logger = logger.start().unwrap();
     panic::set_hook(Box::new(|info| {
-        error!("Panic: {}", info);
+        let b = Backtrace::capture();
+        error!("Panic: {} \n {}", info, b);
     }));
 
     let config = read_config().unwrap_or_else(|err| {
