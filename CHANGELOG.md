@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix sink and source slider toggle button state
 - Fix brightness initial value
 
+### Thanks
+
+- @fiersik for all the feedback
+- @leftas for the PRs to fix the special workspace crash and the title module
+
 ## [0.1.5] - 2024-11-04
 
 ### Added
