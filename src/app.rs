@@ -54,7 +54,6 @@ pub enum Message {
     Clock(modules::clock::Message),
     Privacy(modules::privacy::PrivacyMessage),
     Settings(modules::settings::Message),
-    IcedEvent,
 }
 
 impl MultiApplication for App {
@@ -184,7 +183,6 @@ impl MultiApplication for App {
                 self.settings
                     .update(message, &self.config.settings, self.ids.iter_mut().next())
             }
-            Message::IcedEvent => Task::none(),
             _ => Task::none(),
         }
     }
@@ -290,7 +288,6 @@ impl MultiApplication for App {
                 ),
                 Some(self.settings.subscription().map(Message::Settings)),
                 Some(config::subscription()),
-                Some(iced::event::listen().map(|_| Message::IcedEvent)),
             ]
             .into_iter()
             .flatten()
