@@ -78,6 +78,32 @@ impl Default for SystemModuleConfig {
     }
 }
 
+#[derive(Deserialize, Clone, Debug, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct KeyboardLayoutModule {
+    #[serde(default)]
+    pub disabled: bool,
+}
+
+#[derive(Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct KeyboardModuleConfig {
+    #[serde(default = "default_keyboard_layout")]
+    pub layout: KeyboardLayoutModule,
+}
+
+fn default_keyboard_layout() -> KeyboardLayoutModule {
+    KeyboardLayoutModule { disabled: false }
+}
+
+impl Default for KeyboardModuleConfig {
+    fn default() -> Self {
+        Self {
+            layout: default_keyboard_layout(),
+        }
+    }
+}
+
 #[derive(Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct ClockModuleConfig {
@@ -272,6 +298,8 @@ pub struct Config {
     #[serde(default)]
     pub system: SystemModuleConfig,
     #[serde(default)]
+    pub keyboard: KeyboardModuleConfig,
+    #[serde(default)]
     pub clock: ClockModuleConfig,
     #[serde(default)]
     pub settings: SettingsModuleConfig,
@@ -312,6 +340,7 @@ impl Default for Config {
             truncate_title_after_length: default_truncate_title_after_length(),
             updates: None,
             system: SystemModuleConfig::default(),
+            keyboard: KeyboardModuleConfig::default(),
             clock: ClockModuleConfig::default(),
             settings: SettingsModuleConfig::default(),
             appearance: Appearance::default(),
