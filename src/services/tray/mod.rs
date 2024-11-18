@@ -1,5 +1,8 @@
 use super::{ReadOnlyService, ServiceEvent};
-use dbus::{StatusNotifierItemProxy, StatusNotifierWatcher, StatusNotifierWatcherProxy};
+use dbus::{
+    DBusMenuProxy, Layout, StatusNotifierItemProxy, StatusNotifierWatcher,
+    StatusNotifierWatcherProxy,
+};
 use iced::{
     futures::{
         channel::mpsc::Sender,
@@ -26,21 +29,22 @@ pub enum TrayEvent {
 pub struct StatusNotifierItem {
     pub name: String,
     pub icon_pixmap: Option<Handle>,
-    pub item_proxy: StatusNotifierItemProxy<'static>,
-    // menu_proxy: DBusMenuProxy<'static>,
+    pub menu: Layout,
+    item_proxy: StatusNotifierItemProxy<'static>,
+    menu_proxy: DBusMenuProxy<'static>,
 }
 
 impl StatusNotifierItem {
-    pub async fn new(connection: &zbus::Connection, name: String) -> zbus::Result<Self> {
+    pub async fn new(conn: &zbus::Connection, name: String) -> anyhow::Result<Self> {
         let (dest, path) = if let Some(idx) = name.find('/') {
             (&name[..idx], &name[idx..])
         } else {
-            (name.as_str(), "/StatusNotifierItem")
+            (name.as_ref(), "/StatusNotifierItem")
         };
 
-        let item_proxy = StatusNotifierItemProxy::builder(connection)
-            .destination(dest.to_string())?
-            .path(path.to_string())?
+        let item_proxy = StatusNotifierItemProxy::builder(conn)
+            .destination(dest.to_owned())?
+            .path(path.to_owned())?
             .build()
             .await?;
 
@@ -61,18 +65,21 @@ impl StatusNotifierItem {
                 Handle::from_rgba(i.width as u32, i.height as u32, i.bytes)
             });
 
-        // let menu_path = item_proxy.menu().await?;
-        // let menu_proxy = DBusMenuProxy::builder(connection)
-        //     .destination(dest.to_string())?
-        //     .path(menu_path)?
-        //     .build()
-        //     .await?;
+        let menu_path = item_proxy.menu().await?;
+        let menu_proxy = dbus::DBusMenuProxy::builder(conn)
+            .destination(dest.to_owned())?
+            .path(menu_path.to_owned())?
+            .build()
+            .await?;
+
+        let (_, menu) = menu_proxy.get_layout(0, -1, &[]).await?;
 
         Ok(Self {
             name,
             icon_pixmap,
+            menu,
             item_proxy,
-            // menu_proxy,
+            menu_proxy,
         })
     }
 }

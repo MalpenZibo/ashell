@@ -7,7 +7,7 @@ use crate::{
     style::header_pills,
 };
 use iced::{
-    widget::{container, Image, Row},
+    widget::{container, responsive, Image, Row},
     Alignment, Element, Length,
 };
 
@@ -24,11 +24,14 @@ impl TrayData {
                     Row::with_children(
                         self.iter()
                             .map(|item| {
-                                if let Some(pixmap) = &item.icon_pixmap {
-                                    Image::new(pixmap.clone()).height(Length::Fixed(14.)).into()
-                                } else {
-                                    icon(Icons::Point).into()
-                                }
+                                responsive(move |size| {
+                                    if let Some(pixmap) = &item.icon_pixmap {
+                                        Image::new(pixmap.clone()).height(Length::Fixed(14.)).into()
+                                    } else {
+                                        icon(Icons::Point).into()
+                                    }
+                                })
+                                .into()
                             })
                             .collect::<Vec<_>>(),
                     )
