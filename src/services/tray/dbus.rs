@@ -1,5 +1,8 @@
+use std::collections::HashMap;
+
 use iced::futures::StreamExt;
 use log::{info, warn};
+use serde::{Deserialize, Serialize};
 use zbus::{
     fdo::{DBusProxy, RequestNameFlags, RequestNameReply},
     interface,
@@ -7,7 +10,7 @@ use zbus::{
     names::{BusName, UniqueName, WellKnownName},
     object_server::SignalEmitter,
     proxy,
-    zvariant::{self, OwnedObjectPath},
+    zvariant::{self, OwnedObjectPath, OwnedValue, Type},
     Connection, Result,
 };
 
@@ -165,4 +168,64 @@ pub trait StatusNotifierItem {
 
     #[zbus(property)]
     fn menu(&self) -> zbus::Result<OwnedObjectPath>;
+}
+
+// type Layout = (u32, (i32, HashMap<String, OwnedValue>, Vec<OwnedValue>));
+
+#[derive(Clone, Debug, Type)]
+#[zvariant(signature = "(ia{sv}av)")]
+pub struct Layout(i32, LayoutProps, Vec<Layout>);
+impl<'a> serde::Deserialize<'a> for Layout {
+    fn deserialize<D: serde::Deserializer<'a>>(
+        deserializer: D,
+    ) -> std::result::Result<Self, D::Error> {
+        let (id, props, children) =
+            <(i32, LayoutProps, Vec<(zvariant::Signature, Self)>)>::deserialize(deserializer)?;
+        Ok(Self(id, props, children.into_iter().map(|x| x.1).collect()))
+    }
+}
+
+#[derive(Clone, Debug, Type, zvariant::DeserializeDict)]
+#[zvariant(signature = "dict")]
+pub struct LayoutProps {
+    #[zvariant(rename = "accessible-desc")]
+    accessible_desc: Option<String>,
+    #[zvariant(rename = "children-display")]
+    children_display: Option<String>,
+    label: Option<String>,
+    enabled: Option<bool>,
+    visible: Option<bool>,
+    #[zvariant(rename = "type")]
+    type_: Option<String>,
+    #[zvariant(rename = "toggle-type")]
+    toggle_type: Option<String>,
+    #[zvariant(rename = "toggle-state")]
+    toggle_state: Option<i32>,
+    #[zvariant(rename = "icon-data")]
+    icon_data: Option<Vec<u8>>,
+    #[zvariant(rename = "icon-name")]
+    icon_name: Option<String>,
+    disposition: Option<String>,
+    // If this field has a different type, this causes the whole type to fail
+    // to parse, due to a zvariant bug.
+    // https://github.com/dbus2/zbus/issues/856
+    // shortcut: Option<String>,
+}
+
+#[proxy(interface = "com.canonical.dbusmenu")]
+pub trait DBusMenu {
+    fn get_layout(
+        &self,
+        parent_id: i32,
+        recursion_depth: i32,
+        property_names: &[&str],
+    ) -> zbus::Result<(u32, Layout)>;
+
+    fn event(&self, id: i32, event_id: &str, data: &OwnedValue, timestamp: u32)
+        -> zbus::Result<()>;
+
+    fn about_to_show(&self, id: i32) -> zbus::Result<bool>;
+
+    #[zbus(signal)]
+    fn layout_updated(&self, revision: u32, parent: i32) -> zbus::Result<()>;
 }
