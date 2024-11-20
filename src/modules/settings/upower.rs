@@ -27,9 +27,9 @@ impl BatteryData {
         container(
             row!(icon(icon_type), text(format!("{}%", self.capacity)))
                 .spacing(4)
-                .align_items(Alignment::Center),
+                .align_y(Alignment::Center),
         )
-        .style(move |theme: &Theme| container::Appearance {
+        .style(move |theme: &Theme| container::Style {
             text_color: Some(match state {
                 IndicatorState::Success => theme.palette().success,
                 IndicatorState::Danger => theme.palette().danger,
@@ -47,7 +47,7 @@ impl BatteryData {
             let battery_info = container(
                 row!(icon(self.get_icon()), text(format!("{}%", self.capacity))).spacing(4),
             )
-            .style(move |theme: &Theme| container::Appearance {
+            .style(move |theme: &Theme| container::Style {
                 text_color: Some(match state {
                     IndicatorState::Success => theme.palette().success,
                     IndicatorState::Danger => theme.palette().danger,
@@ -70,10 +70,10 @@ impl BatteryData {
             }
         })
         .padding([8, 12])
-        .style(move |theme: &Theme| container::Appearance {
+        .style(move |theme: &Theme| container::Style {
             background: Background::Color(theme.extended_palette().background.weak.color).into(),
-            border: Border::with_radius(32),
-            ..container::Appearance::default()
+            border: Border::default().rounded(32),
+            ..container::Style::default()
         })
     }
 }
@@ -84,7 +84,7 @@ impl PowerProfile {
             PowerProfile::Balanced => None,
             PowerProfile::Performance => Some(
                 container(icon(Icons::Performance))
-                    .style(|theme: &Theme| container::Appearance {
+                    .style(|theme: &Theme| container::Style {
                         text_color: Some(theme.palette().danger),
                         ..Default::default()
                     })
@@ -92,7 +92,7 @@ impl PowerProfile {
             ),
             PowerProfile::PowerSaver => Some(
                 container(icon(Icons::PowerSaver))
-                    .style(|theme: &Theme| container::Appearance {
+                    .style(|theme: &Theme| container::Style {
                         text_color: Some(theme.palette().success),
                         ..Default::default()
                     })

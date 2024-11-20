@@ -6,8 +6,8 @@ use iced::{
         stream::{pending, select_all},
         stream_select, SinkExt, Stream, StreamExt,
     },
-    subscription::channel,
-    Subscription,
+    stream::channel,
+    Subscription, Task,
 };
 use inotify::{Inotify, WatchMask};
 use log::{debug, error, info};
@@ -219,30 +219,33 @@ impl ReadOnlyService for BluetoothService {
     fn subscribe() -> Subscription<ServiceEvent<Self>> {
         let id = TypeId::of::<Self>();
 
-        channel(id, 100, |mut output| async move {
-            let mut state = State::Init;
+        Subscription::run_with_id(
+            id,
+            channel(100, |mut output| async move {
+                let mut state = State::Init;
 
-            loop {
-                state = BluetoothService::start_listening(state, &mut output).await;
-            }
-        })
+                loop {
+                    state = BluetoothService::start_listening(state, &mut output).await;
+                }
+            }),
+        )
     }
 }
 
 impl Service for BluetoothService {
     type Command = BluetoothCommand;
 
-    fn command(&mut self, command: Self::Command) -> iced::Command<ServiceEvent<Self>> {
+    fn command(&mut self, command: Self::Command) -> Task<ServiceEvent<Self>> {
         match command {
             BluetoothCommand::Toggle => {
                 let conn = self.conn.clone();
 
                 if self.data.state == BluetoothState::Unavailable {
-                    iced::Command::none()
+                    Task::none()
                 } else {
                     let mut data = self.data.clone();
 
-                    iced::Command::perform(
+                    Task::perform(
                         async move {
                             let powered = data.state == BluetoothState::Active;
                             debug!("Toggling bluetooth power to: {}", !powered);
