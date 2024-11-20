@@ -4,9 +4,9 @@ use crate::{
     get_log_spec,
     menu::{menu_wrapper, Menu, MenuPosition, MenuType},
     modules::{
-        self, clipboard, clock::Clock, keyboard_layout::KeyboardLayout, launcher,
-        privacy::PrivacyMessage, settings::Settings, system_info::SystemInfo, title::Title,
-        updates::Updates, workspaces::Workspaces,
+        self, clipboard, clock::Clock, keyboard_layout::KeyboardLayout,
+        keyboard_submap::KeyboardSubmap, launcher, privacy::PrivacyMessage, settings::Settings,
+        system_info::SystemInfo, title::Title, updates::Updates, workspaces::Workspaces,
     },
     services::{privacy::PrivacyService, ReadOnlyService, ServiceEvent},
     style::ashell_theme,
@@ -32,6 +32,7 @@ pub struct App {
     window_title: Title,
     system_info: SystemInfo,
     keyboard_layout: KeyboardLayout,
+    keyboard_submap: KeyboardSubmap,
     clock: Clock,
     privacy: Option<PrivacyService>,
     pub settings: Settings,
@@ -49,6 +50,7 @@ pub enum Message {
     Title(modules::title::Message),
     SystemInfo(modules::system_info::Message),
     KeyboardLayout(modules::keyboard_layout::Message),
+    KeyboardSubmap(modules::keyboard_submap::Message),
     Clock(modules::clock::Message),
     Privacy(modules::privacy::PrivacyMessage),
     Settings(modules::settings::Message),
@@ -71,6 +73,7 @@ impl Application for App {
                 window_title: Title::default(),
                 system_info: SystemInfo::default(),
                 keyboard_layout: KeyboardLayout::default(),
+                keyboard_submap: KeyboardSubmap::default(),
                 clock: Clock::default(),
                 privacy: None,
                 settings: Settings::default(),
@@ -144,6 +147,10 @@ impl Application for App {
             }
             Message::KeyboardLayout(message) => {
                 self.keyboard_layout.update(message);
+                Command::none()
+            }
+            Message::KeyboardSubmap(message) => {
+                self.keyboard_submap.update(message);
                 Command::none()
             }
             Message::Clock(message) => {
@@ -234,12 +241,15 @@ impl Application for App {
                         .view(&self.config.system)
                         .map(|c| c.map(Message::SystemInfo)),
                 )
-                .push(
-                    Row::new().push_maybe(
-                        self.keyboard_layout
-                            .view(&self.config.keyboard.layout)
-                            .map(|l| l.map(Message::KeyboardLayout)),
-                    ),
+                .push_maybe(
+                    self.keyboard_submap
+                        .view(&self.config.keyboard.submap)
+                        .map(|l| l.map(Message::KeyboardSubmap)),
+                )
+                .push_maybe(
+                    self.keyboard_layout
+                        .view(&self.config.keyboard.layout)
+                        .map(|l| l.map(Message::KeyboardLayout)),
                 )
                 .push(
                     Row::new()
@@ -283,6 +293,11 @@ impl Application for App {
                     self.keyboard_layout
                         .subscription()
                         .map(Message::KeyboardLayout),
+                ),
+                Some(
+                    self.keyboard_submap
+                        .subscription()
+                        .map(Message::KeyboardSubmap),
                 ),
                 Some(self.clock.subscription().map(Message::Clock)),
                 Some(

@@ -85,21 +85,35 @@ pub struct KeyboardLayoutModule {
     pub disabled: bool,
 }
 
+#[derive(Deserialize, Clone, Debug, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct KeyboardSubmapModule {
+    #[serde(default)]
+    pub disabled: bool,
+}
+
 #[derive(Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct KeyboardModuleConfig {
     #[serde(default = "default_keyboard_layout")]
     pub layout: KeyboardLayoutModule,
+    #[serde(default = "default_keyboard_submap")]
+    pub submap: KeyboardSubmapModule,
 }
 
 fn default_keyboard_layout() -> KeyboardLayoutModule {
     KeyboardLayoutModule { disabled: false }
 }
 
+fn default_keyboard_submap() -> KeyboardSubmapModule {
+    KeyboardSubmapModule { disabled: false }
+}
+
 impl Default for KeyboardModuleConfig {
     fn default() -> Self {
         Self {
             layout: default_keyboard_layout(),
+            submap: default_keyboard_submap(),
         }
     }
 }
