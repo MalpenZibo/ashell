@@ -78,10 +78,13 @@ but I'm quite sure that if you use NixOS you are smart enough to add ashell to y
 ## Features
 
 - Lancher button
+- Сlipboard button
 - OS Updates indicator
 - Hyprland Active Window
 - Hyprland Workspaces
 - System Information (CPU, RAM, Temperature)
+- Hyprland Keyboard Layout
+- Hyprland Keyboard Submap
 - Date time
 - Privacy (check microphone, camera and screenshare usage)
 - Settings panel
@@ -130,6 +133,12 @@ system:
   memAlertThreshold: 85 # mem indicator alert level (default 85)
   tempWarnThreshold: 6O # temperature indicator warning level (default 60)
   tempAlertThreshold: 8O # temperature indicator alert level (default 80)
+# Keyboard modules configuration
+keyboard:
+  layout:
+    disabled: false # Enable or disable the keyboard layout module
+  submap: # see: https://wiki.hyprland.org/Configuring/Binds/#submaps
+    disabled: false # Enable or disable the keyboard submap module
 # Clock module configuration
 clock:
   # clock format see: https://docs.rs/chrono/latest/chrono/format/strftime/index.html 
