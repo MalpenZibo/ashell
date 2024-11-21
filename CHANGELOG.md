@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Hyprland Keyboard Layout module
+- Hyprland Keyboard Submap module
+
 ## [0.2.0] - 2024-11-08
 
 ### Added
