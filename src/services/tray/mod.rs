@@ -22,6 +22,7 @@ mod dbus;
 pub enum TrayEvent {
     Registered(StatusNotifierItem),
     IconChanged((String, Handle)),
+    MenuLayoutChanged((String, Layout)),
     Unregistered(String),
 }
 
@@ -172,6 +173,7 @@ impl TrayService {
 
         let items = watcher.registered_status_notifier_items().await?;
         let mut icon_pixel_change = Vec::with_capacity(items.len());
+        let mut menu_layout_change = Vec::with_capacity(items.len());
 
         for name in items {
             let item = StatusNotifierItem::new(conn, name.to_string()).await?;
@@ -211,6 +213,27 @@ impl TrayService {
                     })
                     .boxed(),
             );
+
+            let layout_updated = item.menu_proxy.receive_layout_updated().await;
+            if let Ok(layout_updated) = layout_updated {
+                menu_layout_change.push(layout_updated.filter_map({
+                    let name = name.clone();
+                    let menu_proxy = item.menu_proxy.clone();
+                    move |_| {
+                        let name = name.clone();
+                        let menu_proxy = menu_proxy.clone();
+                        async move {
+                            menu_proxy
+                                .get_layout(0, -1, &[])
+                                .await
+                                .ok()
+                                .map(|(_, layout)| {
+                                    TrayEvent::MenuLayoutChanged((name.to_owned(), layout))
+                                })
+                        }
+                    }
+                }));
+            }
         }
 
         Ok(stream_select!(registered, unregistered, select_all(icon_pixel_change)).boxed())
@@ -304,6 +327,11 @@ impl ReadOnlyService for TrayService {
             TrayEvent::IconChanged((name, handle)) => {
                 if let Some(item) = self.data.0.iter_mut().find(|item| item.name == name) {
                     item.icon_pixmap = Some(handle);
+                }
+            }
+            TrayEvent::MenuLayoutChanged((name, layout)) => {
+                if let Some(item) = self.data.0.iter_mut().find(|item| item.name == name) {
+                    item.menu = layout;
                 }
             }
             TrayEvent::Unregistered(name) => {

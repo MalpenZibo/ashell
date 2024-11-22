@@ -2,7 +2,7 @@ use crate::{
     centerbox,
     config::{self, Config},
     get_log_spec,
-    menu::{menu_wrapper, MenuPosition},
+    menu::{menu_wrapper, MenuPosition, MenuType},
     modules::{
         self, clipboard, clock::Clock, keyboard_layout::KeyboardLayout,
         keyboard_submap::KeyboardSubmap, launcher, privacy::PrivacyMessage, settings::Settings,
@@ -38,12 +38,6 @@ pub struct App {
     clock: Clock,
     privacy: Option<PrivacyService>,
     pub settings: Settings,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MenuType {
-    Updates,
-    Settings,
 }
 
 #[derive(Debug, Clone)]
@@ -185,6 +179,17 @@ impl App {
                     }
                     ServiceEvent::Error(_) => Task::none(),
                 },
+                TrayMessage::OpenMenu(id, name) => {
+                    if let Some(tray) = self
+                        .tray
+                        .as_ref()
+                        .and_then(|t| t.iter().find(|t| t.name == name))
+                    {
+                        self.outputs.toggle_menu(id, MenuType::Tray(name))
+                    } else {
+                        Task::none()
+                    }
+                }
             },
             Message::Clock(message) => {
                 self.clock.update(message);
@@ -293,7 +298,7 @@ impl App {
                     .push_maybe(
                         self.tray
                             .as_ref()
-                            .and_then(|tray| tray.view())
+                            .and_then(|tray| tray.view(id))
                             .map(|e| e.map(Message::Tray)),
                     )
                     .push(
@@ -326,6 +331,16 @@ impl App {
                     id,
                     self.updates.menu_view(id).map(Message::Updates),
                     MenuPosition::Left,
+                    self.config.position,
+                ),
+                Some(MenuType::Tray(name)) => menu_wrapper(
+                    id,
+                    self.tray
+                        .as_ref()
+                        .map(|tray| tray.menu_view(&name))
+                        .unwrap_or(Row::new().into())
+                        .map(Message::Tray),
+                    MenuPosition::Right,
                     self.config.position,
                 ),
                 Some(MenuType::Settings) => menu_wrapper(
