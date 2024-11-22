@@ -35,10 +35,11 @@ fn close_menu<Message: 'static>(id: Id) -> Command<Message> {
     layer_surface::destroy_layer_surface(id)
 }
 
-#[derive(Eq, PartialEq, Copy, Clone, Debug)]
+#[derive(Eq, PartialEq, Clone, Debug)]
 pub enum MenuType {
     Updates,
     Settings,
+    Tray(String),
 }
 
 #[derive(Debug, Default)]
@@ -118,7 +119,7 @@ impl Menu {
     }
 
     pub fn get_menu_type(&self) -> Option<MenuType> {
-        self.menu_type
+        self.menu_type.clone()
     }
 }
 

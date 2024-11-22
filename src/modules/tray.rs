@@ -1,5 +1,6 @@
 use crate::{
     components::icons::{icon, Icons},
+    menu::Menu,
     services::{
         tray::{TrayData, TrayService},
         ServiceEvent,
@@ -7,13 +8,14 @@ use crate::{
     style::header_pills,
 };
 use iced::{
-    widget::{container, responsive, Image, Row},
-    Alignment, Element, Length,
+    widget::{button, column, container, text, Image, Row},
+    Alignment, Command, Element, Length,
 };
 
 #[derive(Debug, Clone)]
 pub enum TrayMessage {
     Event(ServiceEvent<TrayService>),
+    OpenMenu(String),
 }
 
 impl TrayData {
@@ -24,13 +26,14 @@ impl TrayData {
                     Row::with_children(
                         self.iter()
                             .map(|item| {
-                                responsive(move |size| {
-                                    if let Some(pixmap) = &item.icon_pixmap {
-                                        Image::new(pixmap.clone()).height(Length::Fixed(14.)).into()
-                                    } else {
-                                        icon(Icons::Point).into()
-                                    }
+                                button(if let Some(pixmap) = &item.icon_pixmap {
+                                    Into::<Element<_>>::into(
+                                        Image::new(pixmap.clone()).height(Length::Fixed(14.)),
+                                    )
+                                } else {
+                                    icon(Icons::Point).into()
                                 })
+                                .on_press(TrayMessage::OpenMenu(item.name.to_owned()))
                                 .into()
                             })
                             .collect::<Vec<_>>(),
@@ -45,6 +48,14 @@ impl TrayData {
             )
         } else {
             None
+        }
+    }
+
+    pub fn menu_view(&self, name: &str) -> Element<TrayMessage> {
+        if let Some(item) = self.iter().find(|item| item.name == name) {
+            column!(text("test")).into()
+        } else {
+            Row::new().into()
         }
     }
 }

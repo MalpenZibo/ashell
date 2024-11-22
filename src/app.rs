@@ -156,6 +156,17 @@ impl Application for App {
                     }
                     ServiceEvent::Error(_) => Command::none(),
                 },
+                TrayMessage::OpenMenu(name) => {
+                    if let Some(tray) = self
+                        .tray
+                        .as_ref()
+                        .and_then(|t| t.iter().find(|t| t.name == name))
+                    {
+                        self.menu.toggle(MenuType::Tray(name))
+                    } else {
+                        Command::none()
+                    }
+                }
             },
             Message::Clock(message) => {
                 self.clock.update(message);
@@ -187,16 +198,23 @@ impl Application for App {
         if Some(id) == self.menu.get_id() {
             if let Some(menu_type) = self.menu.get_menu_type() {
                 menu_wrapper(
-                    match menu_type {
+                    match &menu_type {
                         MenuType::Updates => self.updates.menu_view().map(Message::Updates),
                         MenuType::Settings => self
                             .settings
                             .menu_view(&self.config.settings)
                             .map(Message::Settings),
+                        MenuType::Tray(name) => self
+                            .tray
+                            .as_ref()
+                            .unwrap()
+                            .menu_view(name)
+                            .map(Message::Tray),
                     },
-                    match menu_type {
+                    match &menu_type {
                         MenuType::Updates => MenuPosition::Left,
                         MenuType::Settings => MenuPosition::Right,
+                        MenuType::Tray(_) => MenuPosition::Right,
                     },
                     self.config.position,
                 )
