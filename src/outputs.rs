@@ -9,7 +9,11 @@ use iced::{
 use log::debug;
 use wayland_client::protocol::wl_output::WlOutput;
 
-use crate::{app::MenuType, config::Position, menu::Menu, HEIGHT};
+use crate::{
+    config::Position,
+    menu::{Menu, MenuType},
+    HEIGHT,
+};
 
 static FALLBACK_LAYER: &str = "fallback";
 
@@ -23,9 +27,9 @@ struct ShellInfo {
 #[derive(Debug, Clone)]
 pub struct Outputs(Vec<(String, Option<ShellInfo>, Option<WlOutput>)>);
 
-pub enum HasOutput {
+pub enum HasOutput<'a> {
     Main,
-    Menu(Option<MenuType>),
+    Menu(&'a Option<MenuType>),
 }
 
 impl Outputs {
@@ -92,7 +96,7 @@ impl Outputs {
                 if info.id == id {
                     Some(HasOutput::Main)
                 } else if info.menu.id == id {
-                    Some(HasOutput::Menu(info.menu.menu_type))
+                    Some(HasOutput::Menu(&info.menu.menu_type))
                 } else {
                     None
                 }

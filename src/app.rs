@@ -4,9 +4,17 @@ use crate::{
     get_log_spec,
     menu::{menu_wrapper, MenuPosition, MenuType},
     modules::{
-        self, clipboard, clock::Clock, keyboard_layout::KeyboardLayout,
-        keyboard_submap::KeyboardSubmap, launcher, privacy::PrivacyMessage, settings::Settings,
-        system_info::SystemInfo, title::Title, tray::TrayMessage, updates::Updates,
+        self, clipboard,
+        clock::Clock,
+        keyboard_layout::KeyboardLayout,
+        keyboard_submap::KeyboardSubmap,
+        launcher,
+        privacy::PrivacyMessage,
+        settings::Settings,
+        system_info::SystemInfo,
+        title::Title,
+        tray::{TrayMessage, TrayModule},
+        updates::Updates,
         workspaces::Workspaces,
     },
     outputs::{HasOutput, Outputs},
@@ -34,7 +42,7 @@ pub struct App {
     system_info: SystemInfo,
     keyboard_layout: KeyboardLayout,
     keyboard_submap: KeyboardSubmap,
-    tray: Option<TrayService>,
+    tray: TrayModule,
     clock: Clock,
     privacy: Option<PrivacyService>,
     pub settings: Settings,
@@ -75,7 +83,7 @@ impl App {
                     system_info: SystemInfo::default(),
                     keyboard_layout: KeyboardLayout::default(),
                     keyboard_submap: KeyboardSubmap::default(),
-                    tray: None,
+                    tray: TrayModule::default(),
                     clock: Clock::default(),
                     privacy: None,
                     settings: Settings::default(),
@@ -165,32 +173,7 @@ impl App {
                 self.keyboard_submap.update(message);
                 Task::none()
             }
-            Message::Tray(msg) => match msg {
-                TrayMessage::Event(event) => match event {
-                    ServiceEvent::Init(service) => {
-                        self.tray = Some(service);
-                        Task::none()
-                    }
-                    ServiceEvent::Update(data) => {
-                        if let Some(tray) = self.tray.as_mut() {
-                            tray.update(data);
-                        }
-                        Task::none()
-                    }
-                    ServiceEvent::Error(_) => Task::none(),
-                },
-                TrayMessage::OpenMenu(id, name) => {
-                    if let Some(tray) = self
-                        .tray
-                        .as_ref()
-                        .and_then(|t| t.iter().find(|t| t.name == name))
-                    {
-                        self.outputs.toggle_menu(id, MenuType::Tray(name))
-                    } else {
-                        Task::none()
-                    }
-                }
-            },
+            Message::Tray(msg) => self.tray.update(msg, &mut self.outputs),
             Message::Clock(message) => {
                 self.clock.update(message);
                 Task::none()
@@ -295,12 +278,7 @@ impl App {
                             .view(&self.config.keyboard.layout)
                             .map(|l| l.map(Message::KeyboardLayout)),
                     )
-                    .push_maybe(
-                        self.tray
-                            .as_ref()
-                            .and_then(|tray| tray.view(id))
-                            .map(|e| e.map(Message::Tray)),
-                    )
+                    .push_maybe(self.tray.view(id).map(|e| e.map(Message::Tray)))
                     .push(
                         Row::new()
                             .push(
@@ -335,11 +313,7 @@ impl App {
                 ),
                 Some(MenuType::Tray(name)) => menu_wrapper(
                     id,
-                    self.tray
-                        .as_ref()
-                        .map(|tray| tray.menu_view(&name))
-                        .unwrap_or(Row::new().into())
-                        .map(Message::Tray),
+                    self.tray.menu_view(&name).map(Message::Tray),
                     MenuPosition::Right,
                     self.config.position,
                 ),

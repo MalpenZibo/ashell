@@ -1,7 +1,8 @@
 use crate::{
-    app::{self, MenuType},
+    app::{self},
     components::icons::{icon, Icons},
     config::UpdatesModuleConfig,
+    menu::MenuType,
     outputs::Outputs,
     style::{GhostButtonStyle, HeaderButtonStyle},
 };

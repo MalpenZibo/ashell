@@ -174,7 +174,8 @@ pub trait StatusNotifierItem {
 
 #[derive(Clone, Debug, Type)]
 #[zvariant(signature = "(ia{sv}av)")]
-pub struct Layout(i32, LayoutProps, Vec<Layout>);
+pub struct Layout(pub i32, pub LayoutProps, pub Vec<Layout>);
+
 impl<'a> serde::Deserialize<'a> for Layout {
     fn deserialize<D: serde::Deserializer<'a>>(
         deserializer: D,
@@ -191,16 +192,16 @@ pub struct LayoutProps {
     #[zvariant(rename = "accessible-desc")]
     accessible_desc: Option<String>,
     #[zvariant(rename = "children-display")]
-    children_display: Option<String>,
-    label: Option<String>,
+    pub children_display: Option<String>,
+    pub label: Option<String>,
     enabled: Option<bool>,
     visible: Option<bool>,
     #[zvariant(rename = "type")]
-    type_: Option<String>,
+    pub type_: Option<String>,
     #[zvariant(rename = "toggle-type")]
-    toggle_type: Option<String>,
+    pub toggle_type: Option<String>,
     #[zvariant(rename = "toggle-state")]
-    toggle_state: Option<i32>,
+    pub toggle_state: Option<i32>,
     #[zvariant(rename = "icon-data")]
     icon_data: Option<Vec<u8>>,
     #[zvariant(rename = "icon-name")]
