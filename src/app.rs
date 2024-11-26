@@ -16,11 +16,7 @@ use crate::{
 use flexi_logger::LoggerHandle;
 use iced::{
     daemon::Appearance,
-    event::listen_with,
-    platform_specific::shell::commands::layer_surface::{
-        get_layer_surface, Anchor, KeyboardInteractivity, Layer,
-    },
-    runtime::platform_specific::wayland::layer_surface::{IcedOutput, SctkLayerSurfaceSettings},
+    event::{listen_with, wayland::Event as WaylandEvent},
     widget::{row, Row},
     window::Id,
     Alignment, Color, Element, Length, Subscription, Task, Theme,
