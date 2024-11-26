@@ -71,7 +71,7 @@ async fn main() {
             id: Id::MAIN,
             keyboard_interactivity: KeyboardInteractivity::None,
             namespace: "ashell".into(),
-            layer: Layer::Top,
+            layer: Layer::Bottom,
             size: Some((None, Some(HEIGHT))),
             anchor: match config.position {
                 Position::Top => Anchor::TOP,
