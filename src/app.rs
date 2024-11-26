@@ -4,8 +4,15 @@ use crate::{
     get_log_spec,
     menu::{menu_wrapper, Menu, MenuPosition, MenuType},
     modules::{
-        self, clipboard, clock::Clock, launcher, privacy::PrivacyMessage, settings::Settings,
-        system_info::SystemInfo, title::Title, tray::TrayMessage, updates::Updates,
+        self, clipboard,
+        clock::Clock,
+        launcher,
+        privacy::PrivacyMessage,
+        settings::Settings,
+        system_info::SystemInfo,
+        title::Title,
+        tray::{TrayMessage, TrayModule},
+        updates::Updates,
         workspaces::Workspaces,
     },
     services::{privacy::PrivacyService, tray::TrayService, ReadOnlyService, ServiceEvent},
@@ -31,7 +38,7 @@ pub struct App {
     workspaces: Workspaces,
     window_title: Title,
     system_info: SystemInfo,
-    tray: Option<TrayService>,
+    tray: TrayModule,
     clock: Clock,
     privacy: Option<PrivacyService>,
     pub settings: Settings,
@@ -70,7 +77,7 @@ impl Application for App {
                 workspaces: Workspaces::default(),
                 window_title: Title::default(),
                 system_info: SystemInfo::default(),
-                tray: None,
+                tray: TrayModule::default(),
                 clock: Clock::default(),
                 privacy: None,
                 settings: Settings::default(),
@@ -142,32 +149,7 @@ impl Application for App {
                 self.system_info.update(message);
                 Command::none()
             }
-            Message::Tray(msg) => match msg {
-                TrayMessage::Event(event) => match event {
-                    ServiceEvent::Init(service) => {
-                        self.tray = Some(service);
-                        Command::none()
-                    }
-                    ServiceEvent::Update(data) => {
-                        if let Some(tray) = self.tray.as_mut() {
-                            tray.update(data);
-                        }
-                        Command::none()
-                    }
-                    ServiceEvent::Error(_) => Command::none(),
-                },
-                TrayMessage::OpenMenu(name) => {
-                    if let Some(tray) = self
-                        .tray
-                        .as_ref()
-                        .and_then(|t| t.iter().find(|t| t.name == name))
-                    {
-                        self.menu.toggle(MenuType::Tray(name))
-                    } else {
-                        Command::none()
-                    }
-                }
-            },
+            Message::Tray(msg) => self.tray.update(msg, &mut self.menu),
             Message::Clock(message) => {
                 self.clock.update(message);
                 Command::none()
@@ -204,12 +186,10 @@ impl Application for App {
                             .settings
                             .menu_view(&self.config.settings)
                             .map(Message::Settings),
-                        MenuType::Tray(name) => self
-                            .tray
-                            .as_ref()
-                            .unwrap()
-                            .menu_view(name)
-                            .map(Message::Tray),
+                        MenuType::Tray(name) => {
+                            println!("MenuType::Tray(name) =>  {:?}", name);
+                            self.tray.menu_view(name).map(Message::Tray)
+                        }
                     },
                     match &menu_type {
                         MenuType::Updates => MenuPosition::Left,
@@ -263,12 +243,7 @@ impl Application for App {
                         .view(&self.config.system)
                         .map(|c| c.map(Message::SystemInfo)),
                 )
-                .push_maybe(
-                    self.tray
-                        .as_ref()
-                        .and_then(|tray| tray.view())
-                        .map(|e| e.map(Message::Tray)),
-                )
+                .push_maybe(self.tray.view().map(|e| e.map(Message::Tray)))
                 .push(
                     Row::new()
                         .push(
