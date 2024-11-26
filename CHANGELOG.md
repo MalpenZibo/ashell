@@ -7,18 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Update to pop-os Iced 14.0-dev
+
+## [0.3.1] - 2024-12-13
+
+### Fixed
+
+- Fix upower service startup fail in case of missing `org.freedesktop.UPower.PowerProfiles` dbus interface
+
+## [0.3.0] - 2024-11-26
+
+A small release with some new Hyprland related modules
+
+Thanks @fiersik for the new modules and contributions to the project
+
+### Added
+
+- Hyprland Keyboard Layout module
+- Hyprland Keyboard Submap module
+
+### Changed
+
+- Change main surface layer from Top to Bottom
+
+## [0.2.0] - 2024-11-08
+
 ### Added
 
 - Support for special workspaces
 
 ### Fixed
 
-- Ashell crash when the title module try to split a multi-byte character 
+- Ashell crash when the title module try to split a multi-byte character
 - Removed fixed monitor name in the workspace module
 - Fix privacy webcam usage check during initialization
 - Fix microphone selection
 - Fix sink and source slider toggle button state
 - Fix brightness initial value
+
+### Thanks
+
+- @fiersik for all the feedback
+- @leftas for the PRs to fix the special workspace crash and the title module
 
 ## [0.1.5] - 2024-11-04
 

@@ -2,49 +2,50 @@ use crate::app::{self, MenuType};
 use crate::config::Position;
 use iced::alignment::{Horizontal, Vertical};
 use iced::platform_specific::shell::commands::layer_surface::{
-    destroy_layer_surface, get_layer_surface, Anchor, KeyboardInteractivity, Layer,
+    set_keyboard_interactivity, set_layer, KeyboardInteractivity, Layer,
 };
-use iced::runtime::platform_specific::wayland::layer_surface::SctkLayerSurfaceSettings;
 use iced::widget::container::Style;
 use iced::widget::mouse_area;
 use iced::window::Id;
 use iced::{self, widget::container, Element, Task, Theme};
 use iced::{Border, Length, Padding};
 
-#[derive(Debug, Default, Clone)]
-pub struct Menu(Option<(Id, MenuType)>);
+#[derive(Debug, Clone)]
+pub struct Menu {
+    id: Id,
+    menu_type: Option<MenuType>,
+}
 
 impl Menu {
-    pub fn open(&mut self, menu_type: MenuType) -> Task<app::Message> {
-        let id = Id::unique();
-        let task = get_layer_surface(SctkLayerSurfaceSettings {
+    pub fn new(id: Id) -> Self {
+        Self {
             id,
-            size: None,
-            layer: Layer::Overlay,
-            pointer_interactivity: true,
-            keyboard_interactivity: KeyboardInteractivity::OnDemand,
-            anchor: Anchor::TOP | Anchor::BOTTOM | Anchor::LEFT | Anchor::RIGHT,
-            ..Default::default()
-        });
+            menu_type: None,
+        }
+    }
 
-        self.0.replace((id, menu_type));
+    pub fn open(&mut self, menu_type: MenuType) -> Task<app::Message> {
+        let task = set_layer(self.id, Layer::Overlay);
+
+        self.menu_type.replace(menu_type);
 
         task
     }
 
     pub fn close<Message: 'static>(&mut self) -> Task<Message> {
-        if let Some((id, _)) = self.0.take() {
-            destroy_layer_surface(id)
+        if self.menu_type.is_some() {
+            self.menu_type.take();
+            set_layer(self.id, Layer::Background)
         } else {
             Task::none()
         }
     }
 
     pub fn toggle(&mut self, menu_type: MenuType) -> Task<app::Message> {
-        match self.0.as_mut() {
+        match self.menu_type.as_mut() {
             None => self.open(menu_type),
-            Some((_, current)) if *current == menu_type => self.close(),
-            Some((_, current)) => {
+            Some(current) if *current == menu_type => self.close(),
+            Some(current) => {
                 *current = menu_type;
                 Task::none()
             }
@@ -52,7 +53,7 @@ impl Menu {
     }
 
     pub fn close_if<Message: 'static>(&mut self, menu_type: MenuType) -> Task<Message> {
-        if let Some((_, current)) = self.0.as_ref() {
+        if let Some(current) = self.menu_type.as_ref() {
             if *current == menu_type {
                 self.close()
             } else {
@@ -63,11 +64,24 @@ impl Menu {
         }
     }
 
+    pub fn is_menu(&self, id: Id) -> bool {
+        self.id == id
+    }
+
     pub fn get_menu_type_to_render(&self, id: Id) -> Option<MenuType> {
-        self.0
-            .as_ref()
-            .filter(|(menu_id, _)| *menu_id == id)
-            .map(|(_, menu_type)| *menu_type)
+        if self.id == id {
+            self.menu_type
+        } else {
+            None
+        }
+    }
+
+    pub fn request_keyboard(&self) -> Task<app::Message> {
+        set_keyboard_interactivity(self.id, KeyboardInteractivity::OnDemand)
+    }
+
+    pub fn release_keyboard(&self) -> Task<app::Message> {
+        set_keyboard_interactivity(self.id, KeyboardInteractivity::None)
     }
 }
 

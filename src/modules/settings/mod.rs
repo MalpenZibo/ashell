@@ -205,7 +205,6 @@ impl Settings {
                     }
                     ServiceEvent::Update(NetworkEvent::RequestPasswordForSSID(ssid)) => {
                         self.password_dialog = Some((ssid, "".to_string()));
-                        // menu.set_keyboard_interactivity()
                         Task::none()
                     }
                     ServiceEvent::Update(data) => {
@@ -256,8 +255,7 @@ impl Settings {
                 NetworkMessage::RequestWiFiPassword(ssid) => {
                     info!("Requesting password for {}", ssid);
                     self.password_dialog = Some((ssid, "".to_string()));
-                    // menu.set_keyboard_interactivity()
-                    Task::none()
+                    menu.request_keyboard()
                 }
                 NetworkMessage::ScanNearByWiFi => {
                     if let Some(network) = self.network.as_mut() {
@@ -434,18 +432,15 @@ impl Settings {
                         } else {
                             Task::none()
                         };
-                        Task::batch(vec![network_command])
+                        Task::batch(vec![network_command, menu.release_keyboard()])
                     } else {
-                        Task::none()
+                        menu.release_keyboard()
                     }
                 }
                 password_dialog::Message::DialogCancelled => {
-                    if let Some((_, _)) = self.password_dialog.take() {
-                        Task::none()
-                        // menu.unset_keyboard_interactivity()
-                    } else {
-                        Task::none()
-                    }
+                    self.password_dialog = None;
+
+                    menu.release_keyboard()
                 }
             },
         }
