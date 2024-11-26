@@ -1,5 +1,7 @@
 pub mod clipboard;
 pub mod clock;
+pub mod keyboard_layout;
+pub mod keyboard_submap;
 pub mod launcher;
 pub mod privacy;
 pub mod settings;

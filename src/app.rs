@@ -4,7 +4,8 @@ use crate::{
     get_log_spec,
     menu::{menu_wrapper, Menu, MenuPosition},
     modules::{
-        self, clipboard, clock::Clock, launcher, privacy::PrivacyMessage, settings::Settings,
+        self, clipboard, clock::Clock, keyboard_layout::KeyboardLayout,
+        keyboard_submap::KeyboardSubmap, launcher, privacy::PrivacyMessage, settings::Settings,
         system_info::SystemInfo, title::Title, updates::Updates, workspaces::Workspaces,
     },
     services::{privacy::PrivacyService, ReadOnlyService, ServiceEvent},
@@ -15,7 +16,7 @@ use flexi_logger::LoggerHandle;
 use iced::{
     daemon::Appearance,
     platform_specific::shell::commands::layer_surface::{
-        get_layer_surface, Anchor, KeyboardInteractivity,
+        get_layer_surface, Anchor, KeyboardInteractivity, Layer,
     },
     runtime::platform_specific::wayland::layer_surface::{IcedOutput, SctkLayerSurfaceSettings},
     widget::Row,
@@ -31,6 +32,8 @@ pub struct App {
     workspaces: Workspaces,
     window_title: Title,
     system_info: SystemInfo,
+    keyboard_layout: KeyboardLayout,
+    keyboard_submap: KeyboardSubmap,
     clock: Clock,
     privacy: Option<PrivacyService>,
     pub settings: Settings,
@@ -54,6 +57,8 @@ pub enum Message {
     Workspaces(modules::workspaces::Message),
     Title(modules::title::Message),
     SystemInfo(modules::system_info::Message),
+    KeyboardLayout(modules::keyboard_layout::Message),
+    KeyboardSubmap(modules::keyboard_submap::Message),
     Clock(modules::clock::Message),
     Privacy(modules::privacy::PrivacyMessage),
     Settings(modules::settings::Message),
@@ -71,6 +76,8 @@ impl App {
                     workspaces: Workspaces::default(),
                     window_title: Title::default(),
                     system_info: SystemInfo::default(),
+                    keyboard_layout: KeyboardLayout::default(),
+                    keyboard_submap: KeyboardSubmap::default(),
                     clock: Clock::default(),
                     privacy: None,
                     settings: Settings::default(),
@@ -78,6 +85,7 @@ impl App {
                 },
                 get_layer_surface(SctkLayerSurfaceSettings {
                     size: Some((None, Some(HEIGHT))),
+                    layer: Layer::Bottom,
                     pointer_interactivity: true,
                     keyboard_interactivity: KeyboardInteractivity::None,
                     exclusive_zone: HEIGHT as i32,
@@ -151,6 +159,14 @@ impl App {
             }
             Message::SystemInfo(message) => {
                 self.system_info.update(message);
+                Task::none()
+            }
+            Message::KeyboardLayout(message) => {
+                self.keyboard_layout.update(message);
+                Task::none()
+            }
+            Message::KeyboardSubmap(message) => {
+                self.keyboard_submap.update(message);
                 Task::none()
             }
             Message::Clock(message) => {
@@ -242,6 +258,16 @@ impl App {
                     .view(&self.config.system)
                     .map(|c| c.map(Message::SystemInfo)),
             )
+            .push_maybe(
+                self.keyboard_submap
+                    .view(&self.config.keyboard.submap)
+                    .map(|l| l.map(Message::KeyboardSubmap)),
+            )
+            .push_maybe(
+                self.keyboard_layout
+                    .view(&self.config.keyboard.layout)
+                    .map(|l| l.map(Message::KeyboardLayout)),
+            )
             .push(
                 Row::new()
                     .push(
@@ -279,6 +305,16 @@ impl App {
                 Some(self.workspaces.subscription().map(Message::Workspaces)),
                 Some(self.window_title.subscription().map(Message::Title)),
                 Some(self.system_info.subscription().map(Message::SystemInfo)),
+                Some(
+                    self.keyboard_layout
+                        .subscription()
+                        .map(Message::KeyboardLayout),
+                ),
+                Some(
+                    self.keyboard_submap
+                        .subscription()
+                        .map(Message::KeyboardSubmap),
+                ),
                 Some(self.clock.subscription().map(Message::Clock)),
                 Some(
                     PrivacyService::subscribe().map(|e| Message::Privacy(PrivacyMessage::Event(e))),
