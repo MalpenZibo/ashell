@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.0] - 2024-11-26
 
+A small release with some new Hyprland related modules
+
+Thanks @fiersik for the new modules and contributions to the project
+
 ### Added
 
 - Hyprland Keyboard Layout module
