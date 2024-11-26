@@ -7,7 +7,7 @@ use iced::{
     stream::channel,
     Subscription,
 };
-use log::error;
+use log::{error, warn};
 use std::{any::TypeId, time::Duration};
 use zbus::zvariant::ObjectPath;
 
@@ -158,11 +158,21 @@ impl UPowerService {
         conn: &zbus::Connection,
     ) -> anyhow::Result<(Option<(BatteryData, ObjectPath<'static>)>, PowerProfile)> {
         let battery = UPowerService::initialize_battery_data(conn).await?;
-        let power_profile = UPowerService::initialize_power_profile_data(conn).await?;
+        let power_profile = UPowerService::initialize_power_profile_data(conn).await;
 
         match (battery, power_profile) {
-            (Some(battery), power_profile) => Ok((Some((battery.0, battery.1)), power_profile)),
-            _ => Ok((None, power_profile)),
+            (Some(battery), Ok(power_profile)) => Ok((Some((battery.0, battery.1)), power_profile)),
+            (Some(battery), Err(err)) => {
+                warn!("Failed to get power profile: {}", err);
+
+                Ok((Some((battery.0, battery.1)), PowerProfile::Unknown))
+            }
+            (None, Ok(power_profile)) => Ok((None, power_profile)),
+            (None, Err(err)) => {
+                warn!("Failed to get power profile: {}", err);
+
+                Ok((None, PowerProfile::Unknown))
+            }
         }
     }
 

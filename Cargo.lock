@@ -238,7 +238,7 @@ dependencies = [
 
 [[package]]
 name = "ashell"
-version = "0.1.5"
+version = "0.3.1"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1769,7 +1769,7 @@ checksum = "dfa686283ad6dd069f105e5ab091b04c62850d3e4cf5d67debad1933f55023df"
 [[package]]
 name = "hyprland"
 version = "0.4.0-beta.1-revision"
-source = "git+https://github.com/MalpenZibo/hyprland-rs?branch=nix-fix#f00fa64d5a8cde74966a0e906d44365a67ada860"
+source = "git+https://github.com/MalpenZibo/hyprland-rs#5e22e4fb796f5e1061aeaf9cd05f29944be713b9"
 dependencies = [
  "ahash",
  "async-stream",
@@ -1790,7 +1790,7 @@ dependencies = [
 [[package]]
 name = "hyprland-macros"
 version = "0.4.0-beta.1-revision"
-source = "git+https://github.com/MalpenZibo/hyprland-rs?branch=nix-fix#f00fa64d5a8cde74966a0e906d44365a67ada860"
+source = "git+https://github.com/MalpenZibo/hyprland-rs#5e22e4fb796f5e1061aeaf9cd05f29944be713b9"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3762,9 +3762,9 @@ dependencies = [
 
 [[package]]
 name = "sysinfo"
-version = "0.32.0"
+version = "0.32.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e3b5ae3f4f7d64646c46c4cae4e3f01d1c5d255c7406fdd7c7f999a94e488791"
+checksum = "4c33cd241af0f2e9e3b5c32163b873b29956890b5342e6745b917ce9d490f4af"
 dependencies = [
  "core-foundation-sys",
  "libc",
