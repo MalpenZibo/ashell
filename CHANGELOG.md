@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Hyprland Keyboard Layout module
 - Hyprland Keyboard Submap module
 
+### Changed
+
+- Change main surface layer from Top to Bottom
+
 ## [0.2.0] - 2024-11-08
 
 ### Added
@@ -20,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Ashell crash when the title module try to split a multi-byte character 
+- Ashell crash when the title module try to split a multi-byte character
 - Removed fixed monitor name in the workspace module
 - Fix privacy webcam usage check during initialization
 - Fix microphone selection
