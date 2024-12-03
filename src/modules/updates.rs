@@ -1,16 +1,15 @@
 use crate::{
-    app,
+    app::{self, MenuType},
     components::icons::{icon, Icons},
     config::UpdatesModuleConfig,
-    menu::{Menu, MenuType},
+    menu::Menu,
     style::{GhostButtonStyle, HeaderButtonStyle},
 };
 use iced::{
     alignment::Horizontal,
-    subscription::channel,
-    theme::{self, Button},
+    stream::channel,
     widget::{button, column, container, horizontal_rule, row, scrollable, text, Column},
-    Alignment, Command, Element, Length, Subscription,
+    Alignment, Element, Length, Padding, Subscription, Task,
 };
 use log::error;
 use serde::Deserialize;
@@ -99,13 +98,13 @@ impl Updates {
         message: Message,
         config: &UpdatesModuleConfig,
         menu: &mut Menu,
-    ) -> Command<crate::app::Message> {
+    ) -> Task<crate::app::Message> {
         match message {
             Message::UpdatesCheckCompleted(updates) => {
                 self.updates = updates;
                 self.state = State::Ready;
 
-                Command::none()
+                Task::none()
             }
             Message::ToggleMenu => {
                 self.is_updates_list_open = false;
@@ -115,24 +114,24 @@ impl Updates {
                 self.updates.clear();
                 self.state = State::Ready;
 
-                Command::none()
+                Task::none()
             }
             Message::ToggleUpdatesList => {
                 self.is_updates_list_open = !self.is_updates_list_open;
 
-                Command::none()
+                Task::none()
             }
             Message::CheckNow => {
                 self.state = State::Checking;
                 let check_command = config.check_cmd.clone();
-                Command::perform(
+                Task::perform(
                     async move { check_update_now(&check_command).await },
                     move |updates| app::Message::Updates(Message::UpdatesCheckCompleted(updates)),
                 )
             }
             Message::Update => {
                 let update_command = config.update_cmd.clone();
-                let mut cmds = vec![Command::perform(
+                let mut cmds = vec![Task::perform(
                     async move {
                         spawn({
                             async move {
@@ -146,7 +145,7 @@ impl Updates {
 
                 cmds.push(menu.close_if(MenuType::Updates));
 
-                Command::batch(cmds)
+                Task::batch(cmds)
             }
         }
     }
@@ -157,7 +156,7 @@ impl Updates {
             State::Ready if self.updates.is_empty() => Icons::NoUpdatesAvailable,
             _ => Icons::UpdatesAvailable,
         })))
-        .align_items(Alignment::Center)
+        .align_y(Alignment::Center)
         .spacing(4);
 
         if !self.updates.is_empty() {
@@ -166,7 +165,7 @@ impl Updates {
 
         button(content)
             .padding([2, 7])
-            .style(theme::Button::custom(HeaderButtonStyle::Full))
+            .style(HeaderButtonStyle::Full.into_style())
             .on_press(Message::ToggleMenu)
             .into()
     }
@@ -186,7 +185,7 @@ impl Updates {
                         Icons::MenuOpen
                     })
                 ))
-                .style(Button::custom(GhostButtonStyle))
+                .style(GhostButtonStyle.into_style())
                 .padding([8, 8])
                 .on_press(Message::ToggleUpdatesList)
                 .width(Length::Fill),);
@@ -218,14 +217,14 @@ impl Updates {
                                                 },
                                             ))
                                             .width(Length::Fill)
-                                            .horizontal_alignment(Horizontal::Right)
+                                            .align_x(Horizontal::Right)
                                             .size(10)
                                         )
                                         .into()
                                     })
                                     .collect::<Vec<Element<'_, _, _>>>(),
                             )
-                            .padding([0, 16, 0, 0])
+                            .padding(Padding::ZERO.right(16))
                             .spacing(4),
                         ))
                         .padding([8, 0])
@@ -236,7 +235,7 @@ impl Updates {
             },
             horizontal_rule(1),
             button("Update")
-                .style(Button::custom(GhostButtonStyle))
+                .style(GhostButtonStyle.into_style())
                 .padding([8, 8])
                 .on_press(Message::Update)
                 .width(Length::Fill),
@@ -249,7 +248,7 @@ impl Updates {
 
                 content
             })
-            .style(Button::custom(GhostButtonStyle))
+            .style(GhostButtonStyle.into_style())
             .padding([8, 8])
             .on_press(Message::CheckNow)
             .width(Length::Fill),
@@ -264,14 +263,17 @@ impl Updates {
         let check_cmd = config.check_cmd.clone();
         let id = TypeId::of::<Self>();
 
-        channel(id, 10, |mut output| async move {
-            loop {
-                let updates = check_update_now(&check_cmd).await;
+        Subscription::run_with_id(
+            id,
+            channel(10, |mut output| async move {
+                loop {
+                    let updates = check_update_now(&check_cmd).await;
 
-                let _ = output.try_send(Message::UpdatesCheckCompleted(updates));
+                    let _ = output.try_send(Message::UpdatesCheckCompleted(updates));
 
-                sleep(Duration::from_secs(3600)).await;
-            }
-        })
+                    sleep(Duration::from_secs(3600)).await;
+                }
+            }),
+        )
     }
 }

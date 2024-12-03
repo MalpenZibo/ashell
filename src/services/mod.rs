@@ -1,4 +1,4 @@
-use iced::Subscription;
+use iced::{Subscription, Task};
 
 pub mod audio;
 pub mod bluetooth;
@@ -18,7 +18,7 @@ pub enum ServiceEvent<S: ReadOnlyService> {
 pub trait Service: ReadOnlyService {
     type Command;
 
-    fn command(&mut self, command: Self::Command) -> iced::Command<ServiceEvent<Self>>;
+    fn command(&mut self, command: Self::Command) -> Task<ServiceEvent<Self>>;
 }
 
 pub trait ReadOnlyService: Sized {
