@@ -13,6 +13,7 @@ use crate::{
 };
 use iced::{
     widget::{button, column, container, horizontal_rule, row, scrollable, text, toggler, Column},
+    window::Id,
     Alignment, Element, Length, Theme,
 };
 
@@ -21,10 +22,10 @@ pub enum NetworkMessage {
     Event(ServiceEvent<NetworkService>),
     ToggleWiFi,
     ScanNearByWiFi,
-    WiFiMore,
-    VpnMore,
+    WiFiMore(Id),
+    VpnMore(Id),
     SelectAccessPoint(AccessPoint),
-    RequestWiFiPassword(String),
+    RequestWiFiPassword(Id, String),
     ToggleVpn(Vpn),
     ToggleAirplaneMode,
 }
@@ -127,6 +128,7 @@ impl NetworkData {
 
     pub fn get_wifi_quick_setting_button(
         &self,
+        id: Id,
         sub_menu: Option<SubMenu>,
         show_more_button: bool,
     ) -> Option<(Element<Message>, Option<Element<Message>>)> {
@@ -156,6 +158,7 @@ impl NetworkData {
                     .filter(|menu_type| *menu_type == SubMenu::Wifi)
                     .map(|_| {
                         sub_menu_wrapper(self.wifi_menu(
+                            id,
                             active_connection.map(|(name, strengh, _)| (name.as_str(), *strengh)),
                             show_more_button,
                         ))
@@ -169,6 +172,7 @@ impl NetworkData {
 
     pub fn get_vpn_quick_setting_button(
         &self,
+        id: Id,
         sub_menu: Option<SubMenu>,
         show_more_button: bool,
     ) -> (Element<Message>, Option<Element<Message>>) {
@@ -185,12 +189,15 @@ impl NetworkData {
             ),
             sub_menu
                 .filter(|menu_type| *menu_type == SubMenu::Vpn)
-                .map(|_| sub_menu_wrapper(self.vpn_menu(show_more_button)).map(Message::Network)),
+                .map(|_| {
+                    sub_menu_wrapper(self.vpn_menu(id, show_more_button)).map(Message::Network)
+                }),
         )
     }
 
     pub fn wifi_menu(
         &self,
+        id: Id,
         active_connection: Option<(&str, u8)>,
         show_more_button: bool,
     ) -> Element<NetworkMessage> {
@@ -260,7 +267,7 @@ impl NetworkData {
                                 Some(if is_known {
                                     NetworkMessage::SelectAccessPoint(ac.clone())
                                 } else {
-                                    NetworkMessage::RequestWiFiPassword(ac.ssid.clone())
+                                    NetworkMessage::RequestWiFiPassword(id, ac.ssid.clone())
                                 })
                             } else {
                                 None
@@ -281,7 +288,7 @@ impl NetworkData {
                 main,
                 horizontal_rule(1),
                 button("More")
-                    .on_press(NetworkMessage::WiFiMore)
+                    .on_press(NetworkMessage::WiFiMore(id))
                     .padding([4, 12])
                     .width(Length::Fill)
                     .style(GhostButtonStyle.into_style()),
@@ -293,7 +300,7 @@ impl NetworkData {
         }
     }
 
-    pub fn vpn_menu(&self, show_more_button: bool) -> Element<NetworkMessage> {
+    pub fn vpn_menu(&self, id: Id, show_more_button: bool) -> Element<NetworkMessage> {
         let main = Column::with_children(
             self.known_connections
                 .iter()
@@ -323,7 +330,7 @@ impl NetworkData {
                 main,
                 horizontal_rule(1),
                 button("More")
-                    .on_press(NetworkMessage::VpnMore)
+                    .on_press(NetworkMessage::VpnMore(id))
                     .padding([4, 12])
                     .width(Length::Fill)
                     .style(GhostButtonStyle.into_style()),

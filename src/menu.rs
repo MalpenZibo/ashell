@@ -12,8 +12,8 @@ use iced::{Border, Length, Padding};
 
 #[derive(Debug, Clone)]
 pub struct Menu {
-    id: Id,
-    menu_type: Option<MenuType>,
+    pub id: Id,
+    pub menu_type: Option<MenuType>,
 }
 
 impl Menu {
@@ -24,24 +24,29 @@ impl Menu {
         }
     }
 
-    pub fn open(&mut self, menu_type: MenuType) -> Task<app::Message> {
-        let task = set_layer(self.id, Layer::Overlay);
-
+    pub fn open<Message: 'static>(&mut self, menu_type: MenuType) -> Task<Message> {
         self.menu_type.replace(menu_type);
 
-        task
+        Task::batch(vec![
+            set_layer(self.id, Layer::Overlay),
+            set_keyboard_interactivity(self.id, KeyboardInteractivity::None),
+        ])
     }
 
     pub fn close<Message: 'static>(&mut self) -> Task<Message> {
         if self.menu_type.is_some() {
             self.menu_type.take();
-            set_layer(self.id, Layer::Background)
+
+            Task::batch(vec![
+                set_layer(self.id, Layer::Background),
+                set_keyboard_interactivity(self.id, KeyboardInteractivity::None),
+            ])
         } else {
             Task::none()
         }
     }
 
-    pub fn toggle(&mut self, menu_type: MenuType) -> Task<app::Message> {
+    pub fn toggle<Message: 'static>(&mut self, menu_type: MenuType) -> Task<Message> {
         match self.menu_type.as_mut() {
             None => self.open(menu_type),
             Some(current) if *current == menu_type => self.close(),
@@ -64,23 +69,11 @@ impl Menu {
         }
     }
 
-    pub fn is_menu(&self, id: Id) -> bool {
-        self.id == id
-    }
-
-    pub fn get_menu_type_to_render(&self, id: Id) -> Option<MenuType> {
-        if self.id == id {
-            self.menu_type
-        } else {
-            None
-        }
-    }
-
-    pub fn request_keyboard(&self) -> Task<app::Message> {
+    pub fn request_keyboard<Message: 'static>(&self) -> Task<Message> {
         set_keyboard_interactivity(self.id, KeyboardInteractivity::OnDemand)
     }
 
-    pub fn release_keyboard(&self) -> Task<app::Message> {
+    pub fn release_keyboard<Message: 'static>(&self) -> Task<Message> {
         set_keyboard_interactivity(self.id, KeyboardInteractivity::None)
     }
 }
@@ -91,6 +84,7 @@ pub enum MenuPosition {
 }
 
 pub fn menu_wrapper(
+    id: Id,
     content: Element<app::Message>,
     position: MenuPosition,
     bar_position: Position,
@@ -125,6 +119,6 @@ pub fn menu_wrapper(
         .width(Length::Fill)
         .height(Length::Fill),
     )
-    .on_release(app::Message::CloseMenu)
+    .on_release(app::Message::CloseMenu(id))
     .into()
 }

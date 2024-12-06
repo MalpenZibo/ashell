@@ -6,9 +6,8 @@ use iced::{
     Color, Subscription,
 };
 use inotify::{EventMask, Inotify, WatchMask};
-use log::warn;
-use serde::{Deserialize, Deserializer};
-use std::{env, fs::File, path::Path};
+use serde::Deserialize;
+use std::{any::TypeId, env, fs::File, path::Path};
 
 use crate::app::Message;
 
@@ -309,7 +308,7 @@ pub struct Config {
     pub clipboard_cmd: Option<String>,
     #[serde(default = "default_truncate_title_after_length")]
     pub truncate_title_after_length: u32,
-    #[serde(deserialize_with = "try_default")]
+    #[serde(default)]
     pub updates: Option<UpdatesModuleConfig>,
     #[serde(default)]
     pub system: SystemModuleConfig,
@@ -321,21 +320,6 @@ pub struct Config {
     pub settings: SettingsModuleConfig,
     #[serde(default)]
     pub appearance: Appearance,
-}
-
-fn try_default<'de, T, D>(deserializer: D) -> Result<T, D::Error>
-where
-    T: Deserialize<'de> + Default + std::fmt::Debug,
-    D: Deserializer<'de>,
-{
-    // Try to deserialize the UpdatesModuleConfig
-    let result: Result<T, D::Error> = T::deserialize(deserializer);
-
-    // If it fails, return None
-    result.or_else(|err| {
-        warn!("error deserializing: {:?}", err);
-        Ok(T::default())
-    })
 }
 
 fn default_log_level() -> String {
@@ -379,8 +363,11 @@ pub fn read_config() -> Result<Config, serde_yaml::Error> {
 }
 
 pub fn subscription() -> Subscription<Message> {
-    Subscription::run(|| {
-        channel(100, move |mut output| async move {
+    let id = TypeId::of::<Config>();
+
+    Subscription::run_with_id(
+        id,
+        channel(100, |mut output| async move {
             let home_dir = env::var("HOME").expect("Could not get HOME environment variable");
             let file_path = format!("{}{}", home_dir, CONFIG_PATH.replace('~', ""));
 
@@ -419,6 +406,7 @@ pub fn subscription() -> Subscription<Message> {
                     .expect("Failed to create event stream");
 
                 loop {
+                    log::debug!("waiting for event");
                     let event = stream.next().await;
                     match event {
                         Some(Ok(inotify::Event {
@@ -455,6 +443,8 @@ pub fn subscription() -> Subscription<Message> {
                             } else {
                                 log::warn!("Failed to read config file: {:?}", new_config);
                             }
+
+                            break;
                         }
                         Some(Ok(inotify::Event {
                             mask: EventMask::DELETE,
@@ -465,10 +455,12 @@ pub fn subscription() -> Subscription<Message> {
 
                             break;
                         }
-                        _ => {}
+                        other => {
+                            log::debug!("other event {:?}", other);
+                        }
                     }
                 }
             }
-        })
-    })
+        }),
+    )
 }

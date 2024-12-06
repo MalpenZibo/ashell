@@ -1,6 +1,7 @@
 use iced::{
     alignment::Vertical,
     widget::{button, column, horizontal_space, row, text, text_input},
+    window::Id,
     Alignment, Element, Length,
 };
 
@@ -12,11 +13,11 @@ use crate::{
 #[derive(Debug, Clone)]
 pub enum Message {
     PasswordChanged(String),
-    DialogConfirmed,
-    DialogCancelled,
+    DialogConfirmed(Id),
+    DialogCancelled(Id),
 }
 
-pub fn view<'a>(wifi_ssid: &str, current_password: &str) -> Element<'a, Message> {
+pub fn view<'a>(id: Id, wifi_ssid: &str, current_password: &str) -> Element<'a, Message> {
     column!(
         row!(
             icon(Icons::WifiLock4).size(32),
@@ -31,19 +32,19 @@ pub fn view<'a>(wifi_ssid: &str, current_password: &str) -> Element<'a, Message>
             .padding([8, 16])
             .style(TextInputStyle.into_style())
             .on_input(Message::PasswordChanged)
-            .on_submit(Message::DialogConfirmed),
+            .on_submit(Message::DialogConfirmed(id)),
         row!(
             horizontal_space(),
             button(text("Cancel").align_y(Vertical::Center))
                 .padding([4, 32])
                 .style(OutlineButtonStyle.into_style())
                 .height(Length::Fixed(50.))
-                .on_press(Message::DialogCancelled),
+                .on_press(Message::DialogCancelled(id)),
             button(text("Confirm").align_y(Vertical::Center))
                 .padding([4, 32])
                 .height(Length::Fixed(50.))
                 .style(ConfirmButtonStyle.into_style())
-                .on_press(Message::DialogConfirmed)
+                .on_press(Message::DialogConfirmed(id))
         )
         .spacing(8)
         .width(Length::Fill)

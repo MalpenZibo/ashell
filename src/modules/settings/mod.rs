@@ -5,8 +5,8 @@ use crate::{
     app::MenuType,
     components::icons::{icon, Icons},
     config::SettingsModuleConfig,
-    menu::Menu,
     modules::settings::power::power_menu,
+    outputs::Outputs,
     password_dialog,
     services::{
         audio::{AudioCommand, AudioService},
@@ -28,6 +28,7 @@ use iced::{
     widget::{
         button, column, container, horizontal_space, row, text, vertical_rule, Column, Row, Space,
     },
+    window::Id,
     Alignment, Background, Border, Element, Length, Padding, Subscription, Task, Theme,
 };
 use log::info;
@@ -68,7 +69,7 @@ impl Default for Settings {
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    ToggleMenu,
+    ToggleMenu(Id),
     UPower(UPowerMessage),
     Network(NetworkMessage),
     Bluetooth(BluetoothMessage),
@@ -96,13 +97,13 @@ impl Settings {
         &mut self,
         message: Message,
         config: &SettingsModuleConfig,
-        menu: &mut Menu,
+        outputs: &mut Outputs,
     ) -> Task<crate::app::Message> {
         match message {
-            Message::ToggleMenu => {
+            Message::ToggleMenu(id) => {
                 self.sub_menu = None;
                 self.password_dialog = None;
-                Task::batch(vec![menu.toggle(MenuType::Settings)])
+                outputs.toggle_menu(id, MenuType::Settings)
             }
             Message::Audio(msg) => match msg {
                 AudioMessage::Event(event) => match event {
@@ -154,18 +155,18 @@ impl Settings {
                     }
                     Task::none()
                 }
-                AudioMessage::SinksMore => {
+                AudioMessage::SinksMore(id) => {
                     if let Some(cmd) = &config.audio_sinks_more_cmd {
                         crate::utils::launcher::execute_command(cmd.to_string());
-                        menu.close()
+                        outputs.close_menu(id)
                     } else {
                         Task::none()
                     }
                 }
-                AudioMessage::SourcesMore => {
+                AudioMessage::SourcesMore(id) => {
                     if let Some(cmd) = &config.audio_sources_more_cmd {
                         crate::utils::launcher::execute_command(cmd.to_string());
-                        menu.close()
+                        outputs.close_menu(id)
                     } else {
                         Task::none()
                     }
@@ -252,10 +253,10 @@ impl Settings {
                         Task::none()
                     }
                 }
-                NetworkMessage::RequestWiFiPassword(ssid) => {
+                NetworkMessage::RequestWiFiPassword(id, ssid) => {
                     info!("Requesting password for {}", ssid);
                     self.password_dialog = Some((ssid, "".to_string()));
-                    menu.request_keyboard()
+                    outputs.request_keyboard(id)
                 }
                 NetworkMessage::ScanNearByWiFi => {
                     if let Some(network) = self.network.as_mut() {
@@ -270,18 +271,18 @@ impl Settings {
                         Task::none()
                     }
                 }
-                NetworkMessage::WiFiMore => {
+                NetworkMessage::WiFiMore(id) => {
                     if let Some(cmd) = &config.wifi_more_cmd {
                         crate::utils::launcher::execute_command(cmd.to_string());
-                        menu.close()
+                        outputs.close_menu(id)
                     } else {
                         Task::none()
                     }
                 }
-                NetworkMessage::VpnMore => {
+                NetworkMessage::VpnMore(id) => {
                     if let Some(cmd) = &config.vpn_more_cmd {
                         crate::utils::launcher::execute_command(cmd.to_string());
-                        menu.close()
+                        outputs.close_menu(id)
                     } else {
                         Task::none()
                     }
@@ -325,10 +326,10 @@ impl Settings {
                         Task::none()
                     }
                 }
-                BluetoothMessage::More => {
+                BluetoothMessage::More(id) => {
                     if let Some(cmd) = &config.bluetooth_more_cmd {
                         crate::utils::launcher::execute_command(cmd.to_string());
-                        menu.close()
+                        outputs.close_menu(id)
                     } else {
                         Task::none()
                     }
@@ -407,7 +408,7 @@ impl Settings {
 
                     Task::none()
                 }
-                password_dialog::Message::DialogConfirmed => {
+                password_dialog::Message::DialogConfirmed(id) => {
                     if let Some((ssid, password)) = self.password_dialog.take() {
                         let network_command = if let Some(network) = self.network.as_mut() {
                             let ap = network
@@ -432,21 +433,21 @@ impl Settings {
                         } else {
                             Task::none()
                         };
-                        Task::batch(vec![network_command, menu.release_keyboard()])
+                        Task::batch(vec![network_command, outputs.release_keyboard(id)])
                     } else {
-                        menu.release_keyboard()
+                        outputs.release_keyboard(id)
                     }
                 }
-                password_dialog::Message::DialogCancelled => {
+                password_dialog::Message::DialogCancelled(id) => {
                     self.password_dialog = None;
 
-                    menu.release_keyboard()
+                    outputs.release_keyboard(id)
                 }
             },
         }
     }
 
-    pub fn view(&self) -> Element<Message> {
+    pub fn view(&self, id: Id) -> Element<Message> {
         button(
             Row::new()
                 .push_maybe(
@@ -488,13 +489,13 @@ impl Settings {
         )
         .style(HeaderButtonStyle::Right.into_style())
         .padding([2, 8])
-        .on_press(Message::ToggleMenu)
+        .on_press(Message::ToggleMenu(id))
         .into()
     }
 
-    pub fn menu_view(&self, config: &SettingsModuleConfig) -> Element<Message> {
+    pub fn menu_view(&self, id: Id, config: &SettingsModuleConfig) -> Element<Message> {
         if let Some((ssid, current_password)) = &self.password_dialog {
-            password_dialog::view(ssid, current_password).map(Message::PasswordDialog)
+            password_dialog::view(id, ssid, current_password).map(Message::PasswordDialog)
         } else {
             let battery_data = self
                 .upower
@@ -534,7 +535,7 @@ impl Settings {
                 .unwrap_or((None, None));
 
             let wifi_setting_button = self.network.as_ref().and_then(|n| {
-                n.get_wifi_quick_setting_button(self.sub_menu, config.wifi_more_cmd.is_some())
+                n.get_wifi_quick_setting_button(id, self.sub_menu, config.wifi_more_cmd.is_some())
             });
             let quick_settings = quick_settings_section(
                 vec![
@@ -544,12 +545,17 @@ impl Settings {
                         .filter(|b| b.state != BluetoothState::Unavailable)
                         .and_then(|b| {
                             b.get_quick_setting_button(
+                                id,
                                 self.sub_menu,
                                 config.bluetooth_more_cmd.is_some(),
                             )
                         }),
                     self.network.as_ref().map(|n| {
-                        n.get_vpn_quick_setting_button(self.sub_menu, config.vpn_more_cmd.is_some())
+                        n.get_vpn_quick_setting_button(
+                            id,
+                            self.sub_menu,
+                            config.vpn_more_cmd.is_some(),
+                        )
                     }),
                     self.network
                         .as_ref()
@@ -594,7 +600,7 @@ impl Settings {
                         .and_then(|_| {
                             self.audio.as_ref().map(|a| {
                                 sub_menu_wrapper(
-                                    a.sinks_submenu(config.audio_sinks_more_cmd.is_some()),
+                                    a.sinks_submenu(id, config.audio_sinks_more_cmd.is_some()),
                                 )
                             })
                         }),
@@ -606,7 +612,7 @@ impl Settings {
                         .and_then(|_| {
                             self.audio.as_ref().map(|a| {
                                 sub_menu_wrapper(
-                                    a.sources_submenu(config.audio_sources_more_cmd.is_some()),
+                                    a.sources_submenu(id, config.audio_sources_more_cmd.is_some()),
                                 )
                             })
                         }),
