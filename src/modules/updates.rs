@@ -2,13 +2,14 @@ use crate::{
     app::{self, MenuType},
     components::icons::{icon, Icons},
     config::UpdatesModuleConfig,
-    menu::Menu,
+    outputs::Outputs,
     style::{GhostButtonStyle, HeaderButtonStyle},
 };
 use iced::{
     alignment::Horizontal,
     stream::channel,
     widget::{button, column, container, horizontal_rule, row, scrollable, text, Column},
+    window::Id,
     Alignment, Element, Length, Padding, Subscription, Task,
 };
 use log::error;
@@ -70,12 +71,12 @@ async fn update(update_cmd: &str) {
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    ToggleMenu,
+    ToggleMenu(Id),
     UpdatesCheckCompleted(Vec<Update>),
     UpdateFinished,
     ToggleUpdatesList,
     CheckNow,
-    Update,
+    Update(Id),
 }
 
 #[derive(Debug, Default, Clone, Eq, PartialEq)]
@@ -97,7 +98,7 @@ impl Updates {
         &mut self,
         message: Message,
         config: &UpdatesModuleConfig,
-        menu: &mut Menu,
+        outputs: &mut Outputs,
     ) -> Task<crate::app::Message> {
         match message {
             Message::UpdatesCheckCompleted(updates) => {
@@ -106,9 +107,9 @@ impl Updates {
 
                 Task::none()
             }
-            Message::ToggleMenu => {
+            Message::ToggleMenu(id) => {
                 self.is_updates_list_open = false;
-                menu.toggle(MenuType::Updates)
+                outputs.toggle_menu(id, MenuType::Updates)
             }
             Message::UpdateFinished => {
                 self.updates.clear();
@@ -129,7 +130,7 @@ impl Updates {
                     move |updates| app::Message::Updates(Message::UpdatesCheckCompleted(updates)),
                 )
             }
-            Message::Update => {
+            Message::Update(id) => {
                 let update_command = config.update_cmd.clone();
                 let mut cmds = vec![Task::perform(
                     async move {
@@ -143,14 +144,14 @@ impl Updates {
                     move |_| app::Message::Updates(Message::UpdateFinished),
                 )];
 
-                cmds.push(menu.close_if(MenuType::Updates));
+                cmds.push(outputs.close_menu_if(id, MenuType::Updates));
 
                 Task::batch(cmds)
             }
         }
     }
 
-    pub fn view(&self) -> Element<Message> {
+    pub fn view(&self, id: Id) -> Element<Message> {
         let mut content = row!(container(icon(match self.state {
             State::Checking => Icons::Refresh,
             State::Ready if self.updates.is_empty() => Icons::NoUpdatesAvailable,
@@ -166,11 +167,11 @@ impl Updates {
         button(content)
             .padding([2, 7])
             .style(HeaderButtonStyle::Full.into_style())
-            .on_press(Message::ToggleMenu)
+            .on_press(Message::ToggleMenu(id))
             .into()
     }
 
-    pub fn menu_view(&self) -> Element<Message> {
+    pub fn menu_view(&self, id: Id) -> Element<Message> {
         column!(
             if self.updates.is_empty() {
                 convert::Into::<Element<'_, _, _>>::into(
@@ -237,7 +238,7 @@ impl Updates {
             button("Update")
                 .style(GhostButtonStyle.into_style())
                 .padding([8, 8])
-                .on_press(Message::Update)
+                .on_press(Message::Update(id))
                 .width(Length::Fill),
             button({
                 let mut content = row!(text("Check now").width(Length::Fill),);
