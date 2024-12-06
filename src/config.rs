@@ -7,7 +7,8 @@ use iced::{
 };
 use inotify::{EventMask, Inotify, WatchMask};
 use serde::Deserialize;
-use std::{any::TypeId, env, fs::File, path::Path};
+use std::{any::TypeId, env, fs::File, path::Path, time::Duration};
+use tokio::time::sleep;
 
 use crate::app::Message;
 
@@ -288,7 +289,7 @@ impl Default for Appearance {
     }
 }
 
-#[derive(Deserialize, Clone, Copy, Debug, Default)]
+#[derive(Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Position {
     #[default]
     Top,
@@ -434,6 +435,8 @@ pub fn subscription() -> Subscription<Message> {
                             ..
                         })) => {
                             log::info!("Config file modified");
+
+                            sleep(Duration::from_millis(500)).await;
 
                             let new_config = read_config();
                             if let Ok(new_config) = new_config {
