@@ -1,5 +1,7 @@
 use iced::{
-    platform_specific::shell::commands::layer_surface::{destroy_layer_surface, get_layer_surface},
+    platform_specific::shell::commands::layer_surface::{
+        destroy_layer_surface, get_layer_surface, set_anchor,
+    },
     runtime::platform_specific::wayland::layer_surface::{IcedOutput, SctkLayerSurfaceSettings},
     window::Id,
     Task,
@@ -10,13 +12,15 @@ use wayland_client::protocol::wl_output::WlOutput;
 
 use crate::{app::MenuType, config::Position, menu::Menu, HEIGHT};
 
-type ActiveOutput = (Id, Menu, Option<(String, WlOutput)>);
+#[derive(Debug, Clone)]
+struct ShellInfo {
+    id: Id,
+    position: Position,
+    menu: Menu,
+}
 
 #[derive(Debug, Default, Clone)]
-pub struct Outputs {
-    active: Vec<ActiveOutput>,
-    inactive: Vec<(String, WlOutput)>,
-}
+pub struct Outputs(Vec<(String, Option<ShellInfo>, WlOutput)>);
 
 pub enum HasOutput {
     Main,
@@ -25,7 +29,7 @@ pub enum HasOutput {
 
 impl Outputs {
     fn create_output_layers<Message: 'static>(
-        wl_output: WlOutput,
+        wl_output: Option<WlOutput>,
         position: Position,
     ) -> (Id, Id, Task<Message>) {
         let id = Id::unique();
@@ -36,7 +40,9 @@ impl Outputs {
             pointer_interactivity: true,
             keyboard_interactivity: KeyboardInteractivity::None,
             exclusive_zone: HEIGHT as i32,
-            output: IcedOutput::Output(wl_output.clone()),
+            output: wl_output.clone().map_or(IcedOutput::Active, |wl_output| {
+                IcedOutput::Output(wl_output)
+            }),
             anchor: match position {
                 Position::Top => Anchor::TOP,
                 Position::Bottom => Anchor::BOTTOM,
@@ -52,7 +58,9 @@ impl Outputs {
             layer: Layer::Background,
             pointer_interactivity: true,
             keyboard_interactivity: KeyboardInteractivity::None,
-            output: IcedOutput::Output(wl_output.clone()),
+            output: wl_output.map_or(IcedOutput::Active, |wl_output| {
+                IcedOutput::Output(wl_output)
+            }),
             anchor: Anchor::TOP | Anchor::BOTTOM | Anchor::LEFT | Anchor::RIGHT,
             ..Default::default()
         });
@@ -61,11 +69,15 @@ impl Outputs {
     }
 
     pub fn has(&self, id: Id) -> Option<HasOutput> {
-        self.active.iter().find_map(|(layer_id, menu, _)| {
-            if *layer_id == id {
-                Some(HasOutput::Main)
-            } else if menu.id == id {
-                Some(HasOutput::Menu(menu.menu_type))
+        self.0.iter().find_map(|(_, info, _)| {
+            if let Some(info) = info {
+                if info.id == id {
+                    Some(HasOutput::Main)
+                } else if info.menu.id == id {
+                    Some(HasOutput::Menu(info.menu.menu_type))
+                } else {
+                    None
+                }
             } else {
                 None
             }
@@ -81,47 +93,40 @@ impl Outputs {
     ) -> Task<Message> {
         let target = request_outputs.iter().any(|output| output.as_str() == name);
 
-        if self.active.is_empty() {
-            debug!(
-                "No outputs, creating a new layer surface. Is a fallback surface {}",
-                target
-            );
-
-            let (id, menu_id, task) = Self::create_output_layers(wl_output.clone(), position);
-
-            self.active
-                .push((id, Menu::new(menu_id), Some((name.to_owned(), wl_output))));
-
-            task
-        } else if target {
+        if target {
             debug!("Found target output, creating a new layer surface");
 
-            let (id, menu_id, task) = Self::create_output_layers(wl_output.clone(), position);
+            let (id, menu_id, task) = Self::create_output_layers(Some(wl_output.clone()), position);
 
-            self.active
-                .push((id, Menu::new(menu_id), Some((name.to_owned(), wl_output))));
+            let destroy_task =
+                if let Some(index) = self.0.iter().position(|(key, _, _)| key == name) {
+                    let old_output = self.0.swap_remove(index);
 
-            if let Some(index) = self
-                .active
-                .iter()
-                .position(|(_, _, wl_output)| wl_output.is_none())
-            {
-                debug!("Found fallback output, removing it");
+                    if let Some(shell_info) = old_output.1 {
+                        let destroy_main_task = destroy_layer_surface(shell_info.id);
+                        let destroy_menu_task = destroy_layer_surface(shell_info.menu.id);
 
-                let (id, menu, wl_output) = self.active.swap_remove(index);
-                let destroy_main_task = destroy_layer_surface(id);
-                let destroy_menu_task = destroy_layer_surface(menu.id);
+                        Task::batch(vec![destroy_main_task, destroy_menu_task])
+                    } else {
+                        Task::none()
+                    }
+                } else {
+                    Task::none()
+                };
 
-                if let Some(wl_output) = wl_output {
-                    self.inactive.push(wl_output);
-                }
+            self.0.push((
+                name.to_owned(),
+                Some(ShellInfo {
+                    id,
+                    menu: Menu::new(menu_id),
+                    position,
+                }),
+                wl_output,
+            ));
 
-                Task::batch(vec![task, destroy_main_task, destroy_menu_task])
-            } else {
-                task
-            }
+            Task::batch(vec![destroy_task, task])
         } else {
-            self.inactive.push((name.to_owned(), wl_output));
+            self.0.push((name.to_owned(), None, wl_output));
 
             Task::none()
         }
@@ -132,29 +137,52 @@ impl Outputs {
         position: Position,
         wl_output: WlOutput,
     ) -> Task<Message> {
-        if let Some(to_remove) = self.active.iter().position(|(_, _, output)| {
-            output.as_ref().map(|(_, wl_output)| wl_output) == Some(&wl_output)
-        }) {
+        if let Some(index_to_remove) = self
+            .0
+            .iter()
+            .position(|(_, _, assigned_wl_output)| *assigned_wl_output == wl_output)
+        {
             debug!("Removing layer surface for output");
-            let (id, menu, old_wl_output) = self.active.swap_remove(to_remove);
 
-            let destroy_main_task = destroy_layer_surface(id);
-            let destroy_menu_task = destroy_layer_surface(menu.id);
+            let (name, shell_info, wl_output) = self.0.swap_remove(index_to_remove);
 
-            if let Some(wl_output) = old_wl_output {
-                self.inactive.push(wl_output);
-            }
+            let destroy_task = if let Some(shell_info) = shell_info {
+                let destroy_main_task = destroy_layer_surface(shell_info.id);
+                let destroy_menu_task = destroy_layer_surface(shell_info.menu.id);
 
-            if self.active.is_empty() {
-                debug!("No outputs left, creating a fallback layer surface");
-                let (id, menu_id, task) = Self::create_output_layers(wl_output.clone(), position);
-
-                self.active.push((id, Menu::new(menu_id), None));
-
-                Task::batch(vec![destroy_main_task, destroy_menu_task, task])
-            } else {
                 Task::batch(vec![destroy_main_task, destroy_menu_task])
-            }
+            } else {
+                Task::none()
+            };
+
+            self.0.push((name.to_owned(), None, wl_output));
+            // let to_remove = self.active.swap_remove(to_remove);
+            //
+            // let destroy_main_task = destroy_layer_surface(to_remove.id);
+            // let destroy_menu_task = destroy_layer_surface(to_remove.menu.id);
+            //
+            // if let Some(output_info) = to_remove.output_info {
+            //     self.inactive.push(output_info);
+            // }
+            //
+            // if self.active.is_empty() {
+            //     debug!("No outputs left, creating a fallback layer surface");
+            //     let (id, menu_id, task) = Self::create_output_layers(None, position);
+            //
+            //     self.active.push(ActiveOutput {
+            //         id,
+            //         position,
+            //         menu: Menu::new(menu_id),
+            //         output_info: None,
+            //         fallback: true,
+            //     });
+            //
+            //     Task::batch(vec![destroy_main_task, destroy_menu_task, task])
+            // } else {
+            //     Task::batch(vec![destroy_main_task, destroy_menu_task])
+            // }
+
+            Task::batch(vec![destroy_task])
         } else {
             Task::none()
         }
@@ -171,15 +199,11 @@ impl Outputs {
         );
 
         let to_remove = self
-            .active
+            .0
             .iter()
-            .filter_map(|(_, _, output)| {
-                if let Some((name, wl_output)) = output {
-                    if !request_outputs.iter().any(|output| output.as_str() == name) {
-                        Some(wl_output.clone())
-                    } else {
-                        None
-                    }
+            .filter_map(|(name, shell_info, wl_output)| {
+                if !request_outputs.iter().any(|output| output.as_str() == name) {
+                    Some(wl_output.clone())
                 } else {
                     None
                 }
@@ -188,9 +212,9 @@ impl Outputs {
         debug!("Removing outputs: {:?}", to_remove);
 
         let to_add = self
-            .inactive
+            .0
             .iter()
-            .filter_map(|(name, wl_output)| {
+            .filter_map(|(name, shell_info, wl_output)| {
                 if request_outputs.iter().any(|output| output.as_str() == name) {
                     Some((name.clone(), wl_output.clone()))
                 } else {
@@ -209,41 +233,76 @@ impl Outputs {
             tasks.push(self.add(request_outputs, position, &name, wl_output));
         }
 
+        for id in self.0.iter().filter_map(|(_, shell_info, _)| {
+            if let Some(shell_info) = shell_info {
+                if shell_info.position != position {
+                    Some(shell_info.id)
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        }) {
+            debug!(
+                "Repositioning output: {:?}, new position {:?}",
+                id, position
+            );
+            tasks.push(set_anchor(
+                id,
+                match position {
+                    Position::Top => Anchor::TOP,
+                    Position::Bottom => Anchor::BOTTOM,
+                } | Anchor::LEFT
+                    | Anchor::RIGHT,
+            ));
+        }
+
         Task::batch(tasks)
     }
 
     pub fn toggle_menu<Message: 'static>(&mut self, id: Id, menu_type: MenuType) -> Task<Message> {
-        if let Some((_, menu, _)) = self
-            .active
-            .iter_mut()
-            .find(|(layer_id, menu, _)| *layer_id == id || menu.id == id)
-        {
-            let toggle_task = menu.toggle(menu_type);
-            let mut tasks = self
-                .active
-                .iter_mut()
-                .filter_map(|(layer_id, menu, _)| {
-                    if *layer_id != id && menu.id != id {
-                        Some(menu.close())
-                    } else {
-                        None
-                    }
-                })
-                .collect::<Vec<_>>();
-            tasks.push(toggle_task);
-            Task::batch(tasks)
+        if let Some((_, shell_info, _)) = self.0.iter_mut().find(|(_, shell_info, _)| {
+            shell_info.as_ref().map(|shell_info| shell_info.id) == Some(id)
+                || shell_info.as_ref().map(|shell_info| shell_info.menu.id) == Some(id)
+        }) {
+            if let Some(shell_info) = shell_info {
+                let toggle_task = shell_info.menu.toggle(menu_type);
+                let mut tasks = self
+                    .0
+                    .iter_mut()
+                    .filter_map(|(_, shell_info, _)| {
+                        if let Some(shell_info) = shell_info {
+                            if shell_info.id != id && shell_info.menu.id != id {
+                                Some(shell_info.menu.close())
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                tasks.push(toggle_task);
+                Task::batch(tasks)
+            } else {
+                Task::none()
+            }
         } else {
             Task::none()
         }
     }
 
     pub fn close_menu<Message: 'static>(&mut self, id: Id) -> Task<Message> {
-        if let Some((_, menu, _)) = self
-            .active
-            .iter_mut()
-            .find(|(layer_id, menu, _)| *layer_id == id || menu.id == id)
-        {
-            menu.close()
+        if let Some((_, shell_info, _)) = self.0.iter_mut().find(|(_, shell_info, _)| {
+            shell_info.as_ref().map(|shell_info| shell_info.id) == Some(id)
+                || shell_info.as_ref().map(|shell_info| shell_info.menu.id) == Some(id)
+        }) {
+            if let Some(shell_info) = shell_info {
+                shell_info.menu.close()
+            } else {
+                Task::none()
+            }
         } else {
             Task::none()
         }
@@ -254,12 +313,15 @@ impl Outputs {
         id: Id,
         menu_type: MenuType,
     ) -> Task<Message> {
-        if let Some((_, menu, _)) = self
-            .active
-            .iter_mut()
-            .find(|(layer_id, menu, _)| *layer_id == id || menu.id == id)
-        {
-            menu.close_if(menu_type)
+        if let Some((_, shell_info, _)) = self.0.iter_mut().find(|(_, shell_info, _)| {
+            shell_info.as_ref().map(|shell_info| shell_info.id) == Some(id)
+                || shell_info.as_ref().map(|shell_info| shell_info.menu.id) == Some(id)
+        }) {
+            if let Some(shell_info) = shell_info {
+                shell_info.menu.close_if(menu_type)
+            } else {
+                Task::none()
+            }
         } else {
             Task::none()
         }

@@ -21,7 +21,7 @@ use iced::{
     window::Id,
     Alignment, Color, Element, Length, Subscription, Task, Theme,
 };
-use log::{debug, info};
+use log::{debug, info, warn};
 
 pub struct App {
     logger: LoggerHandle,
@@ -108,7 +108,12 @@ impl App {
             Message::ConfigChanged(config) => {
                 info!("New config: {:?}", config);
                 let mut tasks = Vec::new();
+                info!(
+                    "Current outputs: {:?}, new outputs: {:?}",
+                    self.config.outputs, config.outputs
+                );
                 if self.config.outputs != config.outputs {
+                    warn!("Outputs changed, syncing");
                     tasks.push(self.outputs.sync(&config.outputs, config.position));
                 }
                 self.config = *config;
