@@ -66,11 +66,12 @@ pub enum Message {
 impl App {
     pub fn new((logger, config): (LoggerHandle, Config)) -> impl FnOnce() -> (Self, Task<Message>) {
         || {
+            let (outputs, task) = Outputs::new(config.position);
             (
                 App {
                     logger,
                     config,
-                    outputs: Outputs::default(),
+                    outputs,
                     updates: Updates::default(),
                     workspaces: Workspaces::default(),
                     window_title: Title::default(),
@@ -81,7 +82,7 @@ impl App {
                     privacy: None,
                     settings: Settings::default(),
                 },
-                Task::none(),
+                task,
             )
         }
     }
@@ -112,7 +113,8 @@ impl App {
                     "Current outputs: {:?}, new outputs: {:?}",
                     self.config.outputs, config.outputs
                 );
-                if self.config.outputs != config.outputs {
+                if self.config.outputs != config.outputs || self.config.position != config.position
+                {
                     warn!("Outputs changed, syncing");
                     tasks.push(self.outputs.sync(&config.outputs, config.position));
                 }
