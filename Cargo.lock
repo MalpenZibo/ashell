@@ -196,9 +196,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.93"
+version = "1.0.94"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c95c10ba0b00a02636238b814946408b1322d5ac4760326e6fb8ec956d85775"
+checksum = "c1fd03a028ef38ba2276dce7e33fcd6369c158a1bca17946c4b1b701891c1ff7"
 
 [[package]]
 name = "approx"
@@ -253,6 +253,7 @@ dependencies = [
  "pipewire",
  "serde",
  "serde_yaml",
+ "smithay-client-toolkit",
  "sysinfo",
  "tokio",
  "wayland-client",
@@ -1849,7 +1850,7 @@ dependencies = [
 [[package]]
 name = "iced"
 version = "0.14.0-dev"
-source = "git+https://github.com/pop-os/iced#238690672d5e12e4290479698bb1bc357d629728"
+source = "git+https://github.com/pop-os/iced#5ec2ff700c601734223c21a383c5741011c6811f"
 dependencies = [
  "dnd",
  "iced_accessibility",
@@ -1866,7 +1867,7 @@ dependencies = [
 [[package]]
 name = "iced_accessibility"
 version = "0.1.0"
-source = "git+https://github.com/pop-os/iced#238690672d5e12e4290479698bb1bc357d629728"
+source = "git+https://github.com/pop-os/iced#5ec2ff700c601734223c21a383c5741011c6811f"
 dependencies = [
  "accesskit",
  "accesskit_winit",
@@ -1875,7 +1876,7 @@ dependencies = [
 [[package]]
 name = "iced_core"
 version = "0.14.0-dev"
-source = "git+https://github.com/pop-os/iced#238690672d5e12e4290479698bb1bc357d629728"
+source = "git+https://github.com/pop-os/iced#5ec2ff700c601734223c21a383c5741011c6811f"
 dependencies = [
  "bitflags 2.6.0",
  "bytes",
@@ -1898,7 +1899,7 @@ dependencies = [
 [[package]]
 name = "iced_futures"
 version = "0.14.0-dev"
-source = "git+https://github.com/pop-os/iced#238690672d5e12e4290479698bb1bc357d629728"
+source = "git+https://github.com/pop-os/iced#5ec2ff700c601734223c21a383c5741011c6811f"
 dependencies = [
  "futures",
  "iced_core",
@@ -1924,7 +1925,7 @@ dependencies = [
 [[package]]
 name = "iced_graphics"
 version = "0.14.0-dev"
-source = "git+https://github.com/pop-os/iced#238690672d5e12e4290479698bb1bc357d629728"
+source = "git+https://github.com/pop-os/iced#5ec2ff700c601734223c21a383c5741011c6811f"
 dependencies = [
  "bitflags 2.6.0",
  "bytemuck",
@@ -1943,7 +1944,7 @@ dependencies = [
 [[package]]
 name = "iced_renderer"
 version = "0.14.0-dev"
-source = "git+https://github.com/pop-os/iced#238690672d5e12e4290479698bb1bc357d629728"
+source = "git+https://github.com/pop-os/iced#5ec2ff700c601734223c21a383c5741011c6811f"
 dependencies = [
  "iced_graphics",
  "iced_tiny_skia",
@@ -1955,7 +1956,7 @@ dependencies = [
 [[package]]
 name = "iced_runtime"
 version = "0.14.0-dev"
-source = "git+https://github.com/pop-os/iced#238690672d5e12e4290479698bb1bc357d629728"
+source = "git+https://github.com/pop-os/iced#5ec2ff700c601734223c21a383c5741011c6811f"
 dependencies = [
  "bytes",
  "cosmic-client-toolkit",
@@ -1970,7 +1971,7 @@ dependencies = [
 [[package]]
 name = "iced_tiny_skia"
 version = "0.14.0-dev"
-source = "git+https://github.com/pop-os/iced#238690672d5e12e4290479698bb1bc357d629728"
+source = "git+https://github.com/pop-os/iced#5ec2ff700c601734223c21a383c5741011c6811f"
 dependencies = [
  "bytemuck",
  "cosmic-text",
@@ -1985,7 +1986,7 @@ dependencies = [
 [[package]]
 name = "iced_wgpu"
 version = "0.14.0-dev"
-source = "git+https://github.com/pop-os/iced#238690672d5e12e4290479698bb1bc357d629728"
+source = "git+https://github.com/pop-os/iced#5ec2ff700c601734223c21a383c5741011c6811f"
 dependencies = [
  "as-raw-xcb-connection",
  "bitflags 2.6.0",
@@ -2014,7 +2015,7 @@ dependencies = [
 [[package]]
 name = "iced_widget"
 version = "0.14.0-dev"
-source = "git+https://github.com/pop-os/iced#238690672d5e12e4290479698bb1bc357d629728"
+source = "git+https://github.com/pop-os/iced#5ec2ff700c601734223c21a383c5741011c6811f"
 dependencies = [
  "cosmic-client-toolkit",
  "dnd",
@@ -2031,7 +2032,7 @@ dependencies = [
 [[package]]
 name = "iced_winit"
 version = "0.14.0-dev"
-source = "git+https://github.com/pop-os/iced#238690672d5e12e4290479698bb1bc357d629728"
+source = "git+https://github.com/pop-os/iced#5ec2ff700c601734223c21a383c5741011c6811f"
 dependencies = [
  "cosmic-client-toolkit",
  "dnd",
@@ -3923,9 +3924,9 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokio"
-version = "1.41.1"
+version = "1.42.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22cfb5bee7a6a52939ca9224d6ac897bb669134078daa8735560897f69de4d33"
+checksum = "5cec9b21b0450273377fc97bd4c33a8acffc8c996c987a7c5b319a0083707551"
 dependencies = [
  "backtrace",
  "bytes",
@@ -5041,9 +5042,9 @@ dependencies = [
 
 [[package]]
 name = "xml-rs"
-version = "0.8.23"
+version = "0.8.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af310deaae937e48a26602b730250b4949e125f468f11e6990be3e5304ddd96f"
+checksum = "ea8b391c9a790b496184c29f7f93b9ed5b16abb306c05415b68bcc16e4d06432"
 
 [[package]]
 name = "yansi-term"
