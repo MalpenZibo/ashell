@@ -12,6 +12,8 @@ use wayland_client::protocol::wl_output::WlOutput;
 
 use crate::{app::MenuType, config::Position, menu::Menu, HEIGHT};
 
+static FALLBACK_LAYER: &str = "fallback";
+
 #[derive(Debug, Clone)]
 struct ShellInfo {
     id: Id,
@@ -33,7 +35,7 @@ impl Outputs {
 
         (
             Self(vec![(
-                "fallback".to_owned(),
+                FALLBACK_LAYER.to_owned(),
                 Some(ShellInfo {
                     id,
                     menu: Menu::new(menu_id),
@@ -143,7 +145,7 @@ impl Outputs {
 
             // remove fallback layer surface
             let destroy_fallback_task =
-                if let Some(index) = self.0.iter().position(|(key, _, _)| key == "fallback") {
+                if let Some(index) = self.0.iter().position(|(key, _, _)| key == FALLBACK_LAYER) {
                     let old_output = self.0.swap_remove(index);
 
                     if let Some(shell_info) = old_output.1 {
@@ -193,10 +195,12 @@ impl Outputs {
             self.0.push((name.to_owned(), None, wl_output));
 
             if !self.0.iter().any(|(_, shell_info, _)| shell_info.is_some()) {
+                debug!("No outputs left, creating a fallback layer surface");
+
                 let (id, menu_id, task) = Self::create_output_layers(None, position);
 
                 self.0.push((
-                    "fallback".to_owned(),
+                    FALLBACK_LAYER.to_owned(),
                     Some(ShellInfo {
                         id,
                         menu: Menu::new(menu_id),
@@ -227,8 +231,11 @@ impl Outputs {
         let to_remove = self
             .0
             .iter()
-            .filter_map(|(name, _, wl_output)| {
-                if !request_outputs.iter().any(|output| output.as_str() == name) {
+            .filter_map(|(name, shell_info, wl_output)| {
+                if !request_outputs
+                    .iter()
+                    .any(|output| output.as_str() == name && shell_info.is_none())
+                {
                     Some(wl_output.clone())
                 } else {
                     None
@@ -241,8 +248,11 @@ impl Outputs {
         let to_add = self
             .0
             .iter()
-            .filter_map(|(name, _, wl_output)| {
-                if request_outputs.iter().any(|output| output.as_str() == name) {
+            .filter_map(|(name, shell_info, wl_output)| {
+                if request_outputs
+                    .iter()
+                    .any(|output| output.as_str() == name && shell_info.is_none())
+                {
                     Some((name.clone(), wl_output.clone()))
                 } else {
                     None
@@ -252,14 +262,14 @@ impl Outputs {
         debug!("Adding outputs: {:?}", to_add);
 
         let mut tasks = Vec::new();
-        for wl_output in to_remove {
-            tasks.push(self.remove(position, wl_output));
-        }
-
         for (name, wl_output) in to_add {
             if let Some(wl_output) = wl_output {
                 tasks.push(self.add(request_outputs, position, &name, wl_output));
             }
+        }
+
+        for wl_output in to_remove {
+            tasks.push(self.remove(position, wl_output));
         }
 
         for shell_info in self.0.iter_mut().filter_map(|(_, shell_info, _)| {
