@@ -13,6 +13,7 @@ mod components;
 mod config;
 mod menu;
 mod modules;
+mod outputs;
 mod password_dialog;
 mod services;
 mod style;
