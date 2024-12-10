@@ -7,17 +7,16 @@ edition = "2021"
 rust-version = "1.81"
 
 [dependencies]
-iced = { version = "0.12.1", features = [
+iced = { git = "https://github.com/MalpenZibo/iced", features = [
   "tokio",
   "multi-window",
   "advanced",
   "wgpu",
-] }
-iced_sctk = { git = "https://github.com/MalpenZibo/iced_sctk", features = [
-  "no-hand-cursor",
+  "winit",
+  "wayland",
 ] }
 chrono = "0.4"
-hyprland = { git = "https://github.com/MalpenZibo/hyprland-rs" }
+hyprland = "0.4.0-beta.2"
 serde = "1.0"
 sysinfo = "0.32"
 tokio = { version = "1", features = ["full"] }
@@ -28,8 +27,8 @@ log = { version = "0.4", features = ["serde"] }
 flexi_logger = "0.29"
 serde_yaml = "0.9"
 pipewire = "0.8"
-wayland-client = "0.31.3"
-wayland-protocols = { version = "0.32.1", features = ["client", "unstable"] }
+wayland-client = "0.31.5"
+wayland-protocols = { version = "0.32.3", features = ["client", "unstable"] }
 itertools = "0.13"
 hex_color = { version = "3.0", features = ["serde"] }
 anyhow = "1"

@@ -1,7 +1,7 @@
 use crate::{config::KeyboardSubmapModule, style::header_pills};
 use hyprland::event_listener::AsyncEventListener;
 use iced::{
-    subscription::channel,
+    stream::channel,
     widget::{container, text},
     Element, Subscription,
 };
@@ -53,32 +53,35 @@ impl KeyboardSubmap {
     pub fn subscription(&self) -> Subscription<Message> {
         let id = TypeId::of::<Self>();
 
-        channel(id, 10, |output| async move {
-            let output = Arc::new(RwLock::new(output));
-            loop {
-                let mut event_listener = AsyncEventListener::new();
+        Subscription::run_with_id(
+            id,
+            channel(10, |output| async move {
+                let output = Arc::new(RwLock::new(output));
+                loop {
+                    let mut event_listener = AsyncEventListener::new();
 
-                event_listener.add_sub_map_changed_handler({
-                    let output = output.clone();
-                    move |new_submap| {
-                        debug!("submap changed: {:?}", new_submap);
+                    event_listener.add_sub_map_changed_handler({
                         let output = output.clone();
-                        Box::pin(async move {
-                            if let Ok(mut output) = output.write() {
-                                output
-                                    .try_send(Message::SubmapChanged(new_submap))
-                                    .expect("error getting submap: submap changed event");
-                            }
-                        })
+                        move |new_submap| {
+                            debug!("submap changed: {:?}", new_submap);
+                            let output = output.clone();
+                            Box::pin(async move {
+                                if let Ok(mut output) = output.write() {
+                                    output
+                                        .try_send(Message::SubmapChanged(new_submap))
+                                        .expect("error getting submap: submap changed event");
+                                }
+                            })
+                        }
+                    });
+
+                    let res = event_listener.start_listener_async().await;
+
+                    if let Err(e) = res {
+                        error!("restarting submap listener due to error: {:?}", e);
                     }
-                });
-
-                let res = event_listener.start_listener_async().await;
-
-                if let Err(e) = res {
-                    error!("restarting submap listener due to error: {:?}", e);
                 }
-            }
-        })
+            }),
+        )
     }
 }

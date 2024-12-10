@@ -4,8 +4,7 @@ use hyprland::{
     shared::HyprData,
 };
 use iced::{
-    subscription::channel,
-    theme::Button,
+    stream::channel,
     widget::{button, text},
     Element, Subscription,
 };
@@ -83,7 +82,7 @@ impl KeyboardLayout {
                 button(text(&self.active))
                     .padding([2, 7])
                     .on_press(Message::ChangeLayout)
-                    .style(Button::custom(HeaderButtonStyle::Full))
+                    .style(HeaderButtonStyle::Full.into_style())
                     .into(),
             )
         }
@@ -92,48 +91,53 @@ impl KeyboardLayout {
     pub fn subscription(&self) -> Subscription<Message> {
         let id = TypeId::of::<Self>();
 
-        channel(id, 10, |output| async move {
-            let output = Arc::new(RwLock::new(output));
-            loop {
-                let mut event_listener = AsyncEventListener::new();
+        Subscription::run_with_id(
+            id,
+            channel(10, |output| async move {
+                let output = Arc::new(RwLock::new(output));
+                loop {
+                    let mut event_listener = AsyncEventListener::new();
 
-                event_listener.add_layout_changed_handler({
-                    let output = output.clone();
-                    move |e| {
-                        debug!("keymap changed: {:?}", e);
+                    event_listener.add_layout_changed_handler({
                         let output = output.clone();
-                        Box::pin(async move {
-                            if let Ok(mut output) = output.write() {
-                                output
-                                    .try_send(Message::ActiveLayoutChanged(get_active_layout()))
-                                    .expect("error getting keymap: layout changed event");
-                            }
-                        })
-                    }
-                });
+                        move |e| {
+                            debug!("keymap changed: {:?}", e);
+                            let output = output.clone();
+                            Box::pin(async move {
+                                if let Ok(mut output) = output.write() {
+                                    output
+                                        .try_send(Message::ActiveLayoutChanged(get_active_layout()))
+                                        .expect("error getting keymap: layout changed event");
+                                }
+                            })
+                        }
+                    });
 
-                event_listener.add_config_reloaded_handler({
-                    let output = output.clone();
-                    move || {
+                    event_listener.add_config_reloaded_handler({
                         let output = output.clone();
-                        Box::pin(async move {
-                            if let Ok(mut output) = output.write() {
-                                output
-                                    .try_send(Message::LayoutConfigChanged(
-                                        get_multiple_layout_flag(),
-                                    ))
-                                    .expect("error sending message: layout config changed event");
-                            }
-                        })
+                        move || {
+                            let output = output.clone();
+                            Box::pin(async move {
+                                if let Ok(mut output) = output.write() {
+                                    output
+                                        .try_send(Message::LayoutConfigChanged(
+                                            get_multiple_layout_flag(),
+                                        ))
+                                        .expect(
+                                            "error sending message: layout config changed event",
+                                        );
+                                }
+                            })
+                        }
+                    });
+
+                    let res = event_listener.start_listener_async().await;
+
+                    if let Err(e) = res {
+                        error!("restarting keymap listener due to error: {:?}", e);
                     }
-                });
-
-                let res = event_listener.start_listener_async().await;
-
-                if let Err(e) = res {
-                    error!("restarting keymap listener due to error: {:?}", e);
                 }
-            }
-        })
+            }),
+        )
     }
 }

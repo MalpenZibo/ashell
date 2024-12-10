@@ -8,7 +8,6 @@ use crate::{
     style::GhostButtonStyle,
 };
 use iced::{
-    theme::Button,
     widget::{button, column, container, horizontal_rule, row, text, Column, Row},
     Element, Length, Theme,
 };
@@ -73,7 +72,7 @@ impl BluetoothData {
                     .on_press(Message::Bluetooth(BluetoothMessage::More))
                     .padding([4, 12])
                     .width(Length::Fill)
-                    .style(Button::custom(GhostButtonStyle))
+                    .style(GhostButtonStyle.into_style())
             )
             .spacing(12)
             .into()
@@ -97,13 +96,13 @@ impl BluetoothData {
             .spacing(8)
             .width(Length::Shrink),
         )
-        .style(move |theme: &Theme| container::Appearance {
+        .style(move |theme: &Theme| container::Style {
             text_color: Some(if battery <= 20 {
                 theme.palette().danger
             } else {
                 theme.palette().text
             }),
-            ..container::Appearance::default()
+            ..container::Style::default()
         })
         .into()
     }

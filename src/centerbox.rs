@@ -79,8 +79,8 @@ where
         self.children.iter().map(Tree::new).collect()
     }
 
-    fn diff(&self, tree: &mut Tree) {
-        tree.diff_children(&self.children)
+    fn diff(&mut self, tree: &mut Tree) {
+        tree.diff_children(&mut self.children)
     }
 
     fn size(&self) -> Size<Length> {
@@ -190,7 +190,7 @@ where
         tree: &mut Tree,
         layout: Layout<'_>,
         renderer: &Renderer,
-        operation: &mut dyn Operation<Message>,
+        operation: &mut dyn Operation,
     ) {
         operation.container(None, layout.bounds(), &mut |operation| {
             self.children
