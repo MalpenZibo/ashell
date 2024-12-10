@@ -47,7 +47,7 @@ fn create_layer(pos: Position) -> (Id, Vec<Task<Message>>) {
         size: Some((None, None)),
         layer: Layer::Background,
         pointer_interactivity: true,
-        keyboard_interactivity: KeyboardInteractivity::OnDemand,
+        keyboard_interactivity: KeyboardInteractivity::None,
         anchor: Anchor::TOP | Anchor::BOTTOM | Anchor::LEFT | Anchor::RIGHT,
         ..Default::default()
     });

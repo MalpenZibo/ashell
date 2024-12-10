@@ -1,7 +1,9 @@
 use crate::app::{self, MenuType};
 use crate::config::Position;
 use iced::alignment::{Horizontal, Vertical};
-use iced::platform_specific::shell::commands::layer_surface::{set_layer, Layer};
+use iced::platform_specific::shell::commands::layer_surface::{
+    set_keyboard_interactivity, set_layer, KeyboardInteractivity, Layer,
+};
 use iced::widget::container::Style;
 use iced::widget::mouse_area;
 use iced::window::Id;
@@ -72,6 +74,14 @@ impl Menu {
         } else {
             None
         }
+    }
+
+    pub fn request_keyboard(&self) -> Task<app::Message> {
+        set_keyboard_interactivity(self.id, KeyboardInteractivity::OnDemand)
+    }
+
+    pub fn release_keyboard(&self) -> Task<app::Message> {
+        set_keyboard_interactivity(self.id, KeyboardInteractivity::None)
     }
 }
 
