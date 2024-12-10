@@ -48,7 +48,7 @@
         {
           # `nix build` and `nix run`
           defaultPackage = craneLib.buildPackage {
-            src = craneLib.cleanCargoSource ./.;
+            src = ./.;
 
             nativeBuildInputs = [ pkgs.makeWrapper ];
 
