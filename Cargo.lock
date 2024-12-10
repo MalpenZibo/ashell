@@ -1120,13 +1120,23 @@ dependencies = [
 
 [[package]]
 name = "derive_more"
-version = "0.99.18"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f33878137e4dafd7fa914ad4e259e18a4e8e532b9617a2d0150262bf53abfce"
+checksum = "4a9b99b9cbbe49445b21764dc0625032a89b145a2642e67603e1c936f5458d05"
+dependencies = [
+ "derive_more-impl",
+]
+
+[[package]]
+name = "derive_more-impl"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb7330aeadfbe296029522e6c40f315320aba36fc43a5b3632f3795348f3bd22"
 dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.90",
+ "unicode-xid",
 ]
 
 [[package]]
@@ -1794,8 +1804,9 @@ checksum = "dfa686283ad6dd069f105e5ab091b04c62850d3e4cf5d67debad1933f55023df"
 
 [[package]]
 name = "hyprland"
-version = "0.4.0-beta.1-revision"
-source = "git+https://github.com/MalpenZibo/hyprland-rs#5e22e4fb796f5e1061aeaf9cd05f29944be713b9"
+version = "0.4.0-beta.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dc9c1413b6f0fd10b2e4463479490e30b2497ae4449f044da16053f5f2cb03b8"
 dependencies = [
  "ahash",
  "async-stream",
@@ -1815,8 +1826,9 @@ dependencies = [
 
 [[package]]
 name = "hyprland-macros"
-version = "0.4.0-beta.1-revision"
-source = "git+https://github.com/MalpenZibo/hyprland-rs#5e22e4fb796f5e1061aeaf9cd05f29944be713b9"
+version = "0.4.0-beta.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69e3cbed6e560408051175d29a9ed6ad1e64a7ff443836addf797b0479f58983"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1849,7 +1861,7 @@ dependencies = [
 [[package]]
 name = "iced"
 version = "0.14.0-dev"
-source = "git+https://github.com/pop-os/iced#238690672d5e12e4290479698bb1bc357d629728"
+source = "git+https://github.com/MalpenZibo/iced#b3a666ce5b5852978db52b24cb951d7d875ecf8a"
 dependencies = [
  "dnd",
  "iced_accessibility",
@@ -1866,7 +1878,7 @@ dependencies = [
 [[package]]
 name = "iced_accessibility"
 version = "0.1.0"
-source = "git+https://github.com/pop-os/iced#238690672d5e12e4290479698bb1bc357d629728"
+source = "git+https://github.com/MalpenZibo/iced#b3a666ce5b5852978db52b24cb951d7d875ecf8a"
 dependencies = [
  "accesskit",
  "accesskit_winit",
@@ -1875,7 +1887,7 @@ dependencies = [
 [[package]]
 name = "iced_core"
 version = "0.14.0-dev"
-source = "git+https://github.com/pop-os/iced#238690672d5e12e4290479698bb1bc357d629728"
+source = "git+https://github.com/MalpenZibo/iced#b3a666ce5b5852978db52b24cb951d7d875ecf8a"
 dependencies = [
  "bitflags 2.6.0",
  "bytes",
@@ -1898,7 +1910,7 @@ dependencies = [
 [[package]]
 name = "iced_futures"
 version = "0.14.0-dev"
-source = "git+https://github.com/pop-os/iced#238690672d5e12e4290479698bb1bc357d629728"
+source = "git+https://github.com/MalpenZibo/iced#b3a666ce5b5852978db52b24cb951d7d875ecf8a"
 dependencies = [
  "futures",
  "iced_core",
@@ -1924,7 +1936,7 @@ dependencies = [
 [[package]]
 name = "iced_graphics"
 version = "0.14.0-dev"
-source = "git+https://github.com/pop-os/iced#238690672d5e12e4290479698bb1bc357d629728"
+source = "git+https://github.com/MalpenZibo/iced#b3a666ce5b5852978db52b24cb951d7d875ecf8a"
 dependencies = [
  "bitflags 2.6.0",
  "bytemuck",
@@ -1943,7 +1955,7 @@ dependencies = [
 [[package]]
 name = "iced_renderer"
 version = "0.14.0-dev"
-source = "git+https://github.com/pop-os/iced#238690672d5e12e4290479698bb1bc357d629728"
+source = "git+https://github.com/MalpenZibo/iced#b3a666ce5b5852978db52b24cb951d7d875ecf8a"
 dependencies = [
  "iced_graphics",
  "iced_tiny_skia",
@@ -1955,7 +1967,7 @@ dependencies = [
 [[package]]
 name = "iced_runtime"
 version = "0.14.0-dev"
-source = "git+https://github.com/pop-os/iced#238690672d5e12e4290479698bb1bc357d629728"
+source = "git+https://github.com/MalpenZibo/iced#b3a666ce5b5852978db52b24cb951d7d875ecf8a"
 dependencies = [
  "bytes",
  "cosmic-client-toolkit",
@@ -1970,7 +1982,7 @@ dependencies = [
 [[package]]
 name = "iced_tiny_skia"
 version = "0.14.0-dev"
-source = "git+https://github.com/pop-os/iced#238690672d5e12e4290479698bb1bc357d629728"
+source = "git+https://github.com/MalpenZibo/iced#b3a666ce5b5852978db52b24cb951d7d875ecf8a"
 dependencies = [
  "bytemuck",
  "cosmic-text",
@@ -1985,7 +1997,7 @@ dependencies = [
 [[package]]
 name = "iced_wgpu"
 version = "0.14.0-dev"
-source = "git+https://github.com/pop-os/iced#238690672d5e12e4290479698bb1bc357d629728"
+source = "git+https://github.com/MalpenZibo/iced#b3a666ce5b5852978db52b24cb951d7d875ecf8a"
 dependencies = [
  "as-raw-xcb-connection",
  "bitflags 2.6.0",
@@ -2014,7 +2026,7 @@ dependencies = [
 [[package]]
 name = "iced_widget"
 version = "0.14.0-dev"
-source = "git+https://github.com/pop-os/iced#238690672d5e12e4290479698bb1bc357d629728"
+source = "git+https://github.com/MalpenZibo/iced#b3a666ce5b5852978db52b24cb951d7d875ecf8a"
 dependencies = [
  "cosmic-client-toolkit",
  "dnd",
@@ -2031,7 +2043,7 @@ dependencies = [
 [[package]]
 name = "iced_winit"
 version = "0.14.0-dev"
-source = "git+https://github.com/pop-os/iced#238690672d5e12e4290479698bb1bc357d629728"
+source = "git+https://github.com/MalpenZibo/iced#b3a666ce5b5852978db52b24cb951d7d875ecf8a"
 dependencies = [
  "cosmic-client-toolkit",
  "dnd",
