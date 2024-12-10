@@ -2,7 +2,7 @@
   description = "A ready to go Wayland status bar for Hyprland";
 
   inputs = {
-    naersk.url = "github:nix-community/naersk";
+    crane.url = "github:ipetkov/crane";
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     rust-overlay = {
@@ -13,7 +13,7 @@
     };
   };
 
-  outputs = { self, naersk, nixpkgs, flake-utils, rust-overlay }:
+  outputs = { self, crane, nixpkgs, flake-utils, rust-overlay }:
     flake-utils.lib.eachDefaultSystem
       (system:
         let
@@ -21,10 +21,8 @@
           pkgs = import nixpkgs {
             inherit system overlays;
           };
-
-          naersk' = pkgs.callPackage naersk { };
-
-          manifest = (pkgs.lib.importTOML ./Cargo.toml).package;
+          
+          craneLib = crane.mkLib pkgs;
 
           deps = with pkgs; [
             rust-bin.stable.latest.default
@@ -49,8 +47,8 @@
         with pkgs;
         {
           # `nix build` and `nix run`
-          defaultPackage = naersk'.buildPackage {
-            src = ./.;
+          defaultPackage = craneLib.buildPackage {
+            src = craneLib.cleanCargoSource ./.;
 
             nativeBuildInputs = [ pkgs.makeWrapper ];
 
