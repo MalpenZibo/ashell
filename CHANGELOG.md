@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fix upower service startup fail in case of missing `org.freedesktop.UPower.PowerProfiles` dbus interface
+
 ## [0.3.0] - 2024-11-26
 
 A small release with some new Hyprland related modules
