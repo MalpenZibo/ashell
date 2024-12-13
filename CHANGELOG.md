@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2024-12-13
+
 ### Fixed
 
 - Fix upower service startup fail in case of missing `org.freedesktop.UPower.PowerProfiles` dbus interface
