@@ -1,6 +1,9 @@
 # Ashell
 
-A ready to go Wayland status bar for Hyprland
+A ready to go Wayland status bar for Hyprland.
+
+Feel free to fork this project and customize it for your needs or just open an
+issue to request a particular feature.
 
 > If you have an issue with the transparency you could try launching ashell with WGPU_BACKEND=gl. This env var forces wgpu to use OpenGL instead of Vulkan. It seems that wgpu has some issues with AMD GPU and Vulkan transparency.
 
@@ -203,23 +206,6 @@ appearance:
     - "#a6e3a1"
     - "#f38ba8"
 ```
-
-### So, what's the purpose of this project?
-
-I could have used [waybar](https://github.com/Alexays/Waybar) that's for sure is a
-a great project but I wanted something more sophisticated
-with submenus and other stuff.
-
-I tried with other great projects like [eww](https://github.com/elkowar/eww) but
-instead of writing or copy-paste eww configurations I prefered to create
-my Wayland bar.
-
-So, I <del>copy-pasted from iced pop-os fork</del> created a layer to interact
-with wayland layer shell protocol from iced [Iced SCTK](https://github.com/MalpenZibo/iced_sctk)
-and I started to create this project.
-
-Feel free to fork this project and customize it for your needs or just open an
-issue to request a particular feature.
 
 ## Some screenshots
 
