@@ -1,7 +1,7 @@
 use hex_color::HexColor;
 use iced::{
     futures::{SinkExt, StreamExt},
-    subscription,
+    stream::channel,
     theme::palette,
     Color, Subscription,
 };
@@ -376,54 +376,73 @@ pub fn read_config() -> Result<Config, serde_yaml::Error> {
 }
 
 pub fn subscription() -> Subscription<Message> {
-    subscription::channel("config-watcher", 100, move |mut output| async move {
-        let home_dir = env::var("HOME").expect("Could not get HOME environment variable");
-        let file_path = format!("{}{}", home_dir, CONFIG_PATH.replace('~', ""));
-
-        loop {
-            let inotify = Inotify::init().expect("Failed to initialize inotify");
-
-            let path = Path::new(&file_path);
-            if path.exists() {
-                log::debug!("watch path {:?}", path);
-                inotify
-                    .watches()
-                    .add(
-                        path,
-                        WatchMask::MODIFY
-                            .union(WatchMask::CLOSE_WRITE)
-                            .union(WatchMask::DELETE)
-                            .union(WatchMask::MOVE_SELF),
-                    )
-                    .expect("Failed to add file watch");
-            } else {
-                log::info!("watch directory {:?}", path.parent().unwrap());
-                inotify
-                    .watches()
-                    .add(
-                        path.parent().unwrap(),
-                        WatchMask::CREATE
-                            .union(WatchMask::MOVED_TO)
-                            .union(WatchMask::MOVE_SELF),
-                    )
-                    .expect("Failed to add create file watch");
-            }
-
-            let mut buffer = [0; 1024];
-            let mut stream = inotify
-                .into_event_stream(&mut buffer)
-                .expect("Failed to create event stream");
+    Subscription::run(|| {
+        channel(100, move |mut output| async move {
+            let home_dir = env::var("HOME").expect("Could not get HOME environment variable");
+            let file_path = format!("{}{}", home_dir, CONFIG_PATH.replace('~', ""));
 
             loop {
-                let event = stream.next().await;
-                match event {
-                    Some(Ok(inotify::Event {
-                        mask: EventMask::CREATE | EventMask::MOVED_TO | EventMask::MOVE_SELF,
-                        name: Some(name),
-                        ..
-                    })) => {
-                        if name == "ashell.yml" {
-                            log::info!("Config file created");
+                let inotify = Inotify::init().expect("Failed to initialize inotify");
+
+                let path = Path::new(&file_path);
+                if path.exists() {
+                    log::debug!("watch path {:?}", path);
+                    inotify
+                        .watches()
+                        .add(
+                            path,
+                            WatchMask::MODIFY
+                                .union(WatchMask::CLOSE_WRITE)
+                                .union(WatchMask::DELETE)
+                                .union(WatchMask::MOVE_SELF),
+                        )
+                        .expect("Failed to add file watch");
+                } else {
+                    log::info!("watch directory {:?}", path.parent().unwrap());
+                    inotify
+                        .watches()
+                        .add(
+                            path.parent().unwrap(),
+                            WatchMask::CREATE
+                                .union(WatchMask::MOVED_TO)
+                                .union(WatchMask::MOVE_SELF),
+                        )
+                        .expect("Failed to add create file watch");
+                }
+
+                let mut buffer = [0; 1024];
+                let mut stream = inotify
+                    .into_event_stream(&mut buffer)
+                    .expect("Failed to create event stream");
+
+                loop {
+                    let event = stream.next().await;
+                    match event {
+                        Some(Ok(inotify::Event {
+                            mask: EventMask::CREATE | EventMask::MOVED_TO | EventMask::MOVE_SELF,
+                            name: Some(name),
+                            ..
+                        })) => {
+                            if name == "ashell.yml" {
+                                log::info!("Config file created");
+
+                                let new_config = read_config();
+                                if let Ok(new_config) = new_config {
+                                    let _ = output
+                                        .send(Message::ConfigChanged(Box::new(new_config)))
+                                        .await;
+                                } else {
+                                    log::warn!("Failed to read config file: {:?}", new_config);
+                                }
+
+                                break;
+                            }
+                        }
+                        Some(Ok(inotify::Event {
+                            mask: EventMask::MODIFY | EventMask::MOVE_SELF | EventMask::CLOSE_WRITE,
+                            ..
+                        })) => {
+                            log::info!("Config file modified");
 
                             let new_config = read_config();
                             if let Ok(new_config) = new_config {
@@ -433,37 +452,20 @@ pub fn subscription() -> Subscription<Message> {
                             } else {
                                 log::warn!("Failed to read config file: {:?}", new_config);
                             }
+                        }
+                        Some(Ok(inotify::Event {
+                            mask: EventMask::DELETE,
+                            ..
+                        })) => {
+                            log::info!("Config file deleted");
+                            let _ = output.send(Message::ConfigChanged(Box::default())).await;
 
                             break;
                         }
+                        _ => {}
                     }
-                    Some(Ok(inotify::Event {
-                        mask: EventMask::MODIFY | EventMask::MOVE_SELF | EventMask::CLOSE_WRITE,
-                        ..
-                    })) => {
-                        log::info!("Config file modified");
-
-                        let new_config = read_config();
-                        if let Ok(new_config) = new_config {
-                            let _ = output
-                                .send(Message::ConfigChanged(Box::new(new_config)))
-                                .await;
-                        } else {
-                            log::warn!("Failed to read config file: {:?}", new_config);
-                        }
-                    }
-                    Some(Ok(inotify::Event {
-                        mask: EventMask::DELETE,
-                        ..
-                    })) => {
-                        log::info!("Config file deleted");
-                        let _ = output.send(Message::ConfigChanged(Box::default())).await;
-
-                        break;
-                    }
-                    _ => {}
                 }
             }
-        }
+        })
     })
 }

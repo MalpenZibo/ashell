@@ -2,12 +2,9 @@ use super::{ReadOnlyService, Service, ServiceEvent};
 use crate::{components::icons::Icons, utils::IndicatorState};
 use dbus::{PowerProfilesProxy, UPowerDbus};
 use iced::{
-    futures::{
-        channel::mpsc::Sender,
-        stream::{once, pending},
-        stream_select, SinkExt, Stream, StreamExt,
-    },
-    subscription::channel,
+    futures::stream::{once, pending},
+    futures::{channel::mpsc::Sender, stream_select, SinkExt, Stream, StreamExt},
+    stream::channel,
     Subscription,
 };
 use log::{error, warn};
@@ -143,13 +140,16 @@ impl ReadOnlyService for UPowerService {
     fn subscribe() -> Subscription<ServiceEvent<Self>> {
         let id = TypeId::of::<Self>();
 
-        channel(id, 100, |mut output| async move {
-            let mut state = State::Init;
+        Subscription::run_with_id(
+            id,
+            channel(100, |mut output| async move {
+                let mut state = State::Init;
 
-            loop {
-                state = UPowerService::start_listening(state, &mut output).await;
-            }
-        })
+                loop {
+                    state = UPowerService::start_listening(state, &mut output).await;
+                }
+            }),
+        )
     }
 }
 
@@ -352,8 +352,8 @@ pub enum PowerProfileCommand {
 impl Service for UPowerService {
     type Command = PowerProfileCommand;
 
-    fn command(&mut self, command: Self::Command) -> iced::Command<ServiceEvent<Self>> {
-        iced::Command::perform(
+    fn command(&mut self, command: Self::Command) -> iced::Task<ServiceEvent<Self>> {
+        iced::Task::perform(
             {
                 let conn = self.conn.clone();
                 let power_profile = self.power_profile;

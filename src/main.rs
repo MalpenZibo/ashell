@@ -1,17 +1,11 @@
 use app::App;
-use config::{read_config, Position};
+use config::read_config;
 use flexi_logger::{
     Age, Cleanup, Criterion, FileSpec, LogSpecBuilder, LogSpecification, Logger, Naming,
 };
-use iced_sctk::{
-    command::platform_specific::wayland::layer_surface::SctkLayerSurfaceSettings,
-    commands::layer_surface::{Anchor, KeyboardInteractivity, Layer},
-    core::{window::Id, Font},
-    multi_window::{settings::Settings, Application},
-    settings::InitialSurface,
-};
 use log::error;
-use std::{backtrace::Backtrace, borrow::Cow, panic};
+use std::panic;
+use std::{backtrace::Backtrace, borrow::Cow};
 
 mod app;
 mod centerbox;
@@ -34,7 +28,7 @@ fn get_log_spec(log_level: &str) -> LogSpecification {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> iced::Result {
     let logger = Logger::with(
         LogSpecBuilder::new()
             .default(log::LevelFilter::Info)
@@ -64,29 +58,10 @@ async fn main() {
 
     logger.set_new_spec(get_log_spec(&config.log_level));
 
-    App::run(Settings {
-        antialiasing: true,
-        exit_on_close_request: false,
-        initial_surface: InitialSurface::LayerSurface(SctkLayerSurfaceSettings {
-            id: Id::MAIN,
-            keyboard_interactivity: KeyboardInteractivity::None,
-            namespace: "ashell".into(),
-            layer: Layer::Bottom,
-            size: Some((None, Some(HEIGHT))),
-            anchor: match config.position {
-                Position::Top => Anchor::TOP,
-                Position::Bottom => Anchor::BOTTOM,
-            }
-            .union(Anchor::LEFT)
-            .union(Anchor::RIGHT),
-            exclusive_zone: HEIGHT as i32,
-            ..Default::default()
-        }),
-        flags: (logger, config),
-        id: None,
-        fonts: vec![Cow::from(ICON_FONT)],
-        default_font: Font::DEFAULT,
-        default_text_size: 14.into(),
-    })
-    .unwrap();
+    iced::daemon(App::title, App::update, App::view)
+        .subscription(App::subscription)
+        .theme(App::theme)
+        .style(App::style)
+        .font(Cow::from(ICON_FONT))
+        .run_with(App::new((logger, config)))
 }

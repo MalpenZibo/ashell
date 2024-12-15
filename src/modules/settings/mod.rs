@@ -2,9 +2,10 @@ use self::{
     audio::AudioMessage, bluetooth::BluetoothMessage, network::NetworkMessage, power::PowerMessage,
 };
 use crate::{
+    app::MenuType,
     components::icons::{icon, Icons},
     config::SettingsModuleConfig,
-    menu::{Menu, MenuType},
+    menu::Menu,
     modules::settings::power::power_menu,
     password_dialog,
     services::{
@@ -24,12 +25,12 @@ use crate::{
 use brightness::BrightnessMessage;
 use iced::{
     alignment::{Horizontal, Vertical},
-    theme::Button,
     widget::{
         button, column, container, horizontal_space, row, text, vertical_rule, Column, Row, Space,
     },
-    Alignment, Background, Border, Command, Element, Length, Subscription, Theme,
+    Alignment, Background, Border, Element, Length, Padding, Subscription, Task, Theme,
 };
+use log::info;
 use upower::UPowerMessage;
 
 pub mod audio;
@@ -96,72 +97,69 @@ impl Settings {
         message: Message,
         config: &SettingsModuleConfig,
         menu: &mut Menu,
-    ) -> Command<crate::app::Message> {
+    ) -> Task<crate::app::Message> {
         match message {
             Message::ToggleMenu => {
                 self.sub_menu = None;
                 self.password_dialog = None;
-                Command::batch(vec![
-                    menu.unset_keyboard_interactivity(),
-                    menu.toggle(MenuType::Settings),
-                ])
+                Task::batch(vec![menu.toggle(MenuType::Settings)])
             }
             Message::Audio(msg) => match msg {
                 AudioMessage::Event(event) => match event {
                     ServiceEvent::Init(service) => {
                         self.audio = Some(service);
-                        Command::none()
+                        Task::none()
                     }
                     ServiceEvent::Update(data) => {
                         if let Some(audio) = self.audio.as_mut() {
                             audio.update(data);
                         }
-                        Command::none()
+                        Task::none()
                     }
-                    ServiceEvent::Error(_) => Command::none(),
+                    ServiceEvent::Error(_) => Task::none(),
                 },
                 AudioMessage::ToggleSinkMute => {
                     if let Some(audio) = self.audio.as_mut() {
                         let _ = audio.command(AudioCommand::ToggleSinkMute);
                     }
-                    Command::none()
+                    Task::none()
                 }
                 AudioMessage::SinkVolumeChanged(value) => {
                     if let Some(audio) = self.audio.as_mut() {
                         let _ = audio.command(AudioCommand::SinkVolume(value));
                     }
-                    Command::none()
+                    Task::none()
                 }
                 AudioMessage::DefaultSinkChanged(name, port) => {
                     if let Some(audio) = self.audio.as_mut() {
                         let _ = audio.command(AudioCommand::DefaultSink(name, port));
                     }
-                    Command::none()
+                    Task::none()
                 }
                 AudioMessage::ToggleSourceMute => {
                     if let Some(audio) = self.audio.as_mut() {
                         let _ = audio.command(AudioCommand::ToggleSourceMute);
                     }
-                    Command::none()
+                    Task::none()
                 }
                 AudioMessage::SourceVolumeChanged(value) => {
                     if let Some(audio) = self.audio.as_mut() {
                         let _ = audio.command(AudioCommand::SourceVolume(value));
                     }
-                    Command::none()
+                    Task::none()
                 }
                 AudioMessage::DefaultSourceChanged(name, port) => {
                     if let Some(audio) = self.audio.as_mut() {
                         let _ = audio.command(AudioCommand::DefaultSource(name, port));
                     }
-                    Command::none()
+                    Task::none()
                 }
                 AudioMessage::SinksMore => {
                     if let Some(cmd) = &config.audio_sinks_more_cmd {
                         crate::utils::launcher::execute_command(cmd.to_string());
                         menu.close()
                     } else {
-                        Command::none()
+                        Task::none()
                     }
                 }
                 AudioMessage::SourcesMore => {
@@ -169,7 +167,7 @@ impl Settings {
                         crate::utils::launcher::execute_command(cmd.to_string());
                         menu.close()
                     } else {
-                        Command::none()
+                        Task::none()
                     }
                 }
             },
@@ -177,15 +175,15 @@ impl Settings {
                 UPowerMessage::Event(event) => match event {
                     ServiceEvent::Init(service) => {
                         self.upower = Some(service);
-                        Command::none()
+                        Task::none()
                     }
                     ServiceEvent::Update(data) => {
                         if let Some(upower) = self.upower.as_mut() {
                             upower.update(data);
                         }
-                        Command::none()
+                        Task::none()
                     }
-                    ServiceEvent::Error(_) => Command::none(),
+                    ServiceEvent::Error(_) => Task::none(),
                 },
                 UPowerMessage::TogglePowerProfile => {
                     if let Some(upower) = self.upower.as_mut() {
@@ -195,7 +193,7 @@ impl Settings {
                             )))
                         })
                     } else {
-                        Command::none()
+                        Task::none()
                     }
                 }
             },
@@ -203,19 +201,19 @@ impl Settings {
                 NetworkMessage::Event(event) => match event {
                     ServiceEvent::Init(service) => {
                         self.network = Some(service);
-                        Command::none()
+                        Task::none()
                     }
                     ServiceEvent::Update(NetworkEvent::RequestPasswordForSSID(ssid)) => {
                         self.password_dialog = Some((ssid, "".to_string()));
-                        menu.set_keyboard_interactivity()
+                        Task::none()
                     }
                     ServiceEvent::Update(data) => {
                         if let Some(network) = self.network.as_mut() {
                             network.update(data);
                         }
-                        Command::none()
+                        Task::none()
                     }
-                    _ => Command::none(),
+                    _ => Task::none(),
                 },
                 NetworkMessage::ToggleAirplaneMode => {
                     if let Some(network) = self.network.as_mut() {
@@ -227,7 +225,7 @@ impl Settings {
                                 ))
                             })
                     } else {
-                        Command::none()
+                        Task::none()
                     }
                 }
                 NetworkMessage::ToggleWiFi => {
@@ -238,7 +236,7 @@ impl Settings {
                             )))
                         })
                     } else {
-                        Command::none()
+                        Task::none()
                     }
                 }
                 NetworkMessage::SelectAccessPoint(ac) => {
@@ -251,12 +249,13 @@ impl Settings {
                                 ))
                             })
                     } else {
-                        Command::none()
+                        Task::none()
                     }
                 }
                 NetworkMessage::RequestWiFiPassword(ssid) => {
+                    info!("Requesting password for {}", ssid);
                     self.password_dialog = Some((ssid, "".to_string()));
-                    menu.set_keyboard_interactivity()
+                    menu.request_keyboard()
                 }
                 NetworkMessage::ScanNearByWiFi => {
                     if let Some(network) = self.network.as_mut() {
@@ -268,7 +267,7 @@ impl Settings {
                                 ))
                             })
                     } else {
-                        Command::none()
+                        Task::none()
                     }
                 }
                 NetworkMessage::WiFiMore => {
@@ -276,7 +275,7 @@ impl Settings {
                         crate::utils::launcher::execute_command(cmd.to_string());
                         menu.close()
                     } else {
-                        Command::none()
+                        Task::none()
                     }
                 }
                 NetworkMessage::VpnMore => {
@@ -284,7 +283,7 @@ impl Settings {
                         crate::utils::launcher::execute_command(cmd.to_string());
                         menu.close()
                     } else {
-                        Command::none()
+                        Task::none()
                     }
                 }
                 NetworkMessage::ToggleVpn(vpn) => {
@@ -297,7 +296,7 @@ impl Settings {
                                 ))
                             })
                     } else {
-                        Command::none()
+                        Task::none()
                     }
                 }
             },
@@ -305,15 +304,15 @@ impl Settings {
                 BluetoothMessage::Event(event) => match event {
                     ServiceEvent::Init(service) => {
                         self.bluetooth = Some(service);
-                        Command::none()
+                        Task::none()
                     }
                     ServiceEvent::Update(data) => {
                         if let Some(bluetooth) = self.bluetooth.as_mut() {
                             bluetooth.update(data);
                         }
-                        Command::none()
+                        Task::none()
                     }
-                    _ => Command::none(),
+                    _ => Task::none(),
                 },
                 BluetoothMessage::Toggle => {
                     if let Some(bluetooth) = self.bluetooth.as_mut() {
@@ -323,7 +322,7 @@ impl Settings {
                             ))
                         })
                     } else {
-                        Command::none()
+                        Task::none()
                     }
                 }
                 BluetoothMessage::More => {
@@ -331,7 +330,7 @@ impl Settings {
                         crate::utils::launcher::execute_command(cmd.to_string());
                         menu.close()
                     } else {
-                        Command::none()
+                        Task::none()
                     }
                 }
             },
@@ -339,15 +338,15 @@ impl Settings {
                 BrightnessMessage::Event(event) => match event {
                     ServiceEvent::Init(service) => {
                         self.brightness = Some(service);
-                        Command::none()
+                        Task::none()
                     }
                     ServiceEvent::Update(data) => {
                         if let Some(brightness) = self.brightness.as_mut() {
                             brightness.update(data);
                         }
-                        Command::none()
+                        Task::none()
                     }
-                    _ => Command::none(),
+                    _ => Task::none(),
                 },
                 BrightnessMessage::Change(value) => {
                     if let Some(brightness) = self.brightness.as_mut() {
@@ -359,7 +358,7 @@ impl Settings {
                                 ))
                             })
                     } else {
-                        Command::none()
+                        Task::none()
                     }
                 }
             },
@@ -382,23 +381,23 @@ impl Settings {
                     }
                 }
 
-                Command::none()
+                Task::none()
             }
             Message::ToggleInhibitIdle => {
                 if let Some(idle_inhibitor) = &mut self.idle_inhibitor {
                     idle_inhibitor.toggle();
                 }
-                Command::none()
+                Task::none()
             }
             Message::Lock => {
                 if let Some(lock_cmd) = &config.lock_cmd {
                     crate::utils::launcher::execute_command(lock_cmd.to_string());
                 }
-                Command::none()
+                Task::none()
             }
             Message::Power(msg) => {
                 msg.update();
-                Command::none()
+                Task::none()
             }
             Message::PasswordDialog(msg) => match msg {
                 password_dialog::Message::PasswordChanged(password) => {
@@ -406,7 +405,7 @@ impl Settings {
                         *current_password = password;
                     }
 
-                    Command::none()
+                    Task::none()
                 }
                 password_dialog::Message::DialogConfirmed => {
                     if let Some((ssid, password)) = self.password_dialog.take() {
@@ -428,22 +427,20 @@ impl Settings {
                                         ))
                                     })
                             } else {
-                                Command::none()
+                                Task::none()
                             }
                         } else {
-                            Command::none()
+                            Task::none()
                         };
-                        Command::batch(vec![menu.unset_keyboard_interactivity(), network_command])
+                        Task::batch(vec![network_command, menu.release_keyboard()])
                     } else {
-                        Command::none()
+                        menu.release_keyboard()
                     }
                 }
                 password_dialog::Message::DialogCancelled => {
-                    if let Some((_, _)) = self.password_dialog.take() {
-                        menu.unset_keyboard_interactivity()
-                    } else {
-                        Command::none()
-                    }
+                    self.password_dialog = None;
+
+                    menu.release_keyboard()
                 }
             },
         }
@@ -458,7 +455,7 @@ impl Settings {
                         .filter(|i| i.is_inhibited())
                         .map(|_| {
                             container(icon(Icons::EyeOpened)).style(|theme: &Theme| {
-                                container::Appearance {
+                                container::Style {
                                     text_color: Some(theme.palette().danger),
                                     ..Default::default()
                                 }
@@ -489,7 +486,7 @@ impl Settings {
                 )
                 .spacing(8),
         )
-        .style(Button::custom(HeaderButtonStyle::Right))
+        .style(HeaderButtonStyle::Right.into_style())
         .padding([2, 8])
         .on_press(Message::ToggleMenu)
         .into()
@@ -509,7 +506,7 @@ impl Settings {
                     button(icon(Icons::Lock))
                         .padding([8, 13])
                         .on_press(Message::Lock)
-                        .style(Button::custom(SettingsButtonStyle))
+                        .style(SettingsButtonStyle.into_style())
                 }))
                 .push(
                     button(icon(if self.sub_menu == Some(SubMenu::Power) {
@@ -519,7 +516,7 @@ impl Settings {
                     }))
                     .padding([8, 13])
                     .on_press(Message::ToggleSubMenu(SubMenu::Power))
-                    .style(Button::custom(SettingsButtonStyle)),
+                    .style(SettingsButtonStyle.into_style()),
                 )
                 .spacing(8);
 
@@ -676,10 +673,10 @@ fn quick_settings_section<'a>(
 
 fn sub_menu_wrapper<Msg: 'static>(content: Element<Msg>) -> Element<Msg> {
     container(content)
-        .style(|theme: &Theme| container::Appearance {
+        .style(|theme: &Theme| container::Style {
             background: Background::Color(theme.extended_palette().secondary.strong.color).into(),
-            border: Border::with_radius(16),
-            ..container::Appearance::default()
+            border: Border::default().rounded(16),
+            ..container::Style::default()
         })
         .padding(8)
         .width(Length::Fill)
@@ -702,9 +699,9 @@ fn quick_setting_button<'a, Msg: Clone + 'static>(
             .spacing(4)
     )
     .spacing(8)
-    .padding([0, 0, 0, 4])
+    .padding(Padding::ZERO.left(4))
     .width(Length::Fill)
-    .align_items(Alignment::Center);
+    .align_y(Alignment::Center);
 
     button(
         Row::new()
@@ -721,20 +718,20 @@ fn quick_setting_button<'a, Msg: Clone + 'static>(
                     .align_x(Horizontal::Center),
                 )
                 .padding([4, if Some(menu_type) == submenu { 9 } else { 12 }])
-                .style(Button::custom(QuickSettingsSubMenuButtonStyle(active)))
+                .style(QuickSettingsSubMenuButtonStyle(active).into_style())
                 .width(Length::Shrink)
                 .height(Length::Shrink)
                 .on_press(msg)
             }))
             .spacing(4)
-            .align_items(Alignment::Center)
+            .align_y(Alignment::Center)
             .height(Length::Fill),
     )
     .padding([4, 8])
     .on_press(on_press)
     .height(Length::Fill)
     .width(Length::Fill)
-    .style(Button::custom(QuickSettingsButtonStyle(active)))
+    .style(QuickSettingsButtonStyle(active).into_style())
     .width(Length::Fill)
     .height(Length::Fixed(50.))
     .into()

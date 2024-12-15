@@ -2,8 +2,8 @@ use super::{ReadOnlyService, Service, ServiceEvent};
 use crate::components::icons::Icons;
 use iced::{
     futures::{channel::mpsc::Sender, executor::block_on, stream::pending, SinkExt, StreamExt},
-    subscription::channel,
-    Command,
+    stream::channel,
+    Subscription, Task,
 };
 use libpulse_binding::{
     callbacks::ListResult,
@@ -337,13 +337,16 @@ impl ReadOnlyService for AudioService {
     fn subscribe() -> iced::Subscription<super::ServiceEvent<Self>> {
         let id = TypeId::of::<Self>();
 
-        channel(id, 100, |mut output| async move {
-            let mut state = State::Init;
+        Subscription::run_with_id(
+            id,
+            channel(100, |mut output| async move {
+                let mut state = State::Init;
 
-            loop {
-                state = AudioService::start_listening(state, &mut output).await;
-            }
-        })
+                loop {
+                    state = AudioService::start_listening(state, &mut output).await;
+                }
+            }),
+        )
     }
 }
 
@@ -359,7 +362,7 @@ pub enum AudioCommand {
 impl Service for AudioService {
     type Command = AudioCommand;
 
-    fn command(&mut self, command: Self::Command) -> Command<ServiceEvent<Self>> {
+    fn command(&mut self, command: Self::Command) -> Task<ServiceEvent<Self>> {
         match command {
             AudioCommand::ToggleSinkMute => {
                 if let Some(sink) = self
@@ -428,7 +431,7 @@ impl Service for AudioService {
             }
         }
 
-        iced::Command::none()
+        iced::Task::none()
     }
 }
 

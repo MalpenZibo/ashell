@@ -1,6 +1,5 @@
 use iced::{
     alignment::Vertical,
-    theme,
     widget::{button, column, horizontal_space, row, text, text_input},
     Alignment, Element, Length,
 };
@@ -24,26 +23,26 @@ pub fn view<'a>(wifi_ssid: &str, current_password: &str) -> Element<'a, Message>
             text("Authentication required").size(22),
         )
         .spacing(16)
-        .align_items(Alignment::Center),
+        .align_y(Alignment::Center),
         text(format!("Insert password to connect to: {}", wifi_ssid)),
         text_input("", current_password)
             .secure(true)
             .size(16)
             .padding([8, 16])
-            .style(theme::TextInput::Custom(Box::new(TextInputStyle)))
+            .style(TextInputStyle.into_style())
             .on_input(Message::PasswordChanged)
             .on_submit(Message::DialogConfirmed),
         row!(
             horizontal_space(),
-            button(text("Cancel").vertical_alignment(Vertical::Center))
+            button(text("Cancel").align_y(Vertical::Center))
                 .padding([4, 32])
-                .style(theme::Button::custom(OutlineButtonStyle))
+                .style(OutlineButtonStyle.into_style())
                 .height(Length::Fixed(50.))
                 .on_press(Message::DialogCancelled),
-            button(text("Confirm").vertical_alignment(Vertical::Center))
+            button(text("Confirm").align_y(Vertical::Center))
                 .padding([4, 32])
                 .height(Length::Fixed(50.))
-                .style(theme::Button::custom(ConfirmButtonStyle))
+                .style(ConfirmButtonStyle.into_style())
                 .on_press(Message::DialogConfirmed)
         )
         .spacing(8)

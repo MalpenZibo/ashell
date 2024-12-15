@@ -4,7 +4,6 @@ use crate::{
     utils,
 };
 use iced::{
-    theme::Button,
     widget::{button, column, horizontal_rule, row, text},
     Element, Length,
 };
@@ -42,23 +41,23 @@ pub fn power_menu<'a>() -> Element<'a, PowerMessage> {
             .padding([4, 12])
             .on_press(PowerMessage::Suspend)
             .width(Length::Fill)
-            .style(Button::custom(GhostButtonStyle)),
+            .style(GhostButtonStyle.into_style()),
         button(row!(icon(Icons::Reboot), text("Reboot")).spacing(16))
             .padding([4, 12])
             .on_press(PowerMessage::Reboot)
             .width(Length::Fill)
-            .style(Button::custom(GhostButtonStyle)),
+            .style(GhostButtonStyle.into_style()),
         button(row!(icon(Icons::Power), text("Shutdown")).spacing(16))
             .padding([4, 12])
             .on_press(PowerMessage::Shutdown)
             .width(Length::Fill)
-            .style(Button::custom(GhostButtonStyle)),
+            .style(GhostButtonStyle.into_style()),
         horizontal_rule(1),
         button(row!(icon(Icons::Logout), text("Logout")).spacing(16))
             .padding([4, 12])
             .on_press(PowerMessage::Logout)
             .width(Length::Fill)
-            .style(Button::custom(GhostButtonStyle)),
+            .style(GhostButtonStyle.into_style()),
     )
     .padding(8)
     .width(Length::Fill)
