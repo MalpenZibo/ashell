@@ -1,13 +1,12 @@
 use iced::{
     platform_specific::shell::commands::layer_surface::{
-        destroy_layer_surface, get_layer_surface, set_anchor,
+        destroy_layer_surface, get_layer_surface, set_anchor, Anchor, KeyboardInteractivity, Layer,
     },
     runtime::platform_specific::wayland::layer_surface::{IcedOutput, SctkLayerSurfaceSettings},
     window::Id,
     Task,
 };
 use log::debug;
-use sctk::shell::wlr_layer::{Anchor, KeyboardInteractivity, Layer};
 use wayland_client::protocol::wl_output::WlOutput;
 
 use crate::{app::MenuType, config::Position, menu::Menu, HEIGHT};
