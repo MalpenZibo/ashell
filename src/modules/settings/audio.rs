@@ -9,6 +9,7 @@ use crate::{
 };
 use iced::{
     widget::{button, column, container, horizontal_rule, row, slider, text, Column, Row},
+    window::Id,
     Alignment, Element, Length, Theme,
 };
 
@@ -21,8 +22,8 @@ pub enum AudioMessage {
     SinkVolumeChanged(i32),
     ToggleSourceMute,
     SourceVolumeChanged(i32),
-    SinksMore,
-    SourcesMore,
+    SinksMore(Id),
+    SourcesMore(Id),
 }
 
 impl AudioData {
@@ -87,7 +88,7 @@ impl AudioData {
         }
     }
 
-    pub fn sinks_submenu(&self, show_more: bool) -> Element<Message> {
+    pub fn sinks_submenu(&self, id: Id, show_more: bool) -> Element<Message> {
         audio_submenu(
             self.sinks
                 .iter()
@@ -104,14 +105,14 @@ impl AudioData {
                 })
                 .collect(),
             if show_more {
-                Some(Message::Audio(AudioMessage::SinksMore))
+                Some(Message::Audio(AudioMessage::SinksMore(id)))
             } else {
                 None
             },
         )
     }
 
-    pub fn sources_submenu(&self, show_more: bool) -> Element<Message> {
+    pub fn sources_submenu(&self, id: Id, show_more: bool) -> Element<Message> {
         audio_submenu(
             self.sources
                 .iter()
@@ -128,7 +129,7 @@ impl AudioData {
                 })
                 .collect(),
             if show_more {
-                Some(Message::Audio(AudioMessage::SourcesMore))
+                Some(Message::Audio(AudioMessage::SourcesMore(id)))
             } else {
                 None
             },

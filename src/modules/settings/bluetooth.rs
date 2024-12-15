@@ -9,6 +9,7 @@ use crate::{
 };
 use iced::{
     widget::{button, column, container, horizontal_rule, row, text, Column, Row},
+    window::Id,
     Element, Length, Theme,
 };
 
@@ -16,12 +17,13 @@ use iced::{
 pub enum BluetoothMessage {
     Event(ServiceEvent<BluetoothService>),
     Toggle,
-    More,
+    More(Id),
 }
 
 impl BluetoothData {
     pub fn get_quick_setting_button(
         &self,
+        id: Id,
         sub_menu: Option<SubMenu>,
         show_more_button: bool,
     ) -> Option<(Element<Message>, Option<Element<Message>>)> {
@@ -41,11 +43,11 @@ impl BluetoothData {
             ),
             sub_menu
                 .filter(|menu_type| *menu_type == SubMenu::Bluetooth)
-                .map(|_| sub_menu_wrapper(self.bluetooth_menu(show_more_button))),
+                .map(|_| sub_menu_wrapper(self.bluetooth_menu(id, show_more_button))),
         ))
     }
 
-    pub fn bluetooth_menu(&self, show_more_button: bool) -> Element<Message> {
+    pub fn bluetooth_menu(&self, id: Id, show_more_button: bool) -> Element<Message> {
         let main = if self.devices.is_empty() {
             text("No devices connected").into()
         } else {
@@ -69,7 +71,7 @@ impl BluetoothData {
                 main,
                 horizontal_rule(1),
                 button("More")
-                    .on_press(Message::Bluetooth(BluetoothMessage::More))
+                    .on_press(Message::Bluetooth(BluetoothMessage::More(id)))
                     .padding([4, 12])
                     .width(Length::Fill)
                     .style(GhostButtonStyle.into_style())

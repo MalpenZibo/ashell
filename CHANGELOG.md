@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Multi monitor support
+
 ### Changed
 
 - Update to pop-os Iced 14.0-dev
