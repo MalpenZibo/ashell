@@ -356,24 +356,22 @@ impl Outputs {
     }
 
     pub fn request_keyboard<Message: 'static>(&self, id: Id) -> Task<Message> {
-        if let Some((_, menu, _)) = self
-            .active
-            .iter()
-            .find(|(layer_id, menu, _)| *layer_id == id || menu.id == id)
-        {
-            menu.request_keyboard()
+        if let Some((_, Some(shell_info), _)) = self.0.iter().find(|(_, shell_info, _)| {
+            shell_info.as_ref().map(|shell_info| shell_info.id) == Some(id)
+                || shell_info.as_ref().map(|shell_info| shell_info.menu.id) == Some(id)
+        }) {
+            shell_info.menu.request_keyboard()
         } else {
             Task::none()
         }
     }
 
     pub fn release_keyboard<Message: 'static>(&self, id: Id) -> Task<Message> {
-        if let Some((_, menu, _)) = self
-            .active
-            .iter()
-            .find(|(layer_id, menu, _)| *layer_id == id || menu.id == id)
-        {
-            menu.release_keyboard()
+        if let Some((_, Some(shell_info), _)) = self.0.iter().find(|(_, shell_info, _)| {
+            shell_info.as_ref().map(|shell_info| shell_info.id) == Some(id)
+                || shell_info.as_ref().map(|shell_info| shell_info.menu.id) == Some(id)
+        }) {
+            shell_info.menu.release_keyboard()
         } else {
             Task::none()
         }
