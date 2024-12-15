@@ -232,9 +232,8 @@ impl Outputs {
             .0
             .iter()
             .filter_map(|(name, shell_info, wl_output)| {
-                if !request_outputs
-                    .iter()
-                    .any(|output| output.as_str() == name && shell_info.is_none())
+                if !request_outputs.iter().any(|output| output.as_str() == name)
+                    && shell_info.is_some()
                 {
                     Some(wl_output.clone())
                 } else {
@@ -249,9 +248,8 @@ impl Outputs {
             .0
             .iter()
             .filter_map(|(name, shell_info, wl_output)| {
-                if request_outputs
-                    .iter()
-                    .any(|output| output.as_str() == name && shell_info.is_none())
+                if request_outputs.iter().any(|output| output.as_str() == name)
+                    && shell_info.is_none()
                 {
                     Some((name.clone(), wl_output.clone()))
                 } else {
