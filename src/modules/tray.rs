@@ -58,6 +58,7 @@ impl TrayModule {
                     .as_ref()
                     .and_then(|t| t.iter().find(|t| t.name == name))
                 {
+                    self.submenus.clear();
                     outputs.toggle_menu(id, MenuType::Tray(name))
                 } else {
                     Task::none()
@@ -134,7 +135,7 @@ impl TrayModule {
         }
     }
 
-    fn menu_voice<'a>(&'a self, name: &'_ str, layout: &'a Layout) -> Element<TrayMessage> {
+    fn menu_voice(&self, name: &str, layout: &Layout) -> Element<TrayMessage> {
         match &layout.1 {
             LayoutProps {
                 label: Some(label),
@@ -142,11 +143,14 @@ impl TrayModule {
                 toggle_state: Some(state),
                 ..
             } if toggle_type == "checkmark" => toggler(*state > 0)
-                .label(label.to_owned())
+                .label(label.replace("_", "").to_owned())
                 .on_toggle({
                     let name = name.to_owned();
-                    move |_| TrayMessage::MenuClick(name.to_owned(), layout.0)
+                    let id = layout.0;
+
+                    move |_| TrayMessage::MenuClick(name.to_owned(), id)
                 })
+                .width(Length::Fill)
                 .into(),
             LayoutProps {
                 children_display: Some(display),
@@ -157,7 +161,7 @@ impl TrayModule {
                 Column::new()
                     .push(
                         button(row!(
-                            text(label).width(Length::Fill),
+                            text(label.to_owned()).width(Length::Fill),
                             icon(if is_open {
                                 Icons::MenuOpen
                             } else {
@@ -178,7 +182,7 @@ impl TrayModule {
                                     .map(|menu| self.menu_voice(name, menu))
                                     .collect::<Vec<_>>(),
                             )
-                            .padding([0, 16, 0, 0])
+                            .padding([0, 0, 0, 16])
                             .spacing(4),
                         )
                     } else {
@@ -191,6 +195,7 @@ impl TrayModule {
             } => button(text(label.replace("_", "")))
                 .style(GhostButtonStyle.into_style())
                 .on_press(TrayMessage::MenuClick(name.to_owned(), layout.0))
+                .width(Length::Fill)
                 .padding([8, 8])
                 .into(),
             LayoutProps { type_: Some(t), .. } if t == "separator" => horizontal_rule(1).into(),
