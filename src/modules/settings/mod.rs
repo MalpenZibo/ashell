@@ -2,9 +2,9 @@ use self::{
     audio::AudioMessage, bluetooth::BluetoothMessage, network::NetworkMessage, power::PowerMessage,
 };
 use crate::{
-    app::MenuType,
     components::icons::{icon, Icons},
     config::SettingsModuleConfig,
+    menu::MenuType,
     modules::settings::power::power_menu,
     outputs::Outputs,
     password_dialog,

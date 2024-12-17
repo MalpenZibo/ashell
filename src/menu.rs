@@ -1,4 +1,4 @@
-use crate::app::{self, MenuType};
+use crate::app::{self};
 use crate::config::Position;
 use iced::alignment::{Horizontal, Vertical};
 use iced::platform_specific::shell::commands::layer_surface::{
@@ -10,7 +10,14 @@ use iced::window::Id;
 use iced::{self, widget::container, Element, Task, Theme};
 use iced::{Border, Length, Padding};
 
-#[derive(Debug, Clone)]
+#[derive(Eq, PartialEq, Clone, Debug)]
+pub enum MenuType {
+    Updates,
+    Settings,
+    Tray(String),
+}
+
+#[derive(Clone, Debug)]
 pub struct Menu {
     pub id: Id,
     pub menu_type: Option<MenuType>,
