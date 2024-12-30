@@ -121,7 +121,16 @@ outputs: # optional, default empty list (the bar will be displayed on the active
   - DP-1
 # Bar position, possible values Top | Bottom.
 position: Top # optional, default Top
-# App lancher commanda, it will be used to open the launcher,
+# Lists of modules on left, center and right
+# possible values: launcher | clipboard | updates | workspaces | title | systemInfo | keyboardSubmap | keyboardLayout | clock | privacy | settings
+left: # optional, this list is default
+    - workspaces
+center: # optional, this list is default
+    - title
+right: # optional, this list is default
+    - clock
+    - settings
+# App lancher command, it will be used to open the launcher,
 # without a value the related button will not appear
 appLauncherCmd: "~/.config/rofi/launcher.sh" # optional, default None
 # Clipboard command, it will be used to open the clipboard menu,

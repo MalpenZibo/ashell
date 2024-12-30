@@ -296,6 +296,22 @@ pub enum Position {
     Bottom,
 }
 
+#[derive(Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum Module {
+    Launcher,
+    Clipboard,
+    Updates,
+    Workspaces,
+    Title,
+    SystemInfo,
+    KeyboardSubmap,
+    KeyboardLayout,
+    Clock,
+    Privacy,
+    Settings,
+}
+
 #[derive(Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Config {
@@ -309,6 +325,12 @@ pub struct Config {
     pub clipboard_cmd: Option<String>,
     #[serde(default = "default_truncate_title_after_length")]
     pub truncate_title_after_length: u32,
+    #[serde(default = "default_left")]
+    pub left: Vec<Module>,
+    #[serde(default = "default_center")]
+    pub center: Vec<Module>,
+    #[serde(default = "default_right")]
+    pub right: Vec<Module>,
     #[serde(default)]
     pub updates: Option<UpdatesModuleConfig>,
     #[serde(default)]
@@ -331,6 +353,18 @@ fn default_truncate_title_after_length() -> u32 {
     150
 }
 
+fn default_left() -> Vec<Module> {
+    vec![Module::Workspaces]
+}
+
+fn default_center() -> Vec<Module> {
+    vec![Module::Title]
+}
+
+fn default_right() -> Vec<Module> {
+    vec![Module::Clock, Module::Settings]
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -346,6 +380,9 @@ impl Default for Config {
             clock: ClockModuleConfig::default(),
             settings: SettingsModuleConfig::default(),
             appearance: Appearance::default(),
+            left: default_left(),
+            center: default_center(),
+            right: default_right(),
         }
     }
 }

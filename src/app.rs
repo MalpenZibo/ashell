@@ -1,6 +1,6 @@
 use crate::{
     centerbox,
-    config::{self, Config},
+    config::{self, Config, Module},
     get_log_spec,
     menu::{menu_wrapper, MenuPosition},
     modules::{
@@ -217,76 +217,78 @@ impl App {
         }
     }
 
+    fn match_module(&self, module: &Module, id: Id) -> Option<Element<Message>> {
+        match module {
+            Module::Launcher => self
+                .config
+                .app_launcher_cmd
+                .as_ref()
+                .map(|_| launcher::launcher()),
+            Module::Clipboard => self
+                .config
+                .clipboard_cmd
+                .as_ref()
+                .map(|_| clipboard::clipboard()),
+            Module::Updates => self
+                .config
+                .updates
+                .as_ref()
+                .map(|_| self.updates.view(id).map(Message::Updates)),
+            Module::Workspaces => Some(
+                self.workspaces
+                    .view(
+                        &self.config.appearance.workspace_colors,
+                        self.config.appearance.special_workspace_colors.as_deref(),
+                    )
+                    .map(Message::Workspaces),
+            ),
+            Module::Title => self.window_title.view().map(|v| v.map(Message::Title)),
+            Module::SystemInfo => self
+                .system_info
+                .view(&self.config.system)
+                .map(|c| c.map(Message::SystemInfo)),
+            Module::KeyboardSubmap => self
+                .keyboard_submap
+                .view(&self.config.keyboard.submap)
+                .map(|l| l.map(Message::KeyboardSubmap)),
+            Module::KeyboardLayout => self
+                .keyboard_layout
+                .view(&self.config.keyboard.layout)
+                .map(|l| l.map(Message::KeyboardLayout)),
+            Module::Clock => Some(
+                self.clock
+                    .view(&self.config.clock.format)
+                    .map(Message::Clock),
+            ),
+            Module::Privacy => self
+                .privacy
+                .as_ref()
+                .and_then(|privacy| privacy.view())
+                .map(|e| e.map(Message::Privacy)),
+            Module::Settings => Some(self.settings.view(id).map(Message::Settings)),
+        }
+    }
+
     pub fn view(&self, id: Id) -> Element<Message> {
         match self.outputs.has(id) {
             Some(HasOutput::Main) => {
-                let left = Row::new()
-                    .push_maybe(
-                        self.config
-                            .app_launcher_cmd
-                            .as_ref()
-                            .map(|_| launcher::launcher()),
-                    )
-                    .push_maybe(
-                        self.config
-                            .clipboard_cmd
-                            .as_ref()
-                            .map(|_| clipboard::clipboard()),
-                    )
-                    .push_maybe(
-                        self.config
-                            .updates
-                            .as_ref()
-                            .map(|_| self.updates.view(id).map(Message::Updates)),
-                    )
-                    .push(
-                        self.workspaces
-                            .view(
-                                &self.config.appearance.workspace_colors,
-                                self.config.appearance.special_workspace_colors.as_deref(),
-                            )
-                            .map(Message::Workspaces),
-                    )
+                let mut left = Row::new()
                     .height(Length::Shrink)
                     .align_y(Alignment::Center)
                     .spacing(4);
+                for module in self.config.left.iter() {
+                    left = left.push_maybe(self.match_module(module, id))
+                }
 
-                let center = Row::new()
-                    .push_maybe(self.window_title.view().map(|v| v.map(Message::Title)))
-                    .spacing(4);
+                let mut center = Row::new().spacing(4);
+                for module in self.config.center.iter() {
+                    center = center.push_maybe(self.match_module(module, id))
+                }
 
-                let right = Row::new()
-                    .push_maybe(
-                        self.system_info
-                            .view(&self.config.system)
-                            .map(|c| c.map(Message::SystemInfo)),
-                    )
-                    .push_maybe(
-                        self.keyboard_submap
-                            .view(&self.config.keyboard.submap)
-                            .map(|l| l.map(Message::KeyboardSubmap)),
-                    )
-                    .push_maybe(
-                        self.keyboard_layout
-                            .view(&self.config.keyboard.layout)
-                            .map(|l| l.map(Message::KeyboardLayout)),
-                    )
-                    .push(
-                        Row::new()
-                            .push(
-                                self.clock
-                                    .view(&self.config.clock.format)
-                                    .map(Message::Clock),
-                            )
-                            .push_maybe(
-                                self.privacy
-                                    .as_ref()
-                                    .and_then(|privacy| privacy.view())
-                                    .map(|e| e.map(Message::Privacy)),
-                            )
-                            .push(self.settings.view(id).map(Message::Settings)),
-                    )
-                    .spacing(4);
+                let mut right = Row::new().spacing(4);
+                for module in self.config.right.iter() {
+                    right = right.push_maybe(self.match_module(module, id))
+                }
 
                 centerbox::Centerbox::new([left.into(), center.into(), right.into()])
                     .spacing(4)
