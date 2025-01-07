@@ -104,11 +104,12 @@ impl TrayModule {
                                     icon(Icons::Point).into()
                                 })
                                 .on_press(TrayMessage::OpenMenu(id, item.name.to_owned()))
+                                .padding([2, 2])
+                                .style(GhostButtonStyle.into_style())
                                 .into()
                             })
                             .collect::<Vec<_>>(),
                     )
-                    .padding([2, 0])
                     .align_y(Alignment::Center)
                     .spacing(8),
                 )
