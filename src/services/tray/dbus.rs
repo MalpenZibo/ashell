@@ -1,8 +1,5 @@
-use std::collections::HashMap;
-
 use iced::futures::StreamExt;
 use log::{info, warn};
-use serde::{Deserialize, Serialize};
 use zbus::{
     fdo::{DBusProxy, RequestNameFlags, RequestNameReply},
     interface,
@@ -189,28 +186,15 @@ impl<'a> serde::Deserialize<'a> for Layout {
 #[derive(Clone, Debug, Type, zvariant::DeserializeDict)]
 #[zvariant(signature = "dict")]
 pub struct LayoutProps {
-    #[zvariant(rename = "accessible-desc")]
-    accessible_desc: Option<String>,
     #[zvariant(rename = "children-display")]
     pub children_display: Option<String>,
     pub label: Option<String>,
-    enabled: Option<bool>,
-    visible: Option<bool>,
     #[zvariant(rename = "type")]
     pub type_: Option<String>,
     #[zvariant(rename = "toggle-type")]
     pub toggle_type: Option<String>,
     #[zvariant(rename = "toggle-state")]
     pub toggle_state: Option<i32>,
-    #[zvariant(rename = "icon-data")]
-    icon_data: Option<Vec<u8>>,
-    #[zvariant(rename = "icon-name")]
-    icon_name: Option<String>,
-    disposition: Option<String>,
-    // If this field has a different type, this causes the whole type to fail
-    // to parse, due to a zvariant bug.
-    // https://github.com/dbus2/zbus/issues/856
-    // shortcut: Option<String>,
 }
 
 #[proxy(interface = "com.canonical.dbusmenu")]

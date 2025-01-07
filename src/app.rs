@@ -313,7 +313,7 @@ impl App {
                 ),
                 Some(MenuType::Tray(name)) => menu_wrapper(
                     id,
-                    self.tray.menu_view(&name).map(Message::Tray),
+                    self.tray.menu_view(name).map(Message::Tray),
                     MenuPosition::Right,
                     self.config.position,
                 ),

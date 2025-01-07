@@ -99,7 +99,7 @@ impl Deref for TrayData {
 #[derive(Debug, Clone)]
 pub struct TrayService {
     pub data: TrayData,
-    conn: zbus::Connection,
+    _conn: zbus::Connection,
 }
 
 impl Deref for TrayService {
@@ -254,7 +254,7 @@ impl TrayService {
                             let _ = output
                                 .send(ServiceEvent::Init(TrayService {
                                     data,
-                                    conn: conn.clone(),
+                                    _conn: conn.clone(),
                                 }))
                                 .await;
 

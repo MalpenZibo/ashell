@@ -253,7 +253,7 @@ dependencies = [
  "hyprland",
  "iced",
  "inotify",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "libpulse-binding",
  "log",
  "pipewire",
@@ -298,30 +298,6 @@ dependencies = [
  "event-listener-strategy",
  "futures-core",
  "pin-project-lite",
-]
-
-[[package]]
-name = "async-executor"
-version = "1.13.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30ca9a001c1e8ba5149f91a74362376cc6bc5b919d92d988668657bd570bdcec"
-dependencies = [
- "async-task",
- "concurrent-queue",
- "fastrand 2.3.0",
- "futures-lite 2.5.0",
- "slab",
-]
-
-[[package]]
-name = "async-fs"
-version = "2.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ebcd09b382f40fcd159c2d695175b2ae620ffa5f3bd6f664131efff4e8b9e04a"
-dependencies = [
- "async-lock 3.4.0",
- "blocking",
- "futures-lite 2.5.0",
 ]
 
 [[package]]
@@ -398,25 +374,6 @@ dependencies = [
  "futures-lite 1.13.0",
  "rustix 0.38.42",
  "windows-sys 0.48.0",
-]
-
-[[package]]
-name = "async-process"
-version = "2.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "63255f1dc2381611000436537bbedfe83183faa303a5a0edaf191edef06526bb"
-dependencies = [
- "async-channel",
- "async-io 2.4.0",
- "async-lock 3.4.0",
- "async-signal",
- "async-task",
- "blocking",
- "cfg-if",
- "event-listener 5.3.1",
- "futures-lite 2.5.0",
- "rustix 0.38.42",
- "tracing",
 ]
 
 [[package]]
@@ -1562,10 +1519,7 @@ version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cef40d21ae2c515b51041df9ed313ed21e572df340ea58a922a0aefe7e8891a1"
 dependencies = [
- "fastrand 2.3.0",
  "futures-core",
- "futures-io",
- "parking",
  "pin-project-lite",
 ]
 
@@ -2216,9 +2170,9 @@ dependencies = [
 
 [[package]]
 name = "itertools"
-version = "0.13.0"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
+checksum = "2b192c782037fadd9cfa75548310488aabdbf3d2da73885b31bd0abd03351285"
 dependencies = [
  "either",
 ]
@@ -5269,7 +5223,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "675d170b632a6ad49804c8cf2105d7c31eddd3312555cffd4b740e08e97c25e6"
 dependencies = [
  "async-broadcast 0.5.1",
- "async-process 1.8.1",
+ "async-process",
  "async-recursion",
  "async-trait",
  "byteorder",
@@ -5305,15 +5259,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fb67eadba43784b6fb14857eba0d8fc518686d3ee537066eb6086dc318e2c8a1"
 dependencies = [
  "async-broadcast 0.7.1",
- "async-executor",
- "async-fs",
- "async-io 2.4.0",
- "async-lock 3.4.0",
- "async-process 2.3.0",
  "async-recursion",
- "async-task",
  "async-trait",
- "blocking",
  "enumflags2",
  "event-listener 5.3.1",
  "futures-core",
