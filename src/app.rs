@@ -2,7 +2,7 @@ use crate::{
     centerbox,
     config::{self, Config},
     get_log_spec,
-    menu::{menu_wrapper, MenuPosition, MenuType},
+    menu::{menu_wrapper, MenuSize, MenuType},
     modules::{
         self, clipboard,
         clock::Clock,
@@ -304,25 +304,28 @@ impl App {
                     .align_items(Alignment::Center)
                     .into()
             }
-            Some(HasOutput::Menu(menu_type)) => match menu_type {
-                Some(MenuType::Updates) => menu_wrapper(
+            Some(HasOutput::Menu(menu_info)) => match menu_info {
+                Some((MenuType::Updates, button_ui_ref)) => menu_wrapper(
                     id,
                     self.updates.menu_view(id).map(Message::Updates),
-                    MenuPosition::Left,
+                    MenuSize::Normal,
+                    *button_ui_ref,
                     self.config.position,
                 ),
-                Some(MenuType::Tray(name)) => menu_wrapper(
+                Some((MenuType::Tray(name), button_ui_ref)) => menu_wrapper(
                     id,
                     self.tray.menu_view(name).map(Message::Tray),
-                    MenuPosition::Right,
+                    MenuSize::Normal,
+                    *button_ui_ref,
                     self.config.position,
                 ),
-                Some(MenuType::Settings) => menu_wrapper(
+                Some((MenuType::Settings, button_ui_ref)) => menu_wrapper(
                     id,
                     self.settings
                         .menu_view(id, &self.config.settings)
                         .map(Message::Settings),
-                    MenuPosition::Right,
+                    MenuSize::Large,
+                    *button_ui_ref,
                     self.config.position,
                 ),
                 None => Row::new().into(),

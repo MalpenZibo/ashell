@@ -2,6 +2,7 @@ use crate::{
     components::icons::{icon, Icons},
     menu::MenuType,
     outputs::Outputs,
+    position_button::{position_button, ButtonUIRef},
     services::{
         tray::{
             dbus::{Layout, LayoutProps},
@@ -21,7 +22,7 @@ use log::debug;
 #[derive(Debug, Clone)]
 pub enum TrayMessage {
     Event(ServiceEvent<TrayService>),
-    OpenMenu(Id, String),
+    OpenMenu(Id, String, ButtonUIRef),
     ToggleSubmenu(i32),
     MenuClick(String, i32),
 }
@@ -52,14 +53,14 @@ impl TrayModule {
                 }
                 ServiceEvent::Error(_) => Task::none(),
             },
-            TrayMessage::OpenMenu(id, name) => {
+            TrayMessage::OpenMenu(id, name, button_ui_ref) => {
                 if let Some(_tray) = self
                     .service
                     .as_ref()
                     .and_then(|t| t.iter().find(|t| t.name == name))
                 {
                     self.submenus.clear();
-                    outputs.toggle_menu(id, MenuType::Tray(name))
+                    outputs.toggle_menu(id, MenuType::Tray(name), button_ui_ref)
                 } else {
                     Task::none()
                 }
@@ -96,14 +97,16 @@ impl TrayModule {
                             .data
                             .iter()
                             .map(|item| {
-                                button(if let Some(pixmap) = &item.icon_pixmap {
+                                position_button(if let Some(pixmap) = &item.icon_pixmap {
                                     Into::<Element<_>>::into(
                                         Image::new(pixmap.clone()).height(Length::Fixed(14.)),
                                     )
                                 } else {
                                     icon(Icons::Point).into()
                                 })
-                                .on_press(TrayMessage::OpenMenu(id, item.name.to_owned()))
+                                .on_press(move |button_ui_ref| {
+                                    TrayMessage::OpenMenu(id, item.name.to_owned(), button_ui_ref)
+                                })
                                 .padding([2, 2])
                                 .style(GhostButtonStyle.into_style())
                                 .into()
@@ -128,8 +131,6 @@ impl TrayModule {
             Column::with_children(item.menu.2.iter().map(|menu| self.menu_voice(name, menu)))
                 .spacing(8)
                 .padding(16)
-                .max_width(350.)
-                .max_width(300)
                 .into()
         } else {
             Row::new().into()
