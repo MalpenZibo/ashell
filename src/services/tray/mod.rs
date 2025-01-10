@@ -220,7 +220,7 @@ impl TrayService {
                 menu_layout_change.push(layout_updated.filter_map({
                     let name = name.clone();
                     let menu_proxy = item.menu_proxy.clone();
-                    println!("menu layout changed");
+                    debug!("menu layout changed");
                     move |_| {
                         let name = name.clone();
                         let menu_proxy = menu_proxy.clone();
@@ -307,7 +307,10 @@ impl TrayService {
         }
     }
 
-    async fn click_menu_voice(menu_proxy: &DBusMenuProxy<'_>, id: i32) -> anyhow::Result<Layout> {
+    async fn menu_voice_selected(
+        menu_proxy: &DBusMenuProxy<'_>,
+        id: i32,
+    ) -> anyhow::Result<Layout> {
         let value = zbus::zvariant::Value::I32(32).try_to_owned()?;
         menu_proxy
             .event(
@@ -377,7 +380,7 @@ impl ReadOnlyService for TrayService {
 
 #[derive(Debug, Clone)]
 pub enum TrayCommand {
-    MenuClick(String, i32),
+    MenuSelected(String, i32),
 }
 
 impl Service for TrayService {
@@ -385,7 +388,7 @@ impl Service for TrayService {
 
     fn command(&mut self, command: Self::Command) -> Task<ServiceEvent<Self>> {
         match command {
-            TrayCommand::MenuClick(name, id) => {
+            TrayCommand::MenuSelected(name, id) => {
                 let menu = self.data.iter().find(|item| item.name == name);
                 if let Some(menu) = menu {
                     let name_cb = name.clone();
@@ -395,7 +398,7 @@ impl Service for TrayService {
 
                             async move {
                                 debug!("Click tray menu voice {} : {}", name, id);
-                                TrayService::click_menu_voice(&proxy, id).await
+                                TrayService::menu_voice_selected(&proxy, id).await
                             }
                         },
                         move |new_layout| {

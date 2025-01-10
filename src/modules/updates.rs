@@ -257,7 +257,6 @@ impl Updates {
             .width(Length::Fill),
         )
         .spacing(4)
-        .padding(16)
         .into()
     }
 

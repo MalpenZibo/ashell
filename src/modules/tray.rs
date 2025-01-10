@@ -24,7 +24,7 @@ pub enum TrayMessage {
     Event(ServiceEvent<TrayService>),
     OpenMenu(Id, String, ButtonUIRef),
     ToggleSubmenu(i32),
-    MenuClick(String, i32),
+    MenuSelected(String, i32),
 }
 
 #[derive(Debug, Default, Clone)]
@@ -73,11 +73,11 @@ impl TrayModule {
                 }
                 Task::none()
             }
-            TrayMessage::MenuClick(name, id) => {
+            TrayMessage::MenuSelected(name, id) => {
                 if let Some(service) = self.service.as_mut() {
                     debug!("Tray menu click: {}", id);
                     service
-                        .command(TrayCommand::MenuClick(name, id))
+                        .command(TrayCommand::MenuSelected(name, id))
                         .map(|event| crate::app::Message::Tray(TrayMessage::Event(event)))
                 } else {
                     Task::none()
@@ -130,7 +130,6 @@ impl TrayModule {
         {
             Column::with_children(item.menu.2.iter().map(|menu| self.menu_voice(name, menu)))
                 .spacing(8)
-                .padding(16)
                 .into()
         } else {
             Row::new().into()
@@ -150,7 +149,7 @@ impl TrayModule {
                     let name = name.to_owned();
                     let id = layout.0;
 
-                    move |_| TrayMessage::MenuClick(name.to_owned(), id)
+                    move |_| TrayMessage::MenuSelected(name.to_owned(), id)
                 })
                 .width(Length::Fill)
                 .into(),
@@ -196,7 +195,7 @@ impl TrayModule {
                 label: Some(label), ..
             } => button(text(label.replace("_", "")))
                 .style(GhostButtonStyle.into_style())
-                .on_press(TrayMessage::MenuClick(name.to_owned(), layout.0))
+                .on_press(TrayMessage::MenuSelected(name.to_owned(), layout.0))
                 .width(Length::Fill)
                 .padding([8, 8])
                 .into(),

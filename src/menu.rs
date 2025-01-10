@@ -123,6 +123,7 @@ pub fn menu_wrapper(
                     .height(Length::Shrink)
                     .width(Length::Shrink)
                     .max_width(menu_size.size())
+                    .padding(16)
                     .style(|theme: &Theme| Style {
                         background: Some(theme.palette().background.into()),
                         border: Border {

@@ -621,7 +621,6 @@ impl Settings {
                 .push_maybe(self.brightness.as_ref().map(|b| b.brightness_slider()))
                 .push(quick_settings)
                 .spacing(16)
-                .padding(16)
                 .into()
         }
     }

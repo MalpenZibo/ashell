@@ -159,15 +159,12 @@ pub trait StatusNotifierItem {
     #[zbus(property)]
     fn icon_name(&self) -> zbus::Result<String>;
 
-    // https://www.freedesktop.org/wiki/Specifications/StatusNotifierItem/Icons
     #[zbus(property)]
     fn icon_pixmap(&self) -> zbus::Result<Vec<Icon>>;
 
     #[zbus(property)]
     fn menu(&self) -> zbus::Result<OwnedObjectPath>;
 }
-
-// type Layout = (u32, (i32, HashMap<String, OwnedValue>, Vec<OwnedValue>));
 
 #[derive(Clone, Debug, Type)]
 #[zvariant(signature = "(ia{sv}av)")]
