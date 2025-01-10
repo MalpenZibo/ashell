@@ -1,8 +1,10 @@
 use crate::{
-    app::{self, MenuType},
+    app::{self},
     components::icons::{icon, Icons},
     config::UpdatesModuleConfig,
+    menu::MenuType,
     outputs::Outputs,
+    position_button::{position_button, ButtonUIRef},
     style::{GhostButtonStyle, HeaderButtonStyle},
 };
 use iced::{
@@ -71,7 +73,7 @@ async fn update(update_cmd: &str) {
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    ToggleMenu(Id),
+    ToggleMenu(Id, ButtonUIRef),
     UpdatesCheckCompleted(Vec<Update>),
     UpdateFinished,
     ToggleUpdatesList,
@@ -107,9 +109,9 @@ impl Updates {
 
                 Task::none()
             }
-            Message::ToggleMenu(id) => {
+            Message::ToggleMenu(id, button_ui_ref) => {
                 self.is_updates_list_open = false;
-                outputs.toggle_menu(id, MenuType::Updates)
+                outputs.toggle_menu(id, MenuType::Updates, button_ui_ref)
             }
             Message::UpdateFinished => {
                 self.updates.clear();
@@ -164,10 +166,10 @@ impl Updates {
             content = content.push(text(self.updates.len()));
         }
 
-        button(content)
+        position_button(content)
             .padding([2, 7])
             .style(HeaderButtonStyle::Full.into_style())
-            .on_press(Message::ToggleMenu(id))
+            .on_press(move |button_ui_ref| Message::ToggleMenu(id, button_ui_ref))
             .into()
     }
 
@@ -255,8 +257,6 @@ impl Updates {
             .width(Length::Fill),
         )
         .spacing(4)
-        .padding(16)
-        .width(250)
         .into()
     }
 

@@ -118,6 +118,13 @@ impl Default for KeyboardModuleConfig {
     }
 }
 
+#[derive(Deserialize, Clone, Debug, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct TrayModuleConfig {
+    #[serde(default)]
+    pub disabled: bool,
+}
+
 #[derive(Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct ClockModuleConfig {
@@ -316,6 +323,8 @@ pub struct Config {
     #[serde(default)]
     pub keyboard: KeyboardModuleConfig,
     #[serde(default)]
+    pub tray: TrayModuleConfig,
+    #[serde(default)]
     pub clock: ClockModuleConfig,
     #[serde(default)]
     pub settings: SettingsModuleConfig,
@@ -343,6 +352,7 @@ impl Default for Config {
             updates: None,
             system: SystemModuleConfig::default(),
             keyboard: KeyboardModuleConfig::default(),
+            tray: TrayModuleConfig::default(),
             clock: ClockModuleConfig::default(),
             settings: SettingsModuleConfig::default(),
             appearance: Appearance::default(),

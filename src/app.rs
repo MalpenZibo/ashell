@@ -2,14 +2,23 @@ use crate::{
     centerbox,
     config::{self, Config},
     get_log_spec,
-    menu::{menu_wrapper, MenuPosition},
+    menu::{menu_wrapper, MenuSize, MenuType},
     modules::{
-        self, clipboard, clock::Clock, keyboard_layout::KeyboardLayout,
-        keyboard_submap::KeyboardSubmap, launcher, privacy::PrivacyMessage, settings::Settings,
-        system_info::SystemInfo, title::Title, updates::Updates, workspaces::Workspaces,
+        self, clipboard,
+        clock::Clock,
+        keyboard_layout::KeyboardLayout,
+        keyboard_submap::KeyboardSubmap,
+        launcher,
+        privacy::PrivacyMessage,
+        settings::Settings,
+        system_info::SystemInfo,
+        title::Title,
+        tray::{TrayMessage, TrayModule},
+        updates::Updates,
+        workspaces::Workspaces,
     },
     outputs::{HasOutput, Outputs},
-    services::{privacy::PrivacyService, ReadOnlyService, ServiceEvent},
+    services::{privacy::PrivacyService, tray::TrayService, ReadOnlyService, ServiceEvent},
     style::ashell_theme,
     utils, HEIGHT,
 };
@@ -33,15 +42,10 @@ pub struct App {
     system_info: SystemInfo,
     keyboard_layout: KeyboardLayout,
     keyboard_submap: KeyboardSubmap,
+    tray: TrayModule,
     clock: Clock,
     privacy: Option<PrivacyService>,
     pub settings: Settings,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MenuType {
-    Updates,
-    Settings,
 }
 
 #[derive(Debug, Clone)]
@@ -57,6 +61,7 @@ pub enum Message {
     SystemInfo(modules::system_info::Message),
     KeyboardLayout(modules::keyboard_layout::Message),
     KeyboardSubmap(modules::keyboard_submap::Message),
+    Tray(modules::tray::TrayMessage),
     Clock(modules::clock::Message),
     Privacy(modules::privacy::PrivacyMessage),
     Settings(modules::settings::Message),
@@ -78,6 +83,7 @@ impl App {
                     system_info: SystemInfo::default(),
                     keyboard_layout: KeyboardLayout::default(),
                     keyboard_submap: KeyboardSubmap::default(),
+                    tray: TrayModule::default(),
                     clock: Clock::default(),
                     privacy: None,
                     settings: Settings::default(),
@@ -167,6 +173,7 @@ impl App {
                 self.keyboard_submap.update(message);
                 Task::none()
             }
+            Message::Tray(msg) => self.tray.update(msg, &mut self.outputs),
             Message::Clock(message) => {
                 self.clock.update(message);
                 Task::none()
@@ -271,6 +278,11 @@ impl App {
                             .view(&self.config.keyboard.layout)
                             .map(|l| l.map(Message::KeyboardLayout)),
                     )
+                    .push_maybe(
+                        self.tray
+                            .view(id, &self.config.tray)
+                            .map(|e| e.map(Message::Tray)),
+                    )
                     .push(
                         Row::new()
                             .push(
@@ -296,19 +308,28 @@ impl App {
                     .align_items(Alignment::Center)
                     .into()
             }
-            Some(HasOutput::Menu(menu_type)) => match menu_type {
-                Some(MenuType::Updates) => menu_wrapper(
+            Some(HasOutput::Menu(menu_info)) => match menu_info {
+                Some((MenuType::Updates, button_ui_ref)) => menu_wrapper(
                     id,
                     self.updates.menu_view(id).map(Message::Updates),
-                    MenuPosition::Left,
+                    MenuSize::Normal,
+                    *button_ui_ref,
                     self.config.position,
                 ),
-                Some(MenuType::Settings) => menu_wrapper(
+                Some((MenuType::Tray(name), button_ui_ref)) => menu_wrapper(
+                    id,
+                    self.tray.menu_view(name).map(Message::Tray),
+                    MenuSize::Normal,
+                    *button_ui_ref,
+                    self.config.position,
+                ),
+                Some((MenuType::Settings, button_ui_ref)) => menu_wrapper(
                     id,
                     self.settings
                         .menu_view(id, &self.config.settings)
                         .map(Message::Settings),
-                    MenuPosition::Right,
+                    MenuSize::Large,
+                    *button_ui_ref,
                     self.config.position,
                 ),
                 None => Row::new().into(),
@@ -338,6 +359,7 @@ impl App {
                         .subscription()
                         .map(Message::KeyboardSubmap),
                 ),
+                Some(TrayService::subscribe().map(|e| Message::Tray(TrayMessage::Event(e)))),
                 Some(self.clock.subscription().map(Message::Clock)),
                 Some(
                     PrivacyService::subscribe().map(|e| Message::Privacy(PrivacyMessage::Event(e))),
