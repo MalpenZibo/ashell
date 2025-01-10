@@ -235,7 +235,6 @@ impl<'a> NetworkDbus<'a> {
                 let mut scan_changed = wireless_device.receive_last_scan_changed().await;
                 if let Some(t) = scan_changed.next().await {
                     if let Ok(-1) = t.get().await {
-                        eprintln!("scan errored");
                         return Ok(Default::default());
                     }
                 }

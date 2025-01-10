@@ -15,6 +15,7 @@ mod menu;
 mod modules;
 mod outputs;
 mod password_dialog;
+mod position_button;
 mod services;
 mod style;
 mod utils;

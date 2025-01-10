@@ -9,7 +9,12 @@ use iced::{
 use log::debug;
 use wayland_client::protocol::wl_output::WlOutput;
 
-use crate::{app::MenuType, config::Position, menu::Menu, HEIGHT};
+use crate::{
+    config::Position,
+    menu::{Menu, MenuType},
+    position_button::ButtonUIRef,
+    HEIGHT,
+};
 
 static FALLBACK_LAYER: &str = "fallback";
 
@@ -23,9 +28,9 @@ struct ShellInfo {
 #[derive(Debug, Clone)]
 pub struct Outputs(Vec<(String, Option<ShellInfo>, Option<WlOutput>)>);
 
-pub enum HasOutput {
+pub enum HasOutput<'a> {
     Main,
-    Menu(Option<MenuType>),
+    Menu(Option<&'a (MenuType, ButtonUIRef)>),
 }
 
 impl Outputs {
@@ -92,7 +97,7 @@ impl Outputs {
                 if info.id == id {
                     Some(HasOutput::Main)
                 } else if info.menu.id == id {
-                    Some(HasOutput::Menu(info.menu.menu_type))
+                    Some(HasOutput::Menu(info.menu.menu_info.as_ref()))
                 } else {
                     None
                 }
@@ -298,12 +303,17 @@ impl Outputs {
         Task::batch(tasks)
     }
 
-    pub fn toggle_menu<Message: 'static>(&mut self, id: Id, menu_type: MenuType) -> Task<Message> {
+    pub fn toggle_menu<Message: 'static>(
+        &mut self,
+        id: Id,
+        menu_type: MenuType,
+        button_ui_ref: ButtonUIRef,
+    ) -> Task<Message> {
         if let Some((_, Some(shell_info), _)) = self.0.iter_mut().find(|(_, shell_info, _)| {
             shell_info.as_ref().map(|shell_info| shell_info.id) == Some(id)
                 || shell_info.as_ref().map(|shell_info| shell_info.menu.id) == Some(id)
         }) {
-            let toggle_task = shell_info.menu.toggle(menu_type);
+            let toggle_task = shell_info.menu.toggle(menu_type, button_ui_ref);
             let mut tasks = self
                 .0
                 .iter_mut()

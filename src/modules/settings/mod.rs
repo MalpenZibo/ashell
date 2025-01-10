@@ -2,12 +2,13 @@ use self::{
     audio::AudioMessage, bluetooth::BluetoothMessage, network::NetworkMessage, power::PowerMessage,
 };
 use crate::{
-    app::MenuType,
     components::icons::{icon, Icons},
     config::SettingsModuleConfig,
+    menu::MenuType,
     modules::settings::power::power_menu,
     outputs::Outputs,
     password_dialog,
+    position_button::{position_button, ButtonUIRef},
     services::{
         audio::{AudioCommand, AudioService},
         bluetooth::{BluetoothCommand, BluetoothService, BluetoothState},
@@ -69,7 +70,7 @@ impl Default for Settings {
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    ToggleMenu(Id),
+    ToggleMenu(Id, ButtonUIRef),
     UPower(UPowerMessage),
     Network(NetworkMessage),
     Bluetooth(BluetoothMessage),
@@ -100,10 +101,10 @@ impl Settings {
         outputs: &mut Outputs,
     ) -> Task<crate::app::Message> {
         match message {
-            Message::ToggleMenu(id) => {
+            Message::ToggleMenu(id, button_ui_ref) => {
                 self.sub_menu = None;
                 self.password_dialog = None;
-                outputs.toggle_menu(id, MenuType::Settings)
+                outputs.toggle_menu(id, MenuType::Settings, button_ui_ref)
             }
             Message::Audio(msg) => match msg {
                 AudioMessage::Event(event) => match event {
@@ -448,7 +449,7 @@ impl Settings {
     }
 
     pub fn view(&self, id: Id) -> Element<Message> {
-        button(
+        position_button(
             Row::new()
                 .push_maybe(
                     self.idle_inhibitor
@@ -489,7 +490,7 @@ impl Settings {
         )
         .style(HeaderButtonStyle::Right.into_style())
         .padding([2, 8])
-        .on_press(Message::ToggleMenu(id))
+        .on_press(move |button_ui_ref| Message::ToggleMenu(id, button_ui_ref))
         .into()
     }
 
@@ -620,8 +621,6 @@ impl Settings {
                 .push_maybe(self.brightness.as_ref().map(|b| b.brightness_slider()))
                 .push(quick_settings)
                 .spacing(16)
-                .padding(16)
-                .max_width(350.)
                 .into()
         }
     }

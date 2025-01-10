@@ -1,5 +1,8 @@
-use super::{ReadOnlyService, ServiceEvent};
-use dbus::{StatusNotifierItemProxy, StatusNotifierWatcher, StatusNotifierWatcherProxy};
+use super::{ReadOnlyService, Service, ServiceEvent};
+use dbus::{
+    DBusMenuProxy, Layout, StatusNotifierItemProxy, StatusNotifierWatcher,
+    StatusNotifierWatcherProxy,
+};
 use iced::{
     futures::{
         channel::mpsc::Sender,
@@ -8,39 +11,42 @@ use iced::{
     },
     stream::channel,
     widget::image::Handle,
-    Subscription,
+    Subscription, Task,
 };
 use log::{debug, error, info, trace};
 use std::{any::TypeId, ops::Deref};
 
-mod dbus;
+pub mod dbus;
 
 #[derive(Debug, Clone)]
 pub enum TrayEvent {
     Registered(StatusNotifierItem),
-    IconChanged((String, Handle)),
+    IconChanged(String, Handle),
+    MenuLayoutChanged(String, Layout),
     Unregistered(String),
+    None,
 }
 
 #[derive(Debug, Clone)]
 pub struct StatusNotifierItem {
     pub name: String,
     pub icon_pixmap: Option<Handle>,
-    pub item_proxy: StatusNotifierItemProxy<'static>,
-    // menu_proxy: DBusMenuProxy<'static>,
+    pub menu: Layout,
+    item_proxy: StatusNotifierItemProxy<'static>,
+    menu_proxy: DBusMenuProxy<'static>,
 }
 
 impl StatusNotifierItem {
-    pub async fn new(connection: &zbus::Connection, name: String) -> zbus::Result<Self> {
+    pub async fn new(conn: &zbus::Connection, name: String) -> anyhow::Result<Self> {
         let (dest, path) = if let Some(idx) = name.find('/') {
             (&name[..idx], &name[idx..])
         } else {
-            (name.as_str(), "/StatusNotifierItem")
+            (name.as_ref(), "/StatusNotifierItem")
         };
 
-        let item_proxy = StatusNotifierItemProxy::builder(connection)
-            .destination(dest.to_string())?
-            .path(path.to_string())?
+        let item_proxy = StatusNotifierItemProxy::builder(conn)
+            .destination(dest.to_owned())?
+            .path(path.to_owned())?
             .build()
             .await?;
 
@@ -61,18 +67,21 @@ impl StatusNotifierItem {
                 Handle::from_rgba(i.width as u32, i.height as u32, i.bytes)
             });
 
-        // let menu_path = item_proxy.menu().await?;
-        // let menu_proxy = DBusMenuProxy::builder(connection)
-        //     .destination(dest.to_string())?
-        //     .path(menu_path)?
-        //     .build()
-        //     .await?;
+        let menu_path = item_proxy.menu().await?;
+        let menu_proxy = dbus::DBusMenuProxy::builder(conn)
+            .destination(dest.to_owned())?
+            .path(menu_path.to_owned())?
+            .build()
+            .await?;
+
+        let (_, menu) = menu_proxy.get_layout(0, -1, &[]).await?;
 
         Ok(Self {
             name,
             icon_pixmap,
+            menu,
             item_proxy,
-            // menu_proxy,
+            menu_proxy,
         })
     }
 }
@@ -89,7 +98,7 @@ impl Deref for TrayData {
 
 #[derive(Debug, Clone)]
 pub struct TrayService {
-    data: TrayData,
+    pub data: TrayData,
     _conn: zbus::Connection,
 }
 
@@ -165,6 +174,7 @@ impl TrayService {
 
         let items = watcher.registered_status_notifier_items().await?;
         let mut icon_pixel_change = Vec::with_capacity(items.len());
+        let mut menu_layout_change = Vec::with_capacity(items.len());
 
         for name in items {
             let item = StatusNotifierItem::new(conn, name.to_string()).await?;
@@ -189,14 +199,14 @@ impl TrayService {
                                             for pixel in i.bytes.chunks_exact_mut(4) {
                                                 pixel.rotate_left(1);
                                             }
-                                            TrayEvent::IconChanged((
+                                            TrayEvent::IconChanged(
                                                 name.to_owned(),
                                                 Handle::from_rgba(
                                                     i.width as u32,
                                                     i.height as u32,
                                                     i.bytes,
                                                 ),
-                                            ))
+                                            )
                                         })
                                 })
                             }
@@ -204,6 +214,28 @@ impl TrayService {
                     })
                     .boxed(),
             );
+
+            let layout_updated = item.menu_proxy.receive_layout_updated().await;
+            if let Ok(layout_updated) = layout_updated {
+                menu_layout_change.push(layout_updated.filter_map({
+                    let name = name.clone();
+                    let menu_proxy = item.menu_proxy.clone();
+                    debug!("menu layout changed");
+                    move |_| {
+                        let name = name.clone();
+                        let menu_proxy = menu_proxy.clone();
+                        async move {
+                            menu_proxy
+                                .get_layout(0, -1, &[])
+                                .await
+                                .ok()
+                                .map(|(_, layout)| {
+                                    TrayEvent::MenuLayoutChanged(name.to_owned(), layout)
+                                })
+                        }
+                    }
+                }));
+            }
         }
 
         Ok(stream_select!(registered, unregistered, select_all(icon_pixel_change)).boxed())
@@ -274,6 +306,25 @@ impl TrayService {
             }
         }
     }
+
+    async fn menu_voice_selected(
+        menu_proxy: &DBusMenuProxy<'_>,
+        id: i32,
+    ) -> anyhow::Result<Layout> {
+        let value = zbus::zvariant::Value::I32(32).try_to_owned()?;
+        menu_proxy
+            .event(
+                id,
+                "clicked",
+                &value,
+                chrono::offset::Local::now().timestamp_subsec_micros(),
+            )
+            .await?;
+
+        let (_, layout) = menu_proxy.get_layout(0, -1, &[]).await?;
+
+        Ok(layout)
+    }
 }
 
 impl ReadOnlyService for TrayService {
@@ -294,14 +345,20 @@ impl ReadOnlyService for TrayService {
                     self.data.0.push(new_item);
                 }
             }
-            TrayEvent::IconChanged((name, handle)) => {
+            TrayEvent::IconChanged(name, handle) => {
                 if let Some(item) = self.data.0.iter_mut().find(|item| item.name == name) {
                     item.icon_pixmap = Some(handle);
+                }
+            }
+            TrayEvent::MenuLayoutChanged(name, layout) => {
+                if let Some(item) = self.data.0.iter_mut().find(|item| item.name == name) {
+                    item.menu = layout;
                 }
             }
             TrayEvent::Unregistered(name) => {
                 self.data.0.retain(|item| item.name != name);
             }
+            TrayEvent::None => {}
         }
     }
 
@@ -318,5 +375,47 @@ impl ReadOnlyService for TrayService {
                 }
             }),
         )
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum TrayCommand {
+    MenuSelected(String, i32),
+}
+
+impl Service for TrayService {
+    type Command = TrayCommand;
+
+    fn command(&mut self, command: Self::Command) -> Task<ServiceEvent<Self>> {
+        match command {
+            TrayCommand::MenuSelected(name, id) => {
+                let menu = self.data.iter().find(|item| item.name == name);
+                if let Some(menu) = menu {
+                    let name_cb = name.clone();
+                    Task::perform(
+                        {
+                            let proxy = menu.menu_proxy.clone();
+
+                            async move {
+                                debug!("Click tray menu voice {} : {}", name, id);
+                                TrayService::menu_voice_selected(&proxy, id).await
+                            }
+                        },
+                        move |new_layout| {
+                            if let Ok(new_layout) = new_layout {
+                                ServiceEvent::Update(TrayEvent::MenuLayoutChanged(
+                                    name_cb.clone(),
+                                    new_layout,
+                                ))
+                            } else {
+                                ServiceEvent::Update(TrayEvent::None)
+                            }
+                        },
+                    )
+                } else {
+                    Task::none()
+                }
+            }
+        }
     }
 }
