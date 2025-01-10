@@ -1,5 +1,6 @@
 use crate::{
     components::icons::{icon, Icons},
+    config::TrayModuleConfig,
     menu::MenuType,
     outputs::Outputs,
     position_button::{position_button, ButtonUIRef},
@@ -86,10 +87,10 @@ impl TrayModule {
         }
     }
 
-    pub fn view(&self, id: Id) -> Option<Element<TrayMessage>> {
+    pub fn view(&self, id: Id, config: &TrayModuleConfig) -> Option<Element<TrayMessage>> {
         self.service
             .as_ref()
-            .filter(|s| s.data.len() > 0)
+            .filter(|s| !config.disabled && s.data.len() > 0)
             .map(|service| {
                 container(
                     Row::with_children(

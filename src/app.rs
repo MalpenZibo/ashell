@@ -278,7 +278,11 @@ impl App {
                             .view(&self.config.keyboard.layout)
                             .map(|l| l.map(Message::KeyboardLayout)),
                     )
-                    .push_maybe(self.tray.view(id).map(|e| e.map(Message::Tray)))
+                    .push_maybe(
+                        self.tray
+                            .view(id, &self.config.tray)
+                            .map(|e| e.map(Message::Tray)),
+                    )
                     .push(
                         Row::new()
                             .push(

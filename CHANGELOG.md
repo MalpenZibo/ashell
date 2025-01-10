@@ -10,10 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Multi monitor support
+- Tray module
 
 ### Changed
 
 - Update to pop-os Iced 14.0-dev
+- Dynamic menu positioning
 
 ## [0.3.1] - 2024-12-13
 
