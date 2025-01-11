@@ -228,15 +228,11 @@ impl TrayService {
                                 let name = name.clone();
                                 let menu_proxy = menu_proxy.clone();
                                 async move {
-                                    let new_layout = menu_proxy
-                                        .get_layout(0, -1, &[])
-                                        .await
-                                        .ok()
-                                        .map(|(_, layout)| {
+                                    menu_proxy.get_layout(0, -1, &[]).await.ok().map(
+                                        |(_, layout)| {
                                             TrayEvent::MenuLayoutChanged(name.to_owned(), layout)
-                                        });
-
-                                    new_layout
+                                        },
+                                    )
                                 }
                             }
                         })
