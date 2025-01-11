@@ -217,28 +217,41 @@ impl TrayService {
 
             let layout_updated = item.menu_proxy.receive_layout_updated().await;
             if let Ok(layout_updated) = layout_updated {
-                menu_layout_change.push(layout_updated.filter_map({
-                    let name = name.clone();
-                    let menu_proxy = item.menu_proxy.clone();
-                    debug!("menu layout changed");
-                    move |_| {
-                        let name = name.clone();
-                        let menu_proxy = menu_proxy.clone();
-                        async move {
-                            menu_proxy
-                                .get_layout(0, -1, &[])
-                                .await
-                                .ok()
-                                .map(|(_, layout)| {
-                                    TrayEvent::MenuLayoutChanged(name.to_owned(), layout)
-                                })
-                        }
-                    }
-                }));
+                menu_layout_change.push(
+                    layout_updated
+                        .filter_map({
+                            let name = name.clone();
+                            let menu_proxy = item.menu_proxy.clone();
+                            move |_| {
+                                debug!("layout update event name {}", &name);
+
+                                let name = name.clone();
+                                let menu_proxy = menu_proxy.clone();
+                                async move {
+                                    let new_layout = menu_proxy
+                                        .get_layout(0, -1, &[])
+                                        .await
+                                        .ok()
+                                        .map(|(_, layout)| {
+                                            TrayEvent::MenuLayoutChanged(name.to_owned(), layout)
+                                        });
+
+                                    new_layout
+                                }
+                            }
+                        })
+                        .boxed(),
+                );
             }
         }
 
-        Ok(stream_select!(registered, unregistered, select_all(icon_pixel_change)).boxed())
+        Ok(stream_select!(
+            registered,
+            unregistered,
+            select_all(icon_pixel_change),
+            select_all(menu_layout_change)
+        )
+        .boxed())
     }
 
     async fn start_listening(state: State, output: &mut Sender<ServiceEvent<Self>>) -> State {
@@ -352,6 +365,7 @@ impl ReadOnlyService for TrayService {
             }
             TrayEvent::MenuLayoutChanged(name, layout) => {
                 if let Some(item) = self.data.0.iter_mut().find(|item| item.name == name) {
+                    debug!("menu layout updated, {:?}", layout);
                     item.menu = layout;
                 }
             }
