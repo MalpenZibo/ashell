@@ -1,16 +1,17 @@
 use crate::{
+    app,
     components::icons::{icon, Icons},
     config::SystemModuleConfig,
-    style::header_pills,
 };
 use iced::{
-    alignment::Vertical,
     time::every,
     widget::{container, row, text, Row},
     Alignment, Element, Subscription, Theme,
 };
 use std::time::Duration;
 use sysinfo::{Components, System};
+
+use super::{Module, OnModulePress};
 
 struct SystemInfoData {
     pub cpu_usage: u32,
@@ -76,7 +77,18 @@ impl SystemInfo {
         }
     }
 
-    pub fn view(&self, config: &SystemModuleConfig) -> Option<Element<Message>> {
+    pub fn subscription(&self) -> Subscription<Message> {
+        every(Duration::from_secs(5)).map(|_| Message::Update)
+    }
+}
+
+impl Module for SystemInfo {
+    type Data<'a> = &'a SystemModuleConfig;
+
+    fn view<'a>(
+        &self,
+        config: Self::Data<'a>,
+    ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         let cpu_usage = self.data.cpu_usage;
         let memory_usage = self.data.memory_usage;
         let temperature = self.data.temperature;
@@ -90,13 +102,10 @@ impl SystemInfo {
         let temp_warn_threshold = config.temp_warn_threshold;
         let temp_alert_threshold = config.temp_alert_threshold;
 
-        Some(
-            container(
-                Row::new()
-                    .push(
-                        container(
-                            row!(icon(Icons::Cpu), text(format!("{}%", cpu_usage))).spacing(4),
-                        )
+        Some((
+            Row::new()
+                .push(
+                    container(row!(icon(Icons::Cpu), text(format!("{}%", cpu_usage))).spacing(4))
                         .style(move |theme: &Theme| container::Style {
                             text_color: if cpu_usage > cpu_warn_threshold
                                 && cpu_usage < cpu_alert_threshold
@@ -109,28 +118,26 @@ impl SystemInfo {
                             },
                             ..Default::default()
                         }),
+                )
+                .push(
+                    container(
+                        row!(icon(Icons::Mem), text(format!("{}%", memory_usage))).spacing(4),
                     )
-                    .push(
-                        container(
-                            row!(icon(Icons::Mem), text(format!("{}%", memory_usage))).spacing(4),
-                        )
-                        .style(move |theme: &Theme| container::Style {
-                            text_color: if memory_usage > mem_warn_threshold
-                                && memory_usage < mem_alert_threshold
-                            {
-                                Some(theme.extended_palette().danger.weak.color)
-                            } else if memory_usage >= mem_alert_threshold {
-                                Some(theme.palette().danger)
-                            } else {
-                                None
-                            },
-                            ..Default::default()
-                        }),
-                    )
-                    .push_maybe(temperature.map(|temperature| {
-                        container(
-                            row!(icon(Icons::Temp), text(format!("{}°", temperature))).spacing(4),
-                        )
+                    .style(move |theme: &Theme| container::Style {
+                        text_color: if memory_usage > mem_warn_threshold
+                            && memory_usage < mem_alert_threshold
+                        {
+                            Some(theme.extended_palette().danger.weak.color)
+                        } else if memory_usage >= mem_alert_threshold {
+                            Some(theme.palette().danger)
+                        } else {
+                            None
+                        },
+                        ..Default::default()
+                    }),
+                )
+                .push_maybe(temperature.map(|temperature| {
+                    container(row!(icon(Icons::Temp), text(format!("{}°", temperature))).spacing(4))
                         .style(move |theme: &Theme| container::Style {
                             text_color: if temperature > temp_warn_threshold
                                 && temperature < temp_alert_threshold
@@ -143,18 +150,11 @@ impl SystemInfo {
                             },
                             ..Default::default()
                         })
-                    }))
-                    .align_y(Alignment::Center)
-                    .spacing(4),
-            )
-            .align_y(Vertical::Center)
-            .padding([2, 7])
-            .style(header_pills)
-            .into(),
-        )
-    }
-
-    pub fn subscription(&self) -> Subscription<Message> {
-        every(Duration::from_secs(5)).map(|_| Message::Update)
+                }))
+                .align_y(Alignment::Center)
+                .spacing(4)
+                .into(),
+            None,
+        ))
     }
 }

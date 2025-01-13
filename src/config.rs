@@ -253,23 +253,25 @@ pub enum Position {
     Bottom,
 }
 
-#[derive(Deserialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
+#[derive(Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ModuleName {
     AppLauncher,
     Updates,
-    Workspace,
-    Title,
-    System,
+    Clipboard,
+    Workspaces,
+    WindowTitle,
+    SystemInfo,
     KeyboardLayout,
     KeyboardSubmap,
     Tray,
     Clock,
+    Privacy,
     Settings,
 }
 
 #[derive(Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
+#[serde(untagged)]
 pub enum ModuleDef {
     Single(ModuleName),
     Group(Vec<ModuleName>),
@@ -278,8 +280,11 @@ pub enum ModuleDef {
 #[derive(Deserialize, Clone, Default, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Modules {
+    #[serde(default)]
     pub left: Vec<ModuleDef>,
+    #[serde(default)]
     pub center: Vec<ModuleDef>,
+    #[serde(default)]
     pub right: Vec<ModuleDef>,
 }
 

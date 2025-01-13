@@ -1,7 +1,4 @@
-use crate::{
-    config::AppearanceColor,
-    style::{header_pills, WorkspaceButtonStyle},
-};
+use crate::{app, config::AppearanceColor, style::WorkspaceButtonStyle};
 use hyprland::{
     dispatch::MonitorIdentifier,
     event_listener::AsyncEventListener,
@@ -18,6 +15,8 @@ use std::{
     any::TypeId,
     sync::{Arc, RwLock},
 };
+
+use super::{Module, OnModulePress};
 
 #[derive(Debug, Clone)]
 pub struct Workspace {
@@ -148,78 +147,6 @@ impl Workspaces {
                 }
             }
         }
-    }
-
-    pub fn view(
-        &self,
-        workspace_colors: &[AppearanceColor],
-        special_workspace_colors: Option<&[AppearanceColor]>,
-    ) -> Element<Message> {
-        container(
-            Row::with_children(
-                self.workspaces
-                    .iter()
-                    .map(|w| {
-                        let empty = w.windows == 0;
-                        let monitor = w.monitor_id;
-
-                        let color = monitor.map(|m| {
-                            if w.id > 0 {
-                                workspace_colors.get(m).copied()
-                            } else {
-                                special_workspace_colors
-                                    .unwrap_or(workspace_colors)
-                                    .get(m)
-                                    .copied()
-                            }
-                        });
-
-                        button(
-                            container(
-                                if w.id < 0 {
-                                    text(w.name.as_str())
-                                } else {
-                                    text(w.id)
-                                }
-                                .size(10),
-                            )
-                            .align_x(alignment::Horizontal::Center)
-                            .align_y(alignment::Vertical::Center),
-                        )
-                        .style(WorkspaceButtonStyle(empty, color).into_style())
-                        .padding(if w.id < 0 {
-                            if w.active {
-                                [0, 16]
-                            } else {
-                                [0, 8]
-                            }
-                        } else {
-                            [0, 0]
-                        })
-                        .on_press(if w.id > 0 {
-                            Message::ChangeWorkspace(w.id)
-                        } else {
-                            Message::ToggleSpecialWorkspace(w.id)
-                        })
-                        .width(if w.id < 0 {
-                            Length::Shrink
-                        } else if w.active {
-                            Length::Fixed(32.)
-                        } else {
-                            Length::Fixed(16.)
-                        })
-                        .height(16)
-                        .into()
-                    })
-                    .collect::<Vec<Element<'_, _, _>>>(),
-            )
-            .spacing(4),
-        )
-        .padding([4, 8])
-        .align_y(alignment::Vertical::Center)
-        .height(Length::Shrink)
-        .style(header_pills)
-        .into()
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
@@ -394,5 +321,80 @@ impl Workspaces {
                 }
             }),
         )
+    }
+}
+
+impl Module for Workspaces {
+    type Data<'a> = (&'a [AppearanceColor], Option<&'a [AppearanceColor]>);
+
+    fn view<'a>(
+        &self,
+        (workspace_colors, special_workspace_colors): Self::Data<'a>,
+    ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
+        Some((
+            Into::<Element<Message>>::into(
+                Row::with_children(
+                    self.workspaces
+                        .iter()
+                        .map(|w| {
+                            let empty = w.windows == 0;
+                            let monitor = w.monitor_id;
+
+                            let color = monitor.map(|m| {
+                                if w.id > 0 {
+                                    workspace_colors.get(m).copied()
+                                } else {
+                                    special_workspace_colors
+                                        .unwrap_or(workspace_colors)
+                                        .get(m)
+                                        .copied()
+                                }
+                            });
+
+                            button(
+                                container(
+                                    if w.id < 0 {
+                                        text(w.name.as_str())
+                                    } else {
+                                        text(w.id)
+                                    }
+                                    .size(10),
+                                )
+                                .align_x(alignment::Horizontal::Center)
+                                .align_y(alignment::Vertical::Center),
+                            )
+                            .style(WorkspaceButtonStyle(empty, color).into_style())
+                            .padding(if w.id < 0 {
+                                if w.active {
+                                    [0, 16]
+                                } else {
+                                    [0, 8]
+                                }
+                            } else {
+                                [0, 0]
+                            })
+                            .on_press(if w.id > 0 {
+                                Message::ChangeWorkspace(w.id)
+                            } else {
+                                Message::ToggleSpecialWorkspace(w.id)
+                            })
+                            .width(if w.id < 0 {
+                                Length::Shrink
+                            } else if w.active {
+                                Length::Fixed(32.)
+                            } else {
+                                Length::Fixed(16.)
+                            })
+                            .height(16)
+                            .into()
+                        })
+                        .collect::<Vec<Element<'_, _, _>>>(),
+                )
+                .padding([2, 0])
+                .spacing(4),
+            )
+            .map(app::Message::Workspaces),
+            None,
+        ))
     }
 }

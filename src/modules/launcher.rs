@@ -1,14 +1,21 @@
 use crate::{
     app::Message,
     components::icons::{icon, Icons},
-    style::HeaderButtonStyle,
 };
-use iced::{widget::button, Element};
+use iced::Element;
 
-pub fn launcher<'a>() -> Element<'a, Message> {
-    button(icon(Icons::Launcher))
-        .padding([2, 7])
-        .on_press(Message::OpenLauncher)
-        .style(HeaderButtonStyle::Full.into_style())
-        .into()
+use super::{Module, OnModulePress};
+
+#[derive(Default, Debug, Clone)]
+pub struct Launcher;
+
+impl Module for Launcher {
+    type Data<'a> = ();
+
+    fn view<'a>(&self, _: Self::Data<'a>) -> Option<(Element<Message>, Option<OnModulePress>)> {
+        Some((
+            icon(Icons::Launcher).into(),
+            Some(OnModulePress::Action(Message::OpenLauncher)),
+        ))
+    }
 }

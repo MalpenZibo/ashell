@@ -4,8 +4,7 @@ use crate::{
     config::UpdatesModuleConfig,
     menu::MenuType,
     outputs::Outputs,
-    position_button::{position_button, ButtonUIRef},
-    style::{GhostButtonStyle, HeaderButtonStyle},
+    style::GhostButtonStyle,
 };
 use iced::{
     alignment::Horizontal,
@@ -18,6 +17,8 @@ use log::error;
 use serde::Deserialize;
 use std::{any::TypeId, convert, process::Stdio, time::Duration};
 use tokio::{process, spawn, time::sleep};
+
+use super::{Module, OnModulePress};
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct Update {
@@ -73,7 +74,6 @@ async fn update(update_cmd: &str) {
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    ToggleMenu(Id, ButtonUIRef),
     UpdatesCheckCompleted(Vec<Update>),
     UpdateFinished,
     ToggleUpdatesList,
@@ -92,7 +92,7 @@ enum State {
 pub struct Updates {
     state: State,
     pub updates: Vec<Update>,
-    is_updates_list_open: bool,
+    pub is_updates_list_open: bool,
 }
 
 impl Updates {
@@ -108,10 +108,6 @@ impl Updates {
                 self.state = State::Ready;
 
                 Task::none()
-            }
-            Message::ToggleMenu(id, button_ui_ref) => {
-                self.is_updates_list_open = false;
-                outputs.toggle_menu(id, MenuType::Updates, button_ui_ref)
             }
             Message::UpdateFinished => {
                 self.updates.clear();
@@ -151,26 +147,6 @@ impl Updates {
                 Task::batch(cmds)
             }
         }
-    }
-
-    pub fn view(&self, id: Id) -> Element<Message> {
-        let mut content = row!(container(icon(match self.state {
-            State::Checking => Icons::Refresh,
-            State::Ready if self.updates.is_empty() => Icons::NoUpdatesAvailable,
-            _ => Icons::UpdatesAvailable,
-        })))
-        .align_y(Alignment::Center)
-        .spacing(4);
-
-        if !self.updates.is_empty() {
-            content = content.push(text(self.updates.len()));
-        }
-
-        position_button(content)
-            .padding([2, 7])
-            .style(HeaderButtonStyle::Full.into_style())
-            .on_press(move |button_ui_ref| Message::ToggleMenu(id, button_ui_ref))
-            .into()
     }
 
     pub fn menu_view(&self, id: Id) -> Element<Message> {
@@ -276,5 +252,31 @@ impl Updates {
                 }
             }),
         )
+    }
+}
+
+impl Module for Updates {
+    type Data<'a> = ();
+
+    fn view<'a>(
+        &self,
+        _: Self::Data<'a>,
+    ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
+        let mut content = row!(container(icon(match self.state {
+            State::Checking => Icons::Refresh,
+            State::Ready if self.updates.is_empty() => Icons::NoUpdatesAvailable,
+            _ => Icons::UpdatesAvailable,
+        })))
+        .align_y(Alignment::Center)
+        .spacing(4);
+
+        if !self.updates.is_empty() {
+            content = content.push(text(self.updates.len()));
+        }
+
+        Some((
+            content.into(),
+            Some(OnModulePress::ToggleMenu(MenuType::Updates)),
+        ))
     }
 }

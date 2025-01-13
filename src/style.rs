@@ -114,7 +114,7 @@ pub fn ashell_theme(appearance: &Appearance) -> Theme {
     )
 }
 
-pub fn header_pills(theme: &Theme) -> container::Style {
+pub fn module_label(theme: &Theme) -> container::Style {
     let palette = theme.palette();
     container::Style {
         background: Some(palette.background.into()),
@@ -128,7 +128,7 @@ pub fn header_pills(theme: &Theme) -> container::Style {
     }
 }
 
-pub fn left_header_pills(theme: &Theme) -> container::Style {
+pub fn module_first_label(theme: &Theme) -> container::Style {
     let palette = theme.palette();
     container::Style {
         background: Some(palette.background.into()),
@@ -142,12 +142,42 @@ pub fn left_header_pills(theme: &Theme) -> container::Style {
     }
 }
 
-pub enum HeaderButtonStyle {
-    Full,
-    Right,
+pub fn module_middle_label(theme: &Theme) -> container::Style {
+    let palette = theme.palette();
+    container::Style {
+        background: Some(palette.background.into()),
+        border: Border {
+            width: 0.0,
+            radius: Radius::default(),
+            color: Color::TRANSPARENT,
+        },
+        text_color: Some(palette.text),
+        ..Default::default()
+    }
 }
 
-impl HeaderButtonStyle {
+pub fn module_last_label(theme: &Theme) -> container::Style {
+    let palette = theme.palette();
+    container::Style {
+        background: Some(palette.background.into()),
+        border: Border {
+            width: 0.0,
+            radius: Radius::default().right(12),
+            color: Color::TRANSPARENT,
+        },
+        text_color: Some(palette.text),
+        ..Default::default()
+    }
+}
+
+pub enum ModuleButtonStyle {
+    Full,
+    First,
+    Middle,
+    Last,
+}
+
+impl ModuleButtonStyle {
     pub fn into_style<'a>(self) -> button::StyleFn<'a, Theme> {
         Box::new(move |theme, status| {
             let mut base = button::Style {
@@ -155,8 +185,10 @@ impl HeaderButtonStyle {
                 border: Border {
                     width: 0.0,
                     radius: match self {
-                        HeaderButtonStyle::Full => 12.0.into(),
-                        HeaderButtonStyle::Right => Radius::default().right(12),
+                        ModuleButtonStyle::Full => 12.0.into(),
+                        ModuleButtonStyle::First => Radius::default().left(12),
+                        ModuleButtonStyle::Middle => Radius::default(),
+                        ModuleButtonStyle::Last => Radius::default().right(12),
                     },
                     color: Color::TRANSPARENT,
                 },

@@ -1,10 +1,7 @@
-use crate::style::left_header_pills;
+use super::{Module, OnModulePress};
+use crate::app;
 use chrono::{DateTime, Local};
-use iced::{
-    time::every,
-    widget::{container, text},
-    Element, Subscription,
-};
+use iced::{time::every, widget::text, Element, Subscription};
 use std::time::Duration;
 
 pub struct Clock {
@@ -31,14 +28,18 @@ impl Clock {
         }
     }
 
-    pub fn view(&self, format: &str) -> Element<Message> {
-        container(text(self.date.format(format).to_string()))
-            .padding([2, 8])
-            .style(left_header_pills)
-            .into()
-    }
-
     pub fn subscription(&self) -> Subscription<Message> {
         every(Duration::from_secs(5)).map(|_| Message::Update)
+    }
+}
+
+impl Module for Clock {
+    type Data<'a> = &'a str;
+
+    fn view<'a>(
+        &self,
+        format: Self::Data<'a>,
+    ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
+        Some((text(self.date.format(format).to_string()).into(), None))
     }
 }

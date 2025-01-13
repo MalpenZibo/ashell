@@ -1,18 +1,16 @@
-use crate::style::HeaderButtonStyle;
+use crate::app;
 use hyprland::{
     ctl::switch_xkb_layout::SwitchXKBLayoutCmdTypes, event_listener::AsyncEventListener,
     shared::HyprData,
 };
-use iced::{
-    stream::channel,
-    widget::{button, text},
-    Element, Subscription,
-};
+use iced::{stream::channel, widget::text, Element, Subscription};
 use log::{debug, error};
 use std::{
     any::TypeId,
     sync::{Arc, RwLock},
 };
+
+use super::{Module, OnModulePress};
 
 fn get_multiple_layout_flag() -> bool {
     match hyprland::keyword::Keyword::get("input:kb_layout") {
@@ -74,20 +72,6 @@ impl KeyboardLayout {
         }
     }
 
-    pub fn view(&self) -> Option<Element<Message>> {
-        if !self.multiple_layout {
-            None
-        } else {
-            Some(
-                button(text(&self.active))
-                    .padding([2, 7])
-                    .on_press(Message::ChangeLayout)
-                    .style(HeaderButtonStyle::Full.into_style())
-                    .into(),
-            )
-        }
-    }
-
     pub fn subscription(&self) -> Subscription<Message> {
         let id = TypeId::of::<Self>();
 
@@ -139,5 +123,25 @@ impl KeyboardLayout {
                 }
             }),
         )
+    }
+}
+
+impl Module for KeyboardLayout {
+    type Data<'a> = ();
+
+    fn view<'a>(
+        &self,
+        _: Self::Data<'a>,
+    ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
+        if !self.multiple_layout {
+            None
+        } else {
+            Some((
+                text(&self.active).into(),
+                Some(OnModulePress::Action(app::Message::KeyboardLayout(
+                    Message::ChangeLayout,
+                ))),
+            ))
+        }
     }
 }

@@ -125,7 +125,7 @@ impl TrayService {
 
         let mut status_items = Vec::with_capacity(items.len());
         for item in items {
-            let item = StatusNotifierItem::new(conn, item.to_string()).await?;
+            let item = StatusNotifierItem::new(conn, item).await?;
             status_items.push(item);
         }
 

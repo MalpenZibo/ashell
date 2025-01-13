@@ -1,17 +1,15 @@
-use crate::style::header_pills;
+use crate::app;
 use hyprland::{data::Client, event_listener::AsyncEventListener, shared::HyprDataActiveOptional};
-use iced::{
-    stream::channel,
-    widget::{container, text},
-    Element, Subscription,
-};
+use iced::{stream::channel, widget::text, Element, Subscription};
 use log::{debug, error};
 use std::{
     any::TypeId,
     sync::{Arc, RwLock},
 };
 
-pub struct Title {
+use super::{Module, OnModulePress};
+
+pub struct WindowTitle {
     value: Option<String>,
 }
 
@@ -20,7 +18,7 @@ pub enum Message {
     TitleChanged(Option<String>),
 }
 
-impl Default for Title {
+impl Default for WindowTitle {
     fn default() -> Self {
         let init = Client::get_active().ok().and_then(|w| w.map(|w| w.title));
 
@@ -28,7 +26,7 @@ impl Default for Title {
     }
 }
 
-impl Title {
+impl WindowTitle {
     pub fn update(&mut self, message: Message, truncate_title_after_length: u32) {
         match message {
             Message::TitleChanged(value) => {
@@ -48,15 +46,6 @@ impl Title {
                 }
             }
         }
-    }
-
-    pub fn view(&self) -> Option<Element<Message>> {
-        self.value.as_ref().map(|value| {
-            container(text(value).size(12))
-                .padding([2, 7])
-                .style(header_pills)
-                .into()
-        })
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
@@ -125,5 +114,18 @@ impl Title {
                 }
             }),
         )
+    }
+}
+
+impl Module for WindowTitle {
+    type Data<'a> = ();
+
+    fn view<'a>(
+        &self,
+        _: Self::Data<'a>,
+    ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
+        self.value
+            .as_ref()
+            .map(|value| (text(value).size(12).into(), None))
     }
 }

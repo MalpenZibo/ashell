@@ -4,20 +4,22 @@ use crate::{
     get_log_spec,
     menu::{menu_wrapper, MenuSize, MenuType},
     modules::{
-        self, clipboard,
+        self,
+        clipboard::Clipboard,
         clock::Clock,
         keyboard_layout::KeyboardLayout,
         keyboard_submap::KeyboardSubmap,
-        launcher,
+        launcher::Launcher,
         privacy::PrivacyMessage,
         settings::Settings,
         system_info::SystemInfo,
-        title::Title,
         tray::{TrayMessage, TrayModule},
         updates::Updates,
+        window_title::WindowTitle,
         workspaces::Workspaces,
     },
     outputs::{HasOutput, Outputs},
+    position_button::ButtonUIRef,
     services::{privacy::PrivacyService, tray::TrayService, ReadOnlyService, ServiceEvent},
     style::ashell_theme,
     utils, HEIGHT,
@@ -34,17 +36,19 @@ use log::{debug, info, warn};
 
 pub struct App {
     logger: LoggerHandle,
-    config: Config,
+    pub config: Config,
     outputs: Outputs,
-    updates: Updates,
-    workspaces: Workspaces,
-    window_title: Title,
-    system_info: SystemInfo,
-    keyboard_layout: KeyboardLayout,
-    keyboard_submap: KeyboardSubmap,
-    tray: TrayModule,
-    clock: Clock,
-    privacy: Option<PrivacyService>,
+    pub launcher: Launcher,
+    pub updates: Updates,
+    pub clipboard: Clipboard,
+    pub workspaces: Workspaces,
+    pub window_title: WindowTitle,
+    pub system_info: SystemInfo,
+    pub keyboard_layout: KeyboardLayout,
+    pub keyboard_submap: KeyboardSubmap,
+    pub tray: TrayModule,
+    pub clock: Clock,
+    pub privacy: Option<PrivacyService>,
     pub settings: Settings,
 }
 
@@ -52,12 +56,13 @@ pub struct App {
 pub enum Message {
     None,
     ConfigChanged(Box<Config>),
+    ToggleMenu(MenuType, Id, ButtonUIRef),
     CloseMenu(Id),
     OpenLauncher,
     OpenClipboard,
     Updates(modules::updates::Message),
     Workspaces(modules::workspaces::Message),
-    Title(modules::title::Message),
+    Title(modules::window_title::Message),
     SystemInfo(modules::system_info::Message),
     KeyboardLayout(modules::keyboard_layout::Message),
     KeyboardSubmap(modules::keyboard_submap::Message),
@@ -77,9 +82,11 @@ impl App {
                     logger,
                     config,
                     outputs,
+                    launcher: Launcher::default(),
                     updates: Updates::default(),
+                    clipboard: Clipboard::default(),
                     workspaces: Workspaces::default(),
-                    window_title: Title::default(),
+                    window_title: WindowTitle::default(),
                     system_info: SystemInfo::default(),
                     keyboard_layout: KeyboardLayout::default(),
                     keyboard_submap: KeyboardSubmap::default(),
@@ -130,6 +137,25 @@ impl App {
 
                 Task::batch(tasks)
             }
+            Message::ToggleMenu(menu_type, id, button_ui_ref) => {
+                match &menu_type {
+                    MenuType::Updates => {
+                        self.updates.is_updates_list_open = false;
+                    }
+                    MenuType::Tray(name) => {
+                        if let Some(_tray) = self
+                            .tray
+                            .service
+                            .as_ref()
+                            .and_then(|t| t.iter().find(|t| &t.name == name))
+                        {
+                            self.tray.submenus.clear();
+                        }
+                    }
+                    _ => {}
+                };
+                self.outputs.toggle_menu(id, menu_type, button_ui_ref)
+            }
             Message::CloseMenu(id) => self.outputs.close_menu(id),
             Message::Updates(message) => {
                 if let Some(updates_config) = self.config.updates.as_ref() {
@@ -173,7 +199,7 @@ impl App {
                 self.keyboard_submap.update(message);
                 Task::none()
             }
-            Message::Tray(msg) => self.tray.update(msg, &mut self.outputs),
+            Message::Tray(msg) => self.tray.update(msg),
             Message::Clock(message) => {
                 self.clock.update(message);
                 Task::none()
@@ -227,78 +253,13 @@ impl App {
     pub fn view(&self, id: Id) -> Element<Message> {
         match self.outputs.has(id) {
             Some(HasOutput::Main) => {
-                let left = Row::new()
-                    .push_maybe(
-                        self.config
-                            .app_launcher_cmd
-                            .as_ref()
-                            .map(|_| launcher::launcher()),
-                    )
-                    .push_maybe(
-                        self.config
-                            .clipboard_cmd
-                            .as_ref()
-                            .map(|_| clipboard::clipboard()),
-                    )
-                    .push_maybe(
-                        self.config
-                            .updates
-                            .as_ref()
-                            .map(|_| self.updates.view(id).map(Message::Updates)),
-                    )
-                    .push(
-                        self.workspaces
-                            .view(
-                                &self.config.appearance.workspace_colors,
-                                self.config.appearance.special_workspace_colors.as_deref(),
-                            )
-                            .map(Message::Workspaces),
-                    )
-                    .height(Length::Shrink)
-                    .align_y(Alignment::Center)
-                    .spacing(4);
-
-                let center = Row::new()
-                    .push_maybe(self.window_title.view().map(|v| v.map(Message::Title)))
-                    .spacing(4);
-
-                let right = Row::new()
-                    .push_maybe(
-                        self.system_info
-                            .view(&self.config.system)
-                            .map(|c| c.map(Message::SystemInfo)),
-                    )
-                    .push_maybe(
-                        self.keyboard_submap
-                            .view()
-                            .map(|l| l.map(Message::KeyboardSubmap)),
-                    )
-                    .push_maybe(
-                        self.keyboard_layout
-                            .view()
-                            .map(|l| l.map(Message::KeyboardLayout)),
-                    )
-                    .push_maybe(self.tray.view(id).map(|e| e.map(Message::Tray)))
-                    .push(
-                        Row::new()
-                            .push(
-                                self.clock
-                                    .view(&self.config.clock.format)
-                                    .map(Message::Clock),
-                            )
-                            .push_maybe(
-                                self.privacy
-                                    .as_ref()
-                                    .and_then(|privacy| privacy.view())
-                                    .map(|e| e.map(Message::Privacy)),
-                            )
-                            .push(self.settings.view(id).map(Message::Settings)),
-                    )
-                    .spacing(4);
+                let left = self.modules_section(&self.config.modules.left, id);
+                let center = self.modules_section(&self.config.modules.center, id);
+                let right = self.modules_section(&self.config.modules.right, id);
 
                 centerbox::Centerbox::new([left.into(), center.into(), right.into()])
                     .spacing(4)
-                    .padding([0, 4])
+                    .padding([4, 4])
                     .width(Length::Fill)
                     .height(Length::Fixed(HEIGHT as f32))
                     .align_items(Alignment::Center)

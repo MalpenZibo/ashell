@@ -1,8 +1,9 @@
+use super::{Module, OnModulePress};
 use crate::{
+    app,
     components::icons::{icon, Icons},
     menu::MenuType,
-    outputs::Outputs,
-    position_button::{position_button, ButtonUIRef},
+    position_button::position_button,
     services::{
         tray::{
             dbus::{Layout, LayoutProps},
@@ -10,10 +11,10 @@ use crate::{
         },
         ReadOnlyService, Service, ServiceEvent,
     },
-    style::{header_pills, GhostButtonStyle},
+    style::GhostButtonStyle,
 };
 use iced::{
-    widget::{button, container, horizontal_rule, row, text, toggler, Column, Image, Row},
+    widget::{button, horizontal_rule, row, text, toggler, Column, Image, Row},
     window::Id,
     Alignment, Element, Length, Task,
 };
@@ -22,23 +23,18 @@ use log::debug;
 #[derive(Debug, Clone)]
 pub enum TrayMessage {
     Event(ServiceEvent<TrayService>),
-    OpenMenu(Id, String, ButtonUIRef),
     ToggleSubmenu(i32),
     MenuSelected(String, i32),
 }
 
 #[derive(Debug, Default, Clone)]
 pub struct TrayModule {
-    service: Option<TrayService>,
-    submenus: Vec<i32>,
+    pub service: Option<TrayService>,
+    pub submenus: Vec<i32>,
 }
 
 impl TrayModule {
-    pub fn update(
-        &mut self,
-        message: TrayMessage,
-        outputs: &mut Outputs,
-    ) -> Task<crate::app::Message> {
+    pub fn update(&mut self, message: TrayMessage) -> Task<crate::app::Message> {
         match message {
             TrayMessage::Event(event) => match event {
                 ServiceEvent::Init(service) => {
@@ -53,18 +49,6 @@ impl TrayModule {
                 }
                 ServiceEvent::Error(_) => Task::none(),
             },
-            TrayMessage::OpenMenu(id, name, button_ui_ref) => {
-                if let Some(_tray) = self
-                    .service
-                    .as_ref()
-                    .and_then(|t| t.iter().find(|t| t.name == name))
-                {
-                    self.submenus.clear();
-                    outputs.toggle_menu(id, MenuType::Tray(name), button_ui_ref)
-                } else {
-                    Task::none()
-                }
-            }
             TrayMessage::ToggleSubmenu(index) => {
                 if self.submenus.contains(&index) {
                     self.submenus.retain(|i| i != &index);
@@ -84,42 +68,6 @@ impl TrayModule {
                 }
             }
         }
-    }
-
-    pub fn view(&self, id: Id) -> Option<Element<TrayMessage>> {
-        self.service
-            .as_ref()
-            .filter(|s| s.data.len() > 0)
-            .map(|service| {
-                container(
-                    Row::with_children(
-                        service
-                            .data
-                            .iter()
-                            .map(|item| {
-                                position_button(if let Some(pixmap) = &item.icon_pixmap {
-                                    Into::<Element<_>>::into(
-                                        Image::new(pixmap.clone()).height(Length::Fixed(14.)),
-                                    )
-                                } else {
-                                    icon(Icons::Point).into()
-                                })
-                                .on_press(move |button_ui_ref| {
-                                    TrayMessage::OpenMenu(id, item.name.to_owned(), button_ui_ref)
-                                })
-                                .padding([2, 2])
-                                .style(GhostButtonStyle.into_style())
-                                .into()
-                            })
-                            .collect::<Vec<_>>(),
-                    )
-                    .align_y(Alignment::Center)
-                    .spacing(8),
-                )
-                .padding([2, 8])
-                .style(header_pills)
-                .into()
-            })
     }
 
     pub fn menu_view(&self, name: &'_ str) -> Element<TrayMessage> {
@@ -202,5 +150,51 @@ impl TrayModule {
             LayoutProps { type_: Some(t), .. } if t == "separator" => horizontal_rule(1).into(),
             _ => Row::new().into(),
         }
+    }
+}
+
+impl Module for TrayModule {
+    type Data<'a> = Id;
+
+    fn view<'a>(
+        &self,
+        id: Self::Data<'a>,
+    ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
+        self.service
+            .as_ref()
+            .filter(|s| s.data.len() > 0)
+            .map(|service| {
+                (
+                    Row::with_children(
+                        service
+                            .data
+                            .iter()
+                            .map(|item| {
+                                position_button(if let Some(pixmap) = &item.icon_pixmap {
+                                    Into::<Element<_>>::into(
+                                        Image::new(pixmap.clone()).height(Length::Fixed(14.)),
+                                    )
+                                } else {
+                                    icon(Icons::Point).into()
+                                })
+                                .on_press_with_position(move |button_ui_ref| {
+                                    app::Message::ToggleMenu(
+                                        MenuType::Tray(item.name.to_owned()),
+                                        id,
+                                        button_ui_ref,
+                                    )
+                                })
+                                .padding([2, 2])
+                                .style(GhostButtonStyle.into_style())
+                                .into()
+                            })
+                            .collect::<Vec<_>>(),
+                    )
+                    .align_y(Alignment::Center)
+                    .spacing(8)
+                    .into(),
+                    None,
+                )
+            })
     }
 }

@@ -1,15 +1,13 @@
-use crate::style::header_pills;
+use crate::app;
 use hyprland::event_listener::AsyncEventListener;
-use iced::{
-    stream::channel,
-    widget::{container, text},
-    Element, Subscription,
-};
+use iced::{stream::channel, widget::text, Element, Subscription};
 use log::{debug, error};
 use std::{
     any::TypeId,
     sync::{Arc, RwLock},
 };
+
+use super::{Module, OnModulePress};
 
 pub struct KeyboardSubmap {
     submap: String,
@@ -34,19 +32,6 @@ impl KeyboardSubmap {
             Message::SubmapChanged(submap) => {
                 self.submap = submap;
             }
-        }
-    }
-
-    pub fn view(&self) -> Option<Element<Message>> {
-        if self.submap.is_empty() {
-            None
-        } else {
-            Some(
-                container(text(&self.submap))
-                    .padding([2, 8])
-                    .style(header_pills)
-                    .into(),
-            )
         }
     }
 
@@ -83,5 +68,20 @@ impl KeyboardSubmap {
                 }
             }),
         )
+    }
+}
+
+impl Module for KeyboardSubmap {
+    type Data<'a> = ();
+
+    fn view<'a>(
+        &self,
+        _: Self::Data<'a>,
+    ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
+        if self.submap.is_empty() {
+            None
+        } else {
+            Some((text(&self.submap).into(), None))
+        }
     }
 }

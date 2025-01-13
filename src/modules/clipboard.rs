@@ -1,14 +1,21 @@
 use crate::{
     app::Message,
     components::icons::{icon, Icons},
-    style::HeaderButtonStyle,
 };
-use iced::{widget::button, Element};
+use iced::Element;
 
-pub fn clipboard<'a>() -> Element<'a, Message> {
-    button(icon(Icons::Clipboard))
-        .padding([2, 7])
-        .on_press(Message::OpenClipboard)
-        .style(HeaderButtonStyle::Full.into_style())
-        .into()
+use super::{Module, OnModulePress};
+
+#[derive(Default, Debug, Clone)]
+pub struct Clipboard;
+
+impl Module for Clipboard {
+    type Data<'a> = ();
+
+    fn view<'a>(&self, _: Self::Data<'a>) -> Option<(Element<Message>, Option<OnModulePress>)> {
+        Some((
+            icon(Icons::Clipboard).into(),
+            Some(OnModulePress::Action(Message::OpenClipboard)),
+        ))
+    }
 }
