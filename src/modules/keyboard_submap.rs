@@ -1,4 +1,4 @@
-use crate::{config::KeyboardSubmapModule, style::header_pills};
+use crate::style::header_pills;
 use hyprland::event_listener::AsyncEventListener;
 use iced::{
     stream::channel,
@@ -37,8 +37,8 @@ impl KeyboardSubmap {
         }
     }
 
-    pub fn view(&self, config: &KeyboardSubmapModule) -> Option<Element<Message>> {
-        if config.disabled || self.submap.is_empty() {
+    pub fn view(&self) -> Option<Element<Message>> {
+        if self.submap.is_empty() {
             None
         } else {
             Some(

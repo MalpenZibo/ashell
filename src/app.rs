@@ -270,19 +270,15 @@ impl App {
                     )
                     .push_maybe(
                         self.keyboard_submap
-                            .view(&self.config.keyboard.submap)
+                            .view()
                             .map(|l| l.map(Message::KeyboardSubmap)),
                     )
                     .push_maybe(
                         self.keyboard_layout
-                            .view(&self.config.keyboard.layout)
+                            .view()
                             .map(|l| l.map(Message::KeyboardLayout)),
                     )
-                    .push_maybe(
-                        self.tray
-                            .view(id, &self.config.tray)
-                            .map(|e| e.map(Message::Tray)),
-                    )
+                    .push_maybe(self.tray.view(id).map(|e| e.map(Message::Tray)))
                     .push(
                         Row::new()
                             .push(

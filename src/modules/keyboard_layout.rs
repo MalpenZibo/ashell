@@ -1,4 +1,4 @@
-use crate::{config::KeyboardLayoutModule, style::HeaderButtonStyle};
+use crate::style::HeaderButtonStyle;
 use hyprland::{
     ctl::switch_xkb_layout::SwitchXKBLayoutCmdTypes, event_listener::AsyncEventListener,
     shared::HyprData,
@@ -74,8 +74,8 @@ impl KeyboardLayout {
         }
     }
 
-    pub fn view(&self, config: &KeyboardLayoutModule) -> Option<Element<Message>> {
-        if config.disabled || !self.multiple_layout {
+    pub fn view(&self) -> Option<Element<Message>> {
+        if !self.multiple_layout {
             None
         } else {
             Some(

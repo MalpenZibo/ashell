@@ -24,8 +24,6 @@ pub struct UpdatesModuleConfig {
 #[derive(Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemModuleConfig {
-    #[serde(default)]
-    pub disabled: bool,
     #[serde(default = "default_cpu_warn_threshold")]
     pub cpu_warn_threshold: u32,
     #[serde(default = "default_cpu_alert_threshold")]
@@ -67,7 +65,6 @@ fn default_temp_alert_threshold() -> i32 {
 impl Default for SystemModuleConfig {
     fn default() -> Self {
         Self {
-            disabled: false,
             cpu_warn_threshold: default_cpu_warn_threshold(),
             cpu_alert_threshold: default_cpu_alert_threshold(),
             mem_warn_threshold: default_mem_warn_threshold(),
@@ -76,53 +73,6 @@ impl Default for SystemModuleConfig {
             temp_alert_threshold: default_temp_alert_threshold(),
         }
     }
-}
-
-#[derive(Deserialize, Clone, Debug, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct KeyboardLayoutModule {
-    #[serde(default)]
-    pub disabled: bool,
-}
-
-#[derive(Deserialize, Clone, Debug, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct KeyboardSubmapModule {
-    #[serde(default)]
-    pub disabled: bool,
-}
-
-#[derive(Deserialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct KeyboardModuleConfig {
-    #[serde(default = "default_keyboard_layout")]
-    pub layout: KeyboardLayoutModule,
-    #[serde(default = "default_keyboard_submap")]
-    pub submap: KeyboardSubmapModule,
-}
-
-fn default_keyboard_layout() -> KeyboardLayoutModule {
-    KeyboardLayoutModule { disabled: false }
-}
-
-fn default_keyboard_submap() -> KeyboardSubmapModule {
-    KeyboardSubmapModule { disabled: false }
-}
-
-impl Default for KeyboardModuleConfig {
-    fn default() -> Self {
-        Self {
-            layout: default_keyboard_layout(),
-            submap: default_keyboard_submap(),
-        }
-    }
-}
-
-#[derive(Deserialize, Clone, Debug, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct TrayModuleConfig {
-    #[serde(default)]
-    pub disabled: bool,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -305,6 +255,36 @@ pub enum Position {
 
 #[derive(Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
+pub enum ModuleName {
+    AppLauncher,
+    Updates,
+    Workspace,
+    Title,
+    System,
+    KeyboardLayout,
+    KeyboardSubmap,
+    Tray,
+    Clock,
+    Settings,
+}
+
+#[derive(Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub enum ModuleDef {
+    Single(ModuleName),
+    Group(Vec<ModuleName>),
+}
+
+#[derive(Deserialize, Clone, Default, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Modules {
+    pub left: Vec<ModuleDef>,
+    pub center: Vec<ModuleDef>,
+    pub right: Vec<ModuleDef>,
+}
+
+#[derive(Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct Config {
     #[serde(default = "default_log_level")]
     pub log_level: String,
@@ -312,6 +292,8 @@ pub struct Config {
     pub position: Position,
     #[serde(default)]
     pub outputs: Vec<String>,
+    #[serde(default)]
+    pub modules: Modules,
     pub app_launcher_cmd: Option<String>,
     pub clipboard_cmd: Option<String>,
     #[serde(default = "default_truncate_title_after_length")]
@@ -320,10 +302,6 @@ pub struct Config {
     pub updates: Option<UpdatesModuleConfig>,
     #[serde(default)]
     pub system: SystemModuleConfig,
-    #[serde(default)]
-    pub keyboard: KeyboardModuleConfig,
-    #[serde(default)]
-    pub tray: TrayModuleConfig,
     #[serde(default)]
     pub clock: ClockModuleConfig,
     #[serde(default)]
@@ -346,13 +324,12 @@ impl Default for Config {
             log_level: default_log_level(),
             position: Position::Top,
             outputs: vec![],
+            modules: Modules::default(),
             app_launcher_cmd: None,
             clipboard_cmd: None,
             truncate_title_after_length: default_truncate_title_after_length(),
             updates: None,
             system: SystemModuleConfig::default(),
-            keyboard: KeyboardModuleConfig::default(),
-            tray: TrayModuleConfig::default(),
             clock: ClockModuleConfig::default(),
             settings: SettingsModuleConfig::default(),
             appearance: Appearance::default(),
