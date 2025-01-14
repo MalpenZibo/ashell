@@ -1,4 +1,3 @@
-use crate::app;
 use hyprland::event_listener::AsyncEventListener;
 use iced::{stream::channel, widget::text, Element, Subscription};
 use log::{debug, error};
@@ -6,6 +5,8 @@ use std::{
     any::TypeId,
     sync::{Arc, RwLock},
 };
+
+use crate::app;
 
 use super::{Module, OnModulePress};
 
@@ -74,10 +75,7 @@ impl KeyboardSubmap {
 impl Module for KeyboardSubmap {
     type Data<'a> = ();
 
-    fn view<'a>(
-        &self,
-        _: Self::Data<'a>,
-    ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
+    fn view(&self, _: Self::Data<'_>) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         if self.submap.is_empty() {
             None
         } else {

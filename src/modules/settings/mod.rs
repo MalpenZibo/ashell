@@ -594,51 +594,46 @@ impl Settings {
 impl Module for Settings {
     type Data<'a> = ();
 
-    fn view<'a>(
-        &self,
-        _: Self::Data<'a>,
-    ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
+    fn view(&self, _: Self::Data<'_>) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         Some((
-            Into::<Element<Message>>::into(
-                Row::new()
-                    .push_maybe(
-                        self.idle_inhibitor
-                            .as_ref()
-                            .filter(|i| i.is_inhibited())
-                            .map(|_| {
-                                container(icon(Icons::EyeOpened)).style(|theme: &Theme| {
-                                    container::Style {
-                                        text_color: Some(theme.palette().danger),
-                                        ..Default::default()
-                                    }
-                                })
-                            }),
-                    )
-                    .push_maybe(
-                        self.upower
-                            .as_ref()
-                            .and_then(|p| p.power_profile.indicator()),
-                    )
-                    .push_maybe(self.audio.as_ref().and_then(|a| a.sink_indicator()))
-                    .push(
-                        Row::new()
-                            .push_maybe(
-                                self.network
-                                    .as_ref()
-                                    .and_then(|n| n.get_connection_indicator()),
-                            )
-                            .push_maybe(self.network.as_ref().and_then(|n| n.get_vpn_indicator()))
-                            .spacing(4),
-                    )
-                    .push_maybe(
-                        self.upower
-                            .as_ref()
-                            .and_then(|upower| upower.battery)
-                            .map(|battery| battery.indicator()),
-                    )
-                    .spacing(8),
-            )
-            .map(app::Message::Settings),
+            Row::new()
+                .push_maybe(
+                    self.idle_inhibitor
+                        .as_ref()
+                        .filter(|i| i.is_inhibited())
+                        .map(|_| {
+                            container(icon(Icons::EyeOpened)).style(|theme: &Theme| {
+                                container::Style {
+                                    text_color: Some(theme.palette().danger),
+                                    ..Default::default()
+                                }
+                            })
+                        }),
+                )
+                .push_maybe(
+                    self.upower
+                        .as_ref()
+                        .and_then(|p| p.power_profile.indicator()),
+                )
+                .push_maybe(self.audio.as_ref().and_then(|a| a.sink_indicator()))
+                .push(
+                    Row::new()
+                        .push_maybe(
+                            self.network
+                                .as_ref()
+                                .and_then(|n| n.get_connection_indicator()),
+                        )
+                        .push_maybe(self.network.as_ref().and_then(|n| n.get_vpn_indicator()))
+                        .spacing(4),
+                )
+                .push_maybe(
+                    self.upower
+                        .as_ref()
+                        .and_then(|upower| upower.battery)
+                        .map(|battery| battery.indicator()),
+                )
+                .spacing(8)
+                .into(),
             Some(OnModulePress::ToggleMenu(MenuType::Settings)),
         ))
     }

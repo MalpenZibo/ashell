@@ -1,5 +1,5 @@
 use crate::{
-    app::Message,
+    app::{self},
     components::icons::{icon, Icons},
 };
 use iced::Element;
@@ -12,10 +12,10 @@ pub struct Clipboard;
 impl Module for Clipboard {
     type Data<'a> = ();
 
-    fn view<'a>(&self, _: Self::Data<'a>) -> Option<(Element<Message>, Option<OnModulePress>)> {
+    fn view(&self, _: Self::Data<'_>) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         Some((
             icon(Icons::Clipboard).into(),
-            Some(OnModulePress::Action(Message::OpenClipboard)),
+            Some(OnModulePress::Action(app::Message::OpenClipboard)),
         ))
     }
 }

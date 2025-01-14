@@ -1,5 +1,6 @@
-use super::{Module, OnModulePress};
 use crate::app;
+
+use super::{Module, OnModulePress};
 use chrono::{DateTime, Local};
 use iced::{time::every, widget::text, Element, Subscription};
 use std::time::Duration;
@@ -36,9 +37,9 @@ impl Clock {
 impl Module for Clock {
     type Data<'a> = &'a str;
 
-    fn view<'a>(
+    fn view(
         &self,
-        format: Self::Data<'a>,
+        format: Self::Data<'_>,
     ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         Some((text(self.date.format(format).to_string()).into(), None))
     }

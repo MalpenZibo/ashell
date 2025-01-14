@@ -85,9 +85,9 @@ impl SystemInfo {
 impl Module for SystemInfo {
     type Data<'a> = &'a SystemModuleConfig;
 
-    fn view<'a>(
+    fn view(
         &self,
-        config: Self::Data<'a>,
+        config: Self::Data<'_>,
     ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         let cpu_usage = self.data.cpu_usage;
         let memory_usage = self.data.memory_usage;

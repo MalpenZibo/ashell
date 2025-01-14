@@ -15,7 +15,7 @@ impl<'a> Deref for UPowerDbus<'a> {
     }
 }
 
-impl<'a> UPowerDbus<'a> {
+impl UPowerDbus<'_> {
     pub async fn new(conn: &zbus::Connection) -> anyhow::Result<Self> {
         let nm = UPowerProxy::new(conn).await?;
 

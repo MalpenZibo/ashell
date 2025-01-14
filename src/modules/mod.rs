@@ -1,5 +1,5 @@
 use crate::{
-    app::{App, Message},
+    app::{self, App, Message},
     config::{ModuleDef, ModuleName},
     menu::MenuType,
     position_button::position_button,
@@ -35,7 +35,7 @@ pub enum OnModulePress {
 pub trait Module {
     type Data<'a>;
 
-    fn view<'a>(&self, data: Self::Data<'a>) -> Option<(Element<Message>, Option<OnModulePress>)>;
+    fn view(&self, data: Self::Data<'_>) -> Option<(Element<app::Message>, Option<OnModulePress>)>;
 }
 
 #[derive(Debug, Clone)]
@@ -78,7 +78,7 @@ impl App {
                 .style(ModuleButtonStyle::Full.into_style());
 
                 match action {
-                    OnModulePress::Action(action) => button.on_press(action).into(),
+                    OnModulePress::Action(action) => button.on_press(action),
                     OnModulePress::ToggleMenu(menu_type) => {
                         button.on_press_with_position(move |button_ui_ref| {
                             Message::ToggleMenu(menu_type.clone(), id, button_ui_ref)
@@ -97,11 +97,10 @@ impl App {
         })
     }
 
-    fn group_module_wrapper(&self, group: &Vec<ModuleName>, id: Id) -> Option<Element<Message>> {
+    fn group_module_wrapper(&self, group: &[ModuleName], id: Id) -> Option<Element<Message>> {
         let modules = group
             .iter()
-            .map(|module| self.get_module(*module, id))
-            .flatten()
+            .filter_map(|module| self.get_module(*module, id))
             .collect::<Vec<_>>();
 
         let modules_len = modules.len();

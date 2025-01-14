@@ -82,9 +82,9 @@ impl App {
                     logger,
                     config,
                     outputs,
-                    launcher: Launcher::default(),
+                    launcher: Launcher,
                     updates: Updates::default(),
-                    clipboard: Clipboard::default(),
+                    clipboard: Clipboard,
                     workspaces: Workspaces::default(),
                     window_title: WindowTitle::default(),
                     system_info: SystemInfo::default(),
@@ -257,7 +257,7 @@ impl App {
                 let center = self.modules_section(&self.config.modules.center, id);
                 let right = self.modules_section(&self.config.modules.right, id);
 
-                centerbox::Centerbox::new([left.into(), center.into(), right.into()])
+                centerbox::Centerbox::new([left, center, right])
                     .spacing(4)
                     .padding([4, 4])
                     .width(Length::Fill)

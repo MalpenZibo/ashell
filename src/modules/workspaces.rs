@@ -327,9 +327,9 @@ impl Workspaces {
 impl Module for Workspaces {
     type Data<'a> = (&'a [AppearanceColor], Option<&'a [AppearanceColor]>);
 
-    fn view<'a>(
+    fn view(
         &self,
-        (workspace_colors, special_workspace_colors): Self::Data<'a>,
+        (workspace_colors, special_workspace_colors): Self::Data<'_>,
     ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         Some((
             Into::<Element<Message>>::into(

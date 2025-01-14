@@ -1,5 +1,5 @@
 use crate::{
-    app::Message,
+    app::{self, Message},
     components::icons::{icon, Icons},
 };
 use iced::Element;
@@ -12,7 +12,7 @@ pub struct Launcher;
 impl Module for Launcher {
     type Data<'a> = ();
 
-    fn view<'a>(&self, _: Self::Data<'a>) -> Option<(Element<Message>, Option<OnModulePress>)> {
+    fn view(&self, _: Self::Data<'_>) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         Some((
             icon(Icons::Launcher).into(),
             Some(OnModulePress::Action(Message::OpenLauncher)),

@@ -19,7 +19,7 @@ impl<'a> Deref for NetworkDbus<'a> {
     }
 }
 
-impl<'a> NetworkDbus<'a> {
+impl NetworkDbus<'_> {
     pub async fn new(conn: &zbus::Connection) -> anyhow::Result<Self> {
         let nm = NetworkManagerProxy::new(conn).await?;
 
@@ -378,7 +378,7 @@ impl<'a> Deref for NetworkSettingsDbus<'a> {
     }
 }
 
-impl<'a> NetworkSettingsDbus<'a> {
+impl NetworkSettingsDbus<'_> {
     pub async fn new(conn: &zbus::Connection) -> anyhow::Result<Self> {
         let settings = SettingsProxy::new(conn).await?;
 

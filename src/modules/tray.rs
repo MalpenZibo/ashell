@@ -156,10 +156,7 @@ impl TrayModule {
 impl Module for TrayModule {
     type Data<'a> = Id;
 
-    fn view<'a>(
-        &self,
-        id: Self::Data<'a>,
-    ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
+    fn view(&self, id: Self::Data<'_>) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         self.service
             .as_ref()
             .filter(|s| s.data.len() > 0)

@@ -120,10 +120,7 @@ impl WindowTitle {
 impl Module for WindowTitle {
     type Data<'a> = ();
 
-    fn view<'a>(
-        &self,
-        _: Self::Data<'a>,
-    ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
+    fn view(&self, _: Self::Data<'_>) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         self.value
             .as_ref()
             .map(|value| (text(value).size(12).into(), None))

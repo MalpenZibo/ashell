@@ -258,10 +258,7 @@ impl Updates {
 impl Module for Updates {
     type Data<'a> = ();
 
-    fn view<'a>(
-        &self,
-        _: Self::Data<'a>,
-    ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
+    fn view(&self, _: Self::Data<'_>) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         let mut content = row!(container(icon(match self.state {
             State::Checking => Icons::Refresh,
             State::Ready if self.updates.is_empty() => Icons::NoUpdatesAvailable,

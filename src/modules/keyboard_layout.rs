@@ -1,4 +1,3 @@
-use crate::app;
 use hyprland::{
     ctl::switch_xkb_layout::SwitchXKBLayoutCmdTypes, event_listener::AsyncEventListener,
     shared::HyprData,
@@ -9,6 +8,8 @@ use std::{
     any::TypeId,
     sync::{Arc, RwLock},
 };
+
+use crate::app;
 
 use super::{Module, OnModulePress};
 
@@ -129,10 +130,7 @@ impl KeyboardLayout {
 impl Module for KeyboardLayout {
     type Data<'a> = ();
 
-    fn view<'a>(
-        &self,
-        _: Self::Data<'a>,
-    ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
+    fn view(&self, _: Self::Data<'_>) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         if !self.multiple_layout {
             None
         } else {

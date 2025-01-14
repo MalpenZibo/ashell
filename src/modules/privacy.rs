@@ -1,6 +1,6 @@
 use super::{Module, OnModulePress};
 use crate::{
-    app::Message,
+    app,
     components::icons::{icon, Icons},
     services::{
         privacy::{PrivacyData, PrivacyService},
@@ -17,7 +17,7 @@ pub enum PrivacyMessage {
 impl Module for PrivacyData {
     type Data<'a> = ();
 
-    fn view<'a>(&self, _: Self::Data<'a>) -> Option<(Element<Message>, Option<OnModulePress>)> {
+    fn view(&self, _: Self::Data<'_>) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         if !self.no_access() {
             Some((
                 Row::new()
