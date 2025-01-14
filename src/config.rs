@@ -277,7 +277,7 @@ pub enum ModuleDef {
     Group(Vec<ModuleName>),
 }
 
-#[derive(Deserialize, Clone, Default, Debug)]
+#[derive(Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Modules {
     #[serde(default)]
@@ -286,6 +286,23 @@ pub struct Modules {
     pub center: Vec<ModuleDef>,
     #[serde(default)]
     pub right: Vec<ModuleDef>,
+}
+
+impl Default for Modules {
+    fn default() -> Self {
+        Self {
+            left: vec![
+                ModuleDef::Single(ModuleName::AppLauncher),
+                ModuleDef::Single(ModuleName::Workspaces),
+            ],
+            center: vec![ModuleDef::Single(ModuleName::WindowTitle)],
+            right: vec![ModuleDef::Group(vec![
+                ModuleName::Clock,
+                ModuleName::Privacy,
+                ModuleName::Settings,
+            ])],
+        }
+    }
 }
 
 #[derive(Deserialize, Clone, Debug)]

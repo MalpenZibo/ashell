@@ -92,6 +92,7 @@ To enable this flake use
 - System Information (CPU, RAM, Temperature)
 - Hyprland Keyboard Layout
 - Hyprland Keyboard Submap
+- Tray
 - Date time
 - Privacy (check microphone, camera and screenshare usage)
 - Settings panel
@@ -121,7 +122,35 @@ outputs: # optional, default empty list (the bar will be displayed on the active
   - DP-1
 # Bar position, possible values Top | Bottom.
 position: Top # optional, default Top
-# App lancher commanda, it will be used to open the launcher,
+# Declare which modules should be used and in which position in the status bar
+# optional, the following is the default configuration
+# this is the list of all possible modules
+#  - AppLauncher
+#  - Updates
+#  - Clipboard
+#  - Workspaces
+#  - WindowTitle
+#  - SystemInfo
+#  - KeyboardLayout
+#  - KeyboardSubmap
+#  - Tray
+#  - Clock
+#  - Privacy
+#  - Settings
+modules:
+  # The modules that will be displayed on the left side of the status bar
+  left:
+    - AppLauncher
+    - Workspaces
+  # The modules that will be displayed in the center of the status bar
+  center:
+    - WindowTitle
+  # The modules that will be displayed on the right side of the status bar
+  right:
+    - SystemInfo
+    # This modules will form a group sharing the same element in the status bar
+    - [Clock, Privacy, Settings]
+# App launcher command, it will be used to open the launcher,
 # without a value the related button will not appear
 appLauncherCmd: "~/.config/rofi/launcher.sh" # optional, default None
 # Clipboard command, it will be used to open the clipboard menu,
@@ -140,19 +169,12 @@ updates: # optional, default None
 truncateTitleAfterLength: 150 # optional, default 150
 # The system module configuration
 system:
-  disabled: false # Enable or disable the system monitor module
   cpuWarnThreshold: 6O # cpu indicator warning level (default 60)
   cpuAlertThreshold: 8O # cpu indicator alert level (default 80)
   memWarnThreshold: 7O # mem indicator warning level (default 70)
   memAlertThreshold: 85 # mem indicator alert level (default 85)
   tempWarnThreshold: 6O # temperature indicator warning level (default 60)
   tempAlertThreshold: 8O # temperature indicator alert level (default 80)
-# Keyboard modules configuration
-keyboard:
-  layout:
-    disabled: false # Enable or disable the keyboard layout module
-  submap: # see: https://wiki.hyprland.org/Configuring/Binds/#submaps
-    disabled: false # Enable or disable the keyboard submap module
 # Clock module configuration
 clock:
   # clock format see: https://docs.rs/chrono/latest/chrono/format/strftime/index.html
