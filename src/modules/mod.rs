@@ -137,8 +137,8 @@ impl App {
                         .enumerate()
                         .map(|(i, (content, action))| {
                             let group_position = match i {
+                                i @ 0 if i == modules_len - 1 => ModuleGroupPosition::Only,
                                 0 => ModuleGroupPosition::First,
-                                i if i == 0 && i == modules_len - 1 => ModuleGroupPosition::Only,
                                 i if i == modules_len - 1 => ModuleGroupPosition::Last,
                                 _ => ModuleGroupPosition::Middle,
                             };
