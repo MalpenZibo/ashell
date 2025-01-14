@@ -16,7 +16,7 @@ use crate::{
 use iced::{
     widget::{button, horizontal_rule, row, text, toggler, Column, Image, Row},
     window::Id,
-    Alignment, Element, Length, Task,
+    Alignment, Element, Length, Subscription, Task,
 };
 use log::debug;
 
@@ -154,9 +154,13 @@ impl TrayModule {
 }
 
 impl Module for TrayModule {
-    type Data<'a> = Id;
+    type ViewData<'a> = Id;
+    type SubscriptionData<'a> = ();
 
-    fn view(&self, id: Self::Data<'_>) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
+    fn view(
+        &self,
+        id: Self::ViewData<'_>,
+    ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         self.service
             .as_ref()
             .filter(|s| s.data.len() > 0)
@@ -193,5 +197,9 @@ impl Module for TrayModule {
                     None,
                 )
             })
+    }
+
+    fn subscription(&self, _: Self::SubscriptionData<'_>) -> Option<Subscription<app::Message>> {
+        Some(TrayService::subscribe().map(|e| app::Message::Tray(TrayMessage::Event(e))))
     }
 }

@@ -577,24 +577,16 @@ impl Settings {
                 .into()
         }
     }
-
-    pub fn subscription(&self) -> Subscription<Message> {
-        Subscription::batch(vec![
-            UPowerService::subscribe().map(|event| Message::UPower(UPowerMessage::Event(event))),
-            AudioService::subscribe().map(|evenet| Message::Audio(AudioMessage::Event(evenet))),
-            BrightnessService::subscribe()
-                .map(|event| Message::Brightness(BrightnessMessage::Event(event))),
-            NetworkService::subscribe().map(|event| Message::Network(NetworkMessage::Event(event))),
-            BluetoothService::subscribe()
-                .map(|event| Message::Bluetooth(BluetoothMessage::Event(event))),
-        ])
-    }
 }
 
 impl Module for Settings {
-    type Data<'a> = ();
+    type ViewData<'a> = ();
+    type SubscriptionData<'a> = ();
 
-    fn view(&self, _: Self::Data<'_>) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
+    fn view(
+        &self,
+        _: Self::ViewData<'_>,
+    ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         Some((
             Row::new()
                 .push_maybe(
@@ -636,6 +628,23 @@ impl Module for Settings {
                 .into(),
             Some(OnModulePress::ToggleMenu(MenuType::Settings)),
         ))
+    }
+
+    fn subscription(&self, _: Self::SubscriptionData<'_>) -> Option<Subscription<app::Message>> {
+        Some(
+            Subscription::batch(vec![
+                UPowerService::subscribe()
+                    .map(|event| Message::UPower(UPowerMessage::Event(event))),
+                AudioService::subscribe().map(|evenet| Message::Audio(AudioMessage::Event(evenet))),
+                BrightnessService::subscribe()
+                    .map(|event| Message::Brightness(BrightnessMessage::Event(event))),
+                NetworkService::subscribe()
+                    .map(|event| Message::Network(NetworkMessage::Event(event))),
+                BluetoothService::subscribe()
+                    .map(|event| Message::Bluetooth(BluetoothMessage::Event(event))),
+            ])
+            .map(app::Message::Settings),
+        )
     }
 }
 

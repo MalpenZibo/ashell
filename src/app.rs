@@ -4,23 +4,14 @@ use crate::{
     get_log_spec,
     menu::{menu_wrapper, MenuSize, MenuType},
     modules::{
-        self,
-        clipboard::Clipboard,
-        clock::Clock,
-        keyboard_layout::KeyboardLayout,
-        keyboard_submap::KeyboardSubmap,
-        launcher::Launcher,
-        privacy::PrivacyMessage,
-        settings::Settings,
-        system_info::SystemInfo,
-        tray::{TrayMessage, TrayModule},
-        updates::Updates,
-        window_title::WindowTitle,
-        workspaces::Workspaces,
+        self, clipboard::Clipboard, clock::Clock, keyboard_layout::KeyboardLayout,
+        keyboard_submap::KeyboardSubmap, launcher::Launcher, privacy::PrivacyMessage,
+        settings::Settings, system_info::SystemInfo, tray::TrayModule, updates::Updates,
+        window_title::WindowTitle, workspaces::Workspaces,
     },
     outputs::{HasOutput, Outputs},
     position_button::ButtonUIRef,
-    services::{privacy::PrivacyService, tray::TrayService, ReadOnlyService, ServiceEvent},
+    services::{privacy::PrivacyService, ReadOnlyService, ServiceEvent},
     style::ashell_theme,
     utils, HEIGHT,
 };
@@ -62,7 +53,7 @@ pub enum Message {
     OpenClipboard,
     Updates(modules::updates::Message),
     Workspaces(modules::workspaces::Message),
-    Title(modules::window_title::Message),
+    WindowTitle(modules::window_title::Message),
     SystemInfo(modules::system_info::Message),
     KeyboardLayout(modules::keyboard_layout::Message),
     KeyboardSubmap(modules::keyboard_submap::Message),
@@ -182,7 +173,7 @@ impl App {
 
                 Task::none()
             }
-            Message::Title(message) => {
+            Message::WindowTitle(message) => {
                 self.window_title
                     .update(message, self.config.truncate_title_after_length);
                 Task::none()
@@ -296,52 +287,25 @@ impl App {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        Subscription::batch(
-            vec![
-                self.config.updates.as_ref().map(|updates_config| {
-                    self.updates
-                        .subscription(updates_config)
-                        .map(Message::Updates)
-                }),
-                Some(self.workspaces.subscription().map(Message::Workspaces)),
-                Some(self.window_title.subscription().map(Message::Title)),
-                Some(self.system_info.subscription().map(Message::SystemInfo)),
-                Some(
-                    self.keyboard_layout
-                        .subscription()
-                        .map(Message::KeyboardLayout),
-                ),
-                Some(
-                    self.keyboard_submap
-                        .subscription()
-                        .map(Message::KeyboardSubmap),
-                ),
-                Some(TrayService::subscribe().map(|e| Message::Tray(TrayMessage::Event(e)))),
-                Some(self.clock.subscription().map(Message::Clock)),
-                Some(
-                    PrivacyService::subscribe().map(|e| Message::Privacy(PrivacyMessage::Event(e))),
-                ),
-                Some(self.settings.subscription().map(Message::Settings)),
-                Some(config::subscription()),
-                Some(listen_with(|evt, _, _| {
-                    if let iced::Event::PlatformSpecific(iced::event::PlatformSpecific::Wayland(
-                        evt,
-                    )) = evt
-                    {
-                        if matches!(evt, WaylandEvent::Output(_, _)) {
-                            debug!("Wayland event: {:?}", evt);
-                            Some(Message::WaylandEvent(evt))
-                        } else {
-                            None
-                        }
+        Subscription::batch(vec![
+            Subscription::batch(self.modules_subscriptions(&self.config.modules.left)),
+            Subscription::batch(self.modules_subscriptions(&self.config.modules.center)),
+            Subscription::batch(self.modules_subscriptions(&self.config.modules.right)),
+            config::subscription(),
+            listen_with(|evt, _, _| {
+                if let iced::Event::PlatformSpecific(iced::event::PlatformSpecific::Wayland(evt)) =
+                    evt
+                {
+                    if matches!(evt, WaylandEvent::Output(_, _)) {
+                        debug!("Wayland event: {:?}", evt);
+                        Some(Message::WaylandEvent(evt))
                     } else {
                         None
                     }
-                })),
-            ]
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>(),
-        )
+                } else {
+                    None
+                }
+            }),
+        ])
     }
 }

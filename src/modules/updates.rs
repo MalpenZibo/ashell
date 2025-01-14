@@ -235,30 +235,16 @@ impl Updates {
         .spacing(4)
         .into()
     }
-
-    pub fn subscription(&self, config: &UpdatesModuleConfig) -> Subscription<Message> {
-        let check_cmd = config.check_cmd.clone();
-        let id = TypeId::of::<Self>();
-
-        Subscription::run_with_id(
-            id,
-            channel(10, |mut output| async move {
-                loop {
-                    let updates = check_update_now(&check_cmd).await;
-
-                    let _ = output.try_send(Message::UpdatesCheckCompleted(updates));
-
-                    sleep(Duration::from_secs(3600)).await;
-                }
-            }),
-        )
-    }
 }
 
 impl Module for Updates {
-    type Data<'a> = ();
+    type ViewData<'a> = ();
+    type SubscriptionData<'a> = &'a UpdatesModuleConfig;
 
-    fn view(&self, _: Self::Data<'_>) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
+    fn view(
+        &self,
+        _: Self::ViewData<'_>,
+    ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         let mut content = row!(container(icon(match self.state {
             State::Checking => Icons::Refresh,
             State::Ready if self.updates.is_empty() => Icons::NoUpdatesAvailable,
@@ -275,5 +261,29 @@ impl Module for Updates {
             content.into(),
             Some(OnModulePress::ToggleMenu(MenuType::Updates)),
         ))
+    }
+
+    fn subscription(
+        &self,
+        config: Self::SubscriptionData<'_>,
+    ) -> Option<Subscription<app::Message>> {
+        let check_cmd = config.check_cmd.clone();
+        let id = TypeId::of::<Self>();
+
+        Some(
+            Subscription::run_with_id(
+                id,
+                channel(10, |mut output| async move {
+                    loop {
+                        let updates = check_update_now(&check_cmd).await;
+
+                        let _ = output.try_send(Message::UpdatesCheckCompleted(updates));
+
+                        sleep(Duration::from_secs(3600)).await;
+                    }
+                }),
+            )
+            .map(app::Message::Updates),
+        )
     }
 }

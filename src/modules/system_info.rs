@@ -76,18 +76,15 @@ impl SystemInfo {
             }
         }
     }
-
-    pub fn subscription(&self) -> Subscription<Message> {
-        every(Duration::from_secs(5)).map(|_| Message::Update)
-    }
 }
 
 impl Module for SystemInfo {
-    type Data<'a> = &'a SystemModuleConfig;
+    type ViewData<'a> = &'a SystemModuleConfig;
+    type SubscriptionData<'a> = ();
 
     fn view(
         &self,
-        config: Self::Data<'_>,
+        config: Self::ViewData<'_>,
     ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         let cpu_usage = self.data.cpu_usage;
         let memory_usage = self.data.memory_usage;
@@ -156,5 +153,9 @@ impl Module for SystemInfo {
                 .into(),
             None,
         ))
+    }
+
+    fn subscription(&self, _: Self::SubscriptionData<'_>) -> Option<Subscription<app::Message>> {
+        Some(every(Duration::from_secs(5)).map(|_| app::Message::SystemInfo(Message::Update)))
     }
 }

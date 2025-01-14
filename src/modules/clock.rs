@@ -28,19 +28,23 @@ impl Clock {
             }
         }
     }
-
-    pub fn subscription(&self) -> Subscription<Message> {
-        every(Duration::from_secs(5)).map(|_| Message::Update)
-    }
 }
 
 impl Module for Clock {
-    type Data<'a> = &'a str;
-
+    type ViewData<'a> = &'a str;
+    type SubscriptionData<'a> = ();
     fn view(
         &self,
-        format: Self::Data<'_>,
+        format: Self::ViewData<'_>,
     ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         Some((text(self.date.format(format).to_string()).into(), None))
+    }
+
+    fn subscription(&self, _: Self::SubscriptionData<'_>) -> Option<Subscription<app::Message>> {
+        Some(
+            every(Duration::from_secs(5))
+                .map(|_| Message::Update)
+                .map(app::Message::Clock),
+        )
     }
 }

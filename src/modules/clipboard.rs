@@ -10,9 +10,13 @@ use super::{Module, OnModulePress};
 pub struct Clipboard;
 
 impl Module for Clipboard {
-    type Data<'a> = ();
+    type ViewData<'a> = ();
+    type SubscriptionData<'a> = ();
 
-    fn view(&self, _: Self::Data<'_>) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
+    fn view(
+        &self,
+        _: Self::ViewData<'_>,
+    ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         Some((
             icon(Icons::Clipboard).into(),
             Some(OnModulePress::Action(app::Message::OpenClipboard)),

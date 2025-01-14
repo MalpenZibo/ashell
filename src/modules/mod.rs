@@ -10,7 +10,7 @@ use crate::{
 use iced::{
     widget::{container, row, Row},
     window::Id,
-    Alignment, Element, Length,
+    Alignment, Element, Length, Subscription,
 };
 
 pub mod clipboard;
@@ -33,9 +33,17 @@ pub enum OnModulePress {
 }
 
 pub trait Module {
-    type Data<'a>;
+    type ViewData<'a>;
+    type SubscriptionData<'a>;
 
-    fn view(&self, data: Self::Data<'_>) -> Option<(Element<app::Message>, Option<OnModulePress>)>;
+    fn view(
+        &self,
+        data: Self::ViewData<'_>,
+    ) -> Option<(Element<app::Message>, Option<OnModulePress>)>;
+
+    fn subscription(&self, _: Self::SubscriptionData<'_>) -> Option<Subscription<app::Message>> {
+        None
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -63,8 +71,22 @@ impl App {
         row.into()
     }
 
+    pub fn modules_subscriptions(&self, modules_def: &[ModuleDef]) -> Vec<Subscription<Message>> {
+        modules_def
+            .iter()
+            .flat_map(|module_def| match module_def {
+                ModuleDef::Single(module) => vec![self.get_module_subscription(*module)],
+                ModuleDef::Group(group) => group
+                    .iter()
+                    .map(|module| self.get_module_subscription(*module))
+                    .collect(),
+            })
+            .flatten()
+            .collect()
+    }
+
     fn single_module_wrapper(&self, module_name: ModuleName, id: Id) -> Option<Element<Message>> {
-        let module = self.get_module(module_name, id);
+        let module = self.get_module_view(module_name, id);
 
         module.map(|(content, action)| {
             if let Some(action) = action {
@@ -100,7 +122,7 @@ impl App {
     fn group_module_wrapper(&self, group: &[ModuleName], id: Id) -> Option<Element<Message>> {
         let modules = group
             .iter()
-            .filter_map(|module| self.get_module(*module, id))
+            .filter_map(|module| self.get_module_view(*module, id))
             .collect::<Vec<_>>();
 
         let modules_len = modules.len();
@@ -177,7 +199,7 @@ impl App {
         }
     }
 
-    fn get_module(
+    fn get_module_view(
         &self,
         module_name: ModuleName,
         id: Id,
@@ -198,6 +220,27 @@ impl App {
             ModuleName::Clock => self.clock.view(&self.config.clock.format),
             ModuleName::Privacy => self.privacy.as_ref().and_then(|p| p.view(())),
             ModuleName::Settings => self.settings.view(()),
+        }
+    }
+
+    fn get_module_subscription(&self, module_name: ModuleName) -> Option<Subscription<Message>> {
+        match module_name {
+            ModuleName::AppLauncher => self.launcher.subscription(()),
+            ModuleName::Updates => self
+                .config
+                .updates
+                .as_ref()
+                .and_then(|updates_config| self.updates.subscription(updates_config)),
+            ModuleName::Clipboard => self.clipboard.subscription(()),
+            ModuleName::Workspaces => self.workspaces.subscription(()),
+            ModuleName::WindowTitle => self.window_title.subscription(()),
+            ModuleName::SystemInfo => self.system_info.subscription(()),
+            ModuleName::KeyboardLayout => self.keyboard_layout.subscription(()),
+            ModuleName::KeyboardSubmap => self.keyboard_submap.subscription(()),
+            ModuleName::Tray => self.tray.subscription(()),
+            ModuleName::Clock => self.clock.subscription(()),
+            ModuleName::Privacy => self.privacy.as_ref().and_then(|p| p.subscription(())),
+            ModuleName::Settings => self.settings.subscription(()),
         }
     }
 }

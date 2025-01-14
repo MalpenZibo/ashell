@@ -72,65 +72,16 @@ impl KeyboardLayout {
             }
         }
     }
-
-    pub fn subscription(&self) -> Subscription<Message> {
-        let id = TypeId::of::<Self>();
-
-        Subscription::run_with_id(
-            id,
-            channel(10, |output| async move {
-                let output = Arc::new(RwLock::new(output));
-                loop {
-                    let mut event_listener = AsyncEventListener::new();
-
-                    event_listener.add_layout_changed_handler({
-                        let output = output.clone();
-                        move |e| {
-                            debug!("keymap changed: {:?}", e);
-                            let output = output.clone();
-                            Box::pin(async move {
-                                if let Ok(mut output) = output.write() {
-                                    output
-                                        .try_send(Message::ActiveLayoutChanged(get_active_layout()))
-                                        .expect("error getting keymap: layout changed event");
-                                }
-                            })
-                        }
-                    });
-
-                    event_listener.add_config_reloaded_handler({
-                        let output = output.clone();
-                        move || {
-                            let output = output.clone();
-                            Box::pin(async move {
-                                if let Ok(mut output) = output.write() {
-                                    output
-                                        .try_send(Message::LayoutConfigChanged(
-                                            get_multiple_layout_flag(),
-                                        ))
-                                        .expect(
-                                            "error sending message: layout config changed event",
-                                        );
-                                }
-                            })
-                        }
-                    });
-
-                    let res = event_listener.start_listener_async().await;
-
-                    if let Err(e) = res {
-                        error!("restarting keymap listener due to error: {:?}", e);
-                    }
-                }
-            }),
-        )
-    }
 }
 
 impl Module for KeyboardLayout {
-    type Data<'a> = ();
+    type ViewData<'a> = ();
+    type SubscriptionData<'a> = ();
 
-    fn view(&self, _: Self::Data<'_>) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
+    fn view(
+        &self,
+        _: Self::ViewData<'_>,
+    ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         if !self.multiple_layout {
             None
         } else {
@@ -141,5 +92,63 @@ impl Module for KeyboardLayout {
                 ))),
             ))
         }
+    }
+
+    fn subscription(&self, _: Self::SubscriptionData<'_>) -> Option<Subscription<app::Message>> {
+        let id = TypeId::of::<Self>();
+
+        Some(
+            Subscription::run_with_id(
+                id,
+                channel(10, |output| async move {
+                    let output = Arc::new(RwLock::new(output));
+                    loop {
+                        let mut event_listener = AsyncEventListener::new();
+
+                        event_listener.add_layout_changed_handler({
+                            let output = output.clone();
+                            move |e| {
+                                debug!("keymap changed: {:?}", e);
+                                let output = output.clone();
+                                Box::pin(async move {
+                                    if let Ok(mut output) = output.write() {
+                                        output
+                                            .try_send(Message::ActiveLayoutChanged(
+                                                get_active_layout(),
+                                            ))
+                                            .expect("error getting keymap: layout changed event");
+                                    }
+                                })
+                            }
+                        });
+
+                        event_listener.add_config_reloaded_handler({
+                            let output = output.clone();
+                            move || {
+                                let output = output.clone();
+                                Box::pin(async move {
+                                    if let Ok(mut output) = output.write() {
+                                        output
+                                        .try_send(Message::LayoutConfigChanged(
+                                            get_multiple_layout_flag(),
+                                        ))
+                                        .expect(
+                                            "error sending message: layout config changed event",
+                                        );
+                                    }
+                                })
+                            }
+                        });
+
+                        let res = event_listener.start_listener_async().await;
+
+                        if let Err(e) = res {
+                            error!("restarting keymap listener due to error: {:?}", e);
+                        }
+                    }
+                }),
+            )
+            .map(app::Message::KeyboardLayout),
+        )
     }
 }

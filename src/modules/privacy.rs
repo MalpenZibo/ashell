@@ -4,10 +4,10 @@ use crate::{
     components::icons::{icon, Icons},
     services::{
         privacy::{PrivacyData, PrivacyService},
-        ServiceEvent,
+        ReadOnlyService, ServiceEvent,
     },
 };
-use iced::{widget::Row, Alignment, Element};
+use iced::{widget::Row, Alignment, Element, Subscription};
 
 #[derive(Debug, Clone)]
 pub enum PrivacyMessage {
@@ -15,9 +15,13 @@ pub enum PrivacyMessage {
 }
 
 impl Module for PrivacyData {
-    type Data<'a> = ();
+    type ViewData<'a> = ();
+    type SubscriptionData<'a> = ();
 
-    fn view(&self, _: Self::Data<'_>) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
+    fn view(
+        &self,
+        _: Self::ViewData<'_>,
+    ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         if !self.no_access() {
             Some((
                 Row::new()
@@ -32,5 +36,9 @@ impl Module for PrivacyData {
         } else {
             None
         }
+    }
+
+    fn subscription(&self, _: Self::SubscriptionData<'_>) -> Option<Subscription<app::Message>> {
+        Some(PrivacyService::subscribe().map(|e| app::Message::Privacy(PrivacyMessage::Event(e))))
     }
 }
