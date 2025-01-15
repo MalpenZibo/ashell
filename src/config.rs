@@ -6,7 +6,7 @@ use iced::{
     Color, Subscription,
 };
 use inotify::{EventMask, Inotify, WatchMask};
-use serde::Deserialize;
+use serde::{de::Error, Deserialize, Deserializer};
 use std::{any::TypeId, env, fs::File, path::Path, time::Duration};
 use tokio::time::sleep;
 
@@ -302,6 +302,29 @@ impl Default for Modules {
     }
 }
 
+#[derive(Deserialize, Clone, Default, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum Outputs {
+    #[default]
+    All,
+    Active,
+    #[serde(deserialize_with = "non_empty")]
+    Targets(Vec<String>),
+}
+
+fn non_empty<'de, D, T>(d: D) -> Result<Vec<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    let vec = <Vec<T>>::deserialize(d)?;
+    if vec.is_empty() {
+        Err(D::Error::custom("need non-empty"))
+    } else {
+        Ok(vec)
+    }
+}
+
 #[derive(Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Config {
@@ -310,7 +333,7 @@ pub struct Config {
     #[serde(default)]
     pub position: Position,
     #[serde(default)]
-    pub outputs: Vec<String>,
+    pub outputs: Outputs,
     #[serde(default)]
     pub modules: Modules,
     pub app_launcher_cmd: Option<String>,
@@ -342,7 +365,7 @@ impl Default for Config {
         Self {
             log_level: default_log_level(),
             position: Position::Top,
-            outputs: vec![],
+            outputs: Outputs::default(),
             modules: Modules::default(),
             app_launcher_cmd: None,
             clipboard_cmd: None,
