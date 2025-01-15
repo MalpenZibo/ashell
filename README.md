@@ -122,9 +122,8 @@ outputs: # optional, default empty list (the bar will be displayed on the active
   - DP-1
 # Bar position, possible values Top | Bottom.
 position: Top # optional, default Top
-# Declare which modules should be used and in which position in the status bar
-# optional, the following is the default configuration
-# this is the list of all possible modules
+# Declare which modules should be used and in which position in the status bar.
+# This is the list of all possible modules
 #  - AppLauncher
 #  - Updates
 #  - Clipboard
@@ -137,6 +136,7 @@ position: Top # optional, default Top
 #  - Clock
 #  - Privacy
 #  - Settings
+# optional, the following is the default configuration
 modules:
   # The modules that will be displayed on the left side of the status bar
   left:
