@@ -238,29 +238,33 @@ impl Updates {
 }
 
 impl Module for Updates {
-    type ViewData<'a> = ();
+    type ViewData<'a> = &'a Option<UpdatesModuleConfig>;
     type SubscriptionData<'a> = &'a UpdatesModuleConfig;
 
     fn view(
         &self,
-        _: Self::ViewData<'_>,
+        config: Self::ViewData<'_>,
     ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
-        let mut content = row!(container(icon(match self.state {
-            State::Checking => Icons::Refresh,
-            State::Ready if self.updates.is_empty() => Icons::NoUpdatesAvailable,
-            _ => Icons::UpdatesAvailable,
-        })))
-        .align_y(Alignment::Center)
-        .spacing(4);
+        if config.is_some() {
+            let mut content = row!(container(icon(match self.state {
+                State::Checking => Icons::Refresh,
+                State::Ready if self.updates.is_empty() => Icons::NoUpdatesAvailable,
+                _ => Icons::UpdatesAvailable,
+            })))
+            .align_y(Alignment::Center)
+            .spacing(4);
 
-        if !self.updates.is_empty() {
-            content = content.push(text(self.updates.len()));
+            if !self.updates.is_empty() {
+                content = content.push(text(self.updates.len()));
+            }
+
+            Some((
+                content.into(),
+                Some(OnModulePress::ToggleMenu(MenuType::Updates)),
+            ))
+        } else {
+            None
         }
-
-        Some((
-            content.into(),
-            Some(OnModulePress::ToggleMenu(MenuType::Updates)),
-        ))
     }
 
     fn subscription(

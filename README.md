@@ -84,7 +84,7 @@ To enable this flake use
 
 ## Features
 
-- Lancher button
+- App Launcher button
 - Сlipboard button
 - OS Updates indicator
 - Hyprland Active Window
@@ -140,7 +140,6 @@ position: Top # optional, default Top
 modules:
   # The modules that will be displayed on the left side of the status bar
   left:
-    - AppLauncher
     - Workspaces
   # The modules that will be displayed in the center of the status bar
   center:

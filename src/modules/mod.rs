@@ -13,11 +13,11 @@ use iced::{
     Alignment, Element, Length, Subscription,
 };
 
+pub mod app_launcher;
 pub mod clipboard;
 pub mod clock;
 pub mod keyboard_layout;
 pub mod keyboard_submap;
-pub mod launcher;
 pub mod privacy;
 pub mod settings;
 pub mod system_info;
@@ -205,9 +205,9 @@ impl App {
         id: Id,
     ) -> Option<(Element<Message>, Option<OnModulePress>)> {
         match module_name {
-            ModuleName::AppLauncher => self.launcher.view(()),
-            ModuleName::Updates => self.updates.view(()),
-            ModuleName::Clipboard => self.clipboard.view(()),
+            ModuleName::AppLauncher => self.app_launcher.view(&self.config.app_launcher_cmd),
+            ModuleName::Updates => self.updates.view(&self.config.updates),
+            ModuleName::Clipboard => self.clipboard.view(&self.config.clipboard_cmd),
             ModuleName::Workspaces => self.workspaces.view((
                 &self.config.appearance.workspace_colors,
                 self.config.appearance.special_workspace_colors.as_deref(),
@@ -225,7 +225,7 @@ impl App {
 
     fn get_module_subscription(&self, module_name: ModuleName) -> Option<Subscription<Message>> {
         match module_name {
-            ModuleName::AppLauncher => self.launcher.subscription(()),
+            ModuleName::AppLauncher => self.app_launcher.subscription(()),
             ModuleName::Updates => self
                 .config
                 .updates

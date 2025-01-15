@@ -291,10 +291,7 @@ pub struct Modules {
 impl Default for Modules {
     fn default() -> Self {
         Self {
-            left: vec![
-                ModuleDef::Single(ModuleName::AppLauncher),
-                ModuleDef::Single(ModuleName::Workspaces),
-            ],
+            left: vec![ModuleDef::Single(ModuleName::Workspaces)],
             center: vec![ModuleDef::Single(ModuleName::WindowTitle)],
             right: vec![ModuleDef::Group(vec![
                 ModuleName::Clock,
