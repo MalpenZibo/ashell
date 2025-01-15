@@ -28,7 +28,7 @@ use log::{debug, info, warn};
 pub struct App {
     logger: LoggerHandle,
     pub config: Config,
-    outputs: Outputs,
+    pub outputs: Outputs,
     pub app_launcher: AppLauncher,
     pub updates: Updates,
     pub clipboard: Clipboard,

@@ -209,6 +209,8 @@ impl App {
             ModuleName::Updates => self.updates.view(&self.config.updates),
             ModuleName::Clipboard => self.clipboard.view(&self.config.clipboard_cmd),
             ModuleName::Workspaces => self.workspaces.view((
+                &self.outputs,
+                id,
                 &self.config.appearance.workspace_colors,
                 self.config.appearance.special_workspace_colors.as_deref(),
             )),

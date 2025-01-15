@@ -1,4 +1,4 @@
-use crate::{app, config::AppearanceColor, style::WorkspaceButtonStyle};
+use crate::{app, config::AppearanceColor, outputs::Outputs, style::WorkspaceButtonStyle};
 use hyprland::{
     dispatch::MonitorIdentifier,
     event_listener::AsyncEventListener,
@@ -8,6 +8,7 @@ use iced::{
     alignment,
     stream::channel,
     widget::{button, container, text, Row},
+    window::Id,
     Element, Length, Subscription,
 };
 use log::{debug, error};
@@ -23,6 +24,7 @@ pub struct Workspace {
     pub id: i32,
     pub name: String,
     pub monitor_id: Option<usize>,
+    pub monitor: String,
     pub active: bool,
     pub windows: u16,
 }
@@ -52,6 +54,7 @@ fn get_workspaces() -> Vec<Workspace> {
                         .last()
                         .map_or_else(|| "".to_string(), |s| s.to_owned()),
                     monitor_id: Some(w.monitor_id as usize),
+                    monitor: w.monitor,
                     active: monitors.iter().any(|m| m.special_workspace.id == w.id),
                     windows: w.windows,
                 }]
@@ -63,6 +66,7 @@ fn get_workspaces() -> Vec<Workspace> {
                         id: (current + i) as i32,
                         name: (current + i).to_string(),
                         monitor_id: None,
+                        monitor: "".to_string(),
                         active: false,
                         windows: 0,
                     });
@@ -72,6 +76,7 @@ fn get_workspaces() -> Vec<Workspace> {
                     id: w.id,
                     name: w.name.clone(),
                     monitor_id: Some(w.monitor_id as usize),
+                    monitor: w.monitor,
                     active: Some(w.id) == active.as_ref().map(|a| a.id),
                     windows: w.windows,
                 });
@@ -151,69 +156,84 @@ impl Workspaces {
 }
 
 impl Module for Workspaces {
-    type ViewData<'a> = (&'a [AppearanceColor], Option<&'a [AppearanceColor]>);
+    type ViewData<'a> = (
+        &'a Outputs,
+        Id,
+        &'a [AppearanceColor],
+        Option<&'a [AppearanceColor]>,
+    );
     type SubscriptionData<'a> = ();
 
     fn view(
         &self,
-        (workspace_colors, special_workspace_colors): Self::ViewData<'_>,
+        (outputs, id, workspace_colors, special_workspace_colors): Self::ViewData<'_>,
     ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
+        let monitor_name = outputs.get_monitor_name(id);
+
         Some((
             Into::<Element<Message>>::into(
                 Row::with_children(
                     self.workspaces
                         .iter()
-                        .map(|w| {
-                            let empty = w.windows == 0;
-                            let monitor = w.monitor_id;
+                        .filter_map(|w| {
+                            if w.monitor == monitor_name.unwrap_or_else(|| &w.monitor)
+                                || !outputs.has_name(&w.monitor)
+                            {
+                                let empty = w.windows == 0;
+                                let monitor = w.monitor_id;
 
-                            let color = monitor.map(|m| {
-                                if w.id > 0 {
-                                    workspace_colors.get(m).copied()
-                                } else {
-                                    special_workspace_colors
-                                        .unwrap_or(workspace_colors)
-                                        .get(m)
-                                        .copied()
-                                }
-                            });
-
-                            button(
-                                container(
-                                    if w.id < 0 {
-                                        text(w.name.as_str())
+                                let color = monitor.map(|m| {
+                                    if w.id > 0 {
+                                        workspace_colors.get(m).copied()
                                     } else {
-                                        text(w.id)
+                                        special_workspace_colors
+                                            .unwrap_or(workspace_colors)
+                                            .get(m)
+                                            .copied()
                                     }
-                                    .size(10),
+                                });
+
+                                Some(
+                                    button(
+                                        container(
+                                            if w.id < 0 {
+                                                text(w.name.as_str())
+                                            } else {
+                                                text(w.id)
+                                            }
+                                            .size(10),
+                                        )
+                                        .align_x(alignment::Horizontal::Center)
+                                        .align_y(alignment::Vertical::Center),
+                                    )
+                                    .style(WorkspaceButtonStyle(empty, color).into_style())
+                                    .padding(if w.id < 0 {
+                                        if w.active {
+                                            [0, 16]
+                                        } else {
+                                            [0, 8]
+                                        }
+                                    } else {
+                                        [0, 0]
+                                    })
+                                    .on_press(if w.id > 0 {
+                                        Message::ChangeWorkspace(w.id)
+                                    } else {
+                                        Message::ToggleSpecialWorkspace(w.id)
+                                    })
+                                    .width(if w.id < 0 {
+                                        Length::Shrink
+                                    } else if w.active {
+                                        Length::Fixed(32.)
+                                    } else {
+                                        Length::Fixed(16.)
+                                    })
+                                    .height(16)
+                                    .into(),
                                 )
-                                .align_x(alignment::Horizontal::Center)
-                                .align_y(alignment::Vertical::Center),
-                            )
-                            .style(WorkspaceButtonStyle(empty, color).into_style())
-                            .padding(if w.id < 0 {
-                                if w.active {
-                                    [0, 16]
-                                } else {
-                                    [0, 8]
-                                }
                             } else {
-                                [0, 0]
-                            })
-                            .on_press(if w.id > 0 {
-                                Message::ChangeWorkspace(w.id)
-                            } else {
-                                Message::ToggleSpecialWorkspace(w.id)
-                            })
-                            .width(if w.id < 0 {
-                                Length::Shrink
-                            } else if w.active {
-                                Length::Fixed(32.)
-                            } else {
-                                Length::Fixed(16.)
-                            })
-                            .height(16)
-                            .into()
+                                None
+                            }
                         })
                         .collect::<Vec<Element<'_, _, _>>>(),
                 )
