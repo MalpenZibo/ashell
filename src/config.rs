@@ -21,6 +21,22 @@ pub struct UpdatesModuleConfig {
     pub update_cmd: String,
 }
 
+#[derive(Deserialize, Clone, Default, PartialEq, Eq, Debug)]
+pub enum WorkspaceVisibilityMode {
+    #[default]
+    All,
+    MonitorSpecific,
+}
+
+#[derive(Deserialize, Clone, Default, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspacesModuleConfig {
+    #[serde(default)]
+    pub visibility_mode: WorkspaceVisibilityMode,
+    #[serde(default)]
+    pub enable_workspace_filling: bool,
+}
+
 #[derive(Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemModuleConfig {
@@ -342,6 +358,8 @@ pub struct Config {
     #[serde(default)]
     pub updates: Option<UpdatesModuleConfig>,
     #[serde(default)]
+    pub workspaces: WorkspacesModuleConfig,
+    #[serde(default)]
     pub system: SystemModuleConfig,
     #[serde(default)]
     pub clock: ClockModuleConfig,
@@ -370,6 +388,7 @@ impl Default for Config {
             clipboard_cmd: None,
             truncate_title_after_length: default_truncate_title_after_length(),
             updates: None,
+            workspaces: WorkspacesModuleConfig::default(),
             system: SystemModuleConfig::default(),
             clock: ClockModuleConfig::default(),
             settings: SettingsModuleConfig::default(),

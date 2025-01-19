@@ -28,7 +28,7 @@ use log::{debug, info, warn};
 pub struct App {
     logger: LoggerHandle,
     pub config: Config,
-    outputs: Outputs,
+    pub outputs: Outputs,
     pub app_launcher: AppLauncher,
     pub updates: Updates,
     pub clipboard: Clipboard,
@@ -68,6 +68,7 @@ impl App {
     pub fn new((logger, config): (LoggerHandle, Config)) -> impl FnOnce() -> (Self, Task<Message>) {
         || {
             let (outputs, task) = Outputs::new(config.position);
+            let enable_workspace_filling = config.workspaces.enable_workspace_filling;
             (
                 App {
                     logger,
@@ -76,7 +77,7 @@ impl App {
                     app_launcher: AppLauncher,
                     updates: Updates::default(),
                     clipboard: Clipboard,
-                    workspaces: Workspaces::default(),
+                    workspaces: Workspaces::new(enable_workspace_filling),
                     window_title: WindowTitle::default(),
                     system_info: SystemInfo::default(),
                     keyboard_layout: KeyboardLayout::default(),

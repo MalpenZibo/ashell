@@ -16,8 +16,6 @@ use crate::{
     HEIGHT,
 };
 
-static FALLBACK_LAYER: &str = "fallback";
-
 #[derive(Debug, Clone)]
 struct ShellInfo {
     id: Id,
@@ -26,7 +24,7 @@ struct ShellInfo {
 }
 
 #[derive(Debug, Clone)]
-pub struct Outputs(Vec<(String, Option<ShellInfo>, Option<WlOutput>)>);
+pub struct Outputs(Vec<(Option<String>, Option<ShellInfo>, Option<WlOutput>)>);
 
 pub enum HasOutput<'a> {
     Main,
@@ -39,7 +37,7 @@ impl Outputs {
 
         (
             Self(vec![(
-                FALLBACK_LAYER.to_owned(),
+                None,
                 Some(ShellInfo {
                     id,
                     menu: Menu::new(menu_id),
@@ -91,13 +89,13 @@ impl Outputs {
         (id, menu_id, Task::batch(vec![task, menu_task]))
     }
 
-    fn name_in_config(name: &str, outputs: &config::Outputs) -> bool {
+    fn name_in_config(name: Option<&str>, outputs: &config::Outputs) -> bool {
         match outputs {
             config::Outputs::All => true,
             config::Outputs::Active => false,
-            config::Outputs::Targets(request_outputs) => {
-                request_outputs.iter().any(|output| output.as_str() == name)
-            }
+            config::Outputs::Targets(request_outputs) => request_outputs
+                .iter()
+                .any(|output| Some(output.as_str()) == name),
         }
     }
 
@@ -117,6 +115,26 @@ impl Outputs {
         })
     }
 
+    pub fn get_monitor_name(&self, id: Id) -> Option<&str> {
+        self.0.iter().find_map(|(name, info, _)| {
+            if let Some(info) = info {
+                if info.id == id {
+                    name.as_ref().map(|n| n.as_str())
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        })
+    }
+
+    pub fn has_name(&self, name: &str) -> bool {
+        self.0
+            .iter()
+            .any(|(n, info, _)| info.is_some() && n.as_ref().map(|n| n.as_str()) == Some(name))
+    }
+
     pub fn add<Message: 'static>(
         &mut self,
         request_outputs: &config::Outputs,
@@ -124,31 +142,34 @@ impl Outputs {
         name: &str,
         wl_output: WlOutput,
     ) -> Task<Message> {
-        let target = Self::name_in_config(name, request_outputs);
+        let target = Self::name_in_config(Some(name), request_outputs);
 
         if target {
             debug!("Found target output, creating a new layer surface");
 
             let (id, menu_id, task) = Self::create_output_layers(Some(wl_output.clone()), position);
 
-            let destroy_task =
-                if let Some(index) = self.0.iter().position(|(key, _, _)| key == name) {
-                    let old_output = self.0.swap_remove(index);
+            let destroy_task = if let Some(index) = self
+                .0
+                .iter()
+                .position(|(key, _, _)| key.as_ref().map(|k| k.as_str()) == Some(name))
+            {
+                let old_output = self.0.swap_remove(index);
 
-                    if let Some(shell_info) = old_output.1 {
-                        let destroy_main_task = destroy_layer_surface(shell_info.id);
-                        let destroy_menu_task = destroy_layer_surface(shell_info.menu.id);
+                if let Some(shell_info) = old_output.1 {
+                    let destroy_main_task = destroy_layer_surface(shell_info.id);
+                    let destroy_menu_task = destroy_layer_surface(shell_info.menu.id);
 
-                        Task::batch(vec![destroy_main_task, destroy_menu_task])
-                    } else {
-                        Task::none()
-                    }
+                    Task::batch(vec![destroy_main_task, destroy_menu_task])
                 } else {
                     Task::none()
-                };
+                }
+            } else {
+                Task::none()
+            };
 
             self.0.push((
-                name.to_owned(),
+                Some(name.to_owned()),
                 Some(ShellInfo {
                     id,
                     menu: Menu::new(menu_id),
@@ -159,7 +180,7 @@ impl Outputs {
 
             // remove fallback layer surface
             let destroy_fallback_task =
-                if let Some(index) = self.0.iter().position(|(key, _, _)| key == FALLBACK_LAYER) {
+                if let Some(index) = self.0.iter().position(|(key, _, _)| key.is_none()) {
                     let old_output = self.0.swap_remove(index);
 
                     if let Some(shell_info) = old_output.1 {
@@ -176,7 +197,7 @@ impl Outputs {
 
             Task::batch(vec![destroy_task, destroy_fallback_task, task])
         } else {
-            self.0.push((name.to_owned(), None, Some(wl_output)));
+            self.0.push((Some(name.to_owned()), None, Some(wl_output)));
 
             Task::none()
         }
@@ -214,7 +235,7 @@ impl Outputs {
                 let (id, menu_id, task) = Self::create_output_layers(None, position);
 
                 self.0.push((
-                    FALLBACK_LAYER.to_owned(),
+                    None,
                     Some(ShellInfo {
                         id,
                         menu: Menu::new(menu_id),
@@ -246,7 +267,9 @@ impl Outputs {
             .0
             .iter()
             .filter_map(|(name, shell_info, wl_output)| {
-                if !Self::name_in_config(name, request_outputs) && shell_info.is_some() {
+                if !Self::name_in_config(name.as_ref().map(|n| n.as_str()), request_outputs)
+                    && shell_info.is_some()
+                {
                     Some(wl_output.clone())
                 } else {
                     None
@@ -260,7 +283,9 @@ impl Outputs {
             .0
             .iter()
             .filter_map(|(name, shell_info, wl_output)| {
-                if Self::name_in_config(name, request_outputs) && shell_info.is_none() {
+                if Self::name_in_config(name.as_ref().map(|n| n.as_str()), request_outputs)
+                    && shell_info.is_none()
+                {
                     Some((name.clone(), wl_output.clone()))
                 } else {
                     None
@@ -272,7 +297,9 @@ impl Outputs {
         let mut tasks = Vec::new();
         for (name, wl_output) in to_add {
             if let Some(wl_output) = wl_output {
-                tasks.push(self.add(request_outputs, position, &name, wl_output));
+                if let Some(name) = name {
+                    tasks.push(self.add(request_outputs, position, name.as_str(), wl_output));
+                }
             }
         }
 
