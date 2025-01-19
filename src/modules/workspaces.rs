@@ -1,4 +1,10 @@
-use crate::{app, config::AppearanceColor, outputs::Outputs, style::WorkspaceButtonStyle};
+use super::{Module, OnModulePress};
+use crate::{
+    app,
+    config::{AppearanceColor, WorkspaceVisibilityMode, WorkspacesModuleConfig},
+    outputs::Outputs,
+    style::WorkspaceButtonStyle,
+};
 use hyprland::{
     dispatch::MonitorIdentifier,
     event_listener::AsyncEventListener,
@@ -17,8 +23,6 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use super::{Module, OnModulePress};
-
 #[derive(Debug, Clone)]
 pub struct Workspace {
     pub id: i32,
@@ -29,7 +33,7 @@ pub struct Workspace {
     pub windows: u16,
 }
 
-fn get_workspaces() -> Vec<Workspace> {
+fn get_workspaces(enable_workspace_filling: bool) -> Vec<Workspace> {
     let active = hyprland::data::Workspace::get_active().ok();
     let monitors = hyprland::data::Monitors::get()
         .map(|m| m.to_vec())
@@ -61,17 +65,21 @@ fn get_workspaces() -> Vec<Workspace> {
             } else {
                 let missing: usize = w.id as usize - current;
                 let mut res = Vec::with_capacity(missing + 1);
-                for i in 0..missing {
-                    res.push(Workspace {
-                        id: (current + i) as i32,
-                        name: (current + i).to_string(),
-                        monitor_id: None,
-                        monitor: "".to_string(),
-                        active: false,
-                        windows: 0,
-                    });
+
+                if enable_workspace_filling {
+                    for i in 0..missing {
+                        res.push(Workspace {
+                            id: (current + i) as i32,
+                            name: (current + i).to_string(),
+                            monitor_id: None,
+                            monitor: "".to_string(),
+                            active: false,
+                            windows: 0,
+                        });
+                    }
+                    current += missing + 1;
                 }
-                current += missing + 1;
+
                 res.push(Workspace {
                     id: w.id,
                     name: w.name.clone(),
@@ -91,10 +99,10 @@ pub struct Workspaces {
     workspaces: Vec<Workspace>,
 }
 
-impl Default for Workspaces {
-    fn default() -> Self {
+impl Workspaces {
+    pub fn new(enable_workspace_filling: bool) -> Self {
         Self {
-            workspaces: get_workspaces(),
+            workspaces: get_workspaces(enable_workspace_filling),
         }
     }
 }
@@ -159,14 +167,15 @@ impl Module for Workspaces {
     type ViewData<'a> = (
         &'a Outputs,
         Id,
+        &'a WorkspacesModuleConfig,
         &'a [AppearanceColor],
         Option<&'a [AppearanceColor]>,
     );
-    type SubscriptionData<'a> = ();
+    type SubscriptionData<'a> = &'a WorkspacesModuleConfig;
 
     fn view(
         &self,
-        (outputs, id, workspace_colors, special_workspace_colors): Self::ViewData<'_>,
+        (outputs, id, config, workspace_colors, special_workspace_colors): Self::ViewData<'_>,
     ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         let monitor_name = outputs.get_monitor_name(id);
 
@@ -176,7 +185,8 @@ impl Module for Workspaces {
                     self.workspaces
                         .iter()
                         .filter_map(|w| {
-                            if w.monitor == monitor_name.unwrap_or_else(|| &w.monitor)
+                            if config.visibility_mode == WorkspaceVisibilityMode::All
+                                || w.monitor == monitor_name.unwrap_or_else(|| &w.monitor)
                                 || !outputs.has_name(&w.monitor)
                             {
                                 let empty = w.windows == 0;
@@ -245,13 +255,17 @@ impl Module for Workspaces {
         ))
     }
 
-    fn subscription(&self, _: Self::SubscriptionData<'_>) -> Option<Subscription<app::Message>> {
+    fn subscription(
+        &self,
+        config: Self::SubscriptionData<'_>,
+    ) -> Option<Subscription<app::Message>> {
         let id = TypeId::of::<Self>();
+        let enable_workspace_filling = config.enable_workspace_filling;
 
         Some(
             Subscription::run_with_id(
-                id,
-                channel(10, |output| async move {
+                format!("{:?}-{}", id, enable_workspace_filling),
+                channel(10, move |output| async move {
                     let output = Arc::new(RwLock::new(output));
                     loop {
                         let mut event_listener = AsyncEventListener::new();
@@ -264,7 +278,9 @@ impl Module for Workspaces {
                                 Box::pin(async move {
                                     if let Ok(mut output) = output.write() {
                                         output
-                                            .try_send(Message::WorkspacesChanged(get_workspaces()))
+                                            .try_send(Message::WorkspacesChanged(get_workspaces(
+                                                enable_workspace_filling,
+                                            )))
                                             .expect(
                                                 "error getting workspaces: workspace added event",
                                             );
@@ -281,7 +297,7 @@ impl Module for Workspaces {
                                 Box::pin(async move {
                                     if let Ok(mut output) = output.write() {
                                         output
-                                            .try_send(Message::WorkspacesChanged(get_workspaces()))
+                                            .try_send(Message::WorkspacesChanged(get_workspaces(enable_workspace_filling)))
                                             .expect(
                                                 "error getting workspaces: workspace change event",
                                             );
@@ -298,7 +314,7 @@ impl Module for Workspaces {
                                 Box::pin(async move {
                                     if let Ok(mut output) = output.write() {
                                         output
-                                            .try_send(Message::WorkspacesChanged(get_workspaces()))
+                                            .try_send(Message::WorkspacesChanged(get_workspaces(enable_workspace_filling)))
                                             .expect(
                                                 "error getting workspaces: workspace destroy event",
                                             );
@@ -315,7 +331,7 @@ impl Module for Workspaces {
                                 Box::pin(async move {
                                     if let Ok(mut output) = output.write() {
                                         output
-                                            .try_send(Message::WorkspacesChanged(get_workspaces()))
+                                            .try_send(Message::WorkspacesChanged(get_workspaces(enable_workspace_filling)))
                                             .expect(
                                                 "error getting workspaces: workspace moved event",
                                             );
@@ -332,7 +348,7 @@ impl Module for Workspaces {
                                 Box::pin(async move {
                                     if let Ok(mut output) = output.write() {
                                         output
-                                    .try_send(Message::WorkspacesChanged(get_workspaces()))
+                                    .try_send(Message::WorkspacesChanged(get_workspaces(enable_workspace_filling)))
                                     .expect(
                                         "error getting workspaces: special workspace change event",
                                     );
@@ -349,7 +365,7 @@ impl Module for Workspaces {
                                 Box::pin(async move {
                                     if let Ok(mut output) = output.write() {
                                         output
-                                    .try_send(Message::WorkspacesChanged(get_workspaces()))
+                                    .try_send(Message::WorkspacesChanged(get_workspaces(enable_workspace_filling)))
                                     .expect(
                                         "error getting workspaces: special workspace removed event",
                                     );
@@ -365,7 +381,7 @@ impl Module for Workspaces {
                                 Box::pin(async move {
                                     if let Ok(mut output) = output.write() {
                                         output
-                                            .try_send(Message::WorkspacesChanged(get_workspaces()))
+                                            .try_send(Message::WorkspacesChanged(get_workspaces(enable_workspace_filling)))
                                             .expect("error getting workspaces: window close event");
                                     }
                                 })
@@ -379,7 +395,7 @@ impl Module for Workspaces {
                                 Box::pin(async move {
                                     if let Ok(mut output) = output.write() {
                                         output
-                                            .try_send(Message::WorkspacesChanged(get_workspaces()))
+                                            .try_send(Message::WorkspacesChanged(get_workspaces(enable_workspace_filling)))
                                             .expect("error getting workspaces: window open event");
                                     }
                                 })
@@ -393,7 +409,7 @@ impl Module for Workspaces {
                                 Box::pin(async move {
                                     if let Ok(mut output) = output.write() {
                                         output
-                                            .try_send(Message::WorkspacesChanged(get_workspaces()))
+                                            .try_send(Message::WorkspacesChanged(get_workspaces(enable_workspace_filling)))
                                             .expect("error getting workspaces: window moved event");
                                     }
                                 })
@@ -407,7 +423,7 @@ impl Module for Workspaces {
                                 Box::pin(async move {
                                     if let Ok(mut output) = output.write() {
                                         output
-                                        .try_send(Message::WorkspacesChanged(get_workspaces()))
+                                        .try_send(Message::WorkspacesChanged(get_workspaces(enable_workspace_filling)))
                                         .expect(
                                             "error getting workspaces: active monitor change event",
                                         );

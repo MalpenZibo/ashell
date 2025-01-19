@@ -211,6 +211,7 @@ impl App {
             ModuleName::Workspaces => self.workspaces.view((
                 &self.outputs,
                 id,
+                &self.config.workspaces,
                 &self.config.appearance.workspace_colors,
                 self.config.appearance.special_workspace_colors.as_deref(),
             )),
@@ -234,7 +235,7 @@ impl App {
                 .as_ref()
                 .and_then(|updates_config| self.updates.subscription(updates_config)),
             ModuleName::Clipboard => self.clipboard.subscription(()),
-            ModuleName::Workspaces => self.workspaces.subscription(()),
+            ModuleName::Workspaces => self.workspaces.subscription(&self.config.workspaces),
             ModuleName::WindowTitle => self.window_title.subscription(()),
             ModuleName::SystemInfo => self.system_info.subscription(()),
             ModuleName::KeyboardLayout => self.keyboard_layout.subscription(()),
