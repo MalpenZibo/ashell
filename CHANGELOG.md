@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.4.0] - 2025-01-19
 
+A big update with new features and new configurations!
+
+The configuration file must be updated to adapt to the new stuff.
+
 ### Added
 
 - Multi monitor support
@@ -20,6 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Update to pop-os Iced 14.0-dev
 - Dynamic menu positioning
+
+### Thanks
+
+- @fiersik for participating in the discussions
+- @ReshetnikovPavel for the proposal of the new dynamic modules system configuration
 
 ## [0.3.1] - 2024-12-13
 
