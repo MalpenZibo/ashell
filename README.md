@@ -170,6 +170,18 @@ updates: # optional, default None
 # Maximum number of chars that can be present in the window title
 # after that the title will be truncated
 truncateTitleAfterLength: 150 # optional, default 150
+# Workspaces module configuration, optional
+workspaces:
+  # The visibility mode of the workspaces, possible values are:
+  # All: all the workspaces will be displayed
+  # MonitorSpecific: only the workspaces of the related monitor will be displayed
+  visibilityMode: All # optional, default All
+  # Enable filling with empty workspaces
+  # For example:
+  # With this flag set to true if there are only 2 workspaces,
+  # the workspace 1 and the workspace 4, the module will show also
+  # two more workspaces, the workspace 2 and the workspace 3
+  enableWorkspaceFilling: false # optional, default false
 # The system module configuration
 system:
   cpuWarnThreshold: 6O # cpu indicator warning level (default 60)
