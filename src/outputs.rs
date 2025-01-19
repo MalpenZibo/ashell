@@ -10,7 +10,7 @@ use log::debug;
 use wayland_client::protocol::wl_output::WlOutput;
 
 use crate::{
-    config::Position,
+    config::{self, Position},
     menu::{Menu, MenuType},
     position_button::ButtonUIRef,
     HEIGHT,
@@ -91,6 +91,16 @@ impl Outputs {
         (id, menu_id, Task::batch(vec![task, menu_task]))
     }
 
+    fn name_in_config(name: &str, outputs: &config::Outputs) -> bool {
+        match outputs {
+            config::Outputs::All => true,
+            config::Outputs::Active => false,
+            config::Outputs::Targets(request_outputs) => {
+                request_outputs.iter().any(|output| output.as_str() == name)
+            }
+        }
+    }
+
     pub fn has(&self, id: Id) -> Option<HasOutput> {
         self.0.iter().find_map(|(_, info, _)| {
             if let Some(info) = info {
@@ -109,12 +119,12 @@ impl Outputs {
 
     pub fn add<Message: 'static>(
         &mut self,
-        request_outputs: &[String],
+        request_outputs: &config::Outputs,
         position: Position,
         name: &str,
         wl_output: WlOutput,
     ) -> Task<Message> {
-        let target = request_outputs.iter().any(|output| output.as_str() == name);
+        let target = Self::name_in_config(name, request_outputs);
 
         if target {
             debug!("Found target output, creating a new layer surface");
@@ -224,7 +234,7 @@ impl Outputs {
 
     pub fn sync<Message: 'static>(
         &mut self,
-        request_outputs: &[String],
+        request_outputs: &config::Outputs,
         position: Position,
     ) -> Task<Message> {
         debug!(
@@ -236,9 +246,7 @@ impl Outputs {
             .0
             .iter()
             .filter_map(|(name, shell_info, wl_output)| {
-                if !request_outputs.iter().any(|output| output.as_str() == name)
-                    && shell_info.is_some()
-                {
+                if !Self::name_in_config(name, request_outputs) && shell_info.is_some() {
                     Some(wl_output.clone())
                 } else {
                     None
@@ -252,9 +260,7 @@ impl Outputs {
             .0
             .iter()
             .filter_map(|(name, shell_info, wl_output)| {
-                if request_outputs.iter().any(|output| output.as_str() == name)
-                    && shell_info.is_none()
-                {
+                if Self::name_in_config(name, request_outputs) && shell_info.is_none() {
                     Some((name.clone(), wl_output.clone()))
                 } else {
                     None

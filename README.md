@@ -114,12 +114,16 @@ The configuration uses the yaml file format and is named `~/.config/ashell.yml`
 ```yaml
 # Ashell log level filter, possible values "DEBUG" | "INFO" | "WARNING" | "ERROR". Needs reload
 logLevel: "INFO" # optional, default "INFO"
-# List of outputs, example values: DP-1 | HDMI-1 | eDP-1.
-# the status bar will be displayed on all the outputs listed here
+# Possible status bar outputs, values could be: All, Active, or Targets
+# All: the status bar will be displayed on all the available outputs, example: outputs: All
+# Active: the status bar will be displayed on the active output, example: outputs: Active
+# Targets: the status bar will be displayed on the outputs listed here,
+#   example:
+#     outputs: !Targets
+#       - DP-1
+#       - eDP-1
 # if the outputs is not available the bar will be displayed in the active output
-outputs: # optional, default empty list (the bar will be displayed on the active output)
-  - eDP-1
-  - DP-1
+outputs: All # optional, default all
 # Bar position, possible values Top | Bottom.
 position: Top # optional, default Top
 # Declare which modules should be used and in which position in the status bar.
