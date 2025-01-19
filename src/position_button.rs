@@ -16,13 +16,18 @@ pub struct ButtonUIRef {
     pub viewport: (f32, f32),
 }
 
+enum OnPress<'a, Message> {
+    Message(Message),
+    MessageWithPosition(Box<dyn Fn(ButtonUIRef) -> Message + 'a>),
+}
+
 pub struct PositionButton<'a, Message, Theme = iced::Theme, Renderer = iced::Renderer>
 where
     Renderer: iced::core::Renderer,
     Theme: Catalog,
 {
     content: Element<'a, Message, Theme, Renderer>,
-    on_press: Option<Box<dyn Fn(ButtonUIRef) -> Message + 'a>>,
+    on_press: Option<OnPress<'a, Message>>,
     id: Id,
     width: Length,
     height: Length,
@@ -73,8 +78,16 @@ where
     /// Sets the message that will be produced when the [`Button`] is pressed.
     ///
     /// Unless `on_press` is called, the [`Button`] will be disabled.
-    pub fn on_press(mut self, on_press: impl Fn(ButtonUIRef) -> Message + 'a) -> Self {
-        self.on_press = Some(Box::new(on_press));
+    pub fn on_press(mut self, on_press: Message) -> Self {
+        self.on_press = Some(OnPress::Message(on_press));
+        self
+    }
+
+    pub fn on_press_with_position(
+        mut self,
+        on_press: impl Fn(ButtonUIRef) -> Message + 'a,
+    ) -> Self {
+        self.on_press = Some(OnPress::MessageWithPosition(Box::new(on_press)));
         self
     }
 
@@ -219,14 +232,21 @@ where
                         let bounds = layout.bounds();
 
                         if cursor.is_over(bounds) {
-                            let ui_data = ButtonUIRef {
-                                position: Point::new(
-                                    layout.bounds().width / 2. + layout.position().x,
-                                    layout.bounds().height / 2. + layout.position().y,
-                                ),
-                                viewport: (viewport.width, viewport.height),
-                            };
-                            shell.publish(on_press(ui_data));
+                            match on_press {
+                                OnPress::Message(message) => {
+                                    shell.publish(message.clone());
+                                }
+                                OnPress::MessageWithPosition(on_press) => {
+                                    let ui_data = ButtonUIRef {
+                                        position: Point::new(
+                                            layout.bounds().width / 2. + layout.position().x,
+                                            layout.bounds().height / 2. + layout.position().y,
+                                        ),
+                                        viewport: (viewport.width, viewport.height),
+                                    };
+                                    shell.publish(on_press(ui_data));
+                                }
+                            }
                         }
 
                         return event::Status::Captured;
@@ -240,14 +260,21 @@ where
                         && matches!(key, keyboard::Key::Named(keyboard::key::Named::Enter))
                     {
                         state.is_pressed = true;
-                        let ui_data = ButtonUIRef {
-                            position: Point::new(
-                                layout.bounds().width / 2. + layout.position().x,
-                                layout.bounds().height / 2. + layout.position().y,
-                            ),
-                            viewport: (viewport.width, viewport.height),
-                        };
-                        shell.publish(on_press(ui_data));
+                        match on_press {
+                            OnPress::Message(message) => {
+                                shell.publish(message.clone());
+                            }
+                            OnPress::MessageWithPosition(on_press) => {
+                                let ui_data = ButtonUIRef {
+                                    position: Point::new(
+                                        layout.bounds().width / 2. + layout.position().x,
+                                        layout.bounds().height / 2. + layout.position().y,
+                                    ),
+                                    viewport: (viewport.width, viewport.height),
+                                };
+                                shell.publish(on_press(ui_data));
+                            }
+                        }
                         return event::Status::Captured;
                     }
                 }

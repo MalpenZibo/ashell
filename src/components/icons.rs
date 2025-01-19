@@ -7,7 +7,7 @@ use iced::{
 pub enum Icons {
     #[default]
     None,
-    Launcher,
+    AppLauncher,
     Clipboard,
     Refresh,
     NoUpdatesAvailable,
@@ -71,7 +71,7 @@ impl From<Icons> for &'static str {
     fn from(icon: Icons) -> &'static str {
         match icon {
             Icons::None => "",
-            Icons::Launcher => "󱗼",
+            Icons::AppLauncher => "󱗼",
             Icons::Clipboard => "󰅌",
             Icons::Refresh => "󰑐",
             Icons::NoUpdatesAvailable => "󰗠",

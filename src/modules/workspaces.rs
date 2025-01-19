@@ -1,7 +1,4 @@
-use crate::{
-    config::AppearanceColor,
-    style::{header_pills, WorkspaceButtonStyle},
-};
+use crate::{app, config::AppearanceColor, style::WorkspaceButtonStyle};
 use hyprland::{
     dispatch::MonitorIdentifier,
     event_listener::AsyncEventListener,
@@ -18,6 +15,8 @@ use std::{
     any::TypeId,
     sync::{Arc, RwLock},
 };
+
+use super::{Module, OnModulePress};
 
 #[derive(Debug, Clone)]
 pub struct Workspace {
@@ -149,250 +148,263 @@ impl Workspaces {
             }
         }
     }
+}
 
-    pub fn view(
+impl Module for Workspaces {
+    type ViewData<'a> = (&'a [AppearanceColor], Option<&'a [AppearanceColor]>);
+    type SubscriptionData<'a> = ();
+
+    fn view(
         &self,
-        workspace_colors: &[AppearanceColor],
-        special_workspace_colors: Option<&[AppearanceColor]>,
-    ) -> Element<Message> {
-        container(
-            Row::with_children(
-                self.workspaces
-                    .iter()
-                    .map(|w| {
-                        let empty = w.windows == 0;
-                        let monitor = w.monitor_id;
+        (workspace_colors, special_workspace_colors): Self::ViewData<'_>,
+    ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
+        Some((
+            Into::<Element<Message>>::into(
+                Row::with_children(
+                    self.workspaces
+                        .iter()
+                        .map(|w| {
+                            let empty = w.windows == 0;
+                            let monitor = w.monitor_id;
 
-                        let color = monitor.map(|m| {
-                            if w.id > 0 {
-                                workspace_colors.get(m).copied()
+                            let color = monitor.map(|m| {
+                                if w.id > 0 {
+                                    workspace_colors.get(m).copied()
+                                } else {
+                                    special_workspace_colors
+                                        .unwrap_or(workspace_colors)
+                                        .get(m)
+                                        .copied()
+                                }
+                            });
+
+                            button(
+                                container(
+                                    if w.id < 0 {
+                                        text(w.name.as_str())
+                                    } else {
+                                        text(w.id)
+                                    }
+                                    .size(10),
+                                )
+                                .align_x(alignment::Horizontal::Center)
+                                .align_y(alignment::Vertical::Center),
+                            )
+                            .style(WorkspaceButtonStyle(empty, color).into_style())
+                            .padding(if w.id < 0 {
+                                if w.active {
+                                    [0, 16]
+                                } else {
+                                    [0, 8]
+                                }
                             } else {
-                                special_workspace_colors
-                                    .unwrap_or(workspace_colors)
-                                    .get(m)
-                                    .copied()
+                                [0, 0]
+                            })
+                            .on_press(if w.id > 0 {
+                                Message::ChangeWorkspace(w.id)
+                            } else {
+                                Message::ToggleSpecialWorkspace(w.id)
+                            })
+                            .width(if w.id < 0 {
+                                Length::Shrink
+                            } else if w.active {
+                                Length::Fixed(32.)
+                            } else {
+                                Length::Fixed(16.)
+                            })
+                            .height(16)
+                            .into()
+                        })
+                        .collect::<Vec<Element<'_, _, _>>>(),
+                )
+                .padding([2, 0])
+                .spacing(4),
+            )
+            .map(app::Message::Workspaces),
+            None,
+        ))
+    }
+
+    fn subscription(&self, _: Self::SubscriptionData<'_>) -> Option<Subscription<app::Message>> {
+        let id = TypeId::of::<Self>();
+
+        Some(
+            Subscription::run_with_id(
+                id,
+                channel(10, |output| async move {
+                    let output = Arc::new(RwLock::new(output));
+                    loop {
+                        let mut event_listener = AsyncEventListener::new();
+
+                        event_listener.add_workspace_added_handler({
+                            let output = output.clone();
+                            move |e| {
+                                debug!("workspace added: {:?}", e);
+                                let output = output.clone();
+                                Box::pin(async move {
+                                    if let Ok(mut output) = output.write() {
+                                        output
+                                            .try_send(Message::WorkspacesChanged(get_workspaces()))
+                                            .expect(
+                                                "error getting workspaces: workspace added event",
+                                            );
+                                    }
+                                })
                             }
                         });
 
-                        button(
-                            container(
-                                if w.id < 0 {
-                                    text(w.name.as_str())
-                                } else {
-                                    text(w.id)
-                                }
-                                .size(10),
-                            )
-                            .align_x(alignment::Horizontal::Center)
-                            .align_y(alignment::Vertical::Center),
-                        )
-                        .style(WorkspaceButtonStyle(empty, color).into_style())
-                        .padding(if w.id < 0 {
-                            if w.active {
-                                [0, 16]
-                            } else {
-                                [0, 8]
+                        event_listener.add_workspace_changed_handler({
+                            let output = output.clone();
+                            move |e| {
+                                debug!("workspace changed: {:?}", e);
+                                let output = output.clone();
+                                Box::pin(async move {
+                                    if let Ok(mut output) = output.write() {
+                                        output
+                                            .try_send(Message::WorkspacesChanged(get_workspaces()))
+                                            .expect(
+                                                "error getting workspaces: workspace change event",
+                                            );
+                                    }
+                                })
                             }
-                        } else {
-                            [0, 0]
-                        })
-                        .on_press(if w.id > 0 {
-                            Message::ChangeWorkspace(w.id)
-                        } else {
-                            Message::ToggleSpecialWorkspace(w.id)
-                        })
-                        .width(if w.id < 0 {
-                            Length::Shrink
-                        } else if w.active {
-                            Length::Fixed(32.)
-                        } else {
-                            Length::Fixed(16.)
-                        })
-                        .height(16)
-                        .into()
-                    })
-                    .collect::<Vec<Element<'_, _, _>>>(),
-            )
-            .spacing(4),
-        )
-        .padding([4, 8])
-        .align_y(alignment::Vertical::Center)
-        .height(Length::Shrink)
-        .style(header_pills)
-        .into()
-    }
+                        });
 
-    pub fn subscription(&self) -> Subscription<Message> {
-        let id = TypeId::of::<Self>();
-
-        Subscription::run_with_id(
-            id,
-            channel(10, |output| async move {
-                let output = Arc::new(RwLock::new(output));
-                loop {
-                    let mut event_listener = AsyncEventListener::new();
-
-                    event_listener.add_workspace_added_handler({
-                        let output = output.clone();
-                        move |e| {
-                            debug!("workspace added: {:?}", e);
+                        event_listener.add_workspace_deleted_handler({
                             let output = output.clone();
-                            Box::pin(async move {
-                                if let Ok(mut output) = output.write() {
-                                    output
-                                        .try_send(Message::WorkspacesChanged(get_workspaces()))
-                                        .expect("error getting workspaces: workspace added event");
-                                }
-                            })
-                        }
-                    });
+                            move |e| {
+                                debug!("workspace deleted: {:?}", e);
+                                let output = output.clone();
+                                Box::pin(async move {
+                                    if let Ok(mut output) = output.write() {
+                                        output
+                                            .try_send(Message::WorkspacesChanged(get_workspaces()))
+                                            .expect(
+                                                "error getting workspaces: workspace destroy event",
+                                            );
+                                    }
+                                })
+                            }
+                        });
 
-                    event_listener.add_workspace_changed_handler({
-                        let output = output.clone();
-                        move |e| {
-                            debug!("workspace changed: {:?}", e);
+                        event_listener.add_workspace_moved_handler({
                             let output = output.clone();
-                            Box::pin(async move {
-                                if let Ok(mut output) = output.write() {
-                                    output
-                                        .try_send(Message::WorkspacesChanged(get_workspaces()))
-                                        .expect("error getting workspaces: workspace change event");
-                                }
-                            })
-                        }
-                    });
+                            move |e| {
+                                debug!("workspace moved: {:?}", e);
+                                let output = output.clone();
+                                Box::pin(async move {
+                                    if let Ok(mut output) = output.write() {
+                                        output
+                                            .try_send(Message::WorkspacesChanged(get_workspaces()))
+                                            .expect(
+                                                "error getting workspaces: workspace moved event",
+                                            );
+                                    }
+                                })
+                            }
+                        });
 
-                    event_listener.add_workspace_deleted_handler({
-                        let output = output.clone();
-                        move |e| {
-                            debug!("workspace deleted: {:?}", e);
+                        event_listener.add_changed_special_handler({
                             let output = output.clone();
-                            Box::pin(async move {
-                                if let Ok(mut output) = output.write() {
-                                    output
-                                        .try_send(Message::WorkspacesChanged(get_workspaces()))
-                                        .expect(
-                                            "error getting workspaces: workspace destroy event",
-                                        );
-                                }
-                            })
-                        }
-                    });
-
-                    event_listener.add_workspace_moved_handler({
-                        let output = output.clone();
-                        move |e| {
-                            debug!("workspace moved: {:?}", e);
-                            let output = output.clone();
-                            Box::pin(async move {
-                                if let Ok(mut output) = output.write() {
-                                    output
-                                        .try_send(Message::WorkspacesChanged(get_workspaces()))
-                                        .expect("error getting workspaces: workspace moved event");
-                                }
-                            })
-                        }
-                    });
-
-                    event_listener.add_changed_special_handler({
-                        let output = output.clone();
-                        move |e| {
-                            debug!("special workspace changed: {:?}", e);
-                            let output = output.clone();
-                            Box::pin(async move {
-                                if let Ok(mut output) = output.write() {
-                                    output
+                            move |e| {
+                                debug!("special workspace changed: {:?}", e);
+                                let output = output.clone();
+                                Box::pin(async move {
+                                    if let Ok(mut output) = output.write() {
+                                        output
                                     .try_send(Message::WorkspacesChanged(get_workspaces()))
                                     .expect(
                                         "error getting workspaces: special workspace change event",
                                     );
-                                }
-                            })
-                        }
-                    });
+                                    }
+                                })
+                            }
+                        });
 
-                    event_listener.add_special_removed_handler({
-                        let output = output.clone();
-                        move |e| {
-                            debug!("special workspace removed: {:?}", e);
+                        event_listener.add_special_removed_handler({
                             let output = output.clone();
-                            Box::pin(async move {
-                                if let Ok(mut output) = output.write() {
-                                    output
+                            move |e| {
+                                debug!("special workspace removed: {:?}", e);
+                                let output = output.clone();
+                                Box::pin(async move {
+                                    if let Ok(mut output) = output.write() {
+                                        output
                                     .try_send(Message::WorkspacesChanged(get_workspaces()))
                                     .expect(
                                         "error getting workspaces: special workspace removed event",
                                     );
-                                }
-                            })
-                        }
-                    });
+                                    }
+                                })
+                            }
+                        });
 
-                    event_listener.add_window_closed_handler({
-                        let output = output.clone();
-                        move |_| {
+                        event_listener.add_window_closed_handler({
                             let output = output.clone();
-                            Box::pin(async move {
-                                if let Ok(mut output) = output.write() {
-                                    output
-                                        .try_send(Message::WorkspacesChanged(get_workspaces()))
-                                        .expect("error getting workspaces: window close event");
-                                }
-                            })
-                        }
-                    });
+                            move |_| {
+                                let output = output.clone();
+                                Box::pin(async move {
+                                    if let Ok(mut output) = output.write() {
+                                        output
+                                            .try_send(Message::WorkspacesChanged(get_workspaces()))
+                                            .expect("error getting workspaces: window close event");
+                                    }
+                                })
+                            }
+                        });
 
-                    event_listener.add_window_opened_handler({
-                        let output = output.clone();
-                        move |_| {
+                        event_listener.add_window_opened_handler({
                             let output = output.clone();
-                            Box::pin(async move {
-                                if let Ok(mut output) = output.write() {
-                                    output
-                                        .try_send(Message::WorkspacesChanged(get_workspaces()))
-                                        .expect("error getting workspaces: window open event");
-                                }
-                            })
-                        }
-                    });
+                            move |_| {
+                                let output = output.clone();
+                                Box::pin(async move {
+                                    if let Ok(mut output) = output.write() {
+                                        output
+                                            .try_send(Message::WorkspacesChanged(get_workspaces()))
+                                            .expect("error getting workspaces: window open event");
+                                    }
+                                })
+                            }
+                        });
 
-                    event_listener.add_window_moved_handler({
-                        let output = output.clone();
-                        move |_| {
+                        event_listener.add_window_moved_handler({
                             let output = output.clone();
-                            Box::pin(async move {
-                                if let Ok(mut output) = output.write() {
-                                    output
-                                        .try_send(Message::WorkspacesChanged(get_workspaces()))
-                                        .expect("error getting workspaces: window moved event");
-                                }
-                            })
-                        }
-                    });
+                            move |_| {
+                                let output = output.clone();
+                                Box::pin(async move {
+                                    if let Ok(mut output) = output.write() {
+                                        output
+                                            .try_send(Message::WorkspacesChanged(get_workspaces()))
+                                            .expect("error getting workspaces: window moved event");
+                                    }
+                                })
+                            }
+                        });
 
-                    event_listener.add_active_monitor_changed_handler({
-                        let output = output.clone();
-                        move |_| {
+                        event_listener.add_active_monitor_changed_handler({
                             let output = output.clone();
-                            Box::pin(async move {
-                                if let Ok(mut output) = output.write() {
-                                    output
+                            move |_| {
+                                let output = output.clone();
+                                Box::pin(async move {
+                                    if let Ok(mut output) = output.write() {
+                                        output
                                         .try_send(Message::WorkspacesChanged(get_workspaces()))
                                         .expect(
                                             "error getting workspaces: active monitor change event",
                                         );
-                                }
-                            })
+                                    }
+                                })
+                            }
+                        });
+
+                        let res = event_listener.start_listener_async().await;
+
+                        if let Err(e) = res {
+                            error!("restarting workspaces listener due to error: {:?}", e);
                         }
-                    });
-
-                    let res = event_listener.start_listener_async().await;
-
-                    if let Err(e) = res {
-                        error!("restarting workspaces listener due to error: {:?}", e);
                     }
-                }
-            }),
+                }),
+            )
+            .map(app::Message::Workspaces),
         )
     }
 }

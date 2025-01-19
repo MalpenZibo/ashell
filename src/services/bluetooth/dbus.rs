@@ -14,7 +14,7 @@ pub struct BluetoothDbus<'a> {
     pub adapter: Option<AdapterProxy<'a>>,
 }
 
-impl<'a> BluetoothDbus<'a> {
+impl BluetoothDbus<'_> {
     pub async fn new(conn: &zbus::Connection) -> anyhow::Result<Self> {
         let bluez = BluezObjectManagerProxy::new(conn).await?;
         let adapter = bluez

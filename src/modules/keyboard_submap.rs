@@ -1,15 +1,14 @@
-use crate::{config::KeyboardSubmapModule, style::header_pills};
 use hyprland::event_listener::AsyncEventListener;
-use iced::{
-    stream::channel,
-    widget::{container, text},
-    Element, Subscription,
-};
+use iced::{stream::channel, widget::text, Element, Subscription};
 use log::{debug, error};
 use std::{
     any::TypeId,
     sync::{Arc, RwLock},
 };
+
+use crate::app;
+
+use super::{Module, OnModulePress};
 
 pub struct KeyboardSubmap {
     submap: String,
@@ -36,52 +35,58 @@ impl KeyboardSubmap {
             }
         }
     }
+}
 
-    pub fn view(&self, config: &KeyboardSubmapModule) -> Option<Element<Message>> {
-        if config.disabled || self.submap.is_empty() {
+impl Module for KeyboardSubmap {
+    type ViewData<'a> = ();
+    type SubscriptionData<'a> = ();
+
+    fn view(
+        &self,
+        _: Self::ViewData<'_>,
+    ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
+        if self.submap.is_empty() {
             None
         } else {
-            Some(
-                container(text(&self.submap))
-                    .padding([2, 8])
-                    .style(header_pills)
-                    .into(),
-            )
+            Some((text(&self.submap).into(), None))
         }
     }
 
-    pub fn subscription(&self) -> Subscription<Message> {
+    fn subscription(&self, _: Self::SubscriptionData<'_>) -> Option<Subscription<app::Message>> {
         let id = TypeId::of::<Self>();
 
-        Subscription::run_with_id(
-            id,
-            channel(10, |output| async move {
-                let output = Arc::new(RwLock::new(output));
-                loop {
-                    let mut event_listener = AsyncEventListener::new();
+        Some(
+            Subscription::run_with_id(
+                id,
+                channel(10, |output| async move {
+                    let output = Arc::new(RwLock::new(output));
+                    loop {
+                        let mut event_listener = AsyncEventListener::new();
 
-                    event_listener.add_sub_map_changed_handler({
-                        let output = output.clone();
-                        move |new_submap| {
-                            debug!("submap changed: {:?}", new_submap);
+                        event_listener.add_sub_map_changed_handler({
                             let output = output.clone();
-                            Box::pin(async move {
-                                if let Ok(mut output) = output.write() {
-                                    output
-                                        .try_send(Message::SubmapChanged(new_submap))
-                                        .expect("error getting submap: submap changed event");
-                                }
-                            })
+                            move |new_submap| {
+                                debug!("submap changed: {:?}", new_submap);
+                                let output = output.clone();
+                                Box::pin(async move {
+                                    if let Ok(mut output) = output.write() {
+                                        output
+                                            .try_send(Message::SubmapChanged(new_submap))
+                                            .expect("error getting submap: submap changed event");
+                                    }
+                                })
+                            }
+                        });
+
+                        let res = event_listener.start_listener_async().await;
+
+                        if let Err(e) = res {
+                            error!("restarting submap listener due to error: {:?}", e);
                         }
-                    });
-
-                    let res = event_listener.start_listener_async().await;
-
-                    if let Err(e) = res {
-                        error!("restarting submap listener due to error: {:?}", e);
                     }
-                }
-            }),
+                }),
+            )
+            .map(app::Message::KeyboardSubmap),
         )
     }
 }

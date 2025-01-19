@@ -1,14 +1,16 @@
 use self::{
     audio::AudioMessage, bluetooth::BluetoothMessage, network::NetworkMessage, power::PowerMessage,
 };
+use super::{Module, OnModulePress};
 use crate::{
+    app,
     components::icons::{icon, Icons},
     config::SettingsModuleConfig,
     menu::MenuType,
     modules::settings::power::power_menu,
     outputs::Outputs,
     password_dialog,
-    position_button::{position_button, ButtonUIRef},
+    position_button::ButtonUIRef,
     services::{
         audio::{AudioCommand, AudioService},
         bluetooth::{BluetoothCommand, BluetoothService, BluetoothState},
@@ -18,10 +20,7 @@ use crate::{
         upower::{PowerProfileCommand, UPowerService},
         ReadOnlyService, Service, ServiceEvent,
     },
-    style::{
-        HeaderButtonStyle, QuickSettingsButtonStyle, QuickSettingsSubMenuButtonStyle,
-        SettingsButtonStyle,
-    },
+    style::{QuickSettingsButtonStyle, QuickSettingsSubMenuButtonStyle, SettingsButtonStyle},
 };
 use brightness::BrightnessMessage;
 use iced::{
@@ -448,52 +447,6 @@ impl Settings {
         }
     }
 
-    pub fn view(&self, id: Id) -> Element<Message> {
-        position_button(
-            Row::new()
-                .push_maybe(
-                    self.idle_inhibitor
-                        .as_ref()
-                        .filter(|i| i.is_inhibited())
-                        .map(|_| {
-                            container(icon(Icons::EyeOpened)).style(|theme: &Theme| {
-                                container::Style {
-                                    text_color: Some(theme.palette().danger),
-                                    ..Default::default()
-                                }
-                            })
-                        }),
-                )
-                .push_maybe(
-                    self.upower
-                        .as_ref()
-                        .and_then(|p| p.power_profile.indicator()),
-                )
-                .push_maybe(self.audio.as_ref().and_then(|a| a.sink_indicator()))
-                .push(
-                    Row::new()
-                        .push_maybe(
-                            self.network
-                                .as_ref()
-                                .and_then(|n| n.get_connection_indicator()),
-                        )
-                        .push_maybe(self.network.as_ref().and_then(|n| n.get_vpn_indicator()))
-                        .spacing(4),
-                )
-                .push_maybe(
-                    self.upower
-                        .as_ref()
-                        .and_then(|upower| upower.battery)
-                        .map(|battery| battery.indicator()),
-                )
-                .spacing(8),
-        )
-        .style(HeaderButtonStyle::Right.into_style())
-        .padding([2, 8])
-        .on_press(move |button_ui_ref| Message::ToggleMenu(id, button_ui_ref))
-        .into()
-    }
-
     pub fn menu_view(&self, id: Id, config: &SettingsModuleConfig) -> Element<Message> {
         if let Some((ssid, current_password)) = &self.password_dialog {
             password_dialog::view(id, ssid, current_password).map(Message::PasswordDialog)
@@ -624,17 +577,74 @@ impl Settings {
                 .into()
         }
     }
+}
 
-    pub fn subscription(&self) -> Subscription<Message> {
-        Subscription::batch(vec![
-            UPowerService::subscribe().map(|event| Message::UPower(UPowerMessage::Event(event))),
-            AudioService::subscribe().map(|evenet| Message::Audio(AudioMessage::Event(evenet))),
-            BrightnessService::subscribe()
-                .map(|event| Message::Brightness(BrightnessMessage::Event(event))),
-            NetworkService::subscribe().map(|event| Message::Network(NetworkMessage::Event(event))),
-            BluetoothService::subscribe()
-                .map(|event| Message::Bluetooth(BluetoothMessage::Event(event))),
-        ])
+impl Module for Settings {
+    type ViewData<'a> = ();
+    type SubscriptionData<'a> = ();
+
+    fn view(
+        &self,
+        _: Self::ViewData<'_>,
+    ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
+        Some((
+            Row::new()
+                .push_maybe(
+                    self.idle_inhibitor
+                        .as_ref()
+                        .filter(|i| i.is_inhibited())
+                        .map(|_| {
+                            container(icon(Icons::EyeOpened)).style(|theme: &Theme| {
+                                container::Style {
+                                    text_color: Some(theme.palette().danger),
+                                    ..Default::default()
+                                }
+                            })
+                        }),
+                )
+                .push_maybe(
+                    self.upower
+                        .as_ref()
+                        .and_then(|p| p.power_profile.indicator()),
+                )
+                .push_maybe(self.audio.as_ref().and_then(|a| a.sink_indicator()))
+                .push(
+                    Row::new()
+                        .push_maybe(
+                            self.network
+                                .as_ref()
+                                .and_then(|n| n.get_connection_indicator()),
+                        )
+                        .push_maybe(self.network.as_ref().and_then(|n| n.get_vpn_indicator()))
+                        .spacing(4),
+                )
+                .push_maybe(
+                    self.upower
+                        .as_ref()
+                        .and_then(|upower| upower.battery)
+                        .map(|battery| battery.indicator()),
+                )
+                .spacing(8)
+                .into(),
+            Some(OnModulePress::ToggleMenu(MenuType::Settings)),
+        ))
+    }
+
+    fn subscription(&self, _: Self::SubscriptionData<'_>) -> Option<Subscription<app::Message>> {
+        Some(
+            Subscription::batch(vec![
+                UPowerService::subscribe()
+                    .map(|event| Message::UPower(UPowerMessage::Event(event))),
+                AudioService::subscribe().map(|evenet| Message::Audio(AudioMessage::Event(evenet))),
+                BrightnessService::subscribe()
+                    .map(|event| Message::Brightness(BrightnessMessage::Event(event))),
+                NetworkService::subscribe()
+                    .map(|event| Message::Network(NetworkMessage::Event(event))),
+                BluetoothService::subscribe()
+                    .map(|event| Message::Bluetooth(BluetoothMessage::Event(event))),
+            ])
+            .map(app::Message::Settings),
+        )
     }
 }
 

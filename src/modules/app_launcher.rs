@@ -1,5 +1,5 @@
 use crate::{
-    app::{self},
+    app::{self, Message},
     components::icons::{icon, Icons},
 };
 use iced::Element;
@@ -7,9 +7,9 @@ use iced::Element;
 use super::{Module, OnModulePress};
 
 #[derive(Default, Debug, Clone)]
-pub struct Clipboard;
+pub struct AppLauncher;
 
-impl Module for Clipboard {
+impl Module for AppLauncher {
     type ViewData<'a> = &'a Option<String>;
     type SubscriptionData<'a> = ();
 
@@ -19,8 +19,8 @@ impl Module for Clipboard {
     ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         if config.is_some() {
             Some((
-                icon(Icons::Clipboard).into(),
-                Some(OnModulePress::Action(app::Message::OpenClipboard)),
+                icon(Icons::AppLauncher).into(),
+                Some(OnModulePress::Action(Message::OpenLauncher)),
             ))
         } else {
             None
