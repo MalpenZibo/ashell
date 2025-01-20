@@ -5,13 +5,12 @@ use crate::{
     menu::{menu_wrapper, MenuSize, MenuType},
     modules::{
         self, app_launcher::AppLauncher, clipboard::Clipboard, clock::Clock,
-        keyboard_layout::KeyboardLayout, keyboard_submap::KeyboardSubmap, privacy::PrivacyMessage,
+        keyboard_layout::KeyboardLayout, keyboard_submap::KeyboardSubmap, privacy::Privacy,
         settings::Settings, system_info::SystemInfo, tray::TrayModule, updates::Updates,
         window_title::WindowTitle, workspaces::Workspaces,
     },
     outputs::{HasOutput, Outputs},
     position_button::ButtonUIRef,
-    services::{privacy::PrivacyService, ReadOnlyService, ServiceEvent},
     style::ashell_theme,
     utils, HEIGHT,
 };
@@ -39,7 +38,7 @@ pub struct App {
     pub keyboard_submap: KeyboardSubmap,
     pub tray: TrayModule,
     pub clock: Clock,
-    pub privacy: Option<PrivacyService>,
+    pub privacy: Privacy,
     pub settings: Settings,
 }
 
@@ -84,7 +83,7 @@ impl App {
                     keyboard_submap: KeyboardSubmap::default(),
                     tray: TrayModule::default(),
                     clock: Clock::default(),
-                    privacy: None,
+                    privacy: Privacy::default(),
                     settings: Settings::default(),
                 },
                 task,
@@ -196,21 +195,7 @@ impl App {
                 self.clock.update(message);
                 Task::none()
             }
-            Message::Privacy(msg) => match msg {
-                PrivacyMessage::Event(event) => match event {
-                    ServiceEvent::Init(service) => {
-                        self.privacy = Some(service);
-                        Task::none()
-                    }
-                    ServiceEvent::Update(data) => {
-                        if let Some(privacy) = self.privacy.as_mut() {
-                            privacy.update(data);
-                        }
-                        Task::none()
-                    }
-                    ServiceEvent::Error(_) => Task::none(),
-                },
-            },
+            Message::Privacy(msg) => self.privacy.update(msg),
             Message::Settings(message) => {
                 self.settings
                     .update(message, &self.config.settings, &mut self.outputs)

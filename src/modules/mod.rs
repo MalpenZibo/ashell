@@ -221,7 +221,7 @@ impl App {
             ModuleName::KeyboardSubmap => self.keyboard_submap.view(()),
             ModuleName::Tray => self.tray.view(id),
             ModuleName::Clock => self.clock.view(&self.config.clock.format),
-            ModuleName::Privacy => self.privacy.as_ref().and_then(|p| p.view(())),
+            ModuleName::Privacy => self.privacy.view(()),
             ModuleName::Settings => self.settings.view(()),
         }
     }
@@ -242,7 +242,7 @@ impl App {
             ModuleName::KeyboardSubmap => self.keyboard_submap.subscription(()),
             ModuleName::Tray => self.tray.subscription(()),
             ModuleName::Clock => self.clock.subscription(()),
-            ModuleName::Privacy => self.privacy.as_ref().and_then(|p| p.subscription(())),
+            ModuleName::Privacy => self.privacy.subscription(()),
             ModuleName::Settings => self.settings.subscription(()),
         }
     }
