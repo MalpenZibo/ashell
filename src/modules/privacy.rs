@@ -2,19 +2,44 @@ use super::{Module, OnModulePress};
 use crate::{
     app,
     components::icons::{icon, Icons},
-    services::{
-        privacy::{PrivacyData, PrivacyService},
-        ReadOnlyService, ServiceEvent,
-    },
+    services::{privacy::PrivacyService, ReadOnlyService, ServiceEvent},
 };
-use iced::{widget::Row, Alignment, Element, Subscription};
+use iced::{
+    widget::{container, Row},
+    Alignment, Element, Subscription, Task,
+};
 
 #[derive(Debug, Clone)]
 pub enum PrivacyMessage {
     Event(ServiceEvent<PrivacyService>),
 }
 
-impl Module for PrivacyData {
+#[derive(Debug, Default, Clone)]
+pub struct Privacy {
+    pub service: Option<PrivacyService>,
+}
+
+impl Privacy {
+    pub fn update(&mut self, message: PrivacyMessage) -> Task<crate::app::Message> {
+        match message {
+            PrivacyMessage::Event(event) => match event {
+                ServiceEvent::Init(service) => {
+                    self.service = Some(service);
+                    Task::none()
+                }
+                ServiceEvent::Update(data) => {
+                    if let Some(privacy) = self.service.as_mut() {
+                        privacy.update(data);
+                    }
+                    Task::none()
+                }
+                ServiceEvent::Error(_) => Task::none(),
+            },
+        }
+    }
+}
+
+impl Module for Privacy {
     type ViewData<'a> = ();
     type SubscriptionData<'a> = ();
 
@@ -22,17 +47,31 @@ impl Module for PrivacyData {
         &self,
         _: Self::ViewData<'_>,
     ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
-        if !self.no_access() {
-            Some((
-                Row::new()
-                    .push_maybe(self.screenshare_access().then(|| icon(Icons::ScreenShare)))
-                    .push_maybe(self.webcam_access().then(|| icon(Icons::Webcam)))
-                    .push_maybe(self.microphone_access().then(|| icon(Icons::Mic1)))
-                    .align_y(Alignment::Center)
-                    .spacing(8)
+        if let Some(service) = self.service.as_ref() {
+            if !service.no_access() {
+                Some((
+                    container(
+                        Row::new()
+                            .push_maybe(
+                                service
+                                    .screenshare_access()
+                                    .then(|| icon(Icons::ScreenShare)),
+                            )
+                            .push_maybe(service.webcam_access().then(|| icon(Icons::Webcam)))
+                            .push_maybe(service.microphone_access().then(|| icon(Icons::Mic1)))
+                            .align_y(Alignment::Center)
+                            .spacing(8),
+                    )
+                    .style(|theme| container::Style {
+                        text_color: Some(theme.extended_palette().danger.weak.color),
+                        ..Default::default()
+                    })
                     .into(),
-                None,
-            ))
+                    None,
+                ))
+            } else {
+                None
+            }
         } else {
             None
         }
