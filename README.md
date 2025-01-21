@@ -5,7 +5,7 @@ A ready to go Wayland status bar for Hyprland.
 Feel free to fork this project and customize it for your needs or just open an
 issue to request a particular feature.
 
-> If you have an issue with the transparency you could try launching ashell with WGPU_BACKEND=gl. This env var forces wgpu to use OpenGL instead of Vulkan. It seems that wgpu has some issues with AMD GPU and Vulkan transparency.
+> If you have graphical issues like missing transparency or graphical artifact you could launch ashell with WGPU_BACKEND=gl. This env var forces wgpu to use OpenGL instead of Vulkan
 
 ### Does it only work on Hyprland?
 
