@@ -50,7 +50,10 @@
           defaultPackage = craneLib.buildPackage {
             src = ./.;
 
-            nativeBuildInputs = [ pkgs.makeWrapper ];
+            nativeBuildInputs = with pkgs; [
+              makeWrapper
+              pkg-config
+            ];
 
             buildInputs = deps;
 
