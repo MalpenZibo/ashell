@@ -13,7 +13,7 @@
     };
   };
 
-  outputs = { self, crane, nixpkgs, flake-utils, rust-overlay }:
+  outputs = { crane, nixpkgs, flake-utils, rust-overlay, ... }:
     flake-utils.lib.eachDefaultSystem
       (system:
         let
@@ -24,7 +24,7 @@
           
           craneLib = crane.mkLib pkgs;
 
-          deps = with pkgs; [
+          buildInputs = with pkgs; [
             rust-bin.stable.latest.default
             rustPlatform.bindgenHook
             pkg-config
@@ -36,7 +36,7 @@
             vulkan-loader
           ];
 
-          libPath = with pkgs; lib.makeLibraryPath [
+          runtimeDependencies = with pkgs; [
             libpulseaudio
             wayland
             mesa.drivers
@@ -44,26 +44,25 @@
             libGL
           ];
         in
-        with pkgs;
         {
           # `nix build` and `nix run`
           defaultPackage = craneLib.buildPackage {
             src = ./.;
 
-            nativeBuildInputs = [ pkgs.makeWrapper ];
+            nativeBuildInputs = with pkgs; [
+              makeWrapper
+              pkg-config
+              autoPatchelfHook # Add runtimeDependencies to rpath
+            ];
 
-            buildInputs = deps;
-
-            postInstall = ''
-              wrapProgram "$out/bin/ashell" --prefix LD_LIBRARY_PATH : "${libPath}"
-            '';
+            inherit buildInputs runtimeDependencies;
           };
 
           # `nix develop`
-          devShells.default = mkShell {
-            buildInputs = deps;
+          devShells.default = pkgs.mkShell {
+            inherit buildInputs;
 
-            LD_LIBRARY_PATH = libPath;
+            LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath runtimeDependencies;
           };
         }
       );
