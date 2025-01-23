@@ -113,7 +113,7 @@ The configuration uses the yaml file format and is named `~/.config/ashell.yml`
 
 ```yaml
 # Ashell log level filter, possible values "DEBUG" | "INFO" | "WARNING" | "ERROR". Needs reload
-logLevel: "INFO" # optional, default "INFO"
+logLevel: "WARN" # optional, default "WARN"
 # Possible status bar outputs, values could be: All, Active, or Targets
 # All: the status bar will be displayed on all the available outputs, example: outputs: All
 # Active: the status bar will be displayed on the active output, example: outputs: Active
@@ -184,12 +184,12 @@ workspaces:
   enableWorkspaceFilling: false # optional, default false
 # The system module configuration
 system:
-  cpuWarnThreshold: 6O # cpu indicator warning level (default 60)
-  cpuAlertThreshold: 8O # cpu indicator alert level (default 80)
-  memWarnThreshold: 7O # mem indicator warning level (default 70)
+  cpuWarnThreshold: 60 # cpu indicator warning level (default 60)
+  cpuAlertThreshold: 80 # cpu indicator alert level (default 80)
+  memWarnThreshold: 70 # mem indicator warning level (default 70)
   memAlertThreshold: 85 # mem indicator alert level (default 85)
-  tempWarnThreshold: 6O # temperature indicator warning level (default 60)
-  tempAlertThreshold: 8O # temperature indicator alert level (default 80)
+  tempWarnThreshold: 60 # temperature indicator warning level (default 60)
+  tempAlertThreshold: 80 # temperature indicator alert level (default 80)
 # Clock module configuration
 clock:
   # clock format see: https://docs.rs/chrono/latest/chrono/format/strftime/index.html
