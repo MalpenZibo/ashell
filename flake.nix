@@ -42,7 +42,10 @@
             mesa.drivers
             vulkan-loader
             libGL
+            libglvnd
           ];
+            
+          ldLibraryPath = pkgs.lib.makeLibraryPath runtimeDependencies;
         in
         {
           # `nix build` and `nix run`
@@ -55,14 +58,18 @@
               autoPatchelfHook # Add runtimeDependencies to rpath
             ];
 
-            inherit buildInputs runtimeDependencies;
+            inherit buildInputs runtimeDependencies ldLibraryPath;
+
+            postInstall = ''
+              wrapProgram "$out/bin/ashell" --prefix LD_LIBRARY_PATH : "${ldLibraryPath}"
+            '';
           };
 
           # `nix develop`
           devShells.default = pkgs.mkShell {
-            inherit buildInputs;
+            inherit buildInputs ldLibraryPath;
 
-            LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath runtimeDependencies;
+            LD_LIBRARY_PATH = ldLibraryPath;
           };
         }
       );
