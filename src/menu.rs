@@ -16,6 +16,7 @@ pub enum MenuType {
     Updates,
     Settings,
     Tray(String),
+    Playerctl,
 }
 
 #[derive(Clone, Debug)]

@@ -18,6 +18,7 @@ pub mod clipboard;
 pub mod clock;
 pub mod keyboard_layout;
 pub mod keyboard_submap;
+pub mod playerctl;
 pub mod privacy;
 pub mod settings;
 pub mod system_info;
@@ -223,6 +224,7 @@ impl App {
             ModuleName::Clock => self.clock.view(&self.config.clock.format),
             ModuleName::Privacy => self.privacy.view(()),
             ModuleName::Settings => self.settings.view(()),
+            ModuleName::Playerctl => self.playerctl.view(()),
         }
     }
 
@@ -244,6 +246,7 @@ impl App {
             ModuleName::Clock => self.clock.subscription(()),
             ModuleName::Privacy => self.privacy.subscription(()),
             ModuleName::Settings => self.settings.subscription(()),
+            ModuleName::Playerctl => self.playerctl.subscription(()),
         }
     }
 }

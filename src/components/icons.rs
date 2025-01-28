@@ -65,6 +65,9 @@ pub enum Icons {
     VerticalDots,
     Airplane,
     Webcam,
+    SkipPrevious,
+    PlayPause,
+    SkipNext,
 }
 
 impl From<Icons> for &'static str {
@@ -129,6 +132,9 @@ impl From<Icons> for &'static str {
             Icons::VerticalDots => "󰇙",
             Icons::Airplane => "󰀝",
             Icons::Webcam => "",
+            Icons::SkipPrevious => "󰒮",
+            Icons::PlayPause => "󰐎",
+            Icons::SkipNext => "󰒭",
         }
     }
 }

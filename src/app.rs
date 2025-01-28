@@ -5,9 +5,9 @@ use crate::{
     menu::{menu_wrapper, MenuSize, MenuType},
     modules::{
         self, app_launcher::AppLauncher, clipboard::Clipboard, clock::Clock,
-        keyboard_layout::KeyboardLayout, keyboard_submap::KeyboardSubmap, privacy::Privacy,
-        settings::Settings, system_info::SystemInfo, tray::TrayModule, updates::Updates,
-        window_title::WindowTitle, workspaces::Workspaces,
+        keyboard_layout::KeyboardLayout, keyboard_submap::KeyboardSubmap, playerctl::Playerctl,
+        privacy::Privacy, settings::Settings, system_info::SystemInfo, tray::TrayModule,
+        updates::Updates, window_title::WindowTitle, workspaces::Workspaces,
     },
     outputs::{HasOutput, Outputs},
     position_button::ButtonUIRef,
@@ -40,6 +40,7 @@ pub struct App {
     pub clock: Clock,
     pub privacy: Privacy,
     pub settings: Settings,
+    pub playerctl: Playerctl,
 }
 
 #[derive(Debug, Clone)]
@@ -61,6 +62,7 @@ pub enum Message {
     Privacy(modules::privacy::PrivacyMessage),
     Settings(modules::settings::Message),
     WaylandEvent(WaylandEvent),
+    Playerctl(modules::playerctl::Message),
 }
 
 impl App {
@@ -85,6 +87,7 @@ impl App {
                     clock: Clock::default(),
                     privacy: Privacy::default(),
                     settings: Settings::default(),
+                    playerctl: Playerctl::default(),
                 },
                 task,
             )
@@ -224,6 +227,7 @@ impl App {
                 },
                 _ => Task::none(),
             },
+            Message::Playerctl(msg) => self.playerctl.update(msg),
         }
     }
 
@@ -262,6 +266,13 @@ impl App {
                     self.settings
                         .menu_view(id, &self.config.settings)
                         .map(Message::Settings),
+                    MenuSize::Large,
+                    *button_ui_ref,
+                    self.config.position,
+                ),
+                Some((MenuType::Playerctl, button_ui_ref)) => menu_wrapper(
+                    id,
+                    self.playerctl.menu_view().map(Message::Playerctl),
                     MenuSize::Large,
                     *button_ui_ref,
                     self.config.position,
