@@ -224,7 +224,7 @@ impl App {
             ModuleName::Clock => self.clock.view(&self.config.clock.format),
             ModuleName::Privacy => self.privacy.view(()),
             ModuleName::Settings => self.settings.view(()),
-            ModuleName::MediaPlayer => self.playerctl.view(()),
+            ModuleName::MediaPlayer => self.media_player.view(()),
         }
     }
 
@@ -246,7 +246,7 @@ impl App {
             ModuleName::Clock => self.clock.subscription(()),
             ModuleName::Privacy => self.privacy.subscription(()),
             ModuleName::Settings => self.settings.subscription(()),
-            ModuleName::MediaPlayer => self.playerctl.subscription(()),
+            ModuleName::MediaPlayer => self.media_player.subscription(()),
         }
     }
 }

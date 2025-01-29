@@ -40,7 +40,7 @@ pub struct App {
     pub clock: Clock,
     pub privacy: Privacy,
     pub settings: Settings,
-    pub playerctl: MediaPlayer,
+    pub media_player: MediaPlayer,
 }
 
 #[derive(Debug, Clone)]
@@ -87,7 +87,7 @@ impl App {
                     clock: Clock::default(),
                     privacy: Privacy::default(),
                     settings: Settings::default(),
-                    playerctl: MediaPlayer::default(),
+                    media_player: MediaPlayer::default(),
                 },
                 task,
             )
@@ -227,7 +227,7 @@ impl App {
                 },
                 _ => Task::none(),
             },
-            Message::MediaPlayer(msg) => self.playerctl.update(msg),
+            Message::MediaPlayer(msg) => self.media_player.update(msg),
         }
     }
 
@@ -272,7 +272,7 @@ impl App {
                 ),
                 Some((MenuType::MediaPlayer, button_ui_ref)) => menu_wrapper(
                     id,
-                    self.playerctl.menu_view().map(Message::MediaPlayer),
+                    self.media_player.menu_view().map(Message::MediaPlayer),
                     MenuSize::Normal,
                     *button_ui_ref,
                     self.config.position,
