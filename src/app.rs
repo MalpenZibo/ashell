@@ -273,7 +273,7 @@ impl App {
                 Some((MenuType::Playerctl, button_ui_ref)) => menu_wrapper(
                     id,
                     self.playerctl.menu_view().map(Message::Playerctl),
-                    MenuSize::Large,
+                    MenuSize::Normal,
                     *button_ui_ref,
                     self.config.position,
                 ),
