@@ -88,6 +88,7 @@ pub enum Message {
     Play,
     Next,
     SetVolume(Option<f64>),
+    SyncVolume(Option<f64>),
 }
 
 impl MediaPlayer {
@@ -137,6 +138,10 @@ impl MediaPlayer {
                 if let Some(v) = v {
                     execute_command(format!("playerctl volume {}", v / 100.0));
                 }
+                self.volume = v;
+                Task::none()
+            }
+            Message::SyncVolume(v) => {
                 self.volume = v;
                 Task::none()
             }
@@ -198,7 +203,7 @@ impl Module for MediaPlayer {
                         let song = get_current_song().await;
                         let _ = output.try_send(Message::SetSong(song));
                         let volume = get_volume().await;
-                        let _ = output.try_send(Message::SetVolume(volume));
+                        let _ = output.try_send(Message::SyncVolume(volume));
                         sleep(Duration::from_secs(1)).await;
                     }
                 }),
