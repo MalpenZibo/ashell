@@ -5,6 +5,7 @@ use crate::{
     app,
     components::icons::{icon, Icons},
     menu::MenuType,
+    style::SettingsButtonStyle,
     utils::launcher::execute_command,
 };
 use iced::{
@@ -119,9 +120,17 @@ impl Playerctl {
                 Message::SetVolume(new_v)
             }),
             row![
-                button(icon(Icons::SkipPrevious)).on_press(Message::Prev),
-                button(icon(Icons::PlayPause)).on_press(Message::Play),
-                button(icon(Icons::SkipNext)).on_press(Message::Next)
+                button(icon(Icons::SkipPrevious))
+                    .on_press(Message::Prev)
+                    .padding([5, 12])
+                    .style(SettingsButtonStyle.into_style()),
+                button(icon(Icons::PlayPause))
+                    .on_press(Message::Play)
+                    .style(SettingsButtonStyle.into_style()),
+                button(icon(Icons::SkipNext))
+                    .on_press(Message::Next)
+                    .padding([5, 12])
+                    .style(SettingsButtonStyle.into_style())
             ]
             .spacing(8)
         ]
