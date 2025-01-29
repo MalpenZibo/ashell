@@ -50,11 +50,11 @@ async fn get_volume() -> Option<f64> {
         .await;
 
     match get_volume_cmd {
-        Ok(check_update_cmd) => {
-            if !check_update_cmd.status.success() {
+        Ok(get_volume_cmd) => {
+            if !get_volume_cmd.status.success() {
                 return None;
             }
-            let v = String::from_utf8_lossy(&check_update_cmd.stdout);
+            let v = String::from_utf8_lossy(&get_volume_cmd.stdout);
             let trimmed = v.trim();
             if trimmed.is_empty() {
                 return None;
