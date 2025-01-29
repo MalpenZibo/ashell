@@ -283,7 +283,7 @@ pub enum ModuleName {
     Clock,
     Privacy,
     Settings,
-    Playerctl,
+    MediaPlayer,
 }
 
 #[derive(Deserialize, Clone, Debug)]
