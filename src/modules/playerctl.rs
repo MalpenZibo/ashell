@@ -75,7 +75,7 @@ async fn get_volume() -> Option<f64> {
 }
 
 #[derive(Default)]
-pub struct Playerctl {
+pub struct MediaPlayer {
     song: Option<String>,
     volume: Option<f64>,
 }
@@ -89,7 +89,7 @@ pub enum Message {
     SetVolume(Option<f64>),
 }
 
-impl Playerctl {
+impl MediaPlayer {
     pub fn update(&mut self, message: Message) -> Task<crate::app::Message> {
         match message {
             Message::SetSong(song) => {
@@ -152,7 +152,7 @@ impl Playerctl {
     }
 }
 
-impl Module for Playerctl {
+impl Module for MediaPlayer {
     type ViewData<'a> = ();
     type SubscriptionData<'a> = ();
 

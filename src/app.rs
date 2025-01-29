@@ -5,7 +5,7 @@ use crate::{
     menu::{menu_wrapper, MenuSize, MenuType},
     modules::{
         self, app_launcher::AppLauncher, clipboard::Clipboard, clock::Clock,
-        keyboard_layout::KeyboardLayout, keyboard_submap::KeyboardSubmap, playerctl::Playerctl,
+        keyboard_layout::KeyboardLayout, keyboard_submap::KeyboardSubmap, playerctl::MediaPlayer,
         privacy::Privacy, settings::Settings, system_info::SystemInfo, tray::TrayModule,
         updates::Updates, window_title::WindowTitle, workspaces::Workspaces,
     },
@@ -40,7 +40,7 @@ pub struct App {
     pub clock: Clock,
     pub privacy: Privacy,
     pub settings: Settings,
-    pub playerctl: Playerctl,
+    pub playerctl: MediaPlayer,
 }
 
 #[derive(Debug, Clone)]
@@ -87,7 +87,7 @@ impl App {
                     clock: Clock::default(),
                     privacy: Privacy::default(),
                     settings: Settings::default(),
-                    playerctl: Playerctl::default(),
+                    playerctl: MediaPlayer::default(),
                 },
                 task,
             )
