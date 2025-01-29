@@ -116,6 +116,25 @@ pub struct SettingsModuleConfig {
     pub bluetooth_more_cmd: Option<String>,
 }
 
+#[derive(Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct MediaPlayerModuleConfig {
+    #[serde(default = "default_media_player_max_title_length")]
+    pub max_title_length: u32,
+}
+
+impl Default for MediaPlayerModuleConfig {
+    fn default() -> Self {
+        MediaPlayerModuleConfig {
+            max_title_length: default_media_player_max_title_length(),
+        }
+    }
+}
+
+fn default_media_player_max_title_length() -> u32 {
+    100
+}
+
 #[derive(Deserialize, Clone, Copy, Debug)]
 #[serde(untagged)]
 #[serde(rename_all = "camelCase")]
@@ -368,6 +387,8 @@ pub struct Config {
     pub settings: SettingsModuleConfig,
     #[serde(default)]
     pub appearance: Appearance,
+    #[serde(default)]
+    pub media_player: MediaPlayerModuleConfig,
 }
 
 fn default_log_level() -> String {
@@ -394,6 +415,7 @@ impl Default for Config {
             clock: ClockModuleConfig::default(),
             settings: SettingsModuleConfig::default(),
             appearance: Appearance::default(),
+            media_player: MediaPlayerModuleConfig::default(),
         }
     }
 }

@@ -4,6 +4,7 @@ use super::{Module, OnModulePress};
 use crate::{
     app,
     components::icons::{icon, Icons},
+    config::MediaPlayerModuleConfig,
     menu::MenuType,
     style::SettingsButtonStyle,
     utils::launcher::execute_command,
@@ -90,10 +91,28 @@ pub enum Message {
 }
 
 impl MediaPlayer {
-    pub fn update(&mut self, message: Message) -> Task<crate::app::Message> {
+    pub fn update(
+        &mut self,
+        message: Message,
+        config: &MediaPlayerModuleConfig,
+    ) -> Task<crate::app::Message> {
         match message {
             Message::SetSong(song) => {
-                self.song = song;
+                if let Some(song) = song {
+                    let length = song.len();
+
+                    self.song = Some(if length > config.max_title_length as usize {
+                        let split = config.max_title_length as usize / 2;
+                        let first_part = song.chars().take(split).collect::<String>();
+                        let last_part = song.chars().skip(length - split).collect::<String>();
+                        format!("{}...{}", first_part, last_part)
+                    } else {
+                        song
+                    });
+                } else {
+                    self.song = None;
+                }
+
                 Task::none()
             }
             Message::Prev => {

@@ -227,7 +227,7 @@ impl App {
                 },
                 _ => Task::none(),
             },
-            Message::MediaPlayer(msg) => self.media_player.update(msg),
+            Message::MediaPlayer(msg) => self.media_player.update(msg, &self.config.media_player),
         }
     }
 
