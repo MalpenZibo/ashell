@@ -18,7 +18,7 @@ pub mod clipboard;
 pub mod clock;
 pub mod keyboard_layout;
 pub mod keyboard_submap;
-pub mod playerctl;
+pub mod media_player;
 pub mod privacy;
 pub mod settings;
 pub mod system_info;

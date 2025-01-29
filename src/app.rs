@@ -5,9 +5,9 @@ use crate::{
     menu::{menu_wrapper, MenuSize, MenuType},
     modules::{
         self, app_launcher::AppLauncher, clipboard::Clipboard, clock::Clock,
-        keyboard_layout::KeyboardLayout, keyboard_submap::KeyboardSubmap, playerctl::MediaPlayer,
-        privacy::Privacy, settings::Settings, system_info::SystemInfo, tray::TrayModule,
-        updates::Updates, window_title::WindowTitle, workspaces::Workspaces,
+        keyboard_layout::KeyboardLayout, keyboard_submap::KeyboardSubmap,
+        media_player::MediaPlayer, privacy::Privacy, settings::Settings, system_info::SystemInfo,
+        tray::TrayModule, updates::Updates, window_title::WindowTitle, workspaces::Workspaces,
     },
     outputs::{HasOutput, Outputs},
     position_button::ButtonUIRef,
@@ -62,7 +62,7 @@ pub enum Message {
     Privacy(modules::privacy::PrivacyMessage),
     Settings(modules::settings::Message),
     WaylandEvent(WaylandEvent),
-    Playerctl(modules::playerctl::Message),
+    Playerctl(modules::media_player::Message),
 }
 
 impl App {
