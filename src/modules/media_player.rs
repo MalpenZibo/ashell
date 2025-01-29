@@ -99,19 +99,19 @@ impl MediaPlayer {
             Message::Prev => {
                 execute_command("playerctl previous".to_string());
                 Task::perform(async move { get_current_song().await }, move |song| {
-                    app::Message::Playerctl(Message::SetSong(song))
+                    app::Message::MediaPlayer(Message::SetSong(song))
                 })
             }
             Message::Play => {
                 execute_command("playerctl play-pause".to_string());
                 Task::perform(async move { get_current_song().await }, move |song| {
-                    app::Message::Playerctl(Message::SetSong(song))
+                    app::Message::MediaPlayer(Message::SetSong(song))
                 })
             }
             Message::Next => {
                 execute_command("playerctl next".to_string());
                 Task::perform(async move { get_current_song().await }, move |song| {
-                    app::Message::Playerctl(Message::SetSong(song))
+                    app::Message::MediaPlayer(Message::SetSong(song))
                 })
             }
             Message::SetVolume(v) => {
@@ -163,7 +163,7 @@ impl Module for MediaPlayer {
         self.song.clone().and_then(|s| {
             Some((
                 text(s).size(12).into(),
-                Some(OnModulePress::ToggleMenu(MenuType::Playerctl)),
+                Some(OnModulePress::ToggleMenu(MenuType::MediaPlayer)),
             ))
         })
     }
@@ -184,7 +184,7 @@ impl Module for MediaPlayer {
                     }
                 }),
             )
-            .map(app::Message::Playerctl),
+            .map(app::Message::MediaPlayer),
         )
     }
 }

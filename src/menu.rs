@@ -16,7 +16,7 @@ pub enum MenuType {
     Updates,
     Settings,
     Tray(String),
-    Playerctl,
+    MediaPlayer,
 }
 
 #[derive(Clone, Debug)]

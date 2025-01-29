@@ -62,7 +62,7 @@ pub enum Message {
     Privacy(modules::privacy::PrivacyMessage),
     Settings(modules::settings::Message),
     WaylandEvent(WaylandEvent),
-    Playerctl(modules::media_player::Message),
+    MediaPlayer(modules::media_player::Message),
 }
 
 impl App {
@@ -227,7 +227,7 @@ impl App {
                 },
                 _ => Task::none(),
             },
-            Message::Playerctl(msg) => self.playerctl.update(msg),
+            Message::MediaPlayer(msg) => self.playerctl.update(msg),
         }
     }
 
@@ -270,9 +270,9 @@ impl App {
                     *button_ui_ref,
                     self.config.position,
                 ),
-                Some((MenuType::Playerctl, button_ui_ref)) => menu_wrapper(
+                Some((MenuType::MediaPlayer, button_ui_ref)) => menu_wrapper(
                     id,
-                    self.playerctl.menu_view().map(Message::Playerctl),
+                    self.playerctl.menu_view().map(Message::MediaPlayer),
                     MenuSize::Normal,
                     *button_ui_ref,
                     self.config.position,
