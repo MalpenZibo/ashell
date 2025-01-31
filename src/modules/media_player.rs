@@ -184,11 +184,11 @@ impl Module for MediaPlayer {
         &self,
         (): Self::ViewData<'_>,
     ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
-        self.song.clone().and_then(|s| {
-            Some((
+        self.song.clone().map(|s| {
+            (
                 text(s).size(12).into(),
                 Some(OnModulePress::ToggleMenu(MenuType::MediaPlayer)),
-            ))
+            )
         })
     }
 
