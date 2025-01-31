@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Media player module
+
 ## [0.4.0] - 2025-01-19
 
 A big update with new features and new configurations!

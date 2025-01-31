@@ -5,9 +5,9 @@ use crate::{
     menu::{menu_wrapper, MenuSize, MenuType},
     modules::{
         self, app_launcher::AppLauncher, clipboard::Clipboard, clock::Clock,
-        keyboard_layout::KeyboardLayout, keyboard_submap::KeyboardSubmap, privacy::Privacy,
-        settings::Settings, system_info::SystemInfo, tray::TrayModule, updates::Updates,
-        window_title::WindowTitle, workspaces::Workspaces,
+        keyboard_layout::KeyboardLayout, keyboard_submap::KeyboardSubmap,
+        media_player::MediaPlayer, privacy::Privacy, settings::Settings, system_info::SystemInfo,
+        tray::TrayModule, updates::Updates, window_title::WindowTitle, workspaces::Workspaces,
     },
     outputs::{HasOutput, Outputs},
     position_button::ButtonUIRef,
@@ -40,6 +40,7 @@ pub struct App {
     pub clock: Clock,
     pub privacy: Privacy,
     pub settings: Settings,
+    pub media_player: MediaPlayer,
 }
 
 #[derive(Debug, Clone)]
@@ -61,6 +62,7 @@ pub enum Message {
     Privacy(modules::privacy::PrivacyMessage),
     Settings(modules::settings::Message),
     WaylandEvent(WaylandEvent),
+    MediaPlayer(modules::media_player::Message),
 }
 
 impl App {
@@ -85,6 +87,7 @@ impl App {
                     clock: Clock::default(),
                     privacy: Privacy::default(),
                     settings: Settings::default(),
+                    media_player: MediaPlayer::default(),
                 },
                 task,
             )
@@ -224,6 +227,7 @@ impl App {
                 },
                 _ => Task::none(),
             },
+            Message::MediaPlayer(msg) => self.media_player.update(msg, &self.config.media_player),
         }
     }
 
@@ -263,6 +267,13 @@ impl App {
                         .menu_view(id, &self.config.settings)
                         .map(Message::Settings),
                     MenuSize::Large,
+                    *button_ui_ref,
+                    self.config.position,
+                ),
+                Some((MenuType::MediaPlayer, button_ui_ref)) => menu_wrapper(
+                    id,
+                    self.media_player.menu_view().map(Message::MediaPlayer),
+                    MenuSize::Normal,
                     *button_ui_ref,
                     self.config.position,
                 ),
