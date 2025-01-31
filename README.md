@@ -95,6 +95,7 @@ To enable this flake use
 - Tray
 - Date time
 - Privacy (check microphone, camera and screenshare usage)
+- Media Player
 - Settings panel
   - Power menu
   - Battery information
@@ -194,6 +195,9 @@ system:
 clock:
   # clock format see: https://docs.rs/chrono/latest/chrono/format/strftime/index.html
   format: "%a %d %b %R" # optional, default: %a %d %b %R
+# Media player module configuration
+mediaPlayer:
+  maxTitleLength: 100 # optional, default 100
 # Settings module configuration
 settings:
   # command used for lock the system
