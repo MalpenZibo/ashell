@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Media player module
 
+### Fixed
+
+- Fix bluetooth service in NixOS systems
+
 ## [0.4.0] - 2025-01-19
 
 A big update with new features and new configurations!
