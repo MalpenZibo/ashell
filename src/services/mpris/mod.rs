@@ -66,7 +66,7 @@ impl Deref for MprisPlayerService {
 
 enum State {
     Init,
-    Active(zbus::Connection),
+    Active(zbus::Connection, Vec<String>),
     Error,
 }
 
@@ -96,41 +96,61 @@ impl ReadOnlyService for MprisPlayerService {
 
 const MPRIS_PLAYER_SERVICE_PREFIX: &str = "org.mpris.MediaPlayer2.";
 
+enum Event {
+    NameOwner,
+    Metadata,
+    Volume,
+}
+
 impl MprisPlayerService {
-    async fn initialize_data(conn: &zbus::Connection) -> anyhow::Result<Vec<MprisPlayerData>> {
+    async fn initialize_data(
+        conn: &zbus::Connection,
+    ) -> anyhow::Result<(Vec<String>, Vec<MprisPlayerData>)> {
         let dbus = DBusProxy::new(&conn).await?;
-        let names = dbus.list_names().await?;
-        Ok(join_all(
-            names
-                .iter()
-                .filter(|a| a.starts_with(MPRIS_PLAYER_SERVICE_PREFIX))
-                .map(|s| async {
-                    let service = s.to_string();
-                    match MprisPlayerProxy::new(conn, s.to_string()).await {
-                        Ok(player) => {
-                            let m = player
-                                .metadata()
-                                .await
-                                .map_or(None, |m| Some(MprisPlayerMetadata::from(m)));
-                            let v = player.volume().await.map(|v| v * 100.0).ok();
-                            Some(MprisPlayerData {
-                                service,
-                                metadata: m,
-                                volume: v,
-                                proxy: player,
-                            })
-                        }
-                        Err(_) => None,
-                    }
-                }),
-        )
+        let names: Vec<String> = dbus
+            .list_names()
+            .await?
+            .iter()
+            .filter_map(|a| {
+                a.starts_with(MPRIS_PLAYER_SERVICE_PREFIX)
+                    .then(|| a.to_string())
+            })
+            .collect();
+        Ok((
+            names.clone(),
+            MprisPlayerService::get_mpris_player_data(conn, &names).await,
+        ))
+    }
+
+    async fn get_mpris_player_data(
+        conn: &zbus::Connection,
+        names: &[String],
+    ) -> Vec<MprisPlayerData> {
+        join_all(names.iter().map(|s| async {
+            match MprisPlayerProxy::new(conn, s.to_string()).await {
+                Ok(proxy) => {
+                    let metadata = proxy
+                        .metadata()
+                        .await
+                        .map_or(None, |m| Some(MprisPlayerMetadata::from(m)));
+                    let volume = proxy.volume().await.map(|v| v * 100.0).ok();
+                    Some(MprisPlayerData {
+                        service: s.to_string(),
+                        metadata,
+                        volume,
+                        proxy,
+                    })
+                }
+                Err(_) => None,
+            }
+        }))
         .await
         .iter()
         .filter_map(|d| d.clone())
-        .collect())
+        .collect()
     }
 
-    async fn events(conn: &zbus::Connection) -> anyhow::Result<impl Stream<Item = ()>> {
+    async fn events(conn: &zbus::Connection) -> anyhow::Result<impl Stream<Item = Event>> {
         let dbus = DBusProxy::new(conn).await?;
         let services = join_all(
             dbus.list_names()
@@ -145,17 +165,30 @@ impl MprisPlayerService {
                 .await?
                 .filter_map(|s| {
                     iced::futures::future::ready(match s.args() {
-                        Ok(a) => a.name.starts_with("org.mpris.MediaPlayer2.").then_some(()),
+                        Ok(a) => a
+                            .name
+                            .starts_with(MPRIS_PLAYER_SERVICE_PREFIX)
+                            .then_some(Event::NameOwner),
                         Err(_) => None,
                     })
                 })
                 .boxed(),
         );
         for s in services.iter() {
-            combined.push(s.receive_metadata_changed().await.map(|_| ()).boxed());
+            combined.push(
+                s.receive_metadata_changed()
+                    .await
+                    .map(|_| Event::Metadata)
+                    .boxed(),
+            );
         }
         for s in services.iter() {
-            combined.push(s.receive_volume_changed().await.map(|_| ()).boxed());
+            combined.push(
+                s.receive_volume_changed()
+                    .await
+                    .map(|_| Event::Volume)
+                    .boxed(),
+            );
         }
         Ok(combined)
     }
@@ -166,7 +199,7 @@ impl MprisPlayerService {
                 Ok(conn) => {
                     let data = MprisPlayerService::initialize_data(&conn).await;
                     match data {
-                        Ok(data) => {
+                        Ok((names, data)) => {
                             info!("MPRIS player service initialized");
 
                             let _ = output
@@ -176,7 +209,7 @@ impl MprisPlayerService {
                                 }))
                                 .await;
 
-                            State::Active(conn)
+                            State::Active(conn, names)
                         }
                         Err(err) => {
                             error!("Failed to initialize MPRIS player service: {}", err);
@@ -190,15 +223,22 @@ impl MprisPlayerService {
                     State::Error
                 }
             },
-            State::Active(conn) => match MprisPlayerService::events(&conn).await {
+            State::Active(conn, names) => match MprisPlayerService::events(&conn).await {
                 Ok(mut events) => {
-                    while let Some(_) = events.next().await {
-                        let data = MprisPlayerService::initialize_data(&conn).await;
+                    let mut names = names;
+                    while let Some(e) = events.next().await {
+                        let data = match e {
+                            Event::NameOwner => MprisPlayerService::initialize_data(&conn).await,
+                            _ => Ok((
+                                names.clone(),
+                                MprisPlayerService::get_mpris_player_data(&conn, &names).await,
+                            )),
+                        };
                         match data {
                             Ok(data) => {
                                 info!("MPRIS player service new data");
-
-                                let _ = output.send(ServiceEvent::Update(data)).await;
+                                names = data.0;
+                                let _ = output.send(ServiceEvent::Update(data.1)).await;
                             }
                             Err(err) => {
                                 error!("Failed to fetch MPRIS player data: {}", err);
@@ -206,7 +246,7 @@ impl MprisPlayerService {
                         }
                     }
 
-                    State::Active(conn)
+                    State::Active(conn, names)
                 }
                 Err(err) => {
                     error!("Failed to listen for MPRIS player events: {}", err);
@@ -242,10 +282,10 @@ impl Service for MprisPlayerService {
 
     fn command(&mut self, command: Self::Command) -> iced::Task<ServiceEvent<Self>> {
         {
+            let names: Vec<String> = self.data.iter().map(|d| d.service.clone()).collect();
             let s = self.data.iter().find(|d| d.service == command.service);
             if let Some(s) = s {
                 let mpris_player_proxy = s.proxy.clone();
-                let mpris_player_datas = self.data.clone();
                 let conn = self.conn.clone();
                 iced::Task::perform(
                     async move {
@@ -275,13 +315,7 @@ impl Service for MprisPlayerService {
                                     .inspect_err(|e| error!("Set volume command error: {}", e));
                             }
                         }
-                        match MprisPlayerService::initialize_data(&conn).await {
-                            Ok(d) => d,
-                            Err(e) => {
-                                error!("initialize data failed: {}", e);
-                                mpris_player_datas
-                            }
-                        }
+                        MprisPlayerService::get_mpris_player_data(&conn, &names).await
                     },
                     |data| ServiceEvent::Update(data),
                 )

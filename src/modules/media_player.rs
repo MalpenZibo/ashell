@@ -129,6 +129,10 @@ impl MediaPlayer {
                             volume: d.volume,
                         })
                         .collect();
+
+                    if let Some(service) = self.service.as_mut() {
+                        service.update(d);
+                    }
                     Task::none()
                 }
                 ServiceEvent::Error(_) => Task::none(),
