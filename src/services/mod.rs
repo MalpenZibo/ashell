@@ -4,6 +4,7 @@ pub mod audio;
 pub mod bluetooth;
 pub mod brightness;
 pub mod idle_inhibitor;
+pub mod mpris;
 pub mod network;
 pub mod privacy;
 pub mod tray;
