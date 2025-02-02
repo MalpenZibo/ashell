@@ -16,7 +16,7 @@ use crate::{
 use iced::{
     widget::{button, column, container, row, slider, text},
     Alignment::{self, Center},
-    Element, Subscription, Task, Theme,
+    Element, Subscription, Task,
 };
 
 #[derive(Default)]
@@ -137,42 +137,47 @@ impl MediaPlayer {
     }
 
     pub fn menu_view(&self) -> Element<Message> {
-        column(self.data.iter().map(|d| {
-            container(
-                column![]
-                    .push_maybe(d.song.clone().map(|s| text(s)))
-                    .push_maybe(d.volume.map(|v| {
-                        slider(0.0..=100.0, v, |new_v| {
-                            Message::SetVolume(d.name.clone(), new_v)
-                        })
-                    }))
-                    .push(
-                        row![
-                            button(icon(Icons::SkipPrevious))
-                                .on_press(Message::Prev(d.name.clone()))
-                                .padding([5, 12])
-                                .style(SettingsButtonStyle.into_style()),
-                            button(icon(Icons::PlayPause))
-                                .on_press(Message::PlayPause(d.name.clone()))
-                                .style(SettingsButtonStyle.into_style()),
-                            button(icon(Icons::SkipNext))
-                                .on_press(Message::Next(d.name.clone()))
-                                .padding([5, 12])
-                                .style(SettingsButtonStyle.into_style())
-                        ]
-                        .spacing(8),
-                    )
-                    .spacing(8)
-                    .align_x(Center),
-            )
-            .padding(4)
-            .style(|theme: &Theme| container::Style {
-                background: Some(iced::Background::Color(theme.palette().primary)),
-                ..container::Style::default()
-            })
-            .into()
-        }))
-        .spacing(8)
+        column(
+            self.data
+                .iter()
+                .flat_map(|d| {
+                    [
+                        iced::widget::horizontal_rule(2).into(),
+                        container(
+                            column![]
+                                .push_maybe(d.song.clone().map(|s| text(s)))
+                                .push_maybe(d.volume.map(|v| {
+                                    slider(0.0..=100.0, v, |v| {
+                                        Message::SetVolume(d.name.clone(), v)
+                                    })
+                                }))
+                                .push(
+                                    row![
+                                        button(icon(Icons::SkipPrevious))
+                                            .on_press(Message::Prev(d.name.clone()))
+                                            .padding([5, 12])
+                                            .style(SettingsButtonStyle.into_style()),
+                                        button(icon(Icons::PlayPause))
+                                            .on_press(Message::PlayPause(d.name.clone()))
+                                            .style(SettingsButtonStyle.into_style()),
+                                        button(icon(Icons::SkipNext))
+                                            .on_press(Message::Next(d.name.clone()))
+                                            .padding([5, 12])
+                                            .style(SettingsButtonStyle.into_style())
+                                    ]
+                                    .spacing(8),
+                                )
+                                .width(iced::Length::Fill)
+                                .spacing(8)
+                                .align_x(Center),
+                        )
+                        .padding(16)
+                        .into(),
+                    ]
+                })
+                .skip(1),
+        )
+        .spacing(16)
         .align_x(Alignment::Center)
         .into()
     }
@@ -187,15 +192,9 @@ impl Module for MediaPlayer {
         (): Self::ViewData<'_>,
     ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         Some((
-            text("media").into(),
+            icon(Icons::MusicNote).into(),
             Some(OnModulePress::ToggleMenu(MenuType::MediaPlayer)),
         ))
-        // self.data[0].song.clone().map(|s| {
-        //     (
-        //         text(s).size(12).into(),
-        //         Some(OnModulePress::ToggleMenu(MenuType::MediaPlayer)),
-        //     )
-        // })
     }
 
     fn subscription(&self, (): Self::SubscriptionData<'_>) -> Option<Subscription<app::Message>> {

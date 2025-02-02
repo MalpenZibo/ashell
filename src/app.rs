@@ -273,7 +273,7 @@ impl App {
                 Some((MenuType::MediaPlayer, button_ui_ref)) => menu_wrapper(
                     id,
                     self.media_player.menu_view().map(Message::MediaPlayer),
-                    MenuSize::Normal,
+                    MenuSize::Large,
                     *button_ui_ref,
                     self.config.position,
                 ),
