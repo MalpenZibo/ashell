@@ -26,7 +26,7 @@ pub fn truncate_text(value: &str, max_length: u32) -> String {
         let split = max_length as usize / 2;
         let first_part = value.chars().take(split).collect::<String>();
         let last_part = value.chars().skip(length - split).collect::<String>();
-        format!("{}...{}", first_part, last_part)
+        format!("{first_part}...{last_part}")
     } else {
         value.to_string()
     }
