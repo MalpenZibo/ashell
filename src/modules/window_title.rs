@@ -1,4 +1,4 @@
-use crate::app;
+use crate::{app, utils::truncate_text};
 use hyprland::{data::Client, event_listener::AsyncEventListener, shared::HyprDataActiveOptional};
 use iced::{stream::channel, widget::text, Element, Subscription};
 use log::{debug, error};
@@ -31,16 +31,7 @@ impl WindowTitle {
         match message {
             Message::TitleChanged(value) => {
                 if let Some(value) = value {
-                    let length = value.len();
-
-                    self.value = Some(if length > truncate_title_after_length as usize {
-                        let split = truncate_title_after_length as usize / 2;
-                        let first_part = value.chars().take(split).collect::<String>();
-                        let last_part = value.chars().skip(length - split).collect::<String>();
-                        format!("{}...{}", first_part, last_part)
-                    } else {
-                        value
-                    });
+                    self.value = Some(truncate_text(&value, truncate_title_after_length));
                 } else {
                     self.value = None;
                 }
