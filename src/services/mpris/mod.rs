@@ -10,7 +10,7 @@ use iced::{
     stream::channel,
     Subscription,
 };
-use log::{error, info};
+use log::{debug, error, info};
 use std::{any::TypeId, collections::HashMap, fmt::Display, ops::Deref};
 use zbus::{fdo::DBusProxy, zvariant::OwnedValue};
 
@@ -249,7 +249,7 @@ impl MprisPlayerService {
                         match event {
                             Event::NameOwner => match Self::initialize_data(&conn).await {
                                 Ok(data) => {
-                                    info!("MPRIS player service new data");
+                                    debug!("MPRIS player service new data");
                                     names = data.0;
                                     let _ = output.send(ServiceEvent::Update(data.1)).await;
                                 }
