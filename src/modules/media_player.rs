@@ -7,7 +7,7 @@ use crate::{
     config::MediaPlayerModuleConfig,
     menu::MenuType,
     services::{
-        mpris::{MprisPlayerCommand, MprisPlayerData, MprisPlayerService, PlayerCommand},
+        mpris::{MprisPlayerCommand, MprisPlayerService, PlayerCommand},
         ReadOnlyService, Service, ServiceEvent,
     },
     style::SettingsButtonStyle,
@@ -21,14 +21,7 @@ use iced::{
 
 #[derive(Default)]
 pub struct MediaPlayer {
-    data: Vec<PlayerData>,
     service: Option<MprisPlayerService>,
-}
-
-struct PlayerData {
-    name: String,
-    song: Option<String>,
-    volume: Option<f64>,
 }
 
 #[derive(Debug, Clone)]
@@ -41,11 +34,7 @@ pub enum Message {
 }
 
 impl MediaPlayer {
-    pub fn update(
-        &mut self,
-        message: Message,
-        config: &MediaPlayerModuleConfig,
-    ) -> Task<crate::app::Message> {
+    pub fn update(&mut self, message: Message) -> Task<crate::app::Message> {
         match message {
             Message::Prev(s) => self.handle_command(s, PlayerCommand::Prev),
             Message::PlayPause(s) => self.handle_command(s, PlayerCommand::PlayPause),
@@ -53,13 +42,10 @@ impl MediaPlayer {
             Message::SetVolume(s, v) => self.handle_command(s, PlayerCommand::Volume(v)),
             Message::Event(event) => match event {
                 ServiceEvent::Init(s) => {
-                    self.data = Self::map_service_to_module_data(s.deref(), config);
                     self.service = Some(s);
                     Task::none()
                 }
                 ServiceEvent::Update(d) => {
-                    self.data = Self::map_service_to_module_data(&d, config);
-
                     if let Some(service) = self.service.as_mut() {
                         service.update(d);
                     }
@@ -70,49 +56,58 @@ impl MediaPlayer {
         }
     }
 
-    pub fn menu_view(&self) -> Element<Message> {
-        column(
-            self.data
-                .iter()
-                .flat_map(|d| {
-                    let buttons = row![
-                        button(icon(Icons::SkipPrevious))
-                            .on_press(Message::Prev(d.name.clone()))
-                            .padding([5, 12])
-                            .style(SettingsButtonStyle.into_style()),
-                        button(icon(Icons::PlayPause))
-                            .on_press(Message::PlayPause(d.name.clone()))
-                            .style(SettingsButtonStyle.into_style()),
-                        button(icon(Icons::SkipNext))
-                            .on_press(Message::Next(d.name.clone()))
-                            .padding([5, 12])
-                            .style(SettingsButtonStyle.into_style())
-                    ]
-                    .spacing(8);
+    pub fn menu_view(&self, config: &MediaPlayerModuleConfig) -> Element<Message> {
+        match &self.service {
+            Some(s) => column(
+                s.deref()
+                    .iter()
+                    .flat_map(|d| {
+                        let d = d.clone();
+                        let buttons = row![
+                            button(icon(Icons::SkipPrevious))
+                                .on_press(Message::Prev(d.service.clone()))
+                                .padding([5, 12])
+                                .style(SettingsButtonStyle.into_style()),
+                            button(icon(Icons::PlayPause))
+                                .on_press(Message::PlayPause(d.service.clone()))
+                                .style(SettingsButtonStyle.into_style()),
+                            button(icon(Icons::SkipNext))
+                                .on_press(Message::Next(d.service.clone()))
+                                .padding([5, 12])
+                                .style(SettingsButtonStyle.into_style())
+                        ]
+                        .spacing(8);
 
-                    [
-                        iced::widget::horizontal_rule(2).into(),
-                        container(
-                            column![]
-                                .push_maybe(d.song.clone().map(text))
-                                .push_maybe(d.volume.map(|v| {
-                                    slider(0.0..=100.0, v, |v| {
-                                        Message::SetVolume(d.name.clone(), v)
-                                    })
-                                }))
-                                .push(buttons)
-                                .width(iced::Length::Fill)
-                                .spacing(12)
-                                .align_x(Center),
-                        )
-                        .padding(16)
-                        .into(),
-                    ]
-                })
-                .skip(1),
-        )
-        .spacing(16)
-        .into()
+                        [
+                            iced::widget::horizontal_rule(2).into(),
+                            container(
+                                column![]
+                                    .push(text(match d.metadata {
+                                        Some(m) => {
+                                            truncate_text(&m.to_string(), config.max_title_length)
+                                        }
+                                        None => "No Title".to_string(),
+                                    }))
+                                    .push_maybe(d.volume.map(|v| {
+                                        slider(0.0..=100.0, v, move |v| {
+                                            Message::SetVolume(d.service.clone(), v)
+                                        })
+                                    }))
+                                    .push(buttons)
+                                    .width(iced::Length::Fill)
+                                    .spacing(12)
+                                    .align_x(Center),
+                            )
+                            .padding(16)
+                            .into(),
+                        ]
+                    })
+                    .skip(1),
+            )
+            .spacing(16)
+            .into(),
+            None => text("Not connected to MPRIS service").into(),
+        }
     }
 
     fn handle_command(
@@ -130,44 +125,38 @@ impl MediaPlayer {
             Task::none()
         }
     }
-
-    fn map_service_to_module_data(
-        data: &[MprisPlayerData],
-        config: &MediaPlayerModuleConfig,
-    ) -> Vec<PlayerData> {
-        data.iter()
-            .map(|d| PlayerData {
-                name: d.service.clone(),
-                song: d
-                    .metadata
-                    .clone()
-                    .map(|d| truncate_text(&d.to_string(), config.max_title_length)),
-                volume: d.volume,
-            })
-            .collect()
-    }
 }
 
 impl Module for MediaPlayer {
-    type ViewData<'a> = ();
+    type ViewData<'a> = &'a MediaPlayerModuleConfig;
     type SubscriptionData<'a> = ();
 
     fn view(
         &self,
-        (): Self::ViewData<'_>,
+        config: Self::ViewData<'_>,
     ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
-        match self.data.len() {
-            0 => None,
-            1 => self.data[0].song.clone().map(|s| {
-                (
-                    text(s).into(),
-                    Some(OnModulePress::ToggleMenu(MenuType::MediaPlayer)),
-                )
-            }),
-            _ => Some((
-                icon(Icons::MusicNote).into(),
-                Some(OnModulePress::ToggleMenu(MenuType::MediaPlayer)),
-            )),
+        match &self.service {
+            Some(s) => {
+                let deref = s.deref();
+                match deref.len() {
+                    0 => None,
+                    1 => match &deref[0].metadata {
+                        Some(m) => Some((
+                            text(truncate_text(&m.to_string(), config.max_title_length)).into(),
+                            Some(OnModulePress::ToggleMenu(MenuType::MediaPlayer)),
+                        )),
+                        None => Some((
+                            icon(Icons::MusicNote).into(),
+                            Some(OnModulePress::ToggleMenu(MenuType::MediaPlayer)),
+                        )),
+                    },
+                    _ => Some((
+                        icon(Icons::MusicNote).into(),
+                        Some(OnModulePress::ToggleMenu(MenuType::MediaPlayer)),
+                    )),
+                }
+            }
+            None => None,
         }
     }
 

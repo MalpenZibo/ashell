@@ -227,7 +227,7 @@ impl App {
                 },
                 _ => Task::none(),
             },
-            Message::MediaPlayer(msg) => self.media_player.update(msg, &self.config.media_player),
+            Message::MediaPlayer(msg) => self.media_player.update(msg),
         }
     }
 
@@ -272,7 +272,9 @@ impl App {
                 ),
                 Some((MenuType::MediaPlayer, button_ui_ref)) => menu_wrapper(
                     id,
-                    self.media_player.menu_view().map(Message::MediaPlayer),
+                    self.media_player
+                        .menu_view(&self.config.media_player)
+                        .map(Message::MediaPlayer),
                     MenuSize::Large,
                     *button_ui_ref,
                     self.config.position,
