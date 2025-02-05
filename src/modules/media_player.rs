@@ -142,17 +142,13 @@ impl Module for MediaPlayer {
             let data = s.deref();
             match data.len() {
                 0 => None,
-                1 => Some((
+                _ => Some((
                     row![
                         icon(Icons::MusicNote),
                         text(Self::get_title(&data[0], config))
                     ]
                     .spacing(8)
                     .into(),
-                    Some(OnModulePress::ToggleMenu(MenuType::MediaPlayer)),
-                )),
-                _ => Some((
-                    icon(Icons::MusicNote).into(),
                     Some(OnModulePress::ToggleMenu(MenuType::MediaPlayer)),
                 )),
             }
