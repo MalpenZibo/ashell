@@ -171,14 +171,14 @@ impl MprisPlayerService {
         combined.push(
             dbus.receive_name_owner_changed()
                 .await?
-                .filter_map(|s| {
-                    iced::futures::future::ready(match s.args() {
+                .filter_map(|s| async move {
+                    match s.args() {
                         Ok(a) => a
                             .name
                             .starts_with(MPRIS_PLAYER_SERVICE_PREFIX)
                             .then_some(Event::NameOwner),
                         Err(_) => None,
-                    })
+                    }
                 })
                 .boxed(),
         );
