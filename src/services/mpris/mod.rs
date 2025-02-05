@@ -123,8 +123,13 @@ impl MprisPlayerService {
             .list_names()
             .await?
             .iter()
-            .filter(|&a| a.starts_with(MPRIS_PLAYER_SERVICE_PREFIX))
-            .map(|a| a.to_string())
+            .filter_map(|a| {
+                if a.starts_with(MPRIS_PLAYER_SERVICE_PREFIX) {
+                    Some(a.to_string())
+                } else {
+                    None
+                }
+            })
             .collect();
         Ok((
             names.clone(),
