@@ -7,7 +7,7 @@ use crate::{
     config::MediaPlayerModuleConfig,
     menu::MenuType,
     services::{
-        mpris::{MprisPlayerCommand, MprisPlayerService, PlayerCommand},
+        mpris::{MprisPlayerCommand, MprisPlayerData, MprisPlayerService, PlayerCommand},
         ReadOnlyService, Service, ServiceEvent,
     },
     style::SettingsButtonStyle,
@@ -58,11 +58,13 @@ impl MediaPlayer {
 
     pub fn menu_view(&self, config: &MediaPlayerModuleConfig) -> Element<Message> {
         match &self.service {
+            None => text("Not connected to MPRIS service").into(),
             Some(s) => column(
                 s.deref()
                     .iter()
                     .flat_map(|d| {
                         let d = d.clone();
+                        let title = text(Self::get_title(&d, config));
                         let buttons = row![
                             button(icon(Icons::SkipPrevious))
                                 .on_press(Message::Prev(d.service.clone()))
@@ -77,22 +79,17 @@ impl MediaPlayer {
                                 .style(SettingsButtonStyle.into_style())
                         ]
                         .spacing(8);
+                        let volume_slider = d.volume.map(|v| {
+                            slider(0.0..=100.0, v, move |v| {
+                                Message::SetVolume(d.service.clone(), v)
+                            })
+                        });
 
                         [
                             iced::widget::horizontal_rule(2).into(),
                             container(
-                                column![]
-                                    .push(text(match d.metadata {
-                                        Some(m) => {
-                                            truncate_text(&m.to_string(), config.max_title_length)
-                                        }
-                                        None => "No Title".to_string(),
-                                    }))
-                                    .push_maybe(d.volume.map(|v| {
-                                        slider(0.0..=100.0, v, move |v| {
-                                            Message::SetVolume(d.service.clone(), v)
-                                        })
-                                    }))
+                                column![title]
+                                    .push_maybe(volume_slider)
                                     .push(buttons)
                                     .width(iced::Length::Fill)
                                     .spacing(12)
@@ -106,7 +103,6 @@ impl MediaPlayer {
             )
             .spacing(16)
             .into(),
-            None => text("Not connected to MPRIS service").into(),
         }
     }
 
@@ -125,6 +121,13 @@ impl MediaPlayer {
             Task::none()
         }
     }
+
+    fn get_title(d: &MprisPlayerData, config: &MediaPlayerModuleConfig) -> String {
+        match &d.metadata {
+            Some(m) => truncate_text(&m.to_string(), config.max_title_length),
+            None => "No Title".to_string(),
+        }
+    }
 }
 
 impl Module for MediaPlayer {
@@ -135,29 +138,25 @@ impl Module for MediaPlayer {
         &self,
         config: Self::ViewData<'_>,
     ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
-        match &self.service {
-            Some(s) => {
-                let deref = s.deref();
-                match deref.len() {
-                    0 => None,
-                    1 => match &deref[0].metadata {
-                        Some(m) => Some((
-                            text(truncate_text(&m.to_string(), config.max_title_length)).into(),
-                            Some(OnModulePress::ToggleMenu(MenuType::MediaPlayer)),
-                        )),
-                        None => Some((
-                            icon(Icons::MusicNote).into(),
-                            Some(OnModulePress::ToggleMenu(MenuType::MediaPlayer)),
-                        )),
-                    },
-                    _ => Some((
-                        icon(Icons::MusicNote).into(),
-                        Some(OnModulePress::ToggleMenu(MenuType::MediaPlayer)),
-                    )),
-                }
+        self.service.as_ref().and_then(|s| {
+            let data = s.deref();
+            match data.len() {
+                0 => None,
+                1 => Some((
+                    row![
+                        icon(Icons::MusicNote),
+                        text(Self::get_title(&data[0], config))
+                    ]
+                    .spacing(8)
+                    .into(),
+                    Some(OnModulePress::ToggleMenu(MenuType::MediaPlayer)),
+                )),
+                _ => Some((
+                    icon(Icons::MusicNote).into(),
+                    Some(OnModulePress::ToggleMenu(MenuType::MediaPlayer)),
+                )),
             }
-            None => None,
-        }
+        })
     }
 
     fn subscription(&self, (): Self::SubscriptionData<'_>) -> Option<Subscription<app::Message>> {
