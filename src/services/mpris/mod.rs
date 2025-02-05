@@ -257,7 +257,7 @@ impl MprisPlayerService {
                                     error!("Failed to fetch MPRIS player data: {}", err);
                                 }
                             },
-                            _ => {
+                            Event::Metadata | Event::Volume => {
                                 let data = Self::get_mpris_player_data(&conn, &names).await;
                                 let _ = output.send(ServiceEvent::Update(data)).await;
                             }
