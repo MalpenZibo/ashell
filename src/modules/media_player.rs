@@ -60,8 +60,7 @@ impl MediaPlayer {
         match &self.service {
             None => text("Not connected to MPRIS service").into(),
             Some(s) => column(
-                s.deref()
-                    .iter()
+                s.iter()
                     .flat_map(|d| {
                         let d = d.clone();
                         let title = text(Self::get_title(&d, config));
@@ -138,20 +137,14 @@ impl Module for MediaPlayer {
         &self,
         config: Self::ViewData<'_>,
     ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
-        self.service.as_ref().and_then(|s| {
-            let data = s.deref();
-            match data.len() {
-                0 => None,
-                _ => Some((
-                    row![
-                        icon(Icons::MusicNote),
-                        text(Self::get_title(&data[0], config))
-                    ]
+        self.service.as_ref().and_then(|s| match s.len() {
+            0 => None,
+            _ => Some((
+                row![icon(Icons::MusicNote), text(Self::get_title(&s[0], config))]
                     .spacing(8)
                     .into(),
-                    Some(OnModulePress::ToggleMenu(MenuType::MediaPlayer)),
-                )),
-            }
+                Some(OnModulePress::ToggleMenu(MenuType::MediaPlayer)),
+            )),
         })
     }
 
