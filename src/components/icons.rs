@@ -68,6 +68,7 @@ pub enum Icons {
     SkipPrevious,
     PlayPause,
     SkipNext,
+    MusicNote,
 }
 
 impl From<Icons> for &'static str {
@@ -135,6 +136,7 @@ impl From<Icons> for &'static str {
             Icons::SkipPrevious => "󰒮",
             Icons::PlayPause => "󰐎",
             Icons::SkipNext => "󰒭",
+            Icons::MusicNote => "󰎇",
         }
     }
 }
