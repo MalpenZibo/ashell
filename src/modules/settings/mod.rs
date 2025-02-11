@@ -47,7 +47,7 @@ pub struct Settings {
     network: Option<NetworkService>,
     bluetooth: Option<BluetoothService>,
     idle_inhibitor: Option<IdleInhibitorManager>,
-    sub_menu: Option<SubMenu>,
+    pub sub_menu: Option<SubMenu>,
     upower: Option<UPowerService>,
     pub password_dialog: Option<(String, String)>,
 }
