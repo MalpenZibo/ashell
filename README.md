@@ -140,6 +140,7 @@ position: Top # optional, default Top
 #  - Tray
 #  - Clock
 #  - Privacy
+#  - MediaPlayer
 #  - Settings
 # optional, the following is the default configuration
 modules:
