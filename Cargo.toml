@@ -1,6 +1,6 @@
 [package]
 name = "ashell"
-description = "Barely customizable Wayland status bar for Hyprland compositor."
+description = "A ready to go Wayland status bar for Hyprland"
 homepage = "https://github.com/MalpenZibo/ashell"
 version = "0.4.0"
 edition = "2021"
@@ -32,5 +32,6 @@ pipewire = "0.8"
 wayland-client = "0.31.5"
 wayland-protocols = { version = "0.32.3", features = ["client", "unstable"] }
 itertools = "0.14"
-hex_color = { version = "3.0", features = ["serde"] }
+hex_color = { version = "3", features = ["serde"] }
 anyhow = "1"
+udev = { version = "0.9", features = ["send", "sync"] }

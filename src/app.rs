@@ -4,13 +4,24 @@ use crate::{
     get_log_spec,
     menu::{menu_wrapper, MenuSize, MenuType},
     modules::{
-        self, app_launcher::AppLauncher, clipboard::Clipboard, clock::Clock,
-        keyboard_layout::KeyboardLayout, keyboard_submap::KeyboardSubmap,
-        media_player::MediaPlayer, privacy::Privacy, settings::Settings, system_info::SystemInfo,
-        tray::TrayModule, updates::Updates, window_title::WindowTitle, workspaces::Workspaces,
+        self,
+        app_launcher::AppLauncher,
+        clipboard::Clipboard,
+        clock::Clock,
+        keyboard_layout::KeyboardLayout,
+        keyboard_submap::KeyboardSubmap,
+        media_player::MediaPlayer,
+        privacy::Privacy,
+        settings::Settings,
+        system_info::SystemInfo,
+        tray::{TrayMessage, TrayModule},
+        updates::Updates,
+        window_title::WindowTitle,
+        workspaces::Workspaces,
     },
     outputs::{HasOutput, Outputs},
     position_button::ButtonUIRef,
+    services::{tray::TrayEvent, ServiceEvent},
     style::ashell_theme,
     utils, HEIGHT,
 };
@@ -146,6 +157,9 @@ impl App {
                             self.tray.submenus.clear();
                         }
                     }
+                    MenuType::Settings => {
+                        self.settings.sub_menu = None;
+                    }
                     _ => {}
                 };
                 self.outputs.toggle_menu(id, menu_type, button_ui_ref)
@@ -193,7 +207,18 @@ impl App {
                 self.keyboard_submap.update(message);
                 Task::none()
             }
-            Message::Tray(msg) => self.tray.update(msg),
+            Message::Tray(msg) => {
+                let close_tray = if let TrayMessage::Event(ServiceEvent::Update(
+                    TrayEvent::Unregistered(name),
+                )) = &msg
+                {
+                    self.outputs.close_all_menu_if(MenuType::Tray(name.clone()))
+                } else {
+                    Task::none()
+                };
+
+                Task::batch(vec![self.tray.update(msg), close_tray])
+            }
             Message::Clock(message) => {
                 self.clock.update(message);
                 Task::none()
