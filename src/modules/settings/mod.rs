@@ -43,7 +43,7 @@ mod upower;
 
 pub struct Settings {
     audio: Option<AudioService>,
-    brightness: Option<BrightnessService>,
+    pub brightness: Option<BrightnessService>,
     network: Option<NetworkService>,
     bluetooth: Option<BluetoothService>,
     idle_inhibitor: Option<IdleInhibitorManager>,

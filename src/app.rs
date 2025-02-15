@@ -12,7 +12,7 @@ use crate::{
         keyboard_submap::KeyboardSubmap,
         media_player::MediaPlayer,
         privacy::Privacy,
-        settings::Settings,
+        settings::{brightness::BrightnessMessage, Settings},
         system_info::SystemInfo,
         tray::{TrayMessage, TrayModule},
         updates::Updates,
@@ -21,19 +21,23 @@ use crate::{
     },
     outputs::{HasOutput, Outputs},
     position_button::ButtonUIRef,
-    services::{tray::TrayEvent, ServiceEvent},
+    services::{brightness::BrightnessCommand, tray::TrayEvent, Service, ServiceEvent},
     style::ashell_theme,
     utils, HEIGHT,
 };
 use flexi_logger::LoggerHandle;
 use iced::{
     daemon::Appearance,
-    event::{listen_with, wayland::Event as WaylandEvent},
+    event::{
+        listen_with,
+        wayland::{Event as WaylandEvent, OutputEvent},
+    },
     widget::Row,
     window::Id,
     Alignment, Color, Element, Length, Subscription, Task, Theme,
 };
 use log::{debug, info, warn};
+use wayland_client::protocol::wl_output::WlOutput;
 
 pub struct App {
     logger: LoggerHandle,
@@ -72,8 +76,8 @@ pub enum Message {
     Clock(modules::clock::Message),
     Privacy(modules::privacy::PrivacyMessage),
     Settings(modules::settings::Message),
-    WaylandEvent(WaylandEvent),
     MediaPlayer(modules::media_player::Message),
+    OutputEvent((OutputEvent, WlOutput)),
 }
 
 impl App {
@@ -143,6 +147,7 @@ impl App {
                 Task::batch(tasks)
             }
             Message::ToggleMenu(menu_type, id, button_ui_ref) => {
+                let mut cmd = vec![];
                 match &menu_type {
                     MenuType::Updates => {
                         self.updates.is_updates_list_open = false;
@@ -159,10 +164,22 @@ impl App {
                     }
                     MenuType::Settings => {
                         self.settings.sub_menu = None;
+
+                        if let Some(brightness) = self.settings.brightness.as_mut() {
+                            cmd.push(brightness.command(BrightnessCommand::Refresh).map(|event| {
+                                crate::app::Message::Settings(
+                                    crate::modules::settings::Message::Brightness(
+                                        BrightnessMessage::Event(event),
+                                    ),
+                                )
+                            }));
+                        }
                     }
                     _ => {}
                 };
-                self.outputs.toggle_menu(id, menu_type, button_ui_ref)
+                cmd.push(self.outputs.toggle_menu(id, menu_type, button_ui_ref));
+
+                Task::batch(cmd)
             }
             Message::CloseMenu(id) => self.outputs.close_menu(id),
             Message::Updates(message) => {
@@ -228,28 +245,21 @@ impl App {
                 self.settings
                     .update(message, &self.config.settings, &mut self.outputs)
             }
-            Message::WaylandEvent(event) => match event {
-                WaylandEvent::Output(event, wl_output) => match event {
-                    iced::event::wayland::OutputEvent::Created(info) => {
-                        info!("Output created: {:?}", info);
-                        let name = info
-                            .as_ref()
-                            .and_then(|info| info.name.as_deref())
-                            .unwrap_or("");
+            Message::OutputEvent((event, wl_output)) => match event {
+                iced::event::wayland::OutputEvent::Created(info) => {
+                    info!("Output created: {:?}", info);
+                    let name = info
+                        .as_ref()
+                        .and_then(|info| info.name.as_deref())
+                        .unwrap_or("");
 
-                        self.outputs.add(
-                            &self.config.outputs,
-                            self.config.position,
-                            name,
-                            wl_output,
-                        )
-                    }
-                    iced::event::wayland::OutputEvent::Removed => {
-                        info!("Output destroyed");
-                        self.outputs.remove(self.config.position, wl_output)
-                    }
-                    _ => Task::none(),
-                },
+                    self.outputs
+                        .add(&self.config.outputs, self.config.position, name, wl_output)
+                }
+                iced::event::wayland::OutputEvent::Removed => {
+                    info!("Output destroyed");
+                    self.outputs.remove(self.config.position, wl_output)
+                }
                 _ => Task::none(),
             },
             Message::MediaPlayer(msg) => self.media_player.update(msg),
@@ -320,11 +330,12 @@ impl App {
                 if let iced::Event::PlatformSpecific(iced::event::PlatformSpecific::Wayland(evt)) =
                     evt
                 {
-                    if matches!(evt, WaylandEvent::Output(_, _)) {
-                        debug!("Wayland event: {:?}", evt);
-                        Some(Message::WaylandEvent(evt))
-                    } else {
-                        None
+                    match evt {
+                        WaylandEvent::Output(event, wl_output) => {
+                            debug!("Wayland event: {:?}", event);
+                            Some(Message::OutputEvent((event, wl_output)))
+                        }
+                        _ => None,
                     }
                 } else {
                     None
