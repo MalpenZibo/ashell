@@ -25,7 +25,7 @@ jobs:
         run: |
           export DEBIAN_FRONTED=noninteractive
           sudo apt-get update
-          sudo apt-get install -y pkg-config llvm-dev libclang-dev clang libxkbcommon-dev libwayland-dev dbus libpipewire-0.3-dev libpulse-dev
+          sudo apt-get install -y pkg-config llvm-dev libclang-dev clang libxkbcommon-dev libwayland-dev dbus libpipewire-0.3-dev libpulse-dev libudev-dev
 
       - name: Format
         run: cargo fmt --all -- --check

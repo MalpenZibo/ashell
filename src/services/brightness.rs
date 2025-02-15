@@ -1,10 +1,9 @@
 use super::{ReadOnlyService, Service, ServiceEvent};
 use iced::{
-    futures::{channel::mpsc::Sender, stream::pending, SinkExt, Stream, StreamExt},
+    futures::{channel::mpsc::Sender, stream::pending, SinkExt, StreamExt},
     stream::channel,
     Subscription, Task,
 };
-use inotify::{Inotify, WatchMask};
 use log::{debug, error, info, warn};
 use std::{
     any::TypeId,
@@ -12,9 +11,8 @@ use std::{
     ops::Deref,
     path::{Path, PathBuf},
 };
+use tokio::io::{unix::AsyncFd, Interest};
 use zbus::proxy;
-
-const DEVICES_FOLDER: &str = "/sys/class/backlight";
 
 #[derive(Debug, Clone, Default)]
 pub struct BrightnessData {
@@ -25,7 +23,7 @@ pub struct BrightnessData {
 #[derive(Debug, Clone)]
 pub struct BrightnessService {
     data: BrightnessData,
-    device_name: String,
+    device_path: PathBuf,
     conn: zbus::Connection,
 }
 
@@ -67,60 +65,46 @@ impl BrightnessService {
         })
     }
 
-    async fn init_service() -> anyhow::Result<(zbus::Connection, String, PathBuf)> {
-        let device_folder = fs::read_dir(DEVICES_FOLDER)
-            .ok()
-            .and_then(|mut d| d.next().and_then(|entry| entry.ok()));
+    async fn init_service() -> anyhow::Result<(zbus::Connection, PathBuf)> {
+        let backlight_devices = Self::backlight_enumerate()?;
 
-        if let Some(device_folder) = device_folder {
-            let device_name = device_folder.file_name().into_string().unwrap();
+        if let Some(device) = backlight_devices
+            .iter()
+            .find(|d| d.subsystem().and_then(|s| s.to_str()) == Some("backlight"))
+        {
+            let device_path = device.syspath().to_path_buf();
 
             let conn = zbus::Connection::system().await?;
 
-            Ok((conn, device_name, device_folder.path()))
+            Ok((conn, device_path))
         } else {
             warn!("No backlight devices found");
             Err(anyhow::anyhow!("No backlight devices found"))
         }
     }
 
-    async fn events(device_path: &Path) -> anyhow::Result<impl Stream<Item = BrightnessEvent>> {
-        let actual_brightness_file = device_path.join("actual_brightness");
-        let inotify = Inotify::init()?;
+    pub async fn backlight_monitor_listener() -> anyhow::Result<AsyncFd<udev::MonitorSocket>> {
+        let socket = udev::MonitorBuilder::new()?
+            .match_subsystem("backlight")?
+            .listen()?;
 
-        inotify
-            .watches()
-            .add(&actual_brightness_file, WatchMask::MODIFY)?;
+        Ok(AsyncFd::with_interest(
+            socket,
+            Interest::READABLE | Interest::WRITABLE,
+        )?)
+    }
 
-        let buffer = [0; 512];
-        let current_value = Self::get_actual_brightness(device_path).await?;
+    fn backlight_enumerate() -> anyhow::Result<Vec<udev::Device>> {
+        let mut enumerator = udev::Enumerator::new()?;
+        enumerator.match_subsystem("backlight")?;
 
-        Ok(inotify
-            .into_event_stream(buffer)?
-            .filter_map({
-                let device_path = device_path.to_owned();
-                move |_| {
-                    let device_path = device_path.clone();
-                    async move {
-                        let new_value = Self::get_actual_brightness(&device_path)
-                            .await
-                            .unwrap_or_default();
-
-                        if new_value != current_value {
-                            Some(BrightnessEvent(new_value))
-                        } else {
-                            None
-                        }
-                    }
-                }
-            })
-            .boxed())
+        Ok(enumerator.scan_devices()?.collect())
     }
 
     async fn start_listening(state: State, output: &mut Sender<ServiceEvent<Self>>) -> State {
         match state {
             State::Init => match Self::init_service().await {
-                Ok((conn, device_name, device_path)) => {
+                Ok((conn, device_path)) => {
                     let data = BrightnessService::initialize_data(&device_path).await;
 
                     match data {
@@ -128,7 +112,7 @@ impl BrightnessService {
                             let _ = output
                                 .send(ServiceEvent::Init(BrightnessService {
                                     data,
-                                    device_name,
+                                    device_path: device_path.to_path_buf(),
                                     conn,
                                 }))
                                 .await;
@@ -150,13 +134,58 @@ impl BrightnessService {
             },
             State::Active(device_path) => {
                 info!("Listening for brightness events");
+                let current_value = Self::get_actual_brightness(&device_path)
+                    .await
+                    .unwrap_or_default();
 
-                match BrightnessService::events(&device_path).await {
-                    Ok(mut events) => {
-                        while let Some(event) = events.next().await {
-                            let _ = output.send(ServiceEvent::Update(event)).await;
+                match BrightnessService::backlight_monitor_listener().await {
+                    Ok(mut socket) => {
+                        loop {
+                            debug!("Waiting for brightness events");
+
+                            if let Ok(mut socket) = socket.writable_mut().await {
+                                for evt in socket.get_inner().iter() {
+                                    debug!("{:?}: {:?}", evt.event_type(), evt.device());
+
+                                    if evt.device().subsystem().and_then(|s| s.to_str())
+                                        == Some("backlight")
+                                    {
+                                        match evt.event_type() {
+                                            udev::EventType::Change => {
+                                                debug!(
+                                                    "Changed backlight device: {:?}",
+                                                    evt.syspath()
+                                                );
+                                                let new_value =
+                                                    Self::get_actual_brightness(&device_path)
+                                                        .await
+                                                        .unwrap_or_default();
+
+                                                if new_value != current_value {
+                                                    let _ = output
+                                                        .send(ServiceEvent::Update(
+                                                            BrightnessEvent(new_value),
+                                                        ))
+                                                        .await;
+                                                }
+
+                                                break;
+                                            }
+                                            _ => {
+                                                debug!(
+                                                    "Unhadled event type: {:?}",
+                                                    evt.event_type()
+                                                );
+                                            }
+                                        }
+                                    }
+                                }
+                                socket.clear_ready();
+                            } else {
+                                warn!("Failed to get writable socket");
+                                break;
+                            }
                         }
-
                         State::Active(device_path)
                     }
                     Err(err) => {
@@ -177,13 +206,18 @@ impl BrightnessService {
 
     async fn set_brightness(
         conn: &zbus::Connection,
-        device: &str,
+        device_path: &Path,
         value: u32,
     ) -> anyhow::Result<()> {
         let brightness_ctrl = BrightnessCtrlProxy::new(conn).await?;
+        let device_name = device_path
+            .iter()
+            .last()
+            .and_then(|d| d.to_str())
+            .unwrap_or_default();
 
         brightness_ctrl
-            .set_brightness("backlight", device, value)
+            .set_brightness("backlight", device_name, value)
             .await?;
 
         Ok(())
@@ -226,6 +260,7 @@ impl ReadOnlyService for BrightnessService {
 #[derive(Debug, Clone)]
 pub enum BrightnessCommand {
     Set(u32),
+    Refresh,
 }
 
 impl Service for BrightnessService {
@@ -235,15 +270,21 @@ impl Service for BrightnessService {
         Task::perform(
             {
                 let conn = self.conn.clone();
-                let device_name = self.device_name.clone();
+                let device_path = self.device_path.clone();
 
                 async move {
                     match command {
                         BrightnessCommand::Set(v) => {
                             debug!("Setting brightness to {}", v);
-                            let _ = BrightnessService::set_brightness(&conn, &device_name, v).await;
+                            let _ = BrightnessService::set_brightness(&conn, &device_path, v).await;
 
                             v
+                        }
+                        BrightnessCommand::Refresh => {
+                            debug!("Refreshing brightness data");
+                            BrightnessService::get_actual_brightness(&device_path)
+                                .await
+                                .unwrap_or_default()
                         }
                     }
                 }
