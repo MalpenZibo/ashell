@@ -46,6 +46,7 @@ impl MediaPlayer {
                 ServiceEvent::Update(d) => {
                     if let Some(service) = self.service.as_mut() {
                         service.update(d);
+                        self.service = Some(service.clone());
                     }
                     Task::none()
                 }
