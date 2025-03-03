@@ -24,7 +24,7 @@ jobs:
       - uses: nixbuild/nix-quick-install-action@v29
 
       - name: Restore and save Nix store
-        uses: ./.
+        uses: nix-community/cache-nix-action@v6
         with:
           primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/flake.lock') }}
           # do purge caches
@@ -40,4 +40,5 @@ jobs:
           # 1 GB = 1073741824 B
           gc-max-store-size-linux: 1073741824
 
-      - run: nix build
+      - name: Nix build-
+        run: nix build
