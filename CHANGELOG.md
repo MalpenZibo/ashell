@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Fix bluetooth service in NixOS systems
+- Fix brightness wrong value in some situations
+- Fix settings menu not resetting it's state when closed
 
 ## [0.4.0] - 2025-01-19
 
