@@ -43,11 +43,11 @@ mod upower;
 
 pub struct Settings {
     audio: Option<AudioService>,
-    brightness: Option<BrightnessService>,
+    pub brightness: Option<BrightnessService>,
     network: Option<NetworkService>,
     bluetooth: Option<BluetoothService>,
     idle_inhibitor: Option<IdleInhibitorManager>,
-    sub_menu: Option<SubMenu>,
+    pub sub_menu: Option<SubMenu>,
     upower: Option<UPowerService>,
     pub password_dialog: Option<(String, String)>,
 }

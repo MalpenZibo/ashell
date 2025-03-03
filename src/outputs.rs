@@ -395,6 +395,21 @@ impl Outputs {
         }
     }
 
+    pub fn close_all_menu_if<Message: 'static>(&mut self, menu_type: MenuType) -> Task<Message> {
+        Task::batch(
+            self.0
+                .iter_mut()
+                .map(|(_, shell_info, _)| {
+                    if let Some(shell_info) = shell_info {
+                        shell_info.menu.close_if(menu_type.clone())
+                    } else {
+                        Task::none()
+                    }
+                })
+                .collect::<Vec<_>>(),
+        )
+    }
+
     pub fn request_keyboard<Message: 'static>(&self, id: Id) -> Task<Message> {
         if let Some((_, Some(shell_info), _)) = self.0.iter().find(|(_, shell_info, _)| {
             shell_info.as_ref().map(|shell_info| shell_info.id) == Some(id)

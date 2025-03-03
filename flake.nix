@@ -34,6 +34,7 @@
             libpulseaudio
             wayland
             vulkan-loader
+            udev
           ];
 
           runtimeDependencies = with pkgs; [
