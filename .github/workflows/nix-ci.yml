@@ -15,13 +15,30 @@ jobs:
   checks-build:
     runs-on: ubuntu-24.04
     permissions:
-      id-token: "write"
-      contents: "read"
+      contents: write
+      actions: write
 
     steps:
       - uses: actions/checkout@v4
 
-      - uses: nixbuild/nix-quick-install-action@v28
-      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - uses: nixbuild/nix-quick-install-action@v29
 
-      - run: nix build
+      - name: Restore and save Nix store
+        uses: nix-community/cache-nix-action@v6
+        with:
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/flake.lock') }}
+          # do purge caches
+          purge: true
+          # purge all versions of the cache
+          purge-prefixes: build-${{ runner.os }}-
+          # created more than 0 seconds ago relative to the start of the `Post Restore` phase
+          purge-created: 0
+          # except the version with the `primary-key`, if it exists
+          purge-primary-key: never
+          # collect garbage until Nix store size (in bytes) is at most this number
+          # before trying to save a new cache
+          # 1 GB = 1073741824 B
+          gc-max-store-size-linux: 1073741824
+
+      - name: Nix build-
+        run: nix build

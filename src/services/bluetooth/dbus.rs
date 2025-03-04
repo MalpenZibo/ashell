@@ -67,7 +67,7 @@ impl BluetoothDbus<'_> {
             .into_iter()
             .filter_map(|(key, item)| {
                 if item.contains_key("org.bluez.Device1") {
-                    Some(key)
+                    Some((key.clone(), item.contains_key("org.bluez.Battery1")))
                 } else {
                     None
                 }
@@ -75,7 +75,7 @@ impl BluetoothDbus<'_> {
             .collect::<Vec<_>>();
 
         let mut devices = Vec::new();
-        for device_path in devices_proxy {
+        for (device_path, has_battery) in devices_proxy {
             let device = DeviceProxy::builder(self.bluez.inner().connection())
                 .path(device_path.clone())?
                 .build()
@@ -85,15 +85,20 @@ impl BluetoothDbus<'_> {
             let connected = device.connected().await?;
 
             if connected {
-                let battery = BatteryProxy::builder(self.bluez.inner().connection())
-                    .path(&device_path)?
-                    .build()
-                    .await?;
-                let battery = battery.percentage().await?;
+                let battery = if has_battery {
+                    let battery_proxy = BatteryProxy::builder(self.bluez.inner().connection())
+                        .path(&device_path)?
+                        .build()
+                        .await?;
+
+                    Some(battery_proxy.percentage().await?)
+                } else {
+                    None
+                };
 
                 devices.push(BluetoothDevice {
                     name,
-                    battery: Some(battery),
+                    battery,
                     path: device_path,
                 });
             }
