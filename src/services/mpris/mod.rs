@@ -11,7 +11,7 @@ use iced::{
     Subscription,
 };
 use log::{debug, error, info};
-use std::{any::TypeId, collections::HashMap, fmt::Display, ops::Deref};
+use std::{any::TypeId, collections::HashMap, fmt::Display, ops::Deref, sync::Arc};
 use zbus::{fdo::DBusProxy, zvariant::OwnedValue};
 
 mod dbus;
@@ -24,7 +24,7 @@ pub struct MprisPlayerData {
     proxy: MprisPlayerProxy<'static>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct MprisPlayerMetadata {
     pub artists: Option<Vec<String>>,
     pub title: Option<String>,
@@ -171,6 +171,7 @@ impl MprisPlayerService {
 
     async fn events(conn: &zbus::Connection) -> anyhow::Result<impl Stream<Item = Event>> {
         let dbus = DBusProxy::new(conn).await?;
+        let (_, data) = Self::initialize_data(conn).await?;
 
         let mut combined = SelectAll::new();
 
@@ -189,30 +190,50 @@ impl MprisPlayerService {
                 .boxed(),
         );
 
-        let services: Vec<MprisPlayerProxy<'_>> =
-            join_all(dbus.list_names().await?.iter().map(|n| async move {
-                MprisPlayerProxy::new(conn, n.clone())
-                    .await
-                    .inspect_err(|e| error!("Failed to connect MPRIS player proxy: {e}"))
-            }))
-            .await
-            .into_iter()
-            .flatten()
-            .collect();
+        for s in data.iter() {
+            let cache = Arc::new(s.metadata.clone());
 
-        for s in services.iter() {
             combined.push(
-                s.receive_metadata_changed()
+                s.proxy
+                    .receive_metadata_changed()
                     .await
-                    .map(|_| Event::Metadata)
+                    .filter_map({
+                        let cache = cache.clone();
+                        move |m| {
+                            let cache = cache.clone();
+                            async move {
+                                let new_metadata =
+                                    m.get().await.map(MprisPlayerMetadata::from).ok();
+                                if &new_metadata == cache.as_ref() {
+                                    None
+                                } else {
+                                    debug!("Metadata changed: {:?}", new_metadata);
+
+                                    Some(Event::Metadata)
+                                }
+                            }
+                        }
+                    })
                     .boxed(),
             );
         }
-        for s in services.iter() {
+        for s in data.iter() {
+            let volume = s.volume;
+
             combined.push(
-                s.receive_volume_changed()
+                s.proxy
+                    .receive_volume_changed()
                     .await
-                    .map(|_| Event::Volume)
+                    .filter_map(move |v| async move {
+                        let new_volume = v.get().await.ok();
+                        if volume == new_volume {
+                            None
+                        } else {
+                            debug!("Volume changed: {:?}", new_volume);
+
+                            Some(Event::Volume)
+                        }
+                    })
                     .boxed(),
             );
         }
@@ -258,7 +279,6 @@ impl MprisPlayerService {
                         match event {
                             Event::NameOwner => match Self::initialize_data(&conn).await {
                                 Ok(data) => {
-                                    debug!("MPRIS player service new data");
                                     let _ = output.send(ServiceEvent::Update(data.1)).await;
 
                                     return State::Active(conn, data.0);
@@ -270,6 +290,8 @@ impl MprisPlayerService {
                             Event::Metadata | Event::Volume => {
                                 let data = Self::get_mpris_player_data(&conn, &names).await;
                                 let _ = output.send(ServiceEvent::Update(data)).await;
+
+                                return State::Active(conn, names);
                             }
                         }
                     }
