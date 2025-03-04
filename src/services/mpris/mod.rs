@@ -58,6 +58,7 @@ impl From<HashMap<String, OwnedValue>> for MprisPlayerMetadata {
             },
             None => None,
         };
+
         Self { artists, title }
     }
 }
@@ -108,6 +109,7 @@ impl ReadOnlyService for MprisPlayerService {
 
 const MPRIS_PLAYER_SERVICE_PREFIX: &str = "org.mpris.MediaPlayer2.";
 
+#[derive(Debug)]
 enum Event {
     NameOwner,
     Metadata,
@@ -148,7 +150,9 @@ impl MprisPlayerService {
                         .metadata()
                         .await
                         .map_or(None, |m| Some(MprisPlayerMetadata::from(m)));
+
                     let volume = proxy.volume().await.map(|v| v * 100.0).ok();
+
                     Some(MprisPlayerData {
                         service: s.to_string(),
                         metadata,
@@ -160,14 +164,16 @@ impl MprisPlayerService {
             }
         }))
         .await
-        .iter()
-        .filter_map(|d| d.clone())
+        .into_iter()
+        .flatten()
         .collect()
     }
 
     async fn events(conn: &zbus::Connection) -> anyhow::Result<impl Stream<Item = Event>> {
         let dbus = DBusProxy::new(conn).await?;
+
         let mut combined = SelectAll::new();
+
         combined.push(
             dbus.receive_name_owner_changed()
                 .await?
@@ -190,9 +196,10 @@ impl MprisPlayerService {
                     .inspect_err(|e| error!("Failed to connect MPRIS player proxy: {e}"))
             }))
             .await
-            .iter()
-            .filter_map(|r| r.clone().ok())
+            .into_iter()
+            .flatten()
             .collect();
+
         for s in services.iter() {
             combined.push(
                 s.receive_metadata_changed()
@@ -209,6 +216,7 @@ impl MprisPlayerService {
                     .boxed(),
             );
         }
+
         Ok(combined)
     }
 
@@ -244,14 +252,16 @@ impl MprisPlayerService {
             },
             State::Active(conn, names) => match Self::events(&conn).await {
                 Ok(mut events) => {
-                    let mut names = names;
                     while let Some(event) = events.next().await {
+                        debug!("MPRIS player service event: {:?}", event);
+
                         match event {
                             Event::NameOwner => match Self::initialize_data(&conn).await {
                                 Ok(data) => {
                                     debug!("MPRIS player service new data");
-                                    names = data.0;
                                     let _ = output.send(ServiceEvent::Update(data.1)).await;
+
+                                    return State::Active(conn, data.0);
                                 }
                                 Err(err) => {
                                     error!("Failed to fetch MPRIS player data: {}", err);
@@ -261,7 +271,7 @@ impl MprisPlayerService {
                                 let data = Self::get_mpris_player_data(&conn, &names).await;
                                 let _ = output.send(ServiceEvent::Update(data)).await;
                             }
-                        };
+                        }
                     }
 
                     State::Active(conn, names)
