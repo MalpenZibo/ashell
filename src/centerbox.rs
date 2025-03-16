@@ -100,6 +100,7 @@ where
             .width(self.width)
             .height(self.height)
             .shrink(self.padding);
+
         let total_spacing = self.spacing * 3_i32.saturating_sub(1) as f32;
         let max_cross = limits.max().height;
 
@@ -151,17 +152,23 @@ where
 
         nodes[0].move_to_mut(Point::new(self.padding.left, self.padding.top));
         nodes[0].align_mut(Alignment::Start, self.align_items, Size::new(0.0, cross));
-        nodes[2].move_to_mut(Point::new(limits.max().width, self.padding.top));
+        nodes[2].move_to_mut(Point::new(
+            limits.max().width + self.padding.right,
+            self.padding.top,
+        ));
         nodes[2].align_mut(Alignment::End, self.align_items, Size::new(0.0, cross));
 
         let half_available = available / 2.0;
         let half_center_width = nodes[1].size().width / 2.0;
+
         if half_available - nodes[0].size().width < half_center_width
             || half_available - nodes[2].size().width < half_center_width
         {
             nodes[1].move_to_mut(Point::new(
-                (limits.max().width - nodes[2].size().width - nodes[0].size().width) / 2.0
-                    + nodes[0].size().width,
+                self.padding.left
+                    + self.spacing
+                    + nodes[0].size().width
+                    + (available - nodes[0].size().width - nodes[2].size().width) / 2.0,
                 self.padding.top,
             ));
         } else {

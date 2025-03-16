@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix brightness wrong value in some situations
 - Fix settings menu not resetting it's state when closed
 - Fix bluetooth service crash during listing of devices without battery info
+- Fix centerbox children positioning
 
 ### Thanks
 
