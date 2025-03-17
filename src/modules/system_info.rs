@@ -23,8 +23,7 @@ fn get_system_info(system: &mut System, components: &mut Components) -> SystemIn
     system.refresh_memory();
     system.refresh_cpu_specifics(sysinfo::CpuRefreshKind::everything());
 
-    components.refresh_list();
-    components.refresh();
+    components.refresh(true);
 
     let cpu_usage = system.global_cpu_usage().floor() as u32;
     let memory_usage = ((system.total_memory() - system.available_memory()) as f32
@@ -34,7 +33,7 @@ fn get_system_info(system: &mut System, components: &mut Components) -> SystemIn
     let temperature = components
         .iter()
         .find(|c| c.label() == "acpitz temp1")
-        .map(|c| c.temperature() as i32);
+        .and_then(|c| c.temperature().map(|t| t as i32));
 
     SystemInfoData {
         cpu_usage,
