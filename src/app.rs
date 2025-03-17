@@ -325,14 +325,11 @@ impl App {
             Subscription::batch(self.modules_subscriptions(&self.config.modules.right)),
             config::subscription(),
             listen_with(|evt, _, _| match evt {
-                iced::Event::PlatformSpecific(iced::event::PlatformSpecific::Wayland(evt)) => {
-                    match evt {
-                        WaylandEvent::Output(event, wl_output) => {
-                            debug!("Wayland event: {:?}", event);
-                            Some(Message::OutputEvent((event, wl_output)))
-                        }
-                        _ => None,
-                    }
+                iced::Event::PlatformSpecific(iced::event::PlatformSpecific::Wayland(
+                    WaylandEvent::Output(event, wl_output),
+                )) => {
+                    debug!("Wayland event: {:?}", event);
+                    Some(Message::OutputEvent((event, wl_output)))
                 }
                 _ => None,
             }),

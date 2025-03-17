@@ -92,17 +92,12 @@ impl IdleInhibitorManager {
                 self.roundtrip()?;
                 info!(target: "IdleInhibitor::set_inhibit_idle", "Idle Inhibitor was ENABLED");
             }
-        } else {
-            match &self.data.idle_inhibitor_state {
-                Some(state) => {
-                    state.destroy();
-                    self.data.idle_inhibitor_state = None;
+        } else if let Some(state) = &self.data.idle_inhibitor_state {
+            state.destroy();
+            self.data.idle_inhibitor_state = None;
 
-                    self.roundtrip()?;
-                    info!(target: "IdleInhibitor::set_inhibit_idle", "Idle Inhibitor was DISABLED");
-                }
-                _ => {}
-            }
+            self.roundtrip()?;
+            info!(target: "IdleInhibitor::set_inhibit_idle", "Idle Inhibitor was DISABLED");
         }
 
         Ok(())
@@ -154,16 +149,15 @@ impl Dispatch<WlRegistry, ()> for IdleInhibitorManagerData {
                         state.surface = None;
                     }
                 }
-                _ => match &state.idle_manager {
-                    Some((_, idle_manager_name)) => {
+                _ => {
+                    if let Some((_, idle_manager_name)) = &state.idle_manager {
                         if name == *idle_manager_name {
                             warn!(target: "IdleInhibitor::GlobalRemove", "IdleInhibitManager was removed!");
 
                             state.idle_manager = None;
                         }
                     }
-                    _ => {}
-                },
+                }
             },
             _ => {}
         }
