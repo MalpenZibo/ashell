@@ -117,7 +117,7 @@ impl ReadOnlyService for MprisPlayerService {
 
         Subscription::run_with_id(
             id,
-            channel(10, |mut output| async move {
+            channel(10, async |mut output| {
                 let mut state = State::Init;
 
                 loop {

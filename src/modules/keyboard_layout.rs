@@ -100,7 +100,7 @@ impl Module for KeyboardLayout {
         Some(
             Subscription::run_with_id(
                 id,
-                channel(10, |output| async move {
+                channel(10, async |output| {
                     let output = Arc::new(RwLock::new(output));
                     loop {
                         let mut event_listener = AsyncEventListener::new();

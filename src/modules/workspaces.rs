@@ -260,7 +260,7 @@ impl Module for Workspaces {
         Some(
             Subscription::run_with_id(
                 format!("{:?}-{}", id, enable_workspace_filling),
-                channel(10, move |output| async move {
+                channel(10, async move |output|  {
                     let output = Arc::new(RwLock::new(output));
                     loop {
                         let mut event_listener = AsyncEventListener::new();

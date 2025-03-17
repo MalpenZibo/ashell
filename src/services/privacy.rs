@@ -136,22 +136,18 @@ impl PrivacyService {
         Ok(Box::new(
             inotify
                 .into_event_stream(buffer)?
-                .filter_map({
-                    move |event| async move {
-                        match event {
-                            Ok(event) => {
-                                debug!("Webcam event: {:?}", event);
-                                match event.mask {
-                                    EventMask::OPEN => Some(PrivacyEvent::WebcamOpen),
-                                    EventMask::CLOSE_WRITE | EventMask::CLOSE_NOWRITE => {
-                                        Some(PrivacyEvent::WebcamClose)
-                                    }
-                                    _ => None,
-                                }
+                .filter_map(async move |event| match event {
+                    Ok(event) => {
+                        debug!("Webcam event: {:?}", event);
+                        match event.mask {
+                            EventMask::OPEN => Some(PrivacyEvent::WebcamOpen),
+                            EventMask::CLOSE_WRITE | EventMask::CLOSE_NOWRITE => {
+                                Some(PrivacyEvent::WebcamClose)
                             }
                             _ => None,
                         }
                     }
+                    _ => None,
                 })
                 .boxed(),
         ))
@@ -275,7 +271,7 @@ impl ReadOnlyService for PrivacyService {
 
         Subscription::run_with_id(
             id,
-            channel(100, |mut output| async move {
+            channel(100, async |mut output| {
                 let mut state = State::Init;
 
                 loop {

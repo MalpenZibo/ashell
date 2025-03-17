@@ -439,7 +439,7 @@ pub fn subscription() -> Subscription<Message> {
 
     Subscription::run_with_id(
         id,
-        channel(100, |mut output| async move {
+        channel(100, async |mut output| {
             let home_dir = env::var("HOME").expect("Could not get HOME environment variable");
             let file_path = format!("{}{}", home_dir, CONFIG_PATH.replace('~', ""));
 

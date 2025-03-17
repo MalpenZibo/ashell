@@ -192,7 +192,7 @@ impl ReadOnlyService for NetworkService {
 
         Subscription::run_with_id(
             id,
-            channel(50, |mut output| async move {
+            channel(50, async |mut output| {
                 let mut state = State::Init;
 
                 loop {

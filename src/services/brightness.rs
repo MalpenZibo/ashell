@@ -252,7 +252,7 @@ impl ReadOnlyService for BrightnessService {
 
         Subscription::run_with_id(
             id,
-            channel(100, |mut output| async move {
+            channel(100, async |mut output| {
                 let mut state = State::Init;
 
                 loop {
