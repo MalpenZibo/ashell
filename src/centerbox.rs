@@ -3,9 +3,9 @@ use iced::advanced::layout::{self, Layout, Limits, Node};
 use iced::advanced::overlay;
 use iced::advanced::renderer;
 use iced::advanced::widget::{Operation, Tree};
-use iced::advanced::{mouse, Clipboard, Shell, Widget};
+use iced::advanced::{Clipboard, Shell, Widget, mouse};
 use iced::{
-    event, Alignment, Element, Event, Length, Padding, Pixels, Point, Rectangle, Size, Vector,
+    Alignment, Element, Event, Length, Padding, Pixels, Point, Rectangle, Size, Vector, event,
 };
 
 /// A container that distributes its contents horizontally.

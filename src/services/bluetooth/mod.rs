@@ -1,13 +1,14 @@
 use super::{ReadOnlyService, Service, ServiceEvent};
 use dbus::{BatteryProxy, BluetoothDbus};
 use iced::{
+    Subscription, Task,
     futures::{
+        SinkExt, Stream, StreamExt,
         channel::mpsc::Sender,
         stream::{pending, select_all},
-        stream_select, SinkExt, Stream, StreamExt,
+        stream_select,
     },
     stream::channel,
-    Subscription, Task,
 };
 use inotify::{Inotify, WatchMask};
 use log::{debug, error, info};
@@ -79,7 +80,7 @@ impl BluetoothService {
         Ok(BluetoothData { state, devices })
     }
 
-    async fn events(conn: &zbus::Connection) -> anyhow::Result<impl Stream<Item = ()>> {
+    async fn events(conn: &zbus::Connection) -> anyhow::Result<impl Stream<Item = ()> + use<>> {
         let bluetooth = BluetoothDbus::new(conn).await?;
 
         let interface_changed = stream_select!(
@@ -96,23 +97,24 @@ impl BluetoothService {
         )
         .boxed();
 
-        let combined = if let Some(adapter) = bluetooth.adapter.as_ref() {
-            let powered = adapter.receive_powered_changed().await.map(|_| {});
-            let rfkill = BluetoothService::listen_rfkill_soft_block_changes().await?;
-            let devices = bluetooth.devices().await?;
+        let combined = match bluetooth.adapter.as_ref() {
+            Some(adapter) => {
+                let powered = adapter.receive_powered_changed().await.map(|_| {});
+                let rfkill = BluetoothService::listen_rfkill_soft_block_changes().await?;
+                let devices = bluetooth.devices().await?;
 
-            let mut batteries = Vec::with_capacity(devices.len());
-            for device in devices {
-                let battery = BatteryProxy::builder(bluetooth.bluez.inner().connection())
-                    .path(device.path)?
-                    .build()
-                    .await?;
-                batteries.push(battery.receive_percentage_changed().await.map(|_| {}));
+                let mut batteries = Vec::with_capacity(devices.len());
+                for device in devices {
+                    let battery = BatteryProxy::builder(bluetooth.bluez.inner().connection())
+                        .path(device.path)?
+                        .build()
+                        .await?;
+                    batteries.push(battery.receive_percentage_changed().await.map(|_| {}));
+                }
+
+                stream_select!(interface_changed, powered, rfkill, select_all(batteries)).boxed()
             }
-
-            stream_select!(interface_changed, powered, rfkill, select_all(batteries)).boxed()
-        } else {
-            interface_changed
+            _ => interface_changed,
         };
 
         Ok(combined)

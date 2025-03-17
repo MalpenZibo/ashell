@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::ops::Deref;
-use zbus::{proxy, zvariant::OwnedValue, Result};
+use zbus::{Result, proxy, zvariant::OwnedValue};
 
 pub struct MprisPlayerDbus<'a>(MprisPlayerProxy<'a>);
 

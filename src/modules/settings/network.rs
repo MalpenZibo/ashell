@@ -1,20 +1,20 @@
-use super::{quick_setting_button, sub_menu_wrapper, Message, SubMenu};
+use super::{Message, SubMenu, quick_setting_button, sub_menu_wrapper};
 use crate::{
-    components::icons::{icon, Icons},
+    components::icons::{Icons, icon},
     services::{
-        network::{
-            dbus::ConnectivityState, AccessPoint, ActiveConnectionInfo, KnownConnection,
-            NetworkData, NetworkService, Vpn,
-        },
         ServiceEvent,
+        network::{
+            AccessPoint, ActiveConnectionInfo, KnownConnection, NetworkData, NetworkService, Vpn,
+            dbus::ConnectivityState,
+        },
     },
     style::{GhostButtonStyle, SettingsButtonStyle},
     utils::IndicatorState,
 };
 use iced::{
-    widget::{button, column, container, horizontal_rule, row, scrollable, text, toggler, Column},
-    window::Id,
     Alignment, Element, Length, Theme,
+    widget::{Column, button, column, container, horizontal_rule, row, scrollable, text, toggler},
+    window::Id,
 };
 
 #[derive(Debug, Clone)]

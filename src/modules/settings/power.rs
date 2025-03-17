@@ -1,11 +1,11 @@
 use crate::{
-    components::icons::{icon, Icons},
+    components::icons::{Icons, icon},
     style::GhostButtonStyle,
     utils,
 };
 use iced::{
-    widget::{button, column, horizontal_rule, row, text},
     Element, Length,
+    widget::{button, column, horizontal_rule, row, text},
 };
 
 #[derive(Debug, Clone)]

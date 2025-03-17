@@ -1,17 +1,17 @@
 use super::{Service, ServiceEvent};
-use crate::services::{bluetooth::BluetoothService, ReadOnlyService};
+use crate::services::{ReadOnlyService, bluetooth::BluetoothService};
 use dbus::{
     AccessPointProxy, ConnectivityState, DeviceProxy, DeviceState, NetworkDbus,
     NetworkSettingsDbus, WirelessDeviceProxy,
 };
 use iced::{
+    Subscription, Task,
     futures::{
+        SinkExt, Stream, StreamExt,
         channel::mpsc::Sender,
         stream::{pending, select_all},
-        SinkExt, Stream, StreamExt,
     },
     stream::channel,
-    Subscription, Task,
 };
 use log::{debug, error, info};
 use std::{any::TypeId, collections::HashMap, ops::Deref};
@@ -311,7 +311,9 @@ impl NetworkService {
         }
     }
 
-    async fn events(conn: &zbus::Connection) -> anyhow::Result<impl Stream<Item = NetworkEvent>> {
+    async fn events(
+        conn: &zbus::Connection,
+    ) -> anyhow::Result<impl Stream<Item = NetworkEvent> + use<>> {
         let nm = NetworkDbus::new(conn).await?;
         let settings = NetworkSettingsDbus::new(conn).await?;
 

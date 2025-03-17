@@ -1,12 +1,12 @@
 use log::{debug, info, warn};
 use wayland_client::{
+    Connection, Dispatch, DispatchError, EventQueue, Proxy, QueueHandle,
     protocol::{
         wl_compositor::WlCompositor,
         wl_display::WlDisplay,
         wl_registry::{self, WlRegistry},
         wl_surface::WlSurface,
     },
-    Connection, Dispatch, DispatchError, EventQueue, Proxy, QueueHandle,
 };
 use wayland_protocols::wp::idle_inhibit::zv1::client::{
     zwp_idle_inhibit_manager_v1::ZwpIdleInhibitManagerV1, zwp_idle_inhibitor_v1::ZwpIdleInhibitorV1,
@@ -92,12 +92,17 @@ impl IdleInhibitorManager {
                 self.roundtrip()?;
                 info!(target: "IdleInhibitor::set_inhibit_idle", "Idle Inhibitor was ENABLED");
             }
-        } else if let Some(state) = &self.data.idle_inhibitor_state {
-            state.destroy();
-            self.data.idle_inhibitor_state = None;
+        } else {
+            match &self.data.idle_inhibitor_state {
+                Some(state) => {
+                    state.destroy();
+                    self.data.idle_inhibitor_state = None;
 
-            self.roundtrip()?;
-            info!(target: "IdleInhibitor::set_inhibit_idle", "Idle Inhibitor was DISABLED");
+                    self.roundtrip()?;
+                    info!(target: "IdleInhibitor::set_inhibit_idle", "Idle Inhibitor was DISABLED");
+                }
+                _ => {}
+            }
         }
 
         Ok(())
@@ -140,22 +145,26 @@ impl Dispatch<WlRegistry, ()> for IdleInhibitorManagerData {
                     state.idle_manager = Some((proxy.bind(name, version, handle, ()), name));
                 };
             }
-            wl_registry::Event::GlobalRemove { name } => {
-                if let Some((_, compositor_name)) = &state.compositor {
+            wl_registry::Event::GlobalRemove { name } => match &state.compositor {
+                Some((_, compositor_name)) => {
                     if name == *compositor_name {
                         warn!(target: "IdleInhibitor::GlobalRemove", "Compositor was removed!");
 
                         state.compositor = None;
                         state.surface = None;
                     }
-                } else if let Some((_, idle_manager_name)) = &state.idle_manager {
-                    if name == *idle_manager_name {
-                        warn!(target: "IdleInhibitor::GlobalRemove", "IdleInhibitManager was removed!");
-
-                        state.idle_manager = None;
-                    }
                 }
-            }
+                _ => match &state.idle_manager {
+                    Some((_, idle_manager_name)) => {
+                        if name == *idle_manager_name {
+                            warn!(target: "IdleInhibitor::GlobalRemove", "IdleInhibitManager was removed!");
+
+                            state.idle_manager = None;
+                        }
+                    }
+                    _ => {}
+                },
+            },
             _ => {}
         }
     }

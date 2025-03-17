@@ -1,12 +1,12 @@
 use crate::{
     app,
-    components::icons::{icon, Icons},
+    components::icons::{Icons, icon},
     config::SystemModuleConfig,
 };
 use iced::{
-    time::every,
-    widget::{container, row, text, Row},
     Alignment, Element, Subscription, Theme,
+    time::every,
+    widget::{Row, container, row, text},
 };
 use std::time::Duration;
 use sysinfo::{Components, System};

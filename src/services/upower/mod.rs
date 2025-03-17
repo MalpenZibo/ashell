@@ -2,10 +2,10 @@ use super::{ReadOnlyService, Service, ServiceEvent};
 use crate::{components::icons::Icons, utils::IndicatorState};
 use dbus::{PowerProfilesProxy, UPowerDbus};
 use iced::{
-    futures::stream::{once, pending},
-    futures::{channel::mpsc::Sender, stream_select, SinkExt, Stream, StreamExt},
-    stream::channel,
     Subscription,
+    futures::stream::{once, pending},
+    futures::{SinkExt, Stream, StreamExt, channel::mpsc::Sender, stream_select},
+    stream::channel,
 };
 use log::{error, warn};
 use std::{any::TypeId, time::Duration};
@@ -195,36 +195,37 @@ impl UPowerService {
         let upower = UPowerDbus::new(conn).await?;
         let battery = upower.get_battery_device().await?;
 
-        if let Some(battery) = battery {
-            let state = battery.state().await?;
-            let state = match state {
-                1 => BatteryStatus::Charging(Duration::from_secs(
-                    battery.time_to_full().await.unwrap_or_default() as u64,
-                )),
-                2 => BatteryStatus::Discharging(Duration::from_secs(
-                    battery.time_to_empty().await.unwrap_or_default() as u64,
-                )),
-                4 => BatteryStatus::Full,
-                _ => BatteryStatus::Discharging(Duration::from_secs(0)),
-            };
-            let percentage = battery.percentage().await.unwrap_or_default() as i64;
+        match battery {
+            Some(battery) => {
+                let state = battery.state().await?;
+                let state = match state {
+                    1 => BatteryStatus::Charging(Duration::from_secs(
+                        battery.time_to_full().await.unwrap_or_default() as u64,
+                    )),
+                    2 => BatteryStatus::Discharging(Duration::from_secs(
+                        battery.time_to_empty().await.unwrap_or_default() as u64,
+                    )),
+                    4 => BatteryStatus::Full,
+                    _ => BatteryStatus::Discharging(Duration::from_secs(0)),
+                };
+                let percentage = battery.percentage().await.unwrap_or_default() as i64;
 
-            Ok(Some((
-                BatteryData {
-                    capacity: percentage,
-                    status: state,
-                },
-                battery.inner().path().to_owned(),
-            )))
-        } else {
-            Ok(None)
+                Ok(Some((
+                    BatteryData {
+                        capacity: percentage,
+                        status: state,
+                    },
+                    battery.inner().path().to_owned(),
+                )))
+            }
+            _ => Ok(None),
         }
     }
 
     async fn events(
         conn: &zbus::Connection,
         battery_path: &Option<ObjectPath<'static>>,
-    ) -> anyhow::Result<impl Stream<Item = UPowerEvent>> {
+    ) -> anyhow::Result<impl Stream<Item = UPowerEvent> + use<>> {
         let battery_event = if let Some(battery_path) = battery_path {
             let upower = UPowerDbus::new(conn).await?;
             let device = upower.get_device(battery_path).await?;

@@ -4,13 +4,13 @@ use crate::{
     menu::MenuType,
     position_button::position_button,
     style::{
-        module_first_label, module_label, module_last_label, module_middle_label, ModuleButtonStyle,
+        ModuleButtonStyle, module_first_label, module_label, module_last_label, module_middle_label,
     },
 };
 use iced::{
-    widget::{container, row, Row},
-    window::Id,
     Alignment, Element, Length, Subscription,
+    widget::{Row, container, row},
+    window::Id,
 };
 
 pub mod app_launcher;
@@ -89,8 +89,8 @@ impl App {
     fn single_module_wrapper(&self, module_name: ModuleName, id: Id) -> Option<Element<Message>> {
         let module = self.get_module_view(module_name, id);
 
-        module.map(|(content, action)| {
-            if let Some(action) = action {
+        module.map(|(content, action)| match action {
+            Some(action) => {
                 let button = position_button(
                     container(content)
                         .align_y(Alignment::Center)
@@ -109,14 +109,13 @@ impl App {
                     }
                 }
                 .into()
-            } else {
-                container(content)
-                    .padding([2, 8])
-                    .height(Length::Fill)
-                    .align_y(Alignment::Center)
-                    .style(module_label)
-                    .into()
             }
+            _ => container(content)
+                .padding([2, 8])
+                .height(Length::Fill)
+                .align_y(Alignment::Center)
+                .style(module_label)
+                .into(),
         })
     }
 
@@ -144,43 +143,46 @@ impl App {
                                 _ => ModuleGroupPosition::Middle,
                             };
 
-                            if let Some(action) = action {
-                                let button = position_button(
-                                    container(content)
-                                        .align_y(Alignment::Center)
-                                        .height(Length::Fill),
-                                )
-                                .padding([2, 8])
-                                .height(Length::Fill)
-                                .style(match group_position {
-                                    ModuleGroupPosition::First => {
-                                        ModuleButtonStyle::First.into_style()
-                                    }
-                                    ModuleGroupPosition::Middle => {
-                                        ModuleButtonStyle::Middle.into_style()
-                                    }
-                                    ModuleGroupPosition::Last => {
-                                        ModuleButtonStyle::Last.into_style()
-                                    }
-                                    ModuleGroupPosition::Only => {
-                                        ModuleButtonStyle::Full.into_style()
-                                    }
-                                });
+                            match action {
+                                Some(action) => {
+                                    let button = position_button(
+                                        container(content)
+                                            .align_y(Alignment::Center)
+                                            .height(Length::Fill),
+                                    )
+                                    .padding([2, 8])
+                                    .height(Length::Fill)
+                                    .style(
+                                        match group_position {
+                                            ModuleGroupPosition::First => {
+                                                ModuleButtonStyle::First.into_style()
+                                            }
+                                            ModuleGroupPosition::Middle => {
+                                                ModuleButtonStyle::Middle.into_style()
+                                            }
+                                            ModuleGroupPosition::Last => {
+                                                ModuleButtonStyle::Last.into_style()
+                                            }
+                                            ModuleGroupPosition::Only => {
+                                                ModuleButtonStyle::Full.into_style()
+                                            }
+                                        },
+                                    );
 
-                                match action {
-                                    OnModulePress::Action(action) => button.on_press(action),
-                                    OnModulePress::ToggleMenu(menu_type) => button
-                                        .on_press_with_position(move |button_ui_ref| {
-                                            Message::ToggleMenu(
-                                                menu_type.clone(),
-                                                id,
-                                                button_ui_ref,
-                                            )
-                                        }),
+                                    match action {
+                                        OnModulePress::Action(action) => button.on_press(action),
+                                        OnModulePress::ToggleMenu(menu_type) => button
+                                            .on_press_with_position(move |button_ui_ref| {
+                                                Message::ToggleMenu(
+                                                    menu_type.clone(),
+                                                    id,
+                                                    button_ui_ref,
+                                                )
+                                            }),
+                                    }
+                                    .into()
                                 }
-                                .into()
-                            } else {
-                                container(content)
+                                _ => container(content)
                                     .padding([2, 8])
                                     .height(Length::Fill)
                                     .align_y(Alignment::Center)
@@ -190,7 +192,7 @@ impl App {
                                         ModuleGroupPosition::Last => module_last_label,
                                         ModuleGroupPosition::Only => module_label,
                                     })
-                                    .into()
+                                    .into(),
                             }
                         })
                         .collect::<Vec<_>>(),

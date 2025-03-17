@@ -48,14 +48,15 @@ impl BluetoothDbus<'_> {
     }
 
     pub async fn state(&self) -> zbus::Result<BluetoothState> {
-        if let Some(adapter) = &self.adapter {
-            if adapter.powered().await? {
-                Ok(BluetoothState::Active)
-            } else {
-                Ok(BluetoothState::Inactive)
+        match &self.adapter {
+            Some(adapter) => {
+                if adapter.powered().await? {
+                    Ok(BluetoothState::Active)
+                } else {
+                    Ok(BluetoothState::Inactive)
+                }
             }
-        } else {
-            Ok(BluetoothState::Unavailable)
+            _ => Ok(BluetoothState::Unavailable),
         }
     }
 

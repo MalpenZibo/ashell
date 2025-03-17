@@ -1,6 +1,6 @@
 use crate::{app, utils::truncate_text};
 use hyprland::{data::Client, event_listener::AsyncEventListener, shared::HyprDataActiveOptional};
-use iced::{stream::channel, widget::text, Element, Subscription};
+use iced::{Element, Subscription, stream::channel, widget::text};
 use log::{debug, error};
 use std::{
     any::TypeId,

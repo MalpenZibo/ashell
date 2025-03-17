@@ -1,20 +1,20 @@
 use super::{Module, OnModulePress};
 use crate::{
     app,
-    components::icons::{icon, Icons},
+    components::icons::{Icons, icon},
     config::MediaPlayerModuleConfig,
     menu::MenuType,
     services::{
-        mpris::{MprisPlayerCommand, MprisPlayerData, MprisPlayerService, PlayerCommand},
         ReadOnlyService, Service, ServiceEvent,
+        mpris::{MprisPlayerCommand, MprisPlayerData, MprisPlayerService, PlayerCommand},
     },
     style::SettingsButtonStyle,
     utils::truncate_text,
 };
 use iced::{
-    widget::{button, column, container, row, slider, text},
     Alignment::Center,
     Element, Subscription, Task,
+    widget::{button, column, container, row, slider, text},
 };
 
 #[derive(Default)]
@@ -108,14 +108,14 @@ impl MediaPlayer {
         service_name: String,
         command: PlayerCommand,
     ) -> Task<crate::app::Message> {
-        if let Some(s) = self.service.as_mut() {
-            s.command(MprisPlayerCommand {
-                service_name,
-                command,
-            })
-            .map(|event| crate::app::Message::MediaPlayer(Message::Event(event)))
-        } else {
-            Task::none()
+        match self.service.as_mut() {
+            Some(s) => s
+                .command(MprisPlayerCommand {
+                    service_name,
+                    command,
+                })
+                .map(|event| crate::app::Message::MediaPlayer(Message::Event(event))),
+            _ => Task::none(),
         }
     }
 

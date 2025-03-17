@@ -11,11 +11,10 @@ use hyprland::{
     shared::{HyprData, HyprDataActive, HyprDataVec},
 };
 use iced::{
-    alignment,
+    Element, Length, Subscription, alignment,
     stream::channel,
-    widget::{button, container, text, Row},
+    widget::{Row, button, container, text},
     window::Id,
-    Element, Length, Subscription,
 };
 use log::{debug, error};
 use std::{
@@ -218,11 +217,7 @@ impl Module for Workspaces {
                                     )
                                     .style(WorkspaceButtonStyle(empty, color).into_style())
                                     .padding(if w.id < 0 {
-                                        if w.active {
-                                            [0, 16]
-                                        } else {
-                                            [0, 8]
-                                        }
+                                        if w.active { [0, 16] } else { [0, 8] }
                                     } else {
                                         [0, 0]
                                     })

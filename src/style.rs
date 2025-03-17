@@ -1,13 +1,13 @@
 use crate::config::{Appearance, AppearanceColor};
 use iced::{
+    Background, Border, Color, Theme,
     border::Radius,
-    theme::{palette, Palette},
+    theme::{Palette, palette},
     widget::{
         button::{self, Status},
         container,
         text_input::{self},
     },
-    Background, Border, Color, Theme,
 };
 
 pub fn ashell_theme(appearance: &Appearance) -> Theme {

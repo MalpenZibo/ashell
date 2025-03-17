@@ -3,12 +3,12 @@ use crate::config::Position;
 use crate::position_button::ButtonUIRef;
 use iced::alignment::{Horizontal, Vertical};
 use iced::platform_specific::shell::commands::layer_surface::{
-    set_keyboard_interactivity, set_layer, KeyboardInteractivity, Layer,
+    KeyboardInteractivity, Layer, set_keyboard_interactivity, set_layer,
 };
 use iced::widget::container::Style;
 use iced::widget::mouse_area;
 use iced::window::Id;
-use iced::{self, widget::container, Element, Task, Theme};
+use iced::{self, Element, Task, Theme, widget::container};
 use iced::{Border, Length, Padding};
 
 #[derive(Eq, PartialEq, Clone, Debug)]

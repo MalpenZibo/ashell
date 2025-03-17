@@ -1,8 +1,8 @@
 use super::{ReadOnlyService, Service, ServiceEvent};
 use iced::{
-    futures::{channel::mpsc::Sender, stream::pending, SinkExt, StreamExt},
-    stream::channel,
     Subscription, Task,
+    futures::{SinkExt, StreamExt, channel::mpsc::Sender, stream::pending},
+    stream::channel,
 };
 use log::{debug, error, info, warn};
 use std::{
@@ -11,7 +11,7 @@ use std::{
     ops::Deref,
     path::{Path, PathBuf},
 };
-use tokio::io::{unix::AsyncFd, Interest};
+use tokio::io::{Interest, unix::AsyncFd};
 use zbus::proxy;
 
 #[derive(Debug, Clone, Default)]
@@ -68,18 +68,21 @@ impl BrightnessService {
     async fn init_service() -> anyhow::Result<(zbus::Connection, PathBuf)> {
         let backlight_devices = Self::backlight_enumerate()?;
 
-        if let Some(device) = backlight_devices
+        match backlight_devices
             .iter()
             .find(|d| d.subsystem().and_then(|s| s.to_str()) == Some("backlight"))
         {
-            let device_path = device.syspath().to_path_buf();
+            Some(device) => {
+                let device_path = device.syspath().to_path_buf();
 
-            let conn = zbus::Connection::system().await?;
+                let conn = zbus::Connection::system().await?;
 
-            Ok((conn, device_path))
-        } else {
-            warn!("No backlight devices found");
-            Err(anyhow::anyhow!("No backlight devices found"))
+                Ok((conn, device_path))
+            }
+            _ => {
+                warn!("No backlight devices found");
+                Err(anyhow::anyhow!("No backlight devices found"))
+            }
         }
     }
 
@@ -143,47 +146,50 @@ impl BrightnessService {
                         loop {
                             debug!("Waiting for brightness events");
 
-                            if let Ok(mut socket) = socket.writable_mut().await {
-                                for evt in socket.get_inner().iter() {
-                                    debug!("{:?}: {:?}", evt.event_type(), evt.device());
+                            match socket.writable_mut().await {
+                                Ok(mut socket) => {
+                                    for evt in socket.get_inner().iter() {
+                                        debug!("{:?}: {:?}", evt.event_type(), evt.device());
 
-                                    if evt.device().subsystem().and_then(|s| s.to_str())
-                                        == Some("backlight")
-                                    {
-                                        match evt.event_type() {
-                                            udev::EventType::Change => {
-                                                debug!(
-                                                    "Changed backlight device: {:?}",
-                                                    evt.syspath()
-                                                );
-                                                let new_value =
-                                                    Self::get_actual_brightness(&device_path)
-                                                        .await
-                                                        .unwrap_or_default();
+                                        if evt.device().subsystem().and_then(|s| s.to_str())
+                                            == Some("backlight")
+                                        {
+                                            match evt.event_type() {
+                                                udev::EventType::Change => {
+                                                    debug!(
+                                                        "Changed backlight device: {:?}",
+                                                        evt.syspath()
+                                                    );
+                                                    let new_value =
+                                                        Self::get_actual_brightness(&device_path)
+                                                            .await
+                                                            .unwrap_or_default();
 
-                                                if new_value != current_value {
-                                                    let _ = output
-                                                        .send(ServiceEvent::Update(
-                                                            BrightnessEvent(new_value),
-                                                        ))
-                                                        .await;
+                                                    if new_value != current_value {
+                                                        let _ = output
+                                                            .send(ServiceEvent::Update(
+                                                                BrightnessEvent(new_value),
+                                                            ))
+                                                            .await;
+                                                    }
+
+                                                    break;
                                                 }
-
-                                                break;
-                                            }
-                                            _ => {
-                                                debug!(
-                                                    "Unhadled event type: {:?}",
-                                                    evt.event_type()
-                                                );
+                                                _ => {
+                                                    debug!(
+                                                        "Unhadled event type: {:?}",
+                                                        evt.event_type()
+                                                    );
+                                                }
                                             }
                                         }
                                     }
+                                    socket.clear_ready();
                                 }
-                                socket.clear_ready();
-                            } else {
-                                warn!("Failed to get writable socket");
-                                break;
+                                _ => {
+                                    warn!("Failed to get writable socket");
+                                    break;
+                                }
                             }
                         }
                         State::Active(device_path)

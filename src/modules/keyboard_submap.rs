@@ -1,5 +1,5 @@
 use hyprland::event_listener::AsyncEventListener;
-use iced::{stream::channel, widget::text, Element, Subscription};
+use iced::{Element, Subscription, stream::channel, widget::text};
 use log::{debug, error};
 use std::{
     any::TypeId,

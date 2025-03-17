@@ -3,8 +3,8 @@ name = "ashell"
 description = "A ready to go Wayland status bar for Hyprland"
 homepage = "https://github.com/MalpenZibo/ashell"
 version = "0.4.1"
-edition = "2021"
-rust-version = "1.81"
+edition = "2024"
+rust-version = "1.85"
 
 [dependencies]
 iced = { git = "https://github.com/MalpenZibo/iced", features = [

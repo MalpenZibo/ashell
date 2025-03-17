@@ -1,6 +1,6 @@
 use crate::{
     app::{self, Message},
-    components::icons::{icon, Icons},
+    components::icons::{Icons, icon},
 };
 use iced::Element;
 

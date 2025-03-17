@@ -2,7 +2,7 @@ use hyprland::{
     ctl::switch_xkb_layout::SwitchXKBLayoutCmdTypes, event_listener::AsyncEventListener,
     shared::HyprData,
 };
-use iced::{stream::channel, widget::text, Element, Subscription};
+use iced::{Element, Subscription, stream::channel, widget::text};
 use log::{debug, error};
 use std::{
     any::TypeId,

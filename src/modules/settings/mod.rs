@@ -4,7 +4,7 @@ use self::{
 use super::{Module, OnModulePress};
 use crate::{
     app,
-    components::icons::{icon, Icons},
+    components::icons::{Icons, icon},
     config::SettingsModuleConfig,
     menu::MenuType,
     modules::settings::power::power_menu,
@@ -12,24 +12,24 @@ use crate::{
     password_dialog,
     position_button::ButtonUIRef,
     services::{
+        ReadOnlyService, Service, ServiceEvent,
         audio::{AudioCommand, AudioService},
         bluetooth::{BluetoothCommand, BluetoothService, BluetoothState},
         brightness::{BrightnessCommand, BrightnessService},
         idle_inhibitor::IdleInhibitorManager,
         network::{NetworkCommand, NetworkEvent, NetworkService},
         upower::{PowerProfileCommand, UPowerService},
-        ReadOnlyService, Service, ServiceEvent,
     },
     style::{QuickSettingsButtonStyle, QuickSettingsSubMenuButtonStyle, SettingsButtonStyle},
 };
 use brightness::BrightnessMessage;
 use iced::{
+    Alignment, Background, Border, Element, Length, Padding, Subscription, Task, Theme,
     alignment::{Horizontal, Vertical},
     widget::{
-        button, column, container, horizontal_space, row, text, vertical_rule, Column, Row, Space,
+        Column, Row, Space, button, column, container, horizontal_space, row, text, vertical_rule,
     },
     window::Id,
-    Alignment, Background, Border, Element, Length, Padding, Subscription, Task, Theme,
 };
 use log::info;
 use upower::UPowerMessage;
@@ -186,17 +186,12 @@ impl Settings {
                     }
                     ServiceEvent::Error(_) => Task::none(),
                 },
-                UPowerMessage::TogglePowerProfile => {
-                    if let Some(upower) = self.upower.as_mut() {
-                        upower.command(PowerProfileCommand::Toggle).map(|event| {
-                            crate::app::Message::Settings(Message::UPower(UPowerMessage::Event(
-                                event,
-                            )))
-                        })
-                    } else {
-                        Task::none()
-                    }
-                }
+                UPowerMessage::TogglePowerProfile => match self.upower.as_mut() {
+                    Some(upower) => upower.command(PowerProfileCommand::Toggle).map(|event| {
+                        crate::app::Message::Settings(Message::UPower(UPowerMessage::Event(event)))
+                    }),
+                    _ => Task::none(),
+                },
             },
             Message::Network(msg) => match msg {
                 NetworkMessage::Event(event) => match event {
@@ -216,8 +211,8 @@ impl Settings {
                     }
                     _ => Task::none(),
                 },
-                NetworkMessage::ToggleAirplaneMode => {
-                    if let Some(network) = self.network.as_mut() {
+                NetworkMessage::ToggleAirplaneMode => match self.network.as_mut() {
+                    Some(network) => {
                         network
                             .command(NetworkCommand::ToggleAirplaneMode)
                             .map(|event| {
@@ -225,52 +220,42 @@ impl Settings {
                                     NetworkMessage::Event(event),
                                 ))
                             })
-                    } else {
-                        Task::none()
                     }
-                }
-                NetworkMessage::ToggleWiFi => {
-                    if let Some(network) = self.network.as_mut() {
-                        network.command(NetworkCommand::ToggleWiFi).map(|event| {
+                    _ => Task::none(),
+                },
+                NetworkMessage::ToggleWiFi => match self.network.as_mut() {
+                    Some(network) => network.command(NetworkCommand::ToggleWiFi).map(|event| {
+                        crate::app::Message::Settings(Message::Network(NetworkMessage::Event(
+                            event,
+                        )))
+                    }),
+                    _ => Task::none(),
+                },
+                NetworkMessage::SelectAccessPoint(ac) => match self.network.as_mut() {
+                    Some(network) => network
+                        .command(NetworkCommand::SelectAccessPoint((ac, None)))
+                        .map(|event| {
                             crate::app::Message::Settings(Message::Network(NetworkMessage::Event(
                                 event,
                             )))
-                        })
-                    } else {
-                        Task::none()
-                    }
-                }
-                NetworkMessage::SelectAccessPoint(ac) => {
-                    if let Some(network) = self.network.as_mut() {
-                        network
-                            .command(NetworkCommand::SelectAccessPoint((ac, None)))
-                            .map(|event| {
-                                crate::app::Message::Settings(Message::Network(
-                                    NetworkMessage::Event(event),
-                                ))
-                            })
-                    } else {
-                        Task::none()
-                    }
-                }
+                        }),
+                    _ => Task::none(),
+                },
                 NetworkMessage::RequestWiFiPassword(id, ssid) => {
                     info!("Requesting password for {}", ssid);
                     self.password_dialog = Some((ssid, "".to_string()));
                     outputs.request_keyboard(id)
                 }
-                NetworkMessage::ScanNearByWiFi => {
-                    if let Some(network) = self.network.as_mut() {
-                        network
-                            .command(NetworkCommand::ScanNearByWiFi)
-                            .map(|event| {
-                                crate::app::Message::Settings(Message::Network(
-                                    NetworkMessage::Event(event),
-                                ))
-                            })
-                    } else {
-                        Task::none()
-                    }
-                }
+                NetworkMessage::ScanNearByWiFi => match self.network.as_mut() {
+                    Some(network) => network
+                        .command(NetworkCommand::ScanNearByWiFi)
+                        .map(|event| {
+                            crate::app::Message::Settings(Message::Network(NetworkMessage::Event(
+                                event,
+                            )))
+                        }),
+                    _ => Task::none(),
+                },
                 NetworkMessage::WiFiMore(id) => {
                     if let Some(cmd) = &config.wifi_more_cmd {
                         crate::utils::launcher::execute_command(cmd.to_string());
@@ -287,19 +272,16 @@ impl Settings {
                         Task::none()
                     }
                 }
-                NetworkMessage::ToggleVpn(vpn) => {
-                    if let Some(network) = self.network.as_mut() {
-                        network
-                            .command(NetworkCommand::ToggleVpn(vpn))
-                            .map(|event| {
-                                crate::app::Message::Settings(Message::Network(
-                                    NetworkMessage::Event(event),
-                                ))
-                            })
-                    } else {
-                        Task::none()
-                    }
-                }
+                NetworkMessage::ToggleVpn(vpn) => match self.network.as_mut() {
+                    Some(network) => network
+                        .command(NetworkCommand::ToggleVpn(vpn))
+                        .map(|event| {
+                            crate::app::Message::Settings(Message::Network(NetworkMessage::Event(
+                                event,
+                            )))
+                        }),
+                    _ => Task::none(),
+                },
             },
             Message::Bluetooth(msg) => match msg {
                 BluetoothMessage::Event(event) => match event {
@@ -315,17 +297,14 @@ impl Settings {
                     }
                     _ => Task::none(),
                 },
-                BluetoothMessage::Toggle => {
-                    if let Some(bluetooth) = self.bluetooth.as_mut() {
-                        bluetooth.command(BluetoothCommand::Toggle).map(|event| {
-                            crate::app::Message::Settings(Message::Bluetooth(
-                                BluetoothMessage::Event(event),
-                            ))
-                        })
-                    } else {
-                        Task::none()
-                    }
-                }
+                BluetoothMessage::Toggle => match self.bluetooth.as_mut() {
+                    Some(bluetooth) => bluetooth.command(BluetoothCommand::Toggle).map(|event| {
+                        crate::app::Message::Settings(Message::Bluetooth(BluetoothMessage::Event(
+                            event,
+                        )))
+                    }),
+                    _ => Task::none(),
+                },
                 BluetoothMessage::More(id) => {
                     if let Some(cmd) = &config.bluetooth_more_cmd {
                         crate::utils::launcher::execute_command(cmd.to_string());
@@ -349,8 +328,8 @@ impl Settings {
                     }
                     _ => Task::none(),
                 },
-                BrightnessMessage::Change(value) => {
-                    if let Some(brightness) = self.brightness.as_mut() {
+                BrightnessMessage::Change(value) => match self.brightness.as_mut() {
+                    Some(brightness) => {
                         brightness
                             .command(BrightnessCommand::Set(value))
                             .map(|event| {
@@ -358,10 +337,9 @@ impl Settings {
                                     BrightnessMessage::Event(event),
                                 ))
                             })
-                    } else {
-                        Task::none()
                     }
-                }
+                    _ => Task::none(),
+                },
             },
             Message::ToggleSubMenu(menu_type) => {
                 if self.sub_menu == Some(menu_type) {
@@ -410,28 +388,29 @@ impl Settings {
                 }
                 password_dialog::Message::DialogConfirmed(id) => {
                     if let Some((ssid, password)) = self.password_dialog.take() {
-                        let network_command = if let Some(network) = self.network.as_mut() {
-                            let ap = network
-                                .wireless_access_points
-                                .iter()
-                                .find(|ap| ap.ssid == ssid)
-                                .cloned();
-                            if let Some(ap) = ap {
-                                network
-                                    .command(NetworkCommand::SelectAccessPoint((
-                                        ap,
-                                        Some(password),
-                                    )))
-                                    .map(|event| {
-                                        crate::app::Message::Settings(Message::Network(
-                                            NetworkMessage::Event(event),
-                                        ))
-                                    })
-                            } else {
-                                Task::none()
+                        let network_command = match self.network.as_mut() {
+                            Some(network) => {
+                                let ap = network
+                                    .wireless_access_points
+                                    .iter()
+                                    .find(|ap| ap.ssid == ssid)
+                                    .cloned();
+                                if let Some(ap) = ap {
+                                    network
+                                        .command(NetworkCommand::SelectAccessPoint((
+                                            ap,
+                                            Some(password),
+                                        )))
+                                        .map(|event| {
+                                            crate::app::Message::Settings(Message::Network(
+                                                NetworkMessage::Event(event),
+                                            ))
+                                        })
+                                } else {
+                                    Task::none()
+                                }
                             }
-                        } else {
-                            Task::none()
+                            _ => Task::none(),
                         };
                         Task::batch(vec![network_command, outputs.release_keyboard(id)])
                     } else {
@@ -656,18 +635,21 @@ fn quick_settings_section<'a>(
     let mut before: Option<(Element<'a, Message>, Option<Element<'a, Message>>)> = None;
 
     for (button, menu) in buttons.into_iter() {
-        if let Some((before_button, before_menu)) = before.take() {
-            section = section.push(row![before_button, button].width(Length::Fill).spacing(8));
+        match before.take() {
+            Some((before_button, before_menu)) => {
+                section = section.push(row![before_button, button].width(Length::Fill).spacing(8));
 
-            if let Some(menu) = before_menu {
-                section = section.push(sub_menu_wrapper(menu));
-            }
+                if let Some(menu) = before_menu {
+                    section = section.push(sub_menu_wrapper(menu));
+                }
 
-            if let Some(menu) = menu {
-                section = section.push(sub_menu_wrapper(menu));
+                if let Some(menu) = menu {
+                    section = section.push(sub_menu_wrapper(menu));
+                }
             }
-        } else {
-            before = Some((button, menu));
+            _ => {
+                before = Some((button, menu));
+            }
         }
     }
 

@@ -1,6 +1,7 @@
 use iced::futures::StreamExt;
 use log::{info, warn};
 use zbus::{
+    Connection, Result,
     fdo::{DBusProxy, RequestNameFlags, RequestNameReply},
     interface,
     message::Header,
@@ -8,7 +9,6 @@ use zbus::{
     object_server::SignalEmitter,
     proxy,
     zvariant::{self, OwnedObjectPath, OwnedValue, Type},
-    Connection, Result,
 };
 
 const NAME: WellKnownName =
@@ -204,7 +204,7 @@ pub trait DBusMenu {
     ) -> zbus::Result<(u32, Layout)>;
 
     fn event(&self, id: i32, event_id: &str, data: &OwnedValue, timestamp: u32)
-        -> zbus::Result<()>;
+    -> zbus::Result<()>;
 
     fn about_to_show(&self, id: i32) -> zbus::Result<bool>;
 

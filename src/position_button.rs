@@ -1,13 +1,13 @@
 use iced::{
+    Background, Color, Element, Length, Padding, Point, Rectangle, Size, Vector,
     core::{
+        Clipboard, Layout, Shell, Widget,
         event::{self, Event},
         keyboard, layout, mouse, overlay, renderer, touch,
-        widget::{tree, Operation, Tree},
-        Clipboard, Layout, Shell, Widget,
+        widget::{Operation, Tree, tree},
     },
     id::Id,
     widget::button::{Catalog, Status, Style, StyleFn},
-    Background, Color, Element, Length, Padding, Point, Rectangle, Size, Vector,
 };
 
 #[derive(Debug, Clone, Copy)]

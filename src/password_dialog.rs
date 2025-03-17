@@ -1,12 +1,12 @@
 use iced::{
+    Alignment, Element, Length,
     alignment::Vertical,
     widget::{button, column, horizontal_space, row, text, text_input},
     window::Id,
-    Alignment, Element, Length,
 };
 
 use crate::{
-    components::icons::{icon, Icons},
+    components::icons::{Icons, icon},
     style::{ConfirmButtonStyle, OutlineButtonStyle, TextInputStyle},
 };
 

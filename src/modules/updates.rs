@@ -1,17 +1,17 @@
 use crate::{
     app::{self},
-    components::icons::{icon, Icons},
+    components::icons::{Icons, icon},
     config::UpdatesModuleConfig,
     menu::MenuType,
     outputs::Outputs,
     style::GhostButtonStyle,
 };
 use iced::{
+    Alignment, Element, Length, Padding, Subscription, Task,
     alignment::Horizontal,
     stream::channel,
-    widget::{button, column, container, horizontal_rule, row, scrollable, text, Column},
+    widget::{Column, button, column, container, horizontal_rule, row, scrollable, text},
     window::Id,
-    Alignment, Element, Length, Padding, Subscription, Task,
 };
 use log::error;
 use serde::Deserialize;
@@ -156,18 +156,21 @@ impl Updates {
                     container(text("Up to date ;)")).padding([8, 8]),
                 )
             } else {
-                let mut elements = column!(button(row!(
-                    text(format!("{} Updates available", self.updates.len())).width(Length::Fill),
-                    icon(if self.is_updates_list_open {
-                        Icons::MenuClosed
-                    } else {
-                        Icons::MenuOpen
-                    })
-                ))
-                .style(GhostButtonStyle.into_style())
-                .padding([8, 8])
-                .on_press(Message::ToggleUpdatesList)
-                .width(Length::Fill),);
+                let mut elements = column!(
+                    button(row!(
+                        text(format!("{} Updates available", self.updates.len()))
+                            .width(Length::Fill),
+                        icon(if self.is_updates_list_open {
+                            Icons::MenuClosed
+                        } else {
+                            Icons::MenuOpen
+                        })
+                    ))
+                    .style(GhostButtonStyle.into_style())
+                    .padding([8, 8])
+                    .on_press(Message::ToggleUpdatesList)
+                    .width(Length::Fill),
+                );
 
                 if self.is_updates_list_open {
                     elements = elements.push(
