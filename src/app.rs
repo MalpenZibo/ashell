@@ -33,7 +33,7 @@ use iced::{
         listen_with,
         wayland::{Event as WaylandEvent, OutputEvent},
     },
-    widget::Row,
+    widget::{Row, container},
     window::Id,
 };
 use log::{debug, info, warn};
@@ -83,7 +83,7 @@ pub enum Message {
 impl App {
     pub fn new((logger, config): (LoggerHandle, Config)) -> impl FnOnce() -> (Self, Task<Message>) {
         || {
-            let (outputs, task) = Outputs::new(config.position);
+            let (outputs, task) = Outputs::new(config.appearance.solid_style, config.position);
             let enable_workspace_filling = config.workspaces.enable_workspace_filling;
             (
                 App {
@@ -135,10 +135,16 @@ impl App {
                     "Current outputs: {:?}, new outputs: {:?}",
                     self.config.outputs, config.outputs
                 );
-                if self.config.outputs != config.outputs || self.config.position != config.position
+                if self.config.outputs != config.outputs
+                    || self.config.position != config.position
+                    || self.config.appearance.solid_style != config.appearance.solid_style
                 {
                     warn!("Outputs changed, syncing");
-                    tasks.push(self.outputs.sync(&config.outputs, config.position));
+                    tasks.push(self.outputs.sync(
+                        config.appearance.solid_style,
+                        &config.outputs,
+                        config.position,
+                    ));
                 }
                 self.config = *config;
                 self.logger
@@ -251,12 +257,21 @@ impl App {
                         .and_then(|info| info.name.as_deref())
                         .unwrap_or("");
 
-                    self.outputs
-                        .add(&self.config.outputs, self.config.position, name, wl_output)
+                    self.outputs.add(
+                        self.config.appearance.solid_style,
+                        &self.config.outputs,
+                        self.config.position,
+                        name,
+                        wl_output,
+                    )
                 }
                 iced::event::wayland::OutputEvent::Removed => {
                     info!("Output destroyed");
-                    self.outputs.remove(self.config.position, wl_output)
+                    self.outputs.remove(
+                        self.config.appearance.solid_style,
+                        self.config.position,
+                        wl_output,
+                    )
                 }
                 _ => Task::none(),
             },
@@ -271,13 +286,29 @@ impl App {
                 let center = self.modules_section(&self.config.modules.center, id);
                 let right = self.modules_section(&self.config.modules.right, id);
 
-                centerbox::Centerbox::new([left, center, right])
+                let centerbox = centerbox::Centerbox::new([left, center, right])
                     .spacing(4)
-                    .padding([4, 4])
                     .width(Length::Fill)
-                    .height(Length::Fixed(HEIGHT as f32))
-                    .align_items(Alignment::Center)
+                    .align_items(Alignment::Center);
+
+                if self.config.appearance.solid_style {
+                    container(
+                        centerbox
+                            .padding([0, 4])
+                            .height(Length::Fixed((HEIGHT - 8) as f32)),
+                    )
+                    .style(|t| container::Style {
+                        background: Some(t.palette().background.into()),
+
+                        ..Default::default()
+                    })
                     .into()
+                } else {
+                    centerbox
+                        .height(Length::Fixed(HEIGHT as f32))
+                        .padding([4, 4])
+                        .into()
+                }
             }
             Some(HasOutput::Menu(menu_info)) => match menu_info {
                 Some((MenuType::Updates, button_ui_ref)) => menu_wrapper(
@@ -286,6 +317,7 @@ impl App {
                     MenuSize::Normal,
                     *button_ui_ref,
                     self.config.position,
+                    self.config.appearance.solid_style,
                 ),
                 Some((MenuType::Tray(name), button_ui_ref)) => menu_wrapper(
                     id,
@@ -293,6 +325,7 @@ impl App {
                     MenuSize::Normal,
                     *button_ui_ref,
                     self.config.position,
+                    self.config.appearance.solid_style,
                 ),
                 Some((MenuType::Settings, button_ui_ref)) => menu_wrapper(
                     id,
@@ -302,6 +335,7 @@ impl App {
                     MenuSize::Large,
                     *button_ui_ref,
                     self.config.position,
+                    self.config.appearance.solid_style,
                 ),
                 Some((MenuType::MediaPlayer, button_ui_ref)) => menu_wrapper(
                     id,
@@ -311,6 +345,7 @@ impl App {
                     MenuSize::Large,
                     *button_ui_ref,
                     self.config.position,
+                    self.config.appearance.solid_style,
                 ),
                 None => Row::new().into(),
             },

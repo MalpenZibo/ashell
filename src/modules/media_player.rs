@@ -8,7 +8,7 @@ use crate::{
         ReadOnlyService, Service, ServiceEvent,
         mpris::{MprisPlayerCommand, MprisPlayerData, MprisPlayerService, PlayerCommand},
     },
-    style::SettingsButtonStyle,
+    style::settings_button_style,
     utils::truncate_text,
 };
 use iced::{
@@ -66,14 +66,14 @@ impl MediaPlayer {
                             button(icon(Icons::SkipPrevious))
                                 .on_press(Message::Prev(d.service.clone()))
                                 .padding([5, 12])
-                                .style(SettingsButtonStyle.into_style()),
+                                .style(settings_button_style),
                             button(icon(Icons::PlayPause))
                                 .on_press(Message::PlayPause(d.service.clone()))
-                                .style(SettingsButtonStyle.into_style()),
+                                .style(settings_button_style),
                             button(icon(Icons::SkipNext))
                                 .on_press(Message::Next(d.service.clone()))
                                 .padding([5, 12])
-                                .style(SettingsButtonStyle.into_style())
+                                .style(settings_button_style),
                         ]
                         .spacing(8);
                         let volume_slider = d.volume.map(|v| {

@@ -11,7 +11,7 @@ use crate::{
             dbus::{Layout, LayoutProps},
         },
     },
-    style::GhostButtonStyle,
+    style::ghost_button_style,
 };
 use iced::{
     Alignment, Element, Length, Subscription, Task,
@@ -117,7 +117,7 @@ impl TrayModule {
                                 Icons::MenuClosed
                             })
                         ))
-                        .style(GhostButtonStyle.into_style())
+                        .style(ghost_button_style)
                         .padding([8, 8])
                         .on_press(TrayMessage::ToggleSubmenu(layout.0))
                         .width(Length::Fill),
@@ -142,7 +142,7 @@ impl TrayModule {
             LayoutProps {
                 label: Some(label), ..
             } => button(text(label.replace("_", "")))
-                .style(GhostButtonStyle.into_style())
+                .style(ghost_button_style)
                 .on_press(TrayMessage::MenuSelected(name.to_owned(), layout.0))
                 .width(Length::Fill)
                 .padding([8, 8])
@@ -185,7 +185,7 @@ impl Module for TrayModule {
                                     )
                                 })
                                 .padding([2, 2])
-                                .style(GhostButtonStyle.into_style())
+                                .style(ghost_button_style)
                                 .into()
                             })
                             .collect::<Vec<_>>(),

@@ -5,7 +5,7 @@ use crate::{
         ServiceEvent,
         audio::{AudioData, AudioService, DeviceType, Sinks},
     },
-    style::{GhostButtonStyle, SettingsButtonStyle},
+    style::{ghost_button_style, settings_button_style},
 };
 use iced::{
     Alignment, Element, Length, Theme,
@@ -171,7 +171,7 @@ pub fn audio_slider<'a, Message: 'a + Clone>(
                 },
             ])
             .on_press(toggle_mute)
-            .style(SettingsButtonStyle.into_style()),
+            .style(settings_button_style),
         )
         .push(
             slider(0..=100, volume, volume_changed)
@@ -186,7 +186,7 @@ pub fn audio_slider<'a, Message: 'a + Clone>(
             }))
             .padding([8, 13])
             .on_press(msg)
-            .style(SettingsButtonStyle.into_style())
+            .style(settings_button_style)
         }))
         .align_y(Alignment::Center)
         .spacing(8)
@@ -229,7 +229,7 @@ pub fn audio_submenu<'a, Message: 'a + Clone>(
                     .on_press(e.msg)
                     .padding([4, 12])
                     .width(Length::Fill)
-                    .style(GhostButtonStyle.into_style())
+                    .style(ghost_button_style)
                     .into()
                 }
             })
@@ -246,7 +246,7 @@ pub fn audio_submenu<'a, Message: 'a + Clone>(
                 .on_press(more_msg)
                 .padding([4, 12])
                 .width(Length::Fill)
-                .style(GhostButtonStyle.into_style()),
+                .style(ghost_button_style),
         )
         .spacing(12)
         .into(),

@@ -7,7 +7,7 @@ use iced::{
 
 use crate::{
     components::icons::{Icons, icon},
-    style::{ConfirmButtonStyle, OutlineButtonStyle, TextInputStyle},
+    style::{confirm_button_style, outline_button_style, text_input_style},
 };
 
 #[derive(Debug, Clone)]
@@ -30,20 +30,20 @@ pub fn view<'a>(id: Id, wifi_ssid: &str, current_password: &str) -> Element<'a, 
             .secure(true)
             .size(16)
             .padding([8, 16])
-            .style(TextInputStyle.into_style())
+            .style(text_input_style)
             .on_input(Message::PasswordChanged)
             .on_submit(Message::DialogConfirmed(id)),
         row!(
             horizontal_space(),
             button(text("Cancel").align_y(Vertical::Center))
                 .padding([4, 32])
-                .style(OutlineButtonStyle.into_style())
+                .style(outline_button_style)
                 .height(Length::Fixed(50.))
                 .on_press(Message::DialogCancelled(id)),
             button(text("Confirm").align_y(Vertical::Center))
                 .padding([4, 32])
                 .height(Length::Fixed(50.))
-                .style(ConfirmButtonStyle.into_style())
+                .style(confirm_button_style)
                 .on_press(Message::DialogConfirmed(id))
         )
         .spacing(8)

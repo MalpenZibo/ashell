@@ -1,11 +1,9 @@
 use crate::config::{Appearance, AppearanceColor};
 use iced::{
     Background, Border, Color, Theme,
-    border::Radius,
     theme::{Palette, palette},
     widget::{
         button::{self, Status},
-        container,
         text_input::{self},
     },
 };
@@ -114,400 +112,289 @@ pub fn ashell_theme(appearance: &Appearance) -> Theme {
     )
 }
 
-pub fn module_label(theme: &Theme) -> container::Style {
-    let palette = theme.palette();
-    container::Style {
-        background: Some(palette.background.into()),
+pub fn module_button_style(theme: &Theme, status: Status) -> button::Style {
+    let mut base = button::Style {
+        background: None,
         border: Border {
             width: 0.0,
             radius: 12.0.into(),
             color: Color::TRANSPARENT,
         },
-        text_color: Some(palette.text),
-        ..Default::default()
+        text_color: theme.palette().text,
+        ..button::Style::default()
+    };
+    match status {
+        Status::Active => base,
+        Status::Hovered => {
+            base.background = Some(theme.extended_palette().background.weak.color.into());
+            base
+        }
+        _ => base,
     }
 }
 
-pub fn module_first_label(theme: &Theme) -> container::Style {
-    let palette = theme.palette();
-    container::Style {
-        background: Some(palette.background.into()),
+pub fn ghost_button_style(theme: &Theme, status: Status) -> button::Style {
+    let mut base = button::Style {
+        background: None,
         border: Border {
             width: 0.0,
-            radius: Radius::default().left(12),
+            radius: 4.0.into(),
             color: Color::TRANSPARENT,
         },
-        text_color: Some(palette.text),
-        ..Default::default()
+        text_color: theme.palette().text,
+        ..button::Style::default()
+    };
+    match status {
+        Status::Active => base,
+        Status::Hovered => {
+            base.background = Some(theme.extended_palette().background.weak.color.into());
+            base
+        }
+        _ => base,
     }
 }
 
-pub fn module_middle_label(theme: &Theme) -> container::Style {
-    let palette = theme.palette();
-    container::Style {
-        background: Some(palette.background.into()),
+pub fn outline_button_style(theme: &Theme, status: Status) -> button::Style {
+    let mut base = button::Style {
+        background: None,
+        border: Border {
+            width: 2.0,
+            radius: 32.into(),
+            color: theme.extended_palette().background.weak.color,
+        },
+        text_color: theme.palette().text,
+        ..button::Style::default()
+    };
+    match status {
+        Status::Active => base,
+        Status::Hovered => {
+            base.background = Some(theme.extended_palette().background.weak.color.into());
+            base
+        }
+        _ => base,
+    }
+}
+
+pub fn confirm_button_style(theme: &Theme, status: Status) -> button::Style {
+    let mut base = button::Style {
+        background: Some(theme.extended_palette().background.weak.color.into()),
+        border: Border {
+            width: 2.0,
+            radius: 32.0.into(),
+            color: Color::TRANSPARENT,
+        },
+        text_color: theme.palette().text,
+        ..button::Style::default()
+    };
+    match status {
+        Status::Active => base,
+        Status::Hovered => {
+            base.background = Some(theme.extended_palette().background.strong.color.into());
+            base
+        }
+        _ => base,
+    }
+}
+
+pub fn settings_button_style(theme: &Theme, status: Status) -> button::Style {
+    let mut base = button::Style {
+        background: Some(theme.extended_palette().background.weak.color.into()),
         border: Border {
             width: 0.0,
-            radius: Radius::default(),
+            radius: 32.0.into(),
             color: Color::TRANSPARENT,
         },
-        text_color: Some(palette.text),
-        ..Default::default()
+        text_color: theme.palette().text,
+        ..button::Style::default()
+    };
+    match status {
+        Status::Active => base,
+        Status::Hovered => {
+            base.background = Some(theme.extended_palette().background.strong.color.into());
+            base
+        }
+        _ => base,
     }
 }
 
-pub fn module_last_label(theme: &Theme) -> container::Style {
-    let palette = theme.palette();
-    container::Style {
-        background: Some(palette.background.into()),
-        border: Border {
-            width: 0.0,
-            radius: Radius::default().right(12),
-            color: Color::TRANSPARENT,
-        },
-        text_color: Some(palette.text),
-        ..Default::default()
-    }
-}
-
-pub enum ModuleButtonStyle {
-    Full,
-    First,
-    Middle,
-    Last,
-}
-
-impl ModuleButtonStyle {
-    pub fn into_style<'a>(self) -> button::StyleFn<'a, Theme> {
-        Box::new(move |theme, status| {
-            let mut base = button::Style {
-                background: Some(theme.palette().background.into()),
-                border: Border {
-                    width: 0.0,
-                    radius: match self {
-                        ModuleButtonStyle::Full => 12.0.into(),
-                        ModuleButtonStyle::First => Radius::default().left(12),
-                        ModuleButtonStyle::Middle => Radius::default(),
-                        ModuleButtonStyle::Last => Radius::default().right(12),
+pub fn workspace_button_style(
+    is_empty: bool,
+    colors: Option<Option<AppearanceColor>>,
+) -> impl Fn(&Theme, Status) -> button::Style {
+    move |theme: &Theme, status: Status| {
+        let (bg_color, fg_color) = colors
+            .map(|c| {
+                c.map_or(
+                    (
+                        theme.extended_palette().primary.base.color,
+                        theme.extended_palette().primary.base.text,
+                    ),
+                    |c| {
+                        let color = palette::Primary::generate(
+                            c.get_base(),
+                            theme.palette().background,
+                            c.get_text().unwrap_or(theme.palette().text),
+                        );
+                        (color.base.color, color.base.text)
                     },
-                    color: Color::TRANSPARENT,
-                },
-                text_color: theme.palette().text,
-                ..button::Style::default()
-            };
-            match status {
-                Status::Active => base,
-                Status::Hovered => {
-                    base.background = Some(theme.extended_palette().background.weak.color.into());
-                    base
-                }
-                _ => base,
-            }
-        })
-    }
-}
+                )
+            })
+            .unwrap_or((
+                theme.extended_palette().background.weak.color,
+                theme.palette().text,
+            ));
+        let mut base = button::Style {
+            background: Some(Background::Color(if is_empty {
+                theme.extended_palette().background.weak.color
+            } else {
+                bg_color
+            })),
+            border: Border {
+                width: if is_empty { 1.0 } else { 0.0 },
+                color: bg_color,
+                radius: 16.0.into(),
+            },
+            text_color: if is_empty {
+                theme.extended_palette().background.weak.text
+            } else {
+                fg_color
+            },
+            ..button::Style::default()
+        };
+        match status {
+            Status::Active => base,
+            Status::Hovered => {
+                let (bg_color, fg_color) = colors
+                    .map(|c| {
+                        c.map_or(
+                            (
+                                theme.extended_palette().primary.strong.color,
+                                theme.extended_palette().primary.strong.text,
+                            ),
+                            |c| {
+                                let color = palette::Primary::generate(
+                                    c.get_base(),
+                                    theme.palette().background,
+                                    c.get_text().unwrap_or(theme.palette().text),
+                                );
+                                (color.strong.color, color.strong.text)
+                            },
+                        )
+                    })
+                    .unwrap_or((
+                        theme.extended_palette().background.strong.color,
+                        theme.palette().text,
+                    ));
 
-pub struct GhostButtonStyle;
-
-impl GhostButtonStyle {
-    pub fn into_style<'a>(self) -> button::StyleFn<'a, Theme> {
-        Box::new(move |theme, status| {
-            let mut base = button::Style {
-                background: None,
-                border: Border {
-                    width: 0.0,
-                    radius: 4.0.into(),
-                    color: Color::TRANSPARENT,
-                },
-                text_color: theme.palette().text,
-                ..button::Style::default()
-            };
-            match status {
-                Status::Active => base,
-                Status::Hovered => {
-                    base.background = Some(theme.extended_palette().background.weak.color.into());
-                    base
-                }
-                _ => base,
-            }
-        })
-    }
-}
-
-pub struct OutlineButtonStyle;
-
-impl OutlineButtonStyle {
-    pub fn into_style<'a>(self) -> button::StyleFn<'a, Theme> {
-        Box::new(move |theme, status| {
-            let mut base = button::Style {
-                background: None,
-                border: Border {
-                    width: 2.0,
-                    radius: 32.into(),
-                    color: theme.extended_palette().background.weak.color,
-                },
-                text_color: theme.palette().text,
-                ..button::Style::default()
-            };
-            match status {
-                Status::Active => base,
-                Status::Hovered => {
-                    base.background = Some(theme.extended_palette().background.weak.color.into());
-                    base
-                }
-                _ => base,
-            }
-        })
-    }
-}
-
-pub struct ConfirmButtonStyle;
-
-impl ConfirmButtonStyle {
-    pub fn into_style<'a>(self) -> button::StyleFn<'a, Theme> {
-        Box::new(move |theme, status| {
-            let mut base = button::Style {
-                background: Some(theme.extended_palette().background.weak.color.into()),
-                border: Border {
-                    width: 2.0,
-                    radius: 32.0.into(),
-                    color: Color::TRANSPARENT,
-                },
-                text_color: theme.palette().text,
-                ..button::Style::default()
-            };
-            match status {
-                Status::Active => base,
-                Status::Hovered => {
-                    base.background = Some(theme.extended_palette().background.strong.color.into());
-                    base
-                }
-                _ => base,
-            }
-        })
-    }
-}
-
-pub struct SettingsButtonStyle;
-
-impl SettingsButtonStyle {
-    pub fn into_style<'a>(self) -> button::StyleFn<'a, Theme> {
-        Box::new(move |theme, status| {
-            let mut base = button::Style {
-                background: Some(theme.extended_palette().background.weak.color.into()),
-                border: Border {
-                    width: 0.0,
-                    radius: 32.0.into(),
-                    color: Color::TRANSPARENT,
-                },
-                text_color: theme.palette().text,
-                ..button::Style::default()
-            };
-            match status {
-                Status::Active => base,
-                Status::Hovered => {
-                    base.background = Some(theme.extended_palette().background.strong.color.into());
-                    base
-                }
-                _ => base,
-            }
-        })
-    }
-}
-
-pub struct WorkspaceButtonStyle(pub bool, pub Option<Option<AppearanceColor>>);
-
-impl WorkspaceButtonStyle {
-    pub fn into_style<'a>(self) -> button::StyleFn<'a, Theme> {
-        Box::new(move |theme, status| {
-            let (bg_color, fg_color) = self
-                .1
-                .map(|c| {
-                    c.map_or(
-                        (
-                            theme.extended_palette().primary.base.color,
-                            theme.extended_palette().primary.base.text,
-                        ),
-                        |c| {
-                            let color = palette::Primary::generate(
-                                c.get_base(),
-                                theme.palette().background,
-                                c.get_text().unwrap_or(theme.palette().text),
-                            );
-                            (color.base.color, color.base.text)
-                        },
-                    )
-                })
-                .unwrap_or((
-                    theme.extended_palette().background.weak.color,
-                    theme.palette().text,
-                ));
-            let mut base = button::Style {
-                background: Some(Background::Color(if self.0 {
-                    theme.extended_palette().background.weak.color
+                base.background = Some(Background::Color(if is_empty {
+                    theme.extended_palette().background.strong.color
                 } else {
                     bg_color
-                })),
-                border: Border {
-                    width: if self.0 { 1.0 } else { 0.0 },
-                    color: bg_color,
-                    radius: 16.0.into(),
-                },
-                text_color: if self.0 {
+                }));
+                base.text_color = if is_empty {
                     theme.extended_palette().background.weak.text
                 } else {
                     fg_color
-                },
-                ..button::Style::default()
-            };
-            match status {
-                Status::Active => base,
-                Status::Hovered => {
-                    let (bg_color, fg_color) = self
-                        .1
-                        .map(|c| {
-                            c.map_or(
-                                (
-                                    theme.extended_palette().primary.strong.color,
-                                    theme.extended_palette().primary.strong.text,
-                                ),
-                                |c| {
-                                    let color = palette::Primary::generate(
-                                        c.get_base(),
-                                        theme.palette().background,
-                                        c.get_text().unwrap_or(theme.palette().text),
-                                    );
-                                    (color.strong.color, color.strong.text)
-                                },
-                            )
-                        })
-                        .unwrap_or((
-                            theme.extended_palette().background.strong.color,
-                            theme.palette().text,
-                        ));
+                };
+                base
+            }
+            _ => base,
+        }
+    }
+}
 
-                    base.background = Some(Background::Color(if self.0 {
+pub fn quick_settings_button_style(is_active: bool) -> impl Fn(&Theme, Status) -> button::Style {
+    move |theme: &Theme, status: Status| {
+        let mut base = button::Style {
+            background: Some(if is_active {
+                theme.palette().primary.into()
+            } else {
+                theme.extended_palette().background.weak.color.into()
+            }),
+            border: Border {
+                width: 0.0,
+                radius: 32.0.into(),
+                color: Color::TRANSPARENT,
+            },
+            text_color: if is_active {
+                theme.extended_palette().primary.base.text
+            } else {
+                theme.palette().text
+            },
+            ..button::Style::default()
+        };
+        match status {
+            Status::Active => base,
+            Status::Hovered => {
+                let peach = theme.extended_palette().primary.weak.color;
+                base.background = Some(
+                    if is_active {
+                        peach
+                    } else {
                         theme.extended_palette().background.strong.color
-                    } else {
-                        bg_color
-                    }));
-                    base.text_color = if self.0 {
-                        theme.extended_palette().background.weak.text
-                    } else {
-                        fg_color
-                    };
-                    base
-                }
-                _ => base,
+                    }
+                    .into(),
+                );
+                base
             }
-        })
+            _ => base,
+        }
     }
 }
 
-pub struct QuickSettingsButtonStyle(pub bool);
-
-impl QuickSettingsButtonStyle {
-    pub fn into_style<'a>(self) -> button::StyleFn<'a, Theme> {
-        Box::new(move |theme, status| {
-            let mut base = button::Style {
-                background: Some(if self.0 {
-                    theme.palette().primary.into()
-                } else {
-                    theme.extended_palette().background.weak.color.into()
-                }),
-                border: Border {
-                    width: 0.0,
-                    radius: 32.0.into(),
-                    color: Color::TRANSPARENT,
-                },
-                text_color: if self.0 {
-                    theme.extended_palette().primary.base.text
-                } else {
-                    theme.palette().text
-                },
-                ..button::Style::default()
-            };
-            match status {
-                Status::Active => base,
-                Status::Hovered => {
-                    let peach = theme.extended_palette().primary.weak.color;
-                    base.background = Some(
-                        if self.0 {
-                            peach
-                        } else {
-                            theme.extended_palette().background.strong.color
-                        }
-                        .into(),
-                    );
-                    base
-                }
-                _ => base,
+pub fn quick_settings_submenu_button_style(
+    is_active: bool,
+) -> impl Fn(&Theme, Status) -> button::Style {
+    move |theme: &Theme, status: Status| {
+        let mut base = button::Style {
+            background: None,
+            border: Border {
+                width: 0.0,
+                radius: 16.0.into(),
+                color: Color::TRANSPARENT,
+            },
+            text_color: if is_active {
+                theme.extended_palette().primary.base.text
+            } else {
+                theme.palette().text
+            },
+            ..button::Style::default()
+        };
+        match status {
+            Status::Active => base,
+            Status::Hovered => {
+                base.background = Some(theme.extended_palette().background.weak.color.into());
+                base.text_color = theme.palette().text;
+                base
             }
-        })
+            _ => base,
+        }
     }
 }
 
-pub struct QuickSettingsSubMenuButtonStyle(pub bool);
-
-impl QuickSettingsSubMenuButtonStyle {
-    pub fn into_style<'a>(self) -> button::StyleFn<'a, Theme> {
-        Box::new(move |theme, status| {
-            let mut base = button::Style {
-                background: None,
-                border: Border {
-                    width: 0.0,
-                    radius: 16.0.into(),
-                    color: Color::TRANSPARENT,
-                },
-                text_color: if self.0 {
-                    theme.extended_palette().primary.base.text
-                } else {
-                    theme.palette().text
-                },
-                ..button::Style::default()
-            };
-            match status {
-                Status::Active => base,
-                Status::Hovered => {
-                    base.background = Some(theme.extended_palette().background.weak.color.into());
-                    base.text_color = theme.palette().text;
-                    base
-                }
-                _ => base,
-            }
-        })
-    }
-}
-
-pub struct TextInputStyle;
-
-impl TextInputStyle {
-    pub fn into_style<'a>(self) -> text_input::StyleFn<'a, Theme> {
-        Box::new(move |theme, status| {
-            let mut base = text_input::Style {
-                background: theme.palette().background.into(),
-                border: Border {
-                    width: 2.0,
-                    radius: 32.0.into(),
-                    color: theme.extended_palette().background.weak.color,
-                },
-                icon: theme.palette().text,
-                placeholder: theme.palette().text,
-                value: theme.palette().text,
-                selection: theme.palette().primary,
-            };
-            match status {
-                text_input::Status::Active => base,
-                text_input::Status::Focused | text_input::Status::Hovered => {
-                    base.border.color = theme.extended_palette().background.strong.color;
-                    base
-                }
-                text_input::Status::Disabled => {
-                    base.background = theme.extended_palette().background.weak.color.into();
-                    base.border.color = Color::TRANSPARENT;
-                    base
-                }
-            }
-        })
+pub fn text_input_style(theme: &Theme, status: text_input::Status) -> text_input::Style {
+    let mut base = text_input::Style {
+        background: theme.palette().background.into(),
+        border: Border {
+            width: 2.0,
+            radius: 32.0.into(),
+            color: theme.extended_palette().background.weak.color,
+        },
+        icon: theme.palette().text,
+        placeholder: theme.palette().text,
+        value: theme.palette().text,
+        selection: theme.palette().primary,
+    };
+    match status {
+        text_input::Status::Active => base,
+        text_input::Status::Focused | text_input::Status::Hovered => {
+            base.border.color = theme.extended_palette().background.strong.color;
+            base
+        }
+        text_input::Status::Disabled => {
+            base.background = theme.extended_palette().background.weak.color.into();
+            base.border.color = Color::TRANSPARENT;
+            base
+        }
     }
 }
