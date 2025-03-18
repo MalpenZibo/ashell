@@ -20,7 +20,9 @@ use crate::{
         network::{NetworkCommand, NetworkEvent, NetworkService},
         upower::{PowerProfileCommand, UPowerService},
     },
-    style::{QuickSettingsButtonStyle, QuickSettingsSubMenuButtonStyle, SettingsButtonStyle},
+    style::{
+        quick_settings_button_style, quick_settings_submenu_button_style, settings_button_style,
+    },
 };
 use brightness::BrightnessMessage;
 use iced::{
@@ -440,7 +442,7 @@ impl Settings {
                     button(icon(Icons::Lock))
                         .padding([8, 13])
                         .on_press(Message::Lock)
-                        .style(SettingsButtonStyle.into_style())
+                        .style(settings_button_style)
                 }))
                 .push(
                     button(icon(if self.sub_menu == Some(SubMenu::Power) {
@@ -450,7 +452,7 @@ impl Settings {
                     }))
                     .padding([8, 13])
                     .on_press(Message::ToggleSubMenu(SubMenu::Power))
-                    .style(SettingsButtonStyle.into_style()),
+                    .style(settings_button_style),
                 )
                 .spacing(8);
 
@@ -715,7 +717,7 @@ fn quick_setting_button<'a, Msg: Clone + 'static>(
                     .align_x(Horizontal::Center),
                 )
                 .padding([4, if Some(menu_type) == submenu { 9 } else { 12 }])
-                .style(QuickSettingsSubMenuButtonStyle(active).into_style())
+                .style(quick_settings_submenu_button_style(active))
                 .width(Length::Shrink)
                 .height(Length::Shrink)
                 .on_press(msg)
@@ -728,7 +730,7 @@ fn quick_setting_button<'a, Msg: Clone + 'static>(
     .on_press(on_press)
     .height(Length::Fill)
     .width(Length::Fill)
-    .style(QuickSettingsButtonStyle(active).into_style())
+    .style(quick_settings_button_style(active))
     .width(Length::Fill)
     .height(Length::Fixed(50.))
     .into()

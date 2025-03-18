@@ -3,12 +3,10 @@ use crate::{
     config::{ModuleDef, ModuleName},
     menu::MenuType,
     position_button::position_button,
-    style::{
-        ModuleButtonStyle, module_first_label, module_label, module_last_label, module_middle_label,
-    },
+    style::module_button_style,
 };
 use iced::{
-    Alignment, Element, Length, Subscription,
+    Alignment, Border, Color, Element, Length, Subscription,
     widget::{Row, container, row},
     window::Id,
 };
@@ -47,14 +45,6 @@ pub trait Module {
     }
 }
 
-#[derive(Debug, Clone)]
-enum ModuleGroupPosition {
-    Only,
-    First,
-    Middle,
-    Last,
-}
-
 impl App {
     pub fn modules_section(&self, modules_def: &Vec<ModuleDef>, id: Id) -> Element<Message> {
         let mut row = row!()
@@ -69,7 +59,21 @@ impl App {
             });
         }
 
-        row.into()
+        if self.config.appearance.solid_style {
+            row.into()
+        } else {
+            container(row)
+                .style(|theme| container::Style {
+                    background: Some(theme.palette().background.into()),
+                    border: Border {
+                        width: 0.0,
+                        radius: 12.0.into(),
+                        color: Color::TRANSPARENT,
+                    },
+                    ..container::Style::default()
+                })
+                .into()
+        }
     }
 
     pub fn modules_subscriptions(&self, modules_def: &[ModuleDef]) -> Vec<Subscription<Message>> {
@@ -98,7 +102,7 @@ impl App {
                 )
                 .padding([2, 8])
                 .height(Length::Fill)
-                .style(ModuleButtonStyle::Full.into_style());
+                .style(module_button_style);
 
                 match action {
                     OnModulePress::Action(action) => button.on_press(action),
@@ -114,7 +118,6 @@ impl App {
                 .padding([2, 8])
                 .height(Length::Fill)
                 .align_y(Alignment::Center)
-                .style(module_label)
                 .into(),
         })
     }
@@ -125,8 +128,6 @@ impl App {
             .filter_map(|module| self.get_module_view(*module, id))
             .collect::<Vec<_>>();
 
-        let modules_len = modules.len();
-
         if modules.is_empty() {
             None
         } else {
@@ -134,66 +135,35 @@ impl App {
                 Row::with_children(
                     modules
                         .into_iter()
-                        .enumerate()
-                        .map(|(i, (content, action))| {
-                            let group_position = match i {
-                                i @ 0 if i == modules_len - 1 => ModuleGroupPosition::Only,
-                                0 => ModuleGroupPosition::First,
-                                i if i == modules_len - 1 => ModuleGroupPosition::Last,
-                                _ => ModuleGroupPosition::Middle,
-                            };
+                        .map(|(content, action)| match action {
+                            Some(action) => {
+                                let button = position_button(
+                                    container(content)
+                                        .align_y(Alignment::Center)
+                                        .height(Length::Fill),
+                                )
+                                .padding([2, 8])
+                                .height(Length::Fill)
+                                .style(module_button_style);
 
-                            match action {
-                                Some(action) => {
-                                    let button = position_button(
-                                        container(content)
-                                            .align_y(Alignment::Center)
-                                            .height(Length::Fill),
-                                    )
-                                    .padding([2, 8])
-                                    .height(Length::Fill)
-                                    .style(
-                                        match group_position {
-                                            ModuleGroupPosition::First => {
-                                                ModuleButtonStyle::First.into_style()
-                                            }
-                                            ModuleGroupPosition::Middle => {
-                                                ModuleButtonStyle::Middle.into_style()
-                                            }
-                                            ModuleGroupPosition::Last => {
-                                                ModuleButtonStyle::Last.into_style()
-                                            }
-                                            ModuleGroupPosition::Only => {
-                                                ModuleButtonStyle::Full.into_style()
-                                            }
-                                        },
-                                    );
-
-                                    match action {
-                                        OnModulePress::Action(action) => button.on_press(action),
-                                        OnModulePress::ToggleMenu(menu_type) => button
-                                            .on_press_with_position(move |button_ui_ref| {
-                                                Message::ToggleMenu(
-                                                    menu_type.clone(),
-                                                    id,
-                                                    button_ui_ref,
-                                                )
-                                            }),
-                                    }
-                                    .into()
+                                match action {
+                                    OnModulePress::Action(action) => button.on_press(action),
+                                    OnModulePress::ToggleMenu(menu_type) => button
+                                        .on_press_with_position(move |button_ui_ref| {
+                                            Message::ToggleMenu(
+                                                menu_type.clone(),
+                                                id,
+                                                button_ui_ref,
+                                            )
+                                        }),
                                 }
-                                _ => container(content)
-                                    .padding([2, 8])
-                                    .height(Length::Fill)
-                                    .align_y(Alignment::Center)
-                                    .style(match group_position {
-                                        ModuleGroupPosition::First => module_first_label,
-                                        ModuleGroupPosition::Middle => module_middle_label,
-                                        ModuleGroupPosition::Last => module_last_label,
-                                        ModuleGroupPosition::Only => module_label,
-                                    })
-                                    .into(),
+                                .into()
                             }
+                            _ => container(content)
+                                .padding([2, 8])
+                                .height(Length::Fill)
+                                .align_y(Alignment::Center)
+                                .into(),
                         })
                         .collect::<Vec<_>>(),
                 )

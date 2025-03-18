@@ -8,7 +8,7 @@ use crate::{
             dbus::ConnectivityState,
         },
     },
-    style::{GhostButtonStyle, SettingsButtonStyle},
+    style::{ghost_button_style, settings_button_style},
     utils::IndicatorState,
 };
 use iced::{
@@ -212,7 +212,7 @@ impl NetworkData {
                 .size(12),
                 button(icon(Icons::Refresh))
                     .padding([4, 10])
-                    .style(SettingsButtonStyle.into_style())
+                    .style(settings_button_style)
                     .on_press(NetworkMessage::ScanNearByWiFi),
             )
             .spacing(8)
@@ -261,7 +261,7 @@ impl NetworkData {
                                     }
                                 }),
                             )
-                            .style(GhostButtonStyle.into_style())
+                            .style(ghost_button_style)
                             .padding([8, 8])
                             .on_press_maybe(if !is_active {
                                 Some(if is_known {
@@ -291,7 +291,7 @@ impl NetworkData {
                     .on_press(NetworkMessage::WiFiMore(id))
                     .padding([4, 12])
                     .width(Length::Fill)
-                    .style(GhostButtonStyle.into_style()),
+                    .style(ghost_button_style)
             )
             .spacing(12)
             .into()
@@ -333,7 +333,7 @@ impl NetworkData {
                     .on_press(NetworkMessage::VpnMore(id))
                     .padding([4, 12])
                     .width(Length::Fill)
-                    .style(GhostButtonStyle.into_style()),
+                    .style(ghost_button_style)
             )
             .spacing(12)
             .into()

@@ -5,7 +5,7 @@ use crate::{
         ServiceEvent,
         bluetooth::{BluetoothData, BluetoothService, BluetoothState},
     },
-    style::GhostButtonStyle,
+    style::ghost_button_style,
 };
 use iced::{
     Element, Length, Theme,
@@ -74,7 +74,7 @@ impl BluetoothData {
                     .on_press(Message::Bluetooth(BluetoothMessage::More(id)))
                     .padding([4, 12])
                     .width(Length::Fill)
-                    .style(GhostButtonStyle.into_style())
+                    .style(ghost_button_style)
             )
             .spacing(12)
             .into()

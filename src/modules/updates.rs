@@ -4,7 +4,7 @@ use crate::{
     config::UpdatesModuleConfig,
     menu::MenuType,
     outputs::Outputs,
-    style::GhostButtonStyle,
+    style::ghost_button_style,
 };
 use iced::{
     Alignment, Element, Length, Padding, Subscription, Task,
@@ -166,7 +166,7 @@ impl Updates {
                             Icons::MenuOpen
                         })
                     ))
-                    .style(GhostButtonStyle.into_style())
+                    .style(ghost_button_style)
                     .padding([8, 8])
                     .on_press(Message::ToggleUpdatesList)
                     .width(Length::Fill),
@@ -217,7 +217,7 @@ impl Updates {
             },
             horizontal_rule(1),
             button("Update")
-                .style(GhostButtonStyle.into_style())
+                .style(ghost_button_style)
                 .padding([8, 8])
                 .on_press(Message::Update(id))
                 .width(Length::Fill),
@@ -230,7 +230,7 @@ impl Updates {
 
                 content
             })
-            .style(GhostButtonStyle.into_style())
+            .style(ghost_button_style)
             .padding([8, 8])
             .on_press(Message::CheckNow)
             .width(Length::Fill),

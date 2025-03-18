@@ -1,6 +1,6 @@
 use crate::{
     components::icons::{Icons, icon},
-    style::GhostButtonStyle,
+    style::ghost_button_style,
     utils,
 };
 use iced::{
@@ -41,23 +41,23 @@ pub fn power_menu<'a>() -> Element<'a, PowerMessage> {
             .padding([4, 12])
             .on_press(PowerMessage::Suspend)
             .width(Length::Fill)
-            .style(GhostButtonStyle.into_style()),
+            .style(ghost_button_style),
         button(row!(icon(Icons::Reboot), text("Reboot")).spacing(16))
             .padding([4, 12])
             .on_press(PowerMessage::Reboot)
             .width(Length::Fill)
-            .style(GhostButtonStyle.into_style()),
+            .style(ghost_button_style),
         button(row!(icon(Icons::Power), text("Shutdown")).spacing(16))
             .padding([4, 12])
             .on_press(PowerMessage::Shutdown)
             .width(Length::Fill)
-            .style(GhostButtonStyle.into_style()),
+            .style(ghost_button_style),
         horizontal_rule(1),
         button(row!(icon(Icons::Logout), text("Logout")).spacing(16))
             .padding([4, 12])
             .on_press(PowerMessage::Logout)
             .width(Length::Fill)
-            .style(GhostButtonStyle.into_style()),
+            .style(ghost_button_style),
     )
     .padding(8)
     .width(Length::Fill)

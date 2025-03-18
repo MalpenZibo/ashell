@@ -197,6 +197,7 @@ impl AppearanceColor {
 pub struct Appearance {
     #[serde(default)]
     pub font_name: Option<String>,
+    pub solid_style: bool,
     #[serde(default = "default_background_color")]
     pub background_color: AppearanceColor,
     #[serde(default = "default_primary_color")]
@@ -272,6 +273,7 @@ impl Default for Appearance {
     fn default() -> Self {
         Self {
             font_name: None,
+            solid_style: false,
             background_color: default_background_color(),
             primary_color: default_primary_color(),
             secondary_color: default_secondary_color(),

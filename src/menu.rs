@@ -116,8 +116,9 @@ pub fn menu_wrapper(
     menu_size: MenuSize,
     button_ui_ref: ButtonUIRef,
     bar_position: Position,
+    solid_style: bool,
 ) -> Element<app::Message> {
-    mouse_area(
+    let wrapper = mouse_area(
         container(
             mouse_area(
                 container(content)
@@ -153,6 +154,11 @@ pub fn menu_wrapper(
         .width(Length::Fill)
         .height(Length::Fill),
     )
-    .on_release(app::Message::CloseMenu(id))
-    .into()
+    .on_release(app::Message::CloseMenu(id));
+
+    if solid_style {
+        container(wrapper).padding([2, 0, 0, 0]).into()
+    } else {
+        wrapper.into()
+    }
 }
