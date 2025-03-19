@@ -298,8 +298,12 @@ impl App {
                             .height(Length::Fixed((HEIGHT - 8) as f32)),
                     )
                     .style(|t| container::Style {
-                        background: Some(t.palette().background.into()),
-
+                        background: Some(
+                            t.palette()
+                                .background
+                                .scale_alpha(self.config.appearance.opacity)
+                                .into(),
+                        ),
                         ..Default::default()
                     })
                     .into()
@@ -318,6 +322,7 @@ impl App {
                     *button_ui_ref,
                     self.config.position,
                     self.config.appearance.solid_style,
+                    self.config.appearance.opacity,
                 ),
                 Some((MenuType::Tray(name), button_ui_ref)) => menu_wrapper(
                     id,
@@ -326,6 +331,7 @@ impl App {
                     *button_ui_ref,
                     self.config.position,
                     self.config.appearance.solid_style,
+                    self.config.appearance.opacity,
                 ),
                 Some((MenuType::Settings, button_ui_ref)) => menu_wrapper(
                     id,
@@ -336,6 +342,7 @@ impl App {
                     *button_ui_ref,
                     self.config.position,
                     self.config.appearance.solid_style,
+                    self.config.appearance.opacity,
                 ),
                 Some((MenuType::MediaPlayer, button_ui_ref)) => menu_wrapper(
                     id,
@@ -346,6 +353,7 @@ impl App {
                     *button_ui_ref,
                     self.config.position,
                     self.config.appearance.solid_style,
+                    self.config.appearance.opacity,
                 ),
                 None => Row::new().into(),
             },

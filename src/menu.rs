@@ -117,6 +117,7 @@ pub fn menu_wrapper(
     button_ui_ref: ButtonUIRef,
     bar_position: Position,
     solid_style: bool,
+    opacity: f32,
 ) -> Element<app::Message> {
     let wrapper = mouse_area(
         container(
@@ -126,10 +127,15 @@ pub fn menu_wrapper(
                     .width(Length::Shrink)
                     .max_width(menu_size.size())
                     .padding(16)
-                    .style(|theme: &Theme| Style {
-                        background: Some(theme.palette().background.into()),
+                    .style(move |theme: &Theme| Style {
+                        background: Some(theme.palette().background.scale_alpha(opacity).into()),
                         border: Border {
-                            color: theme.extended_palette().secondary.base.color,
+                            color: theme
+                                .extended_palette()
+                                .secondary
+                                .base
+                                .color
+                                .scale_alpha(opacity),
                             width: 1.,
                             radius: 16.0.into(),
                         },

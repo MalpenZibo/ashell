@@ -197,6 +197,8 @@ impl AppearanceColor {
 pub struct Appearance {
     #[serde(default)]
     pub solid_style: bool,
+    #[serde(default = "default_opacity")]
+    pub opacity: f32,
     #[serde(default = "default_background_color")]
     pub background_color: AppearanceColor,
     #[serde(default = "default_primary_color")]
@@ -215,6 +217,10 @@ pub struct Appearance {
 }
 
 static PRIMARY: HexColor = HexColor::rgb(250, 179, 135);
+
+fn default_opacity() -> f32 {
+    1.0
+}
 
 fn default_background_color() -> AppearanceColor {
     AppearanceColor::Complete {
@@ -272,6 +278,7 @@ impl Default for Appearance {
     fn default() -> Self {
         Self {
             solid_style: false,
+            opacity: 1.,
             background_color: default_background_color(),
             primary_color: default_primary_color(),
             secondary_color: default_secondary_color(),

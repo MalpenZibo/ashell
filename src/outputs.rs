@@ -66,6 +66,7 @@ impl Outputs {
 
         let task = get_layer_surface(SctkLayerSurfaceSettings {
             id,
+            namespace: "ashell".to_string(),
             size: Some((None, Some(height))),
             layer: Layer::Bottom,
             pointer_interactivity: true,
@@ -85,6 +86,7 @@ impl Outputs {
         let menu_id = Id::unique();
         let menu_task = get_layer_surface(SctkLayerSurfaceSettings {
             id: menu_id,
+            namespace: "ashell".to_string(),
             size: Some((None, None)),
             layer: Layer::Background,
             pointer_interactivity: true,

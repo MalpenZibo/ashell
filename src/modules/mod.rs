@@ -64,7 +64,13 @@ impl App {
         } else {
             container(row)
                 .style(|theme| container::Style {
-                    background: Some(theme.palette().background.into()),
+                    background: Some(
+                        theme
+                            .palette()
+                            .background
+                            .scale_alpha(self.config.appearance.opacity)
+                            .into(),
+                    ),
                     border: Border {
                         width: 0.0,
                         radius: 12.0.into(),
