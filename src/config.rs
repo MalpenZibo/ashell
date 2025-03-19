@@ -192,11 +192,20 @@ impl AppearanceColor {
     }
 }
 
+#[derive(Deserialize, Default, Copy, Clone, Eq, PartialEq, Debug)]
+#[serde(rename_all = "camelCase")]
+pub enum AppearanceStyle {
+    #[default]
+    Islands,
+    Solid,
+    Gradient,
+}
+
 #[derive(Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Appearance {
     #[serde(default)]
-    pub solid_style: bool,
+    pub style: AppearanceStyle,
     #[serde(default = "default_opacity")]
     pub opacity: f32,
     #[serde(default = "default_background_color")]
@@ -277,8 +286,8 @@ fn default_workspace_colors() -> Vec<AppearanceColor> {
 impl Default for Appearance {
     fn default() -> Self {
         Self {
-            solid_style: false,
-            opacity: 1.,
+            style: AppearanceStyle::default(),
+            opacity: default_opacity(),
             background_color: default_background_color(),
             primary_color: default_primary_color(),
             secondary_color: default_secondary_color(),

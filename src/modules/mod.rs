@@ -1,6 +1,6 @@
 use crate::{
     app::{self, App, Message},
-    config::{ModuleDef, ModuleName},
+    config::{AppearanceStyle, ModuleDef, ModuleName},
     menu::MenuType,
     position_button::position_button,
     style::module_button_style,
@@ -59,10 +59,9 @@ impl App {
             });
         }
 
-        if self.config.appearance.solid_style {
-            row.into()
-        } else {
-            container(row)
+        match self.config.appearance.style {
+            AppearanceStyle::Solid | AppearanceStyle::Gradient => row.into(),
+            AppearanceStyle::Islands => container(row)
                 .style(|theme| container::Style {
                     background: Some(
                         theme
@@ -78,7 +77,7 @@ impl App {
                     },
                     ..container::Style::default()
                 })
-                .into()
+                .into(),
         }
     }
 
@@ -108,7 +107,7 @@ impl App {
                 )
                 .padding([2, 8])
                 .height(Length::Fill)
-                .style(module_button_style);
+                .style(module_button_style(self.config.appearance.opacity));
 
                 match action {
                     OnModulePress::Action(action) => button.on_press(action),
@@ -150,7 +149,7 @@ impl App {
                                 )
                                 .padding([2, 8])
                                 .height(Length::Fill)
-                                .style(module_button_style);
+                                .style(module_button_style(self.config.appearance.opacity));
 
                                 match action {
                                     OnModulePress::Action(action) => button.on_press(action),
