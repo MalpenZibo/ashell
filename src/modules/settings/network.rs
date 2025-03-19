@@ -1,4 +1,4 @@
-use super::{Message, SubMenu, quick_setting_button, sub_menu_wrapper};
+use super::{Message, SubMenu, quick_setting_button};
 use crate::{
     components::icons::{Icons, icon},
     services::{
@@ -131,6 +131,7 @@ impl NetworkData {
         id: Id,
         sub_menu: Option<SubMenu>,
         show_more_button: bool,
+        opacity: f32,
     ) -> Option<(Element<Message>, Option<Element<Message>>)> {
         if self.wifi_present {
             let active_connection = self.active_connections.iter().find_map(|c| match c {
@@ -153,15 +154,17 @@ impl NetworkData {
                         Message::ToggleSubMenu(SubMenu::Wifi),
                     ))
                     .filter(|_| self.wifi_enabled),
+                    opacity,
                 ),
                 sub_menu
                     .filter(|menu_type| *menu_type == SubMenu::Wifi)
                     .map(|_| {
-                        sub_menu_wrapper(self.wifi_menu(
+                        self.wifi_menu(
                             id,
                             active_connection.map(|(name, strengh, _)| (name.as_str(), *strengh)),
                             show_more_button,
-                        ))
+                            opacity,
+                        )
                         .map(Message::Network)
                     }),
             ))
@@ -175,6 +178,7 @@ impl NetworkData {
         id: Id,
         sub_menu: Option<SubMenu>,
         show_more_button: bool,
+        opacity: f32,
     ) -> (Element<Message>, Option<Element<Message>>) {
         (
             quick_setting_button(
@@ -186,11 +190,13 @@ impl NetworkData {
                     .any(|c| matches!(c, ActiveConnectionInfo::Vpn { .. })),
                 Message::ToggleSubMenu(SubMenu::Vpn),
                 None,
+                opacity,
             ),
             sub_menu
                 .filter(|menu_type| *menu_type == SubMenu::Vpn)
                 .map(|_| {
-                    sub_menu_wrapper(self.vpn_menu(id, show_more_button)).map(Message::Network)
+                    self.vpn_menu(id, show_more_button, opacity)
+                        .map(Message::Network)
                 }),
         )
     }
@@ -200,6 +206,7 @@ impl NetworkData {
         id: Id,
         active_connection: Option<(&str, u8)>,
         show_more_button: bool,
+        opacity: f32,
     ) -> Element<NetworkMessage> {
         let main = column!(
             row!(
@@ -212,7 +219,7 @@ impl NetworkData {
                 .size(12),
                 button(icon(Icons::Refresh))
                     .padding([4, 10])
-                    .style(settings_button_style)
+                    .style(settings_button_style(opacity))
                     .on_press(NetworkMessage::ScanNearByWiFi),
             )
             .spacing(8)
@@ -261,7 +268,7 @@ impl NetworkData {
                                     }
                                 }),
                             )
-                            .style(ghost_button_style)
+                            .style(ghost_button_style(opacity))
                             .padding([8, 8])
                             .on_press_maybe(if !is_active {
                                 Some(if is_known {
@@ -291,7 +298,7 @@ impl NetworkData {
                     .on_press(NetworkMessage::WiFiMore(id))
                     .padding([4, 12])
                     .width(Length::Fill)
-                    .style(ghost_button_style)
+                    .style(ghost_button_style(opacity))
             )
             .spacing(12)
             .into()
@@ -300,7 +307,12 @@ impl NetworkData {
         }
     }
 
-    pub fn vpn_menu(&self, id: Id, show_more_button: bool) -> Element<NetworkMessage> {
+    pub fn vpn_menu(
+        &self,
+        id: Id,
+        show_more_button: bool,
+        opacity: f32,
+    ) -> Element<NetworkMessage> {
         let main = Column::with_children(
             self.known_connections
                 .iter()
@@ -333,7 +345,7 @@ impl NetworkData {
                     .on_press(NetworkMessage::VpnMore(id))
                     .padding([4, 12])
                     .width(Length::Fill)
-                    .style(ghost_button_style)
+                    .style(ghost_button_style(opacity))
             )
             .spacing(12)
             .into()
@@ -344,6 +356,7 @@ impl NetworkData {
 
     pub fn get_airplane_mode_quick_setting_button(
         &self,
+        opacity: f32,
     ) -> (Element<Message>, Option<Element<Message>>) {
         (
             quick_setting_button(
@@ -353,6 +366,7 @@ impl NetworkData {
                 self.airplane_mode,
                 Message::Network(NetworkMessage::ToggleAirplaneMode),
                 None,
+                opacity,
             ),
             None,
         )

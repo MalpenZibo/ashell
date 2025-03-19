@@ -149,7 +149,7 @@ impl Updates {
         }
     }
 
-    pub fn menu_view(&self, id: Id) -> Element<Message> {
+    pub fn menu_view(&self, id: Id, opacity: f32) -> Element<Message> {
         column!(
             if self.updates.is_empty() {
                 convert::Into::<Element<'_, _, _>>::into(
@@ -166,7 +166,7 @@ impl Updates {
                             Icons::MenuOpen
                         })
                     ))
-                    .style(ghost_button_style)
+                    .style(ghost_button_style(opacity))
                     .padding([8, 8])
                     .on_press(Message::ToggleUpdatesList)
                     .width(Length::Fill),
@@ -217,7 +217,7 @@ impl Updates {
             },
             horizontal_rule(1),
             button("Update")
-                .style(ghost_button_style)
+                .style(ghost_button_style(opacity))
                 .padding([8, 8])
                 .on_press(Message::Update(id))
                 .width(Length::Fill),
@@ -230,7 +230,7 @@ impl Updates {
 
                 content
             })
-            .style(ghost_button_style)
+            .style(ghost_button_style(opacity))
             .padding([8, 8])
             .on_press(Message::CheckNow)
             .width(Length::Fill),

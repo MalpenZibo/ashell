@@ -46,7 +46,12 @@ pub trait Module {
 }
 
 impl App {
-    pub fn modules_section(&self, modules_def: &Vec<ModuleDef>, id: Id) -> Element<Message> {
+    pub fn modules_section(
+        &self,
+        modules_def: &Vec<ModuleDef>,
+        id: Id,
+        opacity: f32,
+    ) -> Element<Message> {
         let mut row = row!()
             .height(Length::Shrink)
             .align_y(Alignment::Center)
@@ -54,8 +59,8 @@ impl App {
 
         for module_def in modules_def {
             row = row.push_maybe(match module_def {
-                ModuleDef::Single(module) => self.single_module_wrapper(*module, id),
-                ModuleDef::Group(group) => self.group_module_wrapper(group, id),
+                ModuleDef::Single(module) => self.single_module_wrapper(*module, id, opacity),
+                ModuleDef::Group(group) => self.group_module_wrapper(group, id, opacity),
             });
         }
 
@@ -95,8 +100,13 @@ impl App {
             .collect()
     }
 
-    fn single_module_wrapper(&self, module_name: ModuleName, id: Id) -> Option<Element<Message>> {
-        let module = self.get_module_view(module_name, id);
+    fn single_module_wrapper(
+        &self,
+        module_name: ModuleName,
+        id: Id,
+        opacity: f32,
+    ) -> Option<Element<Message>> {
+        let module = self.get_module_view(module_name, id, opacity);
 
         module.map(|(content, action)| match action {
             Some(action) => {
@@ -127,10 +137,15 @@ impl App {
         })
     }
 
-    fn group_module_wrapper(&self, group: &[ModuleName], id: Id) -> Option<Element<Message>> {
+    fn group_module_wrapper(
+        &self,
+        group: &[ModuleName],
+        id: Id,
+        opacity: f32,
+    ) -> Option<Element<Message>> {
         let modules = group
             .iter()
-            .filter_map(|module| self.get_module_view(*module, id))
+            .filter_map(|module| self.get_module_view(*module, id, opacity))
             .collect::<Vec<_>>();
 
         if modules.is_empty() {
@@ -181,6 +196,7 @@ impl App {
         &self,
         module_name: ModuleName,
         id: Id,
+        opacity: f32,
     ) -> Option<(Element<Message>, Option<OnModulePress>)> {
         match module_name {
             ModuleName::AppLauncher => self.app_launcher.view(&self.config.app_launcher_cmd),
@@ -197,7 +213,7 @@ impl App {
             ModuleName::SystemInfo => self.system_info.view(&self.config.system),
             ModuleName::KeyboardLayout => self.keyboard_layout.view(()),
             ModuleName::KeyboardSubmap => self.keyboard_submap.view(()),
-            ModuleName::Tray => self.tray.view(id),
+            ModuleName::Tray => self.tray.view((id, opacity)),
             ModuleName::Clock => self.clock.view(&self.config.clock.format),
             ModuleName::Privacy => self.privacy.view(()),
             ModuleName::Settings => self.settings.view(()),
