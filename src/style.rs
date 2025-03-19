@@ -463,3 +463,18 @@ pub fn text_input_style(theme: &Theme, status: text_input::Status) -> text_input
         }
     }
 }
+
+pub fn backdrop_color(backdrop: f32) -> Color {
+    Color::from_rgba(0.0, 0.0, 0.0, backdrop)
+}
+
+pub fn darken_color(color: [f32; 4]) -> [f32; 4] {
+    let darkening_alpha = 0.5;
+
+    let new_r = color[0] * (1.0 - darkening_alpha);
+    let new_g = color[1] * (1.0 - darkening_alpha);
+    let new_b = color[2] * (1.0 - darkening_alpha);
+    let new_a = color[3] + (1.0 - color[3]) * darkening_alpha;
+
+    [new_r, new_g, new_b, new_a]
+}
