@@ -73,7 +73,7 @@ impl Outputs {
 
         let task = get_layer_surface(SctkLayerSurfaceSettings {
             id,
-            namespace: "ashell".to_string(),
+            namespace: "ashell-main-layer".to_string(),
             size: Some((None, Some(height))),
             layer: Layer::Bottom,
             pointer_interactivity: true,
@@ -93,7 +93,7 @@ impl Outputs {
         let menu_id = Id::unique();
         let menu_task = get_layer_surface(SctkLayerSurfaceSettings {
             id: menu_id,
-            namespace: "ashell".to_string(),
+            namespace: "ashell-main-layer".to_string(),
             size: Some((None, None)),
             layer: Layer::Background,
             pointer_interactivity: true,
@@ -397,6 +397,15 @@ impl Outputs {
         }
 
         Task::batch(tasks)
+    }
+
+    pub fn menu_is_open(&self) -> bool {
+        self.0.iter().any(|(_, shell_info, _)| {
+            shell_info
+                .as_ref()
+                .map(|shell_info| shell_info.menu.menu_info.is_some())
+                .unwrap_or_default()
+        })
     }
 
     pub fn toggle_menu<Message: 'static>(

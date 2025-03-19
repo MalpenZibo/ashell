@@ -24,7 +24,7 @@ use crate::{
     outputs::{HasOutput, Outputs},
     position_button::ButtonUIRef,
     services::{Service, ServiceEvent, brightness::BrightnessCommand, tray::TrayEvent},
-    style::ashell_theme,
+    style::{ashell_theme, backdrop_color, darken_color},
     utils,
 };
 use flexi_logger::LoggerHandle;
@@ -304,39 +304,76 @@ impl App {
                 let centerbox = centerbox::Centerbox::new([left, center, right])
                     .spacing(4)
                     .width(Length::Fill)
-                    .align_items(Alignment::Center);
-
-                match self.config.appearance.style {
-                    AppearanceStyle::Solid | AppearanceStyle::Gradient => container(
-                        centerbox
-                            .padding([0, 4])
-                            .height(Length::Fixed((HEIGHT - 8) as f32)),
+                    .align_items(Alignment::Center)
+                    .height(
+                        if self.config.appearance.style == AppearanceStyle::Islands {
+                            HEIGHT
+                        } else {
+                            HEIGHT - 8
+                        } as f32,
                     )
+                    .padding(
+                        if self.config.appearance.style == AppearanceStyle::Islands {
+                            [4, 4]
+                        } else {
+                            [0, 0]
+                        },
+                    );
+
+                container(centerbox)
                     .style(|t| container::Style {
-                        background: Some(
-                            if self.config.appearance.style == AppearanceStyle::Gradient {
+                        background: match self.config.appearance.style {
+                            AppearanceStyle::Gradient => Some({
+                                let start_color = t.palette().background;
+
                                 Gradient::Linear(
                                     Linear::new(Radians(PI))
-                                        .add_stop(0.5, t.palette().background)
-                                        .add_stop(1.0, Color::TRANSPARENT),
+                                        .add_stop(
+                                            0.5,
+                                            if self.outputs.menu_is_open() {
+                                                Color::from(darken_color(start_color.into_linear()))
+                                            } else {
+                                                start_color
+                                            }
+                                            .scale_alpha(self.config.appearance.opacity),
+                                        )
+                                        .add_stop(
+                                            1.0,
+                                            if self.outputs.menu_is_open() {
+                                                backdrop_color(self.config.appearance.menu_backdrop)
+                                            } else {
+                                                Color::TRANSPARENT
+                                            },
+                                        ),
                                 )
-                                .scale_alpha(self.config.appearance.opacity)
                                 .into()
-                            } else {
-                                t.palette()
+                            }),
+                            AppearanceStyle::Solid => Some({
+                                let bg = t
+                                    .palette()
                                     .background
-                                    .scale_alpha(self.config.appearance.opacity)
-                                    .into()
-                            },
-                        ),
+                                    .scale_alpha(self.config.appearance.opacity);
+                                if self.outputs.menu_is_open() {
+                                    Color::from(darken_color(bg.into_linear()))
+                                } else {
+                                    bg
+                                }
+                                .into()
+                            }),
+                            AppearanceStyle::Islands => {
+                                if self.outputs.menu_is_open() {
+                                    Some(
+                                        backdrop_color(self.config.appearance.menu_backdrop).into(),
+                                    )
+                                } else {
+                                    None
+                                }
+                            }
+                        },
+
                         ..Default::default()
                     })
-                    .into(),
-                    AppearanceStyle::Islands => centerbox
-                        .height(Length::Fixed(HEIGHT as f32))
-                        .padding([4, 4])
-                        .into(),
-                }
+                    .into()
             }
             Some(HasOutput::Menu(menu_info)) => match menu_info {
                 Some((MenuType::Updates, button_ui_ref)) => menu_wrapper(
@@ -349,6 +386,7 @@ impl App {
                     self.config.position,
                     self.config.appearance.style,
                     self.config.appearance.menu_opacity,
+                    self.config.appearance.menu_backdrop,
                 ),
                 Some((MenuType::Tray(name), button_ui_ref)) => menu_wrapper(
                     id,
@@ -360,6 +398,7 @@ impl App {
                     self.config.position,
                     self.config.appearance.style,
                     self.config.appearance.menu_opacity,
+                    self.config.appearance.menu_backdrop,
                 ),
                 Some((MenuType::Settings, button_ui_ref)) => menu_wrapper(
                     id,
@@ -375,6 +414,7 @@ impl App {
                     self.config.position,
                     self.config.appearance.style,
                     self.config.appearance.menu_opacity,
+                    self.config.appearance.menu_backdrop,
                 ),
                 Some((MenuType::MediaPlayer, button_ui_ref)) => menu_wrapper(
                     id,
@@ -389,6 +429,7 @@ impl App {
                     self.config.position,
                     self.config.appearance.style,
                     self.config.appearance.menu_opacity,
+                    self.config.appearance.menu_backdrop,
                 ),
                 None => Row::new().into(),
             },

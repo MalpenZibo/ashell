@@ -212,6 +212,8 @@ pub struct Appearance {
     pub opacity: f32,
     #[serde(default = "default_opacity")]
     pub menu_opacity: f32,
+    #[serde(default)]
+    pub menu_backdrop: f32,
     #[serde(default = "default_background_color")]
     pub background_color: AppearanceColor,
     #[serde(default = "default_primary_color")]
@@ -294,6 +296,7 @@ impl Default for Appearance {
             style: AppearanceStyle::default(),
             opacity: default_opacity(),
             menu_opacity: default_opacity(),
+            menu_backdrop: f32::default(),
             background_color: default_background_color(),
             primary_color: default_primary_color(),
             secondary_color: default_secondary_color(),
