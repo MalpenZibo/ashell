@@ -17,7 +17,12 @@ pub enum Message {
     DialogCancelled(Id),
 }
 
-pub fn view<'a>(id: Id, wifi_ssid: &str, current_password: &str) -> Element<'a, Message> {
+pub fn view<'a>(
+    id: Id,
+    wifi_ssid: &str,
+    current_password: &str,
+    opacity: f32,
+) -> Element<'a, Message> {
     column!(
         row!(
             icon(Icons::WifiLock4).size(32),
@@ -37,7 +42,7 @@ pub fn view<'a>(id: Id, wifi_ssid: &str, current_password: &str) -> Element<'a, 
             horizontal_space(),
             button(text("Cancel").align_y(Vertical::Center))
                 .padding([4, 32])
-                .style(outline_button_style)
+                .style(outline_button_style(opacity))
                 .height(Length::Fixed(50.))
                 .on_press(Message::DialogCancelled(id)),
             button(text("Confirm").align_y(Vertical::Center))

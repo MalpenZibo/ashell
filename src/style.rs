@@ -1,9 +1,6 @@
-use std::f32::consts::PI;
-
-use crate::config::{Appearance, AppearanceColor, AppearanceStyle};
+use crate::config::{Appearance, AppearanceColor};
 use iced::{
-    Background, Border, Color, Gradient, Radians, Theme,
-    gradient::Linear,
+    Background, Border, Color, Theme,
     theme::{Palette, palette},
     widget::{
         button::{self, Status},
@@ -177,24 +174,34 @@ pub fn ghost_button_style(opacity: f32) -> impl Fn(&Theme, Status) -> button::St
     }
 }
 
-pub fn outline_button_style(theme: &Theme, status: Status) -> button::Style {
-    let mut base = button::Style {
-        background: None,
-        border: Border {
-            width: 2.0,
-            radius: 32.into(),
-            color: theme.extended_palette().background.weak.color,
-        },
-        text_color: theme.palette().text,
-        ..button::Style::default()
-    };
-    match status {
-        Status::Active => base,
-        Status::Hovered => {
-            base.background = Some(theme.extended_palette().background.weak.color.into());
-            base
+pub fn outline_button_style(opacity: f32) -> impl Fn(&Theme, Status) -> button::Style {
+    move |theme, status| {
+        let mut base = button::Style {
+            background: None,
+            border: Border {
+                width: 2.0,
+                radius: 32.into(),
+                color: theme.extended_palette().background.weak.color,
+            },
+            text_color: theme.palette().text,
+            ..button::Style::default()
+        };
+        match status {
+            Status::Active => base,
+            Status::Hovered => {
+                base.background = Some(
+                    theme
+                        .extended_palette()
+                        .background
+                        .weak
+                        .color
+                        .scale_alpha(opacity)
+                        .into(),
+                );
+                base
+            }
+            _ => base,
         }
-        _ => base,
     }
 }
 
@@ -219,24 +226,42 @@ pub fn confirm_button_style(theme: &Theme, status: Status) -> button::Style {
     }
 }
 
-pub fn settings_button_style(theme: &Theme, status: Status) -> button::Style {
-    let mut base = button::Style {
-        background: Some(theme.extended_palette().background.weak.color.into()),
-        border: Border {
-            width: 0.0,
-            radius: 32.0.into(),
-            color: Color::TRANSPARENT,
-        },
-        text_color: theme.palette().text,
-        ..button::Style::default()
-    };
-    match status {
-        Status::Active => base,
-        Status::Hovered => {
-            base.background = Some(theme.extended_palette().background.strong.color.into());
-            base
+pub fn settings_button_style(opacity: f32) -> impl Fn(&Theme, Status) -> button::Style {
+    move |theme, status| {
+        let mut base = button::Style {
+            background: Some(
+                theme
+                    .extended_palette()
+                    .background
+                    .weak
+                    .color
+                    .scale_alpha(opacity)
+                    .into(),
+            ),
+            border: Border {
+                width: 0.0,
+                radius: 32.0.into(),
+                color: Color::TRANSPARENT,
+            },
+            text_color: theme.palette().text,
+            ..button::Style::default()
+        };
+        match status {
+            Status::Active => base,
+            Status::Hovered => {
+                base.background = Some(
+                    theme
+                        .extended_palette()
+                        .background
+                        .strong
+                        .color
+                        .scale_alpha(opacity)
+                        .into(),
+                );
+                base
+            }
+            _ => base,
         }
-        _ => base,
     }
 }
 
@@ -326,14 +351,21 @@ pub fn workspace_button_style(
     }
 }
 
-pub fn quick_settings_button_style(is_active: bool) -> impl Fn(&Theme, Status) -> button::Style {
+pub fn quick_settings_button_style(
+    is_active: bool,
+    opacity: f32,
+) -> impl Fn(&Theme, Status) -> button::Style {
     move |theme: &Theme, status: Status| {
         let mut base = button::Style {
-            background: Some(if is_active {
-                theme.palette().primary.into()
-            } else {
-                theme.extended_palette().background.weak.color.into()
-            }),
+            background: Some(
+                if is_active {
+                    theme.palette().primary
+                } else {
+                    theme.extended_palette().background.weak.color
+                }
+                .scale_alpha(opacity)
+                .into(),
+            ),
             border: Border {
                 width: 0.0,
                 radius: 32.0.into(),
@@ -356,6 +388,7 @@ pub fn quick_settings_button_style(is_active: bool) -> impl Fn(&Theme, Status) -
                     } else {
                         theme.extended_palette().background.strong.color
                     }
+                    .scale_alpha(opacity)
                     .into(),
                 );
                 base
@@ -367,6 +400,7 @@ pub fn quick_settings_button_style(is_active: bool) -> impl Fn(&Theme, Status) -
 
 pub fn quick_settings_submenu_button_style(
     is_active: bool,
+    opacity: f32,
 ) -> impl Fn(&Theme, Status) -> button::Style {
     move |theme: &Theme, status: Status| {
         let mut base = button::Style {
@@ -386,7 +420,15 @@ pub fn quick_settings_submenu_button_style(
         match status {
             Status::Active => base,
             Status::Hovered => {
-                base.background = Some(theme.extended_palette().background.weak.color.into());
+                base.background = Some(
+                    theme
+                        .extended_palette()
+                        .background
+                        .weak
+                        .color
+                        .scale_alpha(opacity)
+                        .into(),
+                );
                 base.text_color = theme.palette().text;
                 base
             }

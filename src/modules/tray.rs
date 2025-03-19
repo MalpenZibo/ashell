@@ -69,22 +69,25 @@ impl TrayModule {
         }
     }
 
-    pub fn menu_view(&self, name: &'_ str) -> Element<TrayMessage> {
+    pub fn menu_view(&self, name: &'_ str, opacity: f32) -> Element<TrayMessage> {
         match self
             .service
             .as_ref()
             .and_then(|service| service.data.iter().find(|item| item.name == name))
         {
-            Some(item) => {
-                Column::with_children(item.menu.2.iter().map(|menu| self.menu_voice(name, menu)))
-                    .spacing(8)
-                    .into()
-            }
+            Some(item) => Column::with_children(
+                item.menu
+                    .2
+                    .iter()
+                    .map(|menu| self.menu_voice(name, menu, opacity)),
+            )
+            .spacing(8)
+            .into(),
             _ => Row::new().into(),
         }
     }
 
-    fn menu_voice(&self, name: &str, layout: &Layout) -> Element<TrayMessage> {
+    fn menu_voice(&self, name: &str, layout: &Layout, opacity: f32) -> Element<TrayMessage> {
         match &layout.1 {
             LayoutProps {
                 label: Some(label),
@@ -117,7 +120,7 @@ impl TrayModule {
                                 Icons::MenuClosed
                             })
                         ))
-                        .style(ghost_button_style)
+                        .style(ghost_button_style(opacity))
                         .padding([8, 8])
                         .on_press(TrayMessage::ToggleSubmenu(layout.0))
                         .width(Length::Fill),
@@ -128,7 +131,7 @@ impl TrayModule {
                                 layout
                                     .2
                                     .iter()
-                                    .map(|menu| self.menu_voice(name, menu))
+                                    .map(|menu| self.menu_voice(name, menu, opacity))
                                     .collect::<Vec<_>>(),
                             )
                             .padding([0, 0, 0, 16])
@@ -142,7 +145,7 @@ impl TrayModule {
             LayoutProps {
                 label: Some(label), ..
             } => button(text(label.replace("_", "")))
-                .style(ghost_button_style)
+                .style(ghost_button_style(opacity))
                 .on_press(TrayMessage::MenuSelected(name.to_owned(), layout.0))
                 .width(Length::Fill)
                 .padding([8, 8])
@@ -154,12 +157,12 @@ impl TrayModule {
 }
 
 impl Module for TrayModule {
-    type ViewData<'a> = Id;
+    type ViewData<'a> = (Id, f32);
     type SubscriptionData<'a> = ();
 
     fn view(
         &self,
-        id: Self::ViewData<'_>,
+        (id, opacity): Self::ViewData<'_>,
     ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         self.service
             .as_ref()
@@ -185,7 +188,7 @@ impl Module for TrayModule {
                                     )
                                 })
                                 .padding([2, 2])
-                                .style(ghost_button_style)
+                                .style(ghost_button_style(opacity))
                                 .into()
                             })
                             .collect::<Vec<_>>(),

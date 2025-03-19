@@ -54,7 +54,7 @@ impl MediaPlayer {
         }
     }
 
-    pub fn menu_view(&self, config: &MediaPlayerModuleConfig) -> Element<Message> {
+    pub fn menu_view(&self, config: &MediaPlayerModuleConfig, opacity: f32) -> Element<Message> {
         match &self.service {
             None => text("Not connected to MPRIS service").into(),
             Some(s) => column(
@@ -66,14 +66,14 @@ impl MediaPlayer {
                             button(icon(Icons::SkipPrevious))
                                 .on_press(Message::Prev(d.service.clone()))
                                 .padding([5, 12])
-                                .style(settings_button_style),
+                                .style(settings_button_style(opacity)),
                             button(icon(Icons::PlayPause))
                                 .on_press(Message::PlayPause(d.service.clone()))
-                                .style(settings_button_style),
+                                .style(settings_button_style(opacity)),
                             button(icon(Icons::SkipNext))
                                 .on_press(Message::Next(d.service.clone()))
                                 .padding([5, 12])
-                                .style(settings_button_style),
+                                .style(settings_button_style(opacity)),
                         ]
                         .spacing(8);
                         let volume_slider = d.volume.map(|v| {

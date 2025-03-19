@@ -1,4 +1,4 @@
-use super::{Message, SubMenu, quick_setting_button, sub_menu_wrapper};
+use super::{Message, SubMenu, quick_setting_button};
 use crate::{
     components::icons::{Icons, icon},
     services::{
@@ -26,6 +26,7 @@ impl BluetoothData {
         id: Id,
         sub_menu: Option<SubMenu>,
         show_more_button: bool,
+        opacity: f32,
     ) -> Option<(Element<Message>, Option<Element<Message>>)> {
         Some((
             quick_setting_button(
@@ -40,14 +41,15 @@ impl BluetoothData {
                     Message::ToggleSubMenu(SubMenu::Bluetooth),
                 ))
                 .filter(|_| self.state == BluetoothState::Active),
+                opacity,
             ),
             sub_menu
                 .filter(|menu_type| *menu_type == SubMenu::Bluetooth)
-                .map(|_| sub_menu_wrapper(self.bluetooth_menu(id, show_more_button))),
+                .map(|_| self.bluetooth_menu(id, show_more_button, opacity)),
         ))
     }
 
-    pub fn bluetooth_menu(&self, id: Id, show_more_button: bool) -> Element<Message> {
+    pub fn bluetooth_menu(&self, id: Id, show_more_button: bool, opacity: f32) -> Element<Message> {
         let main = if self.devices.is_empty() {
             text("No devices connected").into()
         } else {
@@ -74,7 +76,7 @@ impl BluetoothData {
                     .on_press(Message::Bluetooth(BluetoothMessage::More(id)))
                     .padding([4, 12])
                     .width(Length::Fill)
-                    .style(ghost_button_style)
+                    .style(ghost_button_style(opacity))
             )
             .spacing(12)
             .into()
