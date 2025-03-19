@@ -192,12 +192,22 @@ impl AppearanceColor {
     }
 }
 
+#[derive(Deserialize, Default, Copy, Clone, Eq, PartialEq, Debug)]
+#[serde(rename_all = "camelCase")]
+pub enum AppearanceStyle {
+    #[default]
+    Islands,
+    Solid,
+    Gradient,
+}
+
 #[derive(Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Appearance {
     #[serde(default)]
     pub font_name: Option<String>,
-    pub solid_style: bool,
+    #[serde(default)]
+    pub style: AppearanceStyle,
     #[serde(default = "default_opacity")]
     pub opacity: f32,
     #[serde(default = "default_background_color")]
@@ -279,8 +289,8 @@ impl Default for Appearance {
     fn default() -> Self {
         Self {
             font_name: None,
-            solid_style: false,
-            opacity: 1.,
+            style: AppearanceStyle::default(),
+            opacity: default_opacity(),
             background_color: default_background_color(),
             primary_color: default_primary_color(),
             secondary_color: default_secondary_color(),

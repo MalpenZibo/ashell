@@ -1,6 +1,8 @@
+use std::f32::consts::PI;
+
 use crate::{
     HEIGHT, centerbox,
-    config::{self, Config},
+    config::{self, AppearanceStyle, Config},
     get_log_spec,
     menu::{MenuSize, MenuType, menu_wrapper},
     modules::{
@@ -27,12 +29,13 @@ use crate::{
 };
 use flexi_logger::LoggerHandle;
 use iced::{
-    Alignment, Color, Element, Length, Subscription, Task, Theme,
+    Alignment, Color, Element, Gradient, Length, Radians, Subscription, Task, Theme,
     daemon::Appearance,
     event::{
         listen_with,
         wayland::{Event as WaylandEvent, OutputEvent},
     },
+    gradient::Linear,
     widget::{Row, container},
     window::Id,
 };
@@ -83,7 +86,7 @@ pub enum Message {
 impl App {
     pub fn new((logger, config): (LoggerHandle, Config)) -> impl FnOnce() -> (Self, Task<Message>) {
         || {
-            let (outputs, task) = Outputs::new(config.appearance.solid_style, config.position);
+            let (outputs, task) = Outputs::new(config.appearance.style, config.position);
             let enable_workspace_filling = config.workspaces.enable_workspace_filling;
             (
                 App {
@@ -137,11 +140,11 @@ impl App {
                 );
                 if self.config.outputs != config.outputs
                     || self.config.position != config.position
-                    || self.config.appearance.solid_style != config.appearance.solid_style
+                    || self.config.appearance.style != config.appearance.style
                 {
                     warn!("Outputs changed, syncing");
                     tasks.push(self.outputs.sync(
-                        config.appearance.solid_style,
+                        config.appearance.style,
                         &config.outputs,
                         config.position,
                     ));
@@ -258,7 +261,7 @@ impl App {
                         .unwrap_or("");
 
                     self.outputs.add(
-                        self.config.appearance.solid_style,
+                        self.config.appearance.style,
                         &self.config.outputs,
                         self.config.position,
                         name,
@@ -268,7 +271,7 @@ impl App {
                 iced::event::wayland::OutputEvent::Removed => {
                     info!("Output destroyed");
                     self.outputs.remove(
-                        self.config.appearance.solid_style,
+                        self.config.appearance.style,
                         self.config.position,
                         wl_output,
                     )
@@ -291,27 +294,36 @@ impl App {
                     .width(Length::Fill)
                     .align_items(Alignment::Center);
 
-                if self.config.appearance.solid_style {
-                    container(
+                match self.config.appearance.style {
+                    AppearanceStyle::Solid | AppearanceStyle::Gradient => container(
                         centerbox
                             .padding([0, 4])
                             .height(Length::Fixed((HEIGHT - 8) as f32)),
                     )
                     .style(|t| container::Style {
                         background: Some(
-                            t.palette()
-                                .background
+                            if self.config.appearance.style == AppearanceStyle::Gradient {
+                                Gradient::Linear(
+                                    Linear::new(Radians(PI))
+                                        .add_stop(0.5, t.palette().background)
+                                        .add_stop(1.0, Color::TRANSPARENT),
+                                )
                                 .scale_alpha(self.config.appearance.opacity)
-                                .into(),
+                                .into()
+                            } else {
+                                t.palette()
+                                    .background
+                                    .scale_alpha(self.config.appearance.opacity)
+                                    .into()
+                            },
                         ),
                         ..Default::default()
                     })
-                    .into()
-                } else {
-                    centerbox
+                    .into(),
+                    AppearanceStyle::Islands => centerbox
                         .height(Length::Fixed(HEIGHT as f32))
                         .padding([4, 4])
-                        .into()
+                        .into(),
                 }
             }
             Some(HasOutput::Menu(menu_info)) => match menu_info {
@@ -321,7 +333,7 @@ impl App {
                     MenuSize::Normal,
                     *button_ui_ref,
                     self.config.position,
-                    self.config.appearance.solid_style,
+                    self.config.appearance.style,
                     self.config.appearance.opacity,
                 ),
                 Some((MenuType::Tray(name), button_ui_ref)) => menu_wrapper(
@@ -330,7 +342,7 @@ impl App {
                     MenuSize::Normal,
                     *button_ui_ref,
                     self.config.position,
-                    self.config.appearance.solid_style,
+                    self.config.appearance.style,
                     self.config.appearance.opacity,
                 ),
                 Some((MenuType::Settings, button_ui_ref)) => menu_wrapper(
@@ -341,7 +353,7 @@ impl App {
                     MenuSize::Large,
                     *button_ui_ref,
                     self.config.position,
-                    self.config.appearance.solid_style,
+                    self.config.appearance.style,
                     self.config.appearance.opacity,
                 ),
                 Some((MenuType::MediaPlayer, button_ui_ref)) => menu_wrapper(
@@ -352,7 +364,7 @@ impl App {
                     MenuSize::Large,
                     *button_ui_ref,
                     self.config.position,
-                    self.config.appearance.solid_style,
+                    self.config.appearance.style,
                     self.config.appearance.opacity,
                 ),
                 None => Row::new().into(),

@@ -1,5 +1,5 @@
 use crate::app::{self};
-use crate::config::Position;
+use crate::config::{AppearanceStyle, Position};
 use crate::position_button::ButtonUIRef;
 use iced::alignment::{Horizontal, Vertical};
 use iced::platform_specific::shell::commands::layer_surface::{
@@ -116,7 +116,7 @@ pub fn menu_wrapper(
     menu_size: MenuSize,
     button_ui_ref: ButtonUIRef,
     bar_position: Position,
-    solid_style: bool,
+    style: AppearanceStyle,
     opacity: f32,
 ) -> Element<app::Message> {
     let wrapper = mouse_area(
@@ -162,9 +162,10 @@ pub fn menu_wrapper(
     )
     .on_release(app::Message::CloseMenu(id));
 
-    if solid_style {
-        container(wrapper).padding([2, 0, 0, 0]).into()
-    } else {
-        wrapper.into()
+    match style {
+        AppearanceStyle::Solid | AppearanceStyle::Gradient => {
+            container(wrapper).padding([2, 0, 0, 0]).into()
+        }
+        AppearanceStyle::Islands => wrapper.into(),
     }
 }

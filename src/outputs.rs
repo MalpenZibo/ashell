@@ -12,7 +12,7 @@ use wayland_client::protocol::wl_output::WlOutput;
 
 use crate::{
     HEIGHT,
-    config::{self, Position},
+    config::{self, AppearanceStyle, Position},
     menu::{Menu, MenuType},
     position_button::ButtonUIRef,
 };
@@ -21,7 +21,7 @@ use crate::{
 struct ShellInfo {
     id: Id,
     position: Position,
-    solid_style: bool,
+    style: AppearanceStyle,
     menu: Menu,
 }
 
@@ -34,8 +34,11 @@ pub enum HasOutput<'a> {
 }
 
 impl Outputs {
-    pub fn new<Message: 'static>(solid_style: bool, position: Position) -> (Self, Task<Message>) {
-        let (id, menu_id, task) = Self::create_output_layers(solid_style, None, position);
+    pub fn new<Message: 'static>(
+        style: AppearanceStyle,
+        position: Position,
+    ) -> (Self, Task<Message>) {
+        let (id, menu_id, task) = Self::create_output_layers(style, None, position);
 
         (
             Self(vec![(
@@ -44,7 +47,7 @@ impl Outputs {
                     id,
                     menu: Menu::new(menu_id),
                     position,
-                    solid_style,
+                    style,
                 }),
                 None,
             )]),
@@ -52,17 +55,21 @@ impl Outputs {
         )
     }
 
-    fn get_height(solid_style: bool) -> u32 {
-        HEIGHT - if solid_style { 8 } else { 0 }
+    fn get_height(style: AppearanceStyle) -> u32 {
+        HEIGHT
+            - match style {
+                AppearanceStyle::Solid | AppearanceStyle::Gradient => 8,
+                AppearanceStyle::Islands => 0,
+            }
     }
 
     fn create_output_layers<Message: 'static>(
-        solid_style: bool,
+        style: AppearanceStyle,
         wl_output: Option<WlOutput>,
         position: Position,
     ) -> (Id, Id, Task<Message>) {
         let id = Id::unique();
-        let height = Self::get_height(solid_style);
+        let height = Self::get_height(style);
 
         let task = get_layer_surface(SctkLayerSurfaceSettings {
             id,
@@ -149,7 +156,7 @@ impl Outputs {
 
     pub fn add<Message: 'static>(
         &mut self,
-        solid_style: bool,
+        style: AppearanceStyle,
         request_outputs: &config::Outputs,
         position: Position,
         name: &str,
@@ -161,7 +168,7 @@ impl Outputs {
             debug!("Found target output, creating a new layer surface");
 
             let (id, menu_id, task) =
-                Self::create_output_layers(solid_style, Some(wl_output.clone()), position);
+                Self::create_output_layers(style, Some(wl_output.clone()), position);
 
             let destroy_task = match self
                 .0
@@ -190,7 +197,7 @@ impl Outputs {
                     id,
                     menu: Menu::new(menu_id),
                     position,
-                    solid_style,
+                    style,
                 }),
                 Some(wl_output),
             ));
@@ -227,7 +234,7 @@ impl Outputs {
 
     pub fn remove<Message: 'static>(
         &mut self,
-        solid_style: bool,
+        style: AppearanceStyle,
         position: Position,
         wl_output: WlOutput,
     ) -> Task<Message> {
@@ -256,8 +263,7 @@ impl Outputs {
                 if !self.0.iter().any(|(_, shell_info, _)| shell_info.is_some()) {
                     debug!("No outputs left, creating a fallback layer surface");
 
-                    let (id, menu_id, task) =
-                        Self::create_output_layers(solid_style, None, position);
+                    let (id, menu_id, task) = Self::create_output_layers(style, None, position);
 
                     self.0.push((
                         None,
@@ -265,7 +271,7 @@ impl Outputs {
                             id,
                             menu: Menu::new(menu_id),
                             position,
-                            solid_style,
+                            style,
                         }),
                         None,
                     ));
@@ -281,7 +287,7 @@ impl Outputs {
 
     pub fn sync<Message: 'static>(
         &mut self,
-        solid_style: bool,
+        style: AppearanceStyle,
         request_outputs: &config::Outputs,
         position: Position,
     ) -> Task<Message> {
@@ -327,7 +333,7 @@ impl Outputs {
             if let Some(wl_output) = wl_output {
                 if let Some(name) = name {
                     tasks.push(self.add(
-                        solid_style,
+                        style,
                         request_outputs,
                         position,
                         name.as_str(),
@@ -338,7 +344,7 @@ impl Outputs {
         }
 
         for wl_output in to_remove {
-            tasks.push(self.remove(solid_style, position, wl_output));
+            tasks.push(self.remove(style, position, wl_output));
         }
 
         for shell_info in self.0.iter_mut().filter_map(|(_, shell_info, _)| {
@@ -369,7 +375,7 @@ impl Outputs {
 
         for shell_info in self.0.iter_mut().filter_map(|(_, shell_info, _)| {
             if let Some(shell_info) = shell_info {
-                if shell_info.solid_style != solid_style {
+                if shell_info.style != style {
                     Some(shell_info)
                 } else {
                     None
@@ -380,10 +386,10 @@ impl Outputs {
         }) {
             debug!(
                 "Change style for output: {:?}, new style {:?}",
-                shell_info.id, solid_style
+                shell_info.id, style
             );
-            shell_info.solid_style = solid_style;
-            let height = Self::get_height(solid_style);
+            shell_info.style = style;
+            let height = Self::get_height(style);
             tasks.push(Task::batch(vec![
                 set_size(shell_info.id, None, Some(height)),
                 set_exclusive_zone(shell_info.id, height as i32),

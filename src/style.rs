@@ -1,6 +1,9 @@
-use crate::config::{Appearance, AppearanceColor};
+use std::f32::consts::PI;
+
+use crate::config::{Appearance, AppearanceColor, AppearanceStyle};
 use iced::{
-    Background, Border, Color, Theme,
+    Background, Border, Color, Gradient, Radians, Theme,
+    gradient::Linear,
     theme::{Palette, palette},
     widget::{
         button::{self, Status},
@@ -112,45 +115,65 @@ pub fn ashell_theme(appearance: &Appearance) -> Theme {
     )
 }
 
-pub fn module_button_style(theme: &Theme, status: Status) -> button::Style {
-    let mut base = button::Style {
-        background: None,
-        border: Border {
-            width: 0.0,
-            radius: 12.0.into(),
-            color: Color::TRANSPARENT,
-        },
-        text_color: theme.palette().text,
-        ..button::Style::default()
-    };
-    match status {
-        Status::Active => base,
-        Status::Hovered => {
-            base.background = Some(theme.extended_palette().background.weak.color.into());
-            base
+pub fn module_button_style(opacity: f32) -> impl Fn(&Theme, Status) -> button::Style {
+    move |theme, status| {
+        let mut base = button::Style {
+            background: None,
+            border: Border {
+                width: 0.0,
+                radius: 12.0.into(),
+                color: Color::TRANSPARENT,
+            },
+            text_color: theme.palette().text,
+            ..button::Style::default()
+        };
+        match status {
+            Status::Active => base,
+            Status::Hovered => {
+                base.background = Some(
+                    theme
+                        .extended_palette()
+                        .background
+                        .weak
+                        .color
+                        .scale_alpha(opacity)
+                        .into(),
+                );
+                base
+            }
+            _ => base,
         }
-        _ => base,
     }
 }
 
-pub fn ghost_button_style(theme: &Theme, status: Status) -> button::Style {
-    let mut base = button::Style {
-        background: None,
-        border: Border {
-            width: 0.0,
-            radius: 4.0.into(),
-            color: Color::TRANSPARENT,
-        },
-        text_color: theme.palette().text,
-        ..button::Style::default()
-    };
-    match status {
-        Status::Active => base,
-        Status::Hovered => {
-            base.background = Some(theme.extended_palette().background.weak.color.into());
-            base
+pub fn ghost_button_style(opacity: f32) -> impl Fn(&Theme, Status) -> button::Style {
+    move |theme, status| {
+        let mut base = button::Style {
+            background: None,
+            border: Border {
+                width: 0.0,
+                radius: 4.0.into(),
+                color: Color::TRANSPARENT,
+            },
+            text_color: theme.palette().text,
+            ..button::Style::default()
+        };
+        match status {
+            Status::Active => base,
+            Status::Hovered => {
+                base.background = Some(
+                    theme
+                        .extended_palette()
+                        .background
+                        .weak
+                        .color
+                        .scale_alpha(opacity)
+                        .into(),
+                );
+                base
+            }
+            _ => base,
         }
-        _ => base,
     }
 }
 
