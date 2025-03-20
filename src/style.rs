@@ -468,13 +468,11 @@ pub fn backdrop_color(backdrop: f32) -> Color {
     Color::from_rgba(0.0, 0.0, 0.0, backdrop)
 }
 
-pub fn darken_color(color: [f32; 4]) -> [f32; 4] {
-    let darkening_alpha = 0.5;
+pub fn darken_color(color: Color, darkening_alpha: f32) -> Color {
+    let new_r = color.r * (1.0 - darkening_alpha);
+    let new_g = color.g * (1.0 - darkening_alpha);
+    let new_b = color.b * (1.0 - darkening_alpha);
+    let new_a = color.a + (1.0 - color.a) * darkening_alpha;
 
-    let new_r = color[0] * (1.0 - darkening_alpha);
-    let new_g = color[1] * (1.0 - darkening_alpha);
-    let new_b = color[2] * (1.0 - darkening_alpha);
-    let new_a = color[3] + (1.0 - color[3]) * darkening_alpha;
-
-    [new_r, new_g, new_b, new_a]
+    Color::from([new_r, new_g, new_b, new_a])
 }

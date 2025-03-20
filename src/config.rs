@@ -203,6 +203,24 @@ pub enum AppearanceStyle {
 
 #[derive(Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
+pub struct MenuAppearance {
+    #[serde(default = "default_opacity")]
+    pub opacity: f32,
+    #[serde(default)]
+    pub backdrop: f32,
+}
+
+impl Default for MenuAppearance {
+    fn default() -> Self {
+        Self {
+            opacity: default_opacity(),
+            backdrop: f32::default(),
+        }
+    }
+}
+
+#[derive(Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct Appearance {
     #[serde(default)]
     pub font_name: Option<String>,
@@ -210,10 +228,8 @@ pub struct Appearance {
     pub style: AppearanceStyle,
     #[serde(default = "default_opacity")]
     pub opacity: f32,
-    #[serde(default = "default_opacity")]
-    pub menu_opacity: f32,
     #[serde(default)]
-    pub menu_backdrop: f32,
+    pub menu: MenuAppearance,
     #[serde(default = "default_background_color")]
     pub background_color: AppearanceColor,
     #[serde(default = "default_primary_color")]
@@ -295,8 +311,7 @@ impl Default for Appearance {
             font_name: None,
             style: AppearanceStyle::default(),
             opacity: default_opacity(),
-            menu_opacity: default_opacity(),
-            menu_backdrop: f32::default(),
+            menu: MenuAppearance::default(),
             background_color: default_background_color(),
             primary_color: default_primary_color(),
             secondary_color: default_secondary_color(),

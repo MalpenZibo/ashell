@@ -324,23 +324,28 @@ impl App {
                     .style(|t| container::Style {
                         background: match self.config.appearance.style {
                             AppearanceStyle::Gradient => Some({
-                                let start_color = t.palette().background;
+                                let start_color = t
+                                    .palette()
+                                    .background
+                                    .scale_alpha(self.config.appearance.opacity);
 
                                 Gradient::Linear(
                                     Linear::new(Radians(PI))
                                         .add_stop(
-                                            0.5,
+                                            0.0,
                                             if self.outputs.menu_is_open() {
-                                                Color::from(darken_color(start_color.into_linear()))
+                                                darken_color(
+                                                    start_color,
+                                                    self.config.appearance.menu.backdrop,
+                                                )
                                             } else {
                                                 start_color
-                                            }
-                                            .scale_alpha(self.config.appearance.opacity),
+                                            },
                                         )
                                         .add_stop(
                                             1.0,
                                             if self.outputs.menu_is_open() {
-                                                backdrop_color(self.config.appearance.menu_backdrop)
+                                                backdrop_color(self.config.appearance.menu.backdrop)
                                             } else {
                                                 Color::TRANSPARENT
                                             },
@@ -354,7 +359,7 @@ impl App {
                                     .background
                                     .scale_alpha(self.config.appearance.opacity);
                                 if self.outputs.menu_is_open() {
-                                    Color::from(darken_color(bg.into_linear()))
+                                    darken_color(bg, self.config.appearance.menu.backdrop)
                                 } else {
                                     bg
                                 }
@@ -363,14 +368,13 @@ impl App {
                             AppearanceStyle::Islands => {
                                 if self.outputs.menu_is_open() {
                                     Some(
-                                        backdrop_color(self.config.appearance.menu_backdrop).into(),
+                                        backdrop_color(self.config.appearance.menu.backdrop).into(),
                                     )
                                 } else {
                                     None
                                 }
                             }
                         },
-
                         ..Default::default()
                     })
                     .into()
@@ -379,26 +383,26 @@ impl App {
                 Some((MenuType::Updates, button_ui_ref)) => menu_wrapper(
                     id,
                     self.updates
-                        .menu_view(id, self.config.appearance.menu_opacity)
+                        .menu_view(id, self.config.appearance.menu.opacity)
                         .map(Message::Updates),
                     MenuSize::Normal,
                     *button_ui_ref,
                     self.config.position,
                     self.config.appearance.style,
-                    self.config.appearance.menu_opacity,
-                    self.config.appearance.menu_backdrop,
+                    self.config.appearance.menu.opacity,
+                    self.config.appearance.menu.backdrop,
                 ),
                 Some((MenuType::Tray(name), button_ui_ref)) => menu_wrapper(
                     id,
                     self.tray
-                        .menu_view(name, self.config.appearance.menu_opacity)
+                        .menu_view(name, self.config.appearance.menu.opacity)
                         .map(Message::Tray),
                     MenuSize::Normal,
                     *button_ui_ref,
                     self.config.position,
                     self.config.appearance.style,
-                    self.config.appearance.menu_opacity,
-                    self.config.appearance.menu_backdrop,
+                    self.config.appearance.menu.opacity,
+                    self.config.appearance.menu.backdrop,
                 ),
                 Some((MenuType::Settings, button_ui_ref)) => menu_wrapper(
                     id,
@@ -406,30 +410,30 @@ impl App {
                         .menu_view(
                             id,
                             &self.config.settings,
-                            self.config.appearance.menu_opacity,
+                            self.config.appearance.menu.opacity,
                         )
                         .map(Message::Settings),
                     MenuSize::Large,
                     *button_ui_ref,
                     self.config.position,
                     self.config.appearance.style,
-                    self.config.appearance.menu_opacity,
-                    self.config.appearance.menu_backdrop,
+                    self.config.appearance.menu.opacity,
+                    self.config.appearance.menu.backdrop,
                 ),
                 Some((MenuType::MediaPlayer, button_ui_ref)) => menu_wrapper(
                     id,
                     self.media_player
                         .menu_view(
                             &self.config.media_player,
-                            self.config.appearance.menu_opacity,
+                            self.config.appearance.menu.opacity,
                         )
                         .map(Message::MediaPlayer),
                     MenuSize::Large,
                     *button_ui_ref,
                     self.config.position,
                     self.config.appearance.style,
-                    self.config.appearance.menu_opacity,
-                    self.config.appearance.menu_backdrop,
+                    self.config.appearance.menu.opacity,
+                    self.config.appearance.menu.backdrop,
                 ),
                 None => Row::new().into(),
             },
