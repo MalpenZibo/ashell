@@ -1,16 +1,16 @@
 use super::{ReadOnlyService, ServiceEvent};
 use iced::{
+    Subscription,
     futures::{
-        channel::mpsc::Sender, select, stream::pending, FutureExt, SinkExt, Stream, StreamExt,
+        FutureExt, SinkExt, Stream, StreamExt, channel::mpsc::Sender, select, stream::pending,
     },
     stream::channel,
-    Subscription,
 };
 use inotify::{EventMask, Inotify, WatchMask};
 use log::{debug, error, info, warn};
 use pipewire::{context::Context, main_loop::MainLoop};
 use std::{any::TypeId, fs, ops::Deref, path::Path, thread};
-use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver};
+use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 
 const WEBCAM_DEVICE_PATH: &str = "/dev/video0";
 
@@ -136,21 +136,18 @@ impl PrivacyService {
         Ok(Box::new(
             inotify
                 .into_event_stream(buffer)?
-                .filter_map({
-                    move |event| async move {
-                        if let Ok(event) = event {
-                            debug!("Webcam event: {:?}", event);
-                            match event.mask {
-                                EventMask::OPEN => Some(PrivacyEvent::WebcamOpen),
-                                EventMask::CLOSE_WRITE | EventMask::CLOSE_NOWRITE => {
-                                    Some(PrivacyEvent::WebcamClose)
-                                }
-                                _ => None,
+                .filter_map(async move |event| match event {
+                    Ok(event) => {
+                        debug!("Webcam event: {:?}", event);
+                        match event.mask {
+                            EventMask::OPEN => Some(PrivacyEvent::WebcamOpen),
+                            EventMask::CLOSE_WRITE | EventMask::CLOSE_NOWRITE => {
+                                Some(PrivacyEvent::WebcamClose)
                             }
-                        } else {
-                            None
+                            _ => None,
                         }
                     }
+                    _ => None,
                 })
                 .boxed(),
         ))
@@ -274,7 +271,7 @@ impl ReadOnlyService for PrivacyService {
 
         Subscription::run_with_id(
             id,
-            channel(100, |mut output| async move {
+            channel(100, async |mut output| {
                 let mut state = State::Init;
 
                 loop {

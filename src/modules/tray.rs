@@ -1,22 +1,22 @@
 use super::{Module, OnModulePress};
 use crate::{
     app,
-    components::icons::{icon, Icons},
+    components::icons::{Icons, icon},
     menu::MenuType,
     position_button::position_button,
     services::{
-        tray::{
-            dbus::{Layout, LayoutProps},
-            TrayCommand, TrayService,
-        },
         ReadOnlyService, Service, ServiceEvent,
+        tray::{
+            TrayCommand, TrayService,
+            dbus::{Layout, LayoutProps},
+        },
     },
     style::GhostButtonStyle,
 };
 use iced::{
-    widget::{button, horizontal_rule, row, text, toggler, Column, Image, Row},
-    window::Id,
     Alignment, Element, Length, Subscription, Task,
+    widget::{Column, Image, Row, button, horizontal_rule, row, text, toggler},
+    window::Id,
 };
 use log::debug;
 
@@ -57,30 +57,30 @@ impl TrayModule {
                 }
                 Task::none()
             }
-            TrayMessage::MenuSelected(name, id) => {
-                if let Some(service) = self.service.as_mut() {
+            TrayMessage::MenuSelected(name, id) => match self.service.as_mut() {
+                Some(service) => {
                     debug!("Tray menu click: {}", id);
                     service
                         .command(TrayCommand::MenuSelected(name, id))
                         .map(|event| crate::app::Message::Tray(TrayMessage::Event(event)))
-                } else {
-                    Task::none()
                 }
-            }
+                _ => Task::none(),
+            },
         }
     }
 
     pub fn menu_view(&self, name: &'_ str) -> Element<TrayMessage> {
-        if let Some(item) = self
+        match self
             .service
             .as_ref()
             .and_then(|service| service.data.iter().find(|item| item.name == name))
         {
-            Column::with_children(item.menu.2.iter().map(|menu| self.menu_voice(name, menu)))
-                .spacing(8)
-                .into()
-        } else {
-            Row::new().into()
+            Some(item) => {
+                Column::with_children(item.menu.2.iter().map(|menu| self.menu_voice(name, menu)))
+                    .spacing(8)
+                    .into()
+            }
+            _ => Row::new().into(),
         }
     }
 
@@ -171,12 +171,11 @@ impl Module for TrayModule {
                             .data
                             .iter()
                             .map(|item| {
-                                position_button(if let Some(pixmap) = &item.icon_pixmap {
-                                    Into::<Element<_>>::into(
+                                position_button(match &item.icon_pixmap {
+                                    Some(pixmap) => Into::<Element<_>>::into(
                                         Image::new(pixmap.clone()).height(Length::Fixed(14.)),
-                                    )
-                                } else {
-                                    icon(Icons::Point).into()
+                                    ),
+                                    _ => icon(Icons::Point).into(),
                                 })
                                 .on_press_with_position(move |button_ui_ref| {
                                     app::Message::ToggleMenu(

@@ -4,9 +4,8 @@ use itertools::Itertools;
 use log::debug;
 use std::{collections::HashMap, ops::Deref};
 use zbus::{
-    proxy,
+    Result, proxy,
     zvariant::{self, ObjectPath, OwnedObjectPath, OwnedValue, Value},
-    Result,
 };
 
 pub struct NetworkDbus<'a>(NetworkManagerProxy<'a>);

@@ -1,12 +1,12 @@
 use hex_color::HexColor;
 use iced::{
+    Color, Subscription,
     futures::{SinkExt, StreamExt},
     stream::channel,
     theme::palette,
-    Color, Subscription,
 };
 use inotify::{EventMask, Inotify, WatchMask};
-use serde::{de::Error, Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, de::Error};
 use std::{any::TypeId, env, fs::File, path::Path, time::Duration};
 use tokio::time::sleep;
 
@@ -425,11 +425,12 @@ pub fn read_config() -> Result<Config, serde_yaml::Error> {
     let file_path = format!("{}{}", home_dir, CONFIG_PATH.replace('~', ""));
     let config_file = File::open(file_path);
 
-    if let Ok(config_file) = config_file {
-        log::info!("Reading config file");
-        serde_yaml::from_reader(config_file)
-    } else {
-        Ok(Config::default())
+    match config_file {
+        Ok(config_file) => {
+            log::info!("Reading config file");
+            serde_yaml::from_reader(config_file)
+        }
+        _ => Ok(Config::default()),
     }
 }
 
@@ -438,7 +439,7 @@ pub fn subscription() -> Subscription<Message> {
 
     Subscription::run_with_id(
         id,
-        channel(100, |mut output| async move {
+        channel(100, async |mut output| {
             let home_dir = env::var("HOME").expect("Could not get HOME environment variable");
             let file_path = format!("{}{}", home_dir, CONFIG_PATH.replace('~', ""));
 

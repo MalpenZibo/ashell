@@ -1,8 +1,8 @@
 use crate::{
-    centerbox,
+    HEIGHT, centerbox,
     config::{self, Config},
     get_log_spec,
-    menu::{menu_wrapper, MenuSize, MenuType},
+    menu::{MenuSize, MenuType, menu_wrapper},
     modules::{
         self,
         app_launcher::AppLauncher,
@@ -12,7 +12,7 @@ use crate::{
         keyboard_submap::KeyboardSubmap,
         media_player::MediaPlayer,
         privacy::Privacy,
-        settings::{brightness::BrightnessMessage, Settings},
+        settings::{Settings, brightness::BrightnessMessage},
         system_info::SystemInfo,
         tray::{TrayMessage, TrayModule},
         updates::Updates,
@@ -21,12 +21,13 @@ use crate::{
     },
     outputs::{HasOutput, Outputs},
     position_button::ButtonUIRef,
-    services::{brightness::BrightnessCommand, tray::TrayEvent, Service, ServiceEvent},
+    services::{Service, ServiceEvent, brightness::BrightnessCommand, tray::TrayEvent},
     style::ashell_theme,
-    utils, HEIGHT,
+    utils,
 };
 use flexi_logger::LoggerHandle;
 use iced::{
+    Alignment, Color, Element, Length, Subscription, Task, Theme,
     daemon::Appearance,
     event::{
         listen_with,
@@ -34,7 +35,6 @@ use iced::{
     },
     widget::Row,
     window::Id,
-    Alignment, Color, Element, Length, Subscription, Task, Theme,
 };
 use log::{debug, info, warn};
 use wayland_client::protocol::wl_output::WlOutput;
@@ -225,13 +225,11 @@ impl App {
                 Task::none()
             }
             Message::Tray(msg) => {
-                let close_tray = if let TrayMessage::Event(ServiceEvent::Update(
-                    TrayEvent::Unregistered(name),
-                )) = &msg
-                {
-                    self.outputs.close_all_menu_if(MenuType::Tray(name.clone()))
-                } else {
-                    Task::none()
+                let close_tray = match &msg {
+                    TrayMessage::Event(ServiceEvent::Update(TrayEvent::Unregistered(name))) => {
+                        self.outputs.close_all_menu_if(MenuType::Tray(name.clone()))
+                    }
+                    _ => Task::none(),
                 };
 
                 Task::batch(vec![self.tray.update(msg), close_tray])
@@ -326,20 +324,14 @@ impl App {
             Subscription::batch(self.modules_subscriptions(&self.config.modules.center)),
             Subscription::batch(self.modules_subscriptions(&self.config.modules.right)),
             config::subscription(),
-            listen_with(|evt, _, _| {
-                if let iced::Event::PlatformSpecific(iced::event::PlatformSpecific::Wayland(evt)) =
-                    evt
-                {
-                    match evt {
-                        WaylandEvent::Output(event, wl_output) => {
-                            debug!("Wayland event: {:?}", event);
-                            Some(Message::OutputEvent((event, wl_output)))
-                        }
-                        _ => None,
-                    }
-                } else {
-                    None
+            listen_with(|evt, _, _| match evt {
+                iced::Event::PlatformSpecific(iced::event::PlatformSpecific::Wayland(
+                    WaylandEvent::Output(event, wl_output),
+                )) => {
+                    debug!("Wayland event: {:?}", event);
+                    Some(Message::OutputEvent((event, wl_output)))
                 }
+                _ => None,
             }),
         ])
     }

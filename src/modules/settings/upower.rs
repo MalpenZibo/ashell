@@ -1,17 +1,17 @@
 use crate::{
-    components::icons::{icon, Icons},
+    components::icons::{Icons, icon},
     services::{
-        upower::{BatteryData, BatteryStatus, PowerProfile, UPowerService},
         ServiceEvent,
+        upower::{BatteryData, BatteryStatus, PowerProfile, UPowerService},
     },
-    utils::{format_duration, IndicatorState},
+    utils::{IndicatorState, format_duration},
 };
 use iced::{
-    widget::{container, row, text, Container},
     Alignment, Background, Border, Element, Theme,
+    widget::{Container, container, row, text},
 };
 
-use super::{quick_setting_button, Message};
+use super::{Message, quick_setting_button};
 
 #[derive(Clone, Debug)]
 pub enum UPowerMessage {

@@ -4,14 +4,15 @@ use dbus::{
     StatusNotifierWatcherProxy,
 };
 use iced::{
+    Subscription, Task,
     futures::{
+        SinkExt, Stream, StreamExt,
         channel::mpsc::Sender,
         stream::{pending, select_all},
-        stream_select, SinkExt, Stream, StreamExt,
+        stream_select,
     },
     stream::channel,
     widget::image::Handle,
-    Subscription, Task,
 };
 use log::{debug, error, info, trace};
 use std::{any::TypeId, ops::Deref};
@@ -134,7 +135,9 @@ impl TrayService {
         Ok(TrayData(status_items))
     }
 
-    async fn events(conn: &zbus::Connection) -> anyhow::Result<impl Stream<Item = TrayEvent>> {
+    async fn events(
+        conn: &zbus::Connection,
+    ) -> anyhow::Result<impl Stream<Item = TrayEvent> + use<>> {
         let watcher = StatusNotifierWatcherProxy::new(conn).await?;
 
         let registered = watcher
@@ -146,13 +149,14 @@ impl TrayService {
                     let conn = conn.clone();
                     async move {
                         debug!("registered {:?}", e);
-                        if let Ok(args) = e.args() {
-                            let item =
-                                StatusNotifierItem::new(&conn, args.service.to_string()).await;
+                        match e.args() {
+                            Ok(args) => {
+                                let item =
+                                    StatusNotifierItem::new(&conn, args.service.to_string()).await;
 
-                            item.map(TrayEvent::Registered).ok()
-                        } else {
-                            None
+                                item.map(TrayEvent::Registered).ok()
+                            }
+                            _ => None,
                         }
                     }
                 }
@@ -164,10 +168,9 @@ impl TrayService {
             .filter_map(|e| async move {
                 debug!("unregistered {:?}", e);
 
-                if let Ok(args) = e.args() {
-                    Some(TrayEvent::Unregistered(args.service.to_string()))
-                } else {
-                    None
+                match e.args() {
+                    Ok(args) => Some(TrayEvent::Unregistered(args.service.to_string())),
+                    _ => None,
                 }
             })
             .boxed();
@@ -343,15 +346,18 @@ impl ReadOnlyService for TrayService {
     fn update(&mut self, event: Self::UpdateEvent) {
         match event {
             TrayEvent::Registered(new_item) => {
-                if let Some(existing_item) = self
+                match self
                     .data
                     .0
                     .iter_mut()
                     .find(|item| item.name == new_item.name)
                 {
-                    *existing_item = new_item;
-                } else {
-                    self.data.0.push(new_item);
+                    Some(existing_item) => {
+                        *existing_item = new_item;
+                    }
+                    _ => {
+                        self.data.0.push(new_item);
+                    }
                 }
             }
             TrayEvent::IconChanged(name, handle) => {
@@ -377,7 +383,7 @@ impl ReadOnlyService for TrayService {
 
         Subscription::run_with_id(
             id,
-            channel(100, |mut output| async move {
+            channel(100, async |mut output| {
                 let mut state = State::Init;
 
                 loop {
@@ -411,15 +417,12 @@ impl Service for TrayService {
                                 TrayService::menu_voice_selected(&proxy, id).await
                             }
                         },
-                        move |new_layout| {
-                            if let Ok(new_layout) = new_layout {
-                                ServiceEvent::Update(TrayEvent::MenuLayoutChanged(
-                                    name_cb.clone(),
-                                    new_layout,
-                                ))
-                            } else {
-                                ServiceEvent::Update(TrayEvent::None)
-                            }
+                        move |new_layout| match new_layout {
+                            Ok(new_layout) => ServiceEvent::Update(TrayEvent::MenuLayoutChanged(
+                                name_cb.clone(),
+                                new_layout,
+                            )),
+                            _ => ServiceEvent::Update(TrayEvent::None),
                         },
                     )
                 } else {

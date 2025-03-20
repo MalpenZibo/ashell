@@ -1,14 +1,14 @@
 use super::{ReadOnlyService, Service, ServiceEvent};
 use dbus::MprisPlayerProxy;
 use iced::{
+    Subscription,
     futures::{
+        SinkExt, Stream, StreamExt,
         channel::mpsc::Sender,
         future::join_all,
-        stream::{pending, SelectAll},
-        SinkExt, Stream, StreamExt,
+        stream::{SelectAll, pending},
     },
     stream::channel,
-    Subscription,
 };
 use log::{debug, error, info};
 use std::{any::TypeId, collections::HashMap, fmt::Display, ops::Deref, sync::Arc};
@@ -117,7 +117,7 @@ impl ReadOnlyService for MprisPlayerService {
 
         Subscription::run_with_id(
             id,
-            channel(10, |mut output| async move {
+            channel(10, async |mut output| {
                 let mut state = State::Init;
 
                 loop {
@@ -185,7 +185,7 @@ impl MprisPlayerService {
         .collect()
     }
 
-    async fn events(conn: &zbus::Connection) -> anyhow::Result<impl Stream<Item = Event>> {
+    async fn events(conn: &zbus::Connection) -> anyhow::Result<impl Stream<Item = Event> + use<>> {
         let dbus = DBusProxy::new(conn).await?;
         let data = Self::initialize_data(conn).await?;
 

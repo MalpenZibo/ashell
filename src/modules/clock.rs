@@ -2,7 +2,7 @@ use crate::app;
 
 use super::{Module, OnModulePress};
 use chrono::{DateTime, Local};
-use iced::{time::every, widget::text, Element, Subscription};
+use iced::{Element, Subscription, time::every, widget::text};
 use std::time::Duration;
 
 pub struct Clock {

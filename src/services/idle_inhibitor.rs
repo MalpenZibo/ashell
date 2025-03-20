@@ -1,12 +1,12 @@
 use log::{debug, info, warn};
 use wayland_client::{
+    Connection, Dispatch, DispatchError, EventQueue, Proxy, QueueHandle,
     protocol::{
         wl_compositor::WlCompositor,
         wl_display::WlDisplay,
         wl_registry::{self, WlRegistry},
         wl_surface::WlSurface,
     },
-    Connection, Dispatch, DispatchError, EventQueue, Proxy, QueueHandle,
 };
 use wayland_protocols::wp::idle_inhibit::zv1::client::{
     zwp_idle_inhibit_manager_v1::ZwpIdleInhibitManagerV1, zwp_idle_inhibitor_v1::ZwpIdleInhibitorV1,
@@ -140,22 +140,25 @@ impl Dispatch<WlRegistry, ()> for IdleInhibitorManagerData {
                     state.idle_manager = Some((proxy.bind(name, version, handle, ()), name));
                 };
             }
-            wl_registry::Event::GlobalRemove { name } => {
-                if let Some((_, compositor_name)) = &state.compositor {
+            wl_registry::Event::GlobalRemove { name } => match &state.compositor {
+                Some((_, compositor_name)) => {
                     if name == *compositor_name {
                         warn!(target: "IdleInhibitor::GlobalRemove", "Compositor was removed!");
 
                         state.compositor = None;
                         state.surface = None;
                     }
-                } else if let Some((_, idle_manager_name)) = &state.idle_manager {
-                    if name == *idle_manager_name {
-                        warn!(target: "IdleInhibitor::GlobalRemove", "IdleInhibitManager was removed!");
+                }
+                _ => {
+                    if let Some((_, idle_manager_name)) = &state.idle_manager {
+                        if name == *idle_manager_name {
+                            warn!(target: "IdleInhibitor::GlobalRemove", "IdleInhibitManager was removed!");
 
-                        state.idle_manager = None;
+                            state.idle_manager = None;
+                        }
                     }
                 }
-            }
+            },
             _ => {}
         }
     }

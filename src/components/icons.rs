@@ -1,6 +1,6 @@
 use iced::{
-    widget::{text, Text},
     Font,
+    widget::{Text, text},
 };
 
 #[derive(Copy, Clone, Default)]

@@ -1,13 +1,13 @@
 use crate::{
-    components::icons::{icon, Icons},
+    components::icons::{Icons, icon},
     services::{
-        brightness::{BrightnessData, BrightnessService},
         ServiceEvent,
+        brightness::{BrightnessData, BrightnessService},
     },
 };
 use iced::{
-    widget::{container, row, slider},
     Alignment, Element, Length,
+    widget::{container, row, slider},
 };
 
 use super::Message;

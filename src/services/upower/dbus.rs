@@ -1,8 +1,7 @@
 use std::ops::Deref;
 use zbus::{
-    proxy,
+    Result, proxy,
     zvariant::{ObjectPath, OwnedObjectPath},
-    Result,
 };
 
 pub struct UPowerDbus<'a>(UPowerProxy<'a>);

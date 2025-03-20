@@ -1,6 +1,6 @@
 use crate::{app, utils::truncate_text};
 use hyprland::{data::Client, event_listener::AsyncEventListener, shared::HyprDataActiveOptional};
-use iced::{stream::channel, widget::text, Element, Subscription};
+use iced::{Element, Subscription, stream::channel, widget::text};
 use log::{debug, error};
 use std::{
     any::TypeId,
@@ -59,7 +59,7 @@ impl Module for WindowTitle {
         Some(
             Subscription::run_with_id(
                 id,
-                channel(10, |output| async move {
+                channel(10, async |output| {
                     let output = Arc::new(RwLock::new(output));
                     loop {
                         let mut event_listener = AsyncEventListener::new();

@@ -1,16 +1,16 @@
-use super::{quick_setting_button, sub_menu_wrapper, Message, SubMenu};
+use super::{Message, SubMenu, quick_setting_button, sub_menu_wrapper};
 use crate::{
-    components::icons::{icon, Icons},
+    components::icons::{Icons, icon},
     services::{
-        bluetooth::{BluetoothData, BluetoothService, BluetoothState},
         ServiceEvent,
+        bluetooth::{BluetoothData, BluetoothService, BluetoothState},
     },
     style::GhostButtonStyle,
 };
 use iced::{
-    widget::{button, column, container, horizontal_rule, row, text, Column, Row},
-    window::Id,
     Element, Length, Theme,
+    widget::{Column, Row, button, column, container, horizontal_rule, row, text},
+    window::Id,
 };
 
 #[derive(Debug, Clone)]

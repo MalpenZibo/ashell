@@ -1,12 +1,12 @@
 use super::{Module, OnModulePress};
 use crate::{
     app,
-    components::icons::{icon, Icons},
-    services::{privacy::PrivacyService, ReadOnlyService, ServiceEvent},
+    components::icons::{Icons, icon},
+    services::{ReadOnlyService, ServiceEvent, privacy::PrivacyService},
 };
 use iced::{
-    widget::{container, Row},
     Alignment, Element, Subscription, Task,
+    widget::{Row, container},
 };
 
 #[derive(Debug, Clone)]

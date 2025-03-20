@@ -1,16 +1,16 @@
 use super::{Message, SubMenu};
 use crate::{
-    components::icons::{icon, Icons},
+    components::icons::{Icons, icon},
     services::{
-        audio::{AudioData, AudioService, DeviceType, Sinks},
         ServiceEvent,
+        audio::{AudioData, AudioService, DeviceType, Sinks},
     },
     style::{GhostButtonStyle, SettingsButtonStyle},
 };
 use iced::{
-    widget::{button, column, container, horizontal_rule, row, slider, text, Column, Row},
-    window::Id,
     Alignment, Element, Length, Theme,
+    widget::{Column, Row, button, column, container, horizontal_rule, row, slider, text},
+    window::Id,
 };
 
 #[derive(Debug, Clone)]
@@ -238,8 +238,8 @@ pub fn audio_submenu<'a, Message: 'a + Clone>(
     .spacing(4)
     .into();
 
-    if let Some(more_msg) = more_msg {
-        column!(
+    match more_msg {
+        Some(more_msg) => column!(
             entries,
             horizontal_rule(1),
             button("More")
@@ -249,8 +249,7 @@ pub fn audio_submenu<'a, Message: 'a + Clone>(
                 .style(GhostButtonStyle.into_style()),
         )
         .spacing(12)
-        .into()
-    } else {
-        entries
+        .into(),
+        _ => entries,
     }
 }

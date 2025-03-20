@@ -1,22 +1,21 @@
 use super::{ReadOnlyService, Service, ServiceEvent};
 use crate::components::icons::Icons;
 use iced::{
-    futures::{channel::mpsc::Sender, executor::block_on, stream::pending, SinkExt, StreamExt},
-    stream::channel,
     Subscription, Task,
+    futures::{SinkExt, StreamExt, channel::mpsc::Sender, executor::block_on, stream::pending},
+    stream::channel,
 };
 use libpulse_binding::{
     callbacks::ListResult,
     context::{
-        self,
+        self, Context, FlagSet,
         introspect::{Introspector, SinkInfo, SourceInfo},
         subscribe::InterestMaskSet,
-        Context, FlagSet,
     },
     def::{DevicePortType, PortAvailable, SinkState, SourceState},
     mainloop::standard::{IterateResult, Mainloop},
     operation::{self, Operation},
-    proplist::{properties::APPLICATION_NAME, Proplist},
+    proplist::{Proplist, properties::APPLICATION_NAME},
     volume::ChannelVolumes,
 };
 use log::{debug, error, trace};
@@ -339,7 +338,7 @@ impl ReadOnlyService for AudioService {
 
         Subscription::run_with_id(
             id,
-            channel(100, |mut output| async move {
+            channel(100, async |mut output| {
                 let mut state = State::Init;
 
                 loop {
