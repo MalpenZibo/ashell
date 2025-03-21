@@ -35,3 +35,4 @@ hex_color = { version = "3", features = ["serde"] }
 anyhow = "1"
 udev = { version = "0.9", features = ["send", "sync"] }
 toml = "0.8.20"
+serde_yaml = "0.9.34"
