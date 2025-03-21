@@ -61,7 +61,7 @@ async fn main() -> iced::Result {
 
     logger.set_new_spec(get_log_spec(&config.log_level));
 
-    let font = match config.appearance.font {
+    let font = match config.appearance.font_name {
         Some(ref font_name) => Font::with_name(Box::leak(font_name.clone().into_boxed_str())),
         None => Font::DEFAULT,
     };
