@@ -3,6 +3,7 @@ use config::read_config;
 use flexi_logger::{
     Age, Cleanup, Criterion, FileSpec, LogSpecBuilder, LogSpecification, Logger, Naming,
 };
+use iced::Font;
 use log::error;
 use std::panic;
 use std::{backtrace::Backtrace, borrow::Cow};
@@ -60,10 +61,16 @@ async fn main() -> iced::Result {
 
     logger.set_new_spec(get_log_spec(&config.log_level));
 
+    let font = match config.appearance.font {
+        Some(ref font_name) => Font::with_name(Box::leak(font_name.clone().into_boxed_str())),
+        None => Font::DEFAULT,
+    };
+
     iced::daemon(App::title, App::update, App::view)
         .subscription(App::subscription)
         .theme(App::theme)
         .style(App::style)
         .font(Cow::from(ICON_FONT))
+        .default_font(font)
         .run_with(App::new((logger, config)))
 }
