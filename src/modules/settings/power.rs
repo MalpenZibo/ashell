@@ -1,6 +1,6 @@
 use crate::{
     components::icons::{Icons, icon},
-    style::GhostButtonStyle,
+    style::ghost_button_style,
     utils,
 };
 use iced::{
@@ -35,29 +35,29 @@ impl PowerMessage {
     }
 }
 
-pub fn power_menu<'a>() -> Element<'a, PowerMessage> {
+pub fn power_menu<'a>(opacity: f32) -> Element<'a, PowerMessage> {
     column!(
         button(row!(icon(Icons::Suspend), text("Suspend")).spacing(16))
             .padding([4, 12])
             .on_press(PowerMessage::Suspend)
             .width(Length::Fill)
-            .style(GhostButtonStyle.into_style()),
+            .style(ghost_button_style(opacity)),
         button(row!(icon(Icons::Reboot), text("Reboot")).spacing(16))
             .padding([4, 12])
             .on_press(PowerMessage::Reboot)
             .width(Length::Fill)
-            .style(GhostButtonStyle.into_style()),
+            .style(ghost_button_style(opacity)),
         button(row!(icon(Icons::Power), text("Shutdown")).spacing(16))
             .padding([4, 12])
             .on_press(PowerMessage::Shutdown)
             .width(Length::Fill)
-            .style(GhostButtonStyle.into_style()),
+            .style(ghost_button_style(opacity)),
         horizontal_rule(1),
         button(row!(icon(Icons::Logout), text("Logout")).spacing(16))
             .padding([4, 12])
             .on_press(PowerMessage::Logout)
             .width(Length::Fill)
-            .style(GhostButtonStyle.into_style()),
+            .style(ghost_button_style(opacity)),
     )
     .padding(8)
     .width(Length::Fill)
