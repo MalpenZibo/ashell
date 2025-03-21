@@ -7,12 +7,12 @@ use iced::{
 };
 use inotify::{EventMask, Inotify, WatchMask};
 use serde::{Deserialize, Deserializer, de::Error};
-use std::{any::TypeId, env, fs::File, path::Path, time::Duration};
+use std::{any::TypeId, env, fs::File, io::Read, path::Path, time::Duration};
 use tokio::time::sleep;
 
 use crate::app::Message;
 
-const CONFIG_PATH: &str = "~/.config/ashell.yml";
+const CONFIG_PATH: &str = "~/.config/ashell.toml";
 
 #[derive(Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -382,6 +382,8 @@ impl Default for Modules {
 }
 
 #[derive(Deserialize, Clone, Default, Debug, PartialEq, Eq)]
+#[serde(untagged)]
+#[serde(rename_all = "camelCase")]
 pub enum Outputs {
     #[default]
     All,
@@ -463,15 +465,18 @@ impl Default for Config {
     }
 }
 
-pub fn read_config() -> Result<Config, serde_yaml::Error> {
+pub fn read_config() -> Result<Config, toml::de::Error> {
     let home_dir = env::var("HOME").expect("Could not get HOME environment variable");
     let file_path = format!("{}{}", home_dir, CONFIG_PATH.replace('~', ""));
-    let config_file = File::open(file_path);
 
-    match config_file {
-        Ok(config_file) => {
+    let mut content = String::new();
+    let read_result = File::open(file_path).and_then(|mut file| file.read_to_string(&mut content));
+
+    match read_result {
+        Ok(_) => {
             log::info!("Reading config file");
-            serde_yaml::from_reader(config_file)
+
+            toml::from_str(&content)
         }
         _ => Ok(Config::default()),
     }
@@ -529,7 +534,7 @@ pub fn subscription() -> Subscription<Message> {
                             name: Some(name),
                             ..
                         })) => {
-                            if name == "ashell.yml" {
+                            if name == "ashell.toml" {
                                 log::info!("Config file created");
 
                                 let new_config = read_config();

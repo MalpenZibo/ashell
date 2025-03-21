@@ -27,7 +27,6 @@ libpulse-binding = { version = "2.28", features = ["pa_v15"] }
 inotify = "0.11"
 log = { version = "0.4", features = ["serde"] }
 flexi_logger = "0.29"
-serde_yaml = "0.9"
 pipewire = "0.8"
 wayland-client = "0.31.5"
 wayland-protocols = { version = "0.32.3", features = ["client", "unstable"] }
@@ -35,3 +34,4 @@ itertools = "0.14"
 hex_color = { version = "3", features = ["serde"] }
 anyhow = "1"
 udev = { version = "0.9", features = ["send", "sync"] }
+toml = "0.8.20"
