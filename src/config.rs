@@ -6,29 +6,38 @@ use iced::{
     theme::palette,
 };
 use inotify::{EventMask, Inotify, WatchMask};
-use serde::{Deserialize, Deserializer, de::Error};
-use std::{any::TypeId, env, fs::File, io::Read, path::Path, time::Duration};
+use log::warn;
+use serde::{Deserialize, Deserializer, Serialize, de::Error};
+use std::{
+    any::TypeId,
+    env,
+    fs::File,
+    io::{Read, Write},
+    path::Path,
+    time::Duration,
+};
 use tokio::time::sleep;
 
 use crate::app::Message;
 
+const OLD_CONFIG_PATH: &str = "~/.config/ashell.yml";
 const CONFIG_PATH: &str = "~/.config/ashell.toml";
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdatesModuleConfig {
     pub check_cmd: String,
     pub update_cmd: String,
 }
 
-#[derive(Deserialize, Clone, Default, PartialEq, Eq, Debug)]
+#[derive(Deserialize, Serialize, Clone, Default, PartialEq, Eq, Debug)]
 pub enum WorkspaceVisibilityMode {
     #[default]
     All,
     MonitorSpecific,
 }
 
-#[derive(Deserialize, Clone, Default, Debug)]
+#[derive(Deserialize, Serialize, Clone, Default, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspacesModuleConfig {
     #[serde(default)]
@@ -37,7 +46,7 @@ pub struct WorkspacesModuleConfig {
     pub enable_workspace_filling: bool,
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemModuleConfig {
     #[serde(default = "default_cpu_warn_threshold")]
@@ -91,7 +100,7 @@ impl Default for SystemModuleConfig {
     }
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct ClockModuleConfig {
     pub format: String,
@@ -105,7 +114,7 @@ impl Default for ClockModuleConfig {
     }
 }
 
-#[derive(Deserialize, Default, Clone, Debug)]
+#[derive(Deserialize, Serialize, Default, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct SettingsModuleConfig {
     pub lock_cmd: Option<String>,
@@ -116,7 +125,7 @@ pub struct SettingsModuleConfig {
     pub bluetooth_more_cmd: Option<String>,
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct MediaPlayerModuleConfig {
     #[serde(default = "default_media_player_max_title_length")]
@@ -135,7 +144,7 @@ fn default_media_player_max_title_length() -> u32 {
     100
 }
 
-#[derive(Deserialize, Clone, Copy, Debug)]
+#[derive(Deserialize, Serialize, Clone, Copy, Debug)]
 #[serde(untagged)]
 #[serde(rename_all = "camelCase")]
 pub enum AppearanceColor {
@@ -192,7 +201,7 @@ impl AppearanceColor {
     }
 }
 
-#[derive(Deserialize, Default, Copy, Clone, Eq, PartialEq, Debug)]
+#[derive(Deserialize, Serialize, Default, Copy, Clone, Eq, PartialEq, Debug)]
 #[serde(rename_all = "camelCase")]
 pub enum AppearanceStyle {
     #[default]
@@ -201,7 +210,7 @@ pub enum AppearanceStyle {
     Gradient,
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct MenuAppearance {
     #[serde(default = "default_opacity")]
@@ -219,7 +228,7 @@ impl Default for MenuAppearance {
     }
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Appearance {
     #[serde(default)]
@@ -324,14 +333,14 @@ impl Default for Appearance {
     }
 }
 
-#[derive(Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Deserialize, Serialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Position {
     #[default]
     Top,
     Bottom,
 }
 
-#[derive(Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Deserialize, Serialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ModuleName {
     AppLauncher,
     Updates,
@@ -348,7 +357,7 @@ pub enum ModuleName {
     MediaPlayer,
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 #[serde(untagged)]
 pub enum ModuleDef {
@@ -356,7 +365,7 @@ pub enum ModuleDef {
     Group(Vec<ModuleName>),
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Modules {
     #[serde(default)]
@@ -381,7 +390,7 @@ impl Default for Modules {
     }
 }
 
-#[derive(Deserialize, Clone, Default, Debug, PartialEq, Eq)]
+#[derive(Deserialize, Serialize, Clone, Default, Debug, PartialEq, Eq)]
 #[serde(untagged)]
 #[serde(rename_all = "camelCase")]
 pub enum Outputs {
@@ -405,7 +414,7 @@ where
     }
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Config {
     #[serde(default = "default_log_level")]
@@ -465,9 +474,57 @@ impl Default for Config {
     }
 }
 
+fn read_old_config_exist() -> Option<Config> {
+    let home_dir = env::var("HOME").expect("Could not get HOME environment variable");
+    let file_path = format!("{}{}", home_dir, OLD_CONFIG_PATH.replace('~', ""));
+
+    if Path::new(&file_path).exists() {
+        let config_file = File::open(&file_path);
+
+        match config_file {
+            Ok(config_file) => {
+                let res = serde_yaml::from_reader(config_file);
+
+                warn!("Error decoding old config file: {:?}", res);
+
+                res.ok()
+            }
+            _ => None,
+        }
+    } else {
+        None
+    }
+}
+
+fn migrate_config(old_config: &Config) -> anyhow::Result<()> {
+    let home_dir = env::var("HOME").expect("Could not get HOME environment variable");
+    let file_path = format!("{}{}", home_dir, CONFIG_PATH.replace('~', ""));
+
+    let mut config_file = File::create(file_path)?;
+
+    log::info!("Migrating config file");
+
+    let toml_config = toml::to_string(old_config)?;
+
+    config_file.write_all(toml_config.as_bytes())?;
+
+    Ok(())
+}
+
 pub fn read_config() -> Result<Config, toml::de::Error> {
     let home_dir = env::var("HOME").expect("Could not get HOME environment variable");
     let file_path = format!("{}{}", home_dir, CONFIG_PATH.replace('~', ""));
+
+    if !Path::new(&file_path).exists() {
+        let old_config = read_old_config_exist();
+        if let Some(old_config) = old_config {
+            let res = migrate_config(&old_config);
+
+            if let Err(err) = res {
+                log::warn!("Failed to migrate config file: {:?}", err);
+            }
+        }
+    }
 
     let mut content = String::new();
     let read_result = File::open(file_path).and_then(|mut file| file.read_to_string(&mut content));
