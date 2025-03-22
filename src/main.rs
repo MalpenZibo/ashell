@@ -3,6 +3,7 @@ use config::read_config;
 use flexi_logger::{
     Age, Cleanup, Criterion, FileSpec, LogSpecBuilder, LogSpecification, Logger, Naming,
 };
+use iced::Font;
 use log::error;
 use std::panic;
 use std::{backtrace::Backtrace, borrow::Cow};
@@ -65,5 +66,6 @@ async fn main() -> iced::Result {
         .theme(App::theme)
         .style(App::style)
         .font(Cow::from(ICON_FONT))
+        .default_font(Font::with_name("Comic Sans MS"))
         .run_with(App::new((logger, config)))
 }
