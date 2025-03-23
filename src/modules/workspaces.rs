@@ -3,7 +3,7 @@ use crate::{
     app,
     config::{AppearanceColor, WorkspaceVisibilityMode, WorkspacesModuleConfig},
     outputs::Outputs,
-    style::WorkspaceButtonStyle,
+    style::workspace_button_style,
 };
 use hyprland::{
     dispatch::MonitorIdentifier,
@@ -215,7 +215,7 @@ impl Module for Workspaces {
                                         .align_x(alignment::Horizontal::Center)
                                         .align_y(alignment::Vertical::Center),
                                     )
-                                    .style(WorkspaceButtonStyle(empty, color).into_style())
+                                    .style(workspace_button_style(empty, color))
                                     .padding(if w.id < 0 {
                                         if w.active { [0, 16] } else { [0, 8] }
                                     } else {

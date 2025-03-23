@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Add font name configuration
+- Add main bar solid and gradient style
+- Add main bar opacity settings
+- Add menu opacity and backdrop settings
 
 ## [0.4.1] - 2025-03-16
 

@@ -20,7 +20,9 @@ use crate::{
         network::{NetworkCommand, NetworkEvent, NetworkService},
         upower::{PowerProfileCommand, UPowerService},
     },
-    style::{QuickSettingsButtonStyle, QuickSettingsSubMenuButtonStyle, SettingsButtonStyle},
+    style::{
+        quick_settings_button_style, quick_settings_submenu_button_style, settings_button_style,
+    },
 };
 use brightness::BrightnessMessage;
 use iced::{
@@ -426,21 +428,26 @@ impl Settings {
         }
     }
 
-    pub fn menu_view(&self, id: Id, config: &SettingsModuleConfig) -> Element<Message> {
+    pub fn menu_view(
+        &self,
+        id: Id,
+        config: &SettingsModuleConfig,
+        opacity: f32,
+    ) -> Element<Message> {
         if let Some((ssid, current_password)) = &self.password_dialog {
-            password_dialog::view(id, ssid, current_password).map(Message::PasswordDialog)
+            password_dialog::view(id, ssid, current_password, opacity).map(Message::PasswordDialog)
         } else {
             let battery_data = self
                 .upower
                 .as_ref()
                 .and_then(|upower| upower.battery)
-                .map(|battery| battery.settings_indicator());
+                .map(|battery| battery.settings_indicator(opacity));
             let right_buttons = Row::new()
                 .push_maybe(config.lock_cmd.as_ref().map(|_| {
                     button(icon(Icons::Lock))
                         .padding([8, 13])
                         .on_press(Message::Lock)
-                        .style(SettingsButtonStyle.into_style())
+                        .style(settings_button_style(opacity))
                 }))
                 .push(
                     button(icon(if self.sub_menu == Some(SubMenu::Power) {
@@ -450,7 +457,7 @@ impl Settings {
                     }))
                     .padding([8, 13])
                     .on_press(Message::ToggleSubMenu(SubMenu::Power))
-                    .style(SettingsButtonStyle.into_style()),
+                    .style(settings_button_style(opacity)),
                 )
                 .spacing(8);
 
@@ -464,11 +471,16 @@ impl Settings {
             let (sink_slider, source_slider) = self
                 .audio
                 .as_ref()
-                .map(|a| a.audio_sliders(self.sub_menu))
+                .map(|a| a.audio_sliders(self.sub_menu, opacity))
                 .unwrap_or((None, None));
 
             let wifi_setting_button = self.network.as_ref().and_then(|n| {
-                n.get_wifi_quick_setting_button(id, self.sub_menu, config.wifi_more_cmd.is_some())
+                n.get_wifi_quick_setting_button(
+                    id,
+                    self.sub_menu,
+                    config.wifi_more_cmd.is_some(),
+                    opacity,
+                )
             });
             let quick_settings = quick_settings_section(
                 vec![
@@ -481,6 +493,7 @@ impl Settings {
                                 id,
                                 self.sub_menu,
                                 config.bluetooth_more_cmd.is_some(),
+                                opacity,
                             )
                         }),
                     self.network.as_ref().map(|n| {
@@ -488,11 +501,12 @@ impl Settings {
                             id,
                             self.sub_menu,
                             config.vpn_more_cmd.is_some(),
+                            opacity,
                         )
                     }),
                     self.network
                         .as_ref()
-                        .map(|n| n.get_airplane_mode_quick_setting_button()),
+                        .map(|n| n.get_airplane_mode_quick_setting_button(opacity)),
                     self.idle_inhibitor.as_ref().map(|idle_inhibitor| {
                         (
                             quick_setting_button(
@@ -506,17 +520,19 @@ impl Settings {
                                 idle_inhibitor.is_inhibited(),
                                 Message::ToggleInhibitIdle,
                                 None,
+                                opacity,
                             ),
                             None,
                         )
                     }),
                     self.upower
                         .as_ref()
-                        .and_then(|u| u.power_profile.get_quick_setting_button()),
+                        .and_then(|u| u.power_profile.get_quick_setting_button(opacity)),
                 ]
                 .into_iter()
                 .flatten()
                 .collect::<Vec<_>>(),
+                opacity,
             );
 
             Column::new()
@@ -524,7 +540,9 @@ impl Settings {
                 .push_maybe(
                     self.sub_menu
                         .filter(|menu_type| *menu_type == SubMenu::Power)
-                        .map(|_| sub_menu_wrapper(power_menu().map(Message::Power))),
+                        .map(|_| {
+                            sub_menu_wrapper(power_menu(opacity).map(Message::Power), opacity)
+                        }),
                 )
                 .push_maybe(sink_slider)
                 .push_maybe(
@@ -533,7 +551,12 @@ impl Settings {
                         .and_then(|_| {
                             self.audio.as_ref().map(|a| {
                                 sub_menu_wrapper(
-                                    a.sinks_submenu(id, config.audio_sinks_more_cmd.is_some()),
+                                    a.sinks_submenu(
+                                        id,
+                                        config.audio_sinks_more_cmd.is_some(),
+                                        opacity,
+                                    ),
+                                    opacity,
                                 )
                             })
                         }),
@@ -545,7 +568,12 @@ impl Settings {
                         .and_then(|_| {
                             self.audio.as_ref().map(|a| {
                                 sub_menu_wrapper(
-                                    a.sources_submenu(id, config.audio_sources_more_cmd.is_some()),
+                                    a.sources_submenu(
+                                        id,
+                                        config.audio_sources_more_cmd.is_some(),
+                                        opacity,
+                                    ),
+                                    opacity,
                                 )
                             })
                         }),
@@ -629,6 +657,7 @@ impl Module for Settings {
 
 fn quick_settings_section<'a>(
     buttons: Vec<(Element<'a, Message>, Option<Element<'a, Message>>)>,
+    opacity: f32,
 ) -> Element<'a, Message> {
     let mut section = column!().spacing(8);
 
@@ -640,11 +669,11 @@ fn quick_settings_section<'a>(
                 section = section.push(row![before_button, button].width(Length::Fill).spacing(8));
 
                 if let Some(menu) = before_menu {
-                    section = section.push(sub_menu_wrapper(menu));
+                    section = section.push(sub_menu_wrapper(menu, opacity));
                 }
 
                 if let Some(menu) = menu {
-                    section = section.push(sub_menu_wrapper(menu));
+                    section = section.push(sub_menu_wrapper(menu, opacity));
                 }
             }
             _ => {
@@ -661,17 +690,25 @@ fn quick_settings_section<'a>(
         );
 
         if let Some(menu) = before_menu {
-            section = section.push(sub_menu_wrapper(menu));
+            section = section.push(sub_menu_wrapper(menu, opacity));
         }
     }
 
     section.into()
 }
 
-fn sub_menu_wrapper<Msg: 'static>(content: Element<Msg>) -> Element<Msg> {
+fn sub_menu_wrapper<Msg: 'static>(content: Element<Msg>, opacity: f32) -> Element<Msg> {
     container(content)
-        .style(|theme: &Theme| container::Style {
-            background: Background::Color(theme.extended_palette().secondary.strong.color).into(),
+        .style(move |theme: &Theme| container::Style {
+            background: Background::Color(
+                theme
+                    .extended_palette()
+                    .secondary
+                    .strong
+                    .color
+                    .scale_alpha(opacity),
+            )
+            .into(),
             border: Border::default().rounded(16),
             ..container::Style::default()
         })
@@ -687,6 +724,7 @@ fn quick_setting_button<'a, Msg: Clone + 'static>(
     active: bool,
     on_press: Msg,
     with_submenu: Option<(SubMenu, Option<SubMenu>, Msg)>,
+    opacity: f32,
 ) -> Element<'a, Msg> {
     let main_content = row!(
         icon(icon_type).size(20),
@@ -715,7 +753,7 @@ fn quick_setting_button<'a, Msg: Clone + 'static>(
                     .align_x(Horizontal::Center),
                 )
                 .padding([4, if Some(menu_type) == submenu { 9 } else { 12 }])
-                .style(QuickSettingsSubMenuButtonStyle(active).into_style())
+                .style(quick_settings_submenu_button_style(active, opacity))
                 .width(Length::Shrink)
                 .height(Length::Shrink)
                 .on_press(msg)
@@ -728,7 +766,7 @@ fn quick_setting_button<'a, Msg: Clone + 'static>(
     .on_press(on_press)
     .height(Length::Fill)
     .width(Length::Fill)
-    .style(QuickSettingsButtonStyle(active).into_style())
+    .style(quick_settings_button_style(active, opacity))
     .width(Length::Fill)
     .height(Length::Fixed(50.))
     .into()

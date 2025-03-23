@@ -40,7 +40,7 @@ impl BatteryData {
         .into()
     }
 
-    pub fn settings_indicator<'a, Message: 'static>(&self) -> Container<'a, Message> {
+    pub fn settings_indicator<'a, Message: 'static>(&self, opacity: f32) -> Container<'a, Message> {
         let state = self.get_indicator_state();
 
         container({
@@ -71,7 +71,15 @@ impl BatteryData {
         })
         .padding([8, 12])
         .style(move |theme: &Theme| container::Style {
-            background: Background::Color(theme.extended_palette().background.weak.color).into(),
+            background: Background::Color(
+                theme
+                    .extended_palette()
+                    .background
+                    .weak
+                    .color
+                    .scale_alpha(opacity),
+            )
+            .into(),
             border: Border::default().rounded(32),
             ..container::Style::default()
         })
@@ -102,7 +110,10 @@ impl PowerProfile {
         }
     }
 
-    pub fn get_quick_setting_button(&self) -> Option<(Element<Message>, Option<Element<Message>>)> {
+    pub fn get_quick_setting_button(
+        &self,
+        opacity: f32,
+    ) -> Option<(Element<Message>, Option<Element<Message>>)> {
         if !matches!(self, PowerProfile::Unknown) {
             Some((
                 quick_setting_button(
@@ -118,6 +129,7 @@ impl PowerProfile {
                     true,
                     Message::UPower(UPowerMessage::TogglePowerProfile),
                     None,
+                    opacity,
                 ),
                 None,
             ))
