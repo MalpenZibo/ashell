@@ -48,7 +48,7 @@ pub fn view<'a>(
             button(text("Confirm").align_y(Vertical::Center))
                 .padding([4, 32])
                 .height(Length::Fixed(50.))
-                .style(confirm_button_style)
+                .style(confirm_button_style(opacity))
                 .on_press(Message::DialogConfirmed(id))
         )
         .spacing(8)

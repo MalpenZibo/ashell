@@ -205,24 +205,42 @@ pub fn outline_button_style(opacity: f32) -> impl Fn(&Theme, Status) -> button::
     }
 }
 
-pub fn confirm_button_style(theme: &Theme, status: Status) -> button::Style {
-    let mut base = button::Style {
-        background: Some(theme.extended_palette().background.weak.color.into()),
-        border: Border {
-            width: 2.0,
-            radius: 32.0.into(),
-            color: Color::TRANSPARENT,
-        },
-        text_color: theme.palette().text,
-        ..button::Style::default()
-    };
-    match status {
-        Status::Active => base,
-        Status::Hovered => {
-            base.background = Some(theme.extended_palette().background.strong.color.into());
-            base
+pub fn confirm_button_style(opacity: f32) -> impl Fn(&Theme, Status) -> button::Style {
+    move |theme, status| {
+        let mut base = button::Style {
+            background: Some(
+                theme
+                    .extended_palette()
+                    .background
+                    .weak
+                    .color
+                    .scale_alpha(opacity)
+                    .into(),
+            ),
+            border: Border {
+                width: 2.0,
+                radius: 32.0.into(),
+                color: Color::TRANSPARENT,
+            },
+            text_color: theme.palette().text,
+            ..button::Style::default()
+        };
+        match status {
+            Status::Active => base,
+            Status::Hovered => {
+                base.background = Some(
+                    theme
+                        .extended_palette()
+                        .background
+                        .strong
+                        .color
+                        .scale_alpha(opacity)
+                        .into(),
+                );
+                base
+            }
+            _ => base,
         }
-        _ => base,
     }
 }
 
