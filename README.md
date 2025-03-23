@@ -255,7 +255,21 @@ appearance:
 I will try my best to keep these screenshots as updated as possible but some details
 could be different
 
+#### default style
+
 <img src="https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/ashell.png"></img>
+
+#### solid style
+
+<img src="https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/ashell-solid.png"></img>
+
+#### gradient style
+
+<img src="https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/ashell-gradient.png"></img>
+
+#### opacity settings
+
+<img src="https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/opacity.png"></img>
 
 | ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/updates-panel.png) | ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/settings-panel.png)  |
 | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
