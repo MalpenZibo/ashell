@@ -110,19 +110,19 @@ To enable this flake use
 
 ## Configuration
 
-The configuration uses the yaml file format and is named `~/.config/ashell.yml`
+The configuration file uses the toml file format and is named `~/.config/ashell/config.toml`
 
 ```toml
-# Ashell log level filter, possible values "DEBUG" | "INFO" | "WARNING" | "ERROR". Needs reload
-logLevel = "WARN"
-# Possible status bar outputs, values could be: All, Active, or Targets
-# All: the status bar will be displayed on all the available outputs, example: outputs = "All"
-# Active: the status bar will be displayed on the active output, example: outputs = "Active"
-# Targets: the status bar will be displayed on the outputs listed here, example: outputs = ["DP-1", "eDP-1"]
+# Ashell log level filter, possible values "debug" | "info" | "warn" | "error". Needs reload
+logLevel = "warn"
+# Possible status bar outputs, values could be: all, active, or a list of outputs
+# all: the status bar will be displayed on all the available outputs, example: outputs = "all"
+# active: the status bar will be displayed on the active output, example: outputs = "active"
+# list of outputs: the status bar will be displayed on the outputs listed here, example: outputs = ["DP-1", "eDP-1"]
 # if the outputs is not available the bar will be displayed in the active output
-outputs = "All"
-# Bar position, possible values Top | Bottom.
-position = "Top"
+outputs = "all"
+# Bar position, possible values top | bottom.
+position = "top"
 # App launcher command, it will be used to open the launcher,
 # without a value the related button will not appear
 # optional, default None
@@ -138,28 +138,28 @@ truncateTitleAfterLength = 150
 
 # Declare which modules should be used and in which position in the status bar.
 # This is the list of all possible modules
-#  - AppLauncher
-#  - Updates
-#  - Clipboard
-#  - Workspaces
-#  - WindowTitle
-#  - SystemInfo
-#  - KeyboardLayout
-#  - KeyboardSubmap
-#  - Tray
-#  - Clock
-#  - Privacy
-#  - MediaPlayer
-#  - Settings
+#  - appLauncher
+#  - updates
+#  - clipboard
+#  - workspaces
+#  - windowTitle
+#  - systemInfo
+#  - keyboardLayout
+#  - keyboardSubmap
+#  - tray
+#  - clock
+#  - privacy
+#  - mediaPlayer
+#  - settings
 # optional, the following is the default configuration
 [modules]
 # The modules that will be displayed on the left side of the status bar
-left = [ "Workspaces" ]
+left = [ "workspaces" ]
 # The modules that will be displayed in the center of the status bar
-center = [ "WindowTitle" ]
+center = [ "windowTitle" ]
 # The modules that will be displayed on the right side of the status bar
 # The nested modules array will form a group sharing the same element in the status bar
-right = [ "SystemInfo", [ "Clock", "Privacy", "Settings" ] ]
+right = [ "systemInfo", [ "clock", "privacy", "settings" ] ]
 
 # Update module configuration.
 # Without a value the related button will not appear.
@@ -174,10 +174,10 @@ updateCmd = 'alacritty -e bash -c "paru; echo Done - Press enter to exit; read" 
 # Workspaces module configuration, optional
 [workspaces]
 # The visibility mode of the workspaces, possible values are:
-# All: all the workspaces will be displayed
-# MonitorSpecific: only the workspaces of the related monitor will be displayed
-# optional, default All
-visibilityMode = "All"
+# all: all the workspaces will be displayed
+# monitorSpecific: only the workspaces of the related monitor will be displayed
+# optional, default all
+visibilityMode = "all"
 # Enable filling with empty workspaces
 # For example:
 # With this flag set to true if there are only 2 workspaces,
