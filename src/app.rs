@@ -2,7 +2,7 @@ use std::f32::consts::PI;
 
 use crate::{
     HEIGHT, centerbox,
-    config::{self, AppearanceStyle, Config},
+    config::{self, AppearanceStyle, Config, Position},
     get_log_spec,
     menu::{MenuSize, MenuType, menu_wrapper},
     modules::{
@@ -329,25 +329,32 @@ impl App {
                                     .background
                                     .scale_alpha(self.config.appearance.opacity);
 
+                                let start_color = if self.outputs.menu_is_open() {
+                                    darken_color(start_color, self.config.appearance.menu.backdrop)
+                                } else {
+                                    start_color
+                                };
+
+                                let end_color = if self.outputs.menu_is_open() {
+                                    backdrop_color(self.config.appearance.menu.backdrop)
+                                } else {
+                                    Color::TRANSPARENT
+                                };
+
                                 Gradient::Linear(
                                     Linear::new(Radians(PI))
                                         .add_stop(
                                             0.0,
-                                            if self.outputs.menu_is_open() {
-                                                darken_color(
-                                                    start_color,
-                                                    self.config.appearance.menu.backdrop,
-                                                )
-                                            } else {
-                                                start_color
+                                            match self.config.position {
+                                                Position::Top => start_color,
+                                                Position::Bottom => end_color,
                                             },
                                         )
                                         .add_stop(
                                             1.0,
-                                            if self.outputs.menu_is_open() {
-                                                backdrop_color(self.config.appearance.menu.backdrop)
-                                            } else {
-                                                Color::TRANSPARENT
+                                            match self.config.position {
+                                                Position::Top => end_color,
+                                                Position::Bottom => start_color,
                                             },
                                         ),
                                 )
