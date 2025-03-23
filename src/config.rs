@@ -5,14 +5,13 @@ use iced::{
     stream::channel,
     theme::palette,
 };
-use inotify::{EventMask, Inotify, WatchMask};
+use inotify::{Event, EventMask, Inotify, WatchMask};
 use serde::{Deserialize, Deserializer, de::Error};
-use std::{any::TypeId, env, fs::File, io::Read, path::Path, time::Duration};
-use tokio::time::sleep;
+use std::{any::TypeId, env, fs::File, io::Read, path::Path};
 
 use crate::app::Message;
 
-const CONFIG_PATH: &str = "~/.config/ashell.toml";
+const CONFIG_PATH: &str = "~/.config/ashell/config.toml";
 
 #[derive(Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -493,72 +492,83 @@ pub fn subscription() -> Subscription<Message> {
         channel(100, async |mut output| {
             let home_dir = env::var("HOME").expect("Could not get HOME environment variable");
             let file_path = format!("{}{}", home_dir, CONFIG_PATH.replace('~', ""));
+            let config_file_path = Path::new(&file_path);
+            let ashell_config_dir = config_file_path.parent().unwrap();
+            let config_dir = ashell_config_dir.parent().unwrap();
 
             loop {
                 let inotify = Inotify::init().expect("Failed to initialize inotify");
 
-                let path = Path::new(&file_path);
-                if path.exists() {
-                    log::debug!("watch path {:?}", path);
-                    inotify
-                        .watches()
+                let mut watches = inotify.watches();
+
+                if ashell_config_dir.exists() {
+                    watches
                         .add(
-                            path,
-                            WatchMask::MODIFY
-                                .union(WatchMask::CLOSE_WRITE)
-                                .union(WatchMask::DELETE)
-                                .union(WatchMask::MOVE_SELF),
+                            ashell_config_dir,
+                            WatchMask::MOVE
+                                | WatchMask::MODIFY
+                                | WatchMask::MOVE_SELF
+                                | WatchMask::CREATE
+                                | WatchMask::DELETE_SELF,
                         )
-                        .expect("Failed to add file watch");
-                } else {
-                    log::info!("watch directory {:?}", path.parent().unwrap());
-                    inotify
-                        .watches()
-                        .add(
-                            path.parent().unwrap(),
-                            WatchMask::CREATE
-                                .union(WatchMask::MOVED_TO)
-                                .union(WatchMask::MOVE_SELF),
-                        )
-                        .expect("Failed to add create file watch");
-                }
+                        .expect("Failed to add file watch for the ashell config directory");
 
-                let mut buffer = [0; 1024];
-                let mut stream = inotify
-                    .into_event_stream(&mut buffer)
-                    .expect("Failed to create event stream");
+                    let mut buffer = [0; 1024];
+                    let mut stream = inotify
+                        .into_event_stream(&mut buffer)
+                        .expect("Failed to create event stream");
 
-                loop {
-                    log::debug!("waiting for event");
-                    let event = stream.next().await;
-                    match event {
-                        Some(Ok(inotify::Event {
-                            mask: EventMask::CREATE | EventMask::MOVED_TO | EventMask::MOVE_SELF,
-                            name: Some(name),
-                            ..
-                        })) => {
-                            if name == "ashell.toml" {
-                                log::info!("Config file created");
+                    loop {
+                        let event = stream.next().await;
 
-                                let new_config = read_config();
-                                if let Ok(new_config) = new_config {
-                                    let _ = output
-                                        .send(Message::ConfigChanged(Box::new(new_config)))
-                                        .await;
-                                } else {
-                                    log::warn!("Failed to read config file: {:?}", new_config);
+                        log::debug!("ashell config folder event: {:?}", event);
+
+                        if let Some(Ok(Event { mask, name, .. })) = event {
+                            match mask {
+                                EventMask::DELETE_SELF | EventMask::MOVE_SELF => {
+                                    log::warn!("ashell config directory disappear");
+
+                                    let _ =
+                                        output.send(Message::ConfigChanged(Box::default())).await;
+
+                                    break;
                                 }
-
-                                break;
+                                _ => {
+                                    log::info!("ashell config file events: {:?}", name);
+                                    if name.is_some_and(|name| name == "config.toml") {
+                                        let new_config = read_config();
+                                        if let Ok(new_config) = new_config {
+                                            let _ = output
+                                                .send(Message::ConfigChanged(Box::new(new_config)))
+                                                .await;
+                                        } else {
+                                            log::warn!(
+                                                "Failed to read config file: {:?}",
+                                                new_config
+                                            );
+                                        }
+                                    }
+                                }
                             }
                         }
-                        Some(Ok(inotify::Event {
-                            mask: EventMask::MODIFY | EventMask::MOVE_SELF | EventMask::CLOSE_WRITE,
-                            ..
-                        })) => {
-                            log::info!("Config file modified");
+                    }
+                } else {
+                    watches
+                        .add(config_dir, WatchMask::CREATE | WatchMask::MOVED_TO)
+                        .expect("Failed to add file watch for the config directory");
 
-                            sleep(Duration::from_millis(500)).await;
+                    let mut buffer = [0; 1024];
+                    let mut stream = inotify
+                        .into_event_stream(&mut buffer)
+                        .expect("Failed to create event stream");
+
+                    let event = stream.next().await;
+
+                    log::debug!("Config folder event: {:?}", event);
+
+                    if let Some(Ok(_)) = event {
+                        if config_file_path.exists() {
+                            log::info!("Config file created");
 
                             let new_config = read_config();
                             if let Ok(new_config) = new_config {
@@ -568,20 +578,6 @@ pub fn subscription() -> Subscription<Message> {
                             } else {
                                 log::warn!("Failed to read config file: {:?}", new_config);
                             }
-
-                            break;
-                        }
-                        Some(Ok(inotify::Event {
-                            mask: EventMask::DELETE,
-                            ..
-                        })) => {
-                            log::info!("Config file deleted");
-                            let _ = output.send(Message::ConfigChanged(Box::default())).await;
-
-                            break;
-                        }
-                        other => {
-                            log::debug!("other event {:?}", other);
                         }
                     }
                 }
