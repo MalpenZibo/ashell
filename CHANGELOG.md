@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### WARNING BREAKING CHANGES
+
+The configuration switch from `yaml` to `toml` format. The configuration file must be updated to adapt to the new format.
+You could use an online tool like: https://transform.tools/yaml-to-toml
+
+Every values now uses the `camelCase` format so things like the module name should be adapted: for example `WindowTitle` is now `windowTitle`.
+
+Now the configuration file is located in `~/.config/ashell/config.toml`
+
 ### Added
 
 - Add font name configuration
