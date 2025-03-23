@@ -22,6 +22,7 @@ pub struct UpdatesModuleConfig {
 }
 
 #[derive(Deserialize, Clone, Default, PartialEq, Eq, Debug)]
+#[serde(rename_all = "camelCase")]
 pub enum WorkspaceVisibilityMode {
     #[default]
     All,
@@ -325,6 +326,7 @@ impl Default for Appearance {
 }
 
 #[derive(Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub enum Position {
     #[default]
     Top,
@@ -332,6 +334,7 @@ pub enum Position {
 }
 
 #[derive(Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub enum ModuleName {
     AppLauncher,
     Updates,
