@@ -230,6 +230,7 @@ settings:
 #   weak: #448855 -- optional default autogenarated from base color
 #   text: #ffffff -- optional default base text color
 appearance:
+  fontName: "Comic Sans MS" # optional, default iced.rs font
   backgroundColor: "#1e1e2e" # used as a base background color for header module button
   primaryColor: "#fab387" # used as a accent color
   secondaryColor: "#11111b" # used for darker background color
