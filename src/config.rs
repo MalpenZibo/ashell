@@ -192,11 +192,44 @@ impl AppearanceColor {
     }
 }
 
+#[derive(Deserialize, Default, Copy, Clone, Eq, PartialEq, Debug)]
+#[serde(rename_all = "camelCase")]
+pub enum AppearanceStyle {
+    #[default]
+    Islands,
+    Solid,
+    Gradient,
+}
+
+#[derive(Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct MenuAppearance {
+    #[serde(default = "default_opacity")]
+    pub opacity: f32,
+    #[serde(default)]
+    pub backdrop: f32,
+}
+
+impl Default for MenuAppearance {
+    fn default() -> Self {
+        Self {
+            opacity: default_opacity(),
+            backdrop: f32::default(),
+        }
+    }
+}
+
 #[derive(Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Appearance {
     #[serde(default)]
     pub font_name: Option<String>,
+    #[serde(default)]
+    pub style: AppearanceStyle,
+    #[serde(default = "default_opacity")]
+    pub opacity: f32,
+    #[serde(default)]
+    pub menu: MenuAppearance,
     #[serde(default = "default_background_color")]
     pub background_color: AppearanceColor,
     #[serde(default = "default_primary_color")]
@@ -215,6 +248,10 @@ pub struct Appearance {
 }
 
 static PRIMARY: HexColor = HexColor::rgb(250, 179, 135);
+
+fn default_opacity() -> f32 {
+    1.0
+}
 
 fn default_background_color() -> AppearanceColor {
     AppearanceColor::Complete {
@@ -272,6 +309,9 @@ impl Default for Appearance {
     fn default() -> Self {
         Self {
             font_name: None,
+            style: AppearanceStyle::default(),
+            opacity: default_opacity(),
+            menu: MenuAppearance::default(),
             background_color: default_background_color(),
             primary_color: default_primary_color(),
             secondary_color: default_secondary_color(),

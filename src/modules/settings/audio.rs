@@ -5,7 +5,7 @@ use crate::{
         ServiceEvent,
         audio::{AudioData, AudioService, DeviceType, Sinks},
     },
-    style::{GhostButtonStyle, SettingsButtonStyle},
+    style::{ghost_button_style, settings_button_style},
 };
 use iced::{
     Alignment, Element, Length, Theme,
@@ -40,6 +40,7 @@ impl AudioData {
     pub fn audio_sliders(
         &self,
         sub_menu: Option<SubMenu>,
+        opacity: f32,
     ) -> (Option<Element<Message>>, Option<Element<Message>>) {
         let active_sink = self
             .sinks
@@ -58,6 +59,7 @@ impl AudioData {
                 } else {
                     None
                 },
+                opacity,
             )
         });
 
@@ -79,6 +81,7 @@ impl AudioData {
                     } else {
                         None
                     },
+                    opacity,
                 )
             });
 
@@ -88,7 +91,7 @@ impl AudioData {
         }
     }
 
-    pub fn sinks_submenu(&self, id: Id, show_more: bool) -> Element<Message> {
+    pub fn sinks_submenu(&self, id: Id, show_more: bool, opacity: f32) -> Element<Message> {
         audio_submenu(
             self.sinks
                 .iter()
@@ -109,10 +112,11 @@ impl AudioData {
             } else {
                 None
             },
+            opacity,
         )
     }
 
-    pub fn sources_submenu(&self, id: Id, show_more: bool) -> Element<Message> {
+    pub fn sources_submenu(&self, id: Id, show_more: bool, opacity: f32) -> Element<Message> {
         audio_submenu(
             self.sources
                 .iter()
@@ -133,6 +137,7 @@ impl AudioData {
             } else {
                 None
             },
+            opacity,
         )
     }
 }
@@ -149,6 +154,7 @@ pub fn audio_slider<'a, Message: 'a + Clone>(
     volume: i32,
     volume_changed: impl Fn(i32) -> Message + 'a,
     with_submenu: Option<(Option<SubMenu>, Message)>,
+    opacity: f32,
 ) -> Element<'a, Message> {
     Row::new()
         .push(
@@ -171,7 +177,7 @@ pub fn audio_slider<'a, Message: 'a + Clone>(
                 },
             ])
             .on_press(toggle_mute)
-            .style(SettingsButtonStyle.into_style()),
+            .style(settings_button_style(opacity)),
         )
         .push(
             slider(0..=100, volume, volume_changed)
@@ -186,7 +192,7 @@ pub fn audio_slider<'a, Message: 'a + Clone>(
             }))
             .padding([8, 13])
             .on_press(msg)
-            .style(SettingsButtonStyle.into_style())
+            .style(settings_button_style(opacity))
         }))
         .align_y(Alignment::Center)
         .spacing(8)
@@ -203,6 +209,7 @@ pub struct SubmenuEntry<Message> {
 pub fn audio_submenu<'a, Message: 'a + Clone>(
     entries: Vec<SubmenuEntry<Message>>,
     more_msg: Option<Message>,
+    opacity: f32,
 ) -> Element<'a, Message> {
     let entries = Column::with_children(
         entries
@@ -229,7 +236,7 @@ pub fn audio_submenu<'a, Message: 'a + Clone>(
                     .on_press(e.msg)
                     .padding([4, 12])
                     .width(Length::Fill)
-                    .style(GhostButtonStyle.into_style())
+                    .style(ghost_button_style(opacity))
                     .into()
                 }
             })
@@ -246,7 +253,7 @@ pub fn audio_submenu<'a, Message: 'a + Clone>(
                 .on_press(more_msg)
                 .padding([4, 12])
                 .width(Length::Fill)
-                .style(GhostButtonStyle.into_style()),
+                .style(ghost_button_style(opacity)),
         )
         .spacing(12)
         .into(),

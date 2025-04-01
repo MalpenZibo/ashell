@@ -231,6 +231,16 @@ settings:
 #   text: #ffffff -- optional default base text color
 appearance:
   fontName: "Comic Sans MS" # optional, default iced.rs font
+  # The style of the main bar, possible values are: islands | solid | gradient
+  style: islands # optional, default islands
+  # The opacity of the main bar, possible values are: 0.0 to 1.0
+  opacity: 0.7 # optional, default 1.0
+  # menu options
+  menu:
+    # The opacity of the menu, possible values are: 0.0 to 1.0
+    opacity: 0.7 # optional, default 1.0
+    # The backdrop of the menu, possible values are: 0.0 to 1.0
+    backdrop: 0.3 # optional, default 0.0
   backgroundColor: "#1e1e2e" # used as a base background color for header module button
   primaryColor: "#fab387" # used as a accent color
   secondaryColor: "#11111b" # used for darker background color
@@ -255,7 +265,21 @@ appearance:
 I will try my best to keep these screenshots as updated as possible but some details
 could be different
 
+#### default style
+
 <img src="https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/ashell.png"></img>
+
+#### solid style
+
+<img src="https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/ashell-solid.png"></img>
+
+#### gradient style
+
+<img src="https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/ashell-gradient.png"></img>
+
+#### opacity settings
+
+<img src="https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/opacity.png"></img>
 
 | ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/updates-panel.png) | ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/settings-panel.png)  |
 | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |

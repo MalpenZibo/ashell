@@ -1,14 +1,12 @@
 use crate::{
     app::{self, App, Message},
-    config::{ModuleDef, ModuleName},
+    config::{AppearanceStyle, ModuleDef, ModuleName},
     menu::MenuType,
     position_button::position_button,
-    style::{
-        ModuleButtonStyle, module_first_label, module_label, module_last_label, module_middle_label,
-    },
+    style::module_button_style,
 };
 use iced::{
-    Alignment, Element, Length, Subscription,
+    Alignment, Border, Color, Element, Length, Subscription,
     widget::{Row, container, row},
     window::Id,
 };
@@ -47,16 +45,13 @@ pub trait Module {
     }
 }
 
-#[derive(Debug, Clone)]
-enum ModuleGroupPosition {
-    Only,
-    First,
-    Middle,
-    Last,
-}
-
 impl App {
-    pub fn modules_section(&self, modules_def: &Vec<ModuleDef>, id: Id) -> Element<Message> {
+    pub fn modules_section(
+        &self,
+        modules_def: &Vec<ModuleDef>,
+        id: Id,
+        opacity: f32,
+    ) -> Element<Message> {
         let mut row = row!()
             .height(Length::Shrink)
             .align_y(Alignment::Center)
@@ -64,12 +59,31 @@ impl App {
 
         for module_def in modules_def {
             row = row.push_maybe(match module_def {
-                ModuleDef::Single(module) => self.single_module_wrapper(*module, id),
-                ModuleDef::Group(group) => self.group_module_wrapper(group, id),
+                ModuleDef::Single(module) => self.single_module_wrapper(*module, id, opacity),
+                ModuleDef::Group(group) => self.group_module_wrapper(group, id, opacity),
             });
         }
 
-        row.into()
+        match self.config.appearance.style {
+            AppearanceStyle::Solid | AppearanceStyle::Gradient => row.into(),
+            AppearanceStyle::Islands => container(row)
+                .style(|theme| container::Style {
+                    background: Some(
+                        theme
+                            .palette()
+                            .background
+                            .scale_alpha(self.config.appearance.opacity)
+                            .into(),
+                    ),
+                    border: Border {
+                        width: 0.0,
+                        radius: 12.0.into(),
+                        color: Color::TRANSPARENT,
+                    },
+                    ..container::Style::default()
+                })
+                .into(),
+        }
     }
 
     pub fn modules_subscriptions(&self, modules_def: &[ModuleDef]) -> Vec<Subscription<Message>> {
@@ -86,8 +100,13 @@ impl App {
             .collect()
     }
 
-    fn single_module_wrapper(&self, module_name: ModuleName, id: Id) -> Option<Element<Message>> {
-        let module = self.get_module_view(module_name, id);
+    fn single_module_wrapper(
+        &self,
+        module_name: ModuleName,
+        id: Id,
+        opacity: f32,
+    ) -> Option<Element<Message>> {
+        let module = self.get_module_view(module_name, id, opacity);
 
         module.map(|(content, action)| match action {
             Some(action) => {
@@ -98,7 +117,7 @@ impl App {
                 )
                 .padding([2, 8])
                 .height(Length::Fill)
-                .style(ModuleButtonStyle::Full.into_style());
+                .style(module_button_style(self.config.appearance.opacity));
 
                 match action {
                     OnModulePress::Action(action) => button.on_press(action),
@@ -114,18 +133,20 @@ impl App {
                 .padding([2, 8])
                 .height(Length::Fill)
                 .align_y(Alignment::Center)
-                .style(module_label)
                 .into(),
         })
     }
 
-    fn group_module_wrapper(&self, group: &[ModuleName], id: Id) -> Option<Element<Message>> {
+    fn group_module_wrapper(
+        &self,
+        group: &[ModuleName],
+        id: Id,
+        opacity: f32,
+    ) -> Option<Element<Message>> {
         let modules = group
             .iter()
-            .filter_map(|module| self.get_module_view(*module, id))
+            .filter_map(|module| self.get_module_view(*module, id, opacity))
             .collect::<Vec<_>>();
-
-        let modules_len = modules.len();
 
         if modules.is_empty() {
             None
@@ -134,66 +155,35 @@ impl App {
                 Row::with_children(
                     modules
                         .into_iter()
-                        .enumerate()
-                        .map(|(i, (content, action))| {
-                            let group_position = match i {
-                                i @ 0 if i == modules_len - 1 => ModuleGroupPosition::Only,
-                                0 => ModuleGroupPosition::First,
-                                i if i == modules_len - 1 => ModuleGroupPosition::Last,
-                                _ => ModuleGroupPosition::Middle,
-                            };
+                        .map(|(content, action)| match action {
+                            Some(action) => {
+                                let button = position_button(
+                                    container(content)
+                                        .align_y(Alignment::Center)
+                                        .height(Length::Fill),
+                                )
+                                .padding([2, 8])
+                                .height(Length::Fill)
+                                .style(module_button_style(self.config.appearance.opacity));
 
-                            match action {
-                                Some(action) => {
-                                    let button = position_button(
-                                        container(content)
-                                            .align_y(Alignment::Center)
-                                            .height(Length::Fill),
-                                    )
-                                    .padding([2, 8])
-                                    .height(Length::Fill)
-                                    .style(
-                                        match group_position {
-                                            ModuleGroupPosition::First => {
-                                                ModuleButtonStyle::First.into_style()
-                                            }
-                                            ModuleGroupPosition::Middle => {
-                                                ModuleButtonStyle::Middle.into_style()
-                                            }
-                                            ModuleGroupPosition::Last => {
-                                                ModuleButtonStyle::Last.into_style()
-                                            }
-                                            ModuleGroupPosition::Only => {
-                                                ModuleButtonStyle::Full.into_style()
-                                            }
-                                        },
-                                    );
-
-                                    match action {
-                                        OnModulePress::Action(action) => button.on_press(action),
-                                        OnModulePress::ToggleMenu(menu_type) => button
-                                            .on_press_with_position(move |button_ui_ref| {
-                                                Message::ToggleMenu(
-                                                    menu_type.clone(),
-                                                    id,
-                                                    button_ui_ref,
-                                                )
-                                            }),
-                                    }
-                                    .into()
+                                match action {
+                                    OnModulePress::Action(action) => button.on_press(action),
+                                    OnModulePress::ToggleMenu(menu_type) => button
+                                        .on_press_with_position(move |button_ui_ref| {
+                                            Message::ToggleMenu(
+                                                menu_type.clone(),
+                                                id,
+                                                button_ui_ref,
+                                            )
+                                        }),
                                 }
-                                _ => container(content)
-                                    .padding([2, 8])
-                                    .height(Length::Fill)
-                                    .align_y(Alignment::Center)
-                                    .style(match group_position {
-                                        ModuleGroupPosition::First => module_first_label,
-                                        ModuleGroupPosition::Middle => module_middle_label,
-                                        ModuleGroupPosition::Last => module_last_label,
-                                        ModuleGroupPosition::Only => module_label,
-                                    })
-                                    .into(),
+                                .into()
                             }
+                            _ => container(content)
+                                .padding([2, 8])
+                                .height(Length::Fill)
+                                .align_y(Alignment::Center)
+                                .into(),
                         })
                         .collect::<Vec<_>>(),
                 )
@@ -206,6 +196,7 @@ impl App {
         &self,
         module_name: ModuleName,
         id: Id,
+        opacity: f32,
     ) -> Option<(Element<Message>, Option<OnModulePress>)> {
         match module_name {
             ModuleName::AppLauncher => self.app_launcher.view(&self.config.app_launcher_cmd),
@@ -222,7 +213,7 @@ impl App {
             ModuleName::SystemInfo => self.system_info.view(&self.config.system),
             ModuleName::KeyboardLayout => self.keyboard_layout.view(()),
             ModuleName::KeyboardSubmap => self.keyboard_submap.view(()),
-            ModuleName::Tray => self.tray.view(id),
+            ModuleName::Tray => self.tray.view((id, opacity)),
             ModuleName::Clock => self.clock.view(&self.config.clock.format),
             ModuleName::Privacy => self.privacy.view(()),
             ModuleName::Settings => self.settings.view(()),

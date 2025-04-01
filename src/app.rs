@@ -1,6 +1,8 @@
+use std::f32::consts::PI;
+
 use crate::{
     HEIGHT, centerbox,
-    config::{self, Config},
+    config::{self, AppearanceStyle, Config, Position},
     get_log_spec,
     menu::{MenuSize, MenuType, menu_wrapper},
     modules::{
@@ -22,18 +24,19 @@ use crate::{
     outputs::{HasOutput, Outputs},
     position_button::ButtonUIRef,
     services::{Service, ServiceEvent, brightness::BrightnessCommand, tray::TrayEvent},
-    style::ashell_theme,
+    style::{ashell_theme, backdrop_color, darken_color},
     utils,
 };
 use flexi_logger::LoggerHandle;
 use iced::{
-    Alignment, Color, Element, Length, Subscription, Task, Theme,
+    Alignment, Color, Element, Gradient, Length, Radians, Subscription, Task, Theme,
     daemon::Appearance,
     event::{
         listen_with,
         wayland::{Event as WaylandEvent, OutputEvent},
     },
-    widget::Row,
+    gradient::Linear,
+    widget::{Row, container},
     window::Id,
 };
 use log::{debug, info, warn};
@@ -83,7 +86,7 @@ pub enum Message {
 impl App {
     pub fn new((logger, config): (LoggerHandle, Config)) -> impl FnOnce() -> (Self, Task<Message>) {
         || {
-            let (outputs, task) = Outputs::new(config.position);
+            let (outputs, task) = Outputs::new(config.appearance.style, config.position);
             let enable_workspace_filling = config.workspaces.enable_workspace_filling;
             (
                 App {
@@ -135,10 +138,16 @@ impl App {
                     "Current outputs: {:?}, new outputs: {:?}",
                     self.config.outputs, config.outputs
                 );
-                if self.config.outputs != config.outputs || self.config.position != config.position
+                if self.config.outputs != config.outputs
+                    || self.config.position != config.position
+                    || self.config.appearance.style != config.appearance.style
                 {
                     warn!("Outputs changed, syncing");
-                    tasks.push(self.outputs.sync(&config.outputs, config.position));
+                    tasks.push(self.outputs.sync(
+                        config.appearance.style,
+                        &config.outputs,
+                        config.position,
+                    ));
                 }
                 self.config = *config;
                 self.logger
@@ -251,12 +260,21 @@ impl App {
                         .and_then(|info| info.name.as_deref())
                         .unwrap_or("");
 
-                    self.outputs
-                        .add(&self.config.outputs, self.config.position, name, wl_output)
+                    self.outputs.add(
+                        self.config.appearance.style,
+                        &self.config.outputs,
+                        self.config.position,
+                        name,
+                        wl_output,
+                    )
                 }
                 iced::event::wayland::OutputEvent::Removed => {
                     info!("Output destroyed");
-                    self.outputs.remove(self.config.position, wl_output)
+                    self.outputs.remove(
+                        self.config.appearance.style,
+                        self.config.position,
+                        wl_output,
+                    )
                 }
                 _ => Task::none(),
             },
@@ -267,50 +285,162 @@ impl App {
     pub fn view(&self, id: Id) -> Element<Message> {
         match self.outputs.has(id) {
             Some(HasOutput::Main) => {
-                let left = self.modules_section(&self.config.modules.left, id);
-                let center = self.modules_section(&self.config.modules.center, id);
-                let right = self.modules_section(&self.config.modules.right, id);
+                let left = self.modules_section(
+                    &self.config.modules.left,
+                    id,
+                    self.config.appearance.opacity,
+                );
+                let center = self.modules_section(
+                    &self.config.modules.center,
+                    id,
+                    self.config.appearance.opacity,
+                );
+                let right = self.modules_section(
+                    &self.config.modules.right,
+                    id,
+                    self.config.appearance.opacity,
+                );
 
-                centerbox::Centerbox::new([left, center, right])
+                let centerbox = centerbox::Centerbox::new([left, center, right])
                     .spacing(4)
-                    .padding([4, 4])
                     .width(Length::Fill)
-                    .height(Length::Fixed(HEIGHT as f32))
                     .align_items(Alignment::Center)
+                    .height(
+                        if self.config.appearance.style == AppearanceStyle::Islands {
+                            HEIGHT
+                        } else {
+                            HEIGHT - 8
+                        } as f32,
+                    )
+                    .padding(
+                        if self.config.appearance.style == AppearanceStyle::Islands {
+                            [4, 4]
+                        } else {
+                            [0, 0]
+                        },
+                    );
+
+                container(centerbox)
+                    .style(|t| container::Style {
+                        background: match self.config.appearance.style {
+                            AppearanceStyle::Gradient => Some({
+                                let start_color = t
+                                    .palette()
+                                    .background
+                                    .scale_alpha(self.config.appearance.opacity);
+
+                                let start_color = if self.outputs.menu_is_open() {
+                                    darken_color(start_color, self.config.appearance.menu.backdrop)
+                                } else {
+                                    start_color
+                                };
+
+                                let end_color = if self.outputs.menu_is_open() {
+                                    backdrop_color(self.config.appearance.menu.backdrop)
+                                } else {
+                                    Color::TRANSPARENT
+                                };
+
+                                Gradient::Linear(
+                                    Linear::new(Radians(PI))
+                                        .add_stop(
+                                            0.0,
+                                            match self.config.position {
+                                                Position::Top => start_color,
+                                                Position::Bottom => end_color,
+                                            },
+                                        )
+                                        .add_stop(
+                                            1.0,
+                                            match self.config.position {
+                                                Position::Top => end_color,
+                                                Position::Bottom => start_color,
+                                            },
+                                        ),
+                                )
+                                .into()
+                            }),
+                            AppearanceStyle::Solid => Some({
+                                let bg = t
+                                    .palette()
+                                    .background
+                                    .scale_alpha(self.config.appearance.opacity);
+                                if self.outputs.menu_is_open() {
+                                    darken_color(bg, self.config.appearance.menu.backdrop)
+                                } else {
+                                    bg
+                                }
+                                .into()
+                            }),
+                            AppearanceStyle::Islands => {
+                                if self.outputs.menu_is_open() {
+                                    Some(
+                                        backdrop_color(self.config.appearance.menu.backdrop).into(),
+                                    )
+                                } else {
+                                    None
+                                }
+                            }
+                        },
+                        ..Default::default()
+                    })
                     .into()
             }
             Some(HasOutput::Menu(menu_info)) => match menu_info {
                 Some((MenuType::Updates, button_ui_ref)) => menu_wrapper(
                     id,
-                    self.updates.menu_view(id).map(Message::Updates),
+                    self.updates
+                        .menu_view(id, self.config.appearance.menu.opacity)
+                        .map(Message::Updates),
                     MenuSize::Normal,
                     *button_ui_ref,
                     self.config.position,
+                    self.config.appearance.style,
+                    self.config.appearance.menu.opacity,
+                    self.config.appearance.menu.backdrop,
                 ),
                 Some((MenuType::Tray(name), button_ui_ref)) => menu_wrapper(
                     id,
-                    self.tray.menu_view(name).map(Message::Tray),
+                    self.tray
+                        .menu_view(name, self.config.appearance.menu.opacity)
+                        .map(Message::Tray),
                     MenuSize::Normal,
                     *button_ui_ref,
                     self.config.position,
+                    self.config.appearance.style,
+                    self.config.appearance.menu.opacity,
+                    self.config.appearance.menu.backdrop,
                 ),
                 Some((MenuType::Settings, button_ui_ref)) => menu_wrapper(
                     id,
                     self.settings
-                        .menu_view(id, &self.config.settings)
+                        .menu_view(
+                            id,
+                            &self.config.settings,
+                            self.config.appearance.menu.opacity,
+                        )
                         .map(Message::Settings),
                     MenuSize::Large,
                     *button_ui_ref,
                     self.config.position,
+                    self.config.appearance.style,
+                    self.config.appearance.menu.opacity,
+                    self.config.appearance.menu.backdrop,
                 ),
                 Some((MenuType::MediaPlayer, button_ui_ref)) => menu_wrapper(
                     id,
                     self.media_player
-                        .menu_view(&self.config.media_player)
+                        .menu_view(
+                            &self.config.media_player,
+                            self.config.appearance.menu.opacity,
+                        )
                         .map(Message::MediaPlayer),
                     MenuSize::Large,
                     *button_ui_ref,
                     self.config.position,
+                    self.config.appearance.style,
+                    self.config.appearance.menu.opacity,
+                    self.config.appearance.menu.backdrop,
                 ),
                 None => Row::new().into(),
             },

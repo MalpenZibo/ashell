@@ -1,6 +1,7 @@
 use crate::app::{self};
-use crate::config::Position;
+use crate::config::{AppearanceStyle, Position};
 use crate::position_button::ButtonUIRef;
+use crate::style::backdrop_color;
 use iced::alignment::{Horizontal, Vertical};
 use iced::platform_specific::shell::commands::layer_surface::{
     KeyboardInteractivity, Layer, set_keyboard_interactivity, set_layer,
@@ -110,12 +111,16 @@ impl MenuSize {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn menu_wrapper(
     id: Id,
     content: Element<app::Message>,
     menu_size: MenuSize,
     button_ui_ref: ButtonUIRef,
     bar_position: Position,
+    style: AppearanceStyle,
+    opacity: f32,
+    menu_backdrop: f32,
 ) -> Element<app::Message> {
     mouse_area(
         container(
@@ -125,10 +130,15 @@ pub fn menu_wrapper(
                     .width(Length::Shrink)
                     .max_width(menu_size.size())
                     .padding(16)
-                    .style(|theme: &Theme| Style {
-                        background: Some(theme.palette().background.into()),
+                    .style(move |theme: &Theme| Style {
+                        background: Some(theme.palette().background.scale_alpha(opacity).into()),
                         border: Border {
-                            color: theme.extended_palette().secondary.base.color,
+                            color: theme
+                                .extended_palette()
+                                .secondary
+                                .base
+                                .color
+                                .scale_alpha(opacity),
                             width: 1.,
                             radius: 16.0.into(),
                         },
@@ -145,13 +155,33 @@ pub fn menu_wrapper(
         .padding({
             let size = menu_size.size();
 
-            Padding::new(0.).left(f32::min(
-                f32::max(button_ui_ref.position.x - size / 2., 8.),
-                button_ui_ref.viewport.0 - size - 8.,
-            ))
+            let v_padding = match style {
+                AppearanceStyle::Solid | AppearanceStyle::Gradient => 2,
+                AppearanceStyle::Islands => 0,
+            };
+
+            Padding::new(0.)
+                .top(if bar_position == Position::Top {
+                    v_padding
+                } else {
+                    0
+                })
+                .bottom(if bar_position == Position::Bottom {
+                    v_padding
+                } else {
+                    0
+                })
+                .left(f32::min(
+                    f32::max(button_ui_ref.position.x - size / 2., 8.),
+                    button_ui_ref.viewport.0 - size - 8.,
+                ))
         })
         .width(Length::Fill)
-        .height(Length::Fill),
+        .height(Length::Fill)
+        .style(move |_| Style {
+            background: Some(backdrop_color(menu_backdrop).into()),
+            ..Default::default()
+        }),
     )
     .on_release(app::Message::CloseMenu(id))
     .into()
