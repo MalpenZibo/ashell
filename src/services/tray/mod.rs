@@ -15,7 +15,7 @@ use iced::{
     widget::image::Handle,
 };
 use log::{debug, error, info, trace};
-use std::{any::TypeId, ops::Deref};
+use std::{any::TypeId, ops::Deref, path::Path};
 
 pub mod dbus;
 
@@ -31,7 +31,7 @@ pub enum TrayEvent {
 #[derive(Debug, Clone)]
 pub struct StatusNotifierItem {
     pub name: String,
-    pub icon_pixmap: Option<Handle>,
+    pub icon: Option<Handle>,
     pub menu: Layout,
     item_proxy: StatusNotifierItemProxy<'static>,
     menu_proxy: DBusMenuProxy<'static>,
@@ -51,22 +51,46 @@ impl StatusNotifierItem {
             .build()
             .await?;
 
-        let icon_pixmap = item_proxy
-            .icon_pixmap()
-            .await
-            .unwrap_or_default()
-            .into_iter()
-            .max_by_key(|i| {
-                trace!("tray icon w {}, h {}", i.width, i.height);
-                (i.width, i.height)
-            })
-            .map(|mut i| {
-                // Convert ARGB to RGBA
-                for pixel in i.bytes.chunks_exact_mut(4) {
-                    pixel.rotate_left(1);
+        debug!("item_proxy {:?}", item_proxy);
+        let icon_pixmap = item_proxy.icon_pixmap().await;
+
+        let icon = match icon_pixmap {
+            Ok(icons) => {
+                debug!("icon_pixmap {:?}", icons);
+                icons
+                    .into_iter()
+                    .max_by_key(|i| {
+                        trace!("tray icon w {}, h {}", i.width, i.height);
+                        (i.width, i.height)
+                    })
+                    .map(|mut i| {
+                        // Convert ARGB to RGBA
+                        for pixel in i.bytes.chunks_exact_mut(4) {
+                            pixel.rotate_left(1);
+                        }
+                        Handle::from_rgba(i.width as u32, i.height as u32, i.bytes)
+                    })
+            }
+            Err(_) => {
+                let icon_path = item_proxy.icon_theme_path().await;
+                let icon_name = item_proxy.icon_name().await;
+
+                match (icon_path, icon_name) {
+                    (Ok(path), Ok(name)) => {
+                        debug!("icon_path {:?} icon_name {:?}", path, name);
+
+                        Some(Handle::from_path(
+                            Path::new(&path).join(format!("{}.png", name)),
+                        ))
+                    }
+                    _ => {
+                        debug!("Failed to get icon path or name");
+
+                        None
+                    }
                 }
-                Handle::from_rgba(i.width as u32, i.height as u32, i.bytes)
-            });
+            }
+        };
 
         let menu_path = item_proxy.menu().await?;
         let menu_proxy = dbus::DBusMenuProxy::builder(conn)
@@ -79,7 +103,7 @@ impl StatusNotifierItem {
 
         Ok(Self {
             name,
-            icon_pixmap,
+            icon,
             menu,
             item_proxy,
             menu_proxy,
@@ -362,7 +386,7 @@ impl ReadOnlyService for TrayService {
             }
             TrayEvent::IconChanged(name, handle) => {
                 if let Some(item) = self.data.0.iter_mut().find(|item| item.name == name) {
-                    item.icon_pixmap = Some(handle);
+                    item.icon = Some(handle);
                 }
             }
             TrayEvent::MenuLayoutChanged(name, layout) => {

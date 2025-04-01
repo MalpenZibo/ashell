@@ -174,7 +174,7 @@ impl Module for TrayModule {
                             .data
                             .iter()
                             .map(|item| {
-                                position_button(match &item.icon_pixmap {
+                                position_button(match &item.icon {
                                     Some(pixmap) => Into::<Element<_>>::into(
                                         Image::new(pixmap.clone()).height(Length::Fixed(14.)),
                                     ),

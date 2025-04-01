@@ -157,6 +157,9 @@ pub struct Icon {
 #[proxy(interface = "org.kde.StatusNotifierItem")]
 pub trait StatusNotifierItem {
     #[zbus(property)]
+    fn icon_theme_path(&self) -> zbus::Result<String>;
+
+    #[zbus(property)]
     fn icon_name(&self) -> zbus::Result<String>;
 
     #[zbus(property)]
