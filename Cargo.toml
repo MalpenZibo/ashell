@@ -16,6 +16,7 @@ iced = { git = "https://github.com/MalpenZibo/iced", features = [
   "wayland",
   "image",
   "lazy",
+  "svg"
 ] }
 chrono = "0.4"
 hyprland = "0.4.0-beta.2"
@@ -35,3 +36,5 @@ hex_color = { version = "3", features = ["serde"] }
 anyhow = "1"
 udev = { version = "0.9", features = ["send", "sync"] }
 toml = "0.8"
+freedesktop-icons = "0.3.1"
+linicon-theme = "1.2.0"

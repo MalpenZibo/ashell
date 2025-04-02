@@ -7,7 +7,7 @@ use crate::{
     services::{
         ReadOnlyService, Service, ServiceEvent,
         tray::{
-            TrayCommand, TrayService,
+            TrayCommand, TrayIcon, TrayService,
             dbus::{Layout, LayoutProps},
         },
     },
@@ -15,7 +15,7 @@ use crate::{
 };
 use iced::{
     Alignment, Element, Length, Subscription, Task,
-    widget::{Column, Image, Row, button, horizontal_rule, row, text, toggler},
+    widget::{Column, Image, Row, Svg, button, horizontal_rule, row, text, toggler},
     window::Id,
 };
 use log::debug;
@@ -174,9 +174,14 @@ impl Module for TrayModule {
                             .data
                             .iter()
                             .map(|item| {
-                                position_button(match &item.icon_pixmap {
-                                    Some(pixmap) => Into::<Element<_>>::into(
-                                        Image::new(pixmap.clone()).height(Length::Fixed(14.)),
+                                position_button(match &item.icon {
+                                    Some(TrayIcon::Image(handle)) => Into::<Element<_>>::into(
+                                        Image::new(handle.clone()).height(Length::Fixed(14.)),
+                                    ),
+                                    Some(TrayIcon::Svg(handle)) => Into::<Element<_>>::into(
+                                        Svg::new(handle.clone())
+                                            .height(Length::Fixed(16.))
+                                            .width(Length::Shrink),
                                     ),
                                     _ => icon(Icons::Point).into(),
                                 })

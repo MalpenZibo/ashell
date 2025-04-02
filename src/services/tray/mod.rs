@@ -3,6 +3,7 @@ use dbus::{
     DBusMenuProxy, Layout, StatusNotifierItemProxy, StatusNotifierWatcher,
     StatusNotifierWatcherProxy,
 };
+use freedesktop_icons::lookup;
 use iced::{
     Subscription, Task,
     futures::{
@@ -12,17 +13,46 @@ use iced::{
         stream_select,
     },
     stream::channel,
-    widget::image::Handle,
+    widget::{image, svg},
 };
+use linicon_theme::get_icon_theme;
 use log::{debug, error, info, trace};
 use std::{any::TypeId, ops::Deref};
 
 pub mod dbus;
 
+fn get_icon_from_name(icon_name: &str) -> Option<TrayIcon> {
+    debug!("get icon from name {}", icon_name);
+
+    let lookup = lookup(icon_name).with_cache();
+
+    let icon_path = match get_icon_theme() {
+        Some(theme) => {
+            debug!("icon theme found {}", theme);
+            lookup.with_theme(&theme).find()
+        }
+        None => lookup.find(),
+    };
+
+    icon_path.map(|path| {
+        if path.extension().is_some_and(|ext| ext == "svg") {
+            TrayIcon::Svg(svg::Handle::from_path(path))
+        } else {
+            TrayIcon::Image(image::Handle::from_path(path))
+        }
+    })
+}
+
+#[derive(Debug, Clone)]
+pub enum TrayIcon {
+    Image(image::Handle),
+    Svg(svg::Handle),
+}
+
 #[derive(Debug, Clone)]
 pub enum TrayEvent {
     Registered(StatusNotifierItem),
-    IconChanged(String, Handle),
+    IconChanged(String, TrayIcon),
     MenuLayoutChanged(String, Layout),
     Unregistered(String),
     None,
@@ -31,7 +61,7 @@ pub enum TrayEvent {
 #[derive(Debug, Clone)]
 pub struct StatusNotifierItem {
     pub name: String,
-    pub icon_pixmap: Option<Handle>,
+    pub icon: Option<TrayIcon>,
     pub menu: Layout,
     item_proxy: StatusNotifierItemProxy<'static>,
     menu_proxy: DBusMenuProxy<'static>,
@@ -51,22 +81,38 @@ impl StatusNotifierItem {
             .build()
             .await?;
 
-        let icon_pixmap = item_proxy
-            .icon_pixmap()
-            .await
-            .unwrap_or_default()
-            .into_iter()
-            .max_by_key(|i| {
-                trace!("tray icon w {}, h {}", i.width, i.height);
-                (i.width, i.height)
-            })
-            .map(|mut i| {
-                // Convert ARGB to RGBA
-                for pixel in i.bytes.chunks_exact_mut(4) {
-                    pixel.rotate_left(1);
-                }
-                Handle::from_rgba(i.width as u32, i.height as u32, i.bytes)
-            });
+        debug!("item_proxy {:?}", item_proxy);
+
+        let icon_pixmap = item_proxy.icon_pixmap().await;
+
+        let icon = match icon_pixmap {
+            Ok(icons) => {
+                debug!("icon_pixmap {:?}", icons);
+                icons
+                    .into_iter()
+                    .max_by_key(|i| {
+                        trace!("tray icon w {}, h {}", i.width, i.height);
+                        (i.width, i.height)
+                    })
+                    .map(|mut i| {
+                        // Convert ARGB to RGBA
+                        for pixel in i.bytes.chunks_exact_mut(4) {
+                            pixel.rotate_left(1);
+                        }
+                        TrayIcon::Image(image::Handle::from_rgba(
+                            i.width as u32,
+                            i.height as u32,
+                            i.bytes,
+                        ))
+                    })
+            }
+            Err(_) => item_proxy
+                .icon_name()
+                .await
+                .ok()
+                .as_deref()
+                .and_then(get_icon_from_name),
+        };
 
         let menu_path = item_proxy.menu().await?;
         let menu_proxy = dbus::DBusMenuProxy::builder(conn)
@@ -79,7 +125,7 @@ impl StatusNotifierItem {
 
         Ok(Self {
             name,
-            icon_pixmap,
+            icon,
             menu,
             item_proxy,
             menu_proxy,
@@ -177,6 +223,7 @@ impl TrayService {
 
         let items = watcher.registered_status_notifier_items().await?;
         let mut icon_pixel_change = Vec::with_capacity(items.len());
+        let mut icon_name_change = Vec::with_capacity(items.len());
         let mut menu_layout_change = Vec::with_capacity(items.len());
 
         for name in items {
@@ -204,14 +251,36 @@ impl TrayService {
                                             }
                                             TrayEvent::IconChanged(
                                                 name.to_owned(),
-                                                Handle::from_rgba(
+                                                TrayIcon::Image(image::Handle::from_rgba(
                                                     i.width as u32,
                                                     i.height as u32,
                                                     i.bytes,
-                                                ),
+                                                )),
                                             )
                                         })
                                 })
+                            }
+                        }
+                    })
+                    .boxed(),
+            );
+
+            icon_name_change.push(
+                item.item_proxy
+                    .receive_icon_name_changed()
+                    .await
+                    .filter_map({
+                        let name = name.clone();
+                        move |icon_name| {
+                            let name = name.clone();
+                            async move {
+                                icon_name
+                                    .get()
+                                    .await
+                                    .ok()
+                                    .as_deref()
+                                    .and_then(get_icon_from_name)
+                                    .map(|icon| TrayEvent::IconChanged(name.to_owned(), icon))
                             }
                         }
                     })
@@ -248,6 +317,7 @@ impl TrayService {
             registered,
             unregistered,
             select_all(icon_pixel_change),
+            select_all(icon_name_change),
             select_all(menu_layout_change)
         )
         .boxed())
@@ -362,7 +432,7 @@ impl ReadOnlyService for TrayService {
             }
             TrayEvent::IconChanged(name, handle) => {
                 if let Some(item) = self.data.0.iter_mut().find(|item| item.name == name) {
-                    item.icon_pixmap = Some(handle);
+                    item.icon = Some(handle);
                 }
             }
             TrayEvent::MenuLayoutChanged(name, layout) => {
