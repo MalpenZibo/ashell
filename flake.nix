@@ -40,7 +40,7 @@
           runtimeDependencies = with pkgs; [
             libpulseaudio
             wayland
-            mesa.drivers
+            mesa
             vulkan-loader
             libGL
             libglvnd
