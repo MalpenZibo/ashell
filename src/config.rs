@@ -491,10 +491,16 @@ pub fn subscription() -> Subscription<Message> {
         id,
         channel(100, async |mut output| {
             let home_dir = env::var("HOME").expect("Could not get HOME environment variable");
+
             let file_path = format!("{}{}", home_dir, CONFIG_PATH.replace('~', ""));
             let config_file_path = Path::new(&file_path);
-            let ashell_config_dir = config_file_path.parent().unwrap();
-            let config_dir = ashell_config_dir.parent().unwrap();
+
+            let ashell_config_dir = config_file_path
+                .parent()
+                .expect("Failed to get ashell config directory");
+            let config_dir = ashell_config_dir
+                .parent()
+                .expect("Failed to get config directory");
 
             loop {
                 let inotify = Inotify::init().expect("Failed to initialize inotify");
