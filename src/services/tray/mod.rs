@@ -13,17 +13,46 @@ use iced::{
         stream_select,
     },
     stream::channel,
-    widget::image::Handle,
+    widget::{image, svg},
 };
+use linicon_theme::get_icon_theme;
 use log::{debug, error, info, trace};
 use std::{any::TypeId, ops::Deref};
 
 pub mod dbus;
 
+fn get_icon_from_name(icon_name: &str) -> Option<TrayIcon> {
+    debug!("get icon from name {}", icon_name);
+
+    let lookup = lookup(icon_name).with_cache();
+
+    let icon_path = match get_icon_theme() {
+        Some(theme) => {
+            debug!("icon theme found {}", theme);
+            lookup.with_theme(&theme).find()
+        }
+        None => lookup.find(),
+    };
+
+    icon_path.map(|path| {
+        if path.extension().is_some_and(|ext| ext == "svg") {
+            TrayIcon::Svg(svg::Handle::from_path(path))
+        } else {
+            TrayIcon::Image(image::Handle::from_path(path))
+        }
+    })
+}
+
+#[derive(Debug, Clone)]
+pub enum TrayIcon {
+    Image(image::Handle),
+    Svg(svg::Handle),
+}
+
 #[derive(Debug, Clone)]
 pub enum TrayEvent {
     Registered(StatusNotifierItem),
-    IconChanged(String, Handle),
+    IconChanged(String, TrayIcon),
     MenuLayoutChanged(String, Layout),
     Unregistered(String),
     None,
@@ -32,7 +61,7 @@ pub enum TrayEvent {
 #[derive(Debug, Clone)]
 pub struct StatusNotifierItem {
     pub name: String,
-    pub icon: Option<Handle>,
+    pub icon: Option<TrayIcon>,
     pub menu: Layout,
     item_proxy: StatusNotifierItemProxy<'static>,
     menu_proxy: DBusMenuProxy<'static>,
@@ -53,6 +82,7 @@ impl StatusNotifierItem {
             .await?;
 
         debug!("item_proxy {:?}", item_proxy);
+
         let icon_pixmap = item_proxy.icon_pixmap().await;
 
         let icon = match icon_pixmap {
@@ -69,21 +99,19 @@ impl StatusNotifierItem {
                         for pixel in i.bytes.chunks_exact_mut(4) {
                             pixel.rotate_left(1);
                         }
-                        Handle::from_rgba(i.width as u32, i.height as u32, i.bytes)
+                        TrayIcon::Image(image::Handle::from_rgba(
+                            i.width as u32,
+                            i.height as u32,
+                            i.bytes,
+                        ))
                     })
             }
             Err(_) => item_proxy
                 .icon_name()
                 .await
                 .ok()
-                .and_then(|icon_name| {
-                    debug!("icon_name {:?}", icon_name);
-                    lookup(&icon_name).with_cache().find()
-                })
-                .map(|icon| {
-                    debug!("icon_path {:?}", icon);
-                    Handle::from_path(icon)
-                }),
+                .as_deref()
+                .and_then(get_icon_from_name),
         };
 
         let menu_path = item_proxy.menu().await?;
@@ -223,11 +251,11 @@ impl TrayService {
                                             }
                                             TrayEvent::IconChanged(
                                                 name.to_owned(),
-                                                Handle::from_rgba(
+                                                TrayIcon::Image(image::Handle::from_rgba(
                                                     i.width as u32,
                                                     i.height as u32,
                                                     i.bytes,
-                                                ),
+                                                )),
                                             )
                                         })
                                 })
@@ -250,17 +278,9 @@ impl TrayService {
                                     .get()
                                     .await
                                     .ok()
-                                    .and_then(|icon_name| {
-                                        debug!("icon_name {:?}", icon_name);
-                                        lookup(&icon_name).with_cache().find()
-                                    })
-                                    .map(|icon| {
-                                        debug!("icon_path {:?}", icon);
-                                        TrayEvent::IconChanged(
-                                            name.to_owned(),
-                                            Handle::from_path(icon),
-                                        )
-                                    })
+                                    .as_deref()
+                                    .and_then(get_icon_from_name)
+                                    .map(|icon| TrayEvent::IconChanged(name.to_owned(), icon))
                             }
                         }
                     })
