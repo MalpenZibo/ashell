@@ -110,6 +110,10 @@ To enable this flake use
 
 ## Configuration
 
+> The following are the configuration for the `main` branch and could contain breaking changes.
+> For the tagged release you can find the configuration instruction in the corresponding README file.
+> eg: https://github.com/MalpenZibo/ashell/blob/0.4.1/README.md
+
 The configuration file uses the toml file format and is named `~/.config/ashell/config.toml`
 
 ```toml
