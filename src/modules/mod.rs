@@ -64,26 +64,7 @@ impl App {
             });
         }
 
-        match self.config.appearance.style {
-            AppearanceStyle::Solid | AppearanceStyle::Gradient => row.into(),
-            AppearanceStyle::Islands => container(row)
-                .style(|theme| container::Style {
-                    background: Some(
-                        theme
-                            .palette()
-                            .background
-                            .scale_alpha(self.config.appearance.opacity)
-                            .into(),
-                    ),
-                    border: Border {
-                        width: 0.0,
-                        radius: 12.0.into(),
-                        color: Color::TRANSPARENT,
-                    },
-                    ..container::Style::default()
-                })
-                .into(),
-        }
+        row.into()
     }
 
     pub fn modules_subscriptions(&self, modules_def: &[ModuleDef]) -> Vec<Subscription<Message>> {
@@ -129,11 +110,33 @@ impl App {
                 }
                 .into()
             }
-            _ => container(content)
-                .padding([2, 8])
-                .height(Length::Fill)
-                .align_y(Alignment::Center)
-                .into(),
+            _ => {
+                let container = container(content)
+                    .padding([2, 8])
+                    .height(Length::Fill)
+                    .align_y(Alignment::Center);
+
+                match self.config.appearance.style {
+                    AppearanceStyle::Solid | AppearanceStyle::Gradient => container.into(),
+                    AppearanceStyle::Islands => container
+                        .style(|theme| container::Style {
+                            background: Some(
+                                theme
+                                    .palette()
+                                    .background
+                                    .scale_alpha(self.config.appearance.opacity)
+                                    .into(),
+                            ),
+                            border: Border {
+                                width: 0.0,
+                                radius: 12.0.into(),
+                                color: Color::TRANSPARENT,
+                            },
+                            ..container::Style::default()
+                        })
+                        .into(),
+                }
+            }
         })
     }
 
@@ -151,8 +154,8 @@ impl App {
         if modules.is_empty() {
             None
         } else {
-            Some(
-                Row::with_children(
+            Some({
+                let group = Row::with_children(
                     modules
                         .into_iter()
                         .map(|(content, action)| match action {
@@ -186,9 +189,29 @@ impl App {
                                 .into(),
                         })
                         .collect::<Vec<_>>(),
-                )
-                .into(),
-            )
+                );
+
+                match self.config.appearance.style {
+                    AppearanceStyle::Solid | AppearanceStyle::Gradient => group.into(),
+                    AppearanceStyle::Islands => container(group)
+                        .style(|theme| container::Style {
+                            background: Some(
+                                theme
+                                    .palette()
+                                    .background
+                                    .scale_alpha(self.config.appearance.opacity)
+                                    .into(),
+                            ),
+                            border: Border {
+                                width: 0.0,
+                                radius: 12.0.into(),
+                                color: Color::TRANSPARENT,
+                            },
+                            ..container::Style::default()
+                        })
+                        .into(),
+                }
+            })
         }
     }
 
