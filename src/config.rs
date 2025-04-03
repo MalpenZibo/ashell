@@ -384,7 +384,6 @@ impl Default for Modules {
 }
 
 #[derive(Deserialize, Clone, Default, Debug, PartialEq, Eq)]
-#[serde(untagged)]
 #[serde(rename_all = "camelCase")]
 pub enum Outputs {
     #[default]
