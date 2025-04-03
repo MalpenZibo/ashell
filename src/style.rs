@@ -1,4 +1,4 @@
-use crate::config::{Appearance, AppearanceColor};
+use crate::config::{Appearance, AppearanceColor, AppearanceStyle};
 use iced::{
     Background, Border, Color, Theme,
     theme::{Palette, palette},
@@ -112,10 +112,18 @@ pub fn ashell_theme(appearance: &Appearance) -> Theme {
     )
 }
 
-pub fn module_button_style(opacity: f32) -> impl Fn(&Theme, Status) -> button::Style {
+pub fn module_button_style(
+    style: AppearanceStyle,
+    opacity: f32,
+) -> impl Fn(&Theme, Status) -> button::Style {
     move |theme, status| {
         let mut base = button::Style {
-            background: None,
+            background: match style {
+                AppearanceStyle::Solid | AppearanceStyle::Gradient => None,
+                AppearanceStyle::Islands => {
+                    Some(theme.palette().background.scale_alpha(opacity).into())
+                }
+            },
             border: Border {
                 width: 0.0,
                 radius: 12.0.into(),

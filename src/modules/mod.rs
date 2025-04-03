@@ -98,7 +98,10 @@ impl App {
                 )
                 .padding([2, 8])
                 .height(Length::Fill)
-                .style(module_button_style(self.config.appearance.opacity));
+                .style(module_button_style(
+                    self.config.appearance.style,
+                    self.config.appearance.opacity,
+                ));
 
                 match action {
                     OnModulePress::Action(action) => button.on_press(action),
@@ -167,7 +170,10 @@ impl App {
                                 )
                                 .padding([2, 8])
                                 .height(Length::Fill)
-                                .style(module_button_style(self.config.appearance.opacity));
+                                .style(module_button_style(
+                                    self.config.appearance.style,
+                                    self.config.appearance.opacity,
+                                ));
 
                                 match action {
                                     OnModulePress::Action(action) => button.on_press(action),
