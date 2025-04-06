@@ -69,7 +69,7 @@ inputs = {
   ashell.url = "github:MalpenZibo/ashell";
   # ... other inputs
 };
-outputs = {...}@inputs: {}; # Make sure to pass inputs to your specialArgs!
+outputs = {...} @ inputs: {<outputs>}; # Make sure to pass inputs to your specialArgs!
 ```
 
 ```nix
@@ -81,7 +81,7 @@ configuration.nix
   # or home.packages = ...
 }
 ```
-This will build ashell from source, but you can also use `pkgs.ashell` which is cached.
+This will build ashell from source, but you can also use `pkgs.ashell` from nixpkgs which is cached.
 
 ## Features
 
