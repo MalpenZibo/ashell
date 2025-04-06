@@ -8,28 +8,39 @@ use iced::{
     time::every,
     widget::{Row, container, row, text},
 };
-use std::{collections::HashMap, time::Duration};
-use sysinfo::{Components, Disk, Disks, System};
+use itertools::Itertools;
+use std::time::{Duration, Instant};
+use sysinfo::{Components, Disks, Networks, System};
 
 use super::{Module, OnModulePress};
+
+struct NetworkData {
+    ip: String,
+    download_speed: u32,
+    upload_speed: u32,
+    last_check: Instant,
+}
 
 struct SystemInfoData {
     pub cpu_usage: u32,
     pub memory_usage: u32,
     pub temperature: Option<i32>,
-    pub disks: HashMap<String, u32>,
+    pub disks: Vec<(String, u32)>,
+    pub network: Option<NetworkData>,
 }
 
 fn get_system_info(
     system: &mut System,
     components: &mut Components,
     disks: &mut Disks,
+    (networks, last_check): (&mut Networks, Option<Instant>),
 ) -> SystemInfoData {
     system.refresh_memory();
     system.refresh_cpu_specifics(sysinfo::CpuRefreshKind::everything());
 
     components.refresh(true);
     disks.refresh(true);
+    networks.refresh(true);
 
     let cpu_usage = system.global_cpu_usage().floor() as u32;
     let memory_usage = ((system.total_memory() - system.available_memory()) as f32
@@ -42,22 +53,58 @@ fn get_system_info(
         .and_then(|c| c.temperature().map(|t| t as i32));
 
     let disks = disks
-        .iter()
-        .filter(|d| !d.is_removable())
+        .into_iter()
+        .filter(|d| !d.is_removable() && d.total_space() != 0)
         .map(|d| {
             (
-                d.mount_point().to_owned(),
+                d.mount_point().to_string_lossy().to_string(),
                 (((d.total_space() - d.available_space()) as f32) / d.total_space() as f32 * 100.)
                     as u32,
             )
         })
-        .collect::<HashMap<String, u32>>();
+        .sorted_by(|a, b| a.0.cmp(&b.0))
+        .collect::<Vec<_>>();
+
+    let elapsed = last_check.map(|v| v.elapsed().as_secs());
+
+    let network = networks
+        .iter()
+        .filter(|(name, _)| name.starts_with("wlan") || name.starts_with("eth"))
+        .fold(
+            (None, 0, 0),
+            |(first_ip, total_received, total_transmitted), (_, data)| {
+                let ip = first_ip.or_else(|| data.ip_networks().first().map(|ip| ip.addr));
+
+                let received = data.received();
+                let transmitted = data.transmitted();
+
+                (
+                    first_ip.or(ip),
+                    total_received + received,
+                    total_transmitted + transmitted,
+                )
+            },
+        );
 
     SystemInfoData {
         cpu_usage,
         memory_usage,
         temperature,
         disks,
+        network: network.0.map(|ip| NetworkData {
+            ip: ip.to_string(),
+            download_speed: if let Some(elapsed) = elapsed {
+                (network.1 / 1000) as u32 / elapsed as u32
+            } else {
+                0
+            },
+            upload_speed: if let Some(elapsed) = elapsed {
+                (network.2 / 1000) as u32 / elapsed as u32
+            } else {
+                0
+            },
+            last_check: Instant::now(),
+        }),
     }
 }
 
@@ -65,6 +112,7 @@ pub struct SystemInfo {
     system: System,
     components: Components,
     disks: Disks,
+    networks: Networks,
     data: SystemInfoData,
 }
 
@@ -73,13 +121,20 @@ impl Default for SystemInfo {
         let mut system = System::new();
         let mut components = Components::new_with_refreshed_list();
         let mut disks = Disks::new_with_refreshed_list();
-        let data = get_system_info(&mut system, &mut components, &mut disks);
+        let mut networks = Networks::new_with_refreshed_list();
+        let data = get_system_info(
+            &mut system,
+            &mut components,
+            &mut disks,
+            (&mut networks, None),
+        );
 
         Self {
             system,
             components,
             disks,
             data,
+            networks,
         }
     }
 }
@@ -93,8 +148,15 @@ impl SystemInfo {
     pub fn update(&mut self, message: Message) {
         match message {
             Message::Update => {
-                self.data =
-                    get_system_info(&mut self.system, &mut self.components, &mut self.disks);
+                self.data = get_system_info(
+                    &mut self.system,
+                    &mut self.components,
+                    &mut self.disks,
+                    (
+                        &mut self.networks,
+                        self.data.network.as_ref().map(|n| n.last_check),
+                    ),
+                );
             }
         }
     }
@@ -176,12 +238,35 @@ impl Module for SystemInfo {
                             .disks
                             .iter()
                             .map(|(mount_point, usage)| {
-                                text(format!("{}: {}%", mount_point, usage))
+                                row!(
+                                    icon(Icons::Drive),
+                                    text(format!("{} {}%", mount_point, usage))
+                                )
+                                .spacing(4)
+                                .into()
                             })
-                            .collect::<Vec<_>>(),
+                            .collect::<Vec<Element<_>>>(),
                     )
-                    .into(),
+                    .spacing(4),
                 )
+                .push_maybe(self.data.network.as_ref().map(|network| {
+                    container(
+                        row!(
+                            row!(icon(Icons::IpAddress), text(&network.ip)).spacing(4),
+                            row!(
+                                icon(Icons::DownloadSpeed),
+                                text(format!("{} Kbit/s", network.download_speed))
+                            )
+                            .spacing(4),
+                            row!(
+                                icon(Icons::UploadSpeed),
+                                text(format!("{} Kbit/s", network.upload_speed))
+                            )
+                            .spacing(4),
+                        )
+                        .spacing(4),
+                    )
+                }))
                 .align_y(Alignment::Center)
                 .spacing(4)
                 .into(),
