@@ -441,9 +441,7 @@ impl App {
                 ),
                 Some((MenuType::SystemInfo, button_ui_ref)) => menu_wrapper(
                     id,
-                    self.system_info
-                        .menu_view(self.config.appearance.menu.opacity)
-                        .map(Message::SystemInfo),
+                    self.system_info.menu_view().map(Message::SystemInfo),
                     MenuSize::Large,
                     *button_ui_ref,
                     self.config.position,

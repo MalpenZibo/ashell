@@ -1,14 +1,13 @@
 use crate::{
     app,
     components::icons::{Icons, icon},
-    config::SystemModuleConfig,
+    config::{SystemIndicator, SystemModuleConfig},
     menu::MenuType,
-    style::ghost_button_style,
 };
 use iced::{
     Alignment, Element, Length, Subscription, Task, Theme,
     time::every,
-    widget::{Column, Row, button, column, container, horizontal_rule, row, text},
+    widget::{Column, Row, column, container, horizontal_rule, row, text},
 };
 use itertools::Itertools;
 use std::time::{Duration, Instant};
@@ -175,7 +174,34 @@ impl SystemInfo {
         .into()
     }
 
-    pub fn menu_view(&self, opacity: f32) -> Element<Message> {
+    fn indicator_info_element<'a, V: std::fmt::Display + PartialOrd + 'a>(
+        info_icon: Icons,
+        value: V,
+        unit: String,
+        threshold: Option<(V, V)>,
+    ) -> Element<'a, app::Message> {
+        let element =
+            container(row!(icon(info_icon), text(format!("{}{}", value, unit))).spacing(4));
+
+        if let Some((warn_threshold, alert_threshold)) = threshold {
+            element
+                .style(move |theme: &Theme| container::Style {
+                    text_color: if value > warn_threshold && value < alert_threshold {
+                        Some(theme.extended_palette().danger.weak.color)
+                    } else if value >= alert_threshold {
+                        Some(theme.palette().danger)
+                    } else {
+                        None
+                    },
+                    ..Default::default()
+                })
+                .into()
+        } else {
+            element.into()
+        }
+    }
+
+    pub fn menu_view(&self) -> Element<Message> {
         column!(
             column!(text("System Info").size(20), horizontal_rule(1)).spacing(4),
             Column::new()
@@ -247,103 +273,72 @@ impl Module for SystemInfo {
         &self,
         config: Self::ViewData<'_>,
     ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
-        let cpu_usage = self.data.cpu_usage;
-        let memory_usage = self.data.memory_usage;
-        let temperature = self.data.temperature;
-
-        let cpu_warn_threshold = config.cpu_warn_threshold;
-        let cpu_alert_threshold = config.cpu_alert_threshold;
-
-        let mem_warn_threshold = config.mem_warn_threshold;
-        let mem_alert_threshold = config.mem_alert_threshold;
-
-        let temp_warn_threshold = config.temp_warn_threshold;
-        let temp_alert_threshold = config.temp_alert_threshold;
+        let indicators = config.indicators.iter().filter_map(|i| match i {
+            SystemIndicator::Cpu => Some(Self::indicator_info_element(
+                Icons::Cpu,
+                self.data.cpu_usage,
+                "%".to_string(),
+                Some((config.cpu.warn_threshold, config.cpu.alert_threshold)),
+            )),
+            SystemIndicator::Memory => Some(Self::indicator_info_element(
+                Icons::Mem,
+                self.data.memory_usage,
+                "%".to_string(),
+                Some((config.memory.warn_threshold, config.memory.alert_threshold)),
+            )),
+            SystemIndicator::Temperature => self.data.temperature.map(|temperature| {
+                Self::indicator_info_element(
+                    Icons::Temp,
+                    temperature,
+                    "°C".to_string(),
+                    Some((
+                        config.temperature.warn_threshold,
+                        config.temperature.alert_threshold,
+                    )),
+                )
+            }),
+            SystemIndicator::Disk(mount) => {
+                self.data.disks.iter().find_map(|(disk_mount, disk)| {
+                    if disk_mount == mount {
+                        Some(Self::indicator_info_element(
+                            Icons::Drive,
+                            *disk,
+                            "%".to_string(),
+                            Some((config.disk.warn_threshold, config.disk.alert_threshold)),
+                        ))
+                    } else {
+                        None
+                    }
+                })
+            }
+            SystemIndicator::IpAddress => self.data.network.as_ref().map(|network| {
+                Self::indicator_info_element(
+                    Icons::IpAddress,
+                    network.ip.to_string(),
+                    "".to_string(),
+                    None,
+                )
+            }),
+            SystemIndicator::DownloadSpeed => self.data.network.as_ref().map(|network| {
+                Self::indicator_info_element(
+                    Icons::DownloadSpeed,
+                    network.download_speed,
+                    "Kbit/s".to_string(),
+                    None,
+                )
+            }),
+            SystemIndicator::UploadSpeed => self.data.network.as_ref().map(|network| {
+                Self::indicator_info_element(
+                    Icons::UploadSpeed,
+                    network.upload_speed,
+                    "Kbit/s".to_string(),
+                    None,
+                )
+            }),
+        });
 
         Some((
-            Row::new()
-                .push(
-                    container(row!(icon(Icons::Cpu), text(format!("{}%", cpu_usage))).spacing(4))
-                        .style(move |theme: &Theme| container::Style {
-                            text_color: if cpu_usage > cpu_warn_threshold
-                                && cpu_usage < cpu_alert_threshold
-                            {
-                                Some(theme.extended_palette().danger.weak.color)
-                            } else if cpu_usage >= cpu_alert_threshold {
-                                Some(theme.palette().danger)
-                            } else {
-                                None
-                            },
-                            ..Default::default()
-                        }),
-                )
-                .push(
-                    container(
-                        row!(icon(Icons::Mem), text(format!("{}%", memory_usage))).spacing(4),
-                    )
-                    .style(move |theme: &Theme| container::Style {
-                        text_color: if memory_usage > mem_warn_threshold
-                            && memory_usage < mem_alert_threshold
-                        {
-                            Some(theme.extended_palette().danger.weak.color)
-                        } else if memory_usage >= mem_alert_threshold {
-                            Some(theme.palette().danger)
-                        } else {
-                            None
-                        },
-                        ..Default::default()
-                    }),
-                )
-                .push_maybe(temperature.map(|temperature| {
-                    container(row!(icon(Icons::Temp), text(format!("{}°", temperature))).spacing(4))
-                        .style(move |theme: &Theme| container::Style {
-                            text_color: if temperature > temp_warn_threshold
-                                && temperature < temp_alert_threshold
-                            {
-                                Some(theme.extended_palette().danger.weak.color)
-                            } else if temperature >= temp_alert_threshold {
-                                Some(theme.palette().danger)
-                            } else {
-                                None
-                            },
-                            ..Default::default()
-                        })
-                }))
-                .push(
-                    Row::with_children(
-                        self.data
-                            .disks
-                            .iter()
-                            .map(|(mount_point, usage)| {
-                                row!(
-                                    icon(Icons::Drive),
-                                    text(format!("{} {}%", mount_point, usage))
-                                )
-                                .spacing(4)
-                                .into()
-                            })
-                            .collect::<Vec<Element<_>>>(),
-                    )
-                    .spacing(4),
-                )
-                .push_maybe(self.data.network.as_ref().map(|network| {
-                    container(
-                        row!(
-                            row!(icon(Icons::IpAddress), text(&network.ip)).spacing(4),
-                            row!(
-                                icon(Icons::DownloadSpeed),
-                                text(format!("{} Kbit/s", network.download_speed))
-                            )
-                            .spacing(4),
-                            row!(
-                                icon(Icons::UploadSpeed),
-                                text(format!("{} Kbit/s", network.upload_speed))
-                            )
-                            .spacing(4),
-                        )
-                        .spacing(4),
-                    )
-                }))
+            Row::with_children(indicators)
                 .align_y(Alignment::Center)
                 .spacing(4)
                 .into(),
