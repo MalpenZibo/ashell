@@ -8,8 +8,8 @@ use iced::{
     time::every,
     widget::{Row, container, row, text},
 };
-use std::time::Duration;
-use sysinfo::{Components, System};
+use std::{collections::HashMap, time::Duration};
+use sysinfo::{Components, Disk, Disks, System};
 
 use super::{Module, OnModulePress};
 
@@ -17,13 +17,19 @@ struct SystemInfoData {
     pub cpu_usage: u32,
     pub memory_usage: u32,
     pub temperature: Option<i32>,
+    pub disks: HashMap<String, u32>,
 }
 
-fn get_system_info(system: &mut System, components: &mut Components) -> SystemInfoData {
+fn get_system_info(
+    system: &mut System,
+    components: &mut Components,
+    disks: &mut Disks,
+) -> SystemInfoData {
     system.refresh_memory();
     system.refresh_cpu_specifics(sysinfo::CpuRefreshKind::everything());
 
     components.refresh(true);
+    disks.refresh(true);
 
     let cpu_usage = system.global_cpu_usage().floor() as u32;
     let memory_usage = ((system.total_memory() - system.available_memory()) as f32
@@ -35,16 +41,30 @@ fn get_system_info(system: &mut System, components: &mut Components) -> SystemIn
         .find(|c| c.label() == "acpitz temp1")
         .and_then(|c| c.temperature().map(|t| t as i32));
 
+    let disks = disks
+        .iter()
+        .filter(|d| !d.is_removable())
+        .map(|d| {
+            (
+                d.mount_point().to_owned(),
+                (((d.total_space() - d.available_space()) as f32) / d.total_space() as f32 * 100.)
+                    as u32,
+            )
+        })
+        .collect::<HashMap<String, u32>>();
+
     SystemInfoData {
         cpu_usage,
         memory_usage,
         temperature,
+        disks,
     }
 }
 
 pub struct SystemInfo {
     system: System,
     components: Components,
+    disks: Disks,
     data: SystemInfoData,
 }
 
@@ -52,11 +72,13 @@ impl Default for SystemInfo {
     fn default() -> Self {
         let mut system = System::new();
         let mut components = Components::new_with_refreshed_list();
-        let data = get_system_info(&mut system, &mut components);
+        let mut disks = Disks::new_with_refreshed_list();
+        let data = get_system_info(&mut system, &mut components, &mut disks);
 
         Self {
             system,
             components,
+            disks,
             data,
         }
     }
@@ -71,7 +93,8 @@ impl SystemInfo {
     pub fn update(&mut self, message: Message) {
         match message {
             Message::Update => {
-                self.data = get_system_info(&mut self.system, &mut self.components);
+                self.data =
+                    get_system_info(&mut self.system, &mut self.components, &mut self.disks);
             }
         }
     }
@@ -147,6 +170,18 @@ impl Module for SystemInfo {
                             ..Default::default()
                         })
                 }))
+                .push(
+                    Row::with_children(
+                        self.data
+                            .disks
+                            .iter()
+                            .map(|(mount_point, usage)| {
+                                text(format!("{}: {}%", mount_point, usage))
+                            })
+                            .collect::<Vec<_>>(),
+                    )
+                    .into(),
+                )
                 .align_y(Alignment::Center)
                 .spacing(4)
                 .into(),
