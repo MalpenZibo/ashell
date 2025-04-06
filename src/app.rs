@@ -221,10 +221,7 @@ impl App {
                     .update(message, self.config.truncate_title_after_length);
                 Task::none()
             }
-            Message::SystemInfo(message) => {
-                self.system_info.update(message);
-                Task::none()
-            }
+            Message::SystemInfo(message) => self.system_info.update(message),
             Message::KeyboardLayout(message) => {
                 self.keyboard_layout.update(message);
                 Task::none()
@@ -435,6 +432,18 @@ impl App {
                             self.config.appearance.menu.opacity,
                         )
                         .map(Message::MediaPlayer),
+                    MenuSize::Large,
+                    *button_ui_ref,
+                    self.config.position,
+                    self.config.appearance.style,
+                    self.config.appearance.menu.opacity,
+                    self.config.appearance.menu.backdrop,
+                ),
+                Some((MenuType::SystemInfo, button_ui_ref)) => menu_wrapper(
+                    id,
+                    self.system_info
+                        .menu_view(self.config.appearance.menu.opacity)
+                        .map(Message::SystemInfo),
                     MenuSize::Large,
                     *button_ui_ref,
                     self.config.position,

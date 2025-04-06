@@ -2,11 +2,13 @@ use crate::{
     app,
     components::icons::{Icons, icon},
     config::SystemModuleConfig,
+    menu::MenuType,
+    style::ghost_button_style,
 };
 use iced::{
-    Alignment, Element, Subscription, Theme,
+    Alignment, Element, Length, Subscription, Task, Theme,
     time::every,
-    widget::{Row, container, row, text},
+    widget::{Column, Row, button, column, container, horizontal_rule, row, text},
 };
 use itertools::Itertools;
 use std::time::{Duration, Instant};
@@ -145,7 +147,7 @@ pub enum Message {
 }
 
 impl SystemInfo {
-    pub fn update(&mut self, message: Message) {
+    pub fn update(&mut self, message: Message) -> Task<crate::app::Message> {
         match message {
             Message::Update => {
                 self.data = get_system_info(
@@ -157,8 +159,83 @@ impl SystemInfo {
                         self.data.network.as_ref().map(|n| n.last_check),
                     ),
                 );
+
+                Task::none()
             }
         }
+    }
+
+    fn info_element<'a>(info_icon: Icons, label: String, value: String) -> Element<'a, Message> {
+        row!(
+            container(icon(info_icon)).center_x(Length::Fixed(16.)),
+            text(label).width(Length::Fill),
+            text(value)
+        )
+        .spacing(8)
+        .into()
+    }
+
+    pub fn menu_view(&self, opacity: f32) -> Element<Message> {
+        column!(
+            column!(text("System Info").size(20), horizontal_rule(1)).spacing(4),
+            Column::new()
+                .push(Self::info_element(
+                    Icons::Cpu,
+                    "CPU Usage".to_string(),
+                    format!("{}%", self.data.cpu_usage),
+                ))
+                .push(Self::info_element(
+                    Icons::Mem,
+                    "Memory Usage".to_string(),
+                    format!("{}%", self.data.memory_usage),
+                ))
+                .push_maybe(self.data.temperature.map(|temp| {
+                    Self::info_element(
+                        Icons::Temp,
+                        "Temperature".to_string(),
+                        format!("{}°C", temp),
+                    )
+                }))
+                .push(
+                    Column::with_children(
+                        self.data
+                            .disks
+                            .iter()
+                            .map(|(mount_point, usage)| {
+                                Self::info_element(
+                                    Icons::Drive,
+                                    format!("Disk Usage ({})", mount_point),
+                                    format!("{}%", usage),
+                                )
+                            })
+                            .collect::<Vec<Element<_>>>(),
+                    )
+                    .spacing(4),
+                )
+                .push_maybe(self.data.network.as_ref().map(|network| {
+                    Column::with_children(vec![
+                        Self::info_element(
+                            Icons::IpAddress,
+                            "IP Address".to_string(),
+                            network.ip.clone(),
+                        ),
+                        Self::info_element(
+                            Icons::DownloadSpeed,
+                            "Download Speed".to_string(),
+                            format!("{} Kbit/s", network.download_speed),
+                        ),
+                        Self::info_element(
+                            Icons::UploadSpeed,
+                            "Upload Speed".to_string(),
+                            format!("{} Kbit/s", network.upload_speed),
+                        ),
+                    ])
+                }))
+                .spacing(4)
+                .padding([0, 8])
+        )
+        .spacing(8)
+        .into()
     }
 }
 
@@ -270,7 +347,7 @@ impl Module for SystemInfo {
                 .align_y(Alignment::Center)
                 .spacing(4)
                 .into(),
-            None,
+            Some(OnModulePress::ToggleMenu(MenuType::SystemInfo)),
         ))
     }
 
