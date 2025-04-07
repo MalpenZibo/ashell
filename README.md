@@ -58,29 +58,30 @@ nix profile install github:MalpenZibo/ashell?ref=0.3.1
 nix profile install github:MalpenZibo/ashell
 ```
 
-### NixOS
+### NixOS/Home-Manager
 
-I haven't tested ashell on NixOS.
-
-To enable this flake use
+To use this flake do
 
 ```nix
-{ pkgs, ... }:
-
-{
-  environment.systemPackages = with pkgs; [
-    (import (pkgs.callPackage (pkgs.fetchFromGitHub {
-      owner = "MalpenZibo";
-      repo = "ashell";
-      rev = "refs/heads/main"; # Or specify the branch/tag you need
-      sha256 = "sha256-PLACEHOLDER"; # Replace with the correct hash
-    }) {}).defaultPackage.x86_64-linux)
-  ];
-}
+flake.nix
+inputs = {
+  # ... other inputs
+  ashell.url = "github:MalpenZibo/ashell";
+  # ... other inputs
+};
+outputs = {...} @ inputs: {<outputs>}; # Make sure to pass inputs to your specialArgs!
 ```
 
-> I'm not an expert and I haven't tested this configuration
-> but I'm quite sure that if you use NixOS you are smart enough to add ashell to your configuration :D
+```nix
+configuration.nix
+{ pkgs, inputs, ... }:
+
+{
+  environment.systemPackages = [inputs.ashell.defaultPackage.${pkgs.system}]; 
+  # or home.packages = ...
+}
+```
+This will build ashell from source, but you can also use `pkgs.ashell` from nixpkgs which is cached.
 
 ## Features
 
