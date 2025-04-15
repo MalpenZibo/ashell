@@ -88,7 +88,7 @@ impl From<Icons> for &'static str {
             Icons::MenuClosed => "",
             Icons::MenuOpen => "",
             Icons::Cpu => "󰔂",
-            Icons::Mem => "󰘚",
+            Icons::Mem => "",
             Icons::Temp => "󰔏",
             Icons::Speaker0 => "󰸈",
             Icons::Speaker1 => "󰕿",

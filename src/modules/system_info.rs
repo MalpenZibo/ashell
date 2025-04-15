@@ -25,6 +25,7 @@ struct NetworkData {
 struct SystemInfoData {
     pub cpu_usage: u32,
     pub memory_usage: u32,
+    pub memory_swap_usage: u32,
     pub temperature: Option<i32>,
     pub disks: Vec<(String, u32)>,
     pub network: Option<NetworkData>,
@@ -46,6 +47,10 @@ fn get_system_info(
     let cpu_usage = system.global_cpu_usage().floor() as u32;
     let memory_usage = ((system.total_memory() - system.available_memory()) as f32
         / system.total_memory() as f32
+        * 100.) as u32;
+
+    let memory_swap_usage = ((system.total_swap() - system.free_swap()) as f32
+        / system.total_swap() as f32
         * 100.) as u32;
 
     let temperature = components
@@ -74,7 +79,13 @@ fn get_system_info(
         .fold(
             (None, 0, 0),
             |(first_ip, total_received, total_transmitted), (_, data)| {
-                let ip = first_ip.or_else(|| data.ip_networks().first().map(|ip| ip.addr));
+                let ip = first_ip.or_else(|| {
+                    data.ip_networks()
+                        .iter()
+                        .sorted_by(|a, b| a.addr.cmp(&b.addr))
+                        .next()
+                        .map(|ip| ip.addr)
+                });
 
                 let received = data.received();
                 let transmitted = data.transmitted();
@@ -90,6 +101,7 @@ fn get_system_info(
     SystemInfoData {
         cpu_usage,
         memory_usage,
+        memory_swap_usage,
         temperature,
         disks,
         network: network.0.map(|ip| NetworkData {
@@ -166,10 +178,11 @@ impl SystemInfo {
 
     fn info_element<'a>(info_icon: Icons, label: String, value: String) -> Element<'a, Message> {
         row!(
-            container(icon(info_icon)).center_x(Length::Fixed(16.)),
+            container(icon(info_icon).size(22)).center_x(Length::Fixed(32.)),
             text(label).width(Length::Fill),
             text(value)
         )
+        .align_y(Alignment::Center)
         .spacing(8)
         .into()
     }
@@ -177,11 +190,21 @@ impl SystemInfo {
     fn indicator_info_element<'a, V: std::fmt::Display + PartialOrd + 'a>(
         info_icon: Icons,
         value: V,
-        unit: String,
+        unit: &str,
         threshold: Option<(V, V)>,
+        prefix: Option<&str>,
     ) -> Element<'a, app::Message> {
-        let element =
-            container(row!(icon(info_icon), text(format!("{}{}", value, unit))).spacing(4));
+        let element = container(
+            row!(
+                icon(info_icon),
+                if let Some(prefix) = prefix {
+                    text(format!("{} {}{}", prefix, value, unit))
+                } else {
+                    text(format!("{}{}", value, unit))
+                }
+            )
+            .spacing(4),
+        );
 
         if let Some((warn_threshold, alert_threshold)) = threshold {
             element
@@ -213,6 +236,11 @@ impl SystemInfo {
                 .push(Self::info_element(
                     Icons::Mem,
                     "Memory Usage".to_string(),
+                    format!("{}%", self.data.memory_usage),
+                ))
+                .push(Self::info_element(
+                    Icons::Mem,
+                    "Swap memory Usage".to_string(),
                     format!("{}%", self.data.memory_usage),
                 ))
                 .push_maybe(self.data.temperature.map(|temp| {
@@ -277,24 +305,34 @@ impl Module for SystemInfo {
             SystemIndicator::Cpu => Some(Self::indicator_info_element(
                 Icons::Cpu,
                 self.data.cpu_usage,
-                "%".to_string(),
+                "%",
                 Some((config.cpu.warn_threshold, config.cpu.alert_threshold)),
+                None,
             )),
             SystemIndicator::Memory => Some(Self::indicator_info_element(
                 Icons::Mem,
                 self.data.memory_usage,
-                "%".to_string(),
+                "%",
                 Some((config.memory.warn_threshold, config.memory.alert_threshold)),
+                None,
+            )),
+            SystemIndicator::MemorySwap => Some(Self::indicator_info_element(
+                Icons::Mem,
+                self.data.memory_swap_usage,
+                "%",
+                Some((config.memory.warn_threshold, config.memory.alert_threshold)),
+                Some("swap"),
             )),
             SystemIndicator::Temperature => self.data.temperature.map(|temperature| {
                 Self::indicator_info_element(
                     Icons::Temp,
                     temperature,
-                    "°C".to_string(),
+                    "°C",
                     Some((
                         config.temperature.warn_threshold,
                         config.temperature.alert_threshold,
                     )),
+                    None,
                 )
             }),
             SystemIndicator::Disk(mount) => {
@@ -303,8 +341,9 @@ impl Module for SystemInfo {
                         Some(Self::indicator_info_element(
                             Icons::Drive,
                             *disk,
-                            "%".to_string(),
+                            "%",
                             Some((config.disk.warn_threshold, config.disk.alert_threshold)),
+                            Some(disk_mount),
                         ))
                     } else {
                         None
@@ -315,7 +354,8 @@ impl Module for SystemInfo {
                 Self::indicator_info_element(
                     Icons::IpAddress,
                     network.ip.to_string(),
-                    "".to_string(),
+                    "",
+                    None,
                     None,
                 )
             }),
@@ -323,7 +363,8 @@ impl Module for SystemInfo {
                 Self::indicator_info_element(
                     Icons::DownloadSpeed,
                     network.download_speed,
-                    "Kbit/s".to_string(),
+                    "Kbit/s",
+                    None,
                     None,
                 )
             }),
@@ -331,7 +372,8 @@ impl Module for SystemInfo {
                 Self::indicator_info_element(
                     Icons::UploadSpeed,
                     network.upload_speed,
-                    "Kbit/s".to_string(),
+                    "Kbit/s",
+                    None,
                     None,
                 )
             }),

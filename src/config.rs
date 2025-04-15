@@ -114,6 +114,7 @@ impl Default for SystemInfoDisk {
 pub enum SystemIndicator {
     Cpu,
     Memory,
+    MemorySwap,
     Temperature,
     Disk(String),
     IpAddress,
