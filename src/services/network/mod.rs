@@ -26,8 +26,6 @@ use std::{any::TypeId, collections::HashMap, ops::Deref};
 use tokio::process::Command;
 use zbus::zvariant::{ObjectPath, OwnedObjectPath, Value};
 
-use async_trait::async_trait;
-
 pub mod dbus;
 pub mod iwd_dbus;
 
