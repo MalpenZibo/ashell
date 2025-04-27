@@ -19,23 +19,25 @@ use crate::services::bluetooth::BluetoothService;
 
 use super::dbus::DeviceState;
 use super::{AccessPoint, ActiveConnectionInfo, KnownConnection, NetworkEvent};
-use access_point::AccessPointProxy;
-use adapter::AdapterProxy;
-use device::DeviceProxy;
 use iced::futures::future::{join_all, select};
 use iced::futures::stream::select_all;
-use iced::futures::{Stream, StreamExt};
+use iced::futures::{FutureExt, Stream, StreamExt, TryFutureExt};
 use itertools::Itertools;
-use known_network::KnownNetworkProxy;
 use log::debug;
 use log::info;
-use network::NetworkProxy;
-use station::StationProxy;
-use tokio::process::Command;
 use std::{collections::HashMap, ops::Deref};
+use tokio::process::Command;
 use zbus::fdo::{ObjectManagerProxy, PropertiesProxy};
 use zbus::zvariant::{ObjectPath, OwnedObjectPath, Value};
 use zbus::{Result, proxy};
+
+use access_point::AccessPointProxy;
+use adapter::AdapterProxy;
+use agent_manager::AgentManagerProxy;
+use device::DeviceProxy;
+use known_network::KnownNetworkProxy;
+use network::NetworkProxy;
+use station::StationProxy;
 
 /// Wrapper around the IWD D-Bus ObjectManager
 pub struct IwdDbus<'a>(ObjectManagerProxy<'a>);
@@ -56,36 +58,32 @@ impl super::NetworkBackend for IwdDbus<'_> {
         let nm = self;
 
         // airplane mode
-        info!("checking bluetooth");
         let bluetooth_soft_blocked = BluetoothService::check_rfkill_soft_block()
             .await
             .unwrap_or_default();
 
-        info!("wifi present");
         let wifi_present = nm.wifi_device_present().await?;
 
-        info!("wifi enabled");
         let wifi_enabled = nm.wireless_enabled().await.unwrap_or_default();
         debug!("Wifi enabled: {}", wifi_enabled);
 
-        info!("airplane enabled");
         let airplane_mode = bluetooth_soft_blocked && !wifi_enabled;
         debug!("Airplane mode: {}", airplane_mode);
 
-        info!("ac enabled");
         let active_connections = nm.active_connections_info().await?;
         debug!("Active connections: {:?}", active_connections);
 
-        info!("wac enabled");
         let wireless_access_points = nm.wireless_access_points().await?;
         debug!("Wireless access points: {:?}", wireless_access_points);
 
-        info!("kc enabled");
         let known_connections = nm.known_connections().await?;
         debug!("Known connections: {:?}", known_connections);
 
-        info!("sc enabled");
-        let is_scanning = join_all(self.stations().await?.iter().map(|s| s.scanning())).await.into_iter().filter_map(|v| v.ok()).any(|v| v);
+        let is_scanning = join_all(self.stations().await?.iter().map(|s| s.scanning()))
+            .await
+            .into_iter()
+            .filter_map(|v| v.ok())
+            .any(|v| v);
 
         info!("connect enabled");
         Ok(super::NetworkData {
@@ -107,9 +105,7 @@ impl super::NetworkBackend for IwdDbus<'_> {
     }
 
     /// List known (provisioned) SSIDs
-    async fn known_connections(
-        &self,
-    ) -> anyhow::Result<Vec<KnownConnection>> {
+    async fn known_connections(&self) -> anyhow::Result<Vec<KnownConnection>> {
         let objects = self.0.get_managed_objects().await?;
         let mut known_ssid = Vec::new();
         for (path, ifs) in &objects {
@@ -132,17 +128,12 @@ impl super::NetworkBackend for IwdDbus<'_> {
         Ok(vec![])
     }
 
-
-    async fn scan_nearby_wifi(
-        &self,
-    ) -> anyhow::Result<()> {
+    async fn scan_nearby_wifi(&self) -> anyhow::Result<()> {
         StationProxy::new(self.0.inner().connection()).await?.scan();
         Ok(())
     }
 
-    async fn set_wifi_enabled(
-        &self
-, enabled: bool) -> anyhow::Result<()> {
+    async fn set_wifi_enabled(&self, enabled: bool) -> anyhow::Result<()> {
         AdapterProxy::new(self.0.inner().connection())
             .await?
             .set_powered(enabled)
@@ -167,9 +158,7 @@ impl super::NetworkBackend for IwdDbus<'_> {
         todo!()
     }
 
-    async fn set_airplane_mode(
-        &self
-, airplane: bool) -> anyhow::Result<()> {
+    async fn set_airplane_mode(&self, airplane: bool) -> anyhow::Result<()> {
         Command::new("/usr/sbin/rfkill")
             .arg(if airplane { "block" } else { "unblock" })
             .arg("bluetooth")
@@ -178,7 +167,49 @@ impl super::NetworkBackend for IwdDbus<'_> {
         self.set_wifi_enabled(!airplane).await?;
         Ok(())
     }
+}
 
+/// Macro to simplify listing proxies based on their interface name.
+macro_rules! list_proxies {
+    ($manager:expr, $interface:expr, $proxy_type:ty) => {
+        async {
+            let objects = $manager.get_managed_objects().await?;
+            let mut proxies = Vec::new();
+            for (path, ifs) in objects {
+                if ifs.contains_key($interface) {
+                    proxies.push(
+                        <$proxy_type>::builder($manager.inner().connection())
+                            .destination("net.connman.iwd")?
+                            .path(path.clone())?
+                            .build()
+                            .await?,
+                    );
+                }
+            }
+            Ok::<_, anyhow::Error>(proxies)
+        }
+    };
+}
+
+enum IwdStationState {
+    Connected,
+    Disconnected,
+    Connecting,
+    Disconnecting,
+    Roaming,
+}
+
+impl From<String> for IwdStationState {
+    fn from(state: String) -> Self {
+        match state.as_str() {
+            "connected" => IwdStationState::Connected,
+            "disconnected" => IwdStationState::Disconnected,
+            "connecting" => IwdStationState::Connecting,
+            "disconnecting" => IwdStationState::Disconnecting,
+            "roaming" => IwdStationState::Roaming,
+            _ => IwdStationState::Disconnected,
+        }
+    }
 }
 
 impl IwdDbus<'_> {
@@ -192,25 +223,71 @@ impl IwdDbus<'_> {
         Ok(Self(manager))
     }
 
+    // adapter <- device (station mode) <- station
+
     pub async fn stations(&self) -> anyhow::Result<Vec<StationProxy>> {
-        let objects = self.0.get_managed_objects().await?;
-        let mut stations = Vec::new();
-        for (path, ifs) in objects {
-            if ifs.contains_key("net.connman.iwd.Station") {
-                stations.push(StationProxy::builder(self.0.inner().connection())
-                    .destination("net.connman.iwd")?
-                    .path(path.clone())?
-                    .build()
-                    .await?);
-            }
-        }
-        Ok(stations)
+        list_proxies!(&self.0, "net.connman.iwd.Station", StationProxy).await
+    }
+
+    pub async fn adapters(&self) -> anyhow::Result<Vec<AdapterProxy>> {
+        list_proxies!(&self.0, "net.connman.iwd.Adapter", AdapterProxy).await
+    }
+
+    pub async fn agent_managers(&self) -> anyhow::Result<Vec<AgentManagerProxy>> {
+        list_proxies!(&self.0, "net.connman.iwd.AgentManager", AgentManagerProxy).await
+    }
+
+    pub async fn devices(&self) -> anyhow::Result<Vec<DeviceProxy>> {
+        list_proxies!(&self.0, "net.connman.iwd.Device", DeviceProxy).await
+    }
+
+    pub async fn known_networks_proxies(&self) -> anyhow::Result<Vec<KnownNetworkProxy>> {
+        list_proxies!(&self.0, "net.connman.iwd.KnownNetwork", KnownNetworkProxy).await
+    }
+
+    pub async fn networks_proxies(&self) -> anyhow::Result<Vec<NetworkProxy>> {
+        list_proxies!(&self.0, "net.connman.iwd.Network", NetworkProxy).await
+    }
+
+    pub async fn access_points_proxies(&self) -> anyhow::Result<Vec<AccessPointProxy>> {
+        // Note: AccessPoint interface might not be directly on the root object manager.
+        // It might be associated with a Device or Station. This function assumes they might appear.
+        // If this doesn't work as expected, the logic might need refinement based on IWD's structure.
+        list_proxies!(&self.0, "net.connman.iwd.AccessPoint", AccessPointProxy).await
+    }
+
+    pub async fn reachable_networks(&self) -> anyhow::Result<Vec<(NetworkProxy<'_>, i16)>> {
+        // TODO: i feel like this could be nicer :D
+        let networks: Result<Vec<(_, _)>> = join_all(
+            self.stations()
+                .await?
+                .iter()
+                .map(|s| s.get_ordered_networks()),
+        )
+        .await
+        .into_iter()
+        .flatten_ok()
+        .collect();
+        let res = networks?
+            .into_iter()
+            .map(|(path, strength)| {
+                NetworkProxy::builder(self.0.inner().connection())
+                    .destination("net.connman.iwd")
+                    .and_then(|b| b.path(path.clone()))
+                    .map(move |b| (b.build().map(move |n| (n, strength))))
+            })
+            .filter_map(|b| b.ok());
+        Ok(join_all(res)
+            .await
+            .into_iter()
+            .filter_map(|(n, s)| n.ok().map(|n| (n, s)))
+            .collect::<Vec<_>>())
     }
 
     pub async fn subscribe_events(
-        &self
+        conn: &zbus::Connection,
     ) -> anyhow::Result<impl Stream<Item = NetworkEvent>> {
-        let conn = self.0.inner().connection();
+        //let conn = self.0.inner().connection();
         let nm = IwdDbus::new(conn).await?;
         let adapter = AdapterProxy::new(conn).await?;
         let station = StationProxy::new(conn).await?;
@@ -241,23 +318,18 @@ impl IwdDbus<'_> {
             .boxed();
 
         info!("subscribing to events - active connections");
-        let active_connections_changes = station
-            .receive_connected_network_changed()
-            .await
-            .then({
-                let conn = conn.clone();
-                move |_| {
-                    let conn = conn.clone();
-                    async move {
-                        let nm = IwdDbus::new(&conn).await.unwrap();
-                        let value = nm.active_connections_info().await.unwrap_or_default();
+        //let active_connections_changes = station
+        //    .receive_connected_network_changed()
+        //    .await
+        //    .then(|_|
+        //        async move {
+        //            let value = self.active_connections_info().await.unwrap_or_default();
 
-                        debug!("Active connections changed: {:?}", value);
-                        NetworkEvent::ActiveConnections(value)
-                    }
-                }
-            })
-            .boxed();
+        //            debug!("Active connections changed: {:?}", value);
+        //            NetworkEvent::ActiveConnections(value)
+        //        }
+        //    )
+        //    .boxed();
 
         info!("subscribing to events - wireless devices");
         let devices = nm.wireless_devices().await.unwrap_or_default();
@@ -416,7 +488,7 @@ impl IwdDbus<'_> {
             wireless_enabled,
             //wireless_devices_changed,
             connectivity_changed,
-            active_connections_changes,
+            //active_connections_changes,
             //access_points,
             //strength_changes,
             //known_connections,
@@ -426,20 +498,11 @@ impl IwdDbus<'_> {
     }
 
     /// Get the state of all station interfaces
-    pub async fn connectivity(&self) -> Result<Vec<String>> {
-        info!("objects enabled");
-        let objects = self.0.get_managed_objects().await?;
+    pub async fn connectivity(&self) -> anyhow::Result<Vec<String>> {
         let mut states = Vec::new();
-        for (path, ifs) in objects {
-            if ifs.contains_key("net.connman.iwd.Station") {
-                info!("station enabled");
-                let station = StationProxy::builder(self.0.inner().connection())
-                    .destination("net.connman.iwd")?
-                    .path(path)?
-                    .build()
-                    .await?;
-                states.push(station.state().await?);
-            }
+        for s in self.stations().await? {
+            let state = s.state().await?;
+            states.push(state);
         }
         Ok(states)
     }
@@ -448,80 +511,50 @@ impl IwdDbus<'_> {
     pub async fn wifi_device_present(&self) -> anyhow::Result<bool> {
         let devices = self.wireless_devices().await?;
 
-        for path in devices {
-            let device = DeviceProxy::builder(self.0.inner().connection())
-                .destination("net.connman.iwd")?
-                .path(path)?
-                .build()
-                .await?;
-            if device.mode().await? == "station" && device.powered().await? {
+        for d in devices {
+            if d.powered().await? {
                 return Ok(true);
             }
         }
         Ok(false)
     }
 
-    pub async fn devices(&self) -> anyhow::Result<Vec<OwnedObjectPath>> {
-        let objects = self.0.get_managed_objects().await?;
-        let mut devs = Vec::new();
-        for (path, ifs) in objects {
-            if ifs.contains_key("net.connman.iwd.Device") {
-                devs.push(path.clone().into());
-            }
-        }
-        Ok(devs)
-    }
-
     /// List all networks currently connected (Connected = true)
-    pub async fn active_connections(&self) -> anyhow::Result<Vec<OwnedObjectPath>> {
-        let mut result = Vec::new();
-        let objects = self.0.get_managed_objects().await?;
-        for (path, ifs) in objects {
-            if let Some(props) = ifs.get("net.connman.iwd.Network") {
-                if let Some(v) = props.get("Connected") {
-                    if let Ok(true) = v.downcast_ref::<bool>() {
-                        result.push(path.clone().into());
-                    }
-                }
+    pub async fn active_connections(&self) -> anyhow::Result<Vec<(NetworkProxy, i16)>> {
+        let mut networks = Vec::new();
+        for (net, strength) in self.reachable_networks().await? {
+            if net.connected().await? {
+                networks.push((net, strength));
             }
         }
-        Ok(result)
+        Ok(networks)
     }
 
     /// Detailed info on active connections
     pub async fn active_connections_info(&self) -> anyhow::Result<Vec<ActiveConnectionInfo>> {
+        // INFO: probably way cleaner with a custom dbus object - SignalLevelAgent
+
         let nets = self.active_connections().await?;
         let mut info = Vec::new();
-        for net_path in nets {
-            let net = NetworkProxy::builder(self.0.inner().connection())
-                .destination("net.connman.iwd")?
-                .path(net_path.clone())?
-                .build()
-                .await?;
+        for (net, s) in nets {
             let ssid = net.name().await?;
             // strength not directly on Network; placeholder 0
             info.push(ActiveConnectionInfo::WiFi {
                 id: ssid.clone(),
                 name: ssid,
-                strength: 0,
+                strength: (s / 100 + 100) as u8,
             });
         }
         Ok(info)
     }
 
-
     /// List all wireless (station-mode) devices
-    pub async fn wireless_devices(&self) -> anyhow::Result<Vec<OwnedObjectPath>> {
+    pub async fn wireless_devices(&self) -> anyhow::Result<Vec<DeviceProxy>> {
         let devices = self.devices().await?;
         let mut devs = Vec::new();
-        for path in devices {
-            let device = DeviceProxy::builder(self.0.inner().connection())
-                .destination("net.connman.iwd")?
-                .path(path.clone())?
-                .build()
-                .await?;
-            if device.mode().await? == "station" {
-                devs.push(path.clone().into());
+        for d in devices {
+            if d.mode().await? == "station" {
+                devs.push(d);
             }
         }
         Ok(devs)
@@ -529,34 +562,23 @@ impl IwdDbus<'_> {
 
     /// Scan and list available access points
     pub async fn wireless_access_points(&self) -> anyhow::Result<Vec<AccessPoint>> {
-        let devs = self.wireless_devices().await?;
+        let nets = self.reachable_networks().await?;
+
         let mut aps = Vec::new();
-        for d in devs {
-            let station = StationProxy::builder(self.0.inner().connection())
-                .destination("net.connman.iwd")?
-                .path(d.clone())?
-                .build()
-                .await?;
-            // FIXME: should this be here? station.scan().await?;
-            let paths = station.get_ordered_networks().await?;
-            for (p, _s) in paths {
-                // _s is between 0 and -10000
-                // should be between 0 and 100
-                let net = NetworkProxy::builder(self.0.inner().connection())
-                    .destination("net.connman.iwd")?
-                    .path(p.clone())?
-                    .build()
-                    .await?;
-                aps.push(AccessPoint {
-                    ssid: net.name().await?,
-                    state: DeviceState::Unknown, // TODO:
-                    strength: ((_s / 100) + 100) as u8,
-                    public: net.type_().await? == "open" ,
-                    working: false,
-                    path: p.into_inner(),
-                    device_path: d.clone().into_inner(),
-                });
-            }
+        for (net, s) in nets {
+            // TODO: scan here?
+            // TODO: station values necessary?
+            // _s is between 0 and -10000
+            // should be between 0 and 100
+            aps.push(AccessPoint {
+                ssid: net.name().await?,
+                state: DeviceState::Unknown, // TODO:
+                strength: ((s / 100) + 100) as u8,
+                public: net.type_().await? == "open",
+                working: false,
+                path: net.inner().path().clone(),
+                device_path: net.device().await?.into(),
+            });
         }
         aps.sort_by(|a, b| b.strength.cmp(&a.strength));
         Ok(aps)
@@ -565,12 +587,7 @@ impl IwdDbus<'_> {
     pub async fn wireless_enabled(&self) -> anyhow::Result<bool> {
         let devs = self.wireless_devices().await?;
         for d in devs {
-            let device = DeviceProxy::builder(self.0.inner().connection())
-                .destination("net.connman.iwd")?
-                .path(d.clone())?
-                .build()
-                .await?;
-            if device.powered().await? {
+            if d.powered().await? {
                 return Ok(true);
             }
         }

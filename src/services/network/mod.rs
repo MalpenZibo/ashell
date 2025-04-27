@@ -486,8 +486,8 @@ impl NetworkService {
                         }
                     }
                     BackendChoice::Iwd => {
-                        let iwd = IwdDbus::new(&conn).await.unwrap();
-                        match iwd.subscribe_events().await {
+                        //let iwd = IwdDbus::new(&conn).await.unwrap();
+                        match IwdDbus::subscribe_events(&conn.clone()).await {
                             Ok(mut events) => {
                                 while let Some(event) = events.next().await {
                                     info!("Event: {:?}", event);
