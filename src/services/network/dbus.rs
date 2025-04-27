@@ -1,5 +1,5 @@
 use super::{AccessPoint, ActiveConnectionInfo, KnownConnection, Vpn};
-use iced::futures::StreamExt;
+use iced::futures::{Stream, StreamExt};
 use itertools::Itertools;
 use log::debug;
 use std::{collections::HashMap, ops::Deref};
@@ -9,6 +9,67 @@ use zbus::{
 };
 
 pub struct NetworkDbus<'a>(NetworkManagerProxy<'a>);
+
+impl<'a> super::NetworkBackend for NetworkDbus<'a> {
+    #[doc = " Checks if the dbus server is running."]
+#[must_use]
+#[allow(elided_named_lifetimes,clippy::type_complexity,clippy::type_repetition_in_bounds)]
+fn is_available<'life0,'async_trait>(&'life0 self) ->  ::core::pin::Pin<Box<dyn ::core::future::Future<Output = anyhow::Result<bool> > + ::core::marker::Send+'async_trait> >where 'life0:'async_trait,Self:'async_trait {
+        todo!()
+    }
+
+    #[doc = " Initializes the backend and fetches the initial network data."]
+#[must_use]
+#[allow(elided_named_lifetimes,clippy::type_complexity,clippy::type_repetition_in_bounds)]
+fn initialize_data<'life0,'async_trait>(&'life0 self) ->  ::core::pin::Pin<Box<dyn ::core::future::Future<Output = anyhow::Result<super::NetworkData> > + ::core::marker::Send+'async_trait> >where 'life0:'async_trait,Self:'async_trait {
+        todo!()
+    }
+
+    #[doc = " Subscribes to network events from the backend."]
+#[doc = " Returns a stream of `NetworkEvent`s."]
+#[must_use]
+#[allow(elided_named_lifetimes,clippy::type_complexity,clippy::type_repetition_in_bounds)]
+fn subscribe_events<'life0,'async_trait>(&'life0 self) ->  ::core::pin::Pin<Box<dyn ::core::future::Future<Output = anyhow::Result<Box<dyn Stream<Item = super::NetworkEvent> > > > + ::core::marker::Send+'async_trait> >where 'life0:'async_trait,Self:'async_trait {
+        todo!()
+    }
+
+    #[doc = " Toggles the airplane mode."]
+#[must_use]
+#[allow(elided_named_lifetimes,clippy::type_complexity,clippy::type_repetition_in_bounds)]
+fn set_airplane_mode<'life0,'async_trait>(&'life0 self,enable:bool) ->  ::core::pin::Pin<Box<dyn ::core::future::Future<Output = anyhow::Result<()> > + ::core::marker::Send+'async_trait> >where 'life0:'async_trait,Self:'async_trait {
+        todo!()
+    }
+
+    #[doc = " Scans for nearby Wi-Fi networks."]
+#[must_use]
+#[allow(elided_named_lifetimes,clippy::type_complexity,clippy::type_repetition_in_bounds)]
+fn scan_nearby_wifi<'life0,'async_trait>(&'life0 self) ->  ::core::pin::Pin<Box<dyn ::core::future::Future<Output = anyhow::Result<()> > + ::core::marker::Send+'async_trait> >where 'life0:'async_trait,Self:'async_trait {
+        todo!()
+    }
+
+    #[doc = " Enables or disables Wi-Fi."]
+#[must_use]
+#[allow(elided_named_lifetimes,clippy::type_complexity,clippy::type_repetition_in_bounds)]
+fn set_wifi_enabled<'life0,'async_trait>(&'life0 self,enable:bool) ->  ::core::pin::Pin<Box<dyn ::core::future::Future<Output = anyhow::Result<()> > + ::core::marker::Send+'async_trait> >where 'life0:'async_trait,Self:'async_trait {
+        todo!()
+    }
+
+    #[doc = " Connects to a specific access point, potentially with a password."]
+#[doc = " Returns the updated list of known connections."]
+#[must_use]
+#[allow(elided_named_lifetimes,clippy::type_complexity,clippy::type_repetition_in_bounds)]
+fn select_access_point<'life0,'life1,'async_trait>(&'life0 self,ap: &'life1 AccessPoint,password:Option<String> ,) ->  ::core::pin::Pin<Box<dyn ::core::future::Future<Output = anyhow::Result<Vec<KnownConnection> > > + ::core::marker::Send+'async_trait> >where 'life0:'async_trait,'life1:'async_trait,Self:'async_trait {
+        todo!()
+    }
+
+    #[doc = " Enables or disables a VPN connection."]
+#[doc = " Returns the updated list of known connections."]
+#[must_use]
+#[allow(elided_named_lifetimes,clippy::type_complexity,clippy::type_repetition_in_bounds)]
+fn set_vpn<'life0,'async_trait>(&'life0 self,connection_path:OwnedObjectPath,enable:bool,) ->  ::core::pin::Pin<Box<dyn ::core::future::Future<Output = anyhow::Result<Vec<KnownConnection> > > + ::core::marker::Send+'async_trait> >where 'life0:'async_trait,Self:'async_trait {
+        todo!()
+    }
+}
 
 impl<'a> Deref for NetworkDbus<'a> {
     type Target = NetworkManagerProxy<'a>;
@@ -486,6 +547,50 @@ impl From<u32> for ConnectivityState {
         }
     }
 }
+
+// Used by iwd
+impl From<String> for ConnectivityState {
+    fn from(state: String) -> ConnectivityState {
+        match state.as_str() {
+            "inactive" | "disconnected" => ConnectivityState::None,
+            "portal" => ConnectivityState::Portal,
+            "failed" => ConnectivityState::Loss,
+            "connected" => ConnectivityState::Full,
+            _ => ConnectivityState::Unknown, // scanning, connecting
+        }
+    }
+}
+
+impl From<Vec<ConnectivityState>> for ConnectivityState {
+    fn from(states: Vec<ConnectivityState>) -> ConnectivityState {
+        if states.is_empty() {
+            return ConnectivityState::Unknown;
+        }
+
+        let mut state = states[0];
+        for s in states.iter().skip(1) {
+            if Into::<u32>::into(*s) >= state.into() {
+                state = *s;
+            }
+        }
+
+        state
+    }
+}
+
+impl Into<u32> for ConnectivityState {
+    fn into(self) -> u32 {
+        match self {
+            ConnectivityState::None => 1,
+            ConnectivityState::Portal => 2,
+            ConnectivityState::Loss => 3,
+            ConnectivityState::Full => 4,
+            _ => 0,
+        }
+    }
+}
+
+
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeviceState {
     Unmanaged,
