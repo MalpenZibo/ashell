@@ -32,9 +32,6 @@ pub mod iwd_dbus;
 /// Trait defining the interface for a network backend.
 /// This allows abstracting the specific D-Bus implementation (like IWD or NetworkManager).
 pub trait NetworkBackend: Send + Sync {
-    /// Checks if the dbus server is running.
-    async fn is_available(&self) -> anyhow::Result<bool>;
-
     /// Initializes the backend and fetches the initial network data.
     async fn initialize_data(&self) -> anyhow::Result<NetworkData>;
 
@@ -272,15 +269,6 @@ struct BackendChoiceWithConnection {
 }
 
 impl NetworkBackend for BackendChoiceWithConnection {
-    async fn is_available(&self) -> anyhow::Result<bool> {
-        match self.choice {
-            BackendChoice::NetworkManager => {
-                NetworkDbus::new(&self.conn).await?.is_available().await
-            }
-            BackendChoice::Iwd => IwdDbus::new(&self.conn).await?.is_available().await,
-        }
-    }
-
     async fn initialize_data(&self) -> anyhow::Result<NetworkData> {
         match self.choice {
             BackendChoice::NetworkManager => {
@@ -390,7 +378,6 @@ impl NetworkService {
             State::Init => match zbus::Connection::system().await {
                 Ok(conn) => {
                     // get first backend that is available
-                    // TODO: check if i even need "is_available"
                     info!("Connecting to backend");
                     let maybe_backend: Result<(NetworkData, BackendChoice), _> =
                         match NetworkDbus::new(&conn)
@@ -486,17 +473,19 @@ impl NetworkService {
                         }
                     }
                     BackendChoice::Iwd => {
-                        //let iwd = IwdDbus::new(&conn).await.unwrap();
-                        match IwdDbus::subscribe_events(&conn.clone()).await {
-                            Ok(mut events) => {
-                                while let Some(event) = events.next().await {
-                                    info!("Event: {:?}", event);
+                        let iwd = IwdDbus::new(&conn.clone()).await.unwrap();
+                        match iwd.subscribe_events().await {
+                            Ok(mut event_s) => {
+                                while let Some(events) = event_s.next().await {
+                                    info!("Event: {:?}", events);
                                     let mut exit_loop = false;
-                                    // TODO: why do we do this?
-                                    if let NetworkEvent::WirelessDevice { .. } = event {
-                                        exit_loop = true;
+                                    for event in events {
+                                        // TODO: why do we do this?
+                                        if let NetworkEvent::WirelessDevice { .. } = event {
+                                            exit_loop = true;
+                                        }
+                                        let _ = output.send(ServiceEvent::Update(event)).await;
                                     }
-                                    let _ = output.send(ServiceEvent::Update(event)).await;
 
                                     if exit_loop {
                                         break;

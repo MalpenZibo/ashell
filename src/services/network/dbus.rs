@@ -14,10 +14,6 @@ use zbus::{
 pub struct NetworkDbus<'a>(NetworkManagerProxy<'a>);
 
 impl super::NetworkBackend for NetworkDbus<'_> {
-    async fn is_available(&self) -> anyhow::Result<bool> {
-        todo!()
-    }
-
     async fn initialize_data(&self) -> anyhow::Result<super::NetworkData> {
         let nm = self;
 
