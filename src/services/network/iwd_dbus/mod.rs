@@ -14,23 +14,22 @@ pub mod station;
 pub mod station_diagnostic;
 
 // source for dbus: https://git.kernel.org/pub/scm/network/wireless/iwd.git/tree/doc
+//info!("{:?}",n.inner().introspect().await?); => can use this to generate proxy implementations
 
 use crate::services::bluetooth::BluetoothService;
 
 use super::dbus::DeviceState;
-use super::{AccessPoint, ActiveConnectionInfo, KnownConnection, NetworkEvent};
+use super::{AccessPoint, ActiveConnectionInfo, KnownConnection, NetworkBackend, NetworkEvent};
 use iced::futures::future::join_all;
 use iced::futures::stream::select_all;
 use iced::futures::{Stream, StreamExt};
 
 use log::debug;
-use log::info;
 use std::ops::Deref;
 use tokio::process::Command;
 use zbus::fdo::ObjectManagerProxy;
 use zbus::zvariant::OwnedObjectPath;
 
-//info!("{:?}",n.inner().introspect().await?); => can use this to generate proxy implementations
 use access_point::AccessPointProxy;
 use adapter::AdapterProxy;
 use agent_manager::AgentManagerProxy;
@@ -49,6 +48,7 @@ impl<'a> Deref for IwdDbus<'a> {
     }
 }
 
+#[allow(unused_variables)]
 impl super::NetworkBackend for IwdDbus<'_> {
     async fn initialize_data(&self) -> anyhow::Result<super::NetworkData> {
         let nm = self;
@@ -81,7 +81,6 @@ impl super::NetworkBackend for IwdDbus<'_> {
             .filter_map(|v| v.ok())
             .any(|v| v);
 
-        info!("connect enabled");
         Ok(super::NetworkData {
             wifi_present,
             active_connections,
@@ -125,12 +124,13 @@ impl super::NetworkBackend for IwdDbus<'_> {
     }
 
     async fn scan_nearby_wifi(&self) -> anyhow::Result<()> {
-        // TODO: danger - this errors when already scanning
-        info!("Scanning wifi");
-        StationProxy::new(self.0.inner().connection())
-            .await?
-            .scan()
-            .await?;
+        for station in self.stations().await? {
+            if station.scanning().await? {
+                debug!("Already scanning");
+                continue;
+            }
+            station.scan().await?;
+        }
         Ok(())
     }
 
@@ -219,6 +219,7 @@ impl From<String> for IwdStationState {
     }
 }
 
+#[allow(dead_code, unused_variables)]
 impl IwdDbus<'_> {
     /// Connect to the system bus and the IWD service
     pub async fn new(conn: &zbus::Connection) -> anyhow::Result<Self> {
@@ -240,12 +241,12 @@ impl IwdDbus<'_> {
         list_proxies!(&self.0, "net.connman.iwd.Adapter", AdapterProxy).await
     }
 
-    pub async fn agent_managers(&self) -> anyhow::Result<Vec<AgentManagerProxy>> {
-        list_proxies!(&self.0, "net.connman.iwd.AgentManager", AgentManagerProxy).await
-    }
-
     pub async fn devices(&self) -> anyhow::Result<Vec<DeviceProxy>> {
         list_proxies!(&self.0, "net.connman.iwd.Device", DeviceProxy).await
+    }
+
+    pub async fn agent_managers(&self) -> anyhow::Result<Vec<AgentManagerProxy>> {
+        list_proxies!(&self.0, "net.connman.iwd.AgentManager", AgentManagerProxy).await
     }
 
     pub async fn known_networks_proxies(&self) -> anyhow::Result<Vec<KnownNetworkProxy>> {
@@ -285,25 +286,22 @@ impl IwdDbus<'_> {
         &self,
     ) -> anyhow::Result<impl Stream<Item = Vec<NetworkEvent>>> {
         let _conn = self.0.inner().connection();
-        //let _nm = self; // Not used directly after assignment
         let iwd = self;
-        //let _adapter = AdapterProxy::new(&conn).await?; // Not used directly after assignment
-        //let _station = StationProxy::new(&conn).await?; // Not used directly after assignment
 
         // TODO: events to watch
-        //  WiFiEnabled(bool),
-        //  AirplaneMode(bool),
-        //  Connectivity(ConnectivityState),
-        //  WirelessDevice {
-        //      wifi_present: bool,
-        //      wireless_access_points: Vec<AccessPoint>,
-        //  },
-        //  ActiveConnections(Vec<ActiveConnectionInfo>),
-        //  KnownConnections(Vec<KnownConnection>),
-        //  WirelessAccessPoint(Vec<AccessPoint>),
-        //  Strength((String, u8)),
-        //  RequestPasswordForSSID(String),
-        //  ScanningNearbyWifi,
+        // - [x] WiFiEnabled(bool),
+        // - [ ] AirplaneMode(bool),
+        // - [x] Connectivity(ConnectivityState),
+        // - [x] WirelessDevice {
+        //           wifi_present: bool,
+        //           wireless_access_points: Vec<AccessPoint>,
+        //       },
+        // - [x] ActiveConnections(Vec<ActiveConnectionInfo>),
+        // - [x] KnownConnections(Vec<KnownConnection>),
+        // - [x] WirelessAccessPoint(Vec<AccessPoint>),
+        // - [ ] Strength((String, u8)),
+        // - [ ] RequestPasswordForSSID(String),
+        // - [x] ScanningNearbyWifi,
 
         // --- WiFi Enabled ---
         let mut wireless_enabled_changes = vec![];
@@ -315,7 +313,7 @@ impl IwdDbus<'_> {
                     move |p| async move {
                         // Add move here
                         let value = p.get().await.unwrap_or(false);
-                        info!("Adapter Powered changed: {}", value);
+                        debug!("Adapter Powered changed: {}", value);
                         // We need to check *all* adapters to determine overall wifi state
                         let wifi_enabled = iwd.wireless_enabled().await.unwrap_or(false);
                         vec![NetworkEvent::WiFiEnabled(wifi_enabled)]
@@ -325,16 +323,20 @@ impl IwdDbus<'_> {
             wireless_enabled_changes.push(stream);
         }
 
+        // connectivity, access points, strengths and known - all in one
         let stations = self.stations().await?;
         let mut connectivity_changes = vec![];
+        let mut ap_s_kap_changes = vec![];
         for station in stations {
-            let stream = station
+            // this gets also triggered when connecting to new networks, so no need to listen to
+            // network changes
+            let cstream = station
                 .receive_state_changed()
                 .await
                 .then({
                     move |p| async move {
                         let value = p.get().await.unwrap_or_default();
-                        info!("Station state changed: {:?}", value);
+                        debug!("Station state changed: {:?}", value);
                         // We need to check *all* stations to determine overall wifi state
                         vec![
                             NetworkEvent::Connectivity(
@@ -353,9 +355,43 @@ impl IwdDbus<'_> {
                     }
                 })
                 .boxed();
-            connectivity_changes.push(stream);
+            connectivity_changes.push(cstream);
+
+            let apstream = station.receive_scanning_changed()
+                .await
+                .then({
+                    move |s| async move {
+                        let is_scanning = s.get().await.unwrap_or(false);
+
+                        let aps = iwd.wireless_access_points().await.unwrap_or_default();
+                        let kcs = iwd.known_connections().await.unwrap_or_default();
+
+                        let mut events = vec![
+                            NetworkEvent::KnownConnections(kcs),
+                            // TODO: Strength((String, u8)), <- responibility for the signal agent
+                        ];
+                        if is_scanning {
+                            debug!("Scanning wifi");
+                            events.push(NetworkEvent::ScanningNearbyWifi);
+                            // to update list, if scanning stopped use device
+                            events.push(NetworkEvent::WirelessAccessPoint(aps));
+                        } else {
+                            debug!("Stopped scanning wifi");
+                            events.push(NetworkEvent::WirelessDevice {
+                                // TODO: can we reasonably assume this is true here?
+                                wifi_present: iwd.wireless_enabled().await.unwrap_or(false),
+                                wireless_access_points: aps,
+                            });
+                        }
+                        events
+                    }
+                })
+                .boxed();
+            ap_s_kap_changes.push(apstream);
         }
 
+
+        // TODO: probably would need to listen to interfaces registered and unregistered
         //let devices = nm.wireless_devices().await.unwrap_or_default();
 
         //let wireless_devices_changed = nm
@@ -392,6 +428,10 @@ impl IwdDbus<'_> {
         //    })
         //    .boxed();
 
+        //TODO: likely need to register an auth agent and wait for it here, same goes for network
+        //configuration etc - these all are agents registered with IWD - and represent device
+        //states
+
         //// When devices list change I need to update the wireless device state changes
         //let wireless_ac = nm.wireless_access_points().await?;
 
@@ -424,83 +464,14 @@ impl IwdDbus<'_> {
         //    );
         //}
 
-        //// When devices list change I need to update the access points changes
-        //let mut ac_changes = Vec::with_capacity(wireless_ac.len());
-        //for ac in wireless_ac.iter() {
-        //    let dp = WirelessDeviceProxy::builder(conn)
-        //        .path(ac.device_path.clone())?
-        //        .build()
-        //        .await?;
-
-        //    ac_changes.push(
-        //        dp.receive_access_points_changed()
-        //            .await
-        //            .then({
-        //                let conn = conn.clone();
-        //                move |_| {
-        //                    let conn = conn.clone();
-        //                    async move {
-        //                        let nm = NetworkDbus::new(&conn).await.unwrap();
-        //                        let wireless_access_point =
-        //                            nm.wireless_access_points().await.unwrap_or_default();
-        //                        debug!("access_points_changed {:?}", wireless_access_point);
-
-        //                        NetworkEvent::WirelessAccessPoint(wireless_access_point)
-        //                    }
-        //                }
-        //            })
-        //            .boxed(),
-        //    );
-        //}
-
-        //// When devices list change I need to update the wireless strength changes
-        //let mut strength_changes = Vec::with_capacity(wireless_ac.len());
-        //for ap in wireless_ac {
-        //    let ssid = ap.ssid.clone();
-        //    let app = AccessPointProxy::builder(conn)
-        //        .path(ap.path.clone())?
-        //        .build()
-        //        .await?;
-
-        //    strength_changes.push(
-        //        app.receive_strength_changed()
-        //            .await
-        //            .then(move |val| {
-        //                let ssid = ssid.clone();
-        //                async move {
-        //                    let value = val.get().await.unwrap_or_default();
-        //                    debug!("Strength changed value: {}, {}", &ssid, value);
-        //                    NetworkEvent::Strength((ssid.clone(), value))
-        //                }
-        //            })
-        //            .boxed(),
-        //    );
-        //}
-        //let strength_changes = select_all(strength_changes).boxed();
-
         //let access_points = select_all(ac_changes).boxed();
-
-        //let known_connections = settings
-        //    .receive_connections_changed()
-        //    .await
-        //    .then({
-        //        let conn = conn.clone();
-        //        move |_| {
-        //            let conn = conn.clone();
-        //            async move {
-        //                let nm = NetworkDbus::new(&conn).await.unwrap();
-        //                let known_connections = nm.known_connections().await.unwrap_or_default();
-
-        //                debug!("Known connections changed");
-        //                NetworkEvent::KnownConnections(known_connections)
-        //            }
-        //        }
-        //    })
-        //    .boxed();
 
         let events = select_all(vec![
             select_all(wireless_enabled_changes).boxed(),
             select_all(connectivity_changes).boxed(),
+            select_all(ap_s_kap_changes).boxed(),
+            // TODO: add a future that waits for 10s to poll certain information like the signal
+            // strength change
         ]);
 
         Ok(events)
@@ -575,17 +546,15 @@ impl IwdDbus<'_> {
         {
             let nets = self.reachable_networks().await?;
             for (net, s) in nets {
-                // TODO: scan here?
-                // TODO: station values necessary?
-                // _s is between 0 and -10000
-                // should be between 0 and 100
                 let ssid = net.name().await?;
                 let public = net.type_().await? == "open";
                 let path = net.inner().path().clone().into();
-                let device_path = net.device().await?.clone().into();
+                let device_path = net.device().await?.clone();
                 aps.push(AccessPoint {
                     ssid,
                     state: DeviceState::Unknown, // TODO:
+                    // _s is between 0 and -10000
+                    // should be between 0 and 100
                     strength: ((s / 100) + 100) as u8,
                     public,
                     working: false, // TODO:
@@ -606,26 +575,5 @@ impl IwdDbus<'_> {
             }
         }
         Ok(false)
-    }
-
-    /// Activate or create-and-activate an access point
-    pub async fn select_access_point(
-        &self,
-        access_point: &AccessPoint,
-        password: Option<String>,
-    ) -> anyhow::Result<()> {
-        // IWD auto-saves credentials; simply call Connect on the Network object
-        let net_path = access_point.path.clone();
-        let net = NetworkProxy::builder(self.0.inner().connection())
-            .destination("net.connman.iwd")?
-            .path(net_path)?
-            .build()
-            .await?;
-        // TODO:
-        //if let Some(p) = password {
-        //    net.set_passphrase(p).await.ok();
-        //}
-        net.connect().await?;
-        Ok(())
     }
 }

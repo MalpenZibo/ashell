@@ -1,30 +1,18 @@
 use super::{Service, ServiceEvent};
-use crate::services::{ReadOnlyService, bluetooth::BluetoothService};
+use crate::services::ReadOnlyService;
 use dbus::ConnectivityState;
 use dbus::NetworkDbus;
+use iced::futures::stream::pending;
 use iced::futures::TryFutureExt;
 use iced::{
     Subscription, Task,
-    futures::{
-        FutureExt, SinkExt, Stream, StreamExt,
-        channel::mpsc::Sender,
-        stream::{pending, select_all},
-    },
+    futures::{SinkExt, StreamExt, channel::mpsc::Sender},
     stream::channel,
 };
-use iwd_dbus::{
-    IwdDbus, //DeviceState,
-    //NetworkDbus,
-    //NetworkSettingsDbus,
-    //WirelessDeviceProxy,
-    adapter::AdapterProxy,
-    device::DeviceProxy,
-    station::StationProxy,
-};
+use iwd_dbus::IwdDbus;
 use log::{debug, error, info};
-use std::{any::TypeId, collections::HashMap, ops::Deref};
-use tokio::process::Command;
-use zbus::zvariant::{ObjectPath, OwnedObjectPath, Value};
+use std::{any::TypeId, ops::Deref};
+use zbus::zvariant::OwnedObjectPath;
 
 pub mod dbus;
 pub mod iwd_dbus;
@@ -35,8 +23,9 @@ pub trait NetworkBackend: Send + Sync {
     /// Initializes the backend and fetches the initial network data.
     async fn initialize_data(&self) -> anyhow::Result<NetworkData>;
 
-    /// Subscribes to network events from the backend.
-    /// Returns a stream of `NetworkEvent`s.
+    // / Subscribes to network events from the backend.
+    // / Returns a stream of `NetworkEvent`s.
+    // NOTE: the backend implementation diverged and the lifetimes are unhappy
     //async fn subscribe_events(&self) -> anyhow::Result<impl Stream<Item = NetworkEvent>>;
 
     /// Toggles the airplane mode.
@@ -477,18 +466,11 @@ impl NetworkService {
                         match iwd.subscribe_events().await {
                             Ok(mut event_s) => {
                                 while let Some(events) = event_s.next().await {
-                                    info!("Event: {:?}", events);
-                                    let mut exit_loop = false;
                                     for event in events {
-                                        // TODO: why do we do this?
-                                        if let NetworkEvent::WirelessDevice { .. } = event {
-                                            exit_loop = true;
-                                        }
+                                        // TODO: network manager leaves with device - we can also
+                                        // do that, but would need a different way to disable
+                                        // scanning
                                         let _ = output.send(ServiceEvent::Update(event)).await;
-                                    }
-
-                                    if exit_loop {
-                                        break;
                                     }
                                 }
 

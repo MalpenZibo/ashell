@@ -113,7 +113,7 @@ impl super::NetworkBackend for NetworkDbus<'_> {
 
             self.activate_connection(
                 connection.clone(),
-                access_point.device_path.to_owned().into(),
+                access_point.device_path.to_owned(),
                 OwnedObjectPath::try_from("/")?,
             )
             .await?;
@@ -823,9 +823,9 @@ impl From<Vec<ConnectivityState>> for ConnectivityState {
     }
 }
 
-impl Into<u32> for ConnectivityState {
-    fn into(self) -> u32 {
-        match self {
+impl From<ConnectivityState> for u32 {
+    fn from(val: ConnectivityState) -> Self {
+        match val {
             ConnectivityState::None => 1,
             ConnectivityState::Portal => 2,
             ConnectivityState::Loss => 3,
