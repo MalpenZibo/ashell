@@ -155,3 +155,8 @@ pub fn icon<'a>(r#type: Icons) -> Text<'a> {
     text(std::convert::Into::<&'static str>::into(r#type))
         .font(Font::with_name("Symbols Nerd Font"))
 }
+
+pub fn icon_raw<'a>(s: String) -> Text<'a> {
+    text(s)
+        .font(Font::with_name("Symbols Nerd Font"))
+}

@@ -421,7 +421,7 @@ pub enum Position {
     Bottom,
 }
 
-#[derive(Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Deserialize, Clone, Debug, PartialEq, Eq)]
 pub enum ModuleName {
     AppLauncher,
     Updates,
@@ -436,13 +436,43 @@ pub enum ModuleName {
     Privacy,
     Settings,
     MediaPlayer,
+    Custom(String),
+}
+
+impl From<String> for ModuleName {
+    fn from(value: String) -> Self {
+        // TODO: this could also be parsed by a deserialize helper { module: ModuleName } (direct
+        // from string is not valid toml)
+        // Benefit of this appraoch is we could match by lowercase and support all spellings
+        match value.as_str() {
+            "appLauncher" => ModuleName::AppLauncher,
+            "updates" =>     ModuleName::Updates,
+            "clipboard" =>   ModuleName::Clipboard,
+            "workspaces" =>  ModuleName::Workspaces,
+            "windowTitle" => ModuleName::WindowTitle,
+            "systemInfo" =>  ModuleName::SystemInfo,
+            "keyboardLayout" => ModuleName::KeyboardLayout,
+            "keyboardSubmap" => ModuleName::KeyboardSubmap,
+            "tray" => ModuleName::Tray,
+            "clock" => ModuleName::Clock,
+            "privacy" => ModuleName::Privacy,
+            "settings" => ModuleName::Settings,
+            "mediaPlayer" => ModuleName::MediaPlayer,
+            _ => ModuleName::Custom(value),
+        }
+    }
+}
+impl<'a> From<&'a str> for ModuleName {
+    fn from(value: &'a str) -> ModuleName {
+        String::into(value.to_owned())
+    }
 }
 
 #[derive(Deserialize, Clone, Debug)]
 #[serde(untagged)]
 pub enum ModuleDef {
-    Single(ModuleName),
-    Group(Vec<ModuleName>),
+    Single(String),
+    Group(Vec<String>),
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -458,12 +488,12 @@ pub struct Modules {
 impl Default for Modules {
     fn default() -> Self {
         Self {
-            left: vec![ModuleDef::Single(ModuleName::Workspaces)],
-            center: vec![ModuleDef::Single(ModuleName::WindowTitle)],
+            left: vec![ModuleDef::Single("workspaces".into())],
+            center: vec![ModuleDef::Single("windowTitle".into())],
             right: vec![ModuleDef::Group(vec![
-                ModuleName::Clock,
-                ModuleName::Privacy,
-                ModuleName::Settings,
+                "lock".into(),
+                "privacy".into(),
+                "settings".into(),
             ])],
         }
     }
@@ -502,6 +532,7 @@ pub struct Config {
     #[serde(default)]
     pub modules: Modules,
     pub app_launcher_cmd: Option<String>,
+    pub app_launcher_icon: Option<String>,
     pub clipboard_cmd: Option<String>,
     #[serde(default = "default_truncate_title_after_length")]
     pub truncate_title_after_length: u32,
@@ -539,6 +570,12 @@ impl Default for Config {
             outputs: Outputs::default(),
             modules: Modules::default(),
             app_launcher_cmd: None,
+            app_launcher_icon: Some(
+                std::convert::Into::<&'static str>::into(
+                    crate::components::icons::Icons::AppLauncher,
+                )
+                .to_string(),
+            ),
             clipboard_cmd: None,
             truncate_title_after_length: default_truncate_title_after_length(),
             updates: None,

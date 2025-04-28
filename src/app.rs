@@ -1,31 +1,9 @@
 use std::f32::consts::PI;
 
 use crate::{
-    HEIGHT, centerbox,
-    config::{self, AppearanceStyle, Config, Position},
-    get_log_spec,
-    menu::{MenuSize, MenuType, menu_wrapper},
-    modules::{
-        self,
-        app_launcher::AppLauncher,
-        clipboard::Clipboard,
-        clock::Clock,
-        keyboard_layout::KeyboardLayout,
-        keyboard_submap::KeyboardSubmap,
-        media_player::MediaPlayer,
-        privacy::Privacy,
-        settings::{Settings, brightness::BrightnessMessage},
-        system_info::SystemInfo,
-        tray::{TrayMessage, TrayModule},
-        updates::Updates,
-        window_title::WindowTitle,
-        workspaces::Workspaces,
-    },
-    outputs::{HasOutput, Outputs},
-    position_button::ButtonUIRef,
-    services::{Service, ServiceEvent, brightness::BrightnessCommand, tray::TrayEvent},
-    style::{ashell_theme, backdrop_color, darken_color},
-    utils,
+    centerbox, config::{self, AppearanceStyle, Config, Position}, get_log_spec, menu::{menu_wrapper, MenuSize, MenuType}, modules::{
+        self, app_launcher::AppLauncher, clipboard::Clipboard, clock::Clock, custom_module::Custom, keyboard_layout::KeyboardLayout, keyboard_submap::KeyboardSubmap, media_player::MediaPlayer, privacy::Privacy, settings::{brightness::BrightnessMessage, Settings}, system_info::SystemInfo, tray::{TrayMessage, TrayModule}, updates::Updates, window_title::WindowTitle, workspaces::Workspaces
+    }, outputs::{HasOutput, Outputs}, position_button::ButtonUIRef, services::{brightness::BrightnessCommand, tray::TrayEvent, Service, ServiceEvent}, style::{ashell_theme, backdrop_color, darken_color}, utils, HEIGHT
 };
 use flexi_logger::LoggerHandle;
 use iced::{
@@ -47,6 +25,7 @@ pub struct App {
     pub config: Config,
     pub outputs: Outputs,
     pub app_launcher: AppLauncher,
+    pub custom: Custom,
     pub updates: Updates,
     pub clipboard: Clipboard,
     pub workspaces: Workspaces,
@@ -93,6 +72,7 @@ impl App {
                     logger,
                     outputs,
                     app_launcher: AppLauncher,
+                    custom: Custom,
                     updates: Updates::default(),
                     clipboard: Clipboard,
                     workspaces: Workspaces::new(&config.workspaces),
