@@ -491,7 +491,7 @@ impl Default for Modules {
             left: vec![ModuleDef::Single("workspaces".into())],
             center: vec![ModuleDef::Single("windowTitle".into())],
             right: vec![ModuleDef::Group(vec![
-                "lock".into(),
+                "clock".into(),
                 "privacy".into(),
                 "settings".into(),
             ])],
@@ -522,6 +522,15 @@ where
 }
 
 #[derive(Deserialize, Clone, Debug)]
+pub struct CustomModuleDef {
+    pub name: String,
+    pub command: String,
+    #[serde(default)]
+    pub icon: Option<String>,
+    // .. appearance etc
+}
+
+#[derive(Deserialize, Clone, Debug)]
 pub struct Config {
     #[serde(default = "default_log_level")]
     pub log_level: String,
@@ -532,7 +541,8 @@ pub struct Config {
     #[serde(default)]
     pub modules: Modules,
     pub app_launcher_cmd: Option<String>,
-    pub app_launcher_icon: Option<String>,
+    #[serde(rename = "CustomModule", default)]
+    pub custom_modules: Vec<CustomModuleDef>,
     pub clipboard_cmd: Option<String>,
     #[serde(default = "default_truncate_title_after_length")]
     pub truncate_title_after_length: u32,
@@ -570,12 +580,6 @@ impl Default for Config {
             outputs: Outputs::default(),
             modules: Modules::default(),
             app_launcher_cmd: None,
-            app_launcher_icon: Some(
-                std::convert::Into::<&'static str>::into(
-                    crate::components::icons::Icons::AppLauncher,
-                )
-                .to_string(),
-            ),
             clipboard_cmd: None,
             truncate_title_after_length: default_truncate_title_after_length(),
             updates: None,
@@ -586,6 +590,7 @@ impl Default for Config {
             appearance: Appearance::default(),
             media_player: MediaPlayerModuleConfig::default(),
             keyboard_layout: KeyboardLayoutModuleConfig::default(),
+            custom_modules: vec![],
         }
     }
 }

@@ -84,7 +84,9 @@ impl App {
         modules_def
             .iter()
             .flat_map(|module_def| match module_def {
-                ModuleDef::Single(module) => vec![self.get_module_subscription(module.to_owned().into())],
+                ModuleDef::Single(module) => {
+                    vec![self.get_module_subscription(module.to_owned().into())]
+                }
                 ModuleDef::Group(group) => group
                     .iter()
                     .map(|module| self.get_module_subscription(module.to_owned().into()))
@@ -244,10 +246,15 @@ impl App {
     ) -> Option<(Element<Message>, Option<OnModulePress>)> {
         match module_name {
             ModuleName::AppLauncher => self.app_launcher.view(&self.config.app_launcher_cmd),
-            ModuleName::Custom(_) => self.custom.view((
-                &self.config.app_launcher_cmd,
-                &self.config.app_launcher_icon,
-            )),
+            ModuleName::Custom(name) => {
+                let c = self.config.custom_modules.iter().find(|m| m.name == name);
+                if let Some(mc) = c {
+                    self.custom.view((&mc.command, &mc.icon))
+                } else {
+                    error!("Custom module `{}` not found", name);
+                    return None;
+                }
+            }
             ModuleName::Updates => self.updates.view(&self.config.updates),
             ModuleName::Clipboard => self.clipboard.view(&self.config.clipboard_cmd),
             ModuleName::Workspaces => self.workspaces.view((
