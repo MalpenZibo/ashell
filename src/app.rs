@@ -1,9 +1,32 @@
 use std::f32::consts::PI;
 
 use crate::{
-    centerbox, config::{self, AppearanceStyle, Config, Position}, get_log_spec, menu::{menu_wrapper, MenuSize, MenuType}, modules::{
-        self, app_launcher::AppLauncher, clipboard::Clipboard, clock::Clock, custom_module::Custom, keyboard_layout::KeyboardLayout, keyboard_submap::KeyboardSubmap, media_player::MediaPlayer, privacy::Privacy, settings::{brightness::BrightnessMessage, Settings}, system_info::SystemInfo, tray::{TrayMessage, TrayModule}, updates::Updates, window_title::WindowTitle, workspaces::Workspaces
-    }, outputs::{HasOutput, Outputs}, position_button::ButtonUIRef, services::{brightness::BrightnessCommand, tray::TrayEvent, Service, ServiceEvent}, style::{ashell_theme, backdrop_color, darken_color}, utils, HEIGHT
+    HEIGHT, centerbox,
+    config::{self, AppearanceStyle, Config, Position},
+    get_log_spec,
+    menu::{MenuSize, MenuType, menu_wrapper},
+    modules::{
+        self,
+        app_launcher::AppLauncher,
+        clipboard::Clipboard,
+        clock::Clock,
+        custom_module::Custom,
+        keyboard_layout::KeyboardLayout,
+        keyboard_submap::KeyboardSubmap,
+        media_player::MediaPlayer,
+        privacy::Privacy,
+        settings::{Settings, brightness::BrightnessMessage},
+        system_info::SystemInfo,
+        tray::{TrayMessage, TrayModule},
+        updates::Updates,
+        window_title::WindowTitle,
+        workspaces::Workspaces,
+    },
+    outputs::{HasOutput, Outputs},
+    position_button::ButtonUIRef,
+    services::{Service, ServiceEvent, brightness::BrightnessCommand, tray::TrayEvent},
+    style::{ashell_theme, backdrop_color, darken_color},
+    utils,
 };
 use flexi_logger::LoggerHandle;
 use iced::{
@@ -60,6 +83,7 @@ pub enum Message {
     Settings(modules::settings::Message),
     MediaPlayer(modules::media_player::Message),
     OutputEvent((OutputEvent, WlOutput)),
+    LaunchCommand(String),
 }
 
 impl App {
@@ -183,6 +207,10 @@ impl App {
                 if let Some(app_launcher_cmd) = self.config.app_launcher_cmd.as_ref() {
                     utils::launcher::execute_command(app_launcher_cmd.to_string());
                 }
+                Task::none()
+            }
+            Message::LaunchCommand(command) => {
+                utils::launcher::execute_command(command);
                 Task::none()
             }
             Message::OpenClipboard => {
