@@ -256,56 +256,49 @@ impl IwdDbus<'_> {
         list_proxies!(&self.0, "net.connman.iwd.AccessPoint", AccessPointProxy).await
     }
 
-    pub async fn reachable_networks(&self) -> anyhow::Result<Vec<(NetworkProxy<'_>, i16)>> {
+    pub async fn reachable_networks<'a>(&'a self) -> anyhow::Result<Vec<(NetworkProxy<'a>, i16)>> {
         // TODO: i feel like this could be nicer :D
-        let networks: Result<Vec<(_, _)>> = join_all(
-            self.stations()
-                .await?
-                .iter()
-                .map(|s| s.get_ordered_networks()),
-        )
-        .await
-        .into_iter()
-        .flatten_ok()
-        .collect();
-        let res = networks?
-            .into_iter()
-            .map(|(path, strength)| {
-                NetworkProxy::builder(self.0.inner().connection())
-                    .destination("net.connman.iwd")
-                    .and_then(|b| b.path(path.clone()))
-                    .map(move |b| (b.build().map(move |n| (n, strength))))
-            })
-            .filter_map(|b| b.ok());
-        Ok(join_all(res)
-            .await
-            .into_iter()
-            .filter_map(|(n, s)| n.ok().map(|n| (n, s)))
-            .collect::<Vec<_>>())
+        //
+        let stations = self.stations().await?;
+        let mut networks = Vec::new();
+
+        for station in stations {
+            let networks_proxies = station.get_ordered_networks().await?;
+            for (path, strength) in networks_proxies {
+                let network = NetworkProxy::builder(self.0.inner().connection())
+                    .destination("net.connman.iwd")?
+                    .path(path.clone())?
+                    .build()
+                    .await?;
+                networks.push((network, strength));
+            }
+        }
+        Ok(networks)
     }
 
-    pub async fn subscribe_events(
+    pub async fn subscribe_events<'a>(
         conn: &zbus::Connection,
-    ) -> anyhow::Result<impl Stream<Item = NetworkEvent>> {
+    ) -> anyhow::Result<impl Stream<Item = NetworkEvent> + 'a> {
         //let conn = self.0.inner().connection();
-        let nm = IwdDbus::new(conn).await?;
-        let adapter = AdapterProxy::new(conn).await?;
-        let station = StationProxy::new(conn).await?;
+        let conn = conn.clone();
+        let nm = IwdDbus::new(&conn).await?;
+        let adapter = AdapterProxy::new(&conn).await?;
+        let station = StationProxy::new(&conn).await?;
 
-        info!("subscribing to events - power");
-        let wireless_enabled = adapter
-            .receive_powered_changed()
-            .await
-            .then(|v| async move {
-                let value = v.get().await.unwrap_or_default();
+        //info!("subscribing to events - power");
+        //let wireless_enabled = adapter
+        //    .receive_powered_changed()
+        //    .await
+        //    .then(|v| async move {
+        //        let value = v.get().await.unwrap_or_default();
 
-                debug!("WiFi enabled changed: {}", value);
-                NetworkEvent::WiFiEnabled(value)
-            })
-            .boxed();
+        //        debug!("WiFi enabled changed: {}", value);
+        //        NetworkEvent::WiFiEnabled(value)
+        //    })
+        //    .boxed();
 
-        info!("subscribing to events - connnectivity");
-        let connectivity_changed = StationProxy::new(conn)
+        //info!("subscribing to events - connnectivity");
+        let connectivity_changed = StationProxy::new(&conn)
             .await?
             .receive_state_changed()
             .await
@@ -317,175 +310,175 @@ impl IwdDbus<'_> {
             })
             .boxed();
 
-        info!("subscribing to events - active connections");
-        //let active_connections_changes = station
-        //    .receive_connected_network_changed()
-        //    .await
-        //    .then(|_|
-        //        async move {
-        //            let value = self.active_connections_info().await.unwrap_or_default();
+        //info!("subscribing to events - active connections");
+        ////let active_connections_changes = station
+        ////    .receive_connected_network_changed()
+        ////    .await
+        ////    .then(|_|
+        ////        async move {
+        ////            let value = self.active_connections_info().await.unwrap_or_default();
 
-        //            debug!("Active connections changed: {:?}", value);
-        //            NetworkEvent::ActiveConnections(value)
-        //        }
-        //    )
-        //    .boxed();
+        ////            debug!("Active connections changed: {:?}", value);
+        ////            NetworkEvent::ActiveConnections(value)
+        ////        }
+        ////    )
+        ////    .boxed();
 
-        info!("subscribing to events - wireless devices");
-        let devices = nm.wireless_devices().await.unwrap_or_default();
+        //info!("subscribing to events - wireless devices");
+        //let devices = nm.wireless_devices().await.unwrap_or_default();
 
-        // TODO: can only do this by watching ALL interfaces on iwd
-        //let wireless_devices_changed = nm
-        //    .receive_devices_changed()
-        //    .await
-        //    .filter_map({
-        //        let conn = conn.clone();
-        //        let devices = devices.clone();
-        //        move |_| {
-        //            let conn = conn.clone();
-        //            let devices = devices.clone();
-        //            async move {
-        //                let nm = NetworkDbus::new(&conn).await.unwrap();
+        //// TODO: can only do this by watching ALL interfaces on iwd
+        ////let wireless_devices_changed = nm
+        ////    .receive_devices_changed()
+        ////    .await
+        ////    .filter_map({
+        ////        let conn = conn.clone();
+        ////        let devices = devices.clone();
+        ////        move |_| {
+        ////            let conn = conn.clone();
+        ////            let devices = devices.clone();
+        ////            async move {
+        ////                let nm = NetworkDbus::new(&conn).await.unwrap();
 
-        //                let current_devices = nm.wireless_devices().await.unwrap_or_default();
-        //                if current_devices != devices {
-        //                    let wifi_present = nm.wifi_device_present().await.unwrap_or_default();
-        //                    let wireless_access_points =
-        //                        nm.wireless_access_points().await.unwrap_or_default();
+        ////                let current_devices = nm.wireless_devices().await.unwrap_or_default();
+        ////                if current_devices != devices {
+        ////                    let wifi_present = nm.wifi_device_present().await.unwrap_or_default();
+        ////                    let wireless_access_points =
+        ////                        nm.wireless_access_points().await.unwrap_or_default();
 
-        //                    debug!(
-        //                        "Wireless device changed: wifi present {:?}, wireless_access_points {:?}",
-        //                        wifi_present, wireless_access_points,
-        //                    );
-        //                    Some(NetworkEvent::WirelessDevice {
-        //                        wifi_present,
-        //                        wireless_access_points,
-        //                    })
-        //                } else {
-        //                    None
-        //                }
-        //            }
-        //        }
-        //    })
-        //    .boxed();
+        ////                    debug!(
+        ////                        "Wireless device changed: wifi present {:?}, wireless_access_points {:?}",
+        ////                        wifi_present, wireless_access_points,
+        ////                    );
+        ////                    Some(NetworkEvent::WirelessDevice {
+        ////                        wifi_present,
+        ////                        wireless_access_points,
+        ////                    })
+        ////                } else {
+        ////                    None
+        ////                }
+        ////            }
+        ////        }
+        ////    })
+        ////    .boxed();
 
-        // TODO: When devices list change I need to update the wireless device state changes
-        info!("subscribing to events - wireless acs");
-        let wireless_ac = nm.wireless_access_points().await?;
+        //// TODO: When devices list change I need to update the wireless device state changes
+        //info!("subscribing to events - wireless acs");
+        //let wireless_ac = nm.wireless_access_points().await?;
 
-        //let mut device_state_changes = Vec::with_capacity(wireless_ac.len());
-        info!("subscribing to events - devices");
-        for ac in wireless_ac.iter() {
-            let dp = DeviceProxy::builder(conn)
-                .path(ac.device_path.clone())?
-                .build()
-                .await?;
-
-            //device_state_changes.push(
-            //    dp.rereceive_state_changed()
-            //        .await
-            //        .filter_map(|val| async move {
-            //            let val = val.get().await;
-            //            let val = val.map(DeviceState::from).unwrap_or_default();
-
-            //            if val == DeviceState::NeedAuth {
-            //                Some(val)
-            //            } else {
-            //                None
-            //            }
-            //        })
-            //        .map(|_| {
-            //            let ssid = ac.ssid.clone();
-
-            //            debug!("Request password for ssid {}", ssid);
-            //            NetworkEvent::RequestPasswordForSSID(ssid)
-            //        }),
-            //);
-        }
-
-        // When devices list change I need to update the access points changes
-        //let mut ac_changes = Vec::with_capacity(wireless_ac.len());
-        for ac in wireless_ac.iter() {
-            //let dp = WirelessDeviceProxy::builder(conn)
-            //    .path(ac.device_path.clone())?
-            //    .build()
-            //    .await?;
-
-            //ac_changes.push(
-            //    dp.receive_access_points_changed()
-            //        .await
-            //        .then({
-            //            let conn = conn.clone();
-            //            move |_| {
-            //                let conn = conn.clone();
-            //                async move {
-            //                    let nm = IwdDbus::new(&conn).await.unwrap();
-            //                    let wireless_access_point =
-            //                        nm.wireless_access_points().await.unwrap_or_default();
-            //                    debug!("access_points_changed {:?}", wireless_access_point);
-
-            //                    NetworkEvent::WirelessAccessPoint(wireless_access_point)
-            //                }
-            //            }
-            //        })
-            //        .boxed(),
-            //);
-        }
-
-        // When devices list change I need to update the wireless strength changes
-        //let mut strength_changes = Vec::with_capacity(wireless_ac.len());
-        //for ap in wireless_ac {
-        //    let ssid = ap.ssid.clone();
-        //    let app = AccessPointProxy::builder(conn)
-        //        .path(ap.path.clone())?
+        ////let mut device_state_changes = Vec::with_capacity(wireless_ac.len());
+        //info!("subscribing to events - devices");
+        //for ac in wireless_ac.iter() {
+        //    let dp = DeviceProxy::builder(&conn)
+        //        .path(ac.device_path.clone())?
         //        .build()
         //        .await?;
 
-        //    strength_changes.push(
-        //        app.receive_strength_changed()
-        //            .await
-        //            .then(move |val| {
-        //                let ssid = ssid.clone();
-        //                async move {
-        //                    let value = val.get().await.unwrap_or_default();
-        //                    debug!("Strength changed value: {}, {}", &ssid, value);
-        //                    NetworkEvent::Strength((ssid.clone(), value))
-        //                }
-        //            })
-        //            .boxed(),
-        //    );
+        //    //device_state_changes.push(
+        //    //    dp.rereceive_state_changed()
+        //    //        .await
+        //    //        .filter_map(|val| async move {
+        //    //            let val = val.get().await;
+        //    //            let val = val.map(DeviceState::from).unwrap_or_default();
+
+        //    //            if val == DeviceState::NeedAuth {
+        //    //                Some(val)
+        //    //            } else {
+        //    //                None
+        //    //            }
+        //    //        })
+        //    //        .map(|_| {
+        //    //            let ssid = ac.ssid.clone();
+
+        //    //            debug!("Request password for ssid {}", ssid);
+        //    //            NetworkEvent::RequestPasswordForSSID(ssid)
+        //    //        }),
+        //    //);
         //}
-        //let strength_changes = select_all(strength_changes).boxed();
 
-        //let access_points = select_all(ac_changes).boxed();
+        //// When devices list change I need to update the access points changes
+        ////let mut ac_changes = Vec::with_capacity(wireless_ac.len());
+        //for ac in wireless_ac.iter() {
+        //    //let dp = WirelessDeviceProxy::builder(conn)
+        //    //    .path(ac.device_path.clone())?
+        //    //    .build()
+        //    //    .await?;
 
-        //let known_connections = settings
-        //    .receive_connections_changed()
-        //    .await
-        //    .then({
-        //        let conn = conn.clone();
-        //        move |_| {
-        //            let conn = conn.clone();
-        //            async move {
-        //                let nm = NetworkDbus::new(&conn).await.unwrap();
-        //                let wireless_access_points =
-        //                    nm.wireless_access_points().await.unwrap_or_default();
+        //    //ac_changes.push(
+        //    //    dp.receive_access_points_changed()
+        //    //        .await
+        //    //        .then({
+        //    //            let conn = conn.clone();
+        //    //            move |_| {
+        //    //                let conn = conn.clone();
+        //    //                async move {
+        //    //                    let nm = IwdDbus::new(&conn).await.unwrap();
+        //    //                    let wireless_access_point =
+        //    //                        nm.wireless_access_points().await.unwrap_or_default();
+        //    //                    debug!("access_points_changed {:?}", wireless_access_point);
 
-        //                let known_connections = nm
-        //                    .known_connections(&wireless_access_points)
-        //                    .await
-        //                    .unwrap_or_default();
+        //    //                    NetworkEvent::WirelessAccessPoint(wireless_access_point)
+        //    //                }
+        //    //            }
+        //    //        })
+        //    //        .boxed(),
+        //    //);
+        //}
 
-        //                debug!("Known connections changed");
-        //                NetworkEvent::KnownConnections(known_connections)
-        //            }
-        //        }
-        //    })
-        //    .boxed();
+        //// When devices list change I need to update the wireless strength changes
+        ////let mut strength_changes = Vec::with_capacity(wireless_ac.len());
+        ////for ap in wireless_ac {
+        ////    let ssid = ap.ssid.clone();
+        ////    let app = AccessPointProxy::builder(conn)
+        ////        .path(ap.path.clone())?
+        ////        .build()
+        ////        .await?;
 
-        info!("subscribing to events - select_all");
+        ////    strength_changes.push(
+        ////        app.receive_strength_changed()
+        ////            .await
+        ////            .then(move |val| {
+        ////                let ssid = ssid.clone();
+        ////                async move {
+        ////                    let value = val.get().await.unwrap_or_default();
+        ////                    debug!("Strength changed value: {}, {}", &ssid, value);
+        ////                    NetworkEvent::Strength((ssid.clone(), value))
+        ////                }
+        ////            })
+        ////            .boxed(),
+        ////    );
+        ////}
+        ////let strength_changes = select_all(strength_changes).boxed();
+
+        ////let access_points = select_all(ac_changes).boxed();
+
+        ////let known_connections = settings
+        ////    .receive_connections_changed()
+        ////    .await
+        ////    .then({
+        ////        let conn = conn.clone();
+        ////        move |_| {
+        ////            let conn = conn.clone();
+        ////            async move {
+        ////                let nm = NetworkDbus::new(&conn).await.unwrap();
+        ////                let wireless_access_points =
+        ////                    nm.wireless_access_points().await.unwrap_or_default();
+
+        ////                let known_connections = nm
+        ////                    .known_connections(&wireless_access_points)
+        ////                    .await
+        ////                    .unwrap_or_default();
+
+        ////                debug!("Known connections changed");
+        ////                NetworkEvent::KnownConnections(known_connections)
+        ////            }
+        ////        }
+        ////    })
+        ////    .boxed();
+
+        //info!("subscribing to events - select_all");
         let events = select_all(vec![
-            wireless_enabled,
+            //wireless_enabled,
             //wireless_devices_changed,
             connectivity_changed,
             //active_connections_changes,
@@ -562,23 +555,28 @@ impl IwdDbus<'_> {
 
     /// Scan and list available access points
     pub async fn wireless_access_points(&self) -> anyhow::Result<Vec<AccessPoint>> {
-        let nets = self.reachable_networks().await?;
-
         let mut aps = Vec::new();
-        for (net, s) in nets {
-            // TODO: scan here?
-            // TODO: station values necessary?
-            // _s is between 0 and -10000
-            // should be between 0 and 100
-            aps.push(AccessPoint {
-                ssid: net.name().await?,
-                state: DeviceState::Unknown, // TODO:
-                strength: ((s / 100) + 100) as u8,
-                public: net.type_().await? == "open",
-                working: false,
-                path: net.inner().path().clone(),
-                device_path: net.device().await?.into(),
-            });
+        {
+            let nets = self.reachable_networks().await?;
+            for (net, s) in nets {
+                // TODO: scan here?
+                // TODO: station values necessary?
+                // _s is between 0 and -10000
+                // should be between 0 and 100
+                let ssid = net.name().await?;
+                let public = net.type_().await? == "open";
+                let path = net.inner().path().clone().into();
+                let device_path = net.device().await?.clone().into();
+                aps.push(AccessPoint {
+                    ssid,
+                    state: DeviceState::Unknown, // TODO:
+                    strength: ((s / 100) + 100) as u8,
+                    public,
+                    working: false, // TODO:
+                    path,
+                    device_path,
+                });
+            }
         }
         aps.sort_by(|a, b| b.strength.cmp(&a.strength));
         Ok(aps)

@@ -103,8 +103,8 @@ pub struct AccessPoint {
     pub state: dbus::DeviceState,
     pub public: bool,
     pub working: bool,
-    pub path: ObjectPath<'static>,
-    pub device_path: ObjectPath<'static>,
+    pub path: OwnedObjectPath,
+    pub device_path: OwnedObjectPath,
 }
 
 #[derive(Debug, Clone)]

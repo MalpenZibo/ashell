@@ -648,8 +648,8 @@ impl NetworkDbus<'_> {
                             state,
                             public,
                             working: false,
-                            path: ap.inner().path().to_owned(),
-                            device_path: device.0.path().to_owned(),
+                            path: ap.inner().path().clone().into(),
+                            device_path: device.0.path().clone().into(),
                         },
                     );
                 }
