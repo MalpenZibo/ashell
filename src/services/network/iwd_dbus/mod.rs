@@ -106,30 +106,33 @@ impl super::NetworkBackend for IwdDbus<'_> {
 
     /// List known (provisioned) SSIDs
     async fn known_connections(&self) -> anyhow::Result<Vec<KnownConnection>> {
-        let objects = self.0.get_managed_objects().await?;
-        let mut known_ssid = Vec::new();
-        for (path, ifs) in &objects {
-            if ifs.contains_key("net.connman.iwd.KnownNetwork") {
-                let kn = KnownNetworkProxy::builder(self.0.inner().connection())
-                    .destination("net.connman.iwd")?
-                    .path(path.clone())?
-                    .build()
-                    .await?;
-                known_ssid.push(kn.name().await?);
+        let nets = self.reachable_networks().await?;
+        let mut networks = Vec::new();
+        info!("known connections: {:?}", nets);
+        for (n, s) in nets {
+            //info!("{:?}",n.inner().introspect().await?);
+            if n.known_network().await.is_err() {
+                continue;
             }
+            let ssid = n.name().await?;
+            let path = n.inner().path().clone().into();
+            let device_path = n.device().await?.clone();
+            networks.push(KnownConnection::AccessPoint(AccessPoint{
+                ssid,
+                path,
+                device_path,
+                strength : ((s / 100) + 100) as u8,
+                state: DeviceState::Unknown, // TODO:
+                public: n.type_().await? == "open",
+                working: false, // TODO:
+            }));
         }
-        // TODO: not acccess points, but ordered networks
-        //let known: Vec<_> = wireless_access_points
-        //    .iter()
-        //    .filter(|a| known_ssid.contains(&a.ssid))
-        //    .cloned()
-        //    .map(KnownConnection::AccessPoint)
-        //    .collect();
-        Ok(vec![])
+        Ok(networks)
     }
 
     async fn scan_nearby_wifi(&self) -> anyhow::Result<()> {
-        StationProxy::new(self.0.inner().connection()).await?.scan();
+        // TODO: danger - this errors when already scanning
+        StationProxy::new(self.0.inner().connection()).await?.scan().await?;
         Ok(())
     }
 
