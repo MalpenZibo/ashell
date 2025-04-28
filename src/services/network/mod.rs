@@ -397,7 +397,7 @@ impl NetworkService {
         let wireless_ac = nm.wireless_access_points().await?;
 
         let mut device_state_changes = Vec::with_capacity(wireless_ac.len());
-        for ac in wireless_ac.iter() {
+        for ac in wireless_ac.clone() {
             let dp = DeviceProxy::builder(conn)
                 .path(ac.device_path.clone())?
                 .build()
@@ -416,14 +416,15 @@ impl NetworkService {
                             None
                         }
                     })
-                    .map(|_| {
+                    .map(move |_| {
                         let ssid = ac.ssid.clone();
 
                         debug!("Request password for ssid {}", ssid);
                         NetworkEvent::RequestPasswordForSSID(ssid)
-                    }),
+                    }).boxed(),
             );
         }
+        let device_state_changes = select_all(device_state_changes).boxed();
 
         // When devices list change I need to update the access points changes
         let mut ac_changes = Vec::with_capacity(wireless_ac.len());
@@ -456,9 +457,9 @@ impl NetworkService {
 
         // When devices list change I need to update the wireless strength changes
         let mut strength_changes = Vec::with_capacity(wireless_ac.len());
-        for ap in wireless_ac {
+        for ap in wireless_ac.iter() {
             let ssid = ap.ssid.clone();
-            let app = AccessPointProxy::builder(conn)
+            let app = AccessPointProxy::builder(&conn.clone())
                 .path(ap.path.clone())?
                 .build()
                 .await?;
@@ -513,6 +514,7 @@ impl NetworkService {
             access_points,
             strength_changes,
             known_connections,
+            device_state_changes
         ]);
 
         Ok(events)
