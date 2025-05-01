@@ -73,29 +73,55 @@
             '';
           };
         };
-        devShells.default = pkgs.mkShell {
-          inherit buildInputs ldLibraryPath;
-          packages = with pkgs; [
-            rust-bin.stable.latest.default
-            pkg-config
-            libxkbcommon
-            libGL
-            pipewire
-            libpulseaudio
-            wayland
-            vulkan-loader
-            udev
-            autoPatchelfHook
-            cargo-edit
-            cargo-watch
-            rust-analyzer
-            nixpkgs-fmt
-            rustfmt
-            clippy
-          ];
+        devShells.default = let
+          scripts = {
+            dx = {
+              exec = ''$EDITOR $REPO_ROOT/flake.nix'';
+              description = "Edit flake.nix";
+            };
+          };
 
-          LD_LIBRARY_PATH = ldLibraryPath;
-        };
+          scriptPackages =
+            pkgs.lib.mapAttrs
+            (name: script: pkgs.writeShellScriptBin name script.exec)
+            scripts;
+        in
+          pkgs.mkShell {
+            inherit buildInputs ldLibraryPath;
+            shellHook = ''
+              export REPO_ROOT=$(git rev-parse --show-toplevel)
+              echo "Available commands:"
+              ${pkgs.lib.concatStringsSep "\n" (
+                pkgs.lib.mapAttrsToList (
+                  name: script: ''echo "  ${name} - ${script.description}"''
+                )
+                scripts
+              )}
+            '';
+
+            packages = with pkgs;
+              [
+                rust-bin.stable.latest.default
+                pkg-config
+                libxkbcommon
+                libGL
+                pipewire
+                libpulseaudio
+                wayland
+                vulkan-loader
+                udev
+                autoPatchelfHook
+                cargo-edit
+                cargo-watch
+                rust-analyzer
+                nixpkgs-fmt
+                rustfmt
+                clippy
+              ]
+              ++ builtins.attrValues scriptPackages;
+
+            LD_LIBRARY_PATH = ldLibraryPath;
+          };
       }
     );
 }
