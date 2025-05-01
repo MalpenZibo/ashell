@@ -57,7 +57,6 @@
         ldLibraryPath = pkgs.lib.makeLibraryPath runtimeDependencies;
       in {
         packages = {
-          # `nix build` and `nix run`
           default = craneLib.buildPackage {
             src = ./.;
 
@@ -74,9 +73,25 @@
             '';
           };
         };
-        # `nix develop`
         devShells.default = pkgs.mkShell {
           inherit buildInputs ldLibraryPath;
+          packages = with pkgs; [
+            rust-bin.stable.latest.default
+            pkg-config
+            libxkbcommon
+            libGL
+            pipewire
+            libpulseaudio
+            wayland
+            vulkan-loader
+            udev
+            autoPatchelfHook
+            cargo-edit
+            cargo-watch
+            nixpkgs-fmt
+            rustfmt
+            clippy
+          ];
 
           LD_LIBRARY_PATH = ldLibraryPath;
         };
