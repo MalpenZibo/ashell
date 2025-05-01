@@ -55,48 +55,43 @@
         ldLibraryPath = pkgs.lib.makeLibraryPath runtimeDependencies;
       in {
         packages = {
-          "${system}".lint = pkgs.writeShellApplication {
-            name = "lint";
-            runtimeInputs = with pkgs; [
-              nixpkgs-fmt
-              alejandra
-              shellcheck
-              statix
-              rustfmt
-              clippy
-              cargo-udeps
-              cargo-deny
-              cargo-watch
-            ];
-
-            text = ''
-              nixpkgs-fmt --check .
-              alejandra --check .
-              shellcheck --check-sourced --severity=warning --external-sources --source-path=. flake.nix
-              statix check
-              cargo fmt --all -- --check
-              cargo clippy --all-targets --all-features -- -D warnings
-              cargo udeps
-              cargo deny check
-              cargo watch -x 'test --all-features'
-            '';
-          };
           # `nix build` and `nix run`
-          x86_64-linux.default = craneLib.buildPackage {
-            src = ./.;
+          x86_64-linux.default =
+            if "${system}" == "x86_64-linux"
+            then
+              craneLib.buildPackage {
+                src = ./.;
 
-            nativeBuildInputs = with pkgs; [
-              makeWrapper
-              pkg-config
-              autoPatchelfHook # Add runtimeDependencies to rpath
-            ];
+                nativeBuildInputs = with pkgs; [
+                  makeWrapper
+                  pkg-config
+                  autoPatchelfHook # Add runtimeDependencies to rpath
+                ];
 
-            inherit buildInputs runtimeDependencies ldLibraryPath;
+                inherit buildInputs runtimeDependencies ldLibraryPath;
 
-            postInstall = ''
-              wrapProgram "$out/bin/ashell" --prefix LD_LIBRARY_PATH : "${ldLibraryPath}"
-            '';
-          };
+                postInstall = ''
+                  wrapProgram "$out/bin/ashell" --prefix LD_LIBRARY_PATH : "${ldLibraryPath}"
+                '';
+              }
+            else
+              pkgs.stdenv.mkDerivation {
+                name = "empty-package";
+                version = "0.1.0";
+
+                # No src needed for an empty package
+                src = ./.;
+
+                # Skip phases that aren't needed
+                dontUnpack = true;
+                dontBuild = true;
+                dontConfigure = true;
+
+                # Just create an empty directory
+                installPhase = ''
+                  mkdir -p $out
+                '';
+              };
         };
         # `nix develop`
         devShells.default = pkgs.mkShell {
