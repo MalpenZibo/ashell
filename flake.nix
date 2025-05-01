@@ -88,6 +88,7 @@
             autoPatchelfHook
             cargo-edit
             cargo-watch
+            rust-analyzer
             nixpkgs-fmt
             rustfmt
             clippy
