@@ -56,7 +56,7 @@
       in {
         packages = {
           # `nix build` and `nix run`
-          x86_64-linux.default =
+          "${system}".default =
             if "${system}" == "x86_64-linux"
             then
               craneLib.buildPackage {
