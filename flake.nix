@@ -2,11 +2,11 @@
   description = "A ready to go Wayland status bar for Hyprland";
 
   inputs = {
-    crane.url = "https://flakehub.com/f/ipetkov/crane/0.20.3.tar.gz";
-    nixpkgs.url = "https://flakehub.com/f/NixOS/nixpkgs/0.1.791944.tar.gz";
-    flake-utils.url = "https://flakehub.com/f/numtide/flake-utils/0.1.102.tar.gz";
+    crane.url = "https://flakehub.com/f/ipetkov/crane/0.20.3";
+    nixpkgs.url = "https://flakehub.com/f/NixOS/nixpkgs/0.1.791944";
+    flake-utils.url = "https://flakehub.com/f/numtide/flake-utils/0.1.102";
     rust-overlay = {
-      url = "https://flakehub.com/f/oxalica/rust-overlay/0.1.1771.tar.gz";
+      url = "https://flakehub.com/f/oxalica/rust-overlay/0.1.1771";
       inputs = {
         nixpkgs.follows = "nixpkgs";
       };
@@ -55,7 +55,7 @@
         ldLibraryPath = pkgs.lib.makeLibraryPath runtimeDependencies;
       in {
         # `nix build` and `nix run`
-        packages."${system}".default = craneLib.buildPackage {
+        packages.x86_64-linux.default = craneLib.buildPackage {
           src = ./.;
 
           nativeBuildInputs = with pkgs; [
