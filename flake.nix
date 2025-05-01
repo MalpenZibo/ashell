@@ -2,11 +2,11 @@
   description = "A ready to go Wayland status bar for Hyprland";
 
   inputs = {
-    crane.url = "github:ipetkov/crane";
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    flake-utils.url = "github:numtide/flake-utils";
+    crane.url = "https://flakehub.com/f/ipetkov/crane/0.20.3.tar.gz";
+    nixpkgs.url = "https://flakehub.com/f/NixOS/nixpkgs/0.1.791944.tar.gz";
+    flake-utils.url = "https://flakehub.com/f/numtide/flake-utils/0.1.102.tar.gz";
     rust-overlay = {
-      url = "github:oxalica/rust-overlay";
+      url = "https://flakehub.com/f/oxalica/rust-overlay/0.1.1771.tar.gz";
       inputs = {
         nixpkgs.follows = "nixpkgs";
       };

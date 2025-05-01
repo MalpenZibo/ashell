@@ -1,44 +1,26 @@
-name: Nix CI
-
 on:
-  push:
-    branches: ["main"]
   pull_request:
-    branches: ["main"]
-    types:
-      - opened
-      - reopened
-      - synchronize
-      - ready_for_review
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    # tags:
+    #   - v?[0-9]+.[0-9]+.[0-9]+*
+
+env:
+  RUST_BACKTRACE: 1
+  
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  checks-build:
-    runs-on: ubuntu-24.04
+  DeterminateCI:
+    uses: DeterminateSystems/ci/.github/workflows/workflow.yml@main
     permissions:
-      contents: write
-      actions: write
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: nixbuild/nix-quick-install-action@v29
-
-      - name: Restore and save Nix store
-        uses: nix-community/cache-nix-action@v6
-        with:
-          primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/flake.lock') }}
-          # do purge caches
-          purge: true
-          # purge all versions of the cache
-          purge-prefixes: build-${{ runner.os }}-
-          # created more than 0 seconds ago relative to the start of the `Post Restore` phase
-          purge-created: 0
-          # except the version with the `primary-key`, if it exists
-          purge-primary-key: never
-          # collect garbage until Nix store size (in bytes) is at most this number
-          # before trying to save a new cache
-          # 1 GB = 1073741824 B
-          gc-max-store-size-linux: 1073741824
-
-      - name: Nix build-
-        run: nix build
+      id-token: write
+      contents: read
+    with:
+      visibility: public
+      fail-fast: true
+    
