@@ -54,6 +54,32 @@
 
         ldLibraryPath = pkgs.lib.makeLibraryPath runtimeDependencies;
       in {
+        packages."${system}".lint = pkgs.writeShellApplication {
+          name = "lint";
+          runtimeInputs = with pkgs; [
+            nixpkgs-fmt
+            alejandra
+            shellcheck
+            statix
+            rustfmt
+            clippy
+            cargo-udeps
+            cargo-deny
+            cargo-watch
+          ];
+
+          text = ''
+            nixpkgs-fmt --check .
+            alejandra --check .
+            shellcheck --check-sourced --severity=warning --external-sources --source-path=. flake.nix
+            statix check
+            cargo fmt --all -- --check
+            cargo clippy --all-targets --all-features -- -D warnings
+            cargo udeps
+            cargo deny check
+            cargo watch -x 'test --all-features'
+          '';
+        };
         # `nix build` and `nix run`
         packages.x86_64-linux.default = craneLib.buildPackage {
           src = ./.;
