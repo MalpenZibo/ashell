@@ -1,10 +1,10 @@
-use std::f32::consts::PI;
+use std::{collections::HashMap, f32::consts::PI};
 
 use crate::{
-    HEIGHT, centerbox,
+    centerbox,
     config::{self, AppearanceStyle, Config, Position},
     get_log_spec,
-    menu::{MenuSize, MenuType, menu_wrapper},
+    menu::{menu_wrapper, MenuSize, MenuType},
     modules::{
         self,
         app_launcher::AppLauncher,
@@ -15,7 +15,7 @@ use crate::{
         keyboard_submap::KeyboardSubmap,
         media_player::MediaPlayer,
         privacy::Privacy,
-        settings::{Settings, brightness::BrightnessMessage},
+        settings::{brightness::BrightnessMessage, Settings},
         system_info::SystemInfo,
         tray::{TrayMessage, TrayModule},
         updates::Updates,
@@ -24,21 +24,21 @@ use crate::{
     },
     outputs::{HasOutput, Outputs},
     position_button::ButtonUIRef,
-    services::{Service, ServiceEvent, brightness::BrightnessCommand, tray::TrayEvent},
+    services::{brightness::BrightnessCommand, tray::TrayEvent, Service, ServiceEvent},
     style::{ashell_theme, backdrop_color, darken_color},
-    utils,
+    utils, HEIGHT,
 };
 use flexi_logger::LoggerHandle;
 use iced::{
-    Alignment, Color, Element, Gradient, Length, Radians, Subscription, Task, Theme,
     daemon::Appearance,
     event::{
         listen_with,
         wayland::{Event as WaylandEvent, OutputEvent},
     },
     gradient::Linear,
-    widget::{Row, container},
+    widget::{container, Row},
     window::Id,
+    Alignment, Color, Element, Gradient, Length, Radians, Subscription, Task, Theme,
 };
 use log::{debug, info, warn};
 use wayland_client::protocol::wl_output::WlOutput;
@@ -48,7 +48,7 @@ pub struct App {
     pub config: Config,
     pub outputs: Outputs,
     pub app_launcher: AppLauncher,
-    pub custom: Custom,
+    pub custom: HashMap<String, Custom>,
     pub updates: Updates,
     pub clipboard: Clipboard,
     pub workspaces: Workspaces,
@@ -84,6 +84,7 @@ pub enum Message {
     MediaPlayer(modules::media_player::Message),
     OutputEvent((OutputEvent, WlOutput)),
     LaunchCommand(String),
+    CustomUpdate(String, modules::custom_module::Message),
 }
 
 impl App {
@@ -91,12 +92,20 @@ impl App {
         || {
             let (outputs, task) = Outputs::new(config.appearance.style, config.position);
 
+            let names = config
+                .custom_modules
+                .iter()
+                .map(|o| o.name.clone())
+                .collect::<Vec<_>>();
             (
                 App {
                     logger,
                     outputs,
                     app_launcher: AppLauncher,
-                    custom: Custom,
+                    custom: names
+                        .into_iter()
+                        .map(|n| (n.clone(), Custom::default()))
+                        .collect(),
                     updates: Updates::default(),
                     clipboard: Clipboard,
                     workspaces: Workspaces::new(&config.workspaces),
@@ -211,6 +220,10 @@ impl App {
             }
             Message::LaunchCommand(command) => {
                 utils::launcher::execute_command(command);
+                Task::none()
+            }
+            Message::CustomUpdate(name, message) => {
+                self.custom.get_mut(&name).unwrap().update(message);
                 Task::none()
             }
             Message::OpenClipboard => {

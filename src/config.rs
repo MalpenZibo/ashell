@@ -8,7 +8,7 @@ use iced::{
 use inotify::{Event, EventMask, Inotify, WatchMask};
 use serde::{Deserialize, Deserializer, de::Error};
 use std::collections::HashMap;
-use std::{any::TypeId, env, fs::File, io::Read, path::Path};
+use std::{any::TypeId, collections::HashMap, env, fs::File, io::Read, path::Path};
 
 use crate::app::Message;
 
@@ -522,11 +522,19 @@ where
 }
 
 #[derive(Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct CustomModuleDef {
     pub name: String,
     pub command: String,
     #[serde(default)]
     pub icon: Option<String>,
+
+    /// yields json lines containing text, alt, (pot tooltip)
+    pub listen_cmd: Option<String>,
+    /// map of regex -> icon
+    pub icons: Option<HashMap<String, String>>,
+    /// regex to show alert
+    pub alert: Option<String>,
     // .. appearance etc
 }
 

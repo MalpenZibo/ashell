@@ -26,7 +26,7 @@ pub mod updates;
 pub mod window_title;
 pub mod workspaces;
 
-use log::{error, warn};
+use log::error;
 
 #[derive(Debug, Clone)]
 pub enum OnModulePress {
@@ -249,10 +249,10 @@ impl App {
             ModuleName::Custom(name) => {
                 let c = self.config.custom_modules.iter().find(|m| m.name == name);
                 if let Some(mc) = c {
-                    self.custom.view((&mc.command, &mc.icon))
+                    self.custom.get(&name).unwrap().view(mc)
                 } else {
                     error!("Custom module `{}` not found", name);
-                    return None;
+                    None
                 }
             }
             ModuleName::Updates => self.updates.view(&self.config.updates),
@@ -279,7 +279,15 @@ impl App {
     fn get_module_subscription(&self, module_name: ModuleName) -> Option<Subscription<Message>> {
         match module_name {
             ModuleName::AppLauncher => self.app_launcher.subscription(()),
-            ModuleName::Custom(_) => self.custom.subscription(()),
+            ModuleName::Custom(name) => {
+                let c = self.config.custom_modules.iter().find(|m| m.name == name);
+                if let Some(mc) = c {
+                    self.custom.get(&name).unwrap().subscription(mc)
+                } else {
+                    error!("Custom module `{}` not found", name);
+                    None
+                }
+            }
             ModuleName::Updates => self
                 .config
                 .updates
