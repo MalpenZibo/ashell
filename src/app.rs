@@ -1,4 +1,4 @@
-use std::f32::consts::PI;
+use std::{collections::HashMap, f32::consts::PI};
 
 use crate::{
     HEIGHT, centerbox,
@@ -48,7 +48,7 @@ pub struct App {
     pub config: Config,
     pub outputs: Outputs,
     pub app_launcher: AppLauncher,
-    pub custom: Custom,
+    pub custom: HashMap<String, Custom>,
     pub updates: Updates,
     pub clipboard: Clipboard,
     pub workspaces: Workspaces,
@@ -84,6 +84,7 @@ pub enum Message {
     MediaPlayer(modules::media_player::Message),
     OutputEvent((OutputEvent, WlOutput)),
     LaunchCommand(String),
+    CustomUpdate(String, modules::custom_module::Message),
 }
 
 impl App {
@@ -91,13 +92,26 @@ impl App {
         || {
             let (outputs, task) = Outputs::new(config.appearance.style, config.position);
             let enable_workspace_filling = config.workspaces.enable_workspace_filling;
+
+            let names = config
+                .custom_modules
+                .iter()
+                .map(|o| o.name.clone())
+                .collect::<Vec<_>>();
             (
                 App {
                     logger,
                     config,
                     outputs,
                     app_launcher: AppLauncher,
-                    custom: Custom,
+                    custom: names.into_iter()
+                        .map(|n| {
+                            (
+                                n.clone(),
+                                Custom::default(),
+                            )
+                        })
+                        .collect(),
                     updates: Updates::default(),
                     clipboard: Clipboard,
                     workspaces: Workspaces::new(enable_workspace_filling),
@@ -211,6 +225,10 @@ impl App {
             }
             Message::LaunchCommand(command) => {
                 utils::launcher::execute_command(command);
+                Task::none()
+            }
+            Message::CustomUpdate(name, message) => {
+                self.custom.get_mut(&name).unwrap().update(message);
                 Task::none()
             }
             Message::OpenClipboard => {
