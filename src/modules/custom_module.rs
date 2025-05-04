@@ -5,15 +5,18 @@ use crate::{
     components::icons::{Icons, icon, icon_raw},
     config::CustomModuleDef,
 };
-use iced::{widget::canvas, Padding};
-use iced::{mouse::Cursor, widget::{canvas::{Cache, Geometry, Path, Program}, container}};
+use iced::widget::canvas;
 use iced::{
-    Alignment, Color, Element, Point, Subscription, Theme,
+    Color, Element, Length, Subscription, Theme,
     stream::channel,
+    widget::{Stack, row, text},
+};
+use iced::{
+    mouse::Cursor,
     widget::{
-        Stack,
-        row, text,
-    }, Length,
+        canvas::{Cache, Geometry, Path, Program},
+        container,
+    },
 };
 use log::error;
 use serde::Deserialize;
@@ -77,7 +80,6 @@ impl<Message> Program<Message> for AlertIndicator {
     }
 }
 
-
 impl Module for Custom {
     type ViewData<'a> = &'a CustomModuleDef;
     type SubscriptionData<'a> = &'a CustomModuleDef;
@@ -105,7 +107,7 @@ impl Module for Custom {
         }
 
         // Wrap the icon in a container to apply padding
-        let padded_icon_container = container(icon_element).padding([0,1]);
+        let padded_icon_container = container(icon_element).padding([0, 1]);
 
         let mut show_alert = false;
         if let Some(alert_pattern) = &config.alert {
@@ -129,8 +131,8 @@ impl Module for Custom {
                 .height(Length::Fill) // Take full height
                 .align_x(iced::alignment::Horizontal::Right)
                 .align_y(iced::alignment::Vertical::Top);
-                // Optional: Add padding to nudge it slightly
-                // .padding([2, 2, 0, 0]); // top, right, bottom, left
+            // Optional: Add padding to nudge it slightly
+            // .padding([2, 2, 0, 0]); // top, right, bottom, left
 
             Stack::new()
                 .push(padded_icon_container) // Padded icon is the base layer

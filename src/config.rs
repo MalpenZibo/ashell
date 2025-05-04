@@ -446,11 +446,11 @@ impl From<String> for ModuleName {
         // Benefit of this appraoch is we could match by lowercase and support all spellings
         match value.as_str() {
             "appLauncher" => ModuleName::AppLauncher,
-            "updates" =>     ModuleName::Updates,
-            "clipboard" =>   ModuleName::Clipboard,
-            "workspaces" =>  ModuleName::Workspaces,
+            "updates" => ModuleName::Updates,
+            "clipboard" => ModuleName::Clipboard,
+            "workspaces" => ModuleName::Workspaces,
             "windowTitle" => ModuleName::WindowTitle,
-            "systemInfo" =>  ModuleName::SystemInfo,
+            "systemInfo" => ModuleName::SystemInfo,
             "keyboardLayout" => ModuleName::KeyboardLayout,
             "keyboardSubmap" => ModuleName::KeyboardSubmap,
             "tray" => ModuleName::Tray,

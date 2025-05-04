@@ -157,6 +157,5 @@ pub fn icon<'a>(r#type: Icons) -> Text<'a> {
 }
 
 pub fn icon_raw<'a>(s: String) -> Text<'a> {
-    text(s)
-        .font(Font::with_name("Symbols Nerd Font"))
+    text(s).font(Font::with_name("Symbols Nerd Font"))
 }
