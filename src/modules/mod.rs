@@ -14,6 +14,7 @@ use iced::{
 pub mod app_launcher;
 pub mod clipboard;
 pub mod clock;
+pub mod custom_module;
 pub mod keyboard_layout;
 pub mod keyboard_submap;
 pub mod media_player;
@@ -24,6 +25,8 @@ pub mod tray;
 pub mod updates;
 pub mod window_title;
 pub mod workspaces;
+
+use log::error;
 
 #[derive(Debug, Clone)]
 pub enum OnModulePress {
@@ -59,8 +62,18 @@ impl App {
 
         for module_def in modules_def {
             row = row.push_maybe(match module_def {
-                ModuleDef::Single(module) => self.single_module_wrapper(*module, id, opacity),
-                ModuleDef::Group(group) => self.group_module_wrapper(group, id, opacity),
+                // life parsing of string to module
+                ModuleDef::Single(module) => {
+                    self.single_module_wrapper(module.to_owned().into(), id, opacity)
+                }
+                ModuleDef::Group(group) => self.group_module_wrapper(
+                    &group
+                        .iter()
+                        .map(|m| m.to_owned().into())
+                        .collect::<Vec<_>>(),
+                    id,
+                    opacity,
+                ),
             });
         }
 
@@ -71,10 +84,12 @@ impl App {
         modules_def
             .iter()
             .flat_map(|module_def| match module_def {
-                ModuleDef::Single(module) => vec![self.get_module_subscription(*module)],
+                ModuleDef::Single(module) => {
+                    vec![self.get_module_subscription(module.to_owned().into())]
+                }
                 ModuleDef::Group(group) => group
                     .iter()
-                    .map(|module| self.get_module_subscription(*module))
+                    .map(|module| self.get_module_subscription(module.to_owned().into()))
                     .collect(),
             })
             .flatten()
@@ -151,7 +166,7 @@ impl App {
     ) -> Option<Element<Message>> {
         let modules = group
             .iter()
-            .filter_map(|module| self.get_module_view(*module, id, opacity))
+            .filter_map(|module| self.get_module_view(module.clone(), id, opacity))
             .collect::<Vec<_>>();
 
         if modules.is_empty() {
@@ -229,6 +244,15 @@ impl App {
     ) -> Option<(Element<Message>, Option<OnModulePress>)> {
         match module_name {
             ModuleName::AppLauncher => self.app_launcher.view(&self.config.app_launcher_cmd),
+            ModuleName::Custom(name) => {
+                let c = self.config.custom_modules.iter().find(|m| m.name == name);
+                if let Some(mc) = c {
+                    self.custom.get(&name).unwrap().view(mc)
+                } else {
+                    error!("Custom module `{}` not found", name);
+                    None
+                }
+            }
             ModuleName::Updates => self.updates.view(&self.config.updates),
             ModuleName::Clipboard => self.clipboard.view(&self.config.clipboard_cmd),
             ModuleName::Workspaces => self.workspaces.view((
@@ -253,6 +277,15 @@ impl App {
     fn get_module_subscription(&self, module_name: ModuleName) -> Option<Subscription<Message>> {
         match module_name {
             ModuleName::AppLauncher => self.app_launcher.subscription(()),
+            ModuleName::Custom(name) => {
+                let c = self.config.custom_modules.iter().find(|m| m.name == name);
+                if let Some(mc) = c {
+                    self.custom.get(&name).unwrap().subscription(mc)
+                } else {
+                    error!("Custom module `{}` not found", name);
+                    None
+                }
+            }
             ModuleName::Updates => self
                 .config
                 .updates
