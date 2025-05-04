@@ -393,11 +393,18 @@ impl NetworkService {
             })
             .boxed();
 
-        // When devices list change I need to update the wireless device state changes
         let wireless_ac = nm.wireless_access_points().await?;
 
+        // When devices list change I need to update the wireless device state changes
         let mut device_state_changes = Vec::with_capacity(wireless_ac.len());
-        for ac in wireless_ac.clone() {
+        // When devices list change I need to update the access points changes
+        let mut ac_changes = Vec::with_capacity(wireless_ac.len());
+        // When devices list change I need to update the wireless strength changes
+        let mut strength_changes = Vec::with_capacity(wireless_ac.len());
+
+        for ac in wireless_ac.iter() {
+            let ssid = ac.ssid.clone();
+
             let dp = DeviceProxy::builder(conn)
                 .path(ac.device_path.clone())?
                 .build()
@@ -406,29 +413,26 @@ impl NetworkService {
             device_state_changes.push(
                 dp.receive_state_changed()
                     .await
-                    .filter_map(|val| async move {
-                        let val = val.get().await;
-                        let val = val.map(DeviceState::from).unwrap_or_default();
+                    .filter_map({
+                        let ssid = ssid.clone();
+                        move |val| {
+                            let ssid = ssid.clone();
+                            async move {
+                                let val = val.get().await;
+                                let val = val.map(DeviceState::from).unwrap_or_default();
 
-                        if val == DeviceState::NeedAuth {
-                            Some(val)
-                        } else {
-                            None
+                                if val == DeviceState::NeedAuth {
+                                    debug!("Request password for ssid {}", ssid);
+                                    Some(NetworkEvent::RequestPasswordForSSID(ssid))
+                                } else {
+                                    None
+                                }
+                            }
                         }
                     })
-                    .map(move |_| {
-                        let ssid = ac.ssid.clone();
-
-                        debug!("Request password for ssid {}", ssid);
-                        NetworkEvent::RequestPasswordForSSID(ssid)
-                    }).boxed(),
+                    .boxed(),
             );
-        }
-        let device_state_changes = select_all(device_state_changes).boxed();
 
-        // When devices list change I need to update the access points changes
-        let mut ac_changes = Vec::with_capacity(wireless_ac.len());
-        for ac in wireless_ac.iter() {
             let dp = WirelessDeviceProxy::builder(conn)
                 .path(ac.device_path.clone())?
                 .build()
@@ -453,14 +457,9 @@ impl NetworkService {
                     })
                     .boxed(),
             );
-        }
 
-        // When devices list change I need to update the wireless strength changes
-        let mut strength_changes = Vec::with_capacity(wireless_ac.len());
-        for ap in wireless_ac.iter() {
-            let ssid = ap.ssid.clone();
-            let app = AccessPointProxy::builder(&conn.clone())
-                .path(ap.path.clone())?
+            let app = AccessPointProxy::builder(conn)
+                .path(ac.path.clone())?
                 .build()
                 .await?;
 
@@ -478,7 +477,6 @@ impl NetworkService {
                     .boxed(),
             );
         }
-        let strength_changes = select_all(strength_changes).boxed();
 
         let access_points = select_all(ac_changes).boxed();
 
@@ -512,9 +510,9 @@ impl NetworkService {
             connectivity_changed,
             active_connections_changes,
             access_points,
-            strength_changes,
+            select_all(strength_changes).boxed(),
             known_connections,
-            device_state_changes
+            select_all(device_state_changes).boxed(),
         ]);
 
         Ok(events)
