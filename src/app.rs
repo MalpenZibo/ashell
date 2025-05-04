@@ -104,13 +104,9 @@ impl App {
                     config,
                     outputs,
                     app_launcher: AppLauncher,
-                    custom: names.into_iter()
-                        .map(|n| {
-                            (
-                                n.clone(),
-                                Custom::default(),
-                            )
-                        })
+                    custom: names
+                        .into_iter()
+                        .map(|n| (n.clone(), Custom::default()))
                         .collect(),
                     updates: Updates::default(),
                     clipboard: Clipboard,
