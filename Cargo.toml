@@ -38,3 +38,4 @@ udev = { version = "0.9", features = ["send", "sync"] }
 toml = "0.8"
 freedesktop-icons = "0.3.1"
 linicon-theme = "1.2.0"
+tokio-stream = "0.1.17"

@@ -13,10 +13,14 @@ pub mod simple_configuration;
 pub mod station;
 pub mod station_diagnostic;
 
+use tokio_stream::wrappers::UnboundedReceiverStream;
+
 // source for dbus: https://git.kernel.org/pub/scm/network/wireless/iwd.git/tree/doc
 //info!("{:?}",n.inner().introspect().await?); => can use this to generate proxy implementations
 
 use crate::services::bluetooth::BluetoothService;
+
+use zbus::interface;
 
 use super::dbus::DeviceState;
 use super::{AccessPoint, ActiveConnectionInfo, KnownConnection, NetworkBackend, NetworkEvent};
@@ -28,7 +32,7 @@ use log::debug;
 use std::ops::Deref;
 use tokio::process::Command;
 use zbus::fdo::ObjectManagerProxy;
-use zbus::zvariant::OwnedObjectPath;
+use zbus::zvariant::{ObjectPath, OwnedObjectPath};
 
 use access_point::AccessPointProxy;
 use adapter::AdapterProxy;
@@ -219,6 +223,22 @@ impl From<String> for IwdStationState {
     }
 }
 
+struct SignalAgent {
+    tx: tokio::sync::mpsc::UnboundedSender<i16>,
+}
+
+use log::warn;
+
+#[interface(name = "net.connman.iwd.SignalLevelAgent")]
+impl SignalAgent {
+    /// Called by iwd whenever RSSI crosses a threshold
+    fn changed(&self, level: i16) {
+        // ignore failure if receiver was dropped
+        warn!("Signal level changed: {}", level);
+        let _ = self.tx.send(level);
+    }
+}
+
 #[allow(dead_code, unused_variables)]
 impl IwdDbus<'_> {
     /// Connect to the system bus and the IWD service
@@ -282,9 +302,7 @@ impl IwdDbus<'_> {
         Ok(networks)
     }
 
-    pub async fn subscribe_events(
-        &self,
-    ) -> anyhow::Result<impl Stream<Item = Vec<NetworkEvent>>> {
+    pub async fn subscribe_events(&self) -> anyhow::Result<impl Stream<Item = Vec<NetworkEvent>>> {
         let _conn = self.0.inner().connection();
         let iwd = self;
 
@@ -327,6 +345,7 @@ impl IwdDbus<'_> {
         let stations = self.stations().await?;
         let mut connectivity_changes = vec![];
         let mut ap_s_kap_changes = vec![];
+        let mut signal_level_updates = vec![];
         for station in stations {
             // this gets also triggered when connecting to new networks, so no need to listen to
             // network changes
@@ -357,7 +376,8 @@ impl IwdDbus<'_> {
                 .boxed();
             connectivity_changes.push(cstream);
 
-            let apstream = station.receive_scanning_changed()
+            let apstream = station
+                .receive_scanning_changed()
                 .await
                 .then({
                     move |s| async move {
@@ -388,8 +408,34 @@ impl IwdDbus<'_> {
                 })
                 .boxed();
             ap_s_kap_changes.push(apstream);
-        }
 
+            // 2) channel
+            let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<i16>();
+            // 3) export agent
+            let agent = SignalAgent { tx };
+            let server = self
+                .0
+                .inner()
+                .connection()
+                .object_server()
+                .at("/com/ashell/iwd/SignalAgent", agent)
+                .await?;
+            // 5) register agent with thresholds
+            let path = ObjectPath::try_from("/com/ashell/iwd/SignalAgent")?;
+            station
+                .register_signal_level_agent(&path, &[-70, -80, -90])
+                .await?;
+            // 6) turn receiver into a Stream
+            signal_level_updates.push(
+                UnboundedReceiverStream::new(rx)
+                    .filter_map(|level| async move {
+                        debug!("Signal level changed: {}", level);
+                        // TODO: get current network name
+                        Some(vec![NetworkEvent::Strength(("".to_string(), level as u8))])
+                    })
+                    .boxed(),
+            );
+        }
 
         // TODO: probably would need to listen to interfaces registered and unregistered
         //let devices = nm.wireless_devices().await.unwrap_or_default();
@@ -470,6 +516,7 @@ impl IwdDbus<'_> {
             select_all(wireless_enabled_changes).boxed(),
             select_all(connectivity_changes).boxed(),
             select_all(ap_s_kap_changes).boxed(),
+            select_all(signal_level_updates).boxed(),
             // TODO: add a future that waits for 10s to poll certain information like the signal
             // strength change
         ]);
