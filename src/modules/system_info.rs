@@ -73,30 +73,27 @@ fn get_system_info(
 
     let elapsed = last_check.map(|v| v.elapsed().as_secs());
 
-    let network = networks
-        .iter()
-        .filter(|(name, _)| name.starts_with("wlan") || name.starts_with("eth"))
-        .fold(
-            (None, 0, 0),
-            |(first_ip, total_received, total_transmitted), (_, data)| {
-                let ip = first_ip.or_else(|| {
-                    data.ip_networks()
-                        .iter()
-                        .sorted_by(|a, b| a.addr.cmp(&b.addr))
-                        .next()
-                        .map(|ip| ip.addr)
-                });
+    let network = networks.iter().fold(
+        (None, 0, 0),
+        |(first_ip, total_received, total_transmitted), (_, data)| {
+            let ip = first_ip.or_else(|| {
+                data.ip_networks()
+                    .iter()
+                    .sorted_by(|a, b| a.addr.cmp(&b.addr))
+                    .next()
+                    .map(|ip| ip.addr)
+            });
 
-                let received = data.received();
-                let transmitted = data.transmitted();
+            let received = data.received();
+            let transmitted = data.transmitted();
 
-                (
-                    first_ip.or(ip),
-                    total_received + received,
-                    total_transmitted + transmitted,
-                )
-            },
-        );
+            (
+                first_ip.or(ip),
+                total_received + received,
+                total_transmitted + transmitted,
+            )
+        },
+    );
 
     SystemInfoData {
         cpu_usage,
