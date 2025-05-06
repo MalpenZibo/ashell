@@ -218,7 +218,7 @@ impl BrightnessService {
         let brightness_ctrl = BrightnessCtrlProxy::new(conn).await?;
         let device_name = device_path
             .iter()
-            .last()
+            .next_back()
             .and_then(|d| d.to_str())
             .unwrap_or_default();
 
