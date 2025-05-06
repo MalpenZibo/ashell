@@ -255,7 +255,7 @@ impl SystemInfo {
                             .map(|(mount_point, usage)| {
                                 Self::info_element(
                                     Icons::Drive,
-                                    format!("Disk Usage ({})", mount_point),
+                                    format!("Disk Usage {}", mount_point),
                                     format!("{}%", usage),
                                 )
                             })
