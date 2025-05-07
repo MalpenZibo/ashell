@@ -273,12 +273,20 @@ impl SystemInfo {
                         Self::info_element(
                             Icons::DownloadSpeed,
                             "Download Speed".to_string(),
-                            format!("{} Kbit/s", network.download_speed),
+                            if network.download_speed > 1000 {
+                                format!("{} MB/s", network.download_speed / 1000)
+                            } else {
+                                format!("{} KB/s", network.download_speed)
+                            },
                         ),
                         Self::info_element(
                             Icons::UploadSpeed,
                             "Upload Speed".to_string(),
-                            format!("{} Kbit/s", network.upload_speed),
+                            if network.upload_speed > 1000 {
+                                format!("{} MB/s", network.upload_speed / 1000)
+                            } else {
+                                format!("{} KB/s", network.upload_speed)
+                            },
                         ),
                     ])
                 }))
@@ -359,8 +367,16 @@ impl Module for SystemInfo {
             SystemIndicator::DownloadSpeed => self.data.network.as_ref().map(|network| {
                 Self::indicator_info_element(
                     Icons::DownloadSpeed,
-                    network.download_speed,
-                    "Kbit/s",
+                    if network.download_speed > 1000 {
+                        network.download_speed / 1000
+                    } else {
+                        network.download_speed
+                    },
+                    if network.download_speed > 1000 {
+                        "MB/s"
+                    } else {
+                        "KB/s"
+                    },
                     None,
                     None,
                 )
@@ -368,8 +384,16 @@ impl Module for SystemInfo {
             SystemIndicator::UploadSpeed => self.data.network.as_ref().map(|network| {
                 Self::indicator_info_element(
                     Icons::UploadSpeed,
-                    network.upload_speed,
-                    "Kbit/s",
+                    if network.upload_speed > 1000 {
+                        network.upload_speed / 1000
+                    } else {
+                        network.upload_speed
+                    },
+                    if network.upload_speed > 1000 {
+                        "MB/s"
+                    } else {
+                        "KB/s"
+                    },
                     None,
                     None,
                 )

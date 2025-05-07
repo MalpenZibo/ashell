@@ -23,6 +23,10 @@ Now the configuration file is located in `~/.config/ashell/config.toml`
 - Add main bar opacity settings
 - Add menu opacity and backdrop settings
 
+### Changed
+
+- Enhance the system info module adding network and disk usage
+
 ### Fixed
 
 - Fix missing tray icons
