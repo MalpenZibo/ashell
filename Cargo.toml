@@ -39,3 +39,4 @@ toml = "0.8"
 freedesktop-icons = "0.3.1"
 linicon-theme = "1.2.0"
 tokio-stream = "0.1.17"
+uuid = { version = "1.16.0", features = ["v4"] }

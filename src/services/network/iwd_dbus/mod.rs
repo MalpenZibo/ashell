@@ -14,6 +14,7 @@ pub mod station;
 pub mod station_diagnostic;
 
 use tokio_stream::wrappers::UnboundedReceiverStream;
+use uuid::Uuid;
 
 // source for dbus: https://git.kernel.org/pub/scm/network/wireless/iwd.git/tree/doc
 //info!("{:?}",n.inner().introspect().await?); => can use this to generate proxy implementations
@@ -30,9 +31,10 @@ use iced::futures::{Stream, StreamExt};
 
 use log::debug;
 use std::ops::Deref;
+use std::pin::Pin;
 use tokio::process::Command;
 use zbus::fdo::ObjectManagerProxy;
-use zbus::zvariant::{ObjectPath, OwnedObjectPath};
+use zbus::zvariant::OwnedObjectPath;
 
 use access_point::AccessPointProxy;
 use adapter::AdapterProxy;
@@ -151,6 +153,10 @@ impl super::NetworkBackend for IwdDbus<'_> {
         ap: &AccessPoint,
         password: Option<String>,
     ) -> anyhow::Result<()> {
+
+        // TODO: send password in pw channel, which is created when iwd is created, listened to in
+        // the password answer thing. If no password / timeout, send the ssid pw required event
+
         let net = NetworkProxy::builder(self.0.inner().connection())
             .destination("net.connman.iwd")?
             .path(ap.path.clone())?
@@ -232,10 +238,35 @@ use log::warn;
 #[interface(name = "net.connman.iwd.SignalLevelAgent")]
 impl SignalAgent {
     /// Called by iwd whenever RSSI crosses a threshold
+    #[zbus(name = "Changed")]
     fn changed(&self, level: i16) {
         // ignore failure if receiver was dropped
         warn!("Signal level changed: {}", level);
         let _ = self.tx.send(level);
+    }
+}
+
+pub type RequestPassPhraseFn = Box<
+    dyn (Fn() -> Pin<Box<dyn Future<Output = Result<String, Box<dyn std::error::Error>>> + Send>>)
+        + Send
+        + Sync,
+>;
+
+struct PWAgent {
+    pub request_passphrase_fn: RequestPassPhraseFn,
+}
+
+#[interface(name = "net.connman.iwd.Agent")]
+impl PWAgent {
+    #[zbus(name = "RequestPassphrase")]
+    async fn request_passphrase(
+        &self,
+        _network_path: OwnedObjectPath,
+    ) -> zbus::fdo::Result<String> {
+        match (self.request_passphrase_fn)().await {
+            Ok(passphrase) => Ok(passphrase),
+            Err(e) => Err(zbus::fdo::Error::Failed(e.to_string())),
+        }
     }
 }
 
@@ -265,8 +296,10 @@ impl IwdDbus<'_> {
         list_proxies!(&self.0, "net.connman.iwd.Device", DeviceProxy).await
     }
 
-    pub async fn agent_managers(&self) -> anyhow::Result<Vec<AgentManagerProxy>> {
-        list_proxies!(&self.0, "net.connman.iwd.AgentManager", AgentManagerProxy).await
+    pub async fn agent_manager(&self) -> anyhow::Result<AgentManagerProxy> {
+        list_proxies!(&self.0, "net.connman.iwd.AgentManager", AgentManagerProxy).await?.first().cloned().ok_or_else(|| {
+            anyhow::anyhow!("No AgentManagerProxy found")
+        })
     }
 
     pub async fn known_networks_proxies(&self) -> anyhow::Result<Vec<KnownNetworkProxy>> {
@@ -302,6 +335,30 @@ impl IwdDbus<'_> {
         Ok(networks)
     }
 
+    async fn register_psk_agent(&self) -> anyhow::Result<()> {
+        let path =
+            OwnedObjectPath::try_from(format!("/ashell/pwagent/{}", Uuid::new_v4().as_simple()))?;
+        let manager = self.agent_manager().await?;
+        let agent = PWAgent {
+            request_passphrase_fn: Box::new(|| {
+                warn!("Requesting passphrase");
+                Box::pin(async move { Ok("password".to_string()) })
+            }),
+        };
+        manager
+            .register_agent(&path)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to register agent: {}", e))?;
+        self.0
+            .inner()
+            .connection()
+            .object_server()
+            .at(path, agent)
+            .await?;
+
+        Ok(())
+    }
+
     pub async fn subscribe_events(&self) -> anyhow::Result<impl Stream<Item = Vec<NetworkEvent>>> {
         let _conn = self.0.inner().connection();
         let iwd = self;
@@ -320,6 +377,8 @@ impl IwdDbus<'_> {
         // - [ ] Strength((String, u8)),
         // - [ ] RequestPasswordForSSID(String),
         // - [x] ScanningNearbyWifi,
+
+        self.register_psk_agent().await?;
 
         // --- WiFi Enabled ---
         let mut wireless_enabled_changes = vec![];
@@ -413,17 +472,18 @@ impl IwdDbus<'_> {
             let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<i16>();
             // 3) export agent
             let agent = SignalAgent { tx };
+
+            let agent_path = OwnedObjectPath::try_from(format!(
+                "/com/ashell/signalagent/{}",
+                Uuid::new_v4().as_simple()
+            ))?;
+
             let server = self
                 .0
                 .inner()
                 .connection()
                 .object_server()
-                .at("/com/ashell/iwd/SignalAgent", agent)
-                .await?;
-            // 5) register agent with thresholds
-            let path = ObjectPath::try_from("/com/ashell/iwd/SignalAgent")?;
-            station
-                .register_signal_level_agent(&path, &[-70, -80, -90])
+                .at(&agent_path, agent)
                 .await?;
             // 6) turn receiver into a Stream
             signal_level_updates.push(
@@ -435,6 +495,11 @@ impl IwdDbus<'_> {
                     })
                     .boxed(),
             );
+
+            station
+                .register_signal_level_agent(&agent_path, &[-40, -50, -60])
+                .await?;
+            warn!("Registered signal level agent at {}", agent_path);
         }
 
         // TODO: probably would need to listen to interfaces registered and unregistered
