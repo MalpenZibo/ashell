@@ -39,19 +39,110 @@ pub struct WorkspacesModuleConfig {
 
 #[derive(Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct SystemModuleConfig {
+pub struct SystemInfoCpu {
     #[serde(default = "default_cpu_warn_threshold")]
-    pub cpu_warn_threshold: u32,
+    pub warn_threshold: u32,
     #[serde(default = "default_cpu_alert_threshold")]
-    pub cpu_alert_threshold: u32,
+    pub alert_threshold: u32,
+}
+
+impl Default for SystemInfoCpu {
+    fn default() -> Self {
+        Self {
+            warn_threshold: default_cpu_warn_threshold(),
+            alert_threshold: default_cpu_alert_threshold(),
+        }
+    }
+}
+
+#[derive(Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemInfoMemory {
     #[serde(default = "default_mem_warn_threshold")]
-    pub mem_warn_threshold: u32,
+    pub warn_threshold: u32,
     #[serde(default = "default_mem_alert_threshold")]
-    pub mem_alert_threshold: u32,
+    pub alert_threshold: u32,
+}
+
+impl Default for SystemInfoMemory {
+    fn default() -> Self {
+        Self {
+            warn_threshold: default_mem_warn_threshold(),
+            alert_threshold: default_mem_alert_threshold(),
+        }
+    }
+}
+
+#[derive(Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemInfoTemperature {
     #[serde(default = "default_temp_warn_threshold")]
-    pub temp_warn_threshold: i32,
+    pub warn_threshold: i32,
     #[serde(default = "default_temp_alert_threshold")]
-    pub temp_alert_threshold: i32,
+    pub alert_threshold: i32,
+}
+
+impl Default for SystemInfoTemperature {
+    fn default() -> Self {
+        Self {
+            warn_threshold: default_temp_warn_threshold(),
+            alert_threshold: default_temp_alert_threshold(),
+        }
+    }
+}
+
+#[derive(Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemInfoDisk {
+    #[serde(default = "default_disk_warn_threshold")]
+    pub warn_threshold: u32,
+    #[serde(default = "default_disk_alert_threshold")]
+    pub alert_threshold: u32,
+}
+
+impl Default for SystemInfoDisk {
+    fn default() -> Self {
+        Self {
+            warn_threshold: default_disk_warn_threshold(),
+            alert_threshold: default_disk_alert_threshold(),
+        }
+    }
+}
+
+#[derive(Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub enum SystemIndicator {
+    Cpu,
+    Memory,
+    MemorySwap,
+    Temperature,
+    Disk(String),
+    IpAddress,
+    DownloadSpeed,
+    UploadSpeed,
+}
+
+#[derive(Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemModuleConfig {
+    #[serde(default = "default_system_indicators")]
+    pub indicators: Vec<SystemIndicator>,
+    #[serde(default)]
+    pub cpu: SystemInfoCpu,
+    #[serde(default)]
+    pub memory: SystemInfoMemory,
+    #[serde(default)]
+    pub temperature: SystemInfoTemperature,
+    #[serde(default)]
+    pub disk: SystemInfoDisk,
+}
+
+fn default_system_indicators() -> Vec<SystemIndicator> {
+    vec![
+        SystemIndicator::Cpu,
+        SystemIndicator::Memory,
+        SystemIndicator::Temperature,
+    ]
 }
 
 fn default_cpu_warn_threshold() -> u32 {
@@ -78,15 +169,22 @@ fn default_temp_alert_threshold() -> i32 {
     80
 }
 
+fn default_disk_warn_threshold() -> u32 {
+    80
+}
+
+fn default_disk_alert_threshold() -> u32 {
+    90
+}
+
 impl Default for SystemModuleConfig {
     fn default() -> Self {
         Self {
-            cpu_warn_threshold: default_cpu_warn_threshold(),
-            cpu_alert_threshold: default_cpu_alert_threshold(),
-            mem_warn_threshold: default_mem_warn_threshold(),
-            mem_alert_threshold: default_mem_alert_threshold(),
-            temp_warn_threshold: default_temp_warn_threshold(),
-            temp_alert_threshold: default_temp_alert_threshold(),
+            indicators: default_system_indicators(),
+            cpu: SystemInfoCpu::default(),
+            memory: SystemInfoMemory::default(),
+            temperature: SystemInfoTemperature::default(),
+            disk: SystemInfoDisk::default(),
         }
     }
 }

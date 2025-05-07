@@ -192,19 +192,55 @@ visibilityMode = "all"
 enableWorkspaceFilling = false
 
 # The system module configuration
+# optional
 [system]
+# System information shown in the status bar
+# The possible values are:
+#  - cpu
+#  - memory
+#  - memorySwap
+#  - temperature
+#  - { disk = "path" }
+#  - ipAddress
+#  - downloadSpeed
+#  - uploadSpeed
+# optional, the following is the default configuration
+# If for example you want to dispay the usage of the root and home partition
+# you can use the following configuration
+# systemInfo = [ { disk = "/" }, { disk = "/home" } ]
+indicators = [ "cpu", "memory", "temperature" ]
+
+# CPU indicator thresholds
+# optional
+[system.cpu]
 # cpu indicator warning level (default 60)
-cpuWarnThreshold = 60
+warn_threshold = 60
 # cpu indicator alert level (default 80)
-cpuAlertThreshold = 80
+alert_threshold = 80
+
+# Memory indicator thresholds
+# optional
+[system.memory]
 # mem indicator warning level (default 70)
-memWarnThreshold = 70
+warn_threshold = 70
 # mem indicator alert level (default 85)
-memAlertThreshold = 85
+alert_threshold = 85
+
+# Memory swap indicator thresholds
+# optional
+[system.temperature]
 # temperature indicator warning level (default 60)
-tempWarnThreshold = 60
+warn_threshold = 60
 # temperature indicator alert level (default 80)
-tempAlertThreshold = 80
+alert_threshold = 80
+
+# Disk indicator thresholds
+# optional
+[system.disk]
+# disk indicator warning level (default 80)
+warn_threshold = 80
+# disk indicator alert level (default 90)
+alert_threshold = 90
 
 # Clock module configuration
 [clock]
