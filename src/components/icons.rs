@@ -69,6 +69,11 @@ pub enum Icons {
     PlayPause,
     SkipNext,
     MusicNote,
+    Drive,
+    IpAddress,
+    DownloadSpeed,
+    UploadSpeed,
+    Copy,
 }
 
 impl From<Icons> for &'static str {
@@ -83,7 +88,7 @@ impl From<Icons> for &'static str {
             Icons::MenuClosed => "",
             Icons::MenuOpen => "",
             Icons::Cpu => "󰔂",
-            Icons::Mem => "󰘚",
+            Icons::Mem => "",
             Icons::Temp => "󰔏",
             Icons::Speaker0 => "󰸈",
             Icons::Speaker1 => "󰕿",
@@ -137,6 +142,11 @@ impl From<Icons> for &'static str {
             Icons::PlayPause => "󰐎",
             Icons::SkipNext => "󰒭",
             Icons::MusicNote => "󰎇",
+            Icons::Drive => "󰋊",
+            Icons::IpAddress => "󰩠",
+            Icons::DownloadSpeed => "󰛴",
+            Icons::UploadSpeed => "󰛶",
+            Icons::Copy => "󰆏",
         }
     }
 }

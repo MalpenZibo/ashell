@@ -45,17 +45,11 @@ impl Display for MprisPlayerMetadata {
 impl From<HashMap<String, OwnedValue>> for MprisPlayerMetadata {
     fn from(value: HashMap<String, OwnedValue>) -> Self {
         let artists = match value.get("xesam:artist") {
-            Some(v) => match v.clone().try_into() {
-                Ok(v) => Some(v),
-                Err(_) => None,
-            },
+            Some(v) => v.clone().try_into().ok(),
             None => None,
         };
         let title = match value.get("xesam:title") {
-            Some(v) => match v.clone().try_into() {
-                Ok(v) => Some(v),
-                Err(_) => None,
-            },
+            Some(v) => v.clone().try_into().ok(),
             None => None,
         };
 
