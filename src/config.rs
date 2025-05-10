@@ -569,7 +569,7 @@ pub fn read_config() -> Result<Config, toml::de::Error> {
     let file_path = format!("{}{}", home_dir, CONFIG_PATH.replace('~', ""));
 
     let mut content = String::new();
-    let read_result = File::open(file_path).and_then(|mut file| file.read_to_string(&mut content));
+    let read_result = File::open(&file_path).and_then(|mut file| file.read_to_string(&mut content));
 
     match read_result {
         Ok(_) => {
@@ -577,7 +577,10 @@ pub fn read_config() -> Result<Config, toml::de::Error> {
 
             toml::from_str(&content)
         }
-        _ => Ok(Config::default()),
+        Err(e) => {
+            log::warn!("Failed to read config file from {}: {}", file_path, e);
+            Ok(Config::default())
+        },
     }
 }
 
