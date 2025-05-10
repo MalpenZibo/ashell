@@ -578,9 +578,13 @@ pub fn read_config() -> Result<Config, toml::de::Error> {
             toml::from_str(&content)
         }
         Err(e) => {
-            log::warn!("Failed to read config file from {}: {}", file_path, e);
+            log::warn!(
+                "Failed to read config file from {}: {}. Using default config",
+                file_path,
+                e
+            );
             Ok(Config::default())
-        },
+        }
     }
 }
 
