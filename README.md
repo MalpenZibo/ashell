@@ -77,10 +77,11 @@ configuration.nix
 { pkgs, inputs, ... }:
 
 {
-  environment.systemPackages = [inputs.ashell.defaultPackage.${pkgs.system}]; 
+  environment.systemPackages = [inputs.ashell.defaultPackage.${pkgs.system}];
   # or home.packages = ...
 }
 ```
+
 This will build ashell from source, but you can also use `pkgs.ashell` from nixpkgs which is cached.
 
 ## Features
@@ -119,52 +120,52 @@ The configuration file uses the toml file format and is named `~/.config/ashell/
 
 ```toml
 # Ashell log level filter, possible values "debug" | "info" | "warn" | "error". Needs reload
-logLevel = "warn"
-# Possible status bar outputs, values could be: all, active, or a list of outputs
-# all: the status bar will be displayed on all the available outputs, example: outputs = "all"
-# active: the status bar will be displayed on the active output, example: outputs = "active"
+log_level = "warn"
+# Possible status bar outputs, values could be: All, Active, or a list of outputs
+# All: the status bar will be displayed on all the available outputs, example: outputs = "All"
+# active: the status bar will be displayed on the active output, example: outputs = "Active"
 # list of outputs: the status bar will be displayed on the outputs listed here, example: outputs = { targets = ["DP-1", "eDP-1"] }
 # if the outputs is not available the bar will be displayed in the active output
-outputs = "all"
-# Bar position, possible values top | bottom.
-position = "top"
+outputs = "All"
+# Bar position, possible values Top | Bottom.
+position = "Top"
 # App launcher command, it will be used to open the launcher,
 # without a value the related button will not appear
 # optional, default None
-appLauncherCmd = "~/.config/rofi/launcher.sh"
+app_launcher_cmd = "~/.config/rofi/launcher.sh"
 # Clipboard command, it will be used to open the clipboard menu,
 # without a value the related button will not appear
 # optional, default None
-clipboardCmd = "cliphist-rofi-img | wl-copy"
+clipboard_cmd = "cliphist-rofi-img | wl-copy"
 # Maximum number of chars that can be present in the window title
 # after that the title will be truncated
 # optional, default 150
-truncateTitleAfterLength = 150
+truncate_title_after_length = 150
 
 # Declare which modules should be used and in which position in the status bar.
 # This is the list of all possible modules
-#  - appLauncher
-#  - updates
-#  - clipboard
-#  - workspaces
-#  - windowTitle
-#  - systemInfo
-#  - keyboardLayout
-#  - keyboardSubmap
-#  - tray
-#  - clock
-#  - privacy
-#  - mediaPlayer
-#  - settings
+#  - AppLauncher
+#  - Updates
+#  - Clipboard
+#  - Workspaces
+#  - WindowTitle
+#  - SystemInfo
+#  - KeyboardLayout
+#  - KeyboardSubmap
+#  - Tray
+#  - Clock
+#  - Privacy
+#  - MediaPlayer
+#  - Settings
 # optional, the following is the default configuration
 [modules]
 # The modules that will be displayed on the left side of the status bar
-left = [ "workspaces" ]
+left = [ "Workspaces" ]
 # The modules that will be displayed in the center of the status bar
-center = [ "windowTitle" ]
+center = [ "WindowTitle" ]
 # The modules that will be displayed on the right side of the status bar
 # The nested modules array will form a group sharing the same element in the status bar
-right = [ "systemInfo", [ "clock", "privacy", "settings" ] ]
+right = [ "SystemInfo", [ "Clock", "Privacy", "Settings" ] ]
 
 # Update module configuration.
 # Without a value the related button will not appear.
@@ -172,43 +173,43 @@ right = [ "systemInfo", [ "clock", "privacy", "settings" ] ]
 [updates]
 # The check command will be used to retrieve the update list.
 # It should return something like `package_name version_from -> version_to\n`
-checkCmd = "checkupdates; paru -Qua"
+check_cmd = "checkupdates; paru -Qua"
 # The update command is used to init the OS update process
-updateCmd = 'alacritty -e bash -c "paru; echo Done - Press enter to exit; read" &'
+update_cmd = 'alacritty -e bash -c "paru; echo Done - Press enter to exit; read" &'
 
 # Workspaces module configuration, optional
 [workspaces]
 # The visibility mode of the workspaces, possible values are:
-# all: all the workspaces will be displayed
-# monitorSpecific: only the workspaces of the related monitor will be displayed
-# optional, default all
-visibilityMode = "all"
+# All: all the workspaces will be displayed
+# MonitorSpecific: only the workspaces of the related monitor will be displayed
+# optional, default All
+visibility_mode = "Ull"
 # Enable filling with empty workspaces
 # For example:
 # With this flag set to true if there are only 2 workspaces,
 # the workspace 1 and the workspace 4, the module will show also
 # two more workspaces, the workspace 2 and the workspace 3
 # optional, default false
-enableWorkspaceFilling = false
+enable_workspace_filling = false
 
 # The system module configuration
 # optional
 [system]
 # System information shown in the status bar
 # The possible values are:
-#  - cpu
-#  - memory
-#  - memorySwap
-#  - temperature
+#  - Cpu
+#  - Memory
+#  - MemorySwap
+#  - Temperature
 #  - { disk = "path" }
-#  - ipAddress
-#  - downloadSpeed
-#  - uploadSpeed
+#  - IpAddress
+#  - DownloadSpeed
+#  - UploadSpeed
 # optional, the following is the default configuration
 # If for example you want to dispay the usage of the root and home partition
 # you can use the following configuration
 # systemInfo = [ { disk = "/" }, { disk = "/home" } ]
-indicators = [ "cpu", "memory", "temperature" ]
+indicators = [ "Cpu", "Memory", "Temperature" ]
 
 # CPU indicator thresholds
 # optional
@@ -248,75 +249,75 @@ alert_threshold = 90
 format = "%a %d %b %R"
 
 # Media player module configuration
-[mediaPlayer]
+[media_player]
 # optional, default 100
-maxTitleLength = 100
+max_title_length = 100
 
 # Settings module configuration
 [settings]
 # command used for lock the system
 # without a value the related button will not appear
 # optional, default None
-lockCmd = "hyprlock &"
+lock_cmd = "hyprlock &"
 # command used to open the sinks audio settings
 # without a value the related button will not appear
 # optional default None
-audioSinksMoreCmd = "pavucontrol -t 3"
+audio_sinks_more_cmd = "pavucontrol -t 3"
 # command used to open the sources audio settings
 # without a value the related button will not appear
 # optional, default None
-audioSourcesMoreCmd = "pavucontrol -t 4"
+audio_sources_more_cmd = "pavucontrol -t 4"
 # command used to open the network settings
 # without a value the related button will not appear
 # optional, default None
-wifiMoreCmd = "nm-connection-editor"
+wifi_more_cmd = "nm-connection-editor"
 # command used to open the VPN settings
 # without a value the related button will not appear
 # optional, default None
-vpnMoreCmd = "nm-connection-editor"
+vpn_more_cmd = "nm-connection-editor"
 # command used to open the Bluetooth settings
 # without a value the related button will not appear
 # optional, default None
-bluetoothMoreCmd = "blueman-manager"
+bluetooth_more_cmd = "blueman-manager"
 
 # Appearance config
 # Each color could be a simple hex color like #228800 or an
 # object that define a base hex color and two optional variant of that color (a strong one and a weak one)
 # and the text color that should be used with that base color
 # example:
-# [appearance.backgroundColor]
+# [appearance.background_color]
 # base = "#448877"
 # strong = "#448888" # optional default autogenerated from base color
 # weak = "#448855" # optional default autogenarated from base color
 # text = "#ffffff" # optional default base text color
 [appearance]
 # optional, default iced.rs font
-fontName = "Comic Sans MS"
-# The style of the main bar, possible values are: islands | solid | gradient
-# optional, default islands
-style = "islands"
+font_name = "Comic Sans MS"
+# The style of the main bar, possible values are: Islands | Solid | Gradient
+# optional, default Islands
+style = "Islands"
 # The opacity of the main bar, possible values are: 0.0 to 1.0
 # optional, default 1.0
 opacity = 0.7
 # used as a base background color for header module button
-backgroundColor = "#1e1e2e"
+background_color = "#1e1e2e"
 # used as a accent color
-primaryColor = "#fab387"
+primary_color = "#fab387"
 # used for darker background color
-secondaryColor = "#11111b"
+secondary_color = "#11111b"
 # used for success message or happy state
-successColor = "#a6e3a1"
+success_color = "#a6e3a1"
 # used for danger message or danger state (the weak version is used for the warning state
-dangerColor = "#f38ba8"
+danger_color = "#f38ba8"
 # base default text color
-textColor = "#f38ba8"
+text_color = "#f38ba8"
 # this is a list of color that will be used in the workspace module (one color for each monitor)
-workspaceColors = [ "#fab387", "#b4befe" ]
+workspace_colors = [ "#fab387", "#b4befe" ]
 # this is a list of color that will be used in the workspace module
 # for the special workspace (one color for each monitor)
 # optional, default None
 # without a value the workspaceColors list will be used
-specialWorkspaceColors = [ "#a6e3a1", "#f38ba8" ]
+special_workspace_colors = [ "#a6e3a1", "#f38ba8" ]
 
 # menu options
 [appearance.menu]
