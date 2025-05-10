@@ -95,6 +95,13 @@ fn get_system_info(
         },
     );
 
+    let network_speed = |value: u64| {
+        match elapsed {
+            None | Some(0) => 0, // avoid division by zero
+            Some(elapsed) => (value / 1000) as u32 / elapsed as u32,
+        }
+    };
+
     SystemInfoData {
         cpu_usage,
         memory_usage,
@@ -103,16 +110,8 @@ fn get_system_info(
         disks,
         network: network.0.map(|ip| NetworkData {
             ip: ip.to_string(),
-            download_speed: if let Some(elapsed) = elapsed {
-                (network.1 / 1000) as u32 / elapsed as u32
-            } else {
-                0
-            },
-            upload_speed: if let Some(elapsed) = elapsed {
-                (network.2 / 1000) as u32 / elapsed as u32
-            } else {
-                0
-            },
+            download_speed: network_speed(network.1),
+            upload_speed: network_speed(network.2),
             last_check: Instant::now(),
         }),
     }
