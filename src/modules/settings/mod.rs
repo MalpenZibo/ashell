@@ -712,7 +712,7 @@ fn sub_menu_wrapper<Msg: 'static>(content: Element<Msg>, opacity: f32) -> Elemen
             border: Border::default().rounded(16),
             ..container::Style::default()
         })
-        .padding(8)
+        .padding(16)
         .width(Length::Fill)
         .into()
 }
