@@ -7,6 +7,7 @@ use iced::{
 };
 use inotify::{Event, EventMask, Inotify, WatchMask};
 use serde::{Deserialize, Deserializer, de::Error};
+use std::collections::HashMap;
 use std::{any::TypeId, env, fs::File, io::Read, path::Path};
 
 use crate::app::Message;
@@ -32,6 +33,12 @@ pub struct WorkspacesModuleConfig {
     pub visibility_mode: WorkspaceVisibilityMode,
     #[serde(default)]
     pub enable_workspace_filling: bool,
+}
+
+#[derive(Deserialize, Clone, Default, Debug)]
+pub struct KeyboardLayoutModuleConfig {
+    #[serde(default)]
+    pub labels: HashMap<String, String>,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -511,6 +518,8 @@ pub struct Config {
     pub appearance: Appearance,
     #[serde(default)]
     pub media_player: MediaPlayerModuleConfig,
+    #[serde(default)]
+    pub keyboard_layout: KeyboardLayoutModuleConfig,
 }
 
 fn default_log_level() -> String {
@@ -538,6 +547,7 @@ impl Default for Config {
             settings: SettingsModuleConfig::default(),
             appearance: Appearance::default(),
             media_player: MediaPlayerModuleConfig::default(),
+            keyboard_layout: KeyboardLayoutModuleConfig::default(),
         }
     }
 }

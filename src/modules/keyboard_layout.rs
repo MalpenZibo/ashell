@@ -9,7 +9,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use crate::app;
+use crate::{app, config::KeyboardLayoutModuleConfig};
 
 use super::{Module, OnModulePress};
 
@@ -75,18 +75,22 @@ impl KeyboardLayout {
 }
 
 impl Module for KeyboardLayout {
-    type ViewData<'a> = ();
+    type ViewData<'a> = &'a KeyboardLayoutModuleConfig;
     type SubscriptionData<'a> = ();
 
     fn view(
         &self,
-        _: Self::ViewData<'_>,
+        config: Self::ViewData<'_>,
     ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         if !self.multiple_layout {
             None
         } else {
+            let active = match config.labels.get(&self.active) {
+                Some(value) => value.to_string(),
+                None => self.active.clone(),
+            };
             Some((
-                text(&self.active).into(),
+                text(active).into(),
                 Some(OnModulePress::Action(app::Message::KeyboardLayout(
                     Message::ChangeLayout,
                 ))),

@@ -192,6 +192,14 @@ visibility_mode = "Ull"
 # optional, default false
 enable_workspace_filling = false
 
+# keyboardLayout module configuration
+# optional
+# Maps layout names to arbitrary labels, which can be any text, including unicode symbols as shown below
+# If using Hyprland the names can be found in `hyprctl devices | grep "active keymap"`
+[keyboard_layout.labels]
+"English (US)" = "🇺🇸"
+"Russian" = "🇷🇺"
+
 # The system module configuration
 # optional
 [system]
