@@ -58,7 +58,11 @@
       in {
         packages = {
           default = craneLib.buildPackage {
-            src = ./.;
+            src = builtins.path {
+              name = "source";
+              path = ./.;
+              filter = path: type: baseNameOf path != ".git";
+            };
 
             nativeBuildInputs = with pkgs; [
               makeWrapper
