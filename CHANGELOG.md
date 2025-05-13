@@ -26,7 +26,7 @@ Now the configuration file is located in `~/.config/ashell/config.toml`
 ### Changed
 
 - Enhance the system info module adding network and disk usage
-
+- Simplify style of "expand" button on wifi/bluetooth buttons
 ### Fixed
 
 - Fix missing tray icons
