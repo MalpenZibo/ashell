@@ -20,7 +20,6 @@ impl Battery {
     pub async fn state(&self) -> i32 {
         let mut charging = false;
         let mut discharging = false;
-        let mut full = false;
 
         for device in &self.0 {
             if let Ok(state) = device.state().await {
@@ -31,23 +30,18 @@ impl Battery {
                     2 => {
                         discharging = true;
                     }
-                    4 => {
-                        full = true;
-                    }
                     _ => {}
                 }
             }
         }
 
         if charging {
-            return 1;
+            1
         } else if discharging {
-            return 2;
-        } else if full {
-            return 4;
+            2
+        } else {
+            4
         }
-
-        return 4;
     }
 
     pub async fn percentage(&self) -> f64 {
