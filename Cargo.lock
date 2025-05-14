@@ -2040,7 +2040,7 @@ dependencies = [
 [[package]]
 name = "iced"
 version = "0.14.0-dev"
-source = "git+https://github.com/MalpenZibo/iced#21fc57606f73a96d5abc1154907799e00e5c7b07"
+source = "git+https://github.com/MalpenZibo/iced#d00b3e02ddb65c7662ce9094a56bda24423f216a"
 dependencies = [
  "dnd",
  "iced_accessibility",
