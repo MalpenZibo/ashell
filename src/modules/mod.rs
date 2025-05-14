@@ -240,7 +240,7 @@ impl App {
             )),
             ModuleName::WindowTitle => self.window_title.view(()),
             ModuleName::SystemInfo => self.system_info.view(&self.config.system),
-            ModuleName::KeyboardLayout => self.keyboard_layout.view(()),
+            ModuleName::KeyboardLayout => self.keyboard_layout.view(&self.config.keyboard_layout),
             ModuleName::KeyboardSubmap => self.keyboard_submap.view(()),
             ModuleName::Tray => self.tray.view((id, opacity)),
             ModuleName::Clock => self.clock.view(&self.config.clock.format),
