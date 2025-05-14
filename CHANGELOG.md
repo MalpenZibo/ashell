@@ -10,9 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### WARNING BREAKING CHANGES
 
 The configuration switch from `yaml` to `toml` format. The configuration file must be updated to adapt to the new format.
-You could use an online tool like: https://transform.tools/yaml-to-toml
+The `camelCase` format has been removed in favor of `snake_case`, which better aligns with the `toml` syntax.
 
-Every values now uses the `camelCase` format so things like the module name should be adapted: for example `WindowTitle` is now `windowTitle`.
+You could use an online tool like: https://transform.tools/yaml-to-toml but remember to change the `camelCase` to `snake_case` format.
 
 Now the configuration file is located in `~/.config/ashell/config.toml`
 
@@ -25,8 +25,9 @@ Now the configuration file is located in `~/.config/ashell/config.toml`
 
 ### Changed
 
+- Change configuration file format
 - Enhance the system info module adding network and disk usage
-
+- Simplify style of "expand" button on wifi/bluetooth buttons
 ### Fixed
 
 - Fix missing tray icons

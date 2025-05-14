@@ -28,9 +28,7 @@ use brightness::BrightnessMessage;
 use iced::{
     Alignment, Background, Border, Element, Length, Padding, Subscription, Task, Theme,
     alignment::{Horizontal, Vertical},
-    widget::{
-        Column, Row, Space, button, column, container, horizontal_space, row, text, vertical_rule,
-    },
+    widget::{Column, Row, Space, button, column, container, horizontal_space, row, text},
     window::Id,
 };
 use log::info;
@@ -712,7 +710,7 @@ fn sub_menu_wrapper<Msg: 'static>(content: Element<Msg>, opacity: f32) -> Elemen
             border: Border::default().rounded(16),
             ..container::Style::default()
         })
-        .padding(8)
+        .padding(16)
         .width(Length::Fill)
         .into()
 }
@@ -741,13 +739,12 @@ fn quick_setting_button<'a, Msg: Clone + 'static>(
     button(
         Row::new()
             .push(main_content)
-            .push_maybe(with_submenu.as_ref().map(|_| vertical_rule(1)))
             .push_maybe(with_submenu.map(|(menu_type, submenu, msg)| {
                 button(
                     container(icon(if Some(menu_type) == submenu {
                         Icons::Close
                     } else {
-                        Icons::VerticalDots
+                        Icons::RightChevron
                     }))
                     .align_y(Vertical::Center)
                     .align_x(Horizontal::Center),
