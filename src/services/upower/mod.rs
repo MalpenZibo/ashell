@@ -254,35 +254,20 @@ impl UPowerService {
                         device.receive_time_to_full_changed().await.map(|_| ()),
                         device.receive_time_to_empty_changed().await.map(|_| ()),
                     )
-                    .map(move |_| {
-                        let state = device
-                            .cached_state()
-                            .unwrap_or_default()
-                            .unwrap_or_default();
-                        let state = match state {
-                            1 => BatteryStatus::Charging(Duration::from_secs(
-                                device
-                                    .cached_time_to_full()
-                                    .unwrap_or_default()
-                                    .unwrap_or_default() as u64,
-                            )),
-                            2 => BatteryStatus::Discharging(Duration::from_secs(
-                                device
-                                    .cached_time_to_empty()
-                                    .unwrap_or_default()
-                                    .unwrap_or_default() as u64,
-                            )),
-                            4 => BatteryStatus::Full,
-                            _ => BatteryStatus::Discharging(Duration::from_secs(0)),
-                        };
-
-                        UPowerEvent::UpdateBattery(BatteryData {
-                            capacity: device
-                                .cached_percentage()
-                                .unwrap_or_default()
-                                .unwrap_or_default() as i64,
-                            status: state,
-                        })
+                    .filter_map({
+                        let conn = conn.clone();
+                        move |_| {
+                            let conn = conn.clone();
+                            async move {
+                                if let Some((data, _)) =
+                                    Self::initialize_battery_data(&conn).await.ok().flatten()
+                                {
+                                    Some(UPowerEvent::UpdateBattery(data))
+                                } else {
+                                    None
+                                }
+                            }
+                        }
                     })
                     .boxed(),
                 );
