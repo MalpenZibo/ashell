@@ -62,7 +62,6 @@ pub enum Icons {
     Brightness,
     Point,
     Close,
-    VerticalDots,
     Airplane,
     Webcam,
     SkipPrevious,
@@ -74,6 +73,7 @@ pub enum Icons {
     DownloadSpeed,
     UploadSpeed,
     Copy,
+    RightChevron,
 }
 
 impl From<Icons> for &'static str {
@@ -135,7 +135,6 @@ impl From<Icons> for &'static str {
             Icons::Brightness => "󰃠",
             Icons::Point => "",
             Icons::Close => "󰅖",
-            Icons::VerticalDots => "󰇙",
             Icons::Airplane => "󰀝",
             Icons::Webcam => "",
             Icons::SkipPrevious => "󰒮",
@@ -147,6 +146,7 @@ impl From<Icons> for &'static str {
             Icons::DownloadSpeed => "󰛴",
             Icons::UploadSpeed => "󰛶",
             Icons::Copy => "󰆏",
+            Icons::RightChevron => "󰅂",
         }
     }
 }
