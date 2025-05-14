@@ -4,7 +4,7 @@
   inputs = {
     nixpkgs.url = "https://flakehub.com/f/NixOS/nixpkgs/0.1.791944";
     systems.url = "github:nix-systems/x86_64-linux";
-    crane.url = "https://flakehub.com/f/ipetkov/crane/0.20.3";
+    crane.url = "github:ipetkov/crane";
     flake-utils.url = "https://flakehub.com/f/numtide/flake-utils/0.1.102";
     flake-utils.inputs.systems.follows = "systems";
     rust-overlay = {
