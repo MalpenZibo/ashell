@@ -22,6 +22,7 @@ Now the configuration file is located in `~/.config/ashell/config.toml`
 - Add main bar solid and gradient style
 - Add main bar opacity settings
 - Add menu opacity and backdrop settings
+- Handle system with multiple battery
 
 ### Changed
 
