@@ -2,8 +2,8 @@ use super::{Service, ServiceEvent};
 use crate::services::ReadOnlyService;
 use dbus::ConnectivityState;
 use dbus::NetworkDbus;
-use iced::futures::stream::pending;
 use iced::futures::TryFutureExt;
+use iced::futures::stream::pending;
 use iced::{
     Subscription, Task,
     futures::{SinkExt, StreamExt, channel::mpsc::Sender},
@@ -40,7 +40,7 @@ pub trait NetworkBackend: Send + Sync {
     /// Connects to a specific access point, potentially with a password.
     /// Returns the updated list of known connections.
     async fn select_access_point(
-        &self,
+        &mut self,
         ap: &AccessPoint,
         password: Option<String>,
     ) -> anyhow::Result<()>;
@@ -240,7 +240,7 @@ impl ReadOnlyService for NetworkService {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 enum BackendChoice {
     NetworkManager,
     Iwd,
@@ -311,7 +311,7 @@ impl NetworkBackend for BackendChoiceWithConnection {
     }
 
     async fn select_access_point(
-        &self,
+        &mut self,
         ap: &AccessPoint,
         password: Option<String>,
     ) -> anyhow::Result<()> {
@@ -406,7 +406,7 @@ impl NetworkService {
                                 .send(ServiceEvent::Init(NetworkService {
                                     data,
                                     conn: conn.clone(),
-                                    backend_choice: choice.clone(),
+                                    backend_choice: choice,
                                 }))
                                 .await;
                             State::Active(conn, choice)
@@ -433,7 +433,13 @@ impl NetworkService {
                 // TODO: i dont know how to combine the opaque types.. rust streams
                 match choice {
                     BackendChoice::NetworkManager => {
-                        let nm = NetworkDbus::new(&conn).await.unwrap();
+                        let nm = match NetworkDbus::new(&conn).await {
+                            Ok(nm) => nm,
+                            Err(e) => {
+                                error!("Failed to create NetworkDbus: {}", e);
+                                return State::Error;
+                            }
+                        };
 
                         match nm.subscribe_events().await {
                             Ok(mut events) => {
@@ -462,7 +468,13 @@ impl NetworkService {
                         }
                     }
                     BackendChoice::Iwd => {
-                        let iwd = IwdDbus::new(&conn.clone()).await.unwrap();
+                        let iwd = match IwdDbus::new(&conn).await {
+                            Ok(iwd) => iwd,
+                            Err(err) => {
+                                error!("Failed to create IwdDbus: {}", err);
+                                return State::Error;
+                            }
+                        };
                         match iwd.subscribe_events().await {
                             Ok(mut event_s) => {
                                 while let Some(events) = event_s.next().await {
@@ -504,7 +516,7 @@ impl Service for NetworkService {
     fn command(&mut self, command: Self::Command) -> Task<ServiceEvent<Self>> {
         debug!("Command: {:?}", command);
         let conn = self.conn.clone();
-        let bc = self.backend_choice.clone().with_connection(conn);
+        let mut bc = self.backend_choice.with_connection(conn);
         match command {
             NetworkCommand::ToggleAirplaneMode => {
                 let airplane_mode = self.airplane_mode;

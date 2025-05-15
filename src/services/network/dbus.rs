@@ -88,7 +88,7 @@ impl super::NetworkBackend for NetworkDbus<'_> {
     }
 
     async fn select_access_point(
-        &self,
+        &mut self,
         access_point: &AccessPoint,
         password: Option<String>,
     ) -> anyhow::Result<()> {

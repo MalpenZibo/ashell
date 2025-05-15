@@ -29,9 +29,8 @@ use iced::futures::future::join_all;
 use iced::futures::stream::select_all;
 use iced::futures::{Stream, StreamExt};
 
-use log::debug;
+use log::{debug, info, warn};
 use std::ops::Deref;
-use std::pin::Pin;
 use tokio::process::Command;
 use zbus::fdo::ObjectManagerProxy;
 use zbus::zvariant::OwnedObjectPath;
@@ -45,12 +44,14 @@ use network::NetworkProxy;
 use station::StationProxy;
 
 /// Wrapper around the IWD D-Bus ObjectManager
-pub struct IwdDbus<'a>(ObjectManagerProxy<'a>);
+pub struct IwdDbus<'a> {
+    _inner: ObjectManagerProxy<'a>,
+}
 
 impl<'a> Deref for IwdDbus<'a> {
     type Target = ObjectManagerProxy<'a>;
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self._inner
     }
 }
 
@@ -141,7 +142,7 @@ impl super::NetworkBackend for IwdDbus<'_> {
     }
 
     async fn set_wifi_enabled(&self, enabled: bool) -> anyhow::Result<()> {
-        AdapterProxy::new(self.0.inner().connection())
+        AdapterProxy::new(self.inner().connection())
             .await?
             .set_powered(enabled)
             .await?;
@@ -149,21 +150,45 @@ impl super::NetworkBackend for IwdDbus<'_> {
     }
 
     async fn select_access_point(
-        &self,
+        &mut self,
         ap: &AccessPoint,
         password: Option<String>,
     ) -> anyhow::Result<()> {
+        // Get the agent manager
+        let agent_manager = self.agent_manager().await?;
 
-        // TODO: send password in pw channel, which is created when iwd is created, listened to in
-        // the password answer thing. If no password / timeout, send the ssid pw required event
+        // If password is provided, register a new agent to handle it
+        if let Some(p) = password {
+            let path = OwnedObjectPath::try_from("/ashell/pwagent/main").unwrap();
 
-        let net = NetworkProxy::builder(self.0.inner().connection())
+            match agent_manager.unregister_agent(&path).await {
+                Ok(_) => info!("Successfully unregistered agent at {}", path),
+                Err(e) => info!("Failed to unregister agent at {}: {}", path, e),
+            }
+
+            // Create a new agent with the password
+            let (tx, password_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+
+            // Register the new agent
+            let pw_agent = PWAgent { password_rx };
+            self.inner()
+                .connection()
+                .object_server()
+                .at(path.clone(), pw_agent)
+                .await?;
+
+            agent_manager.register_agent(&path).await?;
+
+            // Send the password to the agent channel
+            tx.send(p)?;
+        }
+
+        let net = NetworkProxy::builder(self.inner().connection())
             .destination("net.connman.iwd")?
             .path(ap.path.clone())?
             .build()
             .await?;
         net.connect().await?;
-        //TODO: set passphrase
         Ok(())
     }
 
@@ -172,7 +197,11 @@ impl super::NetworkBackend for IwdDbus<'_> {
         path: OwnedObjectPath,
         enable: bool,
     ) -> anyhow::Result<Vec<KnownConnection>> {
-        todo!()
+        // IWD doesn't natively support VPN management
+        // This would need to be implemented with additional VPN management tools
+        Err(anyhow::anyhow!(
+            "VPN management not implemented for IWD backend"
+        ))
     }
 
     async fn set_airplane_mode(&self, airplane: bool) -> anyhow::Result<()> {
@@ -233,8 +262,6 @@ struct SignalAgent {
     tx: tokio::sync::mpsc::UnboundedSender<i16>,
 }
 
-use log::warn;
-
 #[interface(name = "net.connman.iwd.SignalLevelAgent")]
 impl SignalAgent {
     /// Called by iwd whenever RSSI crosses a threshold
@@ -246,26 +273,24 @@ impl SignalAgent {
     }
 }
 
-pub type RequestPassPhraseFn = Box<
-    dyn (Fn() -> Pin<Box<dyn Future<Output = Result<String, Box<dyn std::error::Error>>> + Send>>)
-        + Send
-        + Sync,
->;
-
 struct PWAgent {
-    pub request_passphrase_fn: RequestPassPhraseFn,
+    // Channel for receiving passwords
+    password_rx: tokio::sync::mpsc::UnboundedReceiver<String>,
 }
 
 #[interface(name = "net.connman.iwd.Agent")]
 impl PWAgent {
     #[zbus(name = "RequestPassphrase")]
     async fn request_passphrase(
-        &self,
+        &mut self,
         _network_path: OwnedObjectPath,
     ) -> zbus::fdo::Result<String> {
-        match (self.request_passphrase_fn)().await {
-            Ok(passphrase) => Ok(passphrase),
-            Err(e) => Err(zbus::fdo::Error::Failed(e.to_string())),
+        // Try to receive a password from the channel
+        if let Ok(pass) = self.password_rx.try_recv() {
+            Ok(pass)
+        } else {
+            warn!("No password available");
+            Err(zbus::fdo::Error::Failed("No password set".into()))
         }
     }
 }
@@ -279,42 +304,59 @@ impl IwdDbus<'_> {
             .path("/")?
             .build()
             .await?;
-        Ok(Self(manager))
+
+        Ok(Self { _inner: manager })
     }
 
     // adapter <- device (station mode) <- station
 
     pub async fn stations(&self) -> anyhow::Result<Vec<StationProxy>> {
-        list_proxies!(&self.0, "net.connman.iwd.Station", StationProxy).await
+        list_proxies!(&self._inner, "net.connman.iwd.Station", StationProxy).await
     }
 
     pub async fn adapters(&self) -> anyhow::Result<Vec<AdapterProxy>> {
-        list_proxies!(&self.0, "net.connman.iwd.Adapter", AdapterProxy).await
+        list_proxies!(&self._inner, "net.connman.iwd.Adapter", AdapterProxy).await
     }
 
     pub async fn devices(&self) -> anyhow::Result<Vec<DeviceProxy>> {
-        list_proxies!(&self.0, "net.connman.iwd.Device", DeviceProxy).await
+        list_proxies!(&self._inner, "net.connman.iwd.Device", DeviceProxy).await
     }
 
     pub async fn agent_manager(&self) -> anyhow::Result<AgentManagerProxy> {
-        list_proxies!(&self.0, "net.connman.iwd.AgentManager", AgentManagerProxy).await?.first().cloned().ok_or_else(|| {
-            anyhow::anyhow!("No AgentManagerProxy found")
-        })
+        list_proxies!(
+            &self._inner,
+            "net.connman.iwd.AgentManager",
+            AgentManagerProxy
+        )
+        .await?
+        .first()
+        .cloned()
+        .ok_or_else(|| anyhow::anyhow!("No AgentManagerProxy found"))
     }
 
     pub async fn known_networks_proxies(&self) -> anyhow::Result<Vec<KnownNetworkProxy>> {
-        list_proxies!(&self.0, "net.connman.iwd.KnownNetwork", KnownNetworkProxy).await
+        list_proxies!(
+            &self._inner,
+            "net.connman.iwd.KnownNetwork",
+            KnownNetworkProxy
+        )
+        .await
     }
 
     pub async fn networks_proxies(&self) -> anyhow::Result<Vec<NetworkProxy>> {
-        list_proxies!(&self.0, "net.connman.iwd.Network", NetworkProxy).await
+        list_proxies!(&self._inner, "net.connman.iwd.Network", NetworkProxy).await
     }
 
     pub async fn access_points_proxies(&self) -> anyhow::Result<Vec<AccessPointProxy>> {
         // Note: AccessPoint interface might not be directly on the root object manager.
         // It might be associated with a Device or Station. This function assumes they might appear.
         // If this doesn't work as expected, the logic might need refinement based on IWD's structure.
-        list_proxies!(&self.0, "net.connman.iwd.AccessPoint", AccessPointProxy).await
+        list_proxies!(
+            &self._inner,
+            "net.connman.iwd.AccessPoint",
+            AccessPointProxy
+        )
+        .await
     }
 
     pub async fn reachable_networks(&self) -> anyhow::Result<Vec<(NetworkProxy, i16)>> {
@@ -324,7 +366,7 @@ impl IwdDbus<'_> {
         for station in stations {
             let networks_proxies = station.get_ordered_networks().await?;
             for (path, strength) in networks_proxies {
-                let network = NetworkProxy::builder(self.0.inner().connection())
+                let network = NetworkProxy::builder(self.inner().connection())
                     .destination("net.connman.iwd")?
                     .path(path.clone())?
                     .build()
@@ -335,50 +377,11 @@ impl IwdDbus<'_> {
         Ok(networks)
     }
 
-    async fn register_psk_agent(&self) -> anyhow::Result<()> {
-        let path =
-            OwnedObjectPath::try_from(format!("/ashell/pwagent/{}", Uuid::new_v4().as_simple()))?;
-        let manager = self.agent_manager().await?;
-        let agent = PWAgent {
-            request_passphrase_fn: Box::new(|| {
-                warn!("Requesting passphrase");
-                Box::pin(async move { Ok("password".to_string()) })
-            }),
-        };
-        manager
-            .register_agent(&path)
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to register agent: {}", e))?;
-        self.0
-            .inner()
-            .connection()
-            .object_server()
-            .at(path, agent)
-            .await?;
-
-        Ok(())
-    }
-
     pub async fn subscribe_events(&self) -> anyhow::Result<impl Stream<Item = Vec<NetworkEvent>>> {
-        let _conn = self.0.inner().connection();
+        let _conn = self.inner().connection();
         let iwd = self;
 
-        // TODO: events to watch
-        // - [x] WiFiEnabled(bool),
-        // - [ ] AirplaneMode(bool),
-        // - [x] Connectivity(ConnectivityState),
-        // - [x] WirelessDevice {
-        //           wifi_present: bool,
-        //           wireless_access_points: Vec<AccessPoint>,
-        //       },
-        // - [x] ActiveConnections(Vec<ActiveConnectionInfo>),
-        // - [x] KnownConnections(Vec<KnownConnection>),
-        // - [x] WirelessAccessPoint(Vec<AccessPoint>),
-        // - [ ] Strength((String, u8)),
-        // - [ ] RequestPasswordForSSID(String),
-        // - [x] ScanningNearbyWifi,
-
-        self.register_psk_agent().await?;
+        //self.register_psk_agent().await?;
 
         // --- WiFi Enabled ---
         let mut wireless_enabled_changes = vec![];
@@ -479,7 +482,6 @@ impl IwdDbus<'_> {
             ))?;
 
             let server = self
-                .0
                 .inner()
                 .connection()
                 .object_server()
