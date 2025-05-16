@@ -22,12 +22,15 @@ Now the configuration file is located in `~/.config/ashell/config.toml`
 - Add main bar solid and gradient style
 - Add main bar opacity settings
 - Add menu opacity and backdrop settings
+- Handle system with multiple battery
 
 ### Changed
 
 - Change configuration file format
 - Enhance the system info module adding network and disk usage
 - Simplify style of "expand" button on wifi/bluetooth buttons
+- Allow to specify custom labels for keyboard layouts
+
 ### Fixed
 
 - Fix missing tray icons
