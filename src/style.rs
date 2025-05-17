@@ -112,16 +112,24 @@ pub fn ashell_theme(appearance: &Appearance) -> Theme {
     )
 }
 
+/// Note: the transparent argument, when true, makes the base color bg
+/// transparent but still has a hover bg color. Not to be confused with opacity,
+/// which affects opacity at all times.
 pub fn module_button_style(
     style: AppearanceStyle,
     opacity: f32,
+    transparent: bool,
 ) -> impl Fn(&Theme, Status) -> button::Style {
     move |theme, status| {
         let mut base = button::Style {
             background: match style {
                 AppearanceStyle::Solid | AppearanceStyle::Gradient => None,
                 AppearanceStyle::Islands => {
-                    Some(theme.palette().background.scale_alpha(opacity).into())
+                    if transparent {
+                        None
+                    } else {
+                        Some(theme.palette().background.scale_alpha(opacity).into())
+                    }
                 }
             },
             border: Border {
