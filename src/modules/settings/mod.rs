@@ -441,7 +441,7 @@ impl Settings {
                 .upower
                 .as_ref()
                 .and_then(|upower| upower.battery)
-                .map(|battery| battery.settings_indicator(opacity));
+                .map(|battery| battery.settings_indicator());
             let right_buttons = Row::new()
                 .push_maybe(config.lock_cmd.as_ref().map(|_| {
                     button(icon(Icons::Lock))
