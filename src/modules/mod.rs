@@ -101,7 +101,7 @@ impl App {
                 .style(module_button_style(
                     self.config.appearance.style,
                     self.config.appearance.opacity,
-                    false
+                    false,
                 ));
 
                 match action {
@@ -174,7 +174,7 @@ impl App {
                                 .style(module_button_style(
                                     self.config.appearance.style,
                                     self.config.appearance.opacity,
-                                    true
+                                    true,
                                 ));
 
                                 match action {
