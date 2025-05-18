@@ -33,7 +33,7 @@ pub struct Workspace {
     pub windows: u16,
 }
 
-fn get_workspaces(enable_workspace_filling: bool) -> Vec<Workspace> {
+fn get_workspaces(config: &WorkspacesModuleConfig) -> Vec<Workspace> {
     let active = hyprland::data::Workspace::get_active().ok();
     let monitors = hyprland::data::Monitors::get()
         .map(|m| m.to_vec())
@@ -75,7 +75,7 @@ fn get_workspaces(enable_workspace_filling: bool) -> Vec<Workspace> {
         });
     }
 
-    if !enable_workspace_filling || normal.is_empty() {
+    if !config.enable_workspace_filling || normal.is_empty() {
         // nothing more to do, early return
         result.sort_by_key(|w| w.id);
         return result;
@@ -91,7 +91,6 @@ fn get_workspaces(enable_workspace_filling: bool) -> Vec<Workspace> {
     // Rust could do reallocs for us, but here we know how many more space we need, so can do better
     result.reserve(missing_ids.len());
 
-    // add fake workspaces that should be shown but have no real windows
     for id in missing_ids {
         result.push(Workspace {
             id,
@@ -113,25 +112,25 @@ pub struct Workspaces {
 }
 
 impl Workspaces {
-    pub fn new(enable_workspace_filling: bool) -> Self {
+    pub fn new(config: &WorkspacesModuleConfig) -> Self {
         Self {
-            workspaces: get_workspaces(enable_workspace_filling),
+            workspaces: get_workspaces(config),
         }
     }
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    WorkspacesChanged(Vec<Workspace>),
+    WorkspacesChanged,
     ChangeWorkspace(i32),
     ToggleSpecialWorkspace(i32),
 }
 
 impl Workspaces {
-    pub fn update(&mut self, message: Message) {
+    pub fn update(&mut self, message: Message, config: &WorkspacesModuleConfig) {
         match message {
-            Message::WorkspacesChanged(workspaces) => {
-                self.workspaces = workspaces;
+            Message::WorkspacesChanged => {
+                self.workspaces = get_workspaces(config);
             }
             Message::ChangeWorkspace(id) => {
                 if id > 0 {
@@ -274,7 +273,7 @@ impl Module for Workspaces {
         Some(
             Subscription::run_with_id(
                 format!("{:?}-{}", id, enable_workspace_filling),
-                channel(10, async move |output|  {
+                channel(10, async move |output| {
                     let output = Arc::new(RwLock::new(output));
                     loop {
                         let mut event_listener = AsyncEventListener::new();
@@ -286,13 +285,9 @@ impl Module for Workspaces {
                                 let output = output.clone();
                                 Box::pin(async move {
                                     if let Ok(mut output) = output.write() {
-                                        output
-                                            .try_send(Message::WorkspacesChanged(get_workspaces(
-                                                enable_workspace_filling,
-                                            )))
-                                            .expect(
-                                                "error getting workspaces: workspace added event",
-                                            );
+                                        output.try_send(Message::WorkspacesChanged).expect(
+                                            "error getting workspaces: workspace added event",
+                                        );
                                     }
                                 })
                             }
@@ -305,11 +300,9 @@ impl Module for Workspaces {
                                 let output = output.clone();
                                 Box::pin(async move {
                                     if let Ok(mut output) = output.write() {
-                                        output
-                                            .try_send(Message::WorkspacesChanged(get_workspaces(enable_workspace_filling)))
-                                            .expect(
-                                                "error getting workspaces: workspace change event",
-                                            );
+                                        output.try_send(Message::WorkspacesChanged).expect(
+                                            "error getting workspaces: workspace change event",
+                                        );
                                     }
                                 })
                             }
@@ -322,11 +315,9 @@ impl Module for Workspaces {
                                 let output = output.clone();
                                 Box::pin(async move {
                                     if let Ok(mut output) = output.write() {
-                                        output
-                                            .try_send(Message::WorkspacesChanged(get_workspaces(enable_workspace_filling)))
-                                            .expect(
-                                                "error getting workspaces: workspace destroy event",
-                                            );
+                                        output.try_send(Message::WorkspacesChanged).expect(
+                                            "error getting workspaces: workspace destroy event",
+                                        );
                                     }
                                 })
                             }
@@ -339,11 +330,9 @@ impl Module for Workspaces {
                                 let output = output.clone();
                                 Box::pin(async move {
                                     if let Ok(mut output) = output.write() {
-                                        output
-                                            .try_send(Message::WorkspacesChanged(get_workspaces(enable_workspace_filling)))
-                                            .expect(
-                                                "error getting workspaces: workspace moved event",
-                                            );
+                                        output.try_send(Message::WorkspacesChanged).expect(
+                                            "error getting workspaces: workspace moved event",
+                                        );
                                     }
                                 })
                             }
@@ -357,7 +346,7 @@ impl Module for Workspaces {
                                 Box::pin(async move {
                                     if let Ok(mut output) = output.write() {
                                         output
-                                    .try_send(Message::WorkspacesChanged(get_workspaces(enable_workspace_filling)))
+                                    .try_send(Message::WorkspacesChanged)
                                     .expect(
                                         "error getting workspaces: special workspace change event",
                                     );
@@ -374,7 +363,7 @@ impl Module for Workspaces {
                                 Box::pin(async move {
                                     if let Ok(mut output) = output.write() {
                                         output
-                                    .try_send(Message::WorkspacesChanged(get_workspaces(enable_workspace_filling)))
+                                    .try_send(Message::WorkspacesChanged)
                                     .expect(
                                         "error getting workspaces: special workspace removed event",
                                     );
@@ -390,7 +379,7 @@ impl Module for Workspaces {
                                 Box::pin(async move {
                                     if let Ok(mut output) = output.write() {
                                         output
-                                            .try_send(Message::WorkspacesChanged(get_workspaces(enable_workspace_filling)))
+                                            .try_send(Message::WorkspacesChanged)
                                             .expect("error getting workspaces: window close event");
                                     }
                                 })
@@ -404,7 +393,7 @@ impl Module for Workspaces {
                                 Box::pin(async move {
                                     if let Ok(mut output) = output.write() {
                                         output
-                                            .try_send(Message::WorkspacesChanged(get_workspaces(enable_workspace_filling)))
+                                            .try_send(Message::WorkspacesChanged)
                                             .expect("error getting workspaces: window open event");
                                     }
                                 })
@@ -418,7 +407,7 @@ impl Module for Workspaces {
                                 Box::pin(async move {
                                     if let Ok(mut output) = output.write() {
                                         output
-                                            .try_send(Message::WorkspacesChanged(get_workspaces(enable_workspace_filling)))
+                                            .try_send(Message::WorkspacesChanged)
                                             .expect("error getting workspaces: window moved event");
                                     }
                                 })
@@ -431,9 +420,7 @@ impl Module for Workspaces {
                                 let output = output.clone();
                                 Box::pin(async move {
                                     if let Ok(mut output) = output.write() {
-                                        output
-                                        .try_send(Message::WorkspacesChanged(get_workspaces(enable_workspace_filling)))
-                                        .expect(
+                                        output.try_send(Message::WorkspacesChanged).expect(
                                             "error getting workspaces: active monitor change event",
                                         );
                                     }
