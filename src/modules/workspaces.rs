@@ -16,6 +16,7 @@ use iced::{
     widget::{Row, button, container, text},
     window::Id,
 };
+use itertools::Itertools;
 use log::{debug, error};
 use std::{
     any::TypeId,
@@ -37,61 +38,74 @@ fn get_workspaces(enable_workspace_filling: bool) -> Vec<Workspace> {
     let monitors = hyprland::data::Monitors::get()
         .map(|m| m.to_vec())
         .unwrap_or_default();
-    let mut workspaces = hyprland::data::Workspaces::get()
+    let workspaces = hyprland::data::Workspaces::get()
         .map(|w| w.to_vec())
         .unwrap_or_default();
 
-    workspaces.sort_by_key(|w| w.id);
+    // We need capacity for at least all the existing entries.
+    let mut result: Vec<Workspace> = Vec::with_capacity(workspaces.len());
 
-    let mut current: usize = 1;
+    let (special, normal): (Vec<_>, Vec<_>) = workspaces.into_iter().partition(|w| w.id < 0);
 
-    workspaces
-        .into_iter()
-        .flat_map(|w| {
-            if w.id < 0 {
-                vec![Workspace {
-                    id: w.id,
-                    name: w
-                        .name
-                        .split(":")
-                        .last()
-                        .map_or_else(|| "".to_string(), |s| s.to_owned()),
-                    monitor_id: Some(w.monitor_id as usize),
-                    monitor: w.monitor,
-                    active: monitors.iter().any(|m| m.special_workspace.id == w.id),
-                    windows: w.windows,
-                }]
-            } else {
-                let missing: usize = w.id as usize - current;
-                let mut res = Vec::with_capacity(missing + 1);
+    // map special workspaces
+    for w in special.iter() {
+        result.push(Workspace {
+            id: w.id,
+            name: w
+                .name
+                .split(":")
+                .last()
+                .map_or_else(|| "".to_string(), |s| s.to_owned()),
+            monitor_id: Some(w.monitor_id as usize),
+            monitor: w.monitor.clone(),
+            active: monitors.iter().any(|m| m.special_workspace.id == w.id),
+            windows: w.windows,
+        });
+    }
 
-                if enable_workspace_filling {
-                    for i in 0..missing {
-                        res.push(Workspace {
-                            id: (current + i) as i32,
-                            name: (current + i).to_string(),
-                            monitor_id: None,
-                            monitor: "".to_string(),
-                            active: false,
-                            windows: 0,
-                        });
-                    }
-                    current += missing + 1;
-                }
+    // map normal workspaces
+    for w in normal.iter() {
+        result.push(Workspace {
+            id: w.id,
+            name: w.name.clone(),
+            monitor_id: Some(w.monitor_id as usize),
+            monitor: w.monitor.clone(),
+            active: Some(w.id) == active.as_ref().map(|a| a.id),
+            windows: w.windows,
+        });
+    }
 
-                res.push(Workspace {
-                    id: w.id,
-                    name: w.name.clone(),
-                    monitor_id: Some(w.monitor_id as usize),
-                    monitor: w.monitor,
-                    active: Some(w.id) == active.as_ref().map(|a| a.id),
-                    windows: w.windows,
-                });
+    if !enable_workspace_filling || normal.is_empty() {
+        // nothing more to do, early return
+        result.sort_by_key(|w| w.id);
+        return result;
+    };
 
-                res
-            }
-        })
-        .collect::<Vec<Workspace>>()
+    // To show workspaces that don't exist in Hyprland we need to create fake ones
+    let existing_ids = normal.iter().map(|w| w.id).collect_vec();
+    let max_id = existing_ids.iter().max().unwrap();
+    let missing_ids: Vec<i32> = (1..=*max_id)
+        .filter(|id| !existing_ids.contains(id))
+        .collect();
+
+    // Rust could do reallocs for us, but here we know how many more space we need, so can do better
+    result.reserve(missing_ids.len());
+
+    // add fake workspaces that should be shown but have no real windows
+    for id in missing_ids {
+        result.push(Workspace {
+            id,
+            name: id.to_string(),
+            monitor_id: None,
+            monitor: "".to_string(),
+            active: false,
+            windows: 0,
+        });
+    }
+
+    result.sort_by_key(|w| w.id);
+
+    result
 }
 
 pub struct Workspaces {
