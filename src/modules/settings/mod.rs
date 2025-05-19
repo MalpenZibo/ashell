@@ -28,9 +28,7 @@ use brightness::BrightnessMessage;
 use iced::{
     Alignment, Background, Border, Element, Length, Padding, Subscription, Task, Theme,
     alignment::{Horizontal, Vertical},
-    widget::{
-        Column, Row, Space, button, column, container, horizontal_space, row, text, vertical_rule,
-    },
+    widget::{Column, Row, Space, button, column, container, horizontal_space, row, text},
     window::Id,
 };
 use log::info;
@@ -215,6 +213,10 @@ impl Settings {
                 },
                 NetworkMessage::ToggleAirplaneMode => match self.network.as_mut() {
                     Some(network) => {
+                        if self.sub_menu == Some(SubMenu::Wifi) {
+                            self.sub_menu = None;
+                        }
+
                         network
                             .command(NetworkCommand::ToggleAirplaneMode)
                             .map(|event| {
@@ -226,11 +228,16 @@ impl Settings {
                     _ => Task::none(),
                 },
                 NetworkMessage::ToggleWiFi => match self.network.as_mut() {
-                    Some(network) => network.command(NetworkCommand::ToggleWiFi).map(|event| {
-                        crate::app::Message::Settings(Message::Network(NetworkMessage::Event(
-                            event,
-                        )))
-                    }),
+                    Some(network) => {
+                        if self.sub_menu == Some(SubMenu::Wifi) {
+                            self.sub_menu = None;
+                        }
+                        network.command(NetworkCommand::ToggleWiFi).map(|event| {
+                            crate::app::Message::Settings(Message::Network(NetworkMessage::Event(
+                                event,
+                            )))
+                        })
+                    }
                     _ => Task::none(),
                 },
                 NetworkMessage::SelectAccessPoint(ac) => match self.network.as_mut() {
@@ -300,11 +307,17 @@ impl Settings {
                     _ => Task::none(),
                 },
                 BluetoothMessage::Toggle => match self.bluetooth.as_mut() {
-                    Some(bluetooth) => bluetooth.command(BluetoothCommand::Toggle).map(|event| {
-                        crate::app::Message::Settings(Message::Bluetooth(BluetoothMessage::Event(
-                            event,
-                        )))
-                    }),
+                    Some(bluetooth) => {
+                        if self.sub_menu == Some(SubMenu::Bluetooth) {
+                            self.sub_menu = None;
+                        }
+
+                        bluetooth.command(BluetoothCommand::Toggle).map(|event| {
+                            crate::app::Message::Settings(Message::Bluetooth(
+                                BluetoothMessage::Event(event),
+                            ))
+                        })
+                    }
                     _ => Task::none(),
                 },
                 BluetoothMessage::More(id) => {
@@ -712,7 +725,7 @@ fn sub_menu_wrapper<Msg: 'static>(content: Element<Msg>, opacity: f32) -> Elemen
             border: Border::default().rounded(16),
             ..container::Style::default()
         })
-        .padding(8)
+        .padding(16)
         .width(Length::Fill)
         .into()
 }
@@ -741,13 +754,12 @@ fn quick_setting_button<'a, Msg: Clone + 'static>(
     button(
         Row::new()
             .push(main_content)
-            .push_maybe(with_submenu.as_ref().map(|_| vertical_rule(1)))
             .push_maybe(with_submenu.map(|(menu_type, submenu, msg)| {
                 button(
                     container(icon(if Some(menu_type) == submenu {
                         Icons::Close
                     } else {
-                        Icons::VerticalDots
+                        Icons::RightChevron
                     }))
                     .align_y(Vertical::Center)
                     .align_x(Horizontal::Center),

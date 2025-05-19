@@ -1,10 +1,14 @@
 use super::{ReadOnlyService, Service, ServiceEvent};
 use crate::{components::icons::Icons, utils::IndicatorState};
-use dbus::{PowerProfilesProxy, UPowerDbus};
+use dbus::{Battery, PowerProfilesProxy, UPowerDbus};
 use iced::{
     Subscription,
-    futures::stream::{once, pending},
-    futures::{SinkExt, Stream, StreamExt, channel::mpsc::Sender, stream_select},
+    futures::{
+        SinkExt, Stream, StreamExt,
+        channel::mpsc::Sender,
+        stream::{once, pending, select_all},
+        stream_select,
+    },
     stream::channel,
 };
 use log::{error, warn};
@@ -115,7 +119,7 @@ pub struct UPowerService {
 
 enum State {
     Init,
-    Active(zbus::Connection, Option<ObjectPath<'static>>),
+    Active(zbus::Connection, Option<Vec<ObjectPath<'static>>>),
     Error,
 }
 
@@ -156,16 +160,25 @@ impl ReadOnlyService for UPowerService {
 impl UPowerService {
     async fn initialize_data(
         conn: &zbus::Connection,
-    ) -> anyhow::Result<(Option<(BatteryData, ObjectPath<'static>)>, PowerProfile)> {
+    ) -> anyhow::Result<(
+        Option<(BatteryData, Vec<ObjectPath<'static>>)>,
+        PowerProfile,
+    )> {
         let battery = UPowerService::initialize_battery_data(conn).await?;
         let power_profile = UPowerService::initialize_power_profile_data(conn).await;
 
         match (battery, power_profile) {
-            (Some(battery), Ok(power_profile)) => Ok((Some((battery.0, battery.1)), power_profile)),
+            (Some(battery), Ok(power_profile)) => Ok((
+                Some((battery.0, battery.1.get_devices_path())),
+                power_profile,
+            )),
             (Some(battery), Err(err)) => {
                 warn!("Failed to get power profile: {}", err);
 
-                Ok((Some((battery.0, battery.1)), PowerProfile::Unknown))
+                Ok((
+                    Some((battery.0, battery.1.get_devices_path())),
+                    PowerProfile::Unknown,
+                ))
             }
             (None, Ok(power_profile)) => Ok((None, power_profile)),
             (None, Err(err)) => {
@@ -191,31 +204,31 @@ impl UPowerService {
 
     async fn initialize_battery_data(
         conn: &zbus::Connection,
-    ) -> anyhow::Result<Option<(BatteryData, ObjectPath<'static>)>> {
+    ) -> anyhow::Result<Option<(BatteryData, Battery)>> {
         let upower = UPowerDbus::new(conn).await?;
-        let battery = upower.get_battery_device().await?;
+        let battery = upower.get_battery_devices().await?;
 
         match battery {
             Some(battery) => {
-                let state = battery.state().await?;
+                let state = battery.state().await;
                 let state = match state {
                     1 => BatteryStatus::Charging(Duration::from_secs(
-                        battery.time_to_full().await.unwrap_or_default() as u64,
+                        battery.time_to_full().await as u64,
                     )),
                     2 => BatteryStatus::Discharging(Duration::from_secs(
-                        battery.time_to_empty().await.unwrap_or_default() as u64,
+                        battery.time_to_empty().await as u64,
                     )),
                     4 => BatteryStatus::Full,
                     _ => BatteryStatus::Discharging(Duration::from_secs(0)),
                 };
-                let percentage = battery.percentage().await.unwrap_or_default() as i64;
+                let percentage = battery.percentage().await as i64;
 
                 Ok(Some((
                     BatteryData {
                         capacity: percentage,
                         status: state,
                     },
-                    battery.inner().path().to_owned(),
+                    battery,
                 )))
             }
             _ => Ok(None),
@@ -224,51 +237,43 @@ impl UPowerService {
 
     async fn events(
         conn: &zbus::Connection,
-        battery_path: &Option<ObjectPath<'static>>,
+        battery_devices: &Option<Vec<ObjectPath<'static>>>,
     ) -> anyhow::Result<impl Stream<Item = UPowerEvent> + use<>> {
-        let battery_event = if let Some(battery_path) = battery_path {
+        let battery_event = if let Some(battery_devices) = battery_devices {
             let upower = UPowerDbus::new(conn).await?;
-            let device = upower.get_device(battery_path).await?;
 
-            let combined = stream_select!(
-                device.receive_state_changed().await.map(|_| ()),
-                device.receive_percentage_changed().await.map(|_| ()),
-                device.receive_time_to_full_changed().await.map(|_| ()),
-                device.receive_time_to_empty_changed().await.map(|_| ()),
-            )
-            .map(move |_| {
-                let state = device
-                    .cached_state()
-                    .unwrap_or_default()
-                    .unwrap_or_default();
-                let state = match state {
-                    1 => BatteryStatus::Charging(Duration::from_secs(
-                        device
-                            .cached_time_to_full()
-                            .unwrap_or_default()
-                            .unwrap_or_default() as u64,
-                    )),
-                    2 => BatteryStatus::Discharging(Duration::from_secs(
-                        device
-                            .cached_time_to_empty()
-                            .unwrap_or_default()
-                            .unwrap_or_default() as u64,
-                    )),
-                    4 => BatteryStatus::Full,
-                    _ => BatteryStatus::Discharging(Duration::from_secs(0)),
-                };
+            let mut events = Vec::new();
 
-                UPowerEvent::UpdateBattery(BatteryData {
-                    capacity: device
-                        .cached_percentage()
-                        .unwrap_or_default()
-                        .unwrap_or_default() as i64,
-                    status: state,
-                })
-            })
-            .boxed();
+            for device_path in battery_devices {
+                let device = upower.get_device(device_path).await?;
 
-            combined
+                events.push(
+                    stream_select!(
+                        device.receive_state_changed().await.map(|_| ()),
+                        device.receive_percentage_changed().await.map(|_| ()),
+                        device.receive_time_to_full_changed().await.map(|_| ()),
+                        device.receive_time_to_empty_changed().await.map(|_| ()),
+                    )
+                    .filter_map({
+                        let conn = conn.clone();
+                        move |_| {
+                            let conn = conn.clone();
+                            async move {
+                                if let Some((data, _)) =
+                                    Self::initialize_battery_data(&conn).await.ok().flatten()
+                                {
+                                    Some(UPowerEvent::UpdateBattery(data))
+                                } else {
+                                    None
+                                }
+                            }
+                        }
+                    })
+                    .boxed(),
+                );
+            }
+
+            select_all(events).boxed()
         } else {
             once(async {}).map(|_| UPowerEvent::NoBattery).boxed()
         };
@@ -321,14 +326,14 @@ impl UPowerService {
                     State::Error
                 }
             },
-            State::Active(conn, battery_path) => {
-                match UPowerService::events(&conn, &battery_path).await {
+            State::Active(conn, battery_devices) => {
+                match UPowerService::events(&conn, &battery_devices).await {
                     Ok(mut events) => {
                         while let Some(event) = events.next().await {
                             let _ = output.send(ServiceEvent::Update(event)).await;
                         }
 
-                        State::Active(conn, battery_path)
+                        State::Active(conn, battery_devices)
                     }
                     Err(err) => {
                         error!("Failed to listen for upower events: {}", err);

@@ -166,7 +166,7 @@ impl Module for TrayModule {
     ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         self.service
             .as_ref()
-            .filter(|s| s.data.len() > 0)
+            .filter(|s| !s.data.is_empty())
             .map(|service| {
                 (
                     Row::with_children(
