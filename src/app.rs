@@ -87,17 +87,15 @@ impl App {
     pub fn new((logger, config): (LoggerHandle, Config)) -> impl FnOnce() -> (Self, Task<Message>) {
         || {
             let (outputs, task) = Outputs::new(config.appearance.style, config.position);
-            let workspaces_config = &config.workspaces.clone();
 
             (
                 App {
                     logger,
-                    config,
                     outputs,
                     app_launcher: AppLauncher,
                     updates: Updates::default(),
                     clipboard: Clipboard,
-                    workspaces: Workspaces::new(workspaces_config),
+                    workspaces: Workspaces::new(&config.workspaces),
                     window_title: WindowTitle::default(),
                     system_info: SystemInfo::default(),
                     keyboard_layout: KeyboardLayout::default(),
@@ -107,6 +105,7 @@ impl App {
                     privacy: Privacy::default(),
                     settings: Settings::default(),
                     media_player: MediaPlayer::default(),
+                    config,
                 },
                 task,
             )
