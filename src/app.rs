@@ -87,16 +87,15 @@ impl App {
     pub fn new((logger, config): (LoggerHandle, Config)) -> impl FnOnce() -> (Self, Task<Message>) {
         || {
             let (outputs, task) = Outputs::new(config.appearance.style, config.position);
-            let enable_workspace_filling = config.workspaces.enable_workspace_filling;
+
             (
                 App {
                     logger,
-                    config,
                     outputs,
                     app_launcher: AppLauncher,
                     updates: Updates::default(),
                     clipboard: Clipboard,
-                    workspaces: Workspaces::new(enable_workspace_filling),
+                    workspaces: Workspaces::new(&config.workspaces),
                     window_title: WindowTitle::default(),
                     system_info: SystemInfo::default(),
                     keyboard_layout: KeyboardLayout::default(),
@@ -106,6 +105,7 @@ impl App {
                     privacy: Privacy::default(),
                     settings: Settings::default(),
                     media_player: MediaPlayer::default(),
+                    config,
                 },
                 task,
             )
@@ -212,7 +212,7 @@ impl App {
                 Task::none()
             }
             Message::Workspaces(msg) => {
-                self.workspaces.update(msg);
+                self.workspaces.update(msg, &self.config.workspaces);
 
                 Task::none()
             }

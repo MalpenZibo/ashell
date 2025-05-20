@@ -184,6 +184,7 @@ update_cmd = 'alacritty -e bash -c "paru; echo Done - Press enter to exit; read"
 # MonitorSpecific: only the workspaces of the related monitor will be displayed
 # optional, default All
 visibility_mode = "Ull"
+
 # Enable filling with empty workspaces
 # For example:
 # With this flag set to true if there are only 2 workspaces,
@@ -191,6 +192,11 @@ visibility_mode = "Ull"
 # two more workspaces, the workspace 2 and the workspace 3
 # optional, default false
 enable_workspace_filling = false
+
+# If you want to see more workspaces prefilled, set the number here:
+# max_workspaces = 6
+# In addition to the 4 workspaces described above it will also show workspaces 5 and 6
+# Only works with `enable_workspace_filling = true`
 
 # keyboardLayout module configuration
 # optional
