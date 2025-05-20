@@ -33,6 +33,7 @@ pub struct WorkspacesModuleConfig {
     pub visibility_mode: WorkspaceVisibilityMode,
     #[serde(default)]
     pub enable_workspace_filling: bool,
+    pub max_workspaces: Option<u32>,
 }
 
 #[derive(Deserialize, Clone, Default, Debug)]
