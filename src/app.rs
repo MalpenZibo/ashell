@@ -1,10 +1,10 @@
 use std::{collections::HashMap, f32::consts::PI};
 
 use crate::{
-    centerbox,
+    HEIGHT, centerbox,
     config::{self, AppearanceStyle, Config, Position},
     get_log_spec,
-    menu::{menu_wrapper, MenuSize, MenuType},
+    menu::{MenuSize, MenuType, menu_wrapper},
     modules::{
         self,
         app_launcher::AppLauncher,
@@ -15,7 +15,7 @@ use crate::{
         keyboard_submap::KeyboardSubmap,
         media_player::MediaPlayer,
         privacy::Privacy,
-        settings::{brightness::BrightnessMessage, Settings},
+        settings::{Settings, brightness::BrightnessMessage},
         system_info::SystemInfo,
         tray::{TrayMessage, TrayModule},
         updates::Updates,
@@ -24,21 +24,21 @@ use crate::{
     },
     outputs::{HasOutput, Outputs},
     position_button::ButtonUIRef,
-    services::{brightness::BrightnessCommand, tray::TrayEvent, Service, ServiceEvent},
+    services::{Service, ServiceEvent, brightness::BrightnessCommand, tray::TrayEvent},
     style::{ashell_theme, backdrop_color, darken_color},
-    utils, HEIGHT,
+    utils,
 };
 use flexi_logger::LoggerHandle;
 use iced::{
+    Alignment, Color, Element, Gradient, Length, Radians, Subscription, Task, Theme,
     daemon::Appearance,
     event::{
         listen_with,
         wayland::{Event as WaylandEvent, OutputEvent},
     },
     gradient::Linear,
-    widget::{container, Row},
+    widget::{Row, container},
     window::Id,
-    Alignment, Color, Element, Gradient, Length, Radians, Subscription, Task, Theme,
 };
 use log::{debug, info, warn};
 use wayland_client::protocol::wl_output::WlOutput;

@@ -7,7 +7,6 @@ use iced::{
 };
 use inotify::{Event, EventMask, Inotify, WatchMask};
 use serde::{Deserialize, Deserializer, de::Error};
-use std::collections::HashMap;
 use std::{any::TypeId, collections::HashMap, env, fs::File, io::Read, path::Path};
 
 use crate::app::Message;
