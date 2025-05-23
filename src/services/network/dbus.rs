@@ -1,4 +1,7 @@
-use crate::services::{bluetooth::BluetoothService, network::{NetworkBackend, NetworkData, NetworkEvent}};
+use crate::services::{
+    bluetooth::BluetoothService,
+    network::{NetworkBackend, NetworkData, NetworkEvent},
+};
 
 use super::{AccessPoint, ActiveConnectionInfo, KnownConnection, Vpn};
 use iced::futures::{Stream, StreamExt, stream::select_all};
@@ -36,7 +39,9 @@ impl super::NetworkBackend for NetworkDbus<'_> {
         let wireless_access_points = nm.wireless_access_points().await?;
         debug!("Wireless access points: {:?}", wireless_access_points);
 
-        let known_connections = nm.known_connections_internal(&wireless_access_points).await?;
+        let known_connections = nm
+            .known_connections_internal(&wireless_access_points)
+            .await?;
         debug!("Known connections: {:?}", known_connections);
 
         Ok(NetworkData {
@@ -200,7 +205,9 @@ impl NetworkDbus<'_> {
         Ok(Self(nm))
     }
 
-    pub async fn subscribe_events(&self) -> anyhow::Result<impl Stream<Item = super::NetworkEvent>> {
+    pub async fn subscribe_events(
+        &self,
+    ) -> anyhow::Result<impl Stream<Item = super::NetworkEvent>> {
         let nm = self;
         let conn = self.0.inner().connection();
         let settings = NetworkSettingsDbus::new(conn).await?;
