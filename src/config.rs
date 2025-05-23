@@ -6,9 +6,11 @@ use iced::{
     theme::palette,
 };
 use inotify::{Event, EventMask, Inotify, WatchMask};
-use serde::{Deserialize, Deserializer, de::Error};
-use std::collections::HashMap;
-use std::{any::TypeId, env, fs::File, io::Read, path::Path};
+use serde::{
+    Deserialize, Deserializer,
+    de::{Error, Visitor},
+};
+use std::{any::TypeId, collections::HashMap, env, fs::File, io::Read, path::Path};
 
 use crate::app::Message;
 
@@ -421,7 +423,7 @@ pub enum Position {
     Bottom,
 }
 
-#[derive(Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ModuleName {
     AppLauncher,
     Updates,
@@ -436,6 +438,44 @@ pub enum ModuleName {
     Privacy,
     Settings,
     MediaPlayer,
+    Custom(String),
+}
+
+impl<'de> Deserialize<'de> for ModuleName {
+    fn deserialize<D>(deserializer: D) -> Result<ModuleName, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct ModuleNameVisitor;
+        impl Visitor<'_> for ModuleNameVisitor {
+            type Value = ModuleName;
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a camelCase string representing a ModuleName")
+            }
+            fn visit_str<E>(self, value: &str) -> Result<ModuleName, E>
+            where
+                E: Error,
+            {
+                Ok(match value {
+                    "appLauncher" => ModuleName::AppLauncher,
+                    "updates" => ModuleName::Updates,
+                    "clipboard" => ModuleName::Clipboard,
+                    "workspaces" => ModuleName::Workspaces,
+                    "windowTitle" => ModuleName::WindowTitle,
+                    "systemInfo" => ModuleName::SystemInfo,
+                    "keyboardLayout" => ModuleName::KeyboardLayout,
+                    "keyboardSubmap" => ModuleName::KeyboardSubmap,
+                    "tray" => ModuleName::Tray,
+                    "clock" => ModuleName::Clock,
+                    "privacy" => ModuleName::Privacy,
+                    "settings" => ModuleName::Settings,
+                    "mediaPlayer" => ModuleName::MediaPlayer,
+                    other => ModuleName::Custom(other.to_string()),
+                })
+            }
+        }
+        deserializer.deserialize_str(ModuleNameVisitor)
+    }
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -492,6 +532,23 @@ where
 }
 
 #[derive(Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct CustomModuleDef {
+    pub name: String,
+    pub command: String,
+    #[serde(default)]
+    pub icon: Option<String>,
+
+    /// yields json lines containing text, alt, (pot tooltip)
+    pub listen_cmd: Option<String>,
+    /// map of regex -> icon
+    pub icons: Option<HashMap<String, String>>,
+    /// regex to show alert
+    pub alert: Option<String>,
+    // .. appearance etc
+}
+
+#[derive(Deserialize, Clone, Debug)]
 pub struct Config {
     #[serde(default = "default_log_level")]
     pub log_level: String,
@@ -502,6 +559,8 @@ pub struct Config {
     #[serde(default)]
     pub modules: Modules,
     pub app_launcher_cmd: Option<String>,
+    #[serde(rename = "CustomModule", default)]
+    pub custom_modules: Vec<CustomModuleDef>,
     pub clipboard_cmd: Option<String>,
     #[serde(default = "default_truncate_title_after_length")]
     pub truncate_title_after_length: u32,
@@ -549,6 +608,7 @@ impl Default for Config {
             appearance: Appearance::default(),
             media_player: MediaPlayerModuleConfig::default(),
             keyboard_layout: KeyboardLayoutModuleConfig::default(),
+            custom_modules: vec![],
         }
     }
 }
