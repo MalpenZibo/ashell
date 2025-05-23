@@ -7,7 +7,7 @@ use crate::{
     utils::{IndicatorState, format_duration},
 };
 use iced::{
-    Alignment, Element, Theme, font,
+    Alignment, Element, Theme,
     widget::{Container, container, row, text},
 };
 
@@ -56,20 +56,15 @@ impl BatteryData {
                 ..Default::default()
             });
 
-            let secondary_font = font::Font {
-                weight: font::Weight::Light,
-                ..font::Font::DEFAULT
-            };
-
             match self.status {
                 BatteryStatus::Charging(remaining) if self.capacity < 95 => row!(
                     battery_info,
-                    text(format!("Full in {}", format_duration(&remaining))).font(secondary_font)
+                    text(format!("Full in {}", format_duration(&remaining)))
                 )
                 .spacing(16),
                 BatteryStatus::Discharging(remaining) if self.capacity < 95 => row!(
                     battery_info,
-                    text(format!("Empty in {}", format_duration(&remaining))).font(secondary_font)
+                    text(format!("Empty in {}", format_duration(&remaining)))
                 )
                 .spacing(16),
                 _ => row!(battery_info),
