@@ -63,17 +63,8 @@ impl App {
         for module_def in modules_def {
             row = row.push_maybe(match module_def {
                 // life parsing of string to module
-                ModuleDef::Single(module) => {
-                    self.single_module_wrapper(module.to_owned().into(), id, opacity)
-                }
-                ModuleDef::Group(group) => self.group_module_wrapper(
-                    &group
-                        .iter()
-                        .map(|m| m.to_owned().into())
-                        .collect::<Vec<_>>(),
-                    id,
-                    opacity,
-                ),
+                ModuleDef::Single(module) => self.single_module_wrapper(module, id, opacity),
+                ModuleDef::Group(group) => self.group_module_wrapper(group, id, opacity),
             });
         }
 
@@ -85,11 +76,11 @@ impl App {
             .iter()
             .flat_map(|module_def| match module_def {
                 ModuleDef::Single(module) => {
-                    vec![self.get_module_subscription(module.to_owned().into())]
+                    vec![self.get_module_subscription(module)]
                 }
                 ModuleDef::Group(group) => group
                     .iter()
-                    .map(|module| self.get_module_subscription(module.to_owned().into()))
+                    .map(|module| self.get_module_subscription(module))
                     .collect(),
             })
             .flatten()
@@ -98,7 +89,7 @@ impl App {
 
     fn single_module_wrapper(
         &self,
-        module_name: ModuleName,
+        module_name: &ModuleName,
         id: Id,
         opacity: f32,
     ) -> Option<Element<Message>> {
@@ -167,7 +158,7 @@ impl App {
     ) -> Option<Element<Message>> {
         let modules = group
             .iter()
-            .filter_map(|module| self.get_module_view(module.clone(), id, opacity))
+            .filter_map(|module| self.get_module_view(module, id, opacity))
             .collect::<Vec<_>>();
 
         if modules.is_empty() {
@@ -240,16 +231,16 @@ impl App {
 
     fn get_module_view(
         &self,
-        module_name: ModuleName,
+        module_name: &ModuleName,
         id: Id,
         opacity: f32,
     ) -> Option<(Element<Message>, Option<OnModulePress>)> {
         match module_name {
             ModuleName::AppLauncher => self.app_launcher.view(&self.config.app_launcher_cmd),
             ModuleName::Custom(name) => {
-                let c = self.config.custom_modules.iter().find(|m| m.name == name);
+                let c = self.config.custom_modules.iter().find(|m| &m.name == name);
                 if let Some(mc) = c {
-                    self.custom.get(&name).unwrap().view(mc)
+                    self.custom.get(name).unwrap().view(mc)
                 } else {
                     error!("Custom module `{}` not found", name);
                     None
@@ -276,13 +267,13 @@ impl App {
         }
     }
 
-    fn get_module_subscription(&self, module_name: ModuleName) -> Option<Subscription<Message>> {
+    fn get_module_subscription(&self, module_name: &ModuleName) -> Option<Subscription<Message>> {
         match module_name {
             ModuleName::AppLauncher => self.app_launcher.subscription(()),
             ModuleName::Custom(name) => {
-                let c = self.config.custom_modules.iter().find(|m| m.name == name);
+                let c = self.config.custom_modules.iter().find(|m| &m.name == name);
                 if let Some(mc) = c {
-                    self.custom.get(&name).unwrap().subscription(mc)
+                    self.custom.get(name).unwrap().subscription(mc)
                 } else {
                     error!("Custom module `{}` not found", name);
                     None

@@ -6,7 +6,10 @@ use iced::{
     theme::palette,
 };
 use inotify::{Event, EventMask, Inotify, WatchMask};
-use serde::{Deserialize, Deserializer, de::Error};
+use serde::{
+    Deserialize, Deserializer,
+    de::{Error, Visitor},
+};
 use std::{any::TypeId, collections::HashMap, env, fs::File, io::Read, path::Path};
 
 use crate::app::Message;
@@ -420,7 +423,7 @@ pub enum Position {
     Bottom,
 }
 
-#[derive(Deserialize, Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ModuleName {
     AppLauncher,
     Updates,
@@ -438,40 +441,48 @@ pub enum ModuleName {
     Custom(String),
 }
 
-impl From<String> for ModuleName {
-    fn from(value: String) -> Self {
-        // TODO: this could also be parsed by a deserialize helper { module: ModuleName } (direct
-        // from string is not valid toml)
-        // Benefit of this appraoch is we could match by lowercase and support all spellings
-        match value.as_str() {
-            "appLauncher" => ModuleName::AppLauncher,
-            "updates" => ModuleName::Updates,
-            "clipboard" => ModuleName::Clipboard,
-            "workspaces" => ModuleName::Workspaces,
-            "windowTitle" => ModuleName::WindowTitle,
-            "systemInfo" => ModuleName::SystemInfo,
-            "keyboardLayout" => ModuleName::KeyboardLayout,
-            "keyboardSubmap" => ModuleName::KeyboardSubmap,
-            "tray" => ModuleName::Tray,
-            "clock" => ModuleName::Clock,
-            "privacy" => ModuleName::Privacy,
-            "settings" => ModuleName::Settings,
-            "mediaPlayer" => ModuleName::MediaPlayer,
-            _ => ModuleName::Custom(value),
+impl<'de> Deserialize<'de> for ModuleName {
+    fn deserialize<D>(deserializer: D) -> Result<ModuleName, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct ModuleNameVisitor;
+        impl Visitor<'_> for ModuleNameVisitor {
+            type Value = ModuleName;
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a camelCase string representing a ModuleName")
+            }
+            fn visit_str<E>(self, value: &str) -> Result<ModuleName, E>
+            where
+                E: Error,
+            {
+                Ok(match value {
+                    "appLauncher" => ModuleName::AppLauncher,
+                    "updates" => ModuleName::Updates,
+                    "clipboard" => ModuleName::Clipboard,
+                    "workspaces" => ModuleName::Workspaces,
+                    "windowTitle" => ModuleName::WindowTitle,
+                    "systemInfo" => ModuleName::SystemInfo,
+                    "keyboardLayout" => ModuleName::KeyboardLayout,
+                    "keyboardSubmap" => ModuleName::KeyboardSubmap,
+                    "tray" => ModuleName::Tray,
+                    "clock" => ModuleName::Clock,
+                    "privacy" => ModuleName::Privacy,
+                    "settings" => ModuleName::Settings,
+                    "mediaPlayer" => ModuleName::MediaPlayer,
+                    other => ModuleName::Custom(other.to_string()),
+                })
+            }
         }
-    }
-}
-impl<'a> From<&'a str> for ModuleName {
-    fn from(value: &'a str) -> ModuleName {
-        String::into(value.to_owned())
+        deserializer.deserialize_str(ModuleNameVisitor)
     }
 }
 
 #[derive(Deserialize, Clone, Debug)]
 #[serde(untagged)]
 pub enum ModuleDef {
-    Single(String),
-    Group(Vec<String>),
+    Single(ModuleName),
+    Group(Vec<ModuleName>),
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -487,12 +498,12 @@ pub struct Modules {
 impl Default for Modules {
     fn default() -> Self {
         Self {
-            left: vec![ModuleDef::Single("workspaces".into())],
-            center: vec![ModuleDef::Single("windowTitle".into())],
+            left: vec![ModuleDef::Single(ModuleName::Workspaces)],
+            center: vec![ModuleDef::Single(ModuleName::WindowTitle)],
             right: vec![ModuleDef::Group(vec![
-                "clock".into(),
-                "privacy".into(),
-                "settings".into(),
+                ModuleName::Clock,
+                ModuleName::Privacy,
+                ModuleName::Settings,
             ])],
         }
     }
