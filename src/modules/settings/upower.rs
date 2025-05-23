@@ -7,7 +7,7 @@ use crate::{
     utils::{IndicatorState, format_duration},
 };
 use iced::{
-    Alignment, Background, Border, Element, Theme,
+    Alignment, Element, Theme,
     widget::{Container, container, row, text},
 };
 
@@ -40,7 +40,7 @@ impl BatteryData {
         .into()
     }
 
-    pub fn settings_indicator<'a, Message: 'static>(&self, opacity: f32) -> Container<'a, Message> {
+    pub fn settings_indicator<'a, Message: 'static>(&self) -> Container<'a, Message> {
         let state = self.get_indicator_state();
 
         container({
@@ -55,6 +55,7 @@ impl BatteryData {
                 }),
                 ..Default::default()
             });
+
             match self.status {
                 BatteryStatus::Charging(remaining) if self.capacity < 95 => row!(
                     battery_info,
@@ -69,20 +70,7 @@ impl BatteryData {
                 _ => row!(battery_info),
             }
         })
-        .padding([8, 12])
-        .style(move |theme: &Theme| container::Style {
-            background: Background::Color(
-                theme
-                    .extended_palette()
-                    .background
-                    .weak
-                    .color
-                    .scale_alpha(opacity),
-            )
-            .into(),
-            border: Border::default().rounded(32),
-            ..container::Style::default()
-        })
+        .padding([8, 4])
     }
 }
 
