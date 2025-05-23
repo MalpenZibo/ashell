@@ -237,7 +237,7 @@ impl SystemInfo {
                 .push(Self::info_element(
                     Icons::Mem,
                     "Swap memory Usage".to_string(),
-                    format!("{}%", self.data.memory_usage),
+                    format!("{}%", self.data.memory_swap_usage),
                 ))
                 .push_maybe(self.data.temperature.map(|temp| {
                     Self::info_element(

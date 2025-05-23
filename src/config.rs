@@ -7,6 +7,7 @@ use iced::{
 };
 use inotify::{Event, EventMask, Inotify, WatchMask};
 use serde::{Deserialize, Deserializer, de::Error};
+use std::collections::HashMap;
 use std::{any::TypeId, env, fs::File, io::Read, path::Path};
 
 use crate::app::Message;
@@ -14,14 +15,12 @@ use crate::app::Message;
 const CONFIG_PATH: &str = "~/.config/ashell/config.toml";
 
 #[derive(Deserialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
 pub struct UpdatesModuleConfig {
     pub check_cmd: String,
     pub update_cmd: String,
 }
 
 #[derive(Deserialize, Clone, Default, PartialEq, Eq, Debug)]
-#[serde(rename_all = "camelCase")]
 pub enum WorkspaceVisibilityMode {
     #[default]
     All,
@@ -29,7 +28,6 @@ pub enum WorkspaceVisibilityMode {
 }
 
 #[derive(Deserialize, Clone, Default, Debug)]
-#[serde(rename_all = "camelCase")]
 pub struct WorkspacesModuleConfig {
     #[serde(default)]
     pub visibility_mode: WorkspaceVisibilityMode,
@@ -37,8 +35,13 @@ pub struct WorkspacesModuleConfig {
     pub enable_workspace_filling: bool,
 }
 
+#[derive(Deserialize, Clone, Default, Debug)]
+pub struct KeyboardLayoutModuleConfig {
+    #[serde(default)]
+    pub labels: HashMap<String, String>,
+}
+
 #[derive(Deserialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
 pub struct SystemInfoCpu {
     #[serde(default = "default_cpu_warn_threshold")]
     pub warn_threshold: u32,
@@ -56,7 +59,6 @@ impl Default for SystemInfoCpu {
 }
 
 #[derive(Deserialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
 pub struct SystemInfoMemory {
     #[serde(default = "default_mem_warn_threshold")]
     pub warn_threshold: u32,
@@ -74,7 +76,6 @@ impl Default for SystemInfoMemory {
 }
 
 #[derive(Deserialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
 pub struct SystemInfoTemperature {
     #[serde(default = "default_temp_warn_threshold")]
     pub warn_threshold: i32,
@@ -92,7 +93,6 @@ impl Default for SystemInfoTemperature {
 }
 
 #[derive(Deserialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
 pub struct SystemInfoDisk {
     #[serde(default = "default_disk_warn_threshold")]
     pub warn_threshold: u32,
@@ -110,7 +110,6 @@ impl Default for SystemInfoDisk {
 }
 
 #[derive(Deserialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
 pub enum SystemIndicator {
     Cpu,
     Memory,
@@ -123,7 +122,6 @@ pub enum SystemIndicator {
 }
 
 #[derive(Deserialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
 pub struct SystemModuleConfig {
     #[serde(default = "default_system_indicators")]
     pub indicators: Vec<SystemIndicator>,
@@ -190,7 +188,6 @@ impl Default for SystemModuleConfig {
 }
 
 #[derive(Deserialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
 pub struct ClockModuleConfig {
     pub format: String,
 }
@@ -204,7 +201,6 @@ impl Default for ClockModuleConfig {
 }
 
 #[derive(Deserialize, Default, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
 pub struct SettingsModuleConfig {
     pub lock_cmd: Option<String>,
     pub audio_sinks_more_cmd: Option<String>,
@@ -215,7 +211,6 @@ pub struct SettingsModuleConfig {
 }
 
 #[derive(Deserialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
 pub struct MediaPlayerModuleConfig {
     #[serde(default = "default_media_player_max_title_length")]
     pub max_title_length: u32,
@@ -235,7 +230,6 @@ fn default_media_player_max_title_length() -> u32 {
 
 #[derive(Deserialize, Clone, Copy, Debug)]
 #[serde(untagged)]
-#[serde(rename_all = "camelCase")]
 pub enum AppearanceColor {
     Simple(HexColor),
     Complete {
@@ -291,7 +285,6 @@ impl AppearanceColor {
 }
 
 #[derive(Deserialize, Default, Copy, Clone, Eq, PartialEq, Debug)]
-#[serde(rename_all = "camelCase")]
 pub enum AppearanceStyle {
     #[default]
     Islands,
@@ -300,7 +293,6 @@ pub enum AppearanceStyle {
 }
 
 #[derive(Deserialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
 pub struct MenuAppearance {
     #[serde(default = "default_opacity")]
     pub opacity: f32,
@@ -318,7 +310,6 @@ impl Default for MenuAppearance {
 }
 
 #[derive(Deserialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
 pub struct Appearance {
     #[serde(default)]
     pub font_name: Option<String>,
@@ -423,7 +414,6 @@ impl Default for Appearance {
 }
 
 #[derive(Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
 pub enum Position {
     #[default]
     Top,
@@ -431,7 +421,6 @@ pub enum Position {
 }
 
 #[derive(Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
 pub enum ModuleName {
     AppLauncher,
     Updates,
@@ -449,7 +438,6 @@ pub enum ModuleName {
 }
 
 #[derive(Deserialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
 #[serde(untagged)]
 pub enum ModuleDef {
     Single(ModuleName),
@@ -457,7 +445,6 @@ pub enum ModuleDef {
 }
 
 #[derive(Deserialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
 pub struct Modules {
     #[serde(default)]
     pub left: Vec<ModuleDef>,
@@ -482,7 +469,6 @@ impl Default for Modules {
 }
 
 #[derive(Deserialize, Clone, Default, Debug, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
 pub enum Outputs {
     #[default]
     All,
@@ -505,7 +491,6 @@ where
 }
 
 #[derive(Deserialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
 pub struct Config {
     #[serde(default = "default_log_level")]
     pub log_level: String,
@@ -533,6 +518,8 @@ pub struct Config {
     pub appearance: Appearance,
     #[serde(default)]
     pub media_player: MediaPlayerModuleConfig,
+    #[serde(default)]
+    pub keyboard_layout: KeyboardLayoutModuleConfig,
 }
 
 fn default_log_level() -> String {
@@ -560,6 +547,7 @@ impl Default for Config {
             settings: SettingsModuleConfig::default(),
             appearance: Appearance::default(),
             media_player: MediaPlayerModuleConfig::default(),
+            keyboard_layout: KeyboardLayoutModuleConfig::default(),
         }
     }
 }
@@ -569,7 +557,7 @@ pub fn read_config() -> Result<Config, toml::de::Error> {
     let file_path = format!("{}{}", home_dir, CONFIG_PATH.replace('~', ""));
 
     let mut content = String::new();
-    let read_result = File::open(file_path).and_then(|mut file| file.read_to_string(&mut content));
+    let read_result = File::open(&file_path).and_then(|mut file| file.read_to_string(&mut content));
 
     match read_result {
         Ok(_) => {
@@ -577,7 +565,14 @@ pub fn read_config() -> Result<Config, toml::de::Error> {
 
             toml::from_str(&content)
         }
-        _ => Ok(Config::default()),
+        Err(e) => {
+            log::warn!(
+                "Failed to read config file from {}: {}. Using default config",
+                file_path,
+                e
+            );
+            Ok(Config::default())
+        }
     }
 }
 

@@ -1,5 +1,5 @@
 use app::App;
-use config::read_config;
+use config::{Config, read_config};
 use flexi_logger::{
     Age, Cleanup, Criterion, FileSpec, LogSpecBuilder, LogSpecification, Logger, Naming,
 };
@@ -56,7 +56,10 @@ async fn main() -> iced::Result {
     }));
 
     let config = read_config().unwrap_or_else(|err| {
-        panic!("Failed to parse config file: {}", err);
+        error!("Failed to parse config file: {}", err);
+
+        error!("Using default config");
+        Config::default()
     });
 
     logger.set_new_spec(get_log_spec(&config.log_level));
