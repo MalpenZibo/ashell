@@ -1,14 +1,194 @@
+use crate::services::{
+    bluetooth::BluetoothService,
+    network::{NetworkBackend, NetworkData, NetworkEvent},
+};
+
 use super::{AccessPoint, ActiveConnectionInfo, KnownConnection, Vpn};
-use iced::futures::StreamExt;
+use iced::futures::{Stream, StreamExt, stream::select_all};
 use itertools::Itertools;
 use log::debug;
 use std::{collections::HashMap, ops::Deref};
+use tokio::process::Command;
 use zbus::{
     Result, proxy,
     zvariant::{self, ObjectPath, OwnedObjectPath, OwnedValue, Value},
 };
 
 pub struct NetworkDbus<'a>(NetworkManagerProxy<'a>);
+
+impl super::NetworkBackend for NetworkDbus<'_> {
+    async fn initialize_data(&self) -> anyhow::Result<super::NetworkData> {
+        let nm = self;
+
+        // airplane mode
+        let bluetooth_soft_blocked = BluetoothService::check_rfkill_soft_block()
+            .await
+            .unwrap_or_default();
+
+        let wifi_present = nm.wifi_device_present().await?;
+
+        let wifi_enabled = nm.wireless_enabled().await.unwrap_or_default();
+        debug!("Wifi enabled: {}", wifi_enabled);
+
+        let airplane_mode = bluetooth_soft_blocked && !wifi_enabled;
+        debug!("Airplane mode: {}", airplane_mode);
+
+        let active_connections = nm.active_connections_info().await?;
+        debug!("Active connections: {:?}", active_connections);
+
+        let wireless_access_points = nm.wireless_access_points().await?;
+        debug!("Wireless access points: {:?}", wireless_access_points);
+
+        let known_connections = nm
+            .known_connections_internal(&wireless_access_points)
+            .await?;
+        debug!("Known connections: {:?}", known_connections);
+
+        Ok(NetworkData {
+            wifi_present,
+            active_connections,
+            wifi_enabled,
+            airplane_mode,
+            connectivity: nm.connectivity().await?,
+            wireless_access_points,
+            known_connections,
+            scanning_nearby_wifi: false,
+        })
+    }
+
+    async fn set_airplane_mode(&self, enable: bool) -> anyhow::Result<()> {
+        Command::new("/usr/sbin/rfkill")
+            .arg(if enable { "block" } else { "unblock" })
+            .arg("bluetooth")
+            .output()
+            .await?;
+
+        let nm = NetworkDbus::new(self.0.inner().connection()).await?;
+        nm.set_wireless_enabled(!enable).await?;
+
+        Ok(())
+    }
+
+    async fn scan_nearby_wifi(&self) -> anyhow::Result<()> {
+        for device_path in self
+            .wireless_access_points()
+            .await?
+            .iter()
+            .map(|ap| ap.path.clone())
+        {
+            let device = WirelessDeviceProxy::builder(self.0.inner().connection())
+                .path(device_path)?
+                .build()
+                .await?;
+
+            device.request_scan(HashMap::new()).await?;
+        }
+
+        Ok(())
+    }
+
+    async fn set_wifi_enabled(&self, enable: bool) -> anyhow::Result<()> {
+        self.set_wireless_enabled(enable).await?;
+        Ok(())
+    }
+
+    async fn select_access_point(
+        &mut self,
+        access_point: &AccessPoint,
+        password: Option<String>,
+    ) -> anyhow::Result<()> {
+        let settings = NetworkSettingsDbus::new(self.0.inner().connection()).await?;
+        let connection = settings.find_connection(&access_point.ssid).await?;
+
+        if let Some(connection) = connection.as_ref() {
+            if let Some(password) = password {
+                let connection = ConnectionSettingsProxy::builder(self.0.inner().connection())
+                    .path(connection)?
+                    .build()
+                    .await?;
+
+                let mut s = connection.get_settings().await?;
+                if let Some(wifi_settings) = s.get_mut("802-11-wireless-security") {
+                    let new_password = zvariant::Value::from(password.clone()).try_to_owned()?;
+                    wifi_settings.insert("psk".to_string(), new_password);
+                }
+
+                connection.update(s).await?;
+            }
+
+            self.activate_connection(
+                connection.clone(),
+                access_point.device_path.to_owned(),
+                OwnedObjectPath::try_from("/")?,
+            )
+            .await?;
+        } else {
+            let name = access_point.ssid.clone();
+            debug!("Create new wifi connection: {}", name);
+
+            let mut conn_settings: HashMap<&str, HashMap<&str, zvariant::Value>> = HashMap::from([
+                (
+                    "802-11-wireless",
+                    HashMap::from([("ssid", Value::Array(name.as_bytes().into()))]),
+                ),
+                (
+                    "connection",
+                    HashMap::from([
+                        ("id", Value::Str(name.into())),
+                        ("type", Value::Str("802-11-wireless".into())),
+                    ]),
+                ),
+            ]);
+
+            if let Some(pass) = password {
+                conn_settings.insert(
+                    "802-11-wireless-security",
+                    HashMap::from([
+                        ("psk", Value::Str(pass.into())),
+                        ("key-mgmt", Value::Str("wpa-psk".into())),
+                    ]),
+                );
+            }
+
+            self.add_and_activate_connection(
+                conn_settings,
+                &access_point.device_path,
+                &access_point.path,
+            )
+            .await?;
+        }
+
+        Ok(())
+    }
+
+    async fn set_vpn(
+        &self,
+        connection: OwnedObjectPath,
+        enable: bool,
+    ) -> anyhow::Result<Vec<KnownConnection>> {
+        if enable {
+            debug!("Activating VPN: {:?}", connection);
+            self.activate_connection(
+                connection,
+                OwnedObjectPath::try_from("/").unwrap(),
+                OwnedObjectPath::try_from("/").unwrap(),
+            )
+            .await?;
+        } else {
+            debug!("Deactivating VPN: {:?}", connection);
+            self.deactivate_connection(connection).await?;
+        }
+
+        let known_connections = self.known_connections().await?;
+        Ok(known_connections)
+    }
+
+    async fn known_connections(&self) -> anyhow::Result<Vec<KnownConnection>> {
+        let wireless_access_points = self.wireless_access_points().await?;
+        self.known_connections_internal(&wireless_access_points)
+            .await
+    }
+}
 
 impl<'a> Deref for NetworkDbus<'a> {
     type Target = NetworkManagerProxy<'a>;
@@ -23,6 +203,208 @@ impl NetworkDbus<'_> {
         let nm = NetworkManagerProxy::new(conn).await?;
 
         Ok(Self(nm))
+    }
+
+    pub async fn subscribe_events(
+        &self,
+    ) -> anyhow::Result<impl Stream<Item = super::NetworkEvent>> {
+        let nm = self;
+        let conn = self.0.inner().connection();
+        let settings = NetworkSettingsDbus::new(conn).await?;
+
+        let wireless_enabled = nm
+            .receive_wireless_enabled_changed()
+            .await
+            .then(|v| async move {
+                let value = v.get().await.unwrap_or_default();
+
+                debug!("WiFi enabled changed: {}", value);
+                NetworkEvent::WiFiEnabled(value)
+            })
+            .boxed();
+
+        let connectivity_changed = nm
+            .receive_connectivity_changed()
+            .await
+            .then(|val| async move {
+                let value = val.get().await.unwrap_or_default().into();
+
+                debug!("Connectivity changed: {:?}", value);
+                NetworkEvent::Connectivity(value)
+            })
+            .boxed();
+
+        let active_connections_changes = nm
+            .receive_active_connections_changed()
+            .await
+            .then({
+                let conn = conn.clone();
+                move |_| {
+                    let conn = conn.clone();
+                    async move {
+                        let nm = NetworkDbus::new(&conn).await.unwrap();
+                        let value = nm.active_connections_info().await.unwrap_or_default();
+
+                        debug!("Active connections changed: {:?}", value);
+                        NetworkEvent::ActiveConnections(value)
+                    }
+                }
+            })
+            .boxed();
+
+        let devices = nm.wireless_devices().await.unwrap_or_default();
+
+        let wireless_devices_changed = nm
+            .receive_devices_changed()
+            .await
+            .filter_map({
+                let conn = conn.clone();
+                let devices = devices.clone();
+                move |_| {
+                    let conn = conn.clone();
+                    let devices = devices.clone();
+                    async move {
+                        let nm = NetworkDbus::new(&conn).await.unwrap();
+
+                        let current_devices = nm.wireless_devices().await.unwrap_or_default();
+                        if current_devices != devices {
+                            let wifi_present = nm.wifi_device_present().await.unwrap_or_default();
+                            let wireless_access_points =
+                                nm.wireless_access_points().await.unwrap_or_default();
+
+                            debug!(
+                                "Wireless device changed: wifi present {:?}, wireless_access_points {:?}",
+                                wifi_present, wireless_access_points,
+                            );
+                            Some(NetworkEvent::WirelessDevice {
+                                wifi_present,
+                                wireless_access_points,
+                            })
+                        } else {
+                            None
+                        }
+                    }
+                }
+            })
+            .boxed();
+
+        // When devices list change I need to update the wireless device state changes
+        let wireless_ac = nm.wireless_access_points().await?;
+
+        let mut device_state_changes = Vec::with_capacity(wireless_ac.len());
+        for ac in wireless_ac.iter() {
+            let dp = DeviceProxy::builder(conn)
+                .path(ac.device_path.clone())?
+                .build()
+                .await?;
+
+            device_state_changes.push(
+                dp.receive_state_changed()
+                    .await
+                    .filter_map(|val| async move {
+                        let val = val.get().await;
+                        let val = val.map(DeviceState::from).unwrap_or_default();
+
+                        if val == DeviceState::NeedAuth {
+                            Some(val)
+                        } else {
+                            None
+                        }
+                    })
+                    .map(|_| {
+                        let ssid = ac.ssid.clone();
+
+                        debug!("Request password for ssid {}", ssid);
+                        NetworkEvent::RequestPasswordForSSID(ssid)
+                    }),
+            );
+        }
+
+        // When devices list change I need to update the access points changes
+        let mut ac_changes = Vec::with_capacity(wireless_ac.len());
+        for ac in wireless_ac.iter() {
+            let dp = WirelessDeviceProxy::builder(conn)
+                .path(ac.device_path.clone())?
+                .build()
+                .await?;
+
+            ac_changes.push(
+                dp.receive_access_points_changed()
+                    .await
+                    .then({
+                        let conn = conn.clone();
+                        move |_| {
+                            let conn = conn.clone();
+                            async move {
+                                let nm = NetworkDbus::new(&conn).await.unwrap();
+                                let wireless_access_point =
+                                    nm.wireless_access_points().await.unwrap_or_default();
+                                debug!("access_points_changed {:?}", wireless_access_point);
+
+                                NetworkEvent::WirelessAccessPoint(wireless_access_point)
+                            }
+                        }
+                    })
+                    .boxed(),
+            );
+        }
+
+        // When devices list change I need to update the wireless strength changes
+        let mut strength_changes = Vec::with_capacity(wireless_ac.len());
+        for ap in wireless_ac {
+            let ssid = ap.ssid.clone();
+            let app = AccessPointProxy::builder(conn)
+                .path(ap.path.clone())?
+                .build()
+                .await?;
+
+            strength_changes.push(
+                app.receive_strength_changed()
+                    .await
+                    .then(move |val| {
+                        let ssid = ssid.clone();
+                        async move {
+                            let value = val.get().await.unwrap_or_default();
+                            debug!("Strength changed value: {}, {}", &ssid, value);
+                            NetworkEvent::Strength((ssid.clone(), value))
+                        }
+                    })
+                    .boxed(),
+            );
+        }
+        let strength_changes = select_all(strength_changes).boxed();
+
+        let access_points = select_all(ac_changes).boxed();
+
+        let known_connections = settings
+            .receive_connections_changed()
+            .await
+            .then({
+                let conn = conn.clone();
+                move |_| {
+                    let conn = conn.clone();
+                    async move {
+                        let nm = NetworkDbus::new(&conn).await.unwrap();
+                        let known_connections = nm.known_connections().await.unwrap_or_default();
+
+                        debug!("Known connections changed");
+                        NetworkEvent::KnownConnections(known_connections)
+                    }
+                }
+            })
+            .boxed();
+
+        let events = select_all(vec![
+            wireless_enabled,
+            wireless_devices_changed,
+            connectivity_changed,
+            active_connections_changes,
+            access_points,
+            strength_changes,
+            known_connections,
+        ]);
+
+        Ok(events)
     }
 
     pub async fn connectivity(&self) -> Result<ConnectivityState> {
@@ -138,7 +520,7 @@ impl NetworkDbus<'_> {
         Ok(info)
     }
 
-    pub async fn known_connections(
+    pub async fn known_connections_internal(
         &self,
         wireless_access_points: &[AccessPoint],
     ) -> anyhow::Result<Vec<KnownConnection>> {
@@ -269,8 +651,8 @@ impl NetworkDbus<'_> {
                             state,
                             public,
                             working: false,
-                            path: ap.inner().path().to_owned(),
-                            device_path: device.0.path().to_owned(),
+                            path: ap.inner().path().clone().into(),
+                            device_path: device.0.path().clone().into(),
                         },
                     );
                 }
@@ -295,75 +677,6 @@ impl NetworkDbus<'_> {
         wireless_access_points.sort_by(|a, b| b.strength.cmp(&a.strength));
 
         Ok(wireless_access_points)
-    }
-
-    pub async fn select_access_point(
-        &self,
-        access_point: &AccessPoint,
-        password: Option<String>,
-    ) -> anyhow::Result<()> {
-        let settings = NetworkSettingsDbus::new(self.0.inner().connection()).await?;
-        let connection = settings.find_connection(&access_point.ssid).await?;
-
-        if let Some(connection) = connection.as_ref() {
-            if let Some(password) = password {
-                let connection = ConnectionSettingsProxy::builder(self.0.inner().connection())
-                    .path(connection)?
-                    .build()
-                    .await?;
-
-                let mut s = connection.get_settings().await?;
-                if let Some(wifi_settings) = s.get_mut("802-11-wireless-security") {
-                    let new_password = zvariant::Value::from(password.clone()).try_to_owned()?;
-                    wifi_settings.insert("psk".to_string(), new_password);
-                }
-
-                connection.update(s).await?;
-            }
-
-            self.activate_connection(
-                connection.clone(),
-                access_point.device_path.to_owned().into(),
-                OwnedObjectPath::try_from("/")?,
-            )
-            .await?;
-        } else {
-            let name = access_point.ssid.clone();
-            debug!("Create new wifi connection: {}", name);
-
-            let mut conn_settings: HashMap<&str, HashMap<&str, zvariant::Value>> = HashMap::from([
-                (
-                    "802-11-wireless",
-                    HashMap::from([("ssid", Value::Array(name.as_bytes().into()))]),
-                ),
-                (
-                    "connection",
-                    HashMap::from([
-                        ("id", Value::Str(name.into())),
-                        ("type", Value::Str("802-11-wireless".into())),
-                    ]),
-                ),
-            ]);
-
-            if let Some(pass) = password {
-                conn_settings.insert(
-                    "802-11-wireless-security",
-                    HashMap::from([
-                        ("psk", Value::Str(pass.into())),
-                        ("key-mgmt", Value::Str("wpa-psk".into())),
-                    ]),
-                );
-            }
-
-            self.add_and_activate_connection(
-                conn_settings,
-                &access_point.device_path,
-                &access_point.path,
-            )
-            .await?;
-        }
-
-        Ok(())
     }
 }
 
@@ -486,6 +799,49 @@ impl From<u32> for ConnectivityState {
         }
     }
 }
+
+// Used by iwd
+impl From<String> for ConnectivityState {
+    fn from(state: String) -> ConnectivityState {
+        match state.as_str() {
+            "inactive" | "disconnected" => ConnectivityState::None,
+            "portal" => ConnectivityState::Portal,
+            "failed" => ConnectivityState::Loss,
+            "connected" => ConnectivityState::Full,
+            _ => ConnectivityState::Unknown, // scanning, connecting
+        }
+    }
+}
+
+impl From<Vec<ConnectivityState>> for ConnectivityState {
+    fn from(states: Vec<ConnectivityState>) -> ConnectivityState {
+        if states.is_empty() {
+            return ConnectivityState::Unknown;
+        }
+
+        let mut state = states[0];
+        for s in states.iter().skip(1) {
+            if Into::<u32>::into(*s) >= state.into() {
+                state = *s;
+            }
+        }
+
+        state
+    }
+}
+
+impl From<ConnectivityState> for u32 {
+    fn from(val: ConnectivityState) -> Self {
+        match val {
+            ConnectivityState::None => 1,
+            ConnectivityState::Portal => 2,
+            ConnectivityState::Loss => 3,
+            ConnectivityState::Full => 4,
+            _ => 0,
+        }
+    }
+}
+
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeviceState {
     Unmanaged,
