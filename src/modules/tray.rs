@@ -113,7 +113,7 @@ impl TrayModule {
                 Column::new()
                     .push(
                         button(row!(
-                            text(label.to_owned()).width(Length::Fill),
+                            text(label.replace("_", "").to_owned()).width(Length::Fill),
                             icon(if is_open {
                                 Icons::MenuOpen
                             } else {
