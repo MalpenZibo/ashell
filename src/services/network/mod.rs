@@ -1,24 +1,60 @@
 use super::{Service, ServiceEvent};
-use crate::services::{ReadOnlyService, bluetooth::BluetoothService};
-use dbus::{
-    AccessPointProxy, ConnectivityState, DeviceProxy, DeviceState, NetworkDbus,
-    NetworkSettingsDbus, WirelessDeviceProxy,
-};
+use crate::services::ReadOnlyService;
+use dbus::ConnectivityState;
+use dbus::NetworkDbus;
+use iced::futures::TryFutureExt;
+use iced::futures::stream::pending;
 use iced::{
     Subscription, Task,
-    futures::{
-        SinkExt, Stream, StreamExt,
-        channel::mpsc::Sender,
-        stream::{pending, select_all},
-    },
+    futures::{SinkExt, StreamExt, channel::mpsc::Sender},
     stream::channel,
 };
+use iwd_dbus::IwdDbus;
 use log::{debug, error, info};
-use std::{any::TypeId, collections::HashMap, ops::Deref};
-use tokio::process::Command;
-use zbus::zvariant::{ObjectPath, OwnedObjectPath};
+use std::{any::TypeId, ops::Deref};
+use zbus::zvariant::OwnedObjectPath;
 
 pub mod dbus;
+pub mod iwd_dbus;
+
+/// Trait defining the interface for a network backend.
+/// This allows abstracting the specific D-Bus implementation (like IWD or NetworkManager).
+pub trait NetworkBackend: Send + Sync {
+    /// Initializes the backend and fetches the initial network data.
+    async fn initialize_data(&self) -> anyhow::Result<NetworkData>;
+
+    // / Subscribes to network events from the backend.
+    // / Returns a stream of `NetworkEvent`s.
+    // NOTE: the backend implementation diverged and the lifetimes are unhappy
+    //async fn subscribe_events(&self) -> anyhow::Result<impl Stream<Item = NetworkEvent>>;
+
+    /// Toggles the airplane mode.
+    async fn set_airplane_mode(&self, enable: bool) -> anyhow::Result<()>;
+
+    /// Scans for nearby Wi-Fi networks.
+    async fn scan_nearby_wifi(&self) -> anyhow::Result<()>;
+
+    /// Enables or disables Wi-Fi.
+    async fn set_wifi_enabled(&self, enable: bool) -> anyhow::Result<()>;
+
+    /// Connects to a specific access point, potentially with a password.
+    /// Returns the updated list of known connections.
+    async fn select_access_point(
+        &mut self,
+        ap: &AccessPoint,
+        password: Option<String>,
+    ) -> anyhow::Result<()>;
+
+    async fn known_connections(&self) -> anyhow::Result<Vec<KnownConnection>>;
+
+    /// Enables or disables a VPN connection.
+    /// Returns the updated list of known connections.
+    async fn set_vpn(
+        &self,
+        connection_path: OwnedObjectPath,
+        enable: bool,
+    ) -> anyhow::Result<Vec<KnownConnection>>;
+}
 
 #[derive(Debug, Clone)]
 pub enum NetworkEvent {
@@ -50,11 +86,11 @@ pub enum NetworkCommand {
 pub struct AccessPoint {
     pub ssid: String,
     pub strength: u8,
-    pub state: DeviceState,
+    pub state: dbus::DeviceState,
     pub public: bool,
     pub working: bool,
-    pub path: ObjectPath<'static>,
-    pub device_path: ObjectPath<'static>,
+    pub path: OwnedObjectPath,
+    pub device_path: OwnedObjectPath,
 }
 
 #[derive(Debug, Clone)]
@@ -112,6 +148,7 @@ pub struct NetworkData {
 pub struct NetworkService {
     data: NetworkData,
     conn: zbus::Connection,
+    backend_choice: BackendChoice,
 }
 
 impl Deref for NetworkService {
@@ -124,7 +161,7 @@ impl Deref for NetworkService {
 
 enum State {
     Init,
-    Active(zbus::Connection),
+    Active(zbus::Connection, BackendChoice),
     Error,
 }
 
@@ -203,66 +240,183 @@ impl ReadOnlyService for NetworkService {
     }
 }
 
-impl NetworkService {
-    async fn initialize_data(conn: &zbus::Connection) -> anyhow::Result<NetworkData> {
-        let nm = NetworkDbus::new(conn).await?;
+#[derive(Debug, Copy, Clone)]
+enum BackendChoice {
+    NetworkManager,
+    Iwd,
+}
 
-        // airplane mode
-        let bluetooth_soft_blocked = BluetoothService::check_rfkill_soft_block()
-            .await
-            .unwrap_or_default();
+impl BackendChoice {
+    fn with_connection(self, conn: zbus::Connection) -> BackendChoiceWithConnection {
+        BackendChoiceWithConnection { choice: self, conn }
+    }
+}
 
-        let wifi_present = nm.wifi_device_present().await?;
+struct BackendChoiceWithConnection {
+    choice: BackendChoice,
+    conn: zbus::Connection,
+}
 
-        let wifi_enabled = nm.wireless_enabled().await.unwrap_or_default();
-        debug!("Wifi enabled: {}", wifi_enabled);
-
-        let airplane_mode = bluetooth_soft_blocked && !wifi_enabled;
-        debug!("Airplane mode: {}", airplane_mode);
-
-        let active_connections = nm.active_connections_info().await?;
-        debug!("Active connections: {:?}", active_connections);
-
-        let wireless_access_points = nm.wireless_access_points().await?;
-        debug!("Wireless access points: {:?}", wireless_access_points);
-
-        let known_connections = nm.known_connections(&wireless_access_points).await?;
-        debug!("Known connections: {:?}", known_connections);
-
-        Ok(NetworkData {
-            wifi_present,
-            active_connections,
-            wifi_enabled,
-            airplane_mode,
-            connectivity: nm.connectivity().await?,
-            wireless_access_points,
-            known_connections,
-            scanning_nearby_wifi: false,
-        })
+impl NetworkBackend for BackendChoiceWithConnection {
+    async fn initialize_data(&self) -> anyhow::Result<NetworkData> {
+        match self.choice {
+            BackendChoice::NetworkManager => {
+                NetworkDbus::new(&self.conn).await?.initialize_data().await
+            }
+            BackendChoice::Iwd => IwdDbus::new(&self.conn).await?.initialize_data().await,
+        }
     }
 
+    async fn set_airplane_mode(&self, enable: bool) -> anyhow::Result<()> {
+        match self.choice {
+            BackendChoice::NetworkManager => {
+                NetworkDbus::new(&self.conn)
+                    .await?
+                    .set_airplane_mode(enable)
+                    .await
+            }
+            BackendChoice::Iwd => {
+                IwdDbus::new(&self.conn)
+                    .await?
+                    .set_airplane_mode(enable)
+                    .await
+            }
+        }
+    }
+
+    async fn scan_nearby_wifi(&self) -> anyhow::Result<()> {
+        match self.choice {
+            BackendChoice::NetworkManager => {
+                NetworkDbus::new(&self.conn).await?.scan_nearby_wifi().await
+            }
+            BackendChoice::Iwd => IwdDbus::new(&self.conn).await?.scan_nearby_wifi().await,
+        }
+    }
+
+    async fn set_wifi_enabled(&self, enable: bool) -> anyhow::Result<()> {
+        match self.choice {
+            BackendChoice::NetworkManager => {
+                NetworkDbus::new(&self.conn)
+                    .await?
+                    .set_wifi_enabled(enable)
+                    .await
+            }
+            BackendChoice::Iwd => {
+                IwdDbus::new(&self.conn)
+                    .await?
+                    .set_wifi_enabled(enable)
+                    .await
+            }
+        }
+    }
+
+    async fn select_access_point(
+        &mut self,
+        ap: &AccessPoint,
+        password: Option<String>,
+    ) -> anyhow::Result<()> {
+        match self.choice {
+            BackendChoice::NetworkManager => {
+                NetworkDbus::new(&self.conn)
+                    .await?
+                    .select_access_point(ap, password)
+                    .await
+            }
+            BackendChoice::Iwd => {
+                IwdDbus::new(&self.conn)
+                    .await?
+                    .select_access_point(ap, password)
+                    .await
+            }
+        }
+    }
+
+    async fn set_vpn(
+        &self,
+        connection_path: OwnedObjectPath,
+        enable: bool,
+    ) -> anyhow::Result<Vec<KnownConnection>> {
+        match self.choice {
+            BackendChoice::NetworkManager => {
+                NetworkDbus::new(&self.conn)
+                    .await?
+                    .set_vpn(connection_path, enable)
+                    .await
+            }
+            // IWD does not handle VPNs directly
+            BackendChoice::Iwd => Err(anyhow::anyhow!("IWD does not support VPN management")),
+        }
+    }
+
+    async fn known_connections(&self) -> anyhow::Result<Vec<KnownConnection>> {
+        match self.choice {
+            BackendChoice::NetworkManager => {
+                NetworkDbus::new(&self.conn)
+                    .await?
+                    .known_connections()
+                    .await
+            }
+            BackendChoice::Iwd => IwdDbus::new(&self.conn).await?.known_connections().await,
+        }
+    }
+}
+
+impl NetworkService {
     async fn start_listening(state: State, output: &mut Sender<ServiceEvent<Self>>) -> State {
         match state {
             State::Init => match zbus::Connection::system().await {
                 Ok(conn) => {
-                    let data = NetworkService::initialize_data(&conn).await;
+                    // get first backend that is available
+                    info!("Connecting to backend");
+                    let maybe_backend: Result<(NetworkData, BackendChoice), _> =
+                        match NetworkDbus::new(&conn)
+                            .and_then(|nm| async move { nm.initialize_data().await })
+                            .await
+                        {
+                            Ok(data) => {
+                                info!("NetworkManager service initialized");
+                                Ok((data, BackendChoice::NetworkManager))
+                            }
+                            Err(err) => {
+                                info!(
+                                    "Failed to initialize NetworkManager. Falling back to iwd. Error: {}",
+                                    err
+                                );
+                                match IwdDbus::new(&conn)
+                                    .and_then(|iwd| async move { iwd.initialize_data().await })
+                                    .await
+                                {
+                                    Ok(data) => {
+                                        info!("IWD service initialized");
+                                        Ok((data, BackendChoice::Iwd))
+                                    }
+                                    Err(err) => {
+                                        error!("Failed to initialize network service: {}", err);
+                                        Err(err)
+                                    }
+                                }
+                            }
+                        };
+                    info!("Connected");
 
-                    match data {
-                        Ok(data) => {
+                    match maybe_backend {
+                        Ok((data, choice)) => {
                             info!("Network service initialized");
-
                             let _ = output
                                 .send(ServiceEvent::Init(NetworkService {
                                     data,
                                     conn: conn.clone(),
+                                    backend_choice: choice,
                                 }))
                                 .await;
-
-                            State::Active(conn)
+                            State::Active(conn, choice)
                         }
                         Err(err) => {
-                            error!("Failed to initialize network service: {}", err);
-
+                            if err.is::<zbus::Error>() {
+                                error!("Failed to connect to system bus: {}", err);
+                            } else {
+                                error!("Failed to initialize network service: {}", err);
+                            }
                             State::Error
                         }
                     }
@@ -273,31 +427,75 @@ impl NetworkService {
                     State::Error
                 }
             },
-            State::Active(conn) => {
+            State::Active(conn, choice) => {
                 info!("Listening for network events");
 
-                match NetworkService::events(&conn).await {
-                    Ok(mut events) => {
-                        while let Some(event) = events.next().await {
-                            let mut exit_loop = false;
-                            if let NetworkEvent::WirelessDevice { .. } = event {
-                                exit_loop = true;
+                // TODO: i dont know how to combine the opaque types.. rust streams
+                match choice {
+                    BackendChoice::NetworkManager => {
+                        let nm = match NetworkDbus::new(&conn).await {
+                            Ok(nm) => nm,
+                            Err(e) => {
+                                error!("Failed to create NetworkDbus: {}", e);
+                                return State::Error;
                             }
-                            let _ = output.send(ServiceEvent::Update(event)).await;
+                        };
 
-                            if exit_loop {
-                                break;
+                        match nm.subscribe_events().await {
+                            Ok(mut events) => {
+                                while let Some(event) = events.next().await {
+                                    let mut exit_loop = false;
+                                    // TODO: why do we do this?
+                                    if let NetworkEvent::WirelessDevice { .. } = event {
+                                        exit_loop = true;
+                                    }
+                                    let _ = output.send(ServiceEvent::Update(event)).await;
+
+                                    if exit_loop {
+                                        break;
+                                    }
+                                }
+
+                                debug!("Network service exit events stream");
+
+                                State::Active(conn, choice)
+                            }
+                            Err(err) => {
+                                error!("Failed to listen for network events: {}", err);
+
+                                State::Error
                             }
                         }
-
-                        debug!("Network service exit events stream");
-
-                        State::Active(conn)
                     }
-                    Err(err) => {
-                        error!("Failed to listen for network events: {}", err);
+                    BackendChoice::Iwd => {
+                        let iwd = match IwdDbus::new(&conn).await {
+                            Ok(iwd) => iwd,
+                            Err(err) => {
+                                error!("Failed to create IwdDbus: {}", err);
+                                return State::Error;
+                            }
+                        };
+                        match iwd.subscribe_events().await {
+                            Ok(mut event_s) => {
+                                while let Some(events) = event_s.next().await {
+                                    for event in events {
+                                        // TODO: network manager leaves with device - we can also
+                                        // do that, but would need a different way to disable
+                                        // scanning
+                                        let _ = output.send(ServiceEvent::Update(event)).await;
+                                    }
+                                }
 
-                        State::Error
+                                debug!("Network service exit events stream");
+
+                                State::Active(conn, choice)
+                            }
+                            Err(err) => {
+                                error!("Failed to listen for network events: {}", err);
+
+                                State::Error
+                            }
+                        }
                     }
                 }
             }
@@ -310,287 +508,6 @@ impl NetworkService {
             }
         }
     }
-
-    async fn events(
-        conn: &zbus::Connection,
-    ) -> anyhow::Result<impl Stream<Item = NetworkEvent> + use<>> {
-        let nm = NetworkDbus::new(conn).await?;
-        let settings = NetworkSettingsDbus::new(conn).await?;
-
-        let wireless_enabled = nm
-            .receive_wireless_enabled_changed()
-            .await
-            .then(|v| async move {
-                let value = v.get().await.unwrap_or_default();
-
-                debug!("WiFi enabled changed: {}", value);
-                NetworkEvent::WiFiEnabled(value)
-            })
-            .boxed();
-
-        let connectivity_changed = nm
-            .receive_connectivity_changed()
-            .await
-            .then(|val| async move {
-                let value = val.get().await.unwrap_or_default().into();
-
-                debug!("Connectivity changed: {:?}", value);
-                NetworkEvent::Connectivity(value)
-            })
-            .boxed();
-
-        let active_connections_changes = nm
-            .receive_active_connections_changed()
-            .await
-            .then({
-                let conn = conn.clone();
-                move |_| {
-                    let conn = conn.clone();
-                    async move {
-                        let nm = NetworkDbus::new(&conn).await.unwrap();
-                        let value = nm.active_connections_info().await.unwrap_or_default();
-
-                        debug!("Active connections changed: {:?}", value);
-                        NetworkEvent::ActiveConnections(value)
-                    }
-                }
-            })
-            .boxed();
-
-        let devices = nm.wireless_devices().await.unwrap_or_default();
-
-        let wireless_devices_changed = nm
-            .receive_devices_changed()
-            .await
-            .filter_map({
-                let conn = conn.clone();
-                let devices = devices.clone();
-                move |_| {
-                    let conn = conn.clone();
-                    let devices = devices.clone();
-                    async move {
-                        let nm = NetworkDbus::new(&conn).await.unwrap();
-
-                        let current_devices = nm.wireless_devices().await.unwrap_or_default();
-                        if current_devices != devices {
-                            let wifi_present = nm.wifi_device_present().await.unwrap_or_default();
-                            let wireless_access_points =
-                                nm.wireless_access_points().await.unwrap_or_default();
-
-                            debug!(
-                                "Wireless device changed: wifi present {:?}, wireless_access_points {:?}",
-                                wifi_present, wireless_access_points,
-                            );
-                            Some(NetworkEvent::WirelessDevice {
-                                wifi_present,
-                                wireless_access_points,
-                            })
-                        } else {
-                            None
-                        }
-                    }
-                }
-            })
-            .boxed();
-
-        // When devices list change I need to update the wireless device state changes
-        let wireless_ac = nm.wireless_access_points().await?;
-
-        let mut device_state_changes = Vec::with_capacity(wireless_ac.len());
-        for ac in wireless_ac.iter() {
-            let dp = DeviceProxy::builder(conn)
-                .path(ac.device_path.clone())?
-                .build()
-                .await?;
-
-            device_state_changes.push(
-                dp.receive_state_changed()
-                    .await
-                    .filter_map(|val| async move {
-                        let val = val.get().await;
-                        let val = val.map(DeviceState::from).unwrap_or_default();
-
-                        if val == DeviceState::NeedAuth {
-                            Some(val)
-                        } else {
-                            None
-                        }
-                    })
-                    .map(|_| {
-                        let ssid = ac.ssid.clone();
-
-                        debug!("Request password for ssid {}", ssid);
-                        NetworkEvent::RequestPasswordForSSID(ssid)
-                    }),
-            );
-        }
-
-        // When devices list change I need to update the access points changes
-        let mut ac_changes = Vec::with_capacity(wireless_ac.len());
-        for ac in wireless_ac.iter() {
-            let dp = WirelessDeviceProxy::builder(conn)
-                .path(ac.device_path.clone())?
-                .build()
-                .await?;
-
-            ac_changes.push(
-                dp.receive_access_points_changed()
-                    .await
-                    .then({
-                        let conn = conn.clone();
-                        move |_| {
-                            let conn = conn.clone();
-                            async move {
-                                let nm = NetworkDbus::new(&conn).await.unwrap();
-                                let wireless_access_point =
-                                    nm.wireless_access_points().await.unwrap_or_default();
-                                debug!("access_points_changed {:?}", wireless_access_point);
-
-                                NetworkEvent::WirelessAccessPoint(wireless_access_point)
-                            }
-                        }
-                    })
-                    .boxed(),
-            );
-        }
-
-        // When devices list change I need to update the wireless strength changes
-        let mut strength_changes = Vec::with_capacity(wireless_ac.len());
-        for ap in wireless_ac {
-            let ssid = ap.ssid.clone();
-            let app = AccessPointProxy::builder(conn)
-                .path(ap.path.clone())?
-                .build()
-                .await?;
-
-            strength_changes.push(
-                app.receive_strength_changed()
-                    .await
-                    .then(move |val| {
-                        let ssid = ssid.clone();
-                        async move {
-                            let value = val.get().await.unwrap_or_default();
-                            debug!("Strength changed value: {}, {}", &ssid, value);
-                            NetworkEvent::Strength((ssid.clone(), value))
-                        }
-                    })
-                    .boxed(),
-            );
-        }
-        let strength_changes = select_all(strength_changes).boxed();
-
-        let access_points = select_all(ac_changes).boxed();
-
-        let known_connections = settings
-            .receive_connections_changed()
-            .await
-            .then({
-                let conn = conn.clone();
-                move |_| {
-                    let conn = conn.clone();
-                    async move {
-                        let nm = NetworkDbus::new(&conn).await.unwrap();
-                        let wireless_access_points =
-                            nm.wireless_access_points().await.unwrap_or_default();
-
-                        let known_connections = nm
-                            .known_connections(&wireless_access_points)
-                            .await
-                            .unwrap_or_default();
-
-                        debug!("Known connections changed");
-                        NetworkEvent::KnownConnections(known_connections)
-                    }
-                }
-            })
-            .boxed();
-
-        let events = select_all(vec![
-            wireless_enabled,
-            wireless_devices_changed,
-            connectivity_changed,
-            active_connections_changes,
-            access_points,
-            strength_changes,
-            known_connections,
-        ]);
-
-        Ok(events)
-    }
-
-    async fn set_airplane_mode(conn: &zbus::Connection, airplane_mode: bool) -> anyhow::Result<()> {
-        Command::new("/usr/sbin/rfkill")
-            .arg(if airplane_mode { "block" } else { "unblock" })
-            .arg("bluetooth")
-            .output()
-            .await?;
-
-        let nm = NetworkDbus::new(conn).await?;
-        nm.set_wireless_enabled(!airplane_mode).await?;
-
-        Ok(())
-    }
-
-    async fn scan_nearby_wifi(
-        conn: &zbus::Connection,
-        wireless_devices: Vec<ObjectPath<'static>>,
-    ) -> anyhow::Result<()> {
-        for device_path in wireless_devices {
-            let device = WirelessDeviceProxy::builder(conn)
-                .path(device_path)?
-                .build()
-                .await?;
-
-            device.request_scan(HashMap::new()).await?;
-        }
-
-        Ok(())
-    }
-
-    async fn set_wifi_enabled(conn: &zbus::Connection, enabled: bool) -> anyhow::Result<()> {
-        let nm = NetworkDbus::new(conn).await?;
-        nm.set_wireless_enabled(enabled).await?;
-
-        Ok(())
-    }
-
-    async fn select_access_point(
-        conn: &zbus::Connection,
-        access_point: &AccessPoint,
-        password: Option<String>,
-    ) -> anyhow::Result<Vec<KnownConnection>> {
-        let nm = NetworkDbus::new(conn).await?;
-        nm.select_access_point(access_point, password).await?;
-
-        let wireless_ac = nm.wireless_access_points().await?;
-        let known_connections = nm.known_connections(&wireless_ac).await?;
-        Ok(known_connections)
-    }
-
-    async fn set_vpn(
-        conn: &zbus::Connection,
-        connection: OwnedObjectPath,
-        state: bool,
-    ) -> anyhow::Result<Vec<KnownConnection>> {
-        let nm = NetworkDbus::new(conn).await?;
-
-        if state {
-            debug!("Activating VPN: {:?}", connection);
-            nm.activate_connection(
-                connection,
-                OwnedObjectPath::try_from("/").unwrap(),
-                OwnedObjectPath::try_from("/").unwrap(),
-            )
-            .await?;
-        } else {
-            debug!("Deactivating VPN: {:?}", connection);
-            nm.deactivate_connection(connection).await?;
-        }
-
-        let wireless_ac = nm.wireless_access_points().await?;
-        let known_connections = nm.known_connections(&wireless_ac).await?;
-        Ok(known_connections)
-    }
 }
 
 impl Service for NetworkService {
@@ -598,15 +515,16 @@ impl Service for NetworkService {
 
     fn command(&mut self, command: Self::Command) -> Task<ServiceEvent<Self>> {
         debug!("Command: {:?}", command);
+        let conn = self.conn.clone();
+        let mut bc = self.backend_choice.with_connection(conn);
         match command {
             NetworkCommand::ToggleAirplaneMode => {
-                let conn = self.conn.clone();
                 let airplane_mode = self.airplane_mode;
 
                 Task::perform(
                     async move {
                         debug!("Toggling airplane mode to: {}", !airplane_mode);
-                        let res = Self::set_airplane_mode(&conn, !airplane_mode).await;
+                        let res = bc.set_airplane_mode(!airplane_mode).await;
 
                         if res.is_ok() {
                             !airplane_mode
@@ -617,28 +535,18 @@ impl Service for NetworkService {
                     |airplane_mode| ServiceEvent::Update(NetworkEvent::AirplaneMode(airplane_mode)),
                 )
             }
-            NetworkCommand::ScanNearByWiFi => {
-                let conn = self.conn.clone();
-                let wireless_ac = self
-                    .wireless_access_points
-                    .iter()
-                    .map(|ap| ap.path.clone())
-                    .collect();
-
-                Task::perform(
-                    async move {
-                        let _ = NetworkService::scan_nearby_wifi(&conn, wireless_ac).await;
-                    },
-                    |_| ServiceEvent::Update(NetworkEvent::ScanningNearbyWifi),
-                )
-            }
+            NetworkCommand::ScanNearByWiFi => Task::perform(
+                async move {
+                    let _ = bc.scan_nearby_wifi().await;
+                },
+                |_| ServiceEvent::Update(NetworkEvent::ScanningNearbyWifi),
+            ),
             NetworkCommand::ToggleWiFi => {
-                let conn = self.conn.clone();
                 let wifi_enabled = self.wifi_enabled;
 
                 Task::perform(
                     async move {
-                        let res = NetworkService::set_wifi_enabled(&conn, !wifi_enabled).await;
+                        let res = bc.set_wifi_enabled(!wifi_enabled).await;
 
                         if res.is_ok() {
                             !wifi_enabled
@@ -649,24 +557,18 @@ impl Service for NetworkService {
                     |wifi_enabled| ServiceEvent::Update(NetworkEvent::WiFiEnabled(wifi_enabled)),
                 )
             }
-            NetworkCommand::SelectAccessPoint((access_point, password)) => {
-                let conn = self.conn.clone();
-
-                Task::perform(
-                    async move {
-                        let res =
-                            NetworkService::select_access_point(&conn, &access_point, password)
-                                .await;
-
-                        res.unwrap_or_default()
-                    },
-                    |known_connections| {
-                        ServiceEvent::Update(NetworkEvent::KnownConnections(known_connections))
-                    },
-                )
-            }
+            NetworkCommand::SelectAccessPoint((access_point, password)) => Task::perform(
+                async move {
+                    bc.select_access_point(&access_point, password)
+                        .await
+                        .unwrap_or_default();
+                    bc.known_connections().await.unwrap_or_default()
+                },
+                |known_connections| {
+                    ServiceEvent::Update(NetworkEvent::KnownConnections(known_connections))
+                },
+            ),
             NetworkCommand::ToggleVpn(vpn) => {
-                let conn = self.conn.clone();
                 let mut active_vpn = self.active_connections.iter().find_map(|kc| match kc {
                     ActiveConnectionInfo::Vpn { name, object_path } if name == &vpn.name => {
                         Some(object_path.clone())
@@ -681,10 +583,9 @@ impl Service for NetworkService {
                         } else {
                             (vpn.path, true)
                         };
-                        let res = NetworkService::set_vpn(&conn, object_path, new_state).await;
-
+                        bc.set_vpn(object_path, new_state).await.unwrap_or_default();
+                        let res = bc.known_connections().await;
                         debug!("VPN toggled: {:?}", res);
-
                         res.unwrap_or_default()
                     },
                     |known_connections| {
