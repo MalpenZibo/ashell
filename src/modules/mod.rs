@@ -237,15 +237,16 @@ impl App {
     ) -> Option<(Element<Message>, Option<OnModulePress>)> {
         match module_name {
             ModuleName::AppLauncher => self.app_launcher.view(&self.config.app_launcher_cmd),
-            ModuleName::Custom(name) => {
-                let c = self.config.custom_modules.iter().find(|m| &m.name == name);
-                if let Some(mc) = c {
-                    self.custom.get(name).unwrap().view(mc)
-                } else {
+            ModuleName::Custom(name) => self
+                .config
+                .custom_modules
+                .iter()
+                .find(|m| &m.name == name)
+                .and_then(|mc| self.custom.get(name).map(|cm| cm.view(mc)))
+                .unwrap_or_else(|| {
                     error!("Custom module `{}` not found", name);
                     None
-                }
-            }
+                }),
             ModuleName::Updates => self.updates.view(&self.config.updates),
             ModuleName::Clipboard => self.clipboard.view(&self.config.clipboard_cmd),
             ModuleName::Workspaces => self.workspaces.view((
@@ -270,15 +271,16 @@ impl App {
     fn get_module_subscription(&self, module_name: &ModuleName) -> Option<Subscription<Message>> {
         match module_name {
             ModuleName::AppLauncher => self.app_launcher.subscription(()),
-            ModuleName::Custom(name) => {
-                let c = self.config.custom_modules.iter().find(|m| &m.name == name);
-                if let Some(mc) = c {
-                    self.custom.get(name).unwrap().subscription(mc)
-                } else {
-                    error!("Custom module `{}` not found", name);
+            ModuleName::Custom(name) => self
+                .config
+                .custom_modules
+                .iter()
+                .find(|m| &m.name == name)
+                .and_then(|mc| self.custom.get(name).map(|cm| cm.subscription(mc)))
+                .unwrap_or_else(|| {
+                    error!("Custom module def `{}` not found", name);
                     None
-                }
-            }
+                }),
             ModuleName::Updates => self
                 .config
                 .updates

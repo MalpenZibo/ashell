@@ -6,11 +6,14 @@ use iced::{
     theme::palette,
 };
 use inotify::{Event, EventMask, Inotify, WatchMask};
+use regex::Regex;
 use serde::{
     Deserialize, Deserializer,
     de::{Error, Visitor},
 };
-use std::{any::TypeId, collections::HashMap, env, fs::File, io::Read, path::Path};
+use serde_with::DisplayFromStr;
+use serde_with::serde_as;
+use std::{any::TypeId, collections::HashMap, env, fs::File, io::Read, ops::Deref, path::Path};
 
 use crate::app::Message;
 
@@ -531,8 +534,36 @@ where
     }
 }
 
+/// Newtype wrapper around `Regex`to be deserializable and usable as a hashmap key
+#[serde_as]
+#[derive(Debug, Clone, Deserialize)]
+#[serde(transparent)]
+pub struct RegexCfg(#[serde_as(as = "DisplayFromStr")] pub Regex);
+
+impl PartialEq for RegexCfg {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.as_str() == other.0.as_str()
+    }
+}
+impl Eq for RegexCfg {}
+
+impl std::hash::Hash for RegexCfg {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        // hash the raw pattern string
+        self.0.as_str().hash(state);
+    }
+}
+
+impl Deref for RegexCfg {
+    type Target = Regex;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+#[serde_as]
 #[derive(Deserialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
 pub struct CustomModuleDef {
     pub name: String,
     pub command: String,
@@ -542,9 +573,9 @@ pub struct CustomModuleDef {
     /// yields json lines containing text, alt, (pot tooltip)
     pub listen_cmd: Option<String>,
     /// map of regex -> icon
-    pub icons: Option<HashMap<String, String>>,
+    pub icons: Option<HashMap<RegexCfg, String>>,
     /// regex to show alert
-    pub alert: Option<String>,
+    pub alert: Option<RegexCfg>,
     // .. appearance etc
 }
 

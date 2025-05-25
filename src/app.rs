@@ -40,7 +40,7 @@ use iced::{
     widget::{Row, container},
     window::Id,
 };
-use log::{debug, info, warn};
+use log::{debug, error, info, warn};
 use wayland_client::protocol::wl_output::WlOutput;
 
 pub struct App {
@@ -92,20 +92,17 @@ impl App {
         || {
             let (outputs, task) = Outputs::new(config.appearance.style, config.position);
 
-            let names = config
+            let custom = config
                 .custom_modules
                 .iter()
-                .map(|o| o.name.clone())
-                .collect::<Vec<_>>();
+                .map(|o| (o.name.clone(), Custom::default()))
+                .collect();
             (
                 App {
                     logger,
                     outputs,
                     app_launcher: AppLauncher,
-                    custom: names
-                        .into_iter()
-                        .map(|n| (n.clone(), Custom::default()))
-                        .collect(),
+                    custom,
                     updates: Updates::default(),
                     clipboard: Clipboard,
                     workspaces: Workspaces::new(&config.workspaces),
@@ -223,7 +220,10 @@ impl App {
                 Task::none()
             }
             Message::CustomUpdate(name, message) => {
-                self.custom.get_mut(&name).unwrap().update(message);
+                match self.custom.get_mut(&name) {
+                    Some(c) => c.update(message),
+                    None => error!("Custom module '{}' not found", name),
+                };
                 Task::none()
             }
             Message::OpenClipboard => {

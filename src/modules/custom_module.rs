@@ -7,7 +7,7 @@ use crate::{
 };
 use iced::widget::canvas;
 use iced::{
-    Color, Element, Length, Subscription, Theme,
+    Element, Length, Subscription, Theme,
     stream::channel,
     widget::{Stack, row, text},
 };
@@ -64,7 +64,7 @@ impl<Message> Program<Message> for AlertIndicator {
         &self,
         _state: &Self::State,
         renderer: &iced::Renderer,
-        _theme: &Theme,
+        theme: &Theme,
         bounds: iced::Rectangle,
         _cursor: Cursor,
     ) -> Vec<Geometry> {
@@ -75,7 +75,7 @@ impl<Message> Program<Message> for AlertIndicator {
             // Use a smaller radius so the circle doesn't touch the canvas edges
             let radius = 2.0; // Creates a 4px diameter circle
             let circle = Path::circle(center, radius);
-            frame.fill(&circle, Color::from_rgb8(243, 139, 168)); // Red color
+            frame.fill(&circle, theme.palette().danger);
         })]
     }
 }
@@ -94,14 +94,10 @@ impl Module for Custom {
             .map_or_else(|| icon(Icons::None), |text| icon_raw(text.clone()));
 
         if let Some(icons_map) = &config.icons {
-            for (pattern_str, icon_str) in icons_map {
-                if let Ok(re) = regex::Regex::new(pattern_str) {
-                    if re.is_match(&self.data.alt) {
-                        icon_element = icon_raw(icon_str.clone());
-                        break; // Use the first match
-                    }
-                } else {
-                    error!("Invalid regex pattern in config: {}", pattern_str);
+            for (re, icon_str) in icons_map {
+                if re.is_match(&self.data.alt) {
+                    icon_element = icon_raw(icon_str.clone());
+                    break; // Use the first match
                 }
             }
         }
@@ -110,13 +106,9 @@ impl Module for Custom {
         let padded_icon_container = container(icon_element).padding([0, 1]);
 
         let mut show_alert = false;
-        if let Some(alert_pattern) = &config.alert {
-            if let Ok(re) = regex::Regex::new(alert_pattern) {
-                if re.is_match(&self.data.alt) {
-                    show_alert = true;
-                }
-            } else {
-                error!("Invalid alert regex pattern in config: {}", alert_pattern);
+        if let Some(re) = &config.alert {
+            if re.is_match(&self.data.alt) {
+                show_alert = true;
             }
         }
 
@@ -183,31 +175,35 @@ impl Module for Custom {
 
                     match command {
                         Ok(mut child) => {
-                            let mut reader = BufReader::new(child.stdout.take().unwrap()).lines();
+                            if let Some(stdout) = child.stdout.take() {
+                                let mut reader = BufReader::new(stdout).lines();
 
-                            // Ensure the child process is spawned in the runtime so it can
-                            // make progress on its own while we await for any output.
-                            tokio::spawn(async move {
-                                let status = child
-                                    .wait()
-                                    .await
-                                    .expect("child process encountered an error");
+                                // Ensure the child process is spawned in the runtime so it can
+                                // make progress on its own while we await for any output.
+                                tokio::spawn(async move {
+                                    let status = child
+                                        .wait()
+                                        .await
+                                        .expect("child process encountered an error");
 
-                                println!("child status was: {}", status);
-                            });
+                                    println!("child status was: {}", status);
+                                });
 
-                            while let Some(line) = reader.next_line().await.unwrap() {
-                                match serde_json::from_str(&line) {
-                                    Ok(event) => output
-                                        .try_send(app::Message::CustomUpdate(
-                                            name.clone(),
-                                            Message::Update(event),
-                                        ))
-                                        .unwrap(),
-                                    Err(e) => {
-                                        error!("Failed to parse JSON: {} for line {}", e, line);
+                                while let Some(line) = reader.next_line().await.ok().flatten() {
+                                    match serde_json::from_str(&line) {
+                                        Ok(event) => output
+                                            .try_send(app::Message::CustomUpdate(
+                                                name.clone(),
+                                                Message::Update(event),
+                                            ))
+                                            .unwrap(),
+                                        Err(e) => {
+                                            error!("Failed to parse JSON: {} for line {}", e, line);
+                                        }
                                     }
                                 }
+                            } else {
+                                error!("Failed to capture stdout for command: {}", check_cmd);
                             }
                         }
                         Err(error) => {
