@@ -91,7 +91,7 @@ This will build ashell from source, but you can also use `pkgs.ashell` from nixp
 - OS Updates indicator
 - Hyprland Active Window
 - Hyprland Workspaces
-- System Information (CPU, RAM, Temperature)
+- System Information (CPU, RAM, Temperature, Peripheral battery levels)
 - Hyprland Keyboard Layout
 - Hyprland Keyboard Submap
 - Tray
@@ -219,6 +219,7 @@ enable_workspace_filling = false
 #  - IpAddress
 #  - DownloadSpeed
 #  - UploadSpeed
+#  - Peripherals
 # optional, the following is the default configuration
 # If for example you want to dispay the usage of the root and home partition
 # you can use the following configuration
