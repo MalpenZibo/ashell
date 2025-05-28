@@ -241,7 +241,7 @@ impl App {
                 self.config.appearance.special_workspace_colors.as_deref(),
             )),
             ModuleName::WindowTitle => self.window_title.view(()),
-            ModuleName::SystemInfo => self.system_info.view(&self.config.system),
+            ModuleName::SystemInfo => self.system_info.view((&self.config.system, &self.upower)),
             ModuleName::KeyboardLayout => self.keyboard_layout.view(&self.config.keyboard_layout),
             ModuleName::KeyboardSubmap => self.keyboard_submap.view(()),
             ModuleName::Tray => self.tray.view((id, opacity)),

@@ -3,6 +3,7 @@ use crate::{
     components::icons::{Icons, icon},
     config::{SystemIndicator, SystemModuleConfig},
     menu::MenuType,
+    services::upower::{PeripheralDeviceKind, UPowerService},
 };
 use iced::{
     Alignment, Element, Length, Subscription, Task, Theme,
@@ -220,7 +221,7 @@ impl SystemInfo {
         }
     }
 
-    pub fn menu_view(&self) -> Element<Message> {
+    pub fn menu_view(&self, upower: &Option<UPowerService>) -> Element<Message> {
         column!(
             column!(text("System Info").size(20), horizontal_rule(1)).spacing(4),
             Column::new()
@@ -289,6 +290,28 @@ impl SystemInfo {
                         ),
                     ])
                 }))
+                .push_maybe(
+                    upower
+                        .as_ref()
+                        .and_then(|upower| {
+                            (!upower.peripheral.is_empty()).then_some(&upower.peripheral)
+                        })
+                        .map(|peripherals| {
+                            let devices = peripherals.iter().map(|peripheral| {
+                                let icon = match peripheral.kind {
+                                    PeripheralDeviceKind::Keyboard => Icons::Keyboard,
+                                    PeripheralDeviceKind::Mouse => Icons::Mouse,
+                                };
+                                Self::info_element(
+                                    icon,
+                                    peripheral.name.clone(),
+                                    format!("{}%", peripheral.data.capacity),
+                                )
+                            });
+
+                            Column::with_children(devices)
+                        }),
+                )
                 .spacing(4)
                 .padding([0, 8])
         )
@@ -298,12 +321,12 @@ impl SystemInfo {
 }
 
 impl Module for SystemInfo {
-    type ViewData<'a> = &'a SystemModuleConfig;
+    type ViewData<'a> = (&'a SystemModuleConfig, &'a Option<UPowerService>);
     type SubscriptionData<'a> = ();
 
     fn view(
         &self,
-        config: Self::ViewData<'_>,
+        (config, upower): Self::ViewData<'_>,
     ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         let indicators = config.indicators.iter().filter_map(|i| match i {
             SystemIndicator::Cpu => Some(Self::indicator_info_element(
@@ -397,6 +420,29 @@ impl Module for SystemInfo {
                     None,
                 )
             }),
+            SystemIndicator::Peripherals => upower
+                .as_ref()
+                .and_then(|upower| (!upower.peripheral.is_empty()).then_some(&upower.peripheral))
+                .map(|peripheral| {
+                    let devices = peripheral.iter().map(|peripheral| {
+                        let icon = match peripheral.kind {
+                            PeripheralDeviceKind::Keyboard => Icons::Keyboard,
+                            PeripheralDeviceKind::Mouse => Icons::Mouse,
+                        };
+                        Self::indicator_info_element(
+                            icon,
+                            peripheral.data.capacity,
+                            "%",
+                            None,
+                            None,
+                        )
+                    });
+
+                    Row::with_children(devices)
+                        .align_y(Alignment::Center)
+                        .spacing(4)
+                        .into()
+                }),
         });
 
         Some((
@@ -409,6 +455,10 @@ impl Module for SystemInfo {
     }
 
     fn subscription(&self, _: Self::SubscriptionData<'_>) -> Option<Subscription<app::Message>> {
-        Some(every(Duration::from_secs(5)).map(|_| app::Message::SystemInfo(Message::Update)))
+        Some(
+            every(Duration::from_secs(5))
+                .map(|_| Message::Update)
+                .map(app::Message::SystemInfo),
+        )
     }
 }
