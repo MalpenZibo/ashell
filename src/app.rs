@@ -415,6 +415,7 @@ impl App {
                             id,
                             &self.config.settings,
                             self.config.appearance.menu.opacity,
+                            self.config.position,
                         )
                         .map(Message::Settings),
                     MenuSize::Large,
