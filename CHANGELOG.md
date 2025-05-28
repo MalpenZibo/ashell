@@ -22,6 +22,7 @@ Now the configuration file is located in `~/.config/ashell/config.toml`
 - Add main bar solid and gradient style
 - Add main bar opacity settings
 - Add menu opacity and backdrop settings
+- Add experimental IWD support as fallback for the network module
 - Handle system with multiple battery
 - Allow to specify custom labels for keyboard layouts
 - Allow to always show a specific number of workspaces, whether they have windows or not
@@ -31,6 +32,8 @@ Now the configuration file is located in `~/.config/ashell/config.toml`
 - Change configuration file format
 - Enhance the system info module adding network and disk usage
 - Simplify style of "expand" button on wifi/bluetooth buttons
+- Allow to specify custom labels for keyboard layouts
+- Removed background on power info in menu
 
 ### Fixed
 
