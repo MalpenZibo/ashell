@@ -5,7 +5,7 @@ use super::{Module, OnModulePress};
 use crate::{
     app,
     components::icons::{Icons, icon},
-    config::SettingsModuleConfig,
+    config::{Position, SettingsModuleConfig},
     menu::MenuType,
     modules::settings::power::power_menu,
     outputs::Outputs,
@@ -446,6 +446,7 @@ impl Settings {
         id: Id,
         config: &SettingsModuleConfig,
         opacity: f32,
+        position: Position,
     ) -> Element<Message> {
         if let Some((ssid, current_password)) = &self.password_dialog {
             password_dialog::view(id, ssid, current_password, opacity).map(Message::PasswordDialog)
@@ -548,6 +549,15 @@ impl Settings {
                 opacity,
             );
 
+            let (top_sink_slider, bottom_sink_slider) = match position {
+                Position::Top => (sink_slider, None),
+                Position::Bottom => (None, sink_slider),
+            };
+            let (top_source_slider, bottom_source_slider) = match position {
+                Position::Top => (source_slider, None),
+                Position::Bottom => (None, source_slider),
+            };
+
             Column::new()
                 .push(header)
                 .push_maybe(
@@ -557,7 +567,7 @@ impl Settings {
                             sub_menu_wrapper(power_menu(opacity).map(Message::Power), opacity)
                         }),
                 )
-                .push_maybe(sink_slider)
+                .push_maybe(top_sink_slider)
                 .push_maybe(
                     self.sub_menu
                         .filter(|menu_type| *menu_type == SubMenu::Sinks)
@@ -574,7 +584,8 @@ impl Settings {
                             })
                         }),
                 )
-                .push_maybe(source_slider)
+                .push_maybe(bottom_sink_slider)
+                .push_maybe(top_source_slider)
                 .push_maybe(
                     self.sub_menu
                         .filter(|menu_type| *menu_type == SubMenu::Sources)
@@ -591,6 +602,7 @@ impl Settings {
                             })
                         }),
                 )
+                .push_maybe(bottom_source_slider)
                 .push_maybe(self.brightness.as_ref().map(|b| b.brightness_slider()))
                 .push(quick_settings)
                 .spacing(16)
