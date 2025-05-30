@@ -109,6 +109,9 @@ This will build ashell from source, but you can also use `pkgs.ashell` from nixp
   - Power profiles
   - Idle inhibitor
   - Airplane mode
+- Custom Modules
+  - Simple (execute command on click)
+  - Advanced (update UI with command output)
 
 ## Configuration
 
@@ -165,7 +168,8 @@ left = [ "Workspaces" ]
 center = [ "WindowTitle" ]
 # The modules that will be displayed on the right side of the status bar
 # The nested modules array will form a group sharing the same element in the status bar
-right = [ "SystemInfo", [ "Clock", "Privacy", "Settings" ] ]
+# You can also use custom modules to extend the normal set of options, see configuration below
+right = [ "SystemInfo", [ "Clock", "Privacy", "Settings" ], "CustomNotifications" ]
 
 # Update module configuration.
 # Without a value the related button will not appear.
@@ -266,6 +270,24 @@ format = "%a %d %b %R"
 [media_player]
 # optional, default 100
 max_title_length = 100
+
+# Custom modules configuration (you can have multiple)
+[[CustomModule]]
+# The name will link the module in your left/center/right definition
+name = "CustomNotifications"
+# The default icon for this custom module
+icon = ""
+# The command that will be executed on click
+command = "swaync-client -t -sw"
+# You can optionally configure your custom module to update the UI using another command
+# The output right now follows the waybar json-style output, using the `alt` and `text` field
+# E.g. `{"text": "3", "alt": "notification"}`
+listen_cmd = "swaync-client -swb"
+# You can define behavior for the `text` and `alt` fields
+# Any number of regex can be used to change the icon based on the alt field
+icons.'dnd.*' = ""
+# Another regex can optionally show a red "alert" dot on the icon
+alert = ".*notification"
 
 # Settings module configuration
 [settings]
