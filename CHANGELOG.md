@@ -26,6 +26,7 @@ Now the configuration file is located in `~/.config/ashell/config.toml`
 - Handle system with multiple battery
 - Allow to specify custom labels for keyboard layouts
 - Allow to always show a specific number of workspaces, whether they have windows or not
+- Added custom modules and their ability to receive events from external commands
 
 ### Changed
 

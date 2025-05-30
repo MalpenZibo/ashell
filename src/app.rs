@@ -1,4 +1,4 @@
-use std::f32::consts::PI;
+use std::{collections::HashMap, f32::consts::PI};
 
 use crate::{
     HEIGHT, centerbox,
@@ -10,6 +10,7 @@ use crate::{
         app_launcher::AppLauncher,
         clipboard::Clipboard,
         clock::Clock,
+        custom_module::Custom,
         keyboard_layout::KeyboardLayout,
         keyboard_submap::KeyboardSubmap,
         media_player::MediaPlayer,
@@ -39,7 +40,7 @@ use iced::{
     widget::{Row, container},
     window::Id,
 };
-use log::{debug, info, warn};
+use log::{debug, error, info, warn};
 use wayland_client::protocol::wl_output::WlOutput;
 
 pub struct App {
@@ -47,6 +48,7 @@ pub struct App {
     pub config: Config,
     pub outputs: Outputs,
     pub app_launcher: AppLauncher,
+    pub custom: HashMap<String, Custom>,
     pub updates: Updates,
     pub clipboard: Clipboard,
     pub workspaces: Workspaces,
@@ -81,6 +83,8 @@ pub enum Message {
     Settings(modules::settings::Message),
     MediaPlayer(modules::media_player::Message),
     OutputEvent((OutputEvent, WlOutput)),
+    LaunchCommand(String),
+    CustomUpdate(String, modules::custom_module::Message),
 }
 
 impl App {
@@ -88,11 +92,17 @@ impl App {
         || {
             let (outputs, task) = Outputs::new(config.appearance.style, config.position);
 
+            let custom = config
+                .custom_modules
+                .iter()
+                .map(|o| (o.name.clone(), Custom::default()))
+                .collect();
             (
                 App {
                     logger,
                     outputs,
                     app_launcher: AppLauncher,
+                    custom,
                     updates: Updates::default(),
                     clipboard: Clipboard,
                     workspaces: Workspaces::new(&config.workspaces),
@@ -203,6 +213,17 @@ impl App {
                 if let Some(app_launcher_cmd) = self.config.app_launcher_cmd.as_ref() {
                     utils::launcher::execute_command(app_launcher_cmd.to_string());
                 }
+                Task::none()
+            }
+            Message::LaunchCommand(command) => {
+                utils::launcher::execute_command(command);
+                Task::none()
+            }
+            Message::CustomUpdate(name, message) => {
+                match self.custom.get_mut(&name) {
+                    Some(c) => c.update(message),
+                    None => error!("Custom module '{}' not found", name),
+                };
                 Task::none()
             }
             Message::OpenClipboard => {
