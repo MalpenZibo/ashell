@@ -24,7 +24,10 @@ use crate::{
     },
     outputs::{HasOutput, Outputs},
     position_button::ButtonUIRef,
-    services::{Service, ServiceEvent, brightness::BrightnessCommand, tray::TrayEvent},
+    services::{
+        ReadOnlyService, Service, ServiceEvent, brightness::BrightnessCommand, tray::TrayEvent,
+        upower::UPowerService,
+    },
     style::{ashell_theme, backdrop_color, darken_color},
     utils,
 };
@@ -61,6 +64,7 @@ pub struct App {
     pub privacy: Privacy,
     pub settings: Settings,
     pub media_player: MediaPlayer,
+    pub upower: Option<UPowerService>,
 }
 
 #[derive(Debug, Clone)]
@@ -82,6 +86,7 @@ pub enum Message {
     Privacy(modules::privacy::PrivacyMessage),
     Settings(modules::settings::Message),
     MediaPlayer(modules::media_player::Message),
+    UPowerEvent(ServiceEvent<UPowerService>),
     OutputEvent((OutputEvent, WlOutput)),
     LaunchCommand(String),
     CustomUpdate(String, modules::custom_module::Message),
@@ -115,6 +120,7 @@ impl App {
                     privacy: Privacy::default(),
                     settings: Settings::default(),
                     media_player: MediaPlayer::default(),
+                    upower: None,
                     config,
                 },
                 task,
@@ -270,6 +276,20 @@ impl App {
                 self.settings
                     .update(message, &self.config.settings, &mut self.outputs)
             }
+            Message::MediaPlayer(msg) => self.media_player.update(msg),
+            Message::UPowerEvent(event) => match event {
+                ServiceEvent::Init(service) => {
+                    self.upower = Some(service);
+                    Task::none()
+                }
+                ServiceEvent::Update(data) => {
+                    if let Some(upower) = self.upower.as_mut() {
+                        upower.update(data);
+                    }
+                    Task::none()
+                }
+                ServiceEvent::Error(_) => Task::none(),
+            },
             Message::OutputEvent((event, wl_output)) => match event {
                 iced::event::wayland::OutputEvent::Created(info) => {
                     info!("Output created: {:?}", info);
@@ -296,7 +316,6 @@ impl App {
                 }
                 _ => Task::none(),
             },
-            Message::MediaPlayer(msg) => self.media_player.update(msg),
         }
     }
 
@@ -463,7 +482,9 @@ impl App {
                 ),
                 Some((MenuType::SystemInfo, button_ui_ref)) => menu_wrapper(
                     id,
-                    self.system_info.menu_view().map(Message::SystemInfo),
+                    self.system_info
+                        .menu_view(&self.upower)
+                        .map(Message::SystemInfo),
                     MenuSize::Large,
                     *button_ui_ref,
                     self.config.position,
@@ -482,6 +503,7 @@ impl App {
             Subscription::batch(self.modules_subscriptions(&self.config.modules.left)),
             Subscription::batch(self.modules_subscriptions(&self.config.modules.center)),
             Subscription::batch(self.modules_subscriptions(&self.config.modules.right)),
+            UPowerService::subscribe().map(Message::UPowerEvent),
             config::subscription(),
             listen_with(|evt, _, _| match evt {
                 iced::Event::PlatformSpecific(iced::event::PlatformSpecific::Wayland(

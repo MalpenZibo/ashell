@@ -454,7 +454,7 @@ impl Settings {
             let battery_data = self
                 .upower
                 .as_ref()
-                .and_then(|upower| upower.battery)
+                .and_then(|upower| upower.system_battery)
                 .map(|battery| battery.settings_indicator());
             let right_buttons = Row::new()
                 .push_maybe(config.lock_cmd.as_ref().map(|_| {
@@ -653,7 +653,7 @@ impl Module for Settings {
                 .push_maybe(
                     self.upower
                         .as_ref()
-                        .and_then(|upower| upower.battery)
+                        .and_then(|upower| upower.system_battery)
                         .map(|battery| battery.indicator()),
                 )
                 .spacing(8)

@@ -74,6 +74,8 @@ pub enum Icons {
     UploadSpeed,
     Copy,
     RightChevron,
+    Mouse,
+    Keyboard,
 }
 
 impl From<Icons> for &'static str {
@@ -147,6 +149,8 @@ impl From<Icons> for &'static str {
             Icons::UploadSpeed => "󰛶",
             Icons::Copy => "󰆏",
             Icons::RightChevron => "󰅂",
+            Icons::Mouse => "󰍽",
+            Icons::Keyboard => "",
         }
     }
 }
