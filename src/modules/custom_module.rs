@@ -150,8 +150,8 @@ impl Module for Custom {
 
         Some((
             row_content,
-            Some(OnModulePress::Action(app::Message::LaunchCommand(
-                config.command.clone(),
+            Some(OnModulePress::Action(Box::new(
+                app::Message::LaunchCommand(config.command.clone()),
             ))),
         ))
     }

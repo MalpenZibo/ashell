@@ -42,6 +42,9 @@ fn get_workspaces(config: &WorkspacesModuleConfig) -> Vec<Workspace> {
         .map(|w| w.to_vec())
         .unwrap_or_default();
 
+    // in some cases we can get duplicate workspaces, so we need to deduplicate them
+    let workspaces: Vec<_> = workspaces.into_iter().unique_by(|w| w.id).collect();
+
     // We need capacity for at least all the existing entries.
     let mut result: Vec<Workspace> = Vec::with_capacity(workspaces.len());
 

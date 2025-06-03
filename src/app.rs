@@ -253,8 +253,13 @@ impl App {
             }
             Message::Tray(msg) => {
                 let close_tray = match &msg {
-                    TrayMessage::Event(ServiceEvent::Update(TrayEvent::Unregistered(name))) => {
-                        self.outputs.close_all_menu_if(MenuType::Tray(name.clone()))
+                    TrayMessage::Event(event) => {
+                        if let ServiceEvent::Update(TrayEvent::Unregistered(name)) = event.as_ref()
+                        {
+                            self.outputs.close_all_menu_if(MenuType::Tray(name.clone()))
+                        } else {
+                            Task::none()
+                        }
                     }
                     _ => Task::none(),
                 };

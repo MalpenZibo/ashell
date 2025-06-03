@@ -453,26 +453,26 @@ impl<'de> Deserialize<'de> for ModuleName {
         impl Visitor<'_> for ModuleNameVisitor {
             type Value = ModuleName;
             fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-                formatter.write_str("a camelCase string representing a ModuleName")
+                formatter.write_str("a string representing a ModuleName")
             }
             fn visit_str<E>(self, value: &str) -> Result<ModuleName, E>
             where
                 E: Error,
             {
                 Ok(match value {
-                    "appLauncher" => ModuleName::AppLauncher,
-                    "updates" => ModuleName::Updates,
-                    "clipboard" => ModuleName::Clipboard,
-                    "workspaces" => ModuleName::Workspaces,
-                    "windowTitle" => ModuleName::WindowTitle,
-                    "systemInfo" => ModuleName::SystemInfo,
-                    "keyboardLayout" => ModuleName::KeyboardLayout,
-                    "keyboardSubmap" => ModuleName::KeyboardSubmap,
-                    "tray" => ModuleName::Tray,
-                    "clock" => ModuleName::Clock,
-                    "privacy" => ModuleName::Privacy,
-                    "settings" => ModuleName::Settings,
-                    "mediaPlayer" => ModuleName::MediaPlayer,
+                    "AppLauncher" => ModuleName::AppLauncher,
+                    "Updates" => ModuleName::Updates,
+                    "Clipboard" => ModuleName::Clipboard,
+                    "Workspaces" => ModuleName::Workspaces,
+                    "WindowTitle" => ModuleName::WindowTitle,
+                    "SystemInfo" => ModuleName::SystemInfo,
+                    "KeyboardLayout" => ModuleName::KeyboardLayout,
+                    "KeyboardSubmap" => ModuleName::KeyboardSubmap,
+                    "Tray" => ModuleName::Tray,
+                    "Clock" => ModuleName::Clock,
+                    "Privacy" => ModuleName::Privacy,
+                    "Settings" => ModuleName::Settings,
+                    "MediaPlayer" => ModuleName::MediaPlayer,
                     other => ModuleName::Custom(other.to_string()),
                 })
             }

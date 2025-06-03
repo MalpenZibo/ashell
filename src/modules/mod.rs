@@ -30,7 +30,7 @@ use log::error;
 
 #[derive(Debug, Clone)]
 pub enum OnModulePress {
-    Action(Message),
+    Action(Box<Message>),
     ToggleMenu(MenuType),
 }
 
@@ -111,7 +111,7 @@ impl App {
                 ));
 
                 match action {
-                    OnModulePress::Action(action) => button.on_press(action),
+                    OnModulePress::Action(action) => button.on_press(*action),
                     OnModulePress::ToggleMenu(menu_type) => {
                         button.on_press_with_position(move |button_ui_ref| {
                             Message::ToggleMenu(menu_type.clone(), id, button_ui_ref)
@@ -184,7 +184,7 @@ impl App {
                                 ));
 
                                 match action {
-                                    OnModulePress::Action(action) => button.on_press(action),
+                                    OnModulePress::Action(action) => button.on_press(*action),
                                     OnModulePress::ToggleMenu(menu_type) => button
                                         .on_press_with_position(move |button_ui_ref| {
                                             Message::ToggleMenu(
