@@ -20,7 +20,7 @@ impl Module for Clipboard {
         if config.is_some() {
             Some((
                 icon(Icons::Clipboard).into(),
-                Some(OnModulePress::Action(app::Message::OpenClipboard)),
+                Some(OnModulePress::Action(Box::new(app::Message::OpenClipboard))),
             ))
         } else {
             None

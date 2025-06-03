@@ -91,8 +91,8 @@ impl Module for KeyboardLayout {
             };
             Some((
                 text(active).into(),
-                Some(OnModulePress::Action(app::Message::KeyboardLayout(
-                    Message::ChangeLayout,
+                Some(OnModulePress::Action(Box::new(
+                    app::Message::KeyboardLayout(Message::ChangeLayout),
                 ))),
             ))
         }

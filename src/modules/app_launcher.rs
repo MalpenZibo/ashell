@@ -20,7 +20,7 @@ impl Module for AppLauncher {
         if config.is_some() {
             Some((
                 icon(Icons::AppLauncher).into(),
-                Some(OnModulePress::Action(Message::OpenLauncher)),
+                Some(OnModulePress::Action(Box::new(Message::OpenLauncher))),
             ))
         } else {
             None

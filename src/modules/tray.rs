@@ -22,7 +22,7 @@ use log::debug;
 
 #[derive(Debug, Clone)]
 pub enum TrayMessage {
-    Event(ServiceEvent<TrayService>),
+    Event(Box<ServiceEvent<TrayService>>),
     ToggleSubmenu(i32),
     MenuSelected(String, i32),
 }
@@ -36,7 +36,7 @@ pub struct TrayModule {
 impl TrayModule {
     pub fn update(&mut self, message: TrayMessage) -> Task<crate::app::Message> {
         match message {
-            TrayMessage::Event(event) => match event {
+            TrayMessage::Event(event) => match *event {
                 ServiceEvent::Init(service) => {
                     self.service = Some(service);
                     Task::none()
@@ -62,7 +62,7 @@ impl TrayModule {
                     debug!("Tray menu click: {}", id);
                     service
                         .command(TrayCommand::MenuSelected(name, id))
-                        .map(|event| crate::app::Message::Tray(TrayMessage::Event(event)))
+                        .map(|event| crate::app::Message::Tray(TrayMessage::Event(Box::new(event))))
                 }
                 _ => Task::none(),
             },
@@ -207,6 +207,6 @@ impl Module for TrayModule {
     }
 
     fn subscription(&self, _: Self::SubscriptionData<'_>) -> Option<Subscription<app::Message>> {
-        Some(TrayService::subscribe().map(|e| app::Message::Tray(TrayMessage::Event(e))))
+        Some(TrayService::subscribe().map(|e| app::Message::Tray(TrayMessage::Event(Box::new(e)))))
     }
 }
