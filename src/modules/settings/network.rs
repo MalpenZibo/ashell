@@ -179,26 +179,31 @@ impl NetworkData {
         sub_menu: Option<SubMenu>,
         show_more_button: bool,
         opacity: f32,
-    ) -> (Element<Message>, Option<Element<Message>>) {
-        (
-            quick_setting_button(
-                Icons::Vpn,
-                "Vpn".to_string(),
-                None,
-                self.active_connections
-                    .iter()
-                    .any(|c| matches!(c, ActiveConnectionInfo::Vpn { .. })),
-                Message::ToggleSubMenu(SubMenu::Vpn),
-                None,
-                opacity,
-            ),
-            sub_menu
-                .filter(|menu_type| *menu_type == SubMenu::Vpn)
-                .map(|_| {
-                    self.vpn_menu(id, show_more_button, opacity)
-                        .map(Message::Network)
-                }),
-        )
+    ) -> Option<(Element<Message>, Option<Element<Message>>)> {
+        self.known_connections
+            .iter()
+            .any(|c| matches!(c, KnownConnection::Vpn { .. }))
+            .then(|| {
+                (
+                    quick_setting_button(
+                        Icons::Vpn,
+                        "Vpn".to_string(),
+                        None,
+                        self.active_connections
+                            .iter()
+                            .any(|c| matches!(c, ActiveConnectionInfo::Vpn { .. })),
+                        Message::ToggleSubMenu(SubMenu::Vpn),
+                        None,
+                        opacity,
+                    ),
+                    sub_menu
+                        .filter(|menu_type| *menu_type == SubMenu::Vpn)
+                        .map(|_| {
+                            self.vpn_menu(id, show_more_button, opacity)
+                                .map(Message::Network)
+                        }),
+                )
+            })
     }
 
     pub fn wifi_menu(

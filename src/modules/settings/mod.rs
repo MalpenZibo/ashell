@@ -510,7 +510,7 @@ impl Settings {
                                 opacity,
                             )
                         }),
-                    self.network.as_ref().map(|n| {
+                    self.network.as_ref().and_then(|n| {
                         n.get_vpn_quick_setting_button(
                             id,
                             self.sub_menu,
