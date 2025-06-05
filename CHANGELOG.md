@@ -41,6 +41,7 @@ Now the configuration file is located in `~/.config/ashell/config.toml`
 ### Fixed
 
 - Fix missing tray icons
+- Fix hide vpn button when no vpn is configured
 
 ### Thanks
 
@@ -48,6 +49,7 @@ Now the configuration file is located in `~/.config/ashell/config.toml`
 - @ineu for the custom labels for keyboard layouts, the `max_workspaces` settings and for fixing some bugs
 - @rahatarmanahmed for the new settings button style, the new battery info style and for fixing some bugs
 - Huge thanks to @clotodex for the `iwd` network support and the custom modules
+- @tqwewe for fixing the audio sink menu position with bottom bar
 
 ## [0.4.1] - 2025-03-16
 
