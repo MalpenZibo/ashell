@@ -114,6 +114,14 @@ impl Settings {
                     ServiceEvent::Update(data) => {
                         if let Some(audio) = self.audio.as_mut() {
                             audio.update(data);
+
+                            if self.sub_menu == Some(SubMenu::Sinks) && audio.sinks.len() < 2 {
+                                self.sub_menu = None;
+                            }
+
+                            if self.sub_menu == Some(SubMenu::Sources) && audio.sources.len() < 2 {
+                                self.sub_menu = None;
+                            }
                         }
                         Task::none()
                     }
