@@ -4,7 +4,7 @@ use flexi_logger::{
     Age, Cleanup, Criterion, FileSpec, LogSpecBuilder, LogSpecification, Logger, Naming,
 };
 use iced::Font;
-use log::error;
+use log::{error, warn};
 use std::panic;
 use std::{backtrace::Backtrace, borrow::Cow};
 
@@ -58,7 +58,7 @@ async fn main() -> iced::Result {
     let config = read_config().unwrap_or_else(|err| {
         error!("Failed to parse config file: {}", err);
 
-        error!("Using default config");
+        warn!("Using default config");
         Config::default()
     });
 

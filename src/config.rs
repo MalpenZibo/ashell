@@ -7,13 +7,13 @@ use iced::{
 };
 use inotify::{Event, EventMask, Inotify, WatchMask};
 use regex::Regex;
-use serde::{
-    Deserialize, Deserializer,
-    de::{Error, Visitor},
-};
+use serde::{Deserialize, Deserializer, de::Visitor};
 use serde_with::DisplayFromStr;
 use serde_with::serde_as;
-use std::{any::TypeId, collections::HashMap, env, fs::File, io::Read, ops::Deref, path::Path};
+use std::{
+    any::TypeId, collections::HashMap, env, error::Error, fs::File, io::Read, ops::Deref,
+    path::Path,
+};
 
 use crate::app::Message;
 
@@ -457,7 +457,7 @@ impl<'de> Deserialize<'de> for ModuleName {
             }
             fn visit_str<E>(self, value: &str) -> Result<ModuleName, E>
             where
-                E: Error,
+                E: serde::de::Error,
             {
                 Ok(match value {
                     "AppLauncher" => ModuleName::AppLauncher,
@@ -528,6 +528,8 @@ where
 {
     let vec = <Vec<T>>::deserialize(d)?;
     if vec.is_empty() {
+        use serde::de::Error;
+
         Err(D::Error::custom("need non-empty"))
     } else {
         Ok(vec)
@@ -644,7 +646,7 @@ impl Default for Config {
     }
 }
 
-pub fn read_config() -> Result<Config, toml::de::Error> {
+pub fn read_config() -> Result<Config, Box<dyn Error + Send>> {
     let home_dir = env::var("HOME").expect("Could not get HOME environment variable");
     let file_path = format!("{}{}", home_dir, CONFIG_PATH.replace('~', ""));
 
@@ -655,16 +657,9 @@ pub fn read_config() -> Result<Config, toml::de::Error> {
         Ok(_) => {
             log::info!("Reading config file");
 
-            toml::from_str(&content)
+            toml::from_str(&content).map_err(|e| Box::new(e) as Box<dyn Error + Send>)
         }
-        Err(e) => {
-            log::warn!(
-                "Failed to read config file from {}: {}. Using default config",
-                file_path,
-                e
-            );
-            Ok(Config::default())
-        }
+        Err(e) => Err(Box::new(e)),
     }
 }
 
@@ -727,15 +722,17 @@ pub fn subscription() -> Subscription<Message> {
                                     log::info!("ashell config file events: {:?}", name);
                                     if name.is_some_and(|name| name == "config.toml") {
                                         let new_config = read_config();
-                                        if let Ok(new_config) = new_config {
-                                            let _ = output
-                                                .send(Message::ConfigChanged(Box::new(new_config)))
-                                                .await;
-                                        } else {
-                                            log::warn!(
-                                                "Failed to read config file: {:?}",
-                                                new_config
-                                            );
+                                        match new_config {
+                                            Ok(new_config) => {
+                                                let _ = output
+                                                    .send(Message::ConfigChanged(Box::new(
+                                                        new_config,
+                                                    )))
+                                                    .await;
+                                            }
+                                            Err(err) => {
+                                                log::warn!("Failed to read config file: {:?}", err);
+                                            }
                                         }
                                     }
                                 }
@@ -761,12 +758,15 @@ pub fn subscription() -> Subscription<Message> {
                             log::info!("Config file created");
 
                             let new_config = read_config();
-                            if let Ok(new_config) = new_config {
-                                let _ = output
-                                    .send(Message::ConfigChanged(Box::new(new_config)))
-                                    .await;
-                            } else {
-                                log::warn!("Failed to read config file: {:?}", new_config);
+                            match new_config {
+                                Ok(new_config) => {
+                                    let _ = output
+                                        .send(Message::ConfigChanged(Box::new(new_config)))
+                                        .await;
+                                }
+                                Err(err) => {
+                                    log::warn!("Failed to read config file: {:?}", err);
+                                }
                             }
                         }
                     }

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2025-05-20
+
 ### WARNING BREAKING CHANGES
 
 The configuration switch from `yaml` to `toml` format. The configuration file must be updated to adapt to the new format.
@@ -39,6 +41,15 @@ Now the configuration file is located in `~/.config/ashell/config.toml`
 ### Fixed
 
 - Fix missing tray icons
+- Fix hide vpn button when no vpn is configured
+
+### Thanks
+
+- @JumpIn-Git for fixing nix flake instruction
+- @ineu for the custom labels for keyboard layouts, the `max_workspaces` settings and for fixing some bugs
+- @rahatarmanahmed for the new settings button style, the new battery info style and for fixing some bugs
+- Huge thanks to @clotodex for the `iwd` network support and the custom modules
+- @tqwewe for fixing the audio sink menu position with bottom bar
 
 ## [0.4.1] - 2025-03-16
 
