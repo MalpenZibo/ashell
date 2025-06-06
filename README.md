@@ -117,7 +117,7 @@ This will build ashell from source, but you can also use `pkgs.ashell` from nixp
 
 > The following are the configuration for the `main` branch and could contain breaking changes.
 > For the tagged release you can find the configuration instruction in the corresponding README file.
-> eg: https://github.com/MalpenZibo/ashell/blob/0.5/README.md
+> eg: https://github.com/MalpenZibo/ashell/blob/0.5.0/README.md
 
 The configuration file uses the toml file format and is named `~/.config/ashell/config.toml`
 
