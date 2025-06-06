@@ -125,6 +125,7 @@ pub enum SystemIndicator {
     IpAddress,
     DownloadSpeed,
     UploadSpeed,
+    Peripherals,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -146,6 +147,7 @@ fn default_system_indicators() -> Vec<SystemIndicator> {
         SystemIndicator::Cpu,
         SystemIndicator::Memory,
         SystemIndicator::Temperature,
+        SystemIndicator::Peripherals,
     ]
 }
 
