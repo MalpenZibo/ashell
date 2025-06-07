@@ -82,7 +82,7 @@ impl BluetoothDbus<'_> {
                 .build()
                 .await?;
 
-            let name = device.name().await?;
+            let name = device.alias().await?;
             let connected = device.connected().await?;
 
             if connected {
@@ -140,7 +140,7 @@ pub trait Adapter {
 #[proxy(default_service = "org.bluez", interface = "org.bluez.Device1")]
 trait Device {
     #[zbus(property)]
-    fn name(&self) -> zbus::Result<String>;
+    fn alias(&self) -> zbus::Result<String>;
 
     #[zbus(property)]
     fn connected(&self) -> zbus::Result<bool>;
