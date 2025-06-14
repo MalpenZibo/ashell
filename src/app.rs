@@ -106,7 +106,7 @@ impl App {
                     updates: Updates::default(),
                     clipboard: Clipboard,
                     workspaces: Workspaces::new(&config.workspaces),
-                    window_title: WindowTitle::default(),
+                    window_title: WindowTitle::new(&config.window_title),
                     system_info: SystemInfo::default(),
                     keyboard_layout: KeyboardLayout::default(),
                     keyboard_submap: KeyboardSubmap::default(),
@@ -238,8 +238,7 @@ impl App {
                 Task::none()
             }
             Message::WindowTitle(message) => {
-                self.window_title
-                    .update(message, self.config.truncate_title_after_length);
+                self.window_title.update(message, &self.config.window_title);
                 Task::none()
             }
             Message::SystemInfo(message) => self.system_info.update(message),
