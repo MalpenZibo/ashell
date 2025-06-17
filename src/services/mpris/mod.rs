@@ -16,11 +16,30 @@ use zbus::{fdo::DBusProxy, zvariant::OwnedValue};
 
 mod dbus;
 
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlaybackStatus {
+    #[default]
+    Playing,
+    Paused,
+    Stopped,
+}
+impl From<String> for PlaybackStatus {
+    fn from(playback_status: String) -> PlaybackStatus {
+        match playback_status.as_str() {
+            "Playing" => PlaybackStatus::Playing,
+            "Paused" => PlaybackStatus::Paused,
+            "Stopped" => PlaybackStatus::Stopped,
+            _ => PlaybackStatus::Playing,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct MprisPlayerData {
     pub service: String,
     pub metadata: Option<MprisPlayerMetadata>,
     pub volume: Option<f64>,
+    pub state: PlaybackStatus,
     proxy: MprisPlayerProxy<'static>,
 }
 
@@ -82,6 +101,7 @@ pub enum MprisPlayerEvent {
     Refresh(Vec<MprisPlayerData>),
     Metadata(String, Option<MprisPlayerMetadata>),
     Volume(String, Option<f64>),
+    State(String, PlaybackStatus),
 }
 
 impl ReadOnlyService for MprisPlayerService {
@@ -101,6 +121,12 @@ impl ReadOnlyService for MprisPlayerService {
                 let s = self.data.iter_mut().find(|d| d.service == service);
                 if let Some(s) = s {
                     s.volume = volume;
+                }
+            }
+            MprisPlayerEvent::State(service, state) => {
+                let s = self.data.iter_mut().find(|d| d.service == service);
+                if let Some(s) = s {
+                    s.state = state;
                 }
             }
         }
@@ -129,6 +155,7 @@ enum Event {
     NameOwner,
     Metadata(String, Option<MprisPlayerMetadata>),
     Volume(String, Option<f64>),
+    State(String, PlaybackStatus),
 }
 
 impl MprisPlayerService {
@@ -146,6 +173,9 @@ impl MprisPlayerService {
                 }
             })
             .collect();
+
+        debug!("Found MPRIS player services: {:?}", names);
+
         Ok(Self::get_mpris_player_data(conn, &names).await)
     }
 
@@ -162,11 +192,17 @@ impl MprisPlayerService {
                         .map_or(None, |m| Some(MprisPlayerMetadata::from(m)));
 
                     let volume = proxy.volume().await.map(|v| v * 100.0).ok();
+                    let state = proxy
+                        .playback_status()
+                        .await
+                        .map(PlaybackStatus::from)
+                        .unwrap_or_default();
 
                     Some(MprisPlayerData {
                         service: s.to_string(),
                         metadata,
                         volume,
+                        state,
                         proxy,
                     })
                 }
@@ -259,6 +295,34 @@ impl MprisPlayerService {
             );
         }
 
+        for s in data.iter() {
+            let state = s.state;
+
+            combined.push(
+                s.proxy
+                    .receive_playback_status_changed()
+                    .await
+                    .filter_map({
+                        let service = s.service.clone();
+                        move |v| {
+                            let service = service.clone();
+                            async move {
+                                let new_state =
+                                    v.get().await.map(PlaybackStatus::from).unwrap_or_default();
+                                if state == new_state {
+                                    None
+                                } else {
+                                    debug!("PlaybackStatus changed: {:?}", new_state);
+
+                                    Some(Event::State(service, new_state))
+                                }
+                            }
+                        }
+                    })
+                    .boxed(),
+            );
+        }
+
         Ok(combined)
     }
 
@@ -304,9 +368,14 @@ impl MprisPlayerService {
                         for event in chunk {
                             match event {
                                 Event::NameOwner => {
+                                    debug!("MPRIS player service name owner changed");
                                     need_refresh = true;
                                 }
                                 Event::Metadata(service, metadata) => {
+                                    debug!(
+                                        "MPRIS player service {} metadata changed: {:?}",
+                                        service, metadata
+                                    );
                                     let _ = output
                                         .send(ServiceEvent::Update(MprisPlayerEvent::Metadata(
                                             service, metadata,
@@ -314,9 +383,24 @@ impl MprisPlayerService {
                                         .await;
                                 }
                                 Event::Volume(service, volume) => {
+                                    debug!(
+                                        "MPRIS player service {} volume changed: {:?}",
+                                        service, volume
+                                    );
                                     let _ = output
                                         .send(ServiceEvent::Update(MprisPlayerEvent::Volume(
                                             service, volume,
+                                        )))
+                                        .await;
+                                }
+                                Event::State(service, state) => {
+                                    debug!(
+                                        "MPRIS player service {} playback status changed: {:?}",
+                                        service, state
+                                    );
+                                    let _ = output
+                                        .send(ServiceEvent::Update(MprisPlayerEvent::State(
+                                            service, state,
                                         )))
                                         .await;
                                 }
@@ -326,6 +410,8 @@ impl MprisPlayerService {
                         if need_refresh {
                             match Self::initialize_data(&conn).await {
                                 Ok(data) => {
+                                    debug!("Refreshing MPRIS player data");
+
                                     let _ = output
                                         .send(ServiceEvent::Update(MprisPlayerEvent::Refresh(data)))
                                         .await;
@@ -377,6 +463,7 @@ impl Service for MprisPlayerService {
         {
             let names: Vec<String> = self.data.iter().map(|d| d.service.clone()).collect();
             let s = self.data.iter().find(|d| d.service == command.service_name);
+
             if let Some(s) = s {
                 let mpris_player_proxy = s.proxy.clone();
                 let conn = self.conn.clone();
