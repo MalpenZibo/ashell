@@ -99,15 +99,17 @@ impl Menu {
 }
 
 pub enum MenuSize {
-    Normal,
+    Small,
+    Medium,
     Large,
 }
 
 impl MenuSize {
     fn size(&self) -> f32 {
         match self {
-            MenuSize::Normal => 250.,
-            MenuSize::Large => 350.,
+            MenuSize::Small => 250.,
+            MenuSize::Medium => 350.,
+            MenuSize::Large => 450.,
         }
     }
 }

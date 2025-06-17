@@ -222,7 +222,8 @@ impl SystemInfo {
 
     pub fn menu_view(&self) -> Element<Message> {
         column!(
-            column!(text("System Info").size(20), horizontal_rule(1)).spacing(4),
+            text("System Info").size(20),
+            horizontal_rule(1),
             Column::new()
                 .push(Self::info_element(
                     Icons::Cpu,
