@@ -57,11 +57,17 @@ impl super::NetworkBackend for NetworkDbus<'_> {
     }
 
     async fn set_airplane_mode(&self, enable: bool) -> anyhow::Result<()> {
-        Command::new("/usr/sbin/rfkill")
+        let rfkill_res = Command::new("/usr/sbin/rfkill")
             .arg(if enable { "block" } else { "unblock" })
             .arg("bluetooth")
             .output()
-            .await?;
+            .await;
+
+        if let Err(e) = rfkill_res {
+            debug!("Failed to set bluetooth rfkill: {}", e);
+        } else {
+            debug!("Bluetooth rfkill set successfully");
+        }
 
         let nm = NetworkDbus::new(self.0.inner().connection()).await?;
         nm.set_wireless_enabled(!enable).await?;
