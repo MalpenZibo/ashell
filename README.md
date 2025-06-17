@@ -315,6 +315,9 @@ vpn_more_cmd = "nm-connection-editor"
 # without a value the related button will not appear
 # optional, default None
 bluetooth_more_cmd = "blueman-manager"
+# option to remove the airtplane button
+# optional, default false
+remove_airplane_btn = true
 
 # Appearance config
 # Each color could be a simple hex color like #228800 or an
