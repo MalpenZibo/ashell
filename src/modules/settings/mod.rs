@@ -526,9 +526,13 @@ impl Settings {
                             opacity,
                         )
                     }),
-                    self.network
-                        .as_ref()
-                        .map(|n| n.get_airplane_mode_quick_setting_button(opacity)),
+                    self.network.as_ref().and_then(|n| {
+                        if config.disable_airplane_btn {
+                            None
+                        } else {
+                            Some(n.get_airplane_mode_quick_setting_button(opacity))
+                        }
+                    }),
                     self.idle_inhibitor.as_ref().map(|idle_inhibitor| {
                         (
                             quick_setting_button(
