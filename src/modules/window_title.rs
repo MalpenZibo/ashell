@@ -48,9 +48,15 @@ impl Module for WindowTitle {
         &self,
         _: Self::ViewData<'_>,
     ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
-        self.value
-            .as_ref()
-            .map(|value| (text(value).size(12).into(), None))
+        self.value.as_ref().map(|value| {
+            (
+                text(value)
+                    .size(12)
+                    .wrapping(text::Wrapping::WordOrGlyph)
+                    .into(),
+                None,
+            )
+        })
     }
 
     fn subscription(&self, _: Self::SubscriptionData<'_>) -> Option<Subscription<app::Message>> {

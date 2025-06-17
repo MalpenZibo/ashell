@@ -158,9 +158,15 @@ impl Module for MediaPlayer {
         self.service.as_ref().and_then(|s| match s.len() {
             0 => None,
             _ => Some((
-                row![icon(Icons::MusicNote), text(Self::get_title(&s[0], config))]
-                    .spacing(8)
-                    .into(),
+                row![
+                    icon(Icons::MusicNote),
+                    text(Self::get_title(&s[0], config))
+                        .wrapping(text::Wrapping::WordOrGlyph)
+                        .size(12)
+                ]
+                .align_y(Vertical::Center)
+                .spacing(8)
+                .into(),
                 Some(OnModulePress::ToggleMenu(MenuType::MediaPlayer)),
             )),
         })
