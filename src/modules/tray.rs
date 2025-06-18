@@ -1,6 +1,6 @@
-use super::{Module, OnModulePress};
+use super::{Module2, OnModulePress};
 use crate::{
-    app,
+    app::{self, App},
     components::icons::{Icons, icon},
     menu::MenuType,
     position_button::position_button,
@@ -11,7 +11,6 @@ use crate::{
             dbus::{Layout, LayoutProps},
         },
     },
-    style::ghost_button_style,
 };
 use iced::{
     Alignment, Element, Length, Subscription, Task,
@@ -68,26 +67,10 @@ impl TrayModule {
             },
         }
     }
+}
 
-    pub fn menu_view(&self, name: &'_ str, opacity: f32) -> Element<TrayMessage> {
-        match self
-            .service
-            .as_ref()
-            .and_then(|service| service.data.iter().find(|item| item.name == name))
-        {
-            Some(item) => Column::with_children(
-                item.menu
-                    .2
-                    .iter()
-                    .map(|menu| self.menu_voice(name, menu, opacity)),
-            )
-            .spacing(8)
-            .into(),
-            _ => Row::new().into(),
-        }
-    }
-
-    fn menu_voice(&self, name: &str, layout: &Layout, opacity: f32) -> Element<TrayMessage> {
+impl App {
+    fn menu_voice(&self, name: &str, layout: &Layout) -> Element<app::Message> {
         match &layout.1 {
             LayoutProps {
                 label: Some(label),
@@ -100,7 +83,7 @@ impl TrayModule {
                     let name = name.to_owned();
                     let id = layout.0;
 
-                    move |_| TrayMessage::MenuSelected(name.to_owned(), id)
+                    move |_| app::Message::Tray(TrayMessage::MenuSelected(name.to_owned(), id))
                 })
                 .width(Length::Fill)
                 .into(),
@@ -109,7 +92,7 @@ impl TrayModule {
                 label: Some(label),
                 ..
             } if display == "submenu" => {
-                let is_open = self.submenus.contains(&layout.0);
+                let is_open = self.tray.submenus.contains(&layout.0);
                 Column::new()
                     .push(
                         button(row!(
@@ -120,9 +103,9 @@ impl TrayModule {
                                 Icons::MenuClosed
                             })
                         ))
-                        .style(ghost_button_style(opacity))
+                        .style(self.theme.ghost_button_style())
                         .padding([8, 8])
-                        .on_press(TrayMessage::ToggleSubmenu(layout.0))
+                        .on_press(app::Message::Tray(TrayMessage::ToggleSubmenu(layout.0)))
                         .width(Length::Fill),
                     )
                     .push_maybe(if is_open {
@@ -131,7 +114,7 @@ impl TrayModule {
                                 layout
                                     .2
                                     .iter()
-                                    .map(|menu| self.menu_voice(name, menu, opacity))
+                                    .map(|menu| self.menu_voice(name, menu))
                                     .collect::<Vec<_>>(),
                             )
                             .padding([0, 0, 0, 16])
@@ -145,8 +128,11 @@ impl TrayModule {
             LayoutProps {
                 label: Some(label), ..
             } => button(text(label.replace("_", "")))
-                .style(ghost_button_style(opacity))
-                .on_press(TrayMessage::MenuSelected(name.to_owned(), layout.0))
+                .style(self.theme.ghost_button_style())
+                .on_press(app::Message::Tray(TrayMessage::MenuSelected(
+                    name.to_owned(),
+                    layout.0,
+                )))
                 .width(Length::Fill)
                 .padding([8, 8])
                 .into(),
@@ -156,15 +142,12 @@ impl TrayModule {
     }
 }
 
-impl Module for TrayModule {
-    type ViewData<'a> = (Id, f32);
-    type SubscriptionData<'a> = ();
+impl Module2<TrayModule> for App {
+    type MenuViewData<'a> = &'a str;
 
-    fn view(
-        &self,
-        (id, opacity): Self::ViewData<'_>,
-    ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
-        self.service
+    fn view(&self, id: Id) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
+        self.tray
+            .service
             .as_ref()
             .filter(|s| !s.data.is_empty())
             .map(|service| {
@@ -176,11 +159,12 @@ impl Module for TrayModule {
                             .map(|item| {
                                 position_button(match &item.icon {
                                     Some(TrayIcon::Image(handle)) => Into::<Element<_>>::into(
-                                        Image::new(handle.clone()).height(Length::Fixed(14.)),
+                                        Image::new(handle.clone())
+                                            .height(Length::Fixed(self.theme.font_size - 2.)),
                                     ),
                                     Some(TrayIcon::Svg(handle)) => Into::<Element<_>>::into(
                                         Svg::new(handle.clone())
-                                            .height(Length::Fixed(16.))
+                                            .height(Length::Fixed(self.theme.font_size))
                                             .width(Length::Shrink),
                                     ),
                                     _ => icon(Icons::Point).into(),
@@ -193,20 +177,36 @@ impl Module for TrayModule {
                                     )
                                 })
                                 .padding([2, 2])
-                                .style(ghost_button_style(opacity))
+                                .style(self.theme.ghost_button_style())
                                 .into()
                             })
                             .collect::<Vec<_>>(),
                     )
                     .align_y(Alignment::Center)
-                    .spacing(8)
+                    .spacing(self.theme.space.xs)
                     .into(),
                     None,
                 )
             })
     }
 
-    fn subscription(&self, _: Self::SubscriptionData<'_>) -> Option<Subscription<app::Message>> {
+    fn menu_view(&self, name: Self::MenuViewData<'_>) -> Element<app::Message> {
+        match self
+            .tray
+            .service
+            .as_ref()
+            .and_then(|service| service.data.iter().find(|item| item.name == name))
+        {
+            Some(item) => {
+                Column::with_children(item.menu.2.iter().map(|menu| self.menu_voice(name, menu)))
+                    .spacing(self.theme.space.xs)
+                    .into()
+            }
+            _ => Row::new().into(),
+        }
+    }
+
+    fn subscription(&self) -> Option<Subscription<app::Message>> {
         Some(TrayService::subscribe().map(|e| app::Message::Tray(TrayMessage::Event(Box::new(e)))))
     }
 }

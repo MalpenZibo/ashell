@@ -1,23 +1,17 @@
 use crate::{
-    app::{self, Message},
+    app::{self, App, Message},
     components::icons::{Icons, icon},
 };
-use iced::Element;
+use iced::{Element, window::Id};
 
-use super::{Module, OnModulePress};
+use super::{Module, Module2, OnModulePress};
 
 #[derive(Default, Debug, Clone)]
 pub struct AppLauncher;
 
-impl Module for AppLauncher {
-    type ViewData<'a> = &'a Option<String>;
-    type SubscriptionData<'a> = ();
-
-    fn view(
-        &self,
-        config: Self::ViewData<'_>,
-    ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
-        if config.is_some() {
+impl Module2<AppLauncher> for App {
+    fn view(&self, _: Id) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
+        if self.config.app_launcher_cmd.is_some() {
             Some((
                 icon(Icons::AppLauncher).into(),
                 Some(OnModulePress::Action(Box::new(Message::OpenLauncher))),

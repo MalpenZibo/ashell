@@ -5,6 +5,7 @@ use crate::{
     position_button::position_button,
     style::module_button_style,
 };
+use app_launcher::AppLauncher;
 use iced::{
     Alignment, Border, Color, Element, Length, Subscription,
     widget::{Row, container, row},
@@ -27,6 +28,7 @@ pub mod window_title;
 pub mod workspaces;
 
 use log::error;
+use tray::TrayModule;
 
 #[derive(Debug, Clone)]
 pub enum OnModulePress {
@@ -48,27 +50,43 @@ pub trait Module {
     }
 }
 
+pub trait Module2<T> {
+    type MenuViewData<'a>;
+
+    fn view(&self, id: Id) -> Option<(Element<app::Message>, Option<OnModulePress>)>;
+
+    fn menu_view(&self, _: Self::MenuViewData<'_>) -> Element<app::Message> {
+        row!().into()
+    }
+
+    fn subscription(&self) -> Option<Subscription<app::Message>> {
+        None
+    }
+}
+
 impl App {
-    pub fn modules_section(
-        &self,
-        modules_def: &Vec<ModuleDef>,
-        id: Id,
-        opacity: f32,
-    ) -> Element<Message> {
-        let mut row = row!()
-            .height(Length::Shrink)
-            .align_y(Alignment::Center)
-            .spacing(4);
+    pub fn modules_section(&self, id: Id) -> [Element<Message>; 3] {
+        [
+            &self.config.modules.left,
+            &self.config.modules.center,
+            &self.config.modules.right,
+        ]
+        .map(|modules_def| {
+            let mut row = row!()
+                .height(Length::Shrink)
+                .align_y(Alignment::Center)
+                .spacing(4);
 
-        for module_def in modules_def {
-            row = row.push_maybe(match module_def {
-                // life parsing of string to module
-                ModuleDef::Single(module) => self.single_module_wrapper(module, id, opacity),
-                ModuleDef::Group(group) => self.group_module_wrapper(group, id, opacity),
-            });
-        }
+            for module_def in modules_def {
+                row = row.push_maybe(match module_def {
+                    // life parsing of string to module
+                    ModuleDef::Single(module) => self.single_module_wrapper(id, module),
+                    ModuleDef::Group(group) => self.group_module_wrapper(id, group),
+                });
+            }
 
-        row.into()
+            row.into()
+        })
     }
 
     pub fn modules_subscriptions(&self, modules_def: &[ModuleDef]) -> Vec<Subscription<Message>> {
@@ -87,13 +105,8 @@ impl App {
             .collect()
     }
 
-    fn single_module_wrapper(
-        &self,
-        module_name: &ModuleName,
-        id: Id,
-        opacity: f32,
-    ) -> Option<Element<Message>> {
-        let module = self.get_module_view(module_name, id, opacity);
+    fn single_module_wrapper(&self, id: Id, module_name: &ModuleName) -> Option<Element<Message>> {
+        let module = self.get_module_view(id, module_name);
 
         module.map(|(content, action)| match action {
             Some(action) => {
@@ -150,15 +163,10 @@ impl App {
         })
     }
 
-    fn group_module_wrapper(
-        &self,
-        group: &[ModuleName],
-        id: Id,
-        opacity: f32,
-    ) -> Option<Element<Message>> {
+    fn group_module_wrapper(&self, id: Id, group: &[ModuleName]) -> Option<Element<Message>> {
         let modules = group
             .iter()
-            .filter_map(|module| self.get_module_view(module, id, opacity))
+            .filter_map(|module| self.get_module_view(id, module))
             .collect::<Vec<_>>();
 
         if modules.is_empty() {
@@ -231,9 +239,8 @@ impl App {
 
     fn get_module_view(
         &self,
-        module_name: &ModuleName,
         id: Id,
-        opacity: f32,
+        module_name: &ModuleName,
     ) -> Option<(Element<Message>, Option<OnModulePress>)> {
         match module_name {
             ModuleName::AppLauncher => self.app_launcher.view(&self.config.app_launcher_cmd),

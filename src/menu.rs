@@ -130,7 +130,7 @@ impl App {
                         .height(Length::Shrink)
                         .width(Length::Shrink)
                         .max_width(menu_size.size())
-                        .padding(self.space().md)
+                        .padding(self.theme.space.md)
                         .style(move |theme: &Theme| Style {
                             background: Some(
                                 theme
@@ -147,7 +147,7 @@ impl App {
                                     .color
                                     .scale_alpha(self.theme.opacity),
                                 width: 1.,
-                                radius: self.radius().lg.into(),
+                                radius: self.theme.radius.lg.into(),
                             },
                             ..Default::default()
                         }),

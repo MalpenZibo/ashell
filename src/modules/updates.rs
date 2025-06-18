@@ -1,5 +1,5 @@
 use crate::{
-    app::{self},
+    app::{self, App},
     components::icons::{Icons, icon},
     config::UpdatesModuleConfig,
     menu::MenuType,
@@ -18,7 +18,7 @@ use serde::Deserialize;
 use std::{any::TypeId, convert, process::Stdio, time::Duration};
 use tokio::{process, spawn, time::sleep};
 
-use super::{Module, OnModulePress};
+use super::{Module, Module2, OnModulePress};
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct Update {
@@ -240,25 +240,19 @@ impl Updates {
     }
 }
 
-impl Module for Updates {
-    type ViewData<'a> = &'a Option<UpdatesModuleConfig>;
-    type SubscriptionData<'a> = &'a UpdatesModuleConfig;
-
-    fn view(
-        &self,
-        config: Self::ViewData<'_>,
-    ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
-        if config.is_some() {
-            let mut content = row!(container(icon(match self.state {
+impl Module2<Updates> for App {
+    fn view(&self, _: Id) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
+        if self.config.updates.is_some() {
+            let mut content = row!(container(icon(match self.updates.state {
                 State::Checking => Icons::Refresh,
-                State::Ready if self.updates.is_empty() => Icons::NoUpdatesAvailable,
+                State::Ready if self.updates.updates.is_empty() => Icons::NoUpdatesAvailable,
                 _ => Icons::UpdatesAvailable,
             })))
             .align_y(Alignment::Center)
-            .spacing(4);
+            .spacing(self.theme.space.xxs);
 
-            if !self.updates.is_empty() {
-                content = content.push(text(self.updates.len()));
+            if !self.updates.updates.is_empty() {
+                content = content.push(text(self.updates.updates.len()));
             }
 
             Some((
@@ -270,14 +264,11 @@ impl Module for Updates {
         }
     }
 
-    fn subscription(
-        &self,
-        config: Self::SubscriptionData<'_>,
-    ) -> Option<Subscription<app::Message>> {
-        let check_cmd = config.check_cmd.clone();
-        let id = TypeId::of::<Self>();
+    fn subscription(&self) -> Option<Subscription<app::Message>> {
+        self.config.updates.as_ref().map(|config| {
+            let check_cmd = config.check_cmd.clone();
+            let id = TypeId::of::<Self>();
 
-        Some(
             Subscription::run_with_id(
                 id,
                 channel(10, async move |mut output| {
@@ -290,7 +281,7 @@ impl Module for Updates {
                     }
                 }),
             )
-            .map(app::Message::Updates),
-        )
+            .map(app::Message::Updates)
+        })
     }
 }
