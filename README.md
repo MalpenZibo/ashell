@@ -127,7 +127,7 @@ log_level = "warn"
 # Possible status bar outputs, values could be: All, Active, or a list of outputs
 # All: the status bar will be displayed on all the available outputs, example: outputs = "All"
 # active: the status bar will be displayed on the active output, example: outputs = "Active"
-# list of outputs: the status bar will be displayed on the outputs listed here, example: outputs = { targets = ["DP-1", "eDP-1"] }
+# list of outputs: the status bar will be displayed on the outputs listed here, example: outputs = { Targets = ["DP-1", "eDP-1"] }
 # if the outputs is not available the bar will be displayed in the active output
 outputs = "All"
 # Bar position, possible values Top | Bottom.
