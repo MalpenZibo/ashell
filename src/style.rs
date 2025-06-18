@@ -1,8 +1,10 @@
-use crate::config::{Appearance, AppearanceColor, AppearanceStyle};
+use crate::{
+    app::{self, App},
+    config::{Appearance, AppearanceColor, AppearanceStyle, MenuAppearance, Position},
+    menu::Menu,
+};
 use iced::{
     Background, Border, Color, Theme,
-    daemon::DefaultStyle,
-    runtime::default,
     theme::{Palette, palette},
     widget::{
         button::{self, Status},
@@ -10,14 +12,78 @@ use iced::{
     },
 };
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Copy, Clone)]
+pub struct Space {
+    pub xxs: f32,
+    pub xs: f32,
+    pub sm: f32,
+    pub md: f32,
+    pub lg: f32,
+    pub xl: f32,
+    pub xxl: f32,
+}
+
+impl Default for Space {
+    fn default() -> Self {
+        Self {
+            xxs: 4.0,
+            xs: 8.0,
+            sm: 12.0,
+            md: 16.0,
+            lg: 24.0,
+            xl: 32.0,
+            xxl: 48.0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Radius {
+    pub sm: f32,
+    pub md: f32,
+    pub lg: f32,
+}
+
+impl Default for Radius {
+    fn default() -> Self {
+        Self {
+            sm: 4.0,
+            md: 8.0,
+            lg: 16.0,
+        }
+    }
+}
+
+impl App {
+    pub fn space(&self) -> &Space {
+        &self.theme.space
+    }
+
+    pub fn radius(&self) -> &Radius {
+        &self.theme.radius
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct AshellTheme {
     iced_theme: Theme,
+    space: Space,
+    radius: Radius,
+    pub bar_position: Position,
+    pub bar_style: AppearanceStyle,
+    pub opacity: f32,
+    pub menu: MenuAppearance,
 }
 
 impl AshellTheme {
-    pub fn new(appearance: &Appearance) -> Self {
+    pub fn new(position: Position, appearance: &Appearance) -> Self {
         AshellTheme {
+            space: Space::default(),
+            radius: Radius::default(),
+            bar_position: position,
+            bar_style: appearance.style,
+            opacity: appearance.opacity,
+            menu: appearance.menu,
             iced_theme: Theme::custom_with_fn(
                 "local".to_string(),
                 Palette {
@@ -122,14 +188,8 @@ impl AshellTheme {
         }
     }
 
-    pub fn iced_theme(&self) -> &Theme {
+    pub fn get_theme(&self) -> &Theme {
         &self.iced_theme
-    }
-}
-
-impl DefaultStyle for AshellTheme {
-    fn default_style(&self) -> iced::program::Appearance {
-        default(&self.iced_theme)
     }
 }
 
