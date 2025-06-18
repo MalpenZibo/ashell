@@ -25,26 +25,29 @@ use crate::{
     outputs::{HasOutput, Outputs},
     position_button::ButtonUIRef,
     services::{Service, ServiceEvent, brightness::BrightnessCommand, tray::TrayEvent},
-    style::{ashell_theme, backdrop_color, darken_color},
+    style::{AshellTheme, ashell_theme, backdrop_color, darken_color},
     utils,
 };
 use flexi_logger::LoggerHandle;
 use iced::{
-    Alignment, Color, Element, Gradient, Length, Radians, Subscription, Task, Theme,
+    Alignment, Color, Gradient, Length, Radians, Renderer, Subscription, Task, Theme,
     daemon::Appearance,
     event::{
         listen_with,
         wayland::{Event as WaylandEvent, OutputEvent},
     },
     gradient::Linear,
-    widget::{Row, container},
+    widget::{Column, Row, container},
     window::Id,
 };
 use log::{debug, error, info, warn};
 use wayland_client::protocol::wl_output::WlOutput;
 
+pub type Element<'a, Message> = iced::Element<'a, Message, AshellTheme, Renderer>;
+
 pub struct App {
     config_path: PathBuf,
+    theme: AshellTheme,
     logger: LoggerHandle,
     pub config: Config,
     pub outputs: Outputs,
@@ -107,6 +110,7 @@ impl App {
             (
                 App {
                     config_path,
+                    theme: AshellTheme::new(&config.appearance),
                     logger,
                     outputs,
                     app_launcher: AppLauncher,
@@ -134,11 +138,14 @@ impl App {
         String::from("ashell")
     }
 
-    pub fn theme(&self, _id: Id) -> Theme {
-        ashell_theme(&self.config.appearance)
+    pub fn theme(&self, _id: Id) -> AshellTheme {
+        // ashell_theme(&self.config.appearance)
+        self.theme.clone()
     }
 
-    pub fn style(&self, theme: &Theme) -> Appearance {
+    pub fn style(&self, theme: &AshellTheme) -> Appearance {
+        let theme = theme.iced_theme();
+
         Appearance {
             background_color: Color::TRANSPARENT,
             text_color: theme.palette().text,
