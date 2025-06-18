@@ -148,35 +148,63 @@ impl Updates {
             }
         }
     }
+}
 
-    pub fn menu_view(&self, id: Id, opacity: f32) -> Element<Message> {
+impl Module2<Updates> for App {
+    type MenuViewData<'a> = Id;
+
+    fn view(&self, _: Id) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
+        if self.config.updates.is_some() {
+            let mut content = row!(container(icon(match self.updates.state {
+                State::Checking => Icons::Refresh,
+                State::Ready if self.updates.updates.is_empty() => Icons::NoUpdatesAvailable,
+                _ => Icons::UpdatesAvailable,
+            })))
+            .align_y(Alignment::Center)
+            .spacing(self.theme.space.xxs);
+
+            if !self.updates.updates.is_empty() {
+                content = content.push(text(self.updates.updates.len()));
+            }
+
+            Some((
+                content.into(),
+                Some(OnModulePress::ToggleMenu(MenuType::Updates)),
+            ))
+        } else {
+            None
+        }
+    }
+
+    fn menu_view(&self, id: Id) -> Element<app::Message> {
         column!(
-            if self.updates.is_empty() {
+            if self.updates.updates.is_empty() {
                 convert::Into::<Element<'_, _, _>>::into(
                     container(text("Up to date ;)")).padding([8, 8]),
                 )
             } else {
                 let mut elements = column!(
                     button(row!(
-                        text(format!("{} Updates available", self.updates.len()))
+                        text(format!("{} Updates available", self.updates.updates.len()))
                             .width(Length::Fill),
-                        icon(if self.is_updates_list_open {
+                        icon(if self.updates.is_updates_list_open {
                             Icons::MenuClosed
                         } else {
                             Icons::MenuOpen
                         })
                     ))
-                    .style(ghost_button_style(opacity))
+                    .style(self.theme.ghost_button_style())
                     .padding([8, 8])
-                    .on_press(Message::ToggleUpdatesList)
+                    .on_press(app::Message::Updates(Message::ToggleUpdatesList))
                     .width(Length::Fill),
                 );
 
-                if self.is_updates_list_open {
+                if self.updates.is_updates_list_open {
                     elements = elements.push(
                         container(scrollable(
                             Column::with_children(
                                 self.updates
+                                    .updates
                                     .iter()
                                     .map(|update| {
                                         column!(
@@ -217,51 +245,26 @@ impl Updates {
             },
             horizontal_rule(1),
             button("Update")
-                .style(ghost_button_style(opacity))
+                .style(self.theme.ghost_button_style())
                 .padding([8, 8])
-                .on_press(Message::Update(id))
+                .on_press(app::Message::Updates(Message::Update(id)))
                 .width(Length::Fill),
             button({
                 let mut content = row!(text("Check now").width(Length::Fill),);
 
-                if self.state == State::Checking {
+                if self.updates.state == State::Checking {
                     content = content.push(icon(Icons::Refresh));
                 }
 
                 content
             })
-            .style(ghost_button_style(opacity))
+            .style(self.theme.ghost_button_style())
             .padding([8, 8])
-            .on_press(Message::CheckNow)
+            .on_press(app::Message::Updates(Message::CheckNow))
             .width(Length::Fill),
         )
         .spacing(4)
         .into()
-    }
-}
-
-impl Module2<Updates> for App {
-    fn view(&self, _: Id) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
-        if self.config.updates.is_some() {
-            let mut content = row!(container(icon(match self.updates.state {
-                State::Checking => Icons::Refresh,
-                State::Ready if self.updates.updates.is_empty() => Icons::NoUpdatesAvailable,
-                _ => Icons::UpdatesAvailable,
-            })))
-            .align_y(Alignment::Center)
-            .spacing(self.theme.space.xxs);
-
-            if !self.updates.updates.is_empty() {
-                content = content.push(text(self.updates.updates.len()));
-            }
-
-            Some((
-                content.into(),
-                Some(OnModulePress::ToggleMenu(MenuType::Updates)),
-            ))
-        } else {
-            None
-        }
     }
 
     fn subscription(&self) -> Option<Subscription<app::Message>> {
