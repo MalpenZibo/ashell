@@ -4,7 +4,7 @@ use crate::{
     get_log_spec,
     menu::{MenuSize, MenuType},
     modules::{
-        self,
+        self, Module2,
         app_launcher::AppLauncher,
         clipboard::Clipboard,
         clock::Clock,
@@ -308,24 +308,10 @@ impl App {
     pub fn view(&self, id: Id) -> Element<Message> {
         match self.outputs.has(id) {
             Some(HasOutput::Main) => {
-                let left = self.modules_section(
-                    &self.config.modules.left,
-                    id,
-                    self.config.appearance.opacity,
-                );
-                let center = self.modules_section(
-                    &self.config.modules.center,
-                    id,
-                    self.config.appearance.opacity,
-                );
-                let right = self.modules_section(
-                    &self.config.modules.right,
-                    id,
-                    self.config.appearance.opacity,
-                );
+                let [left, center, right] = self.modules_section(id);
 
                 let centerbox = centerbox::Centerbox::new([left, center, right])
-                    .spacing(self.space().xxs)
+                    .spacing(self.theme.space.xxs)
                     .width(Length::Fill)
                     .align_items(Alignment::Center)
                     .height(
@@ -337,7 +323,7 @@ impl App {
                     )
                     .padding(
                         if self.config.appearance.style == AppearanceStyle::Islands {
-                            [self.space().xxs, self.space().xxs]
+                            [self.theme.space.xxs, self.theme.space.xxs]
                         } else {
                             [0., 0.]
                         },
@@ -420,9 +406,7 @@ impl App {
                 ),
                 Some((MenuType::Tray(name), button_ui_ref)) => self.menu_wrapper(
                     id,
-                    self.tray
-                        .menu_view(name, self.config.appearance.menu.opacity)
-                        .map(Message::Tray),
+                    <Self as Module2<TrayModule>>::menu_view(self, name),
                     MenuSize::Normal,
                     *button_ui_ref,
                 ),
