@@ -1,4 +1,4 @@
-use crate::app::{self};
+use crate::app::{self, App};
 use crate::config::{AppearanceStyle, Position};
 use crate::position_button::ButtonUIRef;
 use crate::style::backdrop_color;
@@ -114,78 +114,83 @@ impl MenuSize {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-pub fn menu_wrapper(
-    id: Id,
-    content: Element<app::Message>,
-    menu_size: MenuSize,
-    button_ui_ref: ButtonUIRef,
-    bar_position: Position,
-    style: AppearanceStyle,
-    opacity: f32,
-    menu_backdrop: f32,
-) -> Element<app::Message> {
-    mouse_area(
-        container(
-            mouse_area(
-                container(content)
-                    .height(Length::Shrink)
-                    .width(Length::Shrink)
-                    .max_width(menu_size.size())
-                    .padding(16)
-                    .style(move |theme: &Theme| Style {
-                        background: Some(theme.palette().background.scale_alpha(opacity).into()),
-                        border: Border {
-                            color: theme
-                                .extended_palette()
-                                .secondary
-                                .base
-                                .color
-                                .scale_alpha(opacity),
-                            width: 1.,
-                            radius: 16.0.into(),
-                        },
-                        ..Default::default()
-                    }),
+impl App {
+    #[allow(clippy::too_many_arguments)]
+    pub fn menu_wrapper<'a>(
+        &'a self,
+        id: Id,
+        content: Element<'a, app::Message>,
+        menu_size: MenuSize,
+        button_ui_ref: ButtonUIRef,
+    ) -> Element<'a, app::Message> {
+        mouse_area(
+            container(
+                mouse_area(
+                    container(content)
+                        .height(Length::Shrink)
+                        .width(Length::Shrink)
+                        .max_width(menu_size.size())
+                        .padding(self.space().md)
+                        .style(move |theme: &Theme| Style {
+                            background: Some(
+                                theme
+                                    .palette()
+                                    .background
+                                    .scale_alpha(self.theme.opacity)
+                                    .into(),
+                            ),
+                            border: Border {
+                                color: theme
+                                    .extended_palette()
+                                    .secondary
+                                    .base
+                                    .color
+                                    .scale_alpha(self.theme.opacity),
+                                width: 1.,
+                                radius: self.radius().lg.into(),
+                            },
+                            ..Default::default()
+                        }),
+                )
+                .on_release(app::Message::None),
             )
-            .on_release(app::Message::None),
+            .align_y(match self.theme.bar_position {
+                Position::Top => Vertical::Top,
+                Position::Bottom => Vertical::Bottom,
+            })
+            .align_x(Horizontal::Left)
+            .padding({
+                let size = menu_size.size();
+
+                let v_padding = match self.theme.bar_style {
+                    AppearanceStyle::Solid | AppearanceStyle::Gradient => 2,
+                    AppearanceStyle::Islands => 0,
+                };
+
+                Padding::new(0.)
+                    .top(if self.theme.bar_position == Position::Top {
+                        v_padding
+                    } else {
+                        0
+                    })
+                    .bottom(if self.theme.bar_position == Position::Bottom {
+                        v_padding
+                    } else {
+                        0
+                    })
+                    .left(f32::min(
+                        f32::max(button_ui_ref.position.x - size / 2., 8.),
+                        button_ui_ref.viewport.0 - size - 8.,
+                    ))
+            })
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .style(move |_| Style {
+                background: Some(backdrop_color(self.theme.menu.backdrop).into()),
+                ..Default::default()
+            }),
         )
-        .align_y(match bar_position {
-            Position::Top => Vertical::Top,
-            Position::Bottom => Vertical::Bottom,
-        })
-        .align_x(Horizontal::Left)
-        .padding({
-            let size = menu_size.size();
-
-            let v_padding = match style {
-                AppearanceStyle::Solid | AppearanceStyle::Gradient => 2,
-                AppearanceStyle::Islands => 0,
-            };
-
-            Padding::new(0.)
-                .top(if bar_position == Position::Top {
-                    v_padding
-                } else {
-                    0
-                })
-                .bottom(if bar_position == Position::Bottom {
-                    v_padding
-                } else {
-                    0
-                })
-                .left(f32::min(
-                    f32::max(button_ui_ref.position.x - size / 2., 8.),
-                    button_ui_ref.viewport.0 - size - 8.,
-                ))
-        })
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .style(move |_| Style {
-            background: Some(backdrop_color(menu_backdrop).into()),
-            ..Default::default()
-        }),
-    )
-    .on_release(app::Message::CloseMenu(id))
-    .into()
+        .on_release(app::Message::CloseMenu(id))
+        .into()
+    }
 }
