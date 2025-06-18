@@ -337,7 +337,7 @@ pub enum AppearanceStyle {
     Gradient,
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Clone, Copy, Debug)]
 pub struct MenuAppearance {
     #[serde(deserialize_with = "opacity_deserializer", default = "default_opacity")]
     pub opacity: f32,

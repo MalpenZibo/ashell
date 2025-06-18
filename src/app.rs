@@ -1,10 +1,8 @@
-use std::{collections::HashMap, f32::consts::PI, path::PathBuf};
-
 use crate::{
     HEIGHT, centerbox,
     config::{self, AppearanceStyle, Config, Position},
     get_log_spec,
-    menu::{MenuSize, MenuType, menu_wrapper},
+    menu::{MenuSize, MenuType},
     modules::{
         self,
         app_launcher::AppLauncher,
@@ -25,29 +23,28 @@ use crate::{
     outputs::{HasOutput, Outputs},
     position_button::ButtonUIRef,
     services::{Service, ServiceEvent, brightness::BrightnessCommand, tray::TrayEvent},
-    style::{AshellTheme, ashell_theme, backdrop_color, darken_color},
+    style::{AshellTheme, backdrop_color, darken_color},
     utils,
 };
 use flexi_logger::LoggerHandle;
 use iced::{
-    Alignment, Color, Gradient, Length, Radians, Renderer, Subscription, Task, Theme,
+    Alignment, Color, Element, Gradient, Length, Radians, Subscription, Task, Theme,
     daemon::Appearance,
     event::{
         listen_with,
         wayland::{Event as WaylandEvent, OutputEvent},
     },
     gradient::Linear,
-    widget::{Column, Row, container},
+    widget::{Row, container},
     window::Id,
 };
 use log::{debug, error, info, warn};
+use std::{collections::HashMap, f32::consts::PI, path::PathBuf};
 use wayland_client::protocol::wl_output::WlOutput;
-
-pub type Element<'a, Message> = iced::Element<'a, Message, AshellTheme, Renderer>;
 
 pub struct App {
     config_path: PathBuf,
-    theme: AshellTheme,
+    pub theme: AshellTheme,
     logger: LoggerHandle,
     pub config: Config,
     pub outputs: Outputs,
@@ -110,7 +107,7 @@ impl App {
             (
                 App {
                     config_path,
-                    theme: AshellTheme::new(&config.appearance),
+                    theme: AshellTheme::new(config.position, &config.appearance),
                     logger,
                     outputs,
                     app_launcher: AppLauncher,
@@ -138,14 +135,11 @@ impl App {
         String::from("ashell")
     }
 
-    pub fn theme(&self, _id: Id) -> AshellTheme {
-        // ashell_theme(&self.config.appearance)
-        self.theme.clone()
+    pub fn theme(&self, _id: Id) -> Theme {
+        self.theme.get_theme().clone()
     }
 
-    pub fn style(&self, theme: &AshellTheme) -> Appearance {
-        let theme = theme.iced_theme();
-
+    pub fn style(&self, theme: &Theme) -> Appearance {
         Appearance {
             background_color: Color::TRANSPARENT,
             text_color: theme.palette().text,
@@ -354,7 +348,7 @@ impl App {
                 );
 
                 let centerbox = centerbox::Centerbox::new([left, center, right])
-                    .spacing(4)
+                    .spacing(self.space().xxs)
                     .width(Length::Fill)
                     .align_items(Alignment::Center)
                     .height(
@@ -366,14 +360,14 @@ impl App {
                     )
                     .padding(
                         if self.config.appearance.style == AppearanceStyle::Islands {
-                            [4, 4]
+                            [self.space().xxs, self.space().xxs]
                         } else {
-                            [0, 0]
+                            [0., 0.]
                         },
                     );
 
                 container(centerbox)
-                    .style(|t| container::Style {
+                    .style(|t: &Theme| container::Style {
                         background: match self.config.appearance.style {
                             AppearanceStyle::Gradient => Some({
                                 let start_color = t
@@ -439,31 +433,23 @@ impl App {
                     .into()
             }
             Some(HasOutput::Menu(menu_info)) => match menu_info {
-                Some((MenuType::Updates, button_ui_ref)) => menu_wrapper(
+                Some((MenuType::Updates, button_ui_ref)) => self.menu_wrapper(
                     id,
                     self.updates
                         .menu_view(id, self.config.appearance.menu.opacity)
                         .map(Message::Updates),
-                    MenuSize::Small,
+                    MenuSize::Normal,
                     *button_ui_ref,
-                    self.config.position,
-                    self.config.appearance.style,
-                    self.config.appearance.menu.opacity,
-                    self.config.appearance.menu.backdrop,
                 ),
-                Some((MenuType::Tray(name), button_ui_ref)) => menu_wrapper(
+                Some((MenuType::Tray(name), button_ui_ref)) => self.menu_wrapper(
                     id,
                     self.tray
                         .menu_view(name, self.config.appearance.menu.opacity)
                         .map(Message::Tray),
-                    MenuSize::Small,
+                    MenuSize::Normal,
                     *button_ui_ref,
-                    self.config.position,
-                    self.config.appearance.style,
-                    self.config.appearance.menu.opacity,
-                    self.config.appearance.menu.backdrop,
                 ),
-                Some((MenuType::Settings, button_ui_ref)) => menu_wrapper(
+                Some((MenuType::Settings, button_ui_ref)) => self.menu_wrapper(
                     id,
                     self.settings
                         .menu_view(
@@ -473,14 +459,10 @@ impl App {
                             self.config.position,
                         )
                         .map(Message::Settings),
-                    MenuSize::Medium,
+                    MenuSize::Large,
                     *button_ui_ref,
-                    self.config.position,
-                    self.config.appearance.style,
-                    self.config.appearance.menu.opacity,
-                    self.config.appearance.menu.backdrop,
                 ),
-                Some((MenuType::MediaPlayer, button_ui_ref)) => menu_wrapper(
+                Some((MenuType::MediaPlayer, button_ui_ref)) => self.menu_wrapper(
                     id,
                     self.media_player
                         .menu_view(
@@ -490,20 +472,12 @@ impl App {
                         .map(Message::MediaPlayer),
                     MenuSize::Large,
                     *button_ui_ref,
-                    self.config.position,
-                    self.config.appearance.style,
-                    self.config.appearance.menu.opacity,
-                    self.config.appearance.menu.backdrop,
                 ),
-                Some((MenuType::SystemInfo, button_ui_ref)) => menu_wrapper(
+                Some((MenuType::SystemInfo, button_ui_ref)) => self.menu_wrapper(
                     id,
                     self.system_info.menu_view().map(Message::SystemInfo),
-                    MenuSize::Medium,
+                    MenuSize::Large,
                     *button_ui_ref,
-                    self.config.position,
-                    self.config.appearance.style,
-                    self.config.appearance.menu.opacity,
-                    self.config.appearance.menu.backdrop,
                 ),
                 None => Row::new().into(),
             },
