@@ -10,6 +10,8 @@ use super::{Module, Module2, OnModulePress};
 pub struct AppLauncher;
 
 impl Module2<AppLauncher> for App {
+    type MenuViewData<'a> = ();
+
     fn view(&self, _: Id) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         if self.config.app_launcher_cmd.is_some() {
             Some((

@@ -421,9 +421,7 @@ impl App {
             Some(HasOutput::Menu(menu_info)) => match menu_info {
                 Some((MenuType::Updates, button_ui_ref)) => self.menu_wrapper(
                     id,
-                    self.updates
-                        .menu_view(id, self.config.appearance.menu.opacity)
-                        .map(Message::Updates),
+                    <Self as Module2<Updates>>::menu_view(self, id),
                     MenuSize::Normal,
                     *button_ui_ref,
                 ),
