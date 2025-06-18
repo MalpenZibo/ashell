@@ -54,21 +54,12 @@ impl Default for Radius {
     }
 }
 
-impl App {
-    pub fn space(&self) -> &Space {
-        &self.theme.space
-    }
-
-    pub fn radius(&self) -> &Radius {
-        &self.theme.radius
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct AshellTheme {
     iced_theme: Theme,
-    space: Space,
-    radius: Radius,
+    pub space: Space,
+    pub radius: Radius,
+    pub font_size: f32,
     pub bar_position: Position,
     pub bar_style: AppearanceStyle,
     pub opacity: f32,
@@ -80,6 +71,7 @@ impl AshellTheme {
         AshellTheme {
             space: Space::default(),
             radius: Radius::default(),
+            font_size: 16.,
             bar_position: position,
             bar_style: appearance.style,
             opacity: appearance.opacity,
@@ -190,6 +182,37 @@ impl AshellTheme {
 
     pub fn get_theme(&self) -> &Theme {
         &self.iced_theme
+    }
+
+    pub fn ghost_button_style(&self) -> impl Fn(&Theme, Status) -> button::Style {
+        move |theme, status| {
+            let mut base = button::Style {
+                background: None,
+                border: Border {
+                    width: 0.0,
+                    radius: self.radius.sm.into(),
+                    color: Color::TRANSPARENT,
+                },
+                text_color: theme.palette().text,
+                ..button::Style::default()
+            };
+            match status {
+                Status::Active => base,
+                Status::Hovered => {
+                    base.background = Some(
+                        theme
+                            .extended_palette()
+                            .background
+                            .weak
+                            .color
+                            .scale_alpha(self.opacity)
+                            .into(),
+                    );
+                    base
+                }
+                _ => base,
+            }
+        }
     }
 }
 
