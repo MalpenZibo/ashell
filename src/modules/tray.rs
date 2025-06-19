@@ -104,7 +104,7 @@ impl App {
                             })
                         ))
                         .style(self.theme.ghost_button_style())
-                        .padding([8, 8])
+                        .padding(self.theme.space.xs)
                         .on_press(app::Message::Tray(TrayMessage::ToggleSubmenu(layout.0)))
                         .width(Length::Fill),
                     )
@@ -117,8 +117,8 @@ impl App {
                                     .map(|menu| self.menu_voice(name, menu))
                                     .collect::<Vec<_>>(),
                             )
-                            .padding([0, 0, 0, 16])
-                            .spacing(4),
+                            .padding([0, 0, 0, self.theme.space.md])
+                            .spacing(self.theme.space.xxs),
                         )
                     } else {
                         None
@@ -134,7 +134,7 @@ impl App {
                     layout.0,
                 )))
                 .width(Length::Fill)
-                .padding([8, 8])
+                .padding(self.theme.space.xs)
                 .into(),
             LayoutProps { type_: Some(t), .. } if t == "separator" => horizontal_rule(1).into(),
             _ => Row::new().into(),
@@ -143,9 +143,14 @@ impl App {
 }
 
 impl Module2<TrayModule> for App {
+    type ViewData<'a> = Id;
     type MenuViewData<'a> = &'a str;
+    type SubscriptionData<'a> = ();
 
-    fn view(&self, id: Id) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
+    fn view(
+        &self,
+        id: Self::ViewData<'_>,
+    ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         self.tray
             .service
             .as_ref()
@@ -158,13 +163,14 @@ impl Module2<TrayModule> for App {
                             .iter()
                             .map(|item| {
                                 position_button(match &item.icon {
-                                    Some(TrayIcon::Image(handle)) => Into::<Element<_>>::into(
-                                        Image::new(handle.clone())
-                                            .height(Length::Fixed(self.theme.font_size - 2.)),
-                                    ),
+                                    Some(TrayIcon::Image(handle)) => {
+                                        Into::<Element<_>>::into(Image::new(handle.clone()).height(
+                                            Length::Fixed(self.theme.font_size.md as f32 - 2.),
+                                        ))
+                                    }
                                     Some(TrayIcon::Svg(handle)) => Into::<Element<_>>::into(
                                         Svg::new(handle.clone())
-                                            .height(Length::Fixed(self.theme.font_size))
+                                            .height(Length::Fixed(self.theme.font_size.md as f32))
                                             .width(Length::Shrink),
                                     ),
                                     _ => icon(Icons::Point).into(),
@@ -206,7 +212,7 @@ impl Module2<TrayModule> for App {
         }
     }
 
-    fn subscription(&self) -> Option<Subscription<app::Message>> {
+    fn subscription(&self, _: Self::SubscriptionData<'_>) -> Option<Subscription<app::Message>> {
         Some(TrayService::subscribe().map(|e| app::Message::Tray(TrayMessage::Event(Box::new(e)))))
     }
 }

@@ -1,13 +1,13 @@
+use super::{Module2, OnModulePress};
 use crate::{
     app::{self, App},
     components::icons::{Icons, icon},
     config::UpdatesModuleConfig,
     menu::MenuType,
     outputs::Outputs,
-    style::ghost_button_style,
 };
 use iced::{
-    Alignment, Element, Length, Padding, Subscription, Task,
+    Alignment, Element, Length, Subscription, Task,
     alignment::Horizontal,
     stream::channel,
     widget::{Column, button, column, container, horizontal_rule, row, scrollable, text},
@@ -17,8 +17,6 @@ use log::error;
 use serde::Deserialize;
 use std::{any::TypeId, convert, process::Stdio, time::Duration};
 use tokio::{process, spawn, time::sleep};
-
-use super::{Module, Module2, OnModulePress};
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct Update {
@@ -151,9 +149,14 @@ impl Updates {
 }
 
 impl Module2<Updates> for App {
+    type ViewData<'a> = ();
     type MenuViewData<'a> = Id;
+    type SubscriptionData<'a> = ();
 
-    fn view(&self, _: Id) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
+    fn view(
+        &self,
+        _: Self::ViewData<'_>,
+    ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         if self.config.updates.is_some() {
             let mut content = row!(container(icon(match self.updates.state {
                 State::Checking => Icons::Refresh,
@@ -180,7 +183,7 @@ impl Module2<Updates> for App {
         column!(
             if self.updates.updates.is_empty() {
                 convert::Into::<Element<'_, _, _>>::into(
-                    container(text("Up to date ;)")).padding([8, 8]),
+                    container(text("Up to date ;)")).padding(self.theme.space.xs),
                 )
             } else {
                 let mut elements = column!(
@@ -194,7 +197,7 @@ impl Module2<Updates> for App {
                         })
                     ))
                     .style(self.theme.ghost_button_style())
-                    .padding([8, 8])
+                    .padding(self.theme.space.xs)
                     .on_press(app::Message::Updates(Message::ToggleUpdatesList))
                     .width(Length::Fill),
                 );
@@ -209,7 +212,7 @@ impl Module2<Updates> for App {
                                     .map(|update| {
                                         column!(
                                             text(update.package.clone())
-                                                .size(10)
+                                                .size(self.theme.font_size.xs)
                                                 .width(Length::Fill),
                                             text(format!(
                                                 "{} -> {}",
@@ -228,16 +231,16 @@ impl Module2<Updates> for App {
                                             ))
                                             .width(Length::Fill)
                                             .align_x(Horizontal::Right)
-                                            .size(10)
+                                            .size(self.theme.font_size.xs)
                                         )
                                         .into()
                                     })
                                     .collect::<Vec<Element<'_, _, _>>>(),
                             )
-                            .padding(Padding::ZERO.right(16))
-                            .spacing(4),
+                            .padding(self.theme.space.md)
+                            .spacing(self.theme.space.xxs),
                         ))
-                        .padding([8, 0])
+                        .padding([self.theme.space.xs, 0])
                         .max_height(300),
                     );
                 }
@@ -246,7 +249,7 @@ impl Module2<Updates> for App {
             horizontal_rule(1),
             button("Update")
                 .style(self.theme.ghost_button_style())
-                .padding([8, 8])
+                .padding(self.theme.space.xs)
                 .on_press(app::Message::Updates(Message::Update(id)))
                 .width(Length::Fill),
             button({
@@ -259,15 +262,15 @@ impl Module2<Updates> for App {
                 content
             })
             .style(self.theme.ghost_button_style())
-            .padding([8, 8])
+            .padding(self.theme.space.xs)
             .on_press(app::Message::Updates(Message::CheckNow))
             .width(Length::Fill),
         )
-        .spacing(4)
+        .spacing(self.theme.space.xxs)
         .into()
     }
 
-    fn subscription(&self) -> Option<Subscription<app::Message>> {
+    fn subscription(&self, _: Self::SubscriptionData<'_>) -> Option<Subscription<app::Message>> {
         self.config.updates.as_ref().map(|config| {
             let check_cmd = config.check_cmd.clone();
             let id = TypeId::of::<Self>();

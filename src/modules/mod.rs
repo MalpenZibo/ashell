@@ -6,6 +6,7 @@ use crate::{
     style::module_button_style,
 };
 use app_launcher::AppLauncher;
+use custom_module::Custom;
 use iced::{
     Alignment, Border, Color, Element, Length, Subscription,
     widget::{Row, container, row},
@@ -29,6 +30,7 @@ pub mod workspaces;
 
 use log::error;
 use tray::TrayModule;
+use updates::Updates;
 
 #[derive(Debug, Clone)]
 pub enum OnModulePress {
@@ -51,15 +53,18 @@ pub trait Module {
 }
 
 pub trait Module2<T> {
+    type ViewData<'a>;
     type MenuViewData<'a>;
+    type SubscriptionData<'a>;
 
-    fn view(&self, id: Id) -> Option<(Element<app::Message>, Option<OnModulePress>)>;
+    fn view(&self, _: Self::ViewData<'_>)
+    -> Option<(Element<app::Message>, Option<OnModulePress>)>;
 
     fn menu_view(&self, _: Self::MenuViewData<'_>) -> Element<app::Message> {
         row!().into()
     }
 
-    fn subscription(&self) -> Option<Subscription<app::Message>> {
+    fn subscription(&self, _: Self::SubscriptionData<'_>) -> Option<Subscription<app::Message>> {
         None
     }
 }
@@ -75,7 +80,7 @@ impl App {
             let mut row = row!()
                 .height(Length::Shrink)
                 .align_y(Alignment::Center)
-                .spacing(4);
+                .spacing(self.theme.space.xxs);
 
             for module_def in modules_def {
                 row = row.push_maybe(match module_def {
@@ -115,7 +120,7 @@ impl App {
                         .align_y(Alignment::Center)
                         .height(Length::Fill),
                 )
-                .padding([2, 8])
+                .padding([2, self.theme.space.xs])
                 .height(Length::Fill)
                 .style(module_button_style(
                     self.config.appearance.style,
@@ -135,7 +140,7 @@ impl App {
             }
             _ => {
                 let container = container(content)
-                    .padding([2, 8])
+                    .padding([2, self.theme.space.xs])
                     .height(Length::Fill)
                     .align_y(Alignment::Center);
 
@@ -152,7 +157,7 @@ impl App {
                             ),
                             border: Border {
                                 width: 0.0,
-                                radius: 12.0.into(),
+                                radius: self.theme.radius.lg.into(),
                                 color: Color::TRANSPARENT,
                             },
                             ..container::Style::default()
@@ -183,7 +188,7 @@ impl App {
                                         .align_y(Alignment::Center)
                                         .height(Length::Fill),
                                 )
-                                .padding([2, 8])
+                                .padding([2, self.theme.space.xs])
                                 .height(Length::Fill)
                                 .style(module_button_style(
                                     self.config.appearance.style,
@@ -205,7 +210,7 @@ impl App {
                                 .into()
                             }
                             _ => container(content)
-                                .padding([2, 8])
+                                .padding([2, self.theme.space.xs])
                                 .height(Length::Fill)
                                 .align_y(Alignment::Center)
                                 .into(),
@@ -226,7 +231,7 @@ impl App {
                             ),
                             border: Border {
                                 width: 0.0,
-                                radius: 12.0.into(),
+                                radius: self.theme.radius.lg.into(),
                                 color: Color::TRANSPARENT,
                             },
                             ..container::Style::default()
@@ -243,17 +248,21 @@ impl App {
         module_name: &ModuleName,
     ) -> Option<(Element<Message>, Option<OnModulePress>)> {
         match module_name {
-            ModuleName::AppLauncher => <Self as Module2<AppLauncher>>::view(self, id),
-            // ModuleName::Custom(name) => self
-            //     .config
-            //     .custom_modules
-            //     .iter()
-            //     .find(|m| &m.name == name)
-            //     .and_then(|mc| self.custom.get(name).map(|cm| cm.view(mc)))
-            //     .unwrap_or_else(|| {
-            //         error!("Custom module `{}` not found", name);
-            //         None
-            //     }),
+            ModuleName::AppLauncher => <Self as Module2<AppLauncher>>::view(self, ()),
+            ModuleName::Custom(name) => self
+                .config
+                .custom_modules
+                .iter()
+                .find(|m| &m.name == name)
+                .and_then(|mc| {
+                    self.custom
+                        .get(name)
+                        .map(|cm| <Self as Module2<Custom>>::view(self, (cm, mc)))
+                })
+                .unwrap_or_else(|| {
+                    error!("Custom module `{}` not found", name);
+                    None
+                }),
             // ModuleName::Updates => self.updates.view(&self.config.updates),
             // ModuleName::Clipboard => self.clipboard.view(&self.config.clipboard_cmd),
             // ModuleName::Workspaces => self.workspaces.view((
@@ -278,29 +287,25 @@ impl App {
 
     fn get_module_subscription(&self, module_name: &ModuleName) -> Option<Subscription<Message>> {
         match module_name {
-            // ModuleName::AppLauncher => self.app_launcher.subscription(()),
-            // ModuleName::Custom(name) => self
-            //     .config
-            //     .custom_modules
-            //     .iter()
-            //     .find(|m| &m.name == name)
-            //     .and_then(|mc| self.custom.get(name).map(|cm| cm.subscription(mc)))
-            //     .unwrap_or_else(|| {
-            //         error!("Custom module def `{}` not found", name);
-            //         None
-            //     }),
-            // ModuleName::Updates => self
-            //     .config
-            //     .updates
-            //     .as_ref()
-            //     .and_then(|updates_config| self.updates.subscription(updates_config)),
+            ModuleName::AppLauncher => <Self as Module2<AppLauncher>>::subscription(self, ()),
+            ModuleName::Custom(name) => self
+                .config
+                .custom_modules
+                .iter()
+                .find(|m| &m.name == name)
+                .map(|mc| <Self as Module2<Custom>>::subscription(self, mc))
+                .unwrap_or_else(|| {
+                    error!("Custom module def `{}` not found", name);
+                    None
+                }),
+            ModuleName::Updates => <Self as Module2<Updates>>::subscription(self, ()),
             // ModuleName::Clipboard => self.clipboard.subscription(()),
             // ModuleName::Workspaces => self.workspaces.subscription(&self.config.workspaces),
             // ModuleName::WindowTitle => self.window_title.subscription(()),
             // ModuleName::SystemInfo => self.system_info.subscription(()),
             // ModuleName::KeyboardLayout => self.keyboard_layout.subscription(()),
             // ModuleName::KeyboardSubmap => self.keyboard_submap.subscription(()),
-            ModuleName::Tray => <Self as Module2<TrayModule>>::subscription(self),
+            ModuleName::Tray => <Self as Module2<TrayModule>>::subscription(self, ()),
             // ModuleName::Clock => self.clock.subscription(()),
             // ModuleName::Privacy => self.privacy.subscription(()),
             // ModuleName::Settings => self.settings.subscription(()),

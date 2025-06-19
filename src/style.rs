@@ -1,8 +1,4 @@
-use crate::{
-    app::{self, App},
-    config::{Appearance, AppearanceColor, AppearanceStyle, MenuAppearance, Position},
-    menu::Menu,
-};
+use crate::config::{Appearance, AppearanceColor, AppearanceStyle, MenuAppearance, Position};
 use iced::{
     Background, Border, Color, Theme,
     theme::{Palette, palette},
@@ -14,42 +10,67 @@ use iced::{
 
 #[derive(Debug, Copy, Clone)]
 pub struct Space {
-    pub xxs: f32,
-    pub xs: f32,
-    pub sm: f32,
-    pub md: f32,
-    pub lg: f32,
-    pub xl: f32,
-    pub xxl: f32,
+    pub xxs: u16,
+    pub xs: u16,
+    pub sm: u16,
+    pub md: u16,
+    pub lg: u16,
+    pub xl: u16,
+    pub xxl: u16,
 }
 
 impl Default for Space {
     fn default() -> Self {
         Self {
-            xxs: 4.0,
-            xs: 8.0,
-            sm: 12.0,
-            md: 16.0,
-            lg: 24.0,
-            xl: 32.0,
-            xxl: 48.0,
+            xxs: 4,
+            xs: 8,
+            sm: 12,
+            md: 16,
+            lg: 24,
+            xl: 32,
+            xxl: 48,
         }
     }
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct Radius {
-    pub sm: f32,
-    pub md: f32,
-    pub lg: f32,
+    pub sm: u16,
+    pub md: u16,
+    pub lg: u16,
 }
 
 impl Default for Radius {
     fn default() -> Self {
         Self {
-            sm: 4.0,
-            md: 8.0,
-            lg: 16.0,
+            sm: 4,
+            md: 8,
+            lg: 16,
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct FontSize {
+    pub xxs: u16,
+    pub xs: u16,
+    pub sm: u16,
+    pub md: u16,
+    pub lg: u16,
+    pub xl: u16,
+    pub xxl: u16,
+}
+
+impl Default for FontSize {
+    fn default() -> Self {
+        Self {
+            xxs: 8,
+            xs: 10,
+            sm: 12,
+            md: 16,
+            lg: 20,
+            xl: 22,
+            xxl: 24,
         }
     }
 }
@@ -59,7 +80,7 @@ pub struct AshellTheme {
     iced_theme: Theme,
     pub space: Space,
     pub radius: Radius,
-    pub font_size: f32,
+    pub font_size: FontSize,
     pub bar_position: Position,
     pub bar_style: AppearanceStyle,
     pub opacity: f32,
@@ -71,7 +92,7 @@ impl AshellTheme {
         AshellTheme {
             space: Space::default(),
             radius: Radius::default(),
-            font_size: 16.,
+            font_size: FontSize::default(),
             bar_position: position,
             bar_style: appearance.style,
             opacity: appearance.opacity,
