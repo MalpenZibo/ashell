@@ -6,6 +6,7 @@ use crate::{
     style::module_button_style,
 };
 use app_launcher::AppLauncher;
+use custom_module::Custom;
 use iced::{
     Alignment, Border, Color, Element, Length, Subscription,
     widget::{Row, container, row},
@@ -29,6 +30,7 @@ pub mod workspaces;
 
 use log::error;
 use tray::TrayModule;
+use updates::Updates;
 
 #[derive(Debug, Clone)]
 pub enum OnModulePress {
@@ -51,15 +53,18 @@ pub trait Module {
 }
 
 pub trait Module2<T> {
+    type ViewData<'a>;
     type MenuViewData<'a>;
+    type SubscriptionData<'a>;
 
-    fn view(&self, id: Id) -> Option<(Element<app::Message>, Option<OnModulePress>)>;
+    fn view(&self, _: Self::ViewData<'_>)
+    -> Option<(Element<app::Message>, Option<OnModulePress>)>;
 
     fn menu_view(&self, _: Self::MenuViewData<'_>) -> Element<app::Message> {
         row!().into()
     }
 
-    fn subscription(&self) -> Option<Subscription<app::Message>> {
+    fn subscription(&self, _: Self::SubscriptionData<'_>) -> Option<Subscription<app::Message>> {
         None
     }
 }
@@ -75,7 +80,7 @@ impl App {
             let mut row = row!()
                 .height(Length::Shrink)
                 .align_y(Alignment::Center)
-                .spacing(4);
+                .spacing(self.theme.space.xxs);
 
             for module_def in modules_def {
                 row = row.push_maybe(match module_def {
@@ -115,7 +120,7 @@ impl App {
                         .align_y(Alignment::Center)
                         .height(Length::Fill),
                 )
-                .padding([2, 8])
+                .padding([2, self.theme.space.xs])
                 .height(Length::Fill)
                 .style(module_button_style(
                     self.config.appearance.style,
@@ -135,7 +140,7 @@ impl App {
             }
             _ => {
                 let container = container(content)
-                    .padding([2, 8])
+                    .padding([2, self.theme.space.xs])
                     .height(Length::Fill)
                     .align_y(Alignment::Center);
 
@@ -152,7 +157,7 @@ impl App {
                             ),
                             border: Border {
                                 width: 0.0,
-                                radius: 12.0.into(),
+                                radius: self.theme.radius.lg.into(),
                                 color: Color::TRANSPARENT,
                             },
                             ..container::Style::default()
@@ -183,7 +188,7 @@ impl App {
                                         .align_y(Alignment::Center)
                                         .height(Length::Fill),
                                 )
-                                .padding([2, 8])
+                                .padding([2, self.theme.space.xs])
                                 .height(Length::Fill)
                                 .style(module_button_style(
                                     self.config.appearance.style,
@@ -205,7 +210,7 @@ impl App {
                                 .into()
                             }
                             _ => container(content)
-                                .padding([2, 8])
+                                .padding([2, self.theme.space.xs])
                                 .height(Length::Fill)
                                 .align_y(Alignment::Center)
                                 .into(),
@@ -226,7 +231,7 @@ impl App {
                             ),
                             border: Border {
                                 width: 0.0,
-                                radius: 12.0.into(),
+                                radius: self.theme.radius.lg.into(),
                                 color: Color::TRANSPARENT,
                             },
                             ..container::Style::default()
