@@ -1,12 +1,10 @@
-use std::{collections::HashMap, f32::consts::PI};
-
 use crate::{
     HEIGHT, centerbox,
     config::{self, AppearanceStyle, Config, Position},
     get_log_spec,
-    menu::{MenuSize, MenuType, menu_wrapper},
+    menu::{MenuSize, MenuType},
     modules::{
-        self,
+        self, Module2,
         app_launcher::AppLauncher,
         clipboard::Clipboard,
         clock::Clock,
@@ -25,7 +23,7 @@ use crate::{
     outputs::{HasOutput, Outputs},
     position_button::ButtonUIRef,
     services::{Service, ServiceEvent, brightness::BrightnessCommand, tray::TrayEvent},
-    style::{ashell_theme, backdrop_color, darken_color},
+    style::{AshellTheme, backdrop_color, darken_color},
     utils,
 };
 use flexi_logger::LoggerHandle;
@@ -41,9 +39,11 @@ use iced::{
     window::Id,
 };
 use log::{debug, error, info, warn};
+use std::{collections::HashMap, f32::consts::PI};
 use wayland_client::protocol::wl_output::WlOutput;
 
 pub struct App {
+    pub theme: AshellTheme,
     logger: LoggerHandle,
     pub config: Config,
     pub outputs: Outputs,
@@ -99,6 +99,7 @@ impl App {
                 .collect();
             (
                 App {
+                    theme: AshellTheme::new(config.position, &config.appearance),
                     logger,
                     outputs,
                     app_launcher: AppLauncher,
@@ -127,7 +128,7 @@ impl App {
     }
 
     pub fn theme(&self, _id: Id) -> Theme {
-        ashell_theme(&self.config.appearance)
+        self.theme.get_theme().clone()
     }
 
     pub fn style(&self, theme: &Theme) -> Appearance {
@@ -308,24 +309,10 @@ impl App {
     pub fn view(&self, id: Id) -> Element<Message> {
         match self.outputs.has(id) {
             Some(HasOutput::Main) => {
-                let left = self.modules_section(
-                    &self.config.modules.left,
-                    id,
-                    self.config.appearance.opacity,
-                );
-                let center = self.modules_section(
-                    &self.config.modules.center,
-                    id,
-                    self.config.appearance.opacity,
-                );
-                let right = self.modules_section(
-                    &self.config.modules.right,
-                    id,
-                    self.config.appearance.opacity,
-                );
+                let [left, center, right] = self.modules_section(id);
 
                 let centerbox = centerbox::Centerbox::new([left, center, right])
-                    .spacing(4)
+                    .spacing(self.theme.space.xxs)
                     .width(Length::Fill)
                     .align_items(Alignment::Center)
                     .height(
@@ -337,14 +324,14 @@ impl App {
                     )
                     .padding(
                         if self.config.appearance.style == AppearanceStyle::Islands {
-                            [4, 4]
+                            [self.theme.space.xxs, self.theme.space.xxs]
                         } else {
                             [0, 0]
                         },
                     );
 
                 container(centerbox)
-                    .style(|t| container::Style {
+                    .style(|t: &Theme| container::Style {
                         background: match self.config.appearance.style {
                             AppearanceStyle::Gradient => Some({
                                 let start_color = t
@@ -410,31 +397,19 @@ impl App {
                     .into()
             }
             Some(HasOutput::Menu(menu_info)) => match menu_info {
-                Some((MenuType::Updates, button_ui_ref)) => menu_wrapper(
+                Some((MenuType::Updates, button_ui_ref)) => self.menu_wrapper(
                     id,
-                    self.updates
-                        .menu_view(id, self.config.appearance.menu.opacity)
-                        .map(Message::Updates),
+                    <Self as Module2<Updates>>::menu_view(self, id),
                     MenuSize::Normal,
                     *button_ui_ref,
-                    self.config.position,
-                    self.config.appearance.style,
-                    self.config.appearance.menu.opacity,
-                    self.config.appearance.menu.backdrop,
                 ),
-                Some((MenuType::Tray(name), button_ui_ref)) => menu_wrapper(
+                Some((MenuType::Tray(name), button_ui_ref)) => self.menu_wrapper(
                     id,
-                    self.tray
-                        .menu_view(name, self.config.appearance.menu.opacity)
-                        .map(Message::Tray),
+                    <Self as Module2<TrayModule>>::menu_view(self, name),
                     MenuSize::Normal,
                     *button_ui_ref,
-                    self.config.position,
-                    self.config.appearance.style,
-                    self.config.appearance.menu.opacity,
-                    self.config.appearance.menu.backdrop,
                 ),
-                Some((MenuType::Settings, button_ui_ref)) => menu_wrapper(
+                Some((MenuType::Settings, button_ui_ref)) => self.menu_wrapper(
                     id,
                     self.settings
                         .menu_view(
@@ -446,12 +421,8 @@ impl App {
                         .map(Message::Settings),
                     MenuSize::Large,
                     *button_ui_ref,
-                    self.config.position,
-                    self.config.appearance.style,
-                    self.config.appearance.menu.opacity,
-                    self.config.appearance.menu.backdrop,
                 ),
-                Some((MenuType::MediaPlayer, button_ui_ref)) => menu_wrapper(
+                Some((MenuType::MediaPlayer, button_ui_ref)) => self.menu_wrapper(
                     id,
                     self.media_player
                         .menu_view(
@@ -461,20 +432,12 @@ impl App {
                         .map(Message::MediaPlayer),
                     MenuSize::Large,
                     *button_ui_ref,
-                    self.config.position,
-                    self.config.appearance.style,
-                    self.config.appearance.menu.opacity,
-                    self.config.appearance.menu.backdrop,
                 ),
-                Some((MenuType::SystemInfo, button_ui_ref)) => menu_wrapper(
+                Some((MenuType::SystemInfo, button_ui_ref)) => self.menu_wrapper(
                     id,
                     self.system_info.menu_view().map(Message::SystemInfo),
                     MenuSize::Large,
                     *button_ui_ref,
-                    self.config.position,
-                    self.config.appearance.style,
-                    self.config.appearance.menu.opacity,
-                    self.config.appearance.menu.backdrop,
                 ),
                 None => Row::new().into(),
             },

@@ -5,6 +5,8 @@ use crate::{
     position_button::position_button,
     style::module_button_style,
 };
+use app_launcher::AppLauncher;
+use custom_module::Custom;
 use iced::{
     Alignment, Border, Color, Element, Length, Subscription,
     widget::{Row, container, row},
@@ -27,6 +29,8 @@ pub mod window_title;
 pub mod workspaces;
 
 use log::error;
+use tray::TrayModule;
+use updates::Updates;
 
 #[derive(Debug, Clone)]
 pub enum OnModulePress {
@@ -48,27 +52,46 @@ pub trait Module {
     }
 }
 
+pub trait Module2<T> {
+    type ViewData<'a>;
+    type MenuViewData<'a>;
+    type SubscriptionData<'a>;
+
+    fn view(&self, _: Self::ViewData<'_>)
+    -> Option<(Element<app::Message>, Option<OnModulePress>)>;
+
+    fn menu_view(&self, _: Self::MenuViewData<'_>) -> Element<app::Message> {
+        row!().into()
+    }
+
+    fn subscription(&self, _: Self::SubscriptionData<'_>) -> Option<Subscription<app::Message>> {
+        None
+    }
+}
+
 impl App {
-    pub fn modules_section(
-        &self,
-        modules_def: &Vec<ModuleDef>,
-        id: Id,
-        opacity: f32,
-    ) -> Element<Message> {
-        let mut row = row!()
-            .height(Length::Shrink)
-            .align_y(Alignment::Center)
-            .spacing(4);
+    pub fn modules_section(&self, id: Id) -> [Element<Message>; 3] {
+        [
+            &self.config.modules.left,
+            &self.config.modules.center,
+            &self.config.modules.right,
+        ]
+        .map(|modules_def| {
+            let mut row = row!()
+                .height(Length::Shrink)
+                .align_y(Alignment::Center)
+                .spacing(self.theme.space.xxs);
 
-        for module_def in modules_def {
-            row = row.push_maybe(match module_def {
-                // life parsing of string to module
-                ModuleDef::Single(module) => self.single_module_wrapper(module, id, opacity),
-                ModuleDef::Group(group) => self.group_module_wrapper(group, id, opacity),
-            });
-        }
+            for module_def in modules_def {
+                row = row.push_maybe(match module_def {
+                    // life parsing of string to module
+                    ModuleDef::Single(module) => self.single_module_wrapper(id, module),
+                    ModuleDef::Group(group) => self.group_module_wrapper(id, group),
+                });
+            }
 
-        row.into()
+            row.into()
+        })
     }
 
     pub fn modules_subscriptions(&self, modules_def: &[ModuleDef]) -> Vec<Subscription<Message>> {
@@ -87,13 +110,8 @@ impl App {
             .collect()
     }
 
-    fn single_module_wrapper(
-        &self,
-        module_name: &ModuleName,
-        id: Id,
-        opacity: f32,
-    ) -> Option<Element<Message>> {
-        let module = self.get_module_view(module_name, id, opacity);
+    fn single_module_wrapper(&self, id: Id, module_name: &ModuleName) -> Option<Element<Message>> {
+        let module = self.get_module_view(id, module_name);
 
         module.map(|(content, action)| match action {
             Some(action) => {
@@ -102,7 +120,7 @@ impl App {
                         .align_y(Alignment::Center)
                         .height(Length::Fill),
                 )
-                .padding([2, 8])
+                .padding([2, self.theme.space.xs])
                 .height(Length::Fill)
                 .style(module_button_style(
                     self.config.appearance.style,
@@ -122,7 +140,7 @@ impl App {
             }
             _ => {
                 let container = container(content)
-                    .padding([2, 8])
+                    .padding([2, self.theme.space.xs])
                     .height(Length::Fill)
                     .align_y(Alignment::Center);
 
@@ -139,7 +157,7 @@ impl App {
                             ),
                             border: Border {
                                 width: 0.0,
-                                radius: 12.0.into(),
+                                radius: self.theme.radius.lg.into(),
                                 color: Color::TRANSPARENT,
                             },
                             ..container::Style::default()
@@ -150,15 +168,10 @@ impl App {
         })
     }
 
-    fn group_module_wrapper(
-        &self,
-        group: &[ModuleName],
-        id: Id,
-        opacity: f32,
-    ) -> Option<Element<Message>> {
+    fn group_module_wrapper(&self, id: Id, group: &[ModuleName]) -> Option<Element<Message>> {
         let modules = group
             .iter()
-            .filter_map(|module| self.get_module_view(module, id, opacity))
+            .filter_map(|module| self.get_module_view(id, module))
             .collect::<Vec<_>>();
 
         if modules.is_empty() {
@@ -175,7 +188,7 @@ impl App {
                                         .align_y(Alignment::Center)
                                         .height(Length::Fill),
                                 )
-                                .padding([2, 8])
+                                .padding([2, self.theme.space.xs])
                                 .height(Length::Fill)
                                 .style(module_button_style(
                                     self.config.appearance.style,
@@ -197,7 +210,7 @@ impl App {
                                 .into()
                             }
                             _ => container(content)
-                                .padding([2, 8])
+                                .padding([2, self.theme.space.xs])
                                 .height(Length::Fill)
                                 .align_y(Alignment::Center)
                                 .into(),
@@ -218,7 +231,7 @@ impl App {
                             ),
                             border: Border {
                                 width: 0.0,
-                                radius: 12.0.into(),
+                                radius: self.theme.radius.lg.into(),
                                 color: Color::TRANSPARENT,
                             },
                             ..container::Style::default()
@@ -231,72 +244,73 @@ impl App {
 
     fn get_module_view(
         &self,
-        module_name: &ModuleName,
         id: Id,
-        opacity: f32,
+        module_name: &ModuleName,
     ) -> Option<(Element<Message>, Option<OnModulePress>)> {
         match module_name {
-            ModuleName::AppLauncher => self.app_launcher.view(&self.config.app_launcher_cmd),
+            ModuleName::AppLauncher => <Self as Module2<AppLauncher>>::view(self, ()),
             ModuleName::Custom(name) => self
                 .config
                 .custom_modules
                 .iter()
                 .find(|m| &m.name == name)
-                .and_then(|mc| self.custom.get(name).map(|cm| cm.view(mc)))
+                .and_then(|mc| {
+                    self.custom
+                        .get(name)
+                        .map(|cm| <Self as Module2<Custom>>::view(self, (cm, mc)))
+                })
                 .unwrap_or_else(|| {
                     error!("Custom module `{}` not found", name);
                     None
                 }),
-            ModuleName::Updates => self.updates.view(&self.config.updates),
-            ModuleName::Clipboard => self.clipboard.view(&self.config.clipboard_cmd),
-            ModuleName::Workspaces => self.workspaces.view((
-                &self.outputs,
-                id,
-                &self.config.workspaces,
-                &self.config.appearance.workspace_colors,
-                self.config.appearance.special_workspace_colors.as_deref(),
-            )),
-            ModuleName::WindowTitle => self.window_title.view(()),
-            ModuleName::SystemInfo => self.system_info.view(&self.config.system),
-            ModuleName::KeyboardLayout => self.keyboard_layout.view(&self.config.keyboard_layout),
-            ModuleName::KeyboardSubmap => self.keyboard_submap.view(()),
-            ModuleName::Tray => self.tray.view((id, opacity)),
-            ModuleName::Clock => self.clock.view(&self.config.clock.format),
-            ModuleName::Privacy => self.privacy.view(()),
-            ModuleName::Settings => self.settings.view(()),
-            ModuleName::MediaPlayer => self.media_player.view(&self.config.media_player),
+            // ModuleName::Updates => self.updates.view(&self.config.updates),
+            // ModuleName::Clipboard => self.clipboard.view(&self.config.clipboard_cmd),
+            // ModuleName::Workspaces => self.workspaces.view((
+            //     &self.outputs,
+            //     id,
+            //     &self.config.workspaces,
+            //     &self.config.appearance.workspace_colors,
+            //     self.config.appearance.special_workspace_colors.as_deref(),
+            // )),
+            // ModuleName::WindowTitle => self.window_title.view(()),
+            // ModuleName::SystemInfo => self.system_info.view(&self.config.system),
+            // ModuleName::KeyboardLayout => self.keyboard_layout.view(&self.config.keyboard_layout),
+            // ModuleName::KeyboardSubmap => self.keyboard_submap.view(()),
+            ModuleName::Tray => <Self as Module2<TrayModule>>::view(self, id),
+            // ModuleName::Clock => self.clock.view(&self.config.clock.format),
+            // ModuleName::Privacy => self.privacy.view(()),
+            // ModuleName::Settings => self.settings.view(()),
+            // ModuleName::MediaPlayer => self.media_player.view(&self.config.media_player),
+            _ => None,
         }
     }
 
     fn get_module_subscription(&self, module_name: &ModuleName) -> Option<Subscription<Message>> {
         match module_name {
-            ModuleName::AppLauncher => self.app_launcher.subscription(()),
+            ModuleName::AppLauncher => <Self as Module2<AppLauncher>>::subscription(self, ()),
             ModuleName::Custom(name) => self
                 .config
                 .custom_modules
                 .iter()
                 .find(|m| &m.name == name)
-                .and_then(|mc| self.custom.get(name).map(|cm| cm.subscription(mc)))
+                .map(|mc| <Self as Module2<Custom>>::subscription(self, mc))
                 .unwrap_or_else(|| {
                     error!("Custom module def `{}` not found", name);
                     None
                 }),
-            ModuleName::Updates => self
-                .config
-                .updates
-                .as_ref()
-                .and_then(|updates_config| self.updates.subscription(updates_config)),
-            ModuleName::Clipboard => self.clipboard.subscription(()),
-            ModuleName::Workspaces => self.workspaces.subscription(&self.config.workspaces),
-            ModuleName::WindowTitle => self.window_title.subscription(()),
-            ModuleName::SystemInfo => self.system_info.subscription(()),
-            ModuleName::KeyboardLayout => self.keyboard_layout.subscription(()),
-            ModuleName::KeyboardSubmap => self.keyboard_submap.subscription(()),
-            ModuleName::Tray => self.tray.subscription(()),
-            ModuleName::Clock => self.clock.subscription(()),
-            ModuleName::Privacy => self.privacy.subscription(()),
-            ModuleName::Settings => self.settings.subscription(()),
-            ModuleName::MediaPlayer => self.media_player.subscription(()),
+            ModuleName::Updates => <Self as Module2<Updates>>::subscription(self, ()),
+            // ModuleName::Clipboard => self.clipboard.subscription(()),
+            // ModuleName::Workspaces => self.workspaces.subscription(&self.config.workspaces),
+            // ModuleName::WindowTitle => self.window_title.subscription(()),
+            // ModuleName::SystemInfo => self.system_info.subscription(()),
+            // ModuleName::KeyboardLayout => self.keyboard_layout.subscription(()),
+            // ModuleName::KeyboardSubmap => self.keyboard_submap.subscription(()),
+            ModuleName::Tray => <Self as Module2<TrayModule>>::subscription(self, ()),
+            // ModuleName::Clock => self.clock.subscription(()),
+            // ModuleName::Privacy => self.privacy.subscription(()),
+            // ModuleName::Settings => self.settings.subscription(()),
+            // ModuleName::MediaPlayer => self.media_player.subscription(()),
+            _ => None,
         }
     }
 }
