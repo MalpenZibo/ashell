@@ -348,7 +348,7 @@ impl App {
                         if self.config.appearance.style == AppearanceStyle::Islands {
                             [self.theme.space.xxs, self.theme.space.xxs]
                         } else {
-                            [0., 0.]
+                            [0, 0]
                         },
                     );
 

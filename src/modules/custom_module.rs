@@ -1,7 +1,6 @@
-use std::{any::TypeId, process::Stdio};
-
+use super::{Module2, OnModulePress};
 use crate::{
-    app::{self},
+    app::{self, App},
     components::icons::{Icons, icon, icon_raw},
     config::CustomModuleDef,
 };
@@ -20,12 +19,11 @@ use iced::{
 };
 use log::{error, info};
 use serde::Deserialize;
+use std::{any::TypeId, process::Stdio};
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
     process::Command,
 };
-
-use super::{Module, OnModulePress};
 
 #[derive(Default, Debug, Clone)]
 pub struct Custom {
@@ -80,13 +78,14 @@ impl<Message> Program<Message> for AlertIndicator {
     }
 }
 
-impl Module for Custom {
-    type ViewData<'a> = &'a CustomModuleDef;
+impl Module2<Custom> for App {
+    type ViewData<'a> = (&'a Custom, &'a CustomModuleDef);
+    type MenuViewData<'a> = ();
     type SubscriptionData<'a> = &'a CustomModuleDef;
 
     fn view(
         &self,
-        config: Self::ViewData<'_>,
+        (custom, config): Self::ViewData<'_>,
     ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         let mut icon_element = config
             .icon
@@ -95,7 +94,7 @@ impl Module for Custom {
 
         if let Some(icons_map) = &config.icons {
             for (re, icon_str) in icons_map {
-                if re.is_match(&self.data.alt) {
+                if re.is_match(&custom.data.alt) {
                     icon_element = icon_raw(icon_str.clone());
                     break; // Use the first match
                 }
@@ -107,7 +106,7 @@ impl Module for Custom {
 
         let mut show_alert = false;
         if let Some(re) = &config.alert {
-            if re.is_match(&self.data.alt) {
+            if re.is_match(&custom.data.alt) {
                 show_alert = true;
             }
         }
@@ -134,7 +133,7 @@ impl Module for Custom {
             padded_icon_container.into() // No alert, just the padded icon
         };
 
-        let maybe_text_element = self.data.text.as_ref().and_then(|text_content| {
+        let maybe_text_element = custom.data.text.as_ref().and_then(|text_content| {
             if !text_content.is_empty() {
                 Some(text(text_content.clone()))
             } else {
