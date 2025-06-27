@@ -32,7 +32,7 @@ impl Clock {
 
 impl Module for Clock {
     type ViewData<'a> = &'a str;
-    type SubscriptionData<'a> = ();
+    type SubscriptionData<'a> = &'a str;
     fn view(
         &self,
         format: Self::ViewData<'_>,
@@ -40,9 +40,26 @@ impl Module for Clock {
         Some((text(self.date.format(format).to_string()).into(), None))
     }
 
-    fn subscription(&self, _: Self::SubscriptionData<'_>) -> Option<Subscription<app::Message>> {
+    fn subscription(
+        &self,
+        format: Self::SubscriptionData<'_>,
+    ) -> Option<Subscription<app::Message>> {
+        let second_specifiers = [
+            "%S",  // Seconds (00-60)
+            "%T",  // Hour:Minute:Second
+            "%X",  // Locale time representation with seconds
+            "%r",  // 12-hour clock time with seconds
+            "%:z", // UTC offset with seconds
+            "%s",  // Unix timestamp (seconds since epoch)
+        ];
+        let interval = if second_specifiers.iter().any(|&spec| format.contains(spec)) {
+            Duration::from_secs(1)
+        } else {
+            Duration::from_secs(5)
+        };
+
         Some(
-            every(Duration::from_secs(5))
+            every(interval)
                 .map(|_| Message::Update)
                 .map(app::Message::Clock),
         )

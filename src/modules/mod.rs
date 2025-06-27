@@ -293,7 +293,7 @@ impl App {
             ModuleName::KeyboardLayout => self.keyboard_layout.subscription(()),
             ModuleName::KeyboardSubmap => self.keyboard_submap.subscription(()),
             ModuleName::Tray => self.tray.subscription(()),
-            ModuleName::Clock => self.clock.subscription(()),
+            ModuleName::Clock => self.clock.subscription(&self.config.clock.format),
             ModuleName::Privacy => self.privacy.subscription(()),
             ModuleName::Settings => self.settings.subscription(()),
             ModuleName::MediaPlayer => self.media_player.subscription(()),
