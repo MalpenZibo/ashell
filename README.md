@@ -140,10 +140,6 @@ app_launcher_cmd = "~/.config/rofi/launcher.sh"
 # without a value the related button will not appear
 # optional, default None
 clipboard_cmd = "cliphist-rofi-img | wl-copy"
-# Maximum number of chars that can be present in the window title
-# after that the title will be truncated
-# optional, default 150
-truncate_title_after_length = 150
 
 # Declare which modules should be used and in which position in the status bar.
 # This is the list of all possible modules
@@ -201,6 +197,21 @@ enable_workspace_filling = false
 # max_workspaces = 6
 # In addition to the 4 workspaces described above it will also show workspaces 5 and 6
 # Only works with `enable_workspace_filling = true`
+
+# WindowTitle module configuration, optional
+[window_title]
+# The information to get from your active window.
+# Possible modes are:
+# - Title
+# - Class
+# optional, default Title
+mode = "Title"
+
+# Maximum number of chars that can be present in the window title
+# after that the title will be truncated
+# optional, default 150
+truncate_title_after_length = 150
+
 
 # keyboardLayout module configuration
 # optional

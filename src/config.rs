@@ -41,6 +41,21 @@ pub struct WorkspacesModuleConfig {
     pub max_workspaces: Option<u32>,
 }
 
+#[derive(Deserialize, Clone, Default, PartialEq, Eq, Debug)]
+pub enum WindowTitleMode {
+    #[default]
+    Title,
+    Class,
+}
+
+#[derive(Deserialize, Clone, Default, Debug)]
+pub struct WindowTitleConfig {
+    #[serde(default)]
+    pub mode: WindowTitleMode,
+    #[serde(default = "default_truncate_title_after_length")]
+    pub truncate_title_after_length: u32,
+}
+
 #[derive(Deserialize, Clone, Default, Debug)]
 pub struct KeyboardLayoutModuleConfig {
     #[serde(default)]
@@ -596,12 +611,12 @@ pub struct Config {
     #[serde(rename = "CustomModule", default)]
     pub custom_modules: Vec<CustomModuleDef>,
     pub clipboard_cmd: Option<String>,
-    #[serde(default = "default_truncate_title_after_length")]
-    pub truncate_title_after_length: u32,
     #[serde(default)]
     pub updates: Option<UpdatesModuleConfig>,
     #[serde(default)]
     pub workspaces: WorkspacesModuleConfig,
+    #[serde(default)]
+    pub window_title: WindowTitleConfig,
     #[serde(default)]
     pub system: SystemModuleConfig,
     #[serde(default)]
@@ -633,9 +648,9 @@ impl Default for Config {
             modules: Modules::default(),
             app_launcher_cmd: None,
             clipboard_cmd: None,
-            truncate_title_after_length: default_truncate_title_after_length(),
             updates: None,
             workspaces: WorkspacesModuleConfig::default(),
+            window_title: WindowTitleConfig::default(),
             system: SystemModuleConfig::default(),
             clock: ClockModuleConfig::default(),
             settings: SettingsModuleConfig::default(),
