@@ -10,7 +10,10 @@ use iced::{
     widget::{Column, Row, column, container, horizontal_rule, row, text},
 };
 use itertools::Itertools;
-use std::time::{Duration, Instant};
+use std::{
+    process::Command,
+    time::{Duration, Instant},
+};
 use sysinfo::{Components, Disks, Networks, System};
 
 use super::{Module, OnModulePress};
@@ -24,9 +27,11 @@ struct NetworkData {
 
 struct SystemInfoData {
     pub cpu_usage: u32,
+    pub cpu_temperature: Option<i32>,
     pub memory_usage: u32,
     pub memory_swap_usage: u32,
-    pub temperature: Option<i32>,
+    pub gpu_usage: Option<u32>,
+    pub gpu_temperature: Option<i32>,
     pub disks: Vec<(String, u32)>,
     pub network: Option<NetworkData>,
 }
@@ -53,10 +58,13 @@ fn get_system_info(
         / system.total_swap() as f32
         * 100.) as u32;
 
-    let temperature = components
-        .iter()
-        .find(|c| c.label() == "acpitz temp1")
-        .and_then(|c| c.temperature().map(|t| t as i32));
+    let priorities = ["acpitz temp1", "Tctl"];
+    let cpu_temperature = priorities.iter().find_map(|&label| {
+        components
+            .iter()
+            .find(|c| c.label() == label)
+            .and_then(|c| c.temperature().map(|t| t as i32))
+    });
 
     let disks = disks
         .into_iter()
@@ -102,11 +110,29 @@ fn get_system_info(
         }
     };
 
+    let (gpu_usage, gpu_temperature) = Command::new("nvidia-smi")
+        .args(&[
+            "--query-gpu=utilization.gpu,temperature.gpu",
+            "--format=csv,noheader,nounits",
+        ])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .and_then(|s| s.lines().next().map(str::to_string))
+        .map(|line| {
+            let mut parts = line.split(',').map(str::trim);
+            let usage = parts.next().and_then(|u| u.parse::<u32>().ok());
+            let temp = parts.next().and_then(|t| t.parse::<i32>().ok());
+            (usage, temp)
+        })
+        .unwrap_or((None, None));
+
     SystemInfoData {
         cpu_usage,
+        cpu_temperature,
         memory_usage,
         memory_swap_usage,
-        temperature,
         disks,
         network: network.0.map(|ip| NetworkData {
             ip: ip.to_string(),
@@ -114,6 +140,8 @@ fn get_system_info(
             upload_speed: network_speed(network.2),
             last_check: Instant::now(),
         }),
+        gpu_usage,
+        gpu_temperature,
     }
 }
 
@@ -142,8 +170,8 @@ impl Default for SystemInfo {
             system,
             components,
             disks,
-            data,
             networks,
+            data,
         }
     }
 }
@@ -230,6 +258,13 @@ impl SystemInfo {
                     "CPU Usage".to_string(),
                     format!("{}%", self.data.cpu_usage),
                 ))
+                .push_maybe(self.data.cpu_temperature.map(|temp| {
+                    Self::info_element(
+                        Icons::Temp,
+                        "CPU Temperature".to_string(),
+                        format!("{}°C", temp),
+                    )
+                }))
                 .push(Self::info_element(
                     Icons::Mem,
                     "Memory Usage".to_string(),
@@ -240,10 +275,13 @@ impl SystemInfo {
                     "Swap memory Usage".to_string(),
                     format!("{}%", self.data.memory_swap_usage),
                 ))
-                .push_maybe(self.data.temperature.map(|temp| {
+                .push_maybe(self.data.gpu_usage.map(|usage| {
+                    Self::info_element(Icons::Gpu, "GPU Usage".to_string(), format!("{}%", usage))
+                }))
+                .push_maybe(self.data.gpu_temperature.map(|temp| {
                     Self::info_element(
                         Icons::Temp,
-                        "Temperature".to_string(),
+                        "GPU Temperature".to_string(),
                         format!("{}°C", temp),
                     )
                 }))
@@ -314,6 +352,18 @@ impl Module for SystemInfo {
                 Some((config.cpu.warn_threshold, config.cpu.alert_threshold)),
                 None,
             )),
+            SystemIndicator::CpuTemperature => self.data.cpu_temperature.map(|temperature| {
+                Self::indicator_info_element(
+                    Icons::Temp,
+                    temperature,
+                    "°C",
+                    Some((
+                        config.temperature.warn_threshold,
+                        config.temperature.alert_threshold,
+                    )),
+                    None,
+                )
+            }),
             SystemIndicator::Memory => Some(Self::indicator_info_element(
                 Icons::Mem,
                 self.data.memory_usage,
@@ -328,7 +378,16 @@ impl Module for SystemInfo {
                 Some((config.memory.warn_threshold, config.memory.alert_threshold)),
                 Some("swap"),
             )),
-            SystemIndicator::Temperature => self.data.temperature.map(|temperature| {
+            SystemIndicator::Gpu => self.data.gpu_usage.map(|usage| {
+                Self::indicator_info_element(
+                    Icons::Gpu,
+                    usage,
+                    "%",
+                    Some((config.cpu.warn_threshold, config.cpu.alert_threshold)),
+                    None,
+                )
+            }),
+            SystemIndicator::GpuTemperature => self.data.gpu_temperature.map(|temperature| {
                 Self::indicator_info_element(
                     Icons::Temp,
                     temperature,
@@ -403,7 +462,7 @@ impl Module for SystemInfo {
         Some((
             Row::with_children(indicators)
                 .align_y(Alignment::Center)
-                .spacing(4)
+                .spacing(12)
                 .into(),
             Some(OnModulePress::ToggleMenu(MenuType::SystemInfo)),
         ))

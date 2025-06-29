@@ -118,9 +118,11 @@ impl Default for SystemInfoDisk {
 #[derive(Deserialize, Clone, Debug)]
 pub enum SystemIndicator {
     Cpu,
+    CpuTemperature,
     Memory,
     MemorySwap,
-    Temperature,
+    Gpu,
+    GpuTemperature,
     Disk(String),
     IpAddress,
     DownloadSpeed,
@@ -144,8 +146,8 @@ pub struct SystemModuleConfig {
 fn default_system_indicators() -> Vec<SystemIndicator> {
     vec![
         SystemIndicator::Cpu,
+        SystemIndicator::CpuTemperature,
         SystemIndicator::Memory,
-        SystemIndicator::Temperature,
     ]
 }
 
