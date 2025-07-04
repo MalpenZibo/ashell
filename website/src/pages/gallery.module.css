@@ -1,0 +1,95 @@
+.gallery {
+  display: flex;
+  flex-direction: column;
+
+  align-items: center;
+
+  padding: 48px;
+
+  margin: 0 auto;
+  width: 100%;
+  max-width: 1400px;
+
+  gap: 32px;
+}
+
+.galleryContent {
+  display: flex;
+  flex-direction: row;
+
+  align-items: center;
+
+  flex: 1 0 auto;
+  align-self: stretch;
+  justify-self: stretch;
+
+  min-height: 600px;
+
+  gap: 32px;
+}
+
+.arrow {
+  min-width: 96px;
+  max-width: 96px;
+  cursor: pointer;
+  flex: 0 0 auto;
+  color: var(--ifm-navbar-link-color);
+}
+
+.arrow:hover {
+  color: var(--ifm-navbar-link-hover-color);
+}
+
+.arrow.left {
+  left: 0;
+}
+
+.arrow.right {
+  right: 0;
+}
+
+.selectedImage {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+
+  align-items: center;
+  justify-content: center;
+}
+
+.selectedImage img {
+  max-height: 600px;
+  object-fit: contain;
+}
+
+.thumbnailContainer {
+  display: flex;
+  gap: 4px;
+  flex-direction: row;
+  align-items: center;
+}
+
+.imageThumbnail {
+  display: flex;
+  padding: 16px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+}
+
+.imageThumbnail.selected {
+  outline: 2px solid var(--ifm-color-primary);
+}
+
+.imageThumbnail img {
+  width: 100px;
+  height: fit-content;
+}
+
+.imageThumbnail.left img {
+  mask-image: linear-gradient(to left, black 0%, transparent 70%);
+}
+
+.imageThumbnail.right img {
+  mask-image: linear-gradient(to right, black 0%, transparent 70%);
+}

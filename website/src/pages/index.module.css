@@ -1,0 +1,49 @@
+.mainBar {
+  background-image: url("/img/main_bar.png");
+  background-size: 90%;
+  background-position: center 12px;
+  background-repeat: no-repeat;
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
+  align-items: center;
+  justify-content: center;
+}
+
+.logo {
+  display: flex;
+  flex-direction: row;
+  gap: 48px;
+  align-items: center;
+  justify-content: center;
+}
+
+.logoText {
+  height: 150px;
+}
+
+.tagline {
+  margin: 0;
+}
+
+@media screen and (max-width: 996px) {
+  .logo {
+    flex-direction: column;
+  }
+
+  .mainBar {
+    background-image: url("/img/main_bar_small.png");
+    background-size: 96%;
+    background-position: center 12px;
+    background-repeat: no-repeat;
+  }
+}
+
+.buttons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
