@@ -75,6 +75,8 @@
   cursor: pointer;
   align-items: center;
   justify-content: center;
+
+  padding: 0px 12px;
 }
 
 .imageThumbnail.selected {
@@ -92,4 +94,15 @@
 
 .imageThumbnail.right img {
   mask-image: linear-gradient(to right, black 0%, transparent 70%);
+}
+
+@media screen and (max-width: 996px) {
+  .gallery {
+    padding: 24px 0px;
+  }
+
+  .arrow {
+    min-width: 48px;
+    max-width: 48px;
+  }
 }
