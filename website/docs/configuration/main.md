@@ -18,7 +18,11 @@ It can be set with different values, from the most straightforward like a simple
 
 See more on the log levels [here](https://docs.rs/env_logger/latest/env_logger/#enabling-logging).
 
-> **Note**: This is the only configuration that requires a restart of Ashell to take effect.
+:::warning
+
+This configuration require a restart of Ashell to take effect.
+
+:::
 
 ### Example
 

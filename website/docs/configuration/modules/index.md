@@ -38,20 +38,46 @@ The following modules are available:
 
 Provides a way to launch applications from the status bar.
 
-> **will be deprecated in the futures releases**
+:::info
+
+This module requires additional configuration to work properly.
+See the dedicated section in the documentation [here](./app_launcher.md).
+
+:::
+
+:::warning
+
+This module will be deprecated in the futures releases
+
+:::
 
 #### Updates
 
 Provide information about available updates for the system.
 
-> This module requires additional configuration to work properly.
-> See the dedicated section in the documentation [here](./updates.md).
+:::info
+
+This module requires additional configuration to work properly.
+See the dedicated section in the documentation [here](./updates.md).
+
+:::
 
 #### Clipboard
 
 Launch a clipboard manager.
 
-> **will be deprecated in the futures releases**
+:::info
+
+This module requires additional configuration to work properly.
+See the dedicated section in the documentation [here](./clipboard.md).
+
+:::
+
+:::warning
+
+This module will be deprecated in the futures releases
+
+:::
 
 #### Workspaces
 

@@ -8,7 +8,13 @@ You can install Ashell using the following methods:
 
 ## Packages
 
-> **WARNING:** I'll maintain only the Arch Linux package and the nix configuration inside the repository. If they are broken, try building from source first.
+:::info
+
+I'll maintain only the Arch Linux package and the nix configuration inside the repository.
+
+In case of a broken package, try building from source first.
+
+:::
 
 [![Packaging status](https://repology.org/badge/vertical-allrepos/ashell.svg)](https://repology.org/project/ashell/versions)
 
