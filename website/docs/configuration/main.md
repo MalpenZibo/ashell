@@ -2,7 +2,7 @@
 sidebar_position: 1
 ---
 
-# Base
+# 🚪 Main
 
 This page contains the base configuration for Ashell.
 
