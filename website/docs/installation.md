@@ -34,13 +34,13 @@ To install ashell using the nix package be sure to enable flakes and then run
 
 #### Tagged release
 
-```
+```bash
 nix profile install github:MalpenZibo/ashell?ref=0.5.0
 ```
 
 #### Main branch
 
-```
+```bash
 nix profile install github:MalpenZibo/ashell
 ```
 
@@ -68,7 +68,8 @@ configuration.nix
 }
 ```
 
-This will build ashell from source, but you can also use `pkgs.ashell` from nixpkgs which is cached.
+This will build ashell from source, but you can also use `pkgs.ashell`
+from nixpkgs which is cached.
 
 ## Building from source
 

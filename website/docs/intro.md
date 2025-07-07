@@ -6,13 +6,14 @@ sidebar_position: 1
 
 Ashell is a status bar for Hyprland written in Rust using the iced library.
 
-### Does it only work on Hyprland?
+## Does it only work on Hyprland?
 
 While it's currently tailored for Hyprland, it could work with other compositors.
 
 However, it currently relies on [hyprland-rs](https://github.com/hyprland-community/hyprland-rs)
-to gather information about the active window and workspaces. I haven't implemented any
-feature flags to disable these functionalities or alternative methods to obtain this data.
+to gather information about the active window and workspaces.
+I haven't implemented any feature flags to disable these
+functionalities or alternative methods to obtain this data.
 
 ## Features
 
