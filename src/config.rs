@@ -206,9 +206,33 @@ impl Default for ClockModuleConfig {
     }
 }
 
+fn default_shutdown_cmd() -> String {
+    return "shutdown now".to_string();
+}
+
+fn default_suspend_cmd() -> String {
+    return "systemctl suspend".to_string();
+}
+
+fn default_reboot_cmd() -> String {
+    return "systemctl reboot".to_string();
+}
+
+fn default_logout_cmd() -> String {
+    return "loginctl kill-user $(whoami)".to_string();
+}
+
 #[derive(Deserialize, Default, Clone, Debug)]
 pub struct SettingsModuleConfig {
     pub lock_cmd: Option<String>,
+    #[serde(default = "default_shutdown_cmd")]
+    pub shutdown_cmd: String,
+    #[serde(default = "default_suspend_cmd")]
+    pub suspend_cmd: String,
+    #[serde(default = "default_reboot_cmd")]
+    pub reboot_cmd: String,
+    #[serde(default = "default_logout_cmd")]
+    pub logout_cmd: String,
     pub audio_sinks_more_cmd: Option<String>,
     pub audio_sources_more_cmd: Option<String>,
     pub wifi_more_cmd: Option<String>,

@@ -576,7 +576,10 @@ impl Settings {
                     self.sub_menu
                         .filter(|menu_type| *menu_type == SubMenu::Power)
                         .map(|_| {
-                            sub_menu_wrapper(power_menu(opacity).map(Message::Power), opacity)
+                            sub_menu_wrapper(
+                                power_menu(opacity, config).map(Message::Power),
+                                opacity,
+                            )
                         }),
                 )
                 .push_maybe(top_sink_slider)
