@@ -414,7 +414,7 @@ impl App {
                     self.updates
                         .menu_view(id, self.config.appearance.menu.opacity)
                         .map(Message::Updates),
-                    MenuSize::Normal,
+                    MenuSize::Small,
                     *button_ui_ref,
                     self.config.position,
                     self.config.appearance.style,
@@ -426,7 +426,7 @@ impl App {
                     self.tray
                         .menu_view(name, self.config.appearance.menu.opacity)
                         .map(Message::Tray),
-                    MenuSize::Normal,
+                    MenuSize::Small,
                     *button_ui_ref,
                     self.config.position,
                     self.config.appearance.style,
@@ -443,7 +443,7 @@ impl App {
                             self.config.position,
                         )
                         .map(Message::Settings),
-                    MenuSize::Large,
+                    MenuSize::Medium,
                     *button_ui_ref,
                     self.config.position,
                     self.config.appearance.style,
@@ -468,7 +468,7 @@ impl App {
                 Some((MenuType::SystemInfo, button_ui_ref)) => menu_wrapper(
                     id,
                     self.system_info.menu_view().map(Message::SystemInfo),
-                    MenuSize::Large,
+                    MenuSize::Medium,
                     *button_ui_ref,
                     self.config.position,
                     self.config.appearance.style,

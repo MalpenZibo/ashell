@@ -127,7 +127,7 @@ log_level = "warn"
 # Possible status bar outputs, values could be: All, Active, or a list of outputs
 # All: the status bar will be displayed on all the available outputs, example: outputs = "All"
 # active: the status bar will be displayed on the active output, example: outputs = "Active"
-# list of outputs: the status bar will be displayed on the outputs listed here, example: outputs = { targets = ["DP-1", "eDP-1"] }
+# list of outputs: the status bar will be displayed on the outputs listed here, example: outputs = { Targets = ["DP-1", "eDP-1"] }
 # if the outputs is not available the bar will be displayed in the active output
 outputs = "All"
 # Bar position, possible values Top | Bottom.
@@ -326,6 +326,9 @@ vpn_more_cmd = "nm-connection-editor"
 # without a value the related button will not appear
 # optional, default None
 bluetooth_more_cmd = "blueman-manager"
+# option to remove the airtplane button
+# optional, default false
+remove_airplane_btn = true
 
 # Appearance config
 # Each color could be a simple hex color like #228800 or an

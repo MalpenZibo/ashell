@@ -22,6 +22,8 @@ pub trait MprisPlayer {
     fn previous(&self) -> Result<()>;
 
     #[zbus(property)]
+    fn playback_status(&self) -> Result<String>;
+    #[zbus(property)]
     fn metadata(&self) -> Result<HashMap<String, OwnedValue>>;
     #[zbus(property)]
     fn set_volume(&self, v: f64) -> Result<()>;

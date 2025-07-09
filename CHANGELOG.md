@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add option to remove the airplane button
+
+### Fixed
+
+- Bluetooth: use alias instead of name for device name
+- Airplane button fail when the `rfkill` returns an error or is not present
+
 ## [0.5.0] - 2025-05-20
 
 ### WARNING BREAKING CHANGES

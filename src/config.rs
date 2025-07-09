@@ -229,6 +229,7 @@ pub struct SettingsModuleConfig {
     pub wifi_more_cmd: Option<String>,
     pub vpn_more_cmd: Option<String>,
     pub bluetooth_more_cmd: Option<String>,
+    pub remove_airplane_btn: bool,
 }
 
 #[derive(Deserialize, Clone, Debug)]
