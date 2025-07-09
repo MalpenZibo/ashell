@@ -1,4 +1,8 @@
-use crate::{app, config::WindowTitleConfig, utils::truncate_text};
+use crate::{
+    app,
+    config::{WindowTitleConfig, WindowTitleMode},
+    utils::truncate_text,
+};
 use hyprland::{data::Client, event_listener::AsyncEventListener, shared::HyprDataActiveOptional};
 use iced::{Element, Subscription, stream::channel, widget::text};
 use log::{debug, error};
@@ -12,8 +16,8 @@ use super::{Module, OnModulePress};
 fn get_window(config: &WindowTitleConfig) -> Option<String> {
     Client::get_active().ok().and_then(|w| {
         w.map(|w| match config.mode {
-            crate::config::WindowTitleMode::Title => w.title,
-            crate::config::WindowTitleMode::Class => w.class,
+            WindowTitleMode::Title => w.title,
+            WindowTitleMode::Class => w.class,
         })
     })
 }

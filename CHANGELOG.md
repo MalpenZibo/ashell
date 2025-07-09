@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Add option to remove the airplane button
+- Add window title configuration
+- Add modes to window title module.
+
+### Changed
+
+- Move "truncate_title_after_length" to the window_title configuration
 
 ### Fixed
 
