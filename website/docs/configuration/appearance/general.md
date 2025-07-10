@@ -4,25 +4,25 @@ sidebar_position: 1
 
 # General
 
-This are all the appearance options not related to the color palette.
+These are all the appearance options not related to the color palette.
 
 ## Font
 
-You can change the font used using the `font_name` field. This configuration
-is optional, and if not set, the iced library will use the default font.
+You can change the font used by setting the `font_name` field. This configuration
+is optional—if not set, the `iced` library will use the default font.
 
 ```yaml
 [appearance]
 font_name = "Comic Sans MS"
 ```
 
-## Status bar style
+## Status Bar Style
 
 You can change the style of the status bar using the `style` field.
 
 You can choose between:
 
-- `Island`: It's the default style. Each module or module group will be displayed
+- `Island`: This is the default style. Each module or module group is displayed
   in a rounded rectangle using the background color.
 - `Solid`: The status bar has a solid background color.
 - `Gradient`: The status bar has a gradient background color.
@@ -41,19 +41,19 @@ You can change the opacity of the status bar components using the `opacity` fiel
 The value should be a float between `0.0` and `1.0`, where `0.0` is fully transparent.
 The default value is `1.0`.
 
-It's also passible to define the opacity of the status bar menus and if they should
-add a backdrop effect.
+It's also possible to define the opacity of status bar menus and whether they should
+include a backdrop effect.
 
 ## Examples
 
-Setting the opacity of the status bar components
+Setting the opacity of the status bar components:
 
 ```yaml
 [appearance]
 opacity = 0.8
 ```
 
-Setting also the opacity of the status bar menus and adding a backdrop effect
+Also setting the opacity of the status bar menus and adding a backdrop effect:
 
 ```yaml
 [appearance]

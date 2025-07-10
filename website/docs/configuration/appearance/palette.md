@@ -4,20 +4,18 @@ sidebar_position: 2
 
 # Palette
 
-With these configuration options, you can customize
+With these configuration options, you can customize  
 the color palette of your status bar.
 
-Each color could be a simple hex color like `#228800` or an
+Each color can be a simple hex color like `#228800` or an  
 object that defines:
 
-- a base hex color
-- two optional variant of that color (a strong one and a weak one)
-- an optional text color that should be used with that base color
+- A base hex color
+- Two optional variants of that color (a strong one and a weak one)
+- An optional text color to use with that base color
 
-Without providing the two variant of the base color the strong and weak variant
-will be auto-generated.
-
-Without providing a text color the default text color will be used.
+If the strong and weak variants are not provided, they will be auto-generated.  
+If no text color is provided, the default text color will be used.
 
 ## Example
 
@@ -29,34 +27,31 @@ weak = "#448855"
 text = "#ffffff"
 ```
 
-## Palette color
+## Palette Colors
 
-The following are the colors that compose a palette:
+The following are the colors that make up the palette:
 
-- `background_color`: It's used as a background color for every status bar component
-- `primary_color`: It's used for things like button or slider handle
-- `secondary_color`: It's used for things like border color or slider track color
-- `success_color`: It's used for every success indicator
-- `danger_color`: It's used for danger message or danger state
-  (the weak version is used for the warning state
-- `text_color`: It's used as default text color
+- `background_color`: Used as the background color for all status bar components
+- `primary_color`: Used for elements like buttons or slider handles
+- `secondary_color`: Used for borders and slider tracks
+- `success_color`: Used for success indicators
+- `danger_color`: Used for danger messages or danger states  
+  (the weak version is used for warning states)
+- `text_color`: Used as the default text color
 
-## Workspaces color
+## Workspace Colors
 
-The following color are used for the workspaces module.
+The following colors are used for the workspaces module.
 
-With this list of color you can specify which color to use for the workspace indicator
-based on the attached monitor.
+You can specify which color to use for workspace indicators based on  
+the monitor to which a workspace is attached.
 
-So for example if the workspace 1 is attached to the monitorA then
-the first color will be used, if the workspace 2 is attached to
-the monitorB then the second color will be used and so on.
+For example, if workspace 1 is attached to `monitorA`, the first color will be used;  
+if workspace 2 is attached to `monitorB`, the second color will be used, and so on.
 
-You can specify a list for normal workspaces using the `workspace_colors` field and
-one for the special workspaces using the field `special_workspace_colors`.
+Use the `workspace_colors` field for regular workspaces, and  
+`special_workspace_colors` for special workspaces.
 
-If the `special_workspace_colors` is not defined then the `workspace_colors`
-will be used.
-
-If the `workspace_colors` is not defined or doesn't exist a color for a
-particular monitor then the `primary_color` will be used.
+If `special_workspace_colors` is not defined, `workspace_colors` will be used.  
+If neither `workspace_colors` is defined nor a color exists for a given monitor,  
+the `primary_color` will be used.

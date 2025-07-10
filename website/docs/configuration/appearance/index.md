@@ -1,13 +1,13 @@
 # 🎨 Appearance
 
-With these configurations you can change the appearance of ashell.
+With these configurations, you can change the appearance of ashell.
 
-It's possible to change the color palette and other general visual aspects.
+It's possible to modify the color palette and other general visual aspects.
 
-All this configuration should be placed in the `appearance` section
+All of these configurations should be placed in the `appearance` section  
 of the configuration file.
 
-You can change things like:
+You can customize things like:
 
 - The color palette
 - The font used
