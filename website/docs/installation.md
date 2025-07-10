@@ -10,9 +10,10 @@ You can install Ashell using the following methods:
 
 :::info
 
-I'll maintain only the Arch Linux package and the nix configuration inside the repository.
+I only maintain the Arch Linux package and the Nix configuration included
+in the repository.
 
-In case of a broken package, try building from source first.
+If a package is broken, try building from source first.
 
 :::
 
@@ -20,36 +21,40 @@ In case of a broken package, try building from source first.
 
 ### Arch Linux
 
-Install a tagged release from the arch packages:
+Install a tagged release from the AUR repositories:
 
-`sudo pacman -S hyprland`
+```bash
+yay -S ashell
+```
 
-or install from the AUR, which compiles the latest source:
+Or install from the AUR, which compiles the latest source:
 
-`yay -S hyprland-git`
+```bash
+yay -S ashell-git
+```
 
 ### Nix
 
-To install ashell using the nix package be sure to enable flakes and then run
+To install Ashell using the Nix package manager, make sure flakes are enabled,
+then run:
 
-#### Tagged release
+#### Tagged Release
 
 ```bash
 nix profile install github:MalpenZibo/ashell?ref=0.5.0
 ```
 
-#### Main branch
+#### Main Branch
 
 ```bash
 nix profile install github:MalpenZibo/ashell
 ```
 
-### NixOS/Home-Manager
+### NixOS / Home Manager
 
-To use this flake do
+To use this flake, add the input to your `flake.nix`:
 
 ```nix
-flake.nix
 inputs = {
   # ... other inputs
   ashell.url = "github:MalpenZibo/ashell";
@@ -58,8 +63,9 @@ inputs = {
 outputs = {...} @ inputs: {<outputs>}; # Make sure to pass inputs to your specialArgs!
 ```
 
+And in your `configuration.nix`:
+
 ```nix
-configuration.nix
 { pkgs, inputs, ... }:
 
 {
@@ -68,12 +74,12 @@ configuration.nix
 }
 ```
 
-This will build ashell from source, but you can also use `pkgs.ashell`
-from nixpkgs which is cached.
+This will build Ashell from source.  
+Alternatively, you can use `pkgs.ashell` from `nixpkgs`, which is cached.
 
-## Building from source
+## Building from Source
 
-To build Ashell from source, you need to have the following dependencies installed:
+To build Ashell from source, ensure the following dependencies are installed:
 
 - Rust (with `cargo`)
 - wayland-protocols
@@ -84,11 +90,11 @@ To build Ashell from source, you need to have the following dependencies install
 - libpipewire
 - libpulse
 
-Then from the root of the repository run:
+Then, from the root of the repository, run:
 
 ```bash
 cargo build --release
 
-# to install it system-wide
+# To install it system-wide
 sudo cp target/release/ashell /usr/bin
 ```
