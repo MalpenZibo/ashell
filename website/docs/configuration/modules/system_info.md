@@ -1,6 +1,10 @@
+---
+sidebar_position: 6
+---
+
 # System Info
 
-This module provides information the system like:
+This module provides information about the system like:
 
 - CPU usage
 - memory usage

@@ -120,5 +120,5 @@ Displays media player controls and information about the currently playing media
 
 ### Settings
 
-Provides access to system settings like audio, network, bluetooth,
-battery, power profile and idle inhibitor.
+Provides access to system settings like audio, network, bluetooth, battery,
+power profile and idle inhibitor.
