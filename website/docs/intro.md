@@ -41,5 +41,3 @@ functionalities or alternative methods to obtain this data.
   - Idle inhibitor
   - Airplane mode
 - Custom Modules
-  - Simple (execute command on click)
-  - Advanced (update UI with command output)
