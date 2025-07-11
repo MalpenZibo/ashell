@@ -1,4 +1,8 @@
-use crate::{app, utils::truncate_text};
+use crate::{
+    app,
+    config::{WindowTitleConfig, WindowTitleMode},
+    utils::truncate_text,
+};
 use hyprland::{data::Client, event_listener::AsyncEventListener, shared::HyprDataActiveOptional};
 use iced::{Element, Subscription, stream::channel, widget::text};
 use log::{debug, error};
@@ -9,29 +13,38 @@ use std::{
 
 use super::{Module, OnModulePress};
 
+fn get_window(config: &WindowTitleConfig) -> Option<String> {
+    Client::get_active().ok().and_then(|w| {
+        w.map(|w| match config.mode {
+            WindowTitleMode::Title => w.title,
+            WindowTitleMode::Class => w.class,
+        })
+    })
+}
+
 pub struct WindowTitle {
     value: Option<String>,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    TitleChanged(Option<String>),
+    TitleChanged,
 }
 
-impl Default for WindowTitle {
-    fn default() -> Self {
-        let init = Client::get_active().ok().and_then(|w| w.map(|w| w.title));
+impl WindowTitle {
+    pub fn new(config: &WindowTitleConfig) -> Self {
+        let init = get_window(config);
 
         Self { value: init }
     }
 }
 
 impl WindowTitle {
-    pub fn update(&mut self, message: Message, truncate_title_after_length: u32) {
+    pub fn update(&mut self, message: Message, config: &WindowTitleConfig) {
         match message {
-            Message::TitleChanged(value) => {
-                if let Some(value) = value {
-                    self.value = Some(truncate_text(&value, truncate_title_after_length));
+            Message::TitleChanged => {
+                if let Some(value) = get_window(config) {
+                    self.value = Some(truncate_text(&value, config.truncate_title_after_length));
                 } else {
                     self.value = None;
                 }
@@ -77,12 +90,8 @@ impl Module for WindowTitle {
                                 Box::pin(async move {
                                     debug!("Window closed");
                                     if let Ok(mut output) = output.write() {
-                                        let current = Client::get_active()
-                                            .ok()
-                                            .and_then(|w| w.map(|w| w.title));
-
                                         debug!("Sending title changed message");
-                                        output.try_send(Message::TitleChanged(current)).unwrap();
+                                        output.try_send(Message::TitleChanged).unwrap();
                                     }
                                 })
                             }
@@ -96,9 +105,7 @@ impl Module for WindowTitle {
                                     debug!("Active window changed: {:?}", e);
                                     if let Ok(mut output) = output.write() {
                                         debug!("Sending title changed message");
-                                        output
-                                            .try_send(Message::TitleChanged(e.map(|e| e.title)))
-                                            .unwrap();
+                                        output.try_send(Message::TitleChanged).unwrap();
                                     }
                                 })
                             }
@@ -112,7 +119,7 @@ impl Module for WindowTitle {
                                     debug!("Window closed");
                                     if let Ok(mut output) = output.write() {
                                         debug!("Sending title changed message");
-                                        output.try_send(Message::TitleChanged(None)).unwrap();
+                                        output.try_send(Message::TitleChanged).unwrap();
                                     }
                                 })
                             }
