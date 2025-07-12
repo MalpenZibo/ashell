@@ -11,44 +11,44 @@ pub fn execute_command(command: String) {
     });
 }
 
-pub fn suspend() {
+pub fn suspend(cmd: String) {
     tokio::spawn(async move {
         let _ = Command::new("bash")
             .arg("-c")
-            .arg("systemctl suspend")
+            .arg(cmd)
             .spawn()
             .expect("Failed to execute command.")
             .wait();
     });
 }
 
-pub fn shutdown() {
+pub fn shutdown(cmd: String) {
     tokio::spawn(async move {
         let _ = Command::new("bash")
             .arg("-c")
-            .arg("shutdown now")
+            .arg(cmd)
             .spawn()
             .expect("Failed to execute command.")
             .wait();
     });
 }
 
-pub fn reboot() {
+pub fn reboot(cmd: String) {
     tokio::spawn(async move {
         let _ = Command::new("bash")
             .arg("-c")
-            .arg("systemctl reboot")
+            .arg(cmd)
             .spawn()
             .expect("Failed to execute command.")
             .wait();
     });
 }
 
-pub fn logout() {
+pub fn logout(cmd: String) {
     tokio::spawn(async move {
         let _ = Command::new("bash")
             .arg("-c")
-            .arg("loginctl kill-user $(whoami)")
+            .arg(cmd)
             .spawn()
             .expect("Failed to execute command.")
             .wait();

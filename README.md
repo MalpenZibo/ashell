@@ -306,6 +306,12 @@ alert = ".*notification"
 # without a value the related button will not appear
 # optional, default None
 lock_cmd = "hyprlock &"
+# commands used to respectively shutdown, suspend, reboot and logout
+# all optional, without values the defaults shown here will be used
+shutdown_cmd = "shutdown now"
+suspend_cmd = "systemctl suspend"
+reboot_cmd = "systemctl reboot"
+logout_cmd = "loginctl kill-user $(whoami)"
 # command used to open the sinks audio settings
 # without a value the related button will not appear
 # optional default None
