@@ -34,6 +34,18 @@ You can configure some function of this module.
 With the `lock_cmd` option you can set a command to lock  
 the system, if not set the related button will not appear.
 
+With the `shutdown_cmd`, `suspend_cmd`, `reboot_cmd`, and `logout_cmd`,  
+you can change the related commands to shut down, suspend, reboot,
+or log out of the system.  
+These parameters are optional and have the following default values:
+
+```toml
+shutdown_cmd = "shutdown now"
+suspend_cmd = "systemctl suspend"
+reboot_cmd = "systemctl reboot"
+logout_cmd = "loginctl kill-user $(whoami)"
+```
+
 With the `audio_sinks_more_cmd` and `audio_sources_more_cmd`  
 options you can set commands to open the audio settings  
 for sinks and sources, if not set the related buttons will not appear.

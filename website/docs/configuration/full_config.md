@@ -9,7 +9,6 @@ log_level = "warn"
 outputs = { Targets = ["eDP-1"] }
 position = "Top"
 app_launcher_cmd = "walker"
-truncate_title_after_length = 100
 
 [modules]
 left = [ [ "appLauncher", "Updates", "Workspaces" ] ]
@@ -27,6 +26,9 @@ enable_workspace_filling = true
 name = "appLauncher"
 icon = "󱗼"
 command = "walker"
+
+[window_title]
+truncate_title_after_length = 100
 
 [settings]
 lock_cmd = "playerctl --all-players pause; nixGL hyprlock &"
