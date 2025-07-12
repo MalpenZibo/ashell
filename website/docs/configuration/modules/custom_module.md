@@ -4,63 +4,79 @@ sidebar_position: 13
 
 # Custom Modules
 
-This special modules let you extend the functionality of
-ashell by creating your own simple modules.
+This special module type lets you extend the functionality of Ashell
+by creating your own simple components.
 
-A custom module lets you execute a command on click,
-or lets you display the output of a command.
+A **custom module** allows you to:
 
-To define a custom module you need to provide the following fields:
+- Display the output of a command (live).
+- Run a command when the module is clicked.
+- Change icons dynamically based on output.
+- Show an alert indicator based on specific conditions.
 
-- `name`: The name of the module, which will be used to link it in the [modules definitions](./index.md).
-- `icon`: The icon to display in the status bar.
-- `command`: The command to execute when the module is clicked.
-- `listen_cmd`: (optional) The command to execute to update the module output.
-- `icons`: (optional) A set of regex to change the icon based on the output
-  of the `listen_cmd`.
-- `alert`: (optional) A regex to show a red "alert" dot on the icon
-  when the output of the `listen_cmd` matches the regex.
+## Configuration
 
-## Listen command
+To define a custom module, use the following fields:
 
-### Format
+- `name`: Name of the module. Use this to refer to it in the [modules definitions](./index.md).
+- `icon`: Icon displayed in the status bar.
+- `command`: Command to execute when the module is clicked.
+- `listen_cmd` _(optional)_: Command to run in the background to update the
+  module’s display.
+- `icons` _(optional)_: Regex-to-icon mapping to change the icon based on
+  the `listen_cmd` output.
+- `alert` _(optional)_: Regex to trigger a red alert dot on the icon when
+  matched in the `listen_cmd` output.
 
-The `listen_cmd` command should output a
-waybar json-style output, using the `alt` and `text` field
+---
 
-#### Listen command format example
+## `listen_cmd`
 
-```bash
+The `listen_cmd` should output JSON in
+the [Waybar format](https://github.com/Alexays/Waybar/wiki/Module:-Custom#script-output),
+using `text` and `alt` fields.
+
+### Example Output
+
+```json
 {
   "text": "3",
   "alt": "notification"
 }
 ```
 
-### Icons
+---
 
-Any number of regex can be used to change the icon based on the alt field
+## Dynamic Icons
 
-#### Icons Example
+You can change the icon depending on the value of `alt` in the `listen_cmd` output.
 
-```toml
-icons.'dnd.\*' = ""
-```
-
-### Alert
-
-It's possible to add a regex to this field to show a red "alert" dot on the icon
-when the output of the `listen_cmd` matches the regex.
-
-#### Alert Example
+### Icons Example
 
 ```toml
-alert = ".\*notification"
+icons.'dnd.*' = ""
 ```
 
-## Notification Module Example
+This will change the icon to `` when `alt` matches `dnd.*`.
 
-Using swaync-client it's possible to create a notification module
+---
+
+## Alerts
+
+Use the `alert` field to show a red dot on the module icon if the output
+matches a given regex.
+
+### Alerts Example
+
+```toml
+alert = ".*notification"
+```
+
+---
+
+## Examples
+
+### Notifications (with swaync-client)
 
 ```toml
 [[CustomModule]]
@@ -72,9 +88,7 @@ icons.'dnd.*' = ""
 alert = ".*notification"
 ```
 
-## App launcher Module Example
-
-Using `walker` it's possible to create an app launcher module
+### App Launcher (with walker)
 
 ```toml
 [[CustomModule]]

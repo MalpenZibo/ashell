@@ -4,7 +4,7 @@ sidebar_position: 12
 
 # Settings
 
-This module provides access to system settings like audio, network, bluetooth,
+This module provides access to system settings like audio, network, bluetooth,  
 battery, power profile and idle inhibitor.
 
 It displays in the status bar indicator about:
@@ -31,14 +31,14 @@ And let you interact with these settings:
 
 You can configure some function of this module.
 
-With the `lock_cmd` option you can set a command to lock
+With the `lock_cmd` option you can set a command to lock  
 the system, if not set the related button will not appear.
 
-With the `audio_sinks_more_cmd` and `audio_sources_more_cmd`
-options you can set commands to open the audio settings
+With the `audio_sinks_more_cmd` and `audio_sources_more_cmd`  
+options you can set commands to open the audio settings  
 for sinks and sources, if not set the related buttons will not appear.
 
-With the `network_more_cmd`, `vpn_more_cmd` and `bluetooth_more_cmd` options
+With the `network_more_cmd`, `vpn_more_cmd` and `bluetooth_more_cmd` options  
 you can set commands to open the network, VPN and bluetooth settings.
 
 With the `remove_airplane_btn` option you can remove the airplane mode button.
@@ -48,7 +48,7 @@ With the `remove_airplane_btn` option you can remove the airplane mode button.
 In the following example we use:
 
 - `hyprlock` to lock the screen
-- `pavucontrol` to open the audio settings for sinks and sources
+- `pavucontrol` to open the audio settings for sinks and sources  
   directly in the correct tab.
 - `nm-connection-editor` to open the network and VPN settings
 - `blueman-manager` to open the bluetooth settings

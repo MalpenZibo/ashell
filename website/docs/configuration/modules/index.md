@@ -1,8 +1,8 @@
 # 🧩 Modules
 
-Ashell modules identifies the various features of the status bar.
+Ashell modules identify the various features of the status bar.
 
-Each modules provide a set of functionality that can be enabled
+Each module provides a set of functionalities that can be enabled
 or disabled in the configuration file.
 
 ## Organize modules
@@ -25,7 +25,7 @@ right = [ [ "Clock", "Privacy", "Settings" ] ]
 
 ### Example
 
-If we want to add the `SystemInfo` module in the right side of
+If we want to add the `SystemInfo` module to the right side of
 the status bar but not in the same group as the `Clock`, `Privacy`,
 and `Settings` modules, we can do it like this:
 
@@ -42,44 +42,34 @@ The following modules are available:
 Provides a way to launch applications from the status bar.
 
 :::info
-
 This module requires additional configuration to work properly.
 See the dedicated section in the [documentation](./app_launcher.md).
-
 :::
 
 :::warning
-
-This module will be deprecated in the futures releases
-
+This module will be deprecated in future releases.
 :::
 
 ### Updates
 
-Provide information about available updates for the system.
+Provides information about available updates for the system.
 
 :::info
-
 This module requires additional configuration to work properly.
 See the dedicated section in the [documentation](./updates.md).
-
 :::
 
 ### Clipboard
 
-Launch a clipboard manager.
+Launches a clipboard manager.
 
 :::info
-
 This module requires additional configuration to work properly.
 See the dedicated section in the [documentation](./clipboard.md).
-
 :::
 
 :::warning
-
-This module will be deprecated in the futures releases
-
+This module will be deprecated in future releases.
 :::
 
 ### Workspaces
@@ -120,5 +110,5 @@ Displays media player controls and information about the currently playing media
 
 ### Settings
 
-Provides access to system settings like audio, network, bluetooth, battery,
-power profile and idle inhibitor.
+Provides access to system settings like audio, network, Bluetooth, battery,
+power profile, and idle inhibitor.

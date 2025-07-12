@@ -17,7 +17,7 @@ to another label using the `labels` configuration.
 ### Example
 
 In this example we're mapping the "English (US)" layout to the 🇺🇸 flag and
-the "Italian" layout to thee🇮🇹 flag.
+the "Italian" layout to the 🇮🇹 flag.
 
 ```toml
 [keyboard_layout.labels]

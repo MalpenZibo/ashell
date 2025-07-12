@@ -8,4 +8,4 @@ This module provides a system tray for displaying icons of running applications.
 
 Clicking on an icon will open the corresponding application or menu.
 
-There are no additional configurations available for this module.
+There are no additional configuration options available for this module.
