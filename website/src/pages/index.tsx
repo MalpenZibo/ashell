@@ -13,9 +13,9 @@ function HomepageHeader() {
     <header className={clsx("hero hero--primary", styles.mainBar)}>
       <div className={clsx("container", styles.container)}>
         <div className={clsx(styles.logo)}>
-          <img src="/img/logo.svg" alt="Logo" className={styles.logoImg} />
+          <img src="./img/logo.svg" alt="Logo" className={styles.logoImg} />
           <img
-            src="/img/ashell_text.svg"
+            src="./img/ashell_text.svg"
             alt="Ashell"
             className={styles.logoText}
           />
