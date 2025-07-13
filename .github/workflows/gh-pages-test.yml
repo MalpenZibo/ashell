@@ -1,4 +1,4 @@
-name: Test Docusaurus build
+name: Website CI
 
 on:
   pull_request:
@@ -9,20 +9,30 @@ jobs:
   test-deploy:
     name: Test Docusaurus build
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: website
+
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 10
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: pnpm
+          cache-dependency-path: ./website/pnpm-lock.yaml
 
       - name: Install dependencies
-        run: pnpm ci
+        run: pnpm i
+        working-directory: ./website
+
       - name: Build website
         run: pnpm build
+        working-directory: ./website
