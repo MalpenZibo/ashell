@@ -194,9 +194,9 @@ impl SystemInfo {
             row!(
                 icon(info_icon),
                 if let Some(prefix) = prefix {
-                    text(format!("{} {}{}", prefix, value, unit))
+                    text(format!("{prefix} {value}{unit}"))
                 } else {
-                    text(format!("{}{}", value, unit))
+                    text(format!("{value}{unit}"))
                 }
             )
             .spacing(4),
@@ -241,11 +241,7 @@ impl SystemInfo {
                     format!("{}%", self.data.memory_swap_usage),
                 ))
                 .push_maybe(self.data.temperature.map(|temp| {
-                    Self::info_element(
-                        Icons::Temp,
-                        "Temperature".to_string(),
-                        format!("{}°C", temp),
-                    )
+                    Self::info_element(Icons::Temp, "Temperature".to_string(), format!("{temp}°C"))
                 }))
                 .push(
                     Column::with_children(
@@ -255,8 +251,8 @@ impl SystemInfo {
                             .map(|(mount_point, usage)| {
                                 Self::info_element(
                                     Icons::Drive,
-                                    format!("Disk Usage {}", mount_point),
-                                    format!("{}%", usage),
+                                    format!("Disk Usage {mount_point}"),
+                                    format!("{usage}%"),
                                 )
                             })
                             .collect::<Vec<Element<_>>>(),

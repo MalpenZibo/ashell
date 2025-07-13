@@ -66,7 +66,7 @@ impl Module for KeyboardSubmap {
                         event_listener.add_sub_map_changed_handler({
                             let output = output.clone();
                             move |new_submap| {
-                                debug!("submap changed: {:?}", new_submap);
+                                debug!("submap changed: {new_submap:?}");
                                 let output = output.clone();
                                 Box::pin(async move {
                                     if let Ok(mut output) = output.write() {
@@ -81,7 +81,7 @@ impl Module for KeyboardSubmap {
                         let res = event_listener.start_listener_async().await;
 
                         if let Err(e) = res {
-                            error!("restarting submap listener due to error: {:?}", e);
+                            error!("restarting submap listener due to error: {e:?}");
                         }
                     }
                 }),

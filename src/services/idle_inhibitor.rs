@@ -47,7 +47,7 @@ impl IdleInhibitorManager {
         match init() {
             Ok(obj) => Some(obj),
             Err(err) => {
-                warn!("Failed to initialize idle inhibitor: {}", err);
+                warn!("Failed to initialize idle inhibitor: {err}");
                 None
             }
         }
@@ -69,7 +69,7 @@ impl IdleInhibitorManager {
         };
 
         if let Err(err) = res {
-            warn!("Failed to toggle idle inhibitor: {}", err);
+            warn!("Failed to toggle idle inhibitor: {err}");
         }
     }
 

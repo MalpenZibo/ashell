@@ -95,7 +95,7 @@ impl BluetoothData {
                     61..=80 => Icons::Battery3,
                     _ => Icons::Battery4,
                 }),
-                text(format!("{}%", battery))
+                text(format!("{battery}%"))
             )
             .spacing(8)
             .width(Length::Shrink),

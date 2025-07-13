@@ -58,7 +58,7 @@ async fn check_update_now(check_cmd: &str) -> Vec<Update> {
             new_updates
         }
         Err(e) => {
-            error!("Error: {:?}", e);
+            error!("Error: {e:?}");
             vec![]
         }
     }

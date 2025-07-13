@@ -13,9 +13,9 @@ pub fn format_duration(duration: &Duration) -> String {
     let h = duration.as_secs() / 60 / 60;
     let m = duration.as_secs() / 60 % 60;
     if h > 0 {
-        format!("{}h {:>2}m", h, m)
+        format!("{h}h {m:>2}m")
     } else {
-        format!("{:>2}m", m)
+        format!("{m:>2}m")
     }
 }
 

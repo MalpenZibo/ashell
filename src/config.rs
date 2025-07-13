@@ -222,19 +222,19 @@ impl Default for ClockModuleConfig {
 }
 
 fn default_shutdown_cmd() -> String {
-    return "shutdown now".to_string();
+    "shutdown now".to_string()
 }
 
 fn default_suspend_cmd() -> String {
-    return "systemctl suspend".to_string();
+    "systemctl suspend".to_string()
 }
 
 fn default_reboot_cmd() -> String {
-    return "systemctl reboot".to_string();
+    "systemctl reboot".to_string()
 }
 
 fn default_logout_cmd() -> String {
-    return "loginctl kill-user $(whoami)".to_string();
+    "loginctl kill-user $(whoami)".to_string()
 }
 
 #[derive(Deserialize, Default, Clone, Debug)]
@@ -746,7 +746,7 @@ pub fn subscription() -> Subscription<Message> {
                     loop {
                         let event = stream.next().await;
 
-                        log::debug!("ashell config folder event: {:?}", event);
+                        log::debug!("ashell config folder event: {event:?}");
 
                         if let Some(Ok(Event { mask, name, .. })) = event {
                             match mask {
@@ -759,7 +759,7 @@ pub fn subscription() -> Subscription<Message> {
                                     break;
                                 }
                                 _ => {
-                                    log::info!("ashell config file events: {:?}", name);
+                                    log::info!("ashell config file events: {name:?}");
                                     if name.is_some_and(|name| name == "config.toml") {
                                         let new_config = read_config();
                                         match new_config {
@@ -771,7 +771,7 @@ pub fn subscription() -> Subscription<Message> {
                                                     .await;
                                             }
                                             Err(err) => {
-                                                log::warn!("Failed to read config file: {:?}", err);
+                                                log::warn!("Failed to read config file: {err:?}");
                                             }
                                         }
                                     }
@@ -791,7 +791,7 @@ pub fn subscription() -> Subscription<Message> {
 
                     let event = stream.next().await;
 
-                    log::debug!("Config folder event: {:?}", event);
+                    log::debug!("Config folder event: {event:?}");
 
                     if let Some(Ok(_)) = event {
                         if config_file_path.exists() {
@@ -805,7 +805,7 @@ pub fn subscription() -> Subscription<Message> {
                                         .await;
                                 }
                                 Err(err) => {
-                                    log::warn!("Failed to read config file: {:?}", err);
+                                    log::warn!("Failed to read config file: {err:?}");
                                 }
                             }
                         }

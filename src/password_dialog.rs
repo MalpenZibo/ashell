@@ -30,7 +30,7 @@ pub fn view<'a>(
         )
         .spacing(16)
         .align_y(Alignment::Center),
-        text(format!("Insert password to connect to: {}", wifi_ssid)),
+        text(format!("Insert password to connect to: {wifi_ssid}")),
         text_input("", current_password)
             .secure(true)
             .size(16)

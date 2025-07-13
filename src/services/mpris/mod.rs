@@ -57,7 +57,7 @@ impl Display for MprisPlayerMetadata {
             (Some(a), None) => a.join(", "),
             (Some(a), Some(t)) => format!("{} - {}", a.join(", "), t),
         };
-        write!(f, "{}", t)
+        write!(f, "{t}")
     }
 }
 
@@ -174,7 +174,7 @@ impl MprisPlayerService {
             })
             .collect();
 
-        debug!("Found MPRIS player services: {:?}", names);
+        debug!("Found MPRIS player services: {names:?}");
 
         Ok(Self::get_mpris_player_data(conn, &names).await)
     }
@@ -257,7 +257,7 @@ impl MprisPlayerService {
                                 if &new_metadata == cache.as_ref() {
                                     None
                                 } else {
-                                    debug!("Metadata changed: {:?}", new_metadata);
+                                    debug!("Metadata changed: {new_metadata:?}");
 
                                     Some(Event::Metadata(service, new_metadata))
                                 }
@@ -284,7 +284,7 @@ impl MprisPlayerService {
                                 if volume == new_volume {
                                     None
                                 } else {
-                                    debug!("Volume changed: {:?}", new_volume);
+                                    debug!("Volume changed: {new_volume:?}");
 
                                     Some(Event::Volume(service, new_volume))
                                 }
@@ -312,7 +312,7 @@ impl MprisPlayerService {
                                 if state == new_state {
                                     None
                                 } else {
-                                    debug!("PlaybackStatus changed: {:?}", new_state);
+                                    debug!("PlaybackStatus changed: {new_state:?}");
 
                                     Some(Event::State(service, new_state))
                                 }
@@ -345,14 +345,14 @@ impl MprisPlayerService {
                             State::Active(conn)
                         }
                         Err(err) => {
-                            error!("Failed to initialize MPRIS player service: {}", err);
+                            error!("Failed to initialize MPRIS player service: {err}");
 
                             State::Error
                         }
                     }
                 }
                 Err(err) => {
-                    error!("Failed to connect to system bus for MPRIS player: {}", err);
+                    error!("Failed to connect to system bus for MPRIS player: {err}");
                     State::Error
                 }
             },
@@ -361,7 +361,7 @@ impl MprisPlayerService {
                     let mut chunks = events.ready_chunks(10);
 
                     while let Some(chunk) = chunks.next().await {
-                        debug!("MPRIS player service receive events: {:?}", chunk);
+                        debug!("MPRIS player service receive events: {chunk:?}");
 
                         let mut need_refresh = false;
 
@@ -373,8 +373,7 @@ impl MprisPlayerService {
                                 }
                                 Event::Metadata(service, metadata) => {
                                     debug!(
-                                        "MPRIS player service {} metadata changed: {:?}",
-                                        service, metadata
+                                        "MPRIS player service {service} metadata changed: {metadata:?}"
                                     );
                                     let _ = output
                                         .send(ServiceEvent::Update(MprisPlayerEvent::Metadata(
@@ -384,8 +383,7 @@ impl MprisPlayerService {
                                 }
                                 Event::Volume(service, volume) => {
                                     debug!(
-                                        "MPRIS player service {} volume changed: {:?}",
-                                        service, volume
+                                        "MPRIS player service {service} volume changed: {volume:?}"
                                     );
                                     let _ = output
                                         .send(ServiceEvent::Update(MprisPlayerEvent::Volume(
@@ -395,8 +393,7 @@ impl MprisPlayerService {
                                 }
                                 Event::State(service, state) => {
                                     debug!(
-                                        "MPRIS player service {} playback status changed: {:?}",
-                                        service, state
+                                        "MPRIS player service {service} playback status changed: {state:?}"
                                     );
                                     let _ = output
                                         .send(ServiceEvent::Update(MprisPlayerEvent::State(
@@ -417,7 +414,7 @@ impl MprisPlayerService {
                                         .await;
                                 }
                                 Err(err) => {
-                                    error!("Failed to fetch MPRIS player data: {}", err);
+                                    error!("Failed to fetch MPRIS player data: {err}");
                                 }
                             }
 
@@ -428,7 +425,7 @@ impl MprisPlayerService {
                     State::Active(conn)
                 }
                 Err(err) => {
-                    error!("Failed to listen for MPRIS player events: {}", err);
+                    error!("Failed to listen for MPRIS player events: {err}");
 
                     State::Error
                 }
@@ -474,25 +471,25 @@ impl Service for MprisPlayerService {
                                 let _ = mpris_player_proxy
                                     .previous()
                                     .await
-                                    .inspect_err(|e| error!("Previous command error: {}", e));
+                                    .inspect_err(|e| error!("Previous command error: {e}"));
                             }
                             PlayerCommand::PlayPause => {
                                 let _ = mpris_player_proxy
                                     .play_pause()
                                     .await
-                                    .inspect_err(|e| error!("Play/pause command error: {}", e));
+                                    .inspect_err(|e| error!("Play/pause command error: {e}"));
                             }
                             PlayerCommand::Next => {
                                 let _ = mpris_player_proxy
                                     .next()
                                     .await
-                                    .inspect_err(|e| error!("Next command error: {}", e));
+                                    .inspect_err(|e| error!("Next command error: {e}"));
                             }
                             PlayerCommand::Volume(v) => {
                                 let _ = mpris_player_proxy
                                     .set_volume(v / 100.0)
                                     .await
-                                    .inspect_err(|e| error!("Set volume command error: {}", e));
+                                    .inspect_err(|e| error!("Set volume command error: {e}"));
                             }
                         }
                         Self::get_mpris_player_data(&conn, &names).await

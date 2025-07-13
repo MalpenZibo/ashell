@@ -142,7 +142,7 @@ impl App {
         match message {
             Message::None => Task::none(),
             Message::ConfigChanged(config) => {
-                info!("New config: {:?}", config);
+                info!("New config: {config:?}");
                 let mut tasks = Vec::new();
                 info!(
                     "Current outputs: {:?}, new outputs: {:?}",
@@ -222,7 +222,7 @@ impl App {
             Message::CustomUpdate(name, message) => {
                 match self.custom.get_mut(&name) {
                     Some(c) => c.update(message),
-                    None => error!("Custom module '{}' not found", name),
+                    None => error!("Custom module '{name}' not found"),
                 };
                 Task::none()
             }
@@ -276,7 +276,7 @@ impl App {
             }
             Message::OutputEvent((event, wl_output)) => match event {
                 iced::event::wayland::OutputEvent::Created(info) => {
-                    info!("Output created: {:?}", info);
+                    info!("Output created: {info:?}");
                     let name = info
                         .as_ref()
                         .and_then(|info| info.name.as_deref())
@@ -491,7 +491,7 @@ impl App {
                 iced::Event::PlatformSpecific(iced::event::PlatformSpecific::Wayland(
                     WaylandEvent::Output(event, wl_output),
                 )) => {
-                    debug!("Wayland event: {:?}", event);
+                    debug!("Wayland event: {event:?}");
                     Some(Message::OutputEvent((event, wl_output)))
                 }
                 _ => None,

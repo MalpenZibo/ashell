@@ -26,7 +26,7 @@ const HEIGHT: u32 = 34;
 
 fn get_log_spec(log_level: &str) -> LogSpecification {
     LogSpecification::env_or_parse(log_level).unwrap_or_else(|err| {
-        panic!("Failed to parse log level: {}", err);
+        panic!("Failed to parse log level: {err}");
     })
 }
 
@@ -52,11 +52,11 @@ async fn main() -> iced::Result {
     let logger = logger.start().unwrap();
     panic::set_hook(Box::new(|info| {
         let b = Backtrace::capture();
-        error!("Panic: {} \n {}", info, b);
+        error!("Panic: {info} \n {b}");
     }));
 
     let config = read_config().unwrap_or_else(|err| {
-        error!("Failed to parse config file: {}", err);
+        error!("Failed to parse config file: {err}");
 
         warn!("Using default config");
         Config::default()

@@ -145,7 +145,7 @@ impl Workspaces {
                     let already_active = self.workspaces.iter().any(|w| w.active && w.id == id);
 
                     if !already_active {
-                        debug!("changing workspace to: {}", id);
+                        debug!("changing workspace to: {id}");
                         let res = hyprland::dispatch::Dispatch::call(
                             hyprland::dispatch::DispatchType::Workspace(
                                 hyprland::dispatch::WorkspaceIdentifierWithSpecial::Id(id),
@@ -153,14 +153,14 @@ impl Workspaces {
                         );
 
                         if let Err(e) = res {
-                            error!("failed to dispatch workspace change: {:?}", e);
+                            error!("failed to dispatch workspace change: {e:?}");
                         }
                     }
                 }
             }
             Message::ToggleSpecialWorkspace(id) => {
                 if let Some(special) = self.workspaces.iter().find(|w| w.id == id && w.id < 0) {
-                    debug!("toggle special workspace: {}", id);
+                    debug!("toggle special workspace: {id}");
                     let res = hyprland::dispatch::Dispatch::call(
                         hyprland::dispatch::DispatchType::FocusMonitor(MonitorIdentifier::Id(
                             special.monitor_id.unwrap_or_default() as i128,
@@ -175,7 +175,7 @@ impl Workspaces {
                     });
 
                     if let Err(e) = res {
-                        error!("failed to dispatch special workspace toggle: {:?}", e);
+                        error!("failed to dispatch special workspace toggle: {e:?}");
                     }
                 }
             }
@@ -280,7 +280,7 @@ impl Module for Workspaces {
 
         Some(
             Subscription::run_with_id(
-                format!("{:?}-{}", id, enable_workspace_filling),
+                format!("{id:?}-{enable_workspace_filling}"),
                 channel(10, async move |output| {
                     let output = Arc::new(RwLock::new(output));
                     loop {
@@ -289,7 +289,7 @@ impl Module for Workspaces {
                         event_listener.add_workspace_added_handler({
                             let output = output.clone();
                             move |e| {
-                                debug!("workspace added: {:?}", e);
+                                debug!("workspace added: {e:?}");
                                 let output = output.clone();
                                 Box::pin(async move {
                                     if let Ok(mut output) = output.write() {
@@ -304,7 +304,7 @@ impl Module for Workspaces {
                         event_listener.add_workspace_changed_handler({
                             let output = output.clone();
                             move |e| {
-                                debug!("workspace changed: {:?}", e);
+                                debug!("workspace changed: {e:?}");
                                 let output = output.clone();
                                 Box::pin(async move {
                                     if let Ok(mut output) = output.write() {
@@ -319,7 +319,7 @@ impl Module for Workspaces {
                         event_listener.add_workspace_deleted_handler({
                             let output = output.clone();
                             move |e| {
-                                debug!("workspace deleted: {:?}", e);
+                                debug!("workspace deleted: {e:?}");
                                 let output = output.clone();
                                 Box::pin(async move {
                                     if let Ok(mut output) = output.write() {
@@ -334,7 +334,7 @@ impl Module for Workspaces {
                         event_listener.add_workspace_moved_handler({
                             let output = output.clone();
                             move |e| {
-                                debug!("workspace moved: {:?}", e);
+                                debug!("workspace moved: {e:?}");
                                 let output = output.clone();
                                 Box::pin(async move {
                                     if let Ok(mut output) = output.write() {
@@ -349,7 +349,7 @@ impl Module for Workspaces {
                         event_listener.add_changed_special_handler({
                             let output = output.clone();
                             move |e| {
-                                debug!("special workspace changed: {:?}", e);
+                                debug!("special workspace changed: {e:?}");
                                 let output = output.clone();
                                 Box::pin(async move {
                                     if let Ok(mut output) = output.write() {
@@ -366,7 +366,7 @@ impl Module for Workspaces {
                         event_listener.add_special_removed_handler({
                             let output = output.clone();
                             move |e| {
-                                debug!("special workspace removed: {:?}", e);
+                                debug!("special workspace removed: {e:?}");
                                 let output = output.clone();
                                 Box::pin(async move {
                                     if let Ok(mut output) = output.write() {
@@ -439,7 +439,7 @@ impl Module for Workspaces {
                         let res = event_listener.start_listener_async().await;
 
                         if let Err(e) = res {
-                            error!("restarting workspaces listener due to error: {:?}", e);
+                            error!("restarting workspaces listener due to error: {e:?}");
                         }
                     }
                 }),

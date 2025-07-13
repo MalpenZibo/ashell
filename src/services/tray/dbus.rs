@@ -37,7 +37,7 @@ impl StatusNotifierWatcher {
 
         let flags = RequestNameFlags::AllowReplacement.into();
         if dbus_proxy.request_name(NAME, flags).await? == RequestNameReply::InQueue {
-            warn!("Bus name '{}' already owned", NAME);
+            warn!("Bus name '{NAME}' already owned");
         }
 
         let internal_connection = connection.clone();
@@ -53,10 +53,10 @@ impl StatusNotifierWatcher {
                 };
                 if args.name.as_ref() == NAME {
                     if args.new_owner.as_ref() == unique_name.as_ref() {
-                        info!("Acquired bus name: {}", NAME);
+                        info!("Acquired bus name: {NAME}");
                         have_bus_name = true;
                     } else if have_bus_name {
-                        info!("Lost bus name: {}", NAME);
+                        info!("Lost bus name: {NAME}");
                         have_bus_name = false;
                     }
                 } else if let BusName::Unique(name) = &args.name {
@@ -100,7 +100,7 @@ impl StatusNotifierWatcher {
     ) {
         let sender = header.sender().unwrap();
         let service = if service.starts_with('/') {
-            format!("{}{}", sender, service)
+            format!("{sender}{service}")
         } else {
             service.to_string()
         };

@@ -18,7 +18,7 @@ use iced::{
         container,
     },
 };
-use log::error;
+use log::{error, info};
 use serde::Deserialize;
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
@@ -165,7 +165,7 @@ impl Module for Custom {
             let name = config.name.clone();
 
             Some(Subscription::run_with_id(
-                format!("{:?}-{}", id, name),
+                format!("{id:?}-{name}"),
                 channel(10, async move |mut output| {
                     let command = Command::new("bash")
                         .arg("-c")
@@ -186,7 +186,7 @@ impl Module for Custom {
                                         .await
                                         .expect("child process encountered an error");
 
-                                    println!("child status was: {}", status);
+                                    info!("child status was: {status}");
                                 });
 
                                 while let Some(line) = reader.next_line().await.ok().flatten() {
@@ -198,16 +198,16 @@ impl Module for Custom {
                                             ))
                                             .unwrap(),
                                         Err(e) => {
-                                            error!("Failed to parse JSON: {} for line {}", e, line);
+                                            error!("Failed to parse JSON: {e} for line {line}");
                                         }
                                     }
                                 }
                             } else {
-                                error!("Failed to capture stdout for command: {}", check_cmd);
+                                error!("Failed to capture stdout for command: {check_cmd}");
                             }
                         }
                         Err(error) => {
-                            error!("Failed to execute command: {}", error);
+                            error!("Failed to execute command: {error}");
                         }
                     }
                 }),
