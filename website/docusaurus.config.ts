@@ -109,7 +109,7 @@ const config: Config = {
             },
             {
               label: "Configuration",
-              to: "/docs/configuration/index",
+              to: "/docs/configuration",
             },
           ],
         },
