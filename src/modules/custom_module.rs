@@ -18,7 +18,7 @@ use iced::{
         container,
     },
 };
-use log::error;
+use log::{error, info};
 use serde::Deserialize;
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
