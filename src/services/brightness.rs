@@ -54,9 +54,7 @@ impl BrightnessService {
         let max_brightness = Self::get_max_brightness(device_path).await?;
         let actual_brightness = Self::get_actual_brightness(device_path).await?;
 
-        debug!(
-            "Max brightness: {max_brightness}, current brightness: {actual_brightness}"
-        );
+        debug!("Max brightness: {max_brightness}, current brightness: {actual_brightness}");
 
         Ok(BrightnessData {
             current: actual_brightness,

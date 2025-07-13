@@ -241,11 +241,7 @@ impl SystemInfo {
                     format!("{}%", self.data.memory_swap_usage),
                 ))
                 .push_maybe(self.data.temperature.map(|temp| {
-                    Self::info_element(
-                        Icons::Temp,
-                        "Temperature".to_string(),
-                        format!("{temp}°C"),
-                    )
+                    Self::info_element(Icons::Temp, "Temperature".to_string(), format!("{temp}°C"))
                 }))
                 .push(
                     Column::with_children(

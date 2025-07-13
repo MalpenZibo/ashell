@@ -291,9 +291,7 @@ impl Outputs {
         request_outputs: &config::Outputs,
         position: Position,
     ) -> Task<Message> {
-        debug!(
-            "Syncing outputs: {self:?}, request_outputs: {request_outputs:?}"
-        );
+        debug!("Syncing outputs: {self:?}, request_outputs: {request_outputs:?}");
 
         let to_remove = self
             .0
