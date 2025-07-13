@@ -244,7 +244,7 @@ impl App {
                 .find(|m| &m.name == name)
                 .and_then(|mc| self.custom.get(name).map(|cm| cm.view(mc)))
                 .unwrap_or_else(|| {
-                    error!("Custom module `{}` not found", name);
+                    error!("Custom module `{name}` not found");
                     None
                 }),
             ModuleName::Updates => self.updates.view(&self.config.updates),
@@ -278,7 +278,7 @@ impl App {
                 .find(|m| &m.name == name)
                 .and_then(|mc| self.custom.get(name).map(|cm| cm.subscription(mc)))
                 .unwrap_or_else(|| {
-                    error!("Custom module def `{}` not found", name);
+                    error!("Custom module def `{name}` not found");
                     None
                 }),
             ModuleName::Updates => self

@@ -259,7 +259,7 @@ impl Settings {
                     _ => Task::none(),
                 },
                 NetworkMessage::RequestWiFiPassword(id, ssid) => {
-                    info!("Requesting password for {}", ssid);
+                    info!("Requesting password for {ssid}");
                     self.password_dialog = Some((ssid, "".to_string()));
                     outputs.request_keyboard(id)
                 }

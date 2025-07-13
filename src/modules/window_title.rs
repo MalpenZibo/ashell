@@ -102,7 +102,7 @@ impl Module for WindowTitle {
                             move |e| {
                                 let output = output.clone();
                                 Box::pin(async move {
-                                    debug!("Active window changed: {:?}", e);
+                                    debug!("Active window changed: {e:?}");
                                     if let Ok(mut output) = output.write() {
                                         debug!("Sending title changed message");
                                         output.try_send(Message::TitleChanged).unwrap();
@@ -130,7 +130,7 @@ impl Module for WindowTitle {
                         let res = event_listener.start_listener_async().await;
 
                         if let Err(e) = res {
-                            error!("restarting active window listener due to error: {:?}", e);
+                            error!("restarting active window listener due to error: {e:?}");
                         }
                     }
                 }),

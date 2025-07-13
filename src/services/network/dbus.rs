@@ -28,21 +28,21 @@ impl super::NetworkBackend for NetworkDbus<'_> {
         let wifi_present = nm.wifi_device_present().await?;
 
         let wifi_enabled = nm.wireless_enabled().await.unwrap_or_default();
-        debug!("Wifi enabled: {}", wifi_enabled);
+        debug!("Wifi enabled: {wifi_enabled}");
 
         let airplane_mode = bluetooth_soft_blocked && !wifi_enabled;
-        debug!("Airplane mode: {}", airplane_mode);
+        debug!("Airplane mode: {airplane_mode}");
 
         let active_connections = nm.active_connections_info().await?;
-        debug!("Active connections: {:?}", active_connections);
+        debug!("Active connections: {active_connections:?}");
 
         let wireless_access_points = nm.wireless_access_points().await?;
-        debug!("Wireless access points: {:?}", wireless_access_points);
+        debug!("Wireless access points: {wireless_access_points:?}");
 
         let known_connections = nm
             .known_connections_internal(&wireless_access_points)
             .await?;
-        debug!("Known connections: {:?}", known_connections);
+        debug!("Known connections: {known_connections:?}");
 
         Ok(NetworkData {
             wifi_present,
@@ -64,7 +64,7 @@ impl super::NetworkBackend for NetworkDbus<'_> {
             .await;
 
         if let Err(e) = rfkill_res {
-            debug!("Failed to set bluetooth rfkill: {}", e);
+            debug!("Failed to set bluetooth rfkill: {e}");
         } else {
             debug!("Bluetooth rfkill set successfully");
         }
@@ -130,7 +130,7 @@ impl super::NetworkBackend for NetworkDbus<'_> {
             .await?;
         } else {
             let name = access_point.ssid.clone();
-            debug!("Create new wifi connection: {}", name);
+            debug!("Create new wifi connection: {name}");
 
             let mut conn_settings: HashMap<&str, HashMap<&str, zvariant::Value>> = HashMap::from([
                 (
@@ -173,7 +173,7 @@ impl super::NetworkBackend for NetworkDbus<'_> {
         enable: bool,
     ) -> anyhow::Result<Vec<KnownConnection>> {
         if enable {
-            debug!("Activating VPN: {:?}", connection);
+            debug!("Activating VPN: {connection:?}");
             self.activate_connection(
                 connection,
                 OwnedObjectPath::try_from("/").unwrap(),
@@ -181,7 +181,7 @@ impl super::NetworkBackend for NetworkDbus<'_> {
             )
             .await?;
         } else {
-            debug!("Deactivating VPN: {:?}", connection);
+            debug!("Deactivating VPN: {connection:?}");
             self.deactivate_connection(connection).await?;
         }
 
@@ -224,7 +224,7 @@ impl NetworkDbus<'_> {
             .then(|v| async move {
                 let value = v.get().await.unwrap_or_default();
 
-                debug!("WiFi enabled changed: {}", value);
+                debug!("WiFi enabled changed: {value}");
                 NetworkEvent::WiFiEnabled(value)
             })
             .boxed();
@@ -235,7 +235,7 @@ impl NetworkDbus<'_> {
             .then(|val| async move {
                 let value = val.get().await.unwrap_or_default().into();
 
-                debug!("Connectivity changed: {:?}", value);
+                debug!("Connectivity changed: {value:?}");
                 NetworkEvent::Connectivity(value)
             })
             .boxed();
@@ -251,7 +251,7 @@ impl NetworkDbus<'_> {
                         let nm = NetworkDbus::new(&conn).await.unwrap();
                         let value = nm.active_connections_info().await.unwrap_or_default();
 
-                        debug!("Active connections changed: {:?}", value);
+                        debug!("Active connections changed: {value:?}");
                         NetworkEvent::ActiveConnections(value)
                     }
                 }
@@ -279,8 +279,7 @@ impl NetworkDbus<'_> {
                                 nm.wireless_access_points().await.unwrap_or_default();
 
                             debug!(
-                                "Wireless device changed: wifi present {:?}, wireless_access_points {:?}",
-                                wifi_present, wireless_access_points,
+                                "Wireless device changed: wifi present {wifi_present:?}, wireless_access_points {wireless_access_points:?}",
                             );
                             Some(NetworkEvent::WirelessDevice {
                                 wifi_present,
@@ -320,7 +319,7 @@ impl NetworkDbus<'_> {
                     .map(|_| {
                         let ssid = ac.ssid.clone();
 
-                        debug!("Request password for ssid {}", ssid);
+                        debug!("Request password for ssid {ssid}");
                         NetworkEvent::RequestPasswordForSSID(ssid)
                     }),
             );
@@ -345,7 +344,7 @@ impl NetworkDbus<'_> {
                                 let nm = NetworkDbus::new(&conn).await.unwrap();
                                 let wireless_access_point =
                                     nm.wireless_access_points().await.unwrap_or_default();
-                                debug!("access_points_changed {:?}", wireless_access_point);
+                                debug!("access_points_changed {wireless_access_point:?}");
 
                                 NetworkEvent::WirelessAccessPoint(wireless_access_point)
                             }

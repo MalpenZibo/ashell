@@ -173,7 +173,7 @@ impl UPowerService {
                 power_profile,
             )),
             (Some(battery), Err(err)) => {
-                warn!("Failed to get power profile: {}", err);
+                warn!("Failed to get power profile: {err}");
 
                 Ok((
                     Some((battery.0, battery.1.get_devices_path())),
@@ -182,7 +182,7 @@ impl UPowerService {
             }
             (None, Ok(power_profile)) => Ok((None, power_profile)),
             (None, Err(err)) => {
-                warn!("Failed to get power profile: {}", err);
+                warn!("Failed to get power profile: {err}");
 
                 Ok((None, PowerProfile::Unknown))
             }
@@ -306,7 +306,7 @@ impl UPowerService {
                             }
                             Ok((None, power_profile)) => (None, None, power_profile),
                             Err(err) => {
-                                error!("Failed to initialize upower service: {}", err);
+                                error!("Failed to initialize upower service: {err}");
 
                                 return State::Error;
                             }
@@ -322,7 +322,7 @@ impl UPowerService {
                     State::Active(conn, battery_path)
                 }
                 Err(err) => {
-                    error!("Failed to connect to system bus for upower: {}", err);
+                    error!("Failed to connect to system bus for upower: {err}");
                     State::Error
                 }
             },
@@ -336,7 +336,7 @@ impl UPowerService {
                         State::Active(conn, battery_devices)
                     }
                     Err(err) => {
-                        error!("Failed to listen for upower events: {}", err);
+                        error!("Failed to listen for upower events: {err}");
 
                         State::Error
                     }

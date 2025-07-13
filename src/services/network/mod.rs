@@ -175,7 +175,7 @@ impl ReadOnlyService for NetworkService {
                 self.data.airplane_mode = airplane_mode;
             }
             NetworkEvent::WiFiEnabled(wifi_enabled) => {
-                debug!("WiFi enabled: {}", wifi_enabled);
+                debug!("WiFi enabled: {wifi_enabled}");
                 self.data.wifi_enabled = wifi_enabled;
             }
             NetworkEvent::ScanningNearbyWifi => {
@@ -379,8 +379,7 @@ impl NetworkService {
                             }
                             Err(err) => {
                                 info!(
-                                    "Failed to initialize NetworkManager. Falling back to iwd. Error: {}",
-                                    err
+                                    "Failed to initialize NetworkManager. Falling back to iwd. Error: {err}"
                                 );
                                 match IwdDbus::new(&conn)
                                     .and_then(|iwd| async move { iwd.initialize_data().await })
@@ -391,7 +390,7 @@ impl NetworkService {
                                         Ok((data, BackendChoice::Iwd))
                                     }
                                     Err(err) => {
-                                        error!("Failed to initialize network service: {}", err);
+                                        error!("Failed to initialize network service: {err}");
                                         Err(err)
                                     }
                                 }
@@ -413,16 +412,16 @@ impl NetworkService {
                         }
                         Err(err) => {
                             if err.is::<zbus::Error>() {
-                                error!("Failed to connect to system bus: {}", err);
+                                error!("Failed to connect to system bus: {err}");
                             } else {
-                                error!("Failed to initialize network service: {}", err);
+                                error!("Failed to initialize network service: {err}");
                             }
                             State::Error
                         }
                     }
                 }
                 Err(err) => {
-                    error!("Failed to connect to system bus: {}", err);
+                    error!("Failed to connect to system bus: {err}");
 
                     State::Error
                 }
@@ -436,7 +435,7 @@ impl NetworkService {
                         let nm = match NetworkDbus::new(&conn).await {
                             Ok(nm) => nm,
                             Err(e) => {
-                                error!("Failed to create NetworkDbus: {}", e);
+                                error!("Failed to create NetworkDbus: {e}");
                                 return State::Error;
                             }
                         };
@@ -461,7 +460,7 @@ impl NetworkService {
                                 State::Active(conn, choice)
                             }
                             Err(err) => {
-                                error!("Failed to listen for network events: {}", err);
+                                error!("Failed to listen for network events: {err}");
 
                                 State::Error
                             }
@@ -471,7 +470,7 @@ impl NetworkService {
                         let iwd = match IwdDbus::new(&conn).await {
                             Ok(iwd) => iwd,
                             Err(err) => {
-                                error!("Failed to create IwdDbus: {}", err);
+                                error!("Failed to create IwdDbus: {err}");
                                 return State::Error;
                             }
                         };
@@ -491,7 +490,7 @@ impl NetworkService {
                                 State::Active(conn, choice)
                             }
                             Err(err) => {
-                                error!("Failed to listen for network events: {}", err);
+                                error!("Failed to listen for network events: {err}");
 
                                 State::Error
                             }
@@ -514,7 +513,7 @@ impl Service for NetworkService {
     type Command = NetworkCommand;
 
     fn command(&mut self, command: Self::Command) -> Task<ServiceEvent<Self>> {
-        debug!("Command: {:?}", command);
+        debug!("Command: {command:?}");
         let conn = self.conn.clone();
         let mut bc = self.backend_choice.with_connection(conn);
         match command {
@@ -585,7 +584,7 @@ impl Service for NetworkService {
                         };
                         bc.set_vpn(object_path, new_state).await.unwrap_or_default();
                         let res = bc.known_connections().await;
-                        debug!("VPN toggled: {:?}", res);
+                        debug!("VPN toggled: {res:?}");
                         res.unwrap_or_default()
                     },
                     |known_connections| {

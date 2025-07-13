@@ -59,7 +59,7 @@ impl TrayModule {
             }
             TrayMessage::MenuSelected(name, id) => match self.service.as_mut() {
                 Some(service) => {
-                    debug!("Tray menu click: {}", id);
+                    debug!("Tray menu click: {id}");
                     service
                         .command(TrayCommand::MenuSelected(name, id))
                         .map(|event| crate::app::Message::Tray(TrayMessage::Event(Box::new(event))))

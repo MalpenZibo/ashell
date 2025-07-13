@@ -67,7 +67,7 @@ impl KeyboardLayout {
                     hyprland::ctl::switch_xkb_layout::call("all", SwitchXKBLayoutCmdTypes::Next);
 
                 if let Err(e) = res {
-                    error!("failed to keymap change: {:?}", e);
+                    error!("failed to keymap change: {e:?}");
                 }
             }
         }
@@ -112,7 +112,7 @@ impl Module for KeyboardLayout {
                         event_listener.add_layout_changed_handler({
                             let output = output.clone();
                             move |e| {
-                                debug!("keymap changed: {:?}", e);
+                                debug!("keymap changed: {e:?}");
                                 let output = output.clone();
                                 Box::pin(async move {
                                     if let Ok(mut output) = output.write() {
@@ -147,7 +147,7 @@ impl Module for KeyboardLayout {
                         let res = event_listener.start_listener_async().await;
 
                         if let Err(e) = res {
-                            error!("restarting keymap listener due to error: {:?}", e);
+                            error!("restarting keymap listener due to error: {e:?}");
                         }
                     }
                 }),

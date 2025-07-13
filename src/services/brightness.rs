@@ -55,8 +55,7 @@ impl BrightnessService {
         let actual_brightness = Self::get_actual_brightness(device_path).await?;
 
         debug!(
-            "Max brightness: {}, current brightness: {}",
-            max_brightness, actual_brightness
+            "Max brightness: {max_brightness}, current brightness: {actual_brightness}"
         );
 
         Ok(BrightnessData {
@@ -123,14 +122,14 @@ impl BrightnessService {
                             State::Active(device_path)
                         }
                         Err(err) => {
-                            error!("Failed to initialize brightness data: {}", err);
+                            error!("Failed to initialize brightness data: {err}");
 
                             State::Error
                         }
                     }
                 }
                 Err(err) => {
-                    error!("Failed to access to brightness files: {}", err);
+                    error!("Failed to access to brightness files: {err}");
 
                     State::Error
                 }
@@ -195,7 +194,7 @@ impl BrightnessService {
                         State::Active(device_path)
                     }
                     Err(err) => {
-                        error!("Failed to listen for brightness events: {}", err);
+                        error!("Failed to listen for brightness events: {err}");
 
                         State::Error
                     }
@@ -281,7 +280,7 @@ impl Service for BrightnessService {
                 async move {
                     match command {
                         BrightnessCommand::Set(v) => {
-                            debug!("Setting brightness to {}", v);
+                            debug!("Setting brightness to {v}");
                             let _ = BrightnessService::set_brightness(&conn, &device_path, v).await;
 
                             v

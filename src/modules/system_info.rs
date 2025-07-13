@@ -194,9 +194,9 @@ impl SystemInfo {
             row!(
                 icon(info_icon),
                 if let Some(prefix) = prefix {
-                    text(format!("{} {}{}", prefix, value, unit))
+                    text(format!("{prefix} {value}{unit}"))
                 } else {
-                    text(format!("{}{}", value, unit))
+                    text(format!("{value}{unit}"))
                 }
             )
             .spacing(4),
@@ -244,7 +244,7 @@ impl SystemInfo {
                     Self::info_element(
                         Icons::Temp,
                         "Temperature".to_string(),
-                        format!("{}°C", temp),
+                        format!("{temp}°C"),
                     )
                 }))
                 .push(
@@ -255,8 +255,8 @@ impl SystemInfo {
                             .map(|(mount_point, usage)| {
                                 Self::info_element(
                                     Icons::Drive,
-                                    format!("Disk Usage {}", mount_point),
-                                    format!("{}%", usage),
+                                    format!("Disk Usage {mount_point}"),
+                                    format!("{usage}%"),
                                 )
                             })
                             .collect::<Vec<Element<_>>>(),

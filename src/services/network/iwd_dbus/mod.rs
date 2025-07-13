@@ -68,19 +68,19 @@ impl super::NetworkBackend for IwdDbus<'_> {
         let wifi_present = nm.wifi_device_present().await?;
 
         let wifi_enabled = nm.wireless_enabled().await.unwrap_or_default();
-        debug!("Wifi enabled: {}", wifi_enabled);
+        debug!("Wifi enabled: {wifi_enabled}");
 
         let airplane_mode = bluetooth_soft_blocked && !wifi_enabled;
-        debug!("Airplane mode: {}", airplane_mode);
+        debug!("Airplane mode: {airplane_mode}");
 
         let active_connections = nm.active_connections_info().await?;
-        debug!("Active connections: {:?}", active_connections);
+        debug!("Active connections: {active_connections:?}");
 
         let wireless_access_points = nm.wireless_access_points().await?;
-        debug!("Wireless access points: {:?}", wireless_access_points);
+        debug!("Wireless access points: {wireless_access_points:?}");
 
         let known_connections = nm.known_connections().await?;
-        debug!("Known connections: {:?}", known_connections);
+        debug!("Known connections: {known_connections:?}");
 
         let is_scanning = join_all(self.stations().await?.iter().map(|s| s.scanning()))
             .await
@@ -162,8 +162,8 @@ impl super::NetworkBackend for IwdDbus<'_> {
             let path = OwnedObjectPath::try_from("/ashell/pwagent/main").unwrap();
 
             match agent_manager.unregister_agent(&path).await {
-                Ok(_) => info!("Successfully unregistered agent at {}", path),
-                Err(e) => info!("Failed to unregister agent at {}: {}", path, e),
+                Ok(_) => info!("Successfully unregistered agent at {path}"),
+                Err(e) => info!("Failed to unregister agent at {path}: {e}"),
             }
 
             // Create a new agent with the password
@@ -268,7 +268,7 @@ impl SignalAgent {
     #[zbus(name = "Changed")]
     fn changed(&self, level: i16) {
         // ignore failure if receiver was dropped
-        warn!("Signal level changed: {}", level);
+        warn!("Signal level changed: {level}");
         let _ = self.tx.send(level);
     }
 }
@@ -393,7 +393,7 @@ impl IwdDbus<'_> {
                     move |p| async move {
                         // Add move here
                         let value = p.get().await.unwrap_or(false);
-                        debug!("Adapter Powered changed: {}", value);
+                        debug!("Adapter Powered changed: {value}");
                         // We need to check *all* adapters to determine overall wifi state
                         let wifi_enabled = iwd.wireless_enabled().await.unwrap_or(false);
                         vec![NetworkEvent::WiFiEnabled(wifi_enabled)]
@@ -417,7 +417,7 @@ impl IwdDbus<'_> {
                 .then({
                     move |p| async move {
                         let value = p.get().await.unwrap_or_default();
-                        debug!("Station state changed: {:?}", value);
+                        debug!("Station state changed: {value:?}");
                         // We need to check *all* stations to determine overall wifi state
                         vec![
                             NetworkEvent::Connectivity(
@@ -491,7 +491,7 @@ impl IwdDbus<'_> {
             signal_level_updates.push(
                 UnboundedReceiverStream::new(rx)
                     .filter_map(|level| async move {
-                        debug!("Signal level changed: {}", level);
+                        debug!("Signal level changed: {level}");
                         // TODO: get current network name
                         Some(vec![NetworkEvent::Strength(("".to_string(), level as u8))])
                     })
@@ -501,7 +501,7 @@ impl IwdDbus<'_> {
             station
                 .register_signal_level_agent(&agent_path, &[-40, -50, -60])
                 .await?;
-            warn!("Registered signal level agent at {}", agent_path);
+            warn!("Registered signal level agent at {agent_path}");
         }
 
         // TODO: probably would need to listen to interfaces registered and unregistered

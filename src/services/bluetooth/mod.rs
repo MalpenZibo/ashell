@@ -140,14 +140,14 @@ impl BluetoothService {
                             State::Active(conn)
                         }
                         Err(err) => {
-                            error!("Failed to initialize bluetooth service: {}", err);
+                            error!("Failed to initialize bluetooth service: {err}");
 
                             State::Error
                         }
                     }
                 }
                 Err(err) => {
-                    error!("Failed to connect to system bus: {}", err);
+                    error!("Failed to connect to system bus: {err}");
 
                     State::Error
                 }
@@ -166,7 +166,7 @@ impl BluetoothService {
                         State::Active(conn)
                     }
                     Err(err) => {
-                        error!("Failed to listen for bluetooth events: {}", err);
+                        error!("Failed to listen for bluetooth events: {err}");
                         State::Error
                     }
                 }

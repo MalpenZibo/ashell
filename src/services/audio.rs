@@ -180,7 +180,7 @@ impl AudioService {
                     State::Active(handle)
                 }
                 Err(err) => {
-                    error!("Failed to initialize audio service: {}", err);
+                    error!("Failed to initialize audio service: {err}");
                     State::Error
                 }
             },
@@ -545,7 +545,7 @@ impl PulseAudioServer {
                     })) {
                         Ok(_) => {}
                         Err(e) => {
-                            error!("Failed to get server info: {}", e);
+                            error!("Failed to get server info: {e}");
                             let _ = from_server_tx.send(PulseAudioServerEvent::Error);
                         }
                     };
@@ -560,7 +560,7 @@ impl PulseAudioServer {
                     })) {
                         Ok(_) => {}
                         Err(e) => {
-                            error!("Failed to get sink info: {}", e);
+                            error!("Failed to get sink info: {e}");
                             let _ = from_server_tx.send(PulseAudioServerEvent::Error);
                         }
                     };
@@ -575,7 +575,7 @@ impl PulseAudioServer {
                     })) {
                         Ok(_) => {}
                         Err(e) => {
-                            error!("Failed to get source info: {}", e);
+                            error!("Failed to get source info: {e}");
                             let _ = from_server_tx.send(PulseAudioServerEvent::Error);
                         }
                     };
@@ -625,7 +625,7 @@ impl PulseAudioServer {
                     }
                 }
                 Err(e) => {
-                    error!("Failed to start PulseAudio listener thread: {}", e);
+                    error!("Failed to start PulseAudio listener thread: {e}");
                     let _ = tx.send(false);
                 }
             }
@@ -675,7 +675,7 @@ impl PulseAudioServer {
                         }
                     }
                     Err(e) => {
-                        error!("Failed to start PulseAudio server: {}", e);
+                        error!("Failed to start PulseAudio server: {e}");
                         let _ = from_server_tx.send(PulseAudioServerEvent::Error);
                     }
                 }
@@ -727,12 +727,12 @@ impl PulseAudioServer {
                     .iter()
                     .any(|port| port.available != PortAvailable::No)
                 {
-                    debug!("Adding sink data: {:?}", data);
+                    debug!("Adding sink data: {data:?}");
                     sinks.push(data.into());
                 }
             }
             ListResult::End => {
-                debug!("New sink list {:?}", sinks);
+                debug!("New sink list {sinks:?}");
                 let _ = tx.send(PulseAudioServerEvent::Sinks(sinks.clone()));
                 sinks.clear();
             }
@@ -747,7 +747,7 @@ impl PulseAudioServer {
     ) {
         match info {
             ListResult::Item(data) => {
-                trace!("Receved source data: {:?}", data);
+                trace!("Receved source data: {data:?}");
 
                 if data
                     .name
@@ -755,12 +755,12 @@ impl PulseAudioServer {
                     .map(|name| !name.contains("monitor"))
                     .unwrap_or_default()
                 {
-                    debug!("Adding source data: {:?}", data);
+                    debug!("Adding source data: {data:?}");
                     sources.push(data.into());
                 }
             }
             ListResult::End => {
-                debug!("New sources list {:?}", sources);
+                debug!("New sources list {sources:?}");
                 let _ = tx.send(PulseAudioServerEvent::Sources(sources.clone()));
                 sources.clear();
             }

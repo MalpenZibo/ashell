@@ -89,7 +89,7 @@ impl PrivacyService {
                             if let Some(media) = props.get("media.class").filter(|v| {
                                 v == &"Stream/Input/Video" || v == &"Stream/Input/Audio"
                             }) {
-                                debug!("New global: {:?}", global);
+                                debug!("New global: {global:?}");
                                 let _ = tx.send(PrivacyEvent::AddNode(ApplicationNode {
                                     id: global.id,
                                     media: if media == "Stream/Input/Video" {
@@ -105,7 +105,7 @@ impl PrivacyService {
                 .global_remove({
                     let tx = tx.clone();
                     move |id| {
-                        debug!("Remove global: {}", id);
+                        debug!("Remove global: {id}");
                         let _ = tx.send(PrivacyEvent::RemoveNode(id));
                     }
                 })
@@ -138,7 +138,7 @@ impl PrivacyService {
                 .into_event_stream(buffer)?
                 .filter_map(async move |event| match event {
                     Ok(event) => {
-                        debug!("Webcam event: {:?}", event);
+                        debug!("Webcam event: {event:?}");
                         match event.mask {
                             EventMask::OPEN => Some(PrivacyEvent::WebcamOpen),
                             EventMask::CLOSE_WRITE | EventMask::CLOSE_NOWRITE => {
@@ -169,18 +169,18 @@ impl PrivacyService {
                         State::Active((pipewire, webcam))
                     }
                     (Err(pipewire_error), Ok(_)) => {
-                        error!("Failed to connect to pipewire: {}", pipewire_error);
+                        error!("Failed to connect to pipewire: {pipewire_error}");
 
                         State::Error
                     }
                     (Ok(pipewire), Err(webcam_error)) => {
-                        warn!("Failed to connect to webcam: {}", webcam_error);
+                        warn!("Failed to connect to webcam: {webcam_error}");
 
                         State::Active((pipewire, Box::new(pending::<PrivacyEvent>().boxed())))
                     }
                     (Err(pipewire_error), Err(webcam_error)) => {
-                        error!("Failed to connect to pipewire: {}", pipewire_error);
-                        error!("Failed to connect to webcam: {}", webcam_error);
+                        error!("Failed to connect to pipewire: {pipewire_error}");
+                        error!("Failed to connect to webcam: {webcam_error}");
 
                         State::Error
                     }

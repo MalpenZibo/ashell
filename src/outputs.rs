@@ -292,8 +292,7 @@ impl Outputs {
         position: Position,
     ) -> Task<Message> {
         debug!(
-            "Syncing outputs: {:?}, request_outputs: {:?}",
-            self, request_outputs
+            "Syncing outputs: {self:?}, request_outputs: {request_outputs:?}"
         );
 
         let to_remove = self
@@ -310,7 +309,7 @@ impl Outputs {
             })
             .flatten()
             .collect::<Vec<_>>();
-        debug!("Removing outputs: {:?}", to_remove);
+        debug!("Removing outputs: {to_remove:?}");
 
         let to_add = self
             .0
@@ -325,7 +324,7 @@ impl Outputs {
                 }
             })
             .collect::<Vec<_>>();
-        debug!("Adding outputs: {:?}", to_add);
+        debug!("Adding outputs: {to_add:?}");
 
         let mut tasks = Vec::new();
 

@@ -22,13 +22,13 @@ use std::{any::TypeId, ops::Deref};
 pub mod dbus;
 
 fn get_icon_from_name(icon_name: &str) -> Option<TrayIcon> {
-    debug!("get icon from name {}", icon_name);
+    debug!("get icon from name {icon_name}");
 
     let lookup = lookup(icon_name).with_cache();
 
     let icon_path = match get_icon_theme() {
         Some(theme) => {
-            debug!("icon theme found {}", theme);
+            debug!("icon theme found {theme}");
             lookup.with_theme(&theme).find()
         }
         None => lookup.find(),
@@ -81,13 +81,13 @@ impl StatusNotifierItem {
             .build()
             .await?;
 
-        debug!("item_proxy {:?}", item_proxy);
+        debug!("item_proxy {item_proxy:?}");
 
         let icon_pixmap = item_proxy.icon_pixmap().await;
 
         let icon = match icon_pixmap {
             Ok(icons) => {
-                debug!("icon_pixmap {:?}", icons);
+                debug!("icon_pixmap {icons:?}");
                 icons
                     .into_iter()
                     .max_by_key(|i| {
@@ -176,7 +176,7 @@ impl TrayService {
             status_items.push(item);
         }
 
-        debug!("created items: {:?}", status_items);
+        debug!("created items: {status_items:?}");
 
         Ok(TrayData(status_items))
     }
@@ -194,7 +194,7 @@ impl TrayService {
                 move |e| {
                     let conn = conn.clone();
                     async move {
-                        debug!("registered {:?}", e);
+                        debug!("registered {e:?}");
                         match e.args() {
                             Ok(args) => {
                                 let item =
@@ -212,7 +212,7 @@ impl TrayService {
             .receive_status_notifier_item_unregistered()
             .await?
             .filter_map(|e| async move {
-                debug!("unregistered {:?}", e);
+                debug!("unregistered {e:?}");
 
                 match e.args() {
                     Ok(args) => Some(TrayEvent::Unregistered(args.service.to_string())),
@@ -343,14 +343,14 @@ impl TrayService {
                             State::Active(conn)
                         }
                         Err(err) => {
-                            error!("Failed to initialize tray service: {}", err);
+                            error!("Failed to initialize tray service: {err}");
 
                             State::Error
                         }
                     }
                 }
                 Err(err) => {
-                    error!("Failed to connect to system bus: {}", err);
+                    error!("Failed to connect to system bus: {err}");
 
                     State::Error
                 }
@@ -361,7 +361,7 @@ impl TrayService {
                 match TrayService::events(&conn).await {
                     Ok(mut events) => {
                         while let Some(event) = events.next().await {
-                            debug!("tray data {:?}", event);
+                            debug!("tray data {event:?}");
 
                             let reload_events = matches!(event, TrayEvent::Registered(_));
 
@@ -375,7 +375,7 @@ impl TrayService {
                         State::Active(conn)
                     }
                     Err(err) => {
-                        error!("Failed to listen for tray events: {}", err);
+                        error!("Failed to listen for tray events: {err}");
                         State::Error
                     }
                 }
@@ -437,7 +437,7 @@ impl ReadOnlyService for TrayService {
             }
             TrayEvent::MenuLayoutChanged(name, layout) => {
                 if let Some(item) = self.data.0.iter_mut().find(|item| item.name == name) {
-                    debug!("menu layout updated, {:?}", layout);
+                    debug!("menu layout updated, {layout:?}");
                     item.menu = layout;
                 }
             }
@@ -483,7 +483,7 @@ impl Service for TrayService {
                             let proxy = menu.menu_proxy.clone();
 
                             async move {
-                                debug!("Click tray menu voice {} : {}", name, id);
+                                debug!("Click tray menu voice {name} : {id}");
                                 TrayService::menu_voice_selected(&proxy, id).await
                             }
                         },
