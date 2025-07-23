@@ -1,19 +1,16 @@
 use crate::{
-    app,
     components::icons::{Icons, icon},
     config::{SystemIndicator, SystemModuleConfig},
-    menu::MenuType,
+    theme::AshellTheme,
 };
 use iced::{
-    Alignment, Element, Length, Subscription, Task, Theme,
+    Alignment, Element, Length, Subscription, Theme,
     time::every,
     widget::{Column, Row, column, container, horizontal_rule, row, text},
 };
 use itertools::Itertools;
 use std::time::{Duration, Instant};
 use sysinfo::{Components, Disks, Networks, System};
-
-use super::{Module, OnModulePress};
 
 struct NetworkData {
     ip: String,
@@ -117,7 +114,13 @@ fn get_system_info(
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum Message {
+    Update,
+}
+
 pub struct SystemInfo {
+    config: SystemModuleConfig,
     system: System,
     components: Components,
     disks: Disks,
@@ -125,8 +128,8 @@ pub struct SystemInfo {
     data: SystemInfoData,
 }
 
-impl Default for SystemInfo {
-    fn default() -> Self {
+impl SystemInfo {
+    pub fn new(config: SystemModuleConfig) -> Self {
         let mut system = System::new();
         let mut components = Components::new_with_refreshed_list();
         let mut disks = Disks::new_with_refreshed_list();
@@ -139,6 +142,7 @@ impl Default for SystemInfo {
         );
 
         Self {
+            config,
             system,
             components,
             disks,
@@ -146,15 +150,8 @@ impl Default for SystemInfo {
             networks,
         }
     }
-}
 
-#[derive(Debug, Clone)]
-pub enum Message {
-    Update,
-}
-
-impl SystemInfo {
-    pub fn update(&mut self, message: Message) -> Task<crate::app::Message> {
+    pub fn update(&mut self, message: Message) {
         match message {
             Message::Update => {
                 self.data = get_system_info(
@@ -166,8 +163,6 @@ impl SystemInfo {
                         self.data.network.as_ref().map(|n| n.last_check),
                     ),
                 );
-
-                Task::none()
             }
         }
     }
@@ -189,7 +184,7 @@ impl SystemInfo {
         unit: &str,
         threshold: Option<(V, V)>,
         prefix: Option<&str>,
-    ) -> Element<'a, app::Message> {
+    ) -> Element<'a, Message> {
         let element = container(
             row!(
                 icon(info_icon),
@@ -292,36 +287,37 @@ impl SystemInfo {
         .spacing(8)
         .into()
     }
-}
 
-impl Module for SystemInfo {
-    type ViewData<'a> = &'a SystemModuleConfig;
-    type SubscriptionData<'a> = ();
-
-    fn view(
-        &self,
-        config: Self::ViewData<'_>,
-    ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
-        let indicators = config.indicators.iter().filter_map(|i| match i {
+    pub fn view(&self, theme: &AshellTheme) -> Element<Message> {
+        let indicators = self.config.indicators.iter().filter_map(|i| match i {
             SystemIndicator::Cpu => Some(Self::indicator_info_element(
                 Icons::Cpu,
                 self.data.cpu_usage,
                 "%",
-                Some((config.cpu.warn_threshold, config.cpu.alert_threshold)),
+                Some((
+                    self.config.cpu.warn_threshold,
+                    self.config.cpu.alert_threshold,
+                )),
                 None,
             )),
             SystemIndicator::Memory => Some(Self::indicator_info_element(
                 Icons::Mem,
                 self.data.memory_usage,
                 "%",
-                Some((config.memory.warn_threshold, config.memory.alert_threshold)),
+                Some((
+                    self.config.memory.warn_threshold,
+                    self.config.memory.alert_threshold,
+                )),
                 None,
             )),
             SystemIndicator::MemorySwap => Some(Self::indicator_info_element(
                 Icons::Mem,
                 self.data.memory_swap_usage,
                 "%",
-                Some((config.memory.warn_threshold, config.memory.alert_threshold)),
+                Some((
+                    self.config.memory.warn_threshold,
+                    self.config.memory.alert_threshold,
+                )),
                 Some("swap"),
             )),
             SystemIndicator::Temperature => self.data.temperature.map(|temperature| {
@@ -330,8 +326,8 @@ impl Module for SystemInfo {
                     temperature,
                     "°C",
                     Some((
-                        config.temperature.warn_threshold,
-                        config.temperature.alert_threshold,
+                        self.config.temperature.warn_threshold,
+                        self.config.temperature.alert_threshold,
                     )),
                     None,
                 )
@@ -343,7 +339,10 @@ impl Module for SystemInfo {
                             Icons::Drive,
                             *disk,
                             "%",
-                            Some((config.disk.warn_threshold, config.disk.alert_threshold)),
+                            Some((
+                                self.config.disk.warn_threshold,
+                                self.config.disk.alert_threshold,
+                            )),
                             Some(disk_mount),
                         ))
                     } else {
@@ -396,16 +395,21 @@ impl Module for SystemInfo {
             }),
         });
 
-        Some((
-            Row::with_children(indicators)
-                .align_y(Alignment::Center)
-                .spacing(4)
-                .into(),
-            Some(OnModulePress::ToggleMenu(MenuType::SystemInfo)),
-        ))
+        Row::with_children(indicators)
+            .align_y(Alignment::Center)
+            .spacing(4)
+            .into()
+
+        // Some((
+        //     Row::with_children(indicators)
+        //         .align_y(Alignment::Center)
+        //         .spacing(4)
+        //         .into(),
+        //     Some(OnModulePress::ToggleMenu(MenuType::SystemInfo)),
+        // ))
     }
 
-    fn subscription(&self, _: Self::SubscriptionData<'_>) -> Option<Subscription<app::Message>> {
-        Some(every(Duration::from_secs(5)).map(|_| app::Message::SystemInfo(Message::Update)))
+    pub fn subscription(&self) -> Subscription<Message> {
+        every(Duration::from_secs(5)).map(|_| Message::Update)
     }
 }

@@ -1,7 +1,5 @@
-use super::{Module, OnModulePress};
 use crate::{
-    app,
-    config::{AppearanceColor, WorkspaceVisibilityMode, WorkspacesModuleConfig},
+    config::{WorkspaceVisibilityMode, WorkspacesModuleConfig},
     outputs::Outputs,
     theme::{AshellTheme, workspace_button_style},
 };
