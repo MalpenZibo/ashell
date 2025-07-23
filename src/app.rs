@@ -121,8 +121,8 @@ impl App {
                         .as_ref()
                         .map(|cmd| Clipboard::new(cmd.clone())),
                     workspaces: Workspaces::new(config.workspaces),
-                    window_title: WindowTitle::new(&config.window_title),
-                    system_info: SystemInfo::default(),
+                    window_title: WindowTitle::new(config.window_title),
+                    system_info: SystemInfo::new(config.system.clone()),
                     keyboard_layout: KeyboardLayout::default(),
                     keyboard_submap: KeyboardSubmap::default(),
                     tray: TrayModule::default(),
@@ -270,14 +270,16 @@ impl App {
             }
             Message::Workspaces(msg) => {
                 self.workspaces.update(msg);
-
                 Task::none()
             }
-            Message::WindowTitle(message) => {
-                self.window_title.update(message, &self.config.window_title);
+            Message::WindowTitle(msg) => {
+                self.window_title.update(msg);
                 Task::none()
             }
-            Message::SystemInfo(message) => self.system_info.update(message),
+            Message::SystemInfo(msg) => {
+                self.system_info.update(msg);
+                Task::none()
+            }
             Message::KeyboardLayout(message) => {
                 self.keyboard_layout.update(message);
                 Task::none()

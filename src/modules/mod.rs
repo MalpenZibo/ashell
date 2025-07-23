@@ -286,8 +286,18 @@ impl App {
                     .map(Message::Workspaces),
                 None,
             )),
-            // ModuleName::WindowTitle => self.window_title.view(()),
-            // ModuleName::SystemInfo => self.system_info.view(&self.config.system),
+            ModuleName::WindowTitle => self.window_title.get_value().map(|title| {
+                (
+                    self.window_title
+                        .view(&self.theme, title)
+                        .map(Message::WindowTitle),
+                    None,
+                )
+            }),
+            ModuleName::SystemInfo => Some((
+                self.system_info.view(&self.theme).map(Message::SystemInfo),
+                Some(OnModulePress::ToggleMenu(MenuType::SystemInfo)),
+            )),
             // ModuleName::KeyboardLayout => self.keyboard_layout.view(&self.config.keyboard_layout),
             // ModuleName::KeyboardSubmap => self.keyboard_submap.view(()),
             // ModuleName::Tray => self.tray.view((id, opacity)),
@@ -315,20 +325,14 @@ impl App {
                 .as_ref()
                 .map(|updates| updates.subscription().map(Message::Updates)),
             ModuleName::Clipboard => None,
+            ModuleName::Workspaces => Some(self.workspaces.subscription().map(Message::Workspaces)),
+            ModuleName::WindowTitle => {
+                Some(self.window_title.subscription().map(Message::WindowTitle))
+            }
+            ModuleName::SystemInfo => {
+                Some(self.system_info.subscription().map(Message::SystemInfo))
+            }
             _ => None,
-            // ModuleName::Custom(name) => self
-            //     .config
-            //     .custom_modules
-            //     .iter()
-            //     .find(|m| &m.name == name)
-            //     .and_then(|mc| self.custom.get(name).map(|cm| cm.subscription(mc)))
-            //     .unwrap_or_else(|| {
-            //         error!("Custom module def `{name}` not found");
-            //         None
-            //     }),
-            // ModuleName::Workspaces => self.workspaces.subscription(&self.config.workspaces),
-            // ModuleName::WindowTitle => self.window_title.subscription(()),
-            // ModuleName::SystemInfo => self.system_info.subscription(()),
             // ModuleName::KeyboardLayout => self.keyboard_layout.subscription(()),
             // ModuleName::KeyboardSubmap => self.keyboard_submap.subscription(()),
             // ModuleName::Tray => self.tray.subscription(()),

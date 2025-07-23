@@ -39,14 +39,14 @@ pub struct WorkspacesModuleConfig {
     pub max_workspaces: Option<u32>,
 }
 
-#[derive(Deserialize, Clone, Default, PartialEq, Eq, Debug)]
+#[derive(Deserialize, Copy, Clone, Default, PartialEq, Eq, Debug)]
 pub enum WindowTitleMode {
     #[default]
     Title,
     Class,
 }
 
-#[derive(Deserialize, Clone, Default, Debug)]
+#[derive(Deserialize, Copy, Clone, Default, Debug)]
 pub struct WindowTitleConfig {
     #[serde(default)]
     pub mode: WindowTitleMode,
