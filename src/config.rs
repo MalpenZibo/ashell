@@ -23,14 +23,14 @@ pub struct UpdatesModuleConfig {
     pub update_cmd: String,
 }
 
-#[derive(Deserialize, Clone, Default, PartialEq, Eq, Debug)]
+#[derive(Deserialize, Copy, Clone, Default, PartialEq, Eq, Debug)]
 pub enum WorkspaceVisibilityMode {
     #[default]
     All,
     MonitorSpecific,
 }
 
-#[derive(Deserialize, Clone, Default, Debug)]
+#[derive(Deserialize, Copy, Clone, Default, Debug)]
 pub struct WorkspacesModuleConfig {
     #[serde(default)]
     pub visibility_mode: WorkspaceVisibilityMode,

@@ -6,9 +6,9 @@ use crate::{
     modules::{
         self,
         app_launcher::{self, AppLauncher},
-        clipboard::Clipboard,
+        clipboard::{self, Clipboard},
         clock::Clock,
-        custom_module::Custom,
+        custom_module::{self, Custom},
         keyboard_layout::KeyboardLayout,
         keyboard_submap::KeyboardSubmap,
         media_player::MediaPlayer,
@@ -24,7 +24,6 @@ use crate::{
     position_button::ButtonUIRef,
     services::{Service, ServiceEvent, brightness::BrightnessCommand, tray::TrayEvent},
     theme::{AshellTheme, backdrop_color, darken_color},
-    utils,
 };
 use flexi_logger::LoggerHandle;
 use iced::{
@@ -38,7 +37,7 @@ use iced::{
     widget::{Row, container},
     window::Id,
 };
-use log::{debug, error, info, warn};
+use log::{debug, info, warn};
 use std::{collections::HashMap, f32::consts::PI, path::PathBuf};
 use wayland_client::protocol::wl_output::WlOutput;
 
@@ -51,7 +50,7 @@ pub struct App {
     pub app_launcher: Option<AppLauncher>,
     pub custom: HashMap<String, Custom>,
     pub updates: Option<Updates>,
-    pub clipboard: Clipboard,
+    pub clipboard: Option<Clipboard>,
     pub workspaces: Workspaces,
     pub window_title: WindowTitle,
     pub system_info: SystemInfo,
@@ -70,9 +69,9 @@ pub enum Message {
     ConfigChanged(Box<Config>),
     ToggleMenu(MenuType, Id, ButtonUIRef),
     CloseMenu(Id),
-    OpenLauncher,
-    OpenClipboard,
+    Clipboard(clipboard::Message),
     AppLauncher(app_launcher::Message),
+    Custom(String, custom_module::Message),
     Updates(modules::updates::Message),
     Workspaces(modules::workspaces::Message),
     WindowTitle(modules::window_title::Message),
@@ -85,8 +84,6 @@ pub enum Message {
     Settings(modules::settings::Message),
     MediaPlayer(modules::media_player::Message),
     OutputEvent((OutputEvent, WlOutput)),
-    LaunchCommand(String),
-    CustomUpdate(String, modules::custom_module::Message),
 }
 
 impl App {
@@ -102,9 +99,11 @@ impl App {
 
             let custom = config
                 .custom_modules
-                .iter()
-                .map(|o| (o.name.clone(), Custom::default()))
+                .clone()
+                .into_iter()
+                .map(|o| (o.name.clone(), Custom::new(o)))
                 .collect();
+
             (
                 App {
                     config_path,
@@ -114,11 +113,14 @@ impl App {
                     app_launcher: config
                         .app_launcher_cmd
                         .as_ref()
-                        .map(|cmd| AppLauncher::new(cmd.to_owned())),
+                        .map(|cmd| AppLauncher::new(cmd.clone())),
                     custom,
                     updates: config.clone().updates.map(|config| Updates::new(config)),
-                    clipboard: Clipboard,
-                    workspaces: Workspaces::new(&config.workspaces),
+                    clipboard: config
+                        .clipboard_cmd
+                        .as_ref()
+                        .map(|cmd| Clipboard::new(cmd.clone())),
+                    workspaces: Workspaces::new(config.workspaces),
                     window_title: WindowTitle::new(&config.window_title),
                     system_info: SystemInfo::default(),
                     keyboard_layout: KeyboardLayout::default(),
@@ -229,9 +231,23 @@ impl App {
                 Task::batch(cmd)
             }
             Message::CloseMenu(id) => self.outputs.close_menu(id),
-            Message::Updates(message) => {
+            Message::AppLauncher(msg) => {
+                if let Some(app_launcher) = self.app_launcher.as_mut() {
+                    app_launcher.update(msg);
+                }
+
+                Task::none()
+            }
+            Message::Custom(name, msg) => {
+                if let Some(custom) = self.custom.get_mut(&name) {
+                    custom.update(msg);
+                }
+
+                Task::none()
+            }
+            Message::Updates(msg) => {
                 if let Some(updates) = self.updates.as_mut() {
-                    match updates.update(message) {
+                    match updates.update(msg) {
                         modules::updates::Action::None => Task::none(),
                         modules::updates::Action::CheckForUpdates(task) => {
                             task.map(Message::Updates)
@@ -245,31 +261,15 @@ impl App {
                     Task::none()
                 }
             }
-            Message::OpenLauncher => {
-                if let Some(app_launcher_cmd) = self.config.app_launcher_cmd.as_ref() {
-                    utils::launcher::execute_command(app_launcher_cmd.to_string());
+            Message::Clipboard(msg) => {
+                if let Some(clipboard) = self.clipboard.as_mut() {
+                    clipboard.update(msg);
                 }
-                Task::none()
-            }
-            Message::LaunchCommand(command) => {
-                utils::launcher::execute_command(command);
-                Task::none()
-            }
-            Message::CustomUpdate(name, message) => {
-                match self.custom.get_mut(&name) {
-                    Some(c) => c.update(message),
-                    None => error!("Custom module '{name}' not found"),
-                };
-                Task::none()
-            }
-            Message::OpenClipboard => {
-                if let Some(clipboard_cmd) = self.config.clipboard_cmd.as_ref() {
-                    utils::launcher::execute_command(clipboard_cmd.to_string());
-                }
+
                 Task::none()
             }
             Message::Workspaces(msg) => {
-                self.workspaces.update(msg, &self.config.workspaces);
+                self.workspaces.update(msg);
 
                 Task::none()
             }

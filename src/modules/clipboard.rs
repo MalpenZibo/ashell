@@ -1,29 +1,33 @@
 use crate::{
-    app::{self},
     components::icons::{Icons, icon},
+    utils::launcher::execute_command,
 };
 use iced::Element;
 
-use super::{Module, OnModulePress};
+#[derive(Debug, Clone)]
+pub enum Message {
+    Launch,
+}
 
-#[derive(Default, Debug, Clone)]
-pub struct Clipboard;
+#[derive(Debug, Clone)]
+pub struct Clipboard {
+    command: String,
+}
 
-impl Module for Clipboard {
-    type ViewData<'a> = &'a Option<String>;
-    type SubscriptionData<'a> = ();
+impl Clipboard {
+    pub fn new(command: String) -> Self {
+        Self { command }
+    }
 
-    fn view(
-        &self,
-        config: Self::ViewData<'_>,
-    ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
-        if config.is_some() {
-            Some((
-                icon(Icons::Clipboard).into(),
-                Some(OnModulePress::Action(Box::new(app::Message::OpenClipboard))),
-            ))
-        } else {
-            None
+    pub fn update(&mut self, message: Message) {
+        match message {
+            Message::Launch => {
+                execute_command(self.command.clone());
+            }
         }
+    }
+
+    pub fn view(&self) -> Element<Message> {
+        icon(Icons::Clipboard).into()
     }
 }

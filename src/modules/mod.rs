@@ -103,7 +103,11 @@ impl App {
             .collect()
     }
 
-    fn single_module_wrapper(&self, id: Id, module_name: &ModuleName) -> Option<Element<Message>> {
+    fn single_module_wrapper<'a>(
+        &'a self,
+        id: Id,
+        module_name: &'a ModuleName,
+    ) -> Option<Element<'a, Message>> {
         let module = self.get_module_view(id, module_name);
 
         module.map(|(content, action)| match action {
@@ -161,7 +165,11 @@ impl App {
         })
     }
 
-    fn group_module_wrapper(&self, id: Id, group: &[ModuleName]) -> Option<Element<Message>> {
+    fn group_module_wrapper<'a>(
+        &'a self,
+        id: Id,
+        group: &'a [ModuleName],
+    ) -> Option<Element<'a, Message>> {
         let modules = group
             .iter()
             .filter_map(|module| self.get_module_view(id, module))
@@ -235,40 +243,49 @@ impl App {
         }
     }
 
-    fn get_module_view(
-        &self,
+    fn get_module_view<'a>(
+        &'a self,
         id: Id,
-        module_name: &ModuleName,
-    ) -> Option<(Element<Message>, Option<OnModulePress>)> {
+        module_name: &'a ModuleName,
+    ) -> Option<(Element<'a, Message>, Option<OnModulePress>)> {
         match module_name {
-            ModuleName::AppLauncher => self
-                .app_launcher
-                .as_ref()
-                .map(|app_launcher| (app_launcher.view().map(Message::AppLauncher), None)),
-            // ModuleName::Custom(name) => self
-            //     .config
-            //     .custom_modules
-            //     .iter()
-            //     .find(|m| &m.name == name)
-            //     .and_then(|mc| self.custom.get(name).map(|cm| cm.view(mc)))
-            //     .unwrap_or_else(|| {
-            //         error!("Custom module `{name}` not found");
-            //         None
-            //     }),
+            ModuleName::AppLauncher => self.app_launcher.as_ref().map(|app_launcher| {
+                (
+                    app_launcher.view().map(Message::AppLauncher),
+                    Some(OnModulePress::Action(Box::new(Message::AppLauncher(
+                        app_launcher::Message::Launch,
+                    )))),
+                )
+            }),
+            ModuleName::Custom(name) => self.custom.get(name).map(|custom| {
+                (
+                    custom.view().map(|msg| Message::Custom(name.clone(), msg)),
+                    Some(OnModulePress::Action(Box::new(Message::Custom(
+                        name.clone(),
+                        custom_module::Message::LaunchCommand,
+                    )))),
+                )
+            }),
             ModuleName::Updates => self.updates.as_ref().map(|updates| {
                 (
                     updates.view(&self.theme).map(Message::Updates),
                     Some(OnModulePress::ToggleMenu(MenuType::Updates)),
                 )
             }),
-            // ModuleName::Clipboard => self.clipboard.view(&self.config.clipboard_cmd),
-            // ModuleName::Workspaces => self.workspaces.view((
-            //     &self.outputs,
-            //     id,
-            //     &self.config.workspaces,
-            //     &self.config.appearance.workspace_colors,
-            //     self.config.appearance.special_workspace_colors.as_deref(),
-            // )),
+            ModuleName::Clipboard => self.clipboard.as_ref().map(|clipboard| {
+                (
+                    clipboard.view().map(Message::Clipboard),
+                    Some(OnModulePress::Action(Box::new(Message::Clipboard(
+                        clipboard::Message::Launch,
+                    )))),
+                )
+            }),
+            ModuleName::Workspaces => Some((
+                self.workspaces
+                    .view(id, &self.theme, &self.outputs)
+                    .map(Message::Workspaces),
+                None,
+            )),
             // ModuleName::WindowTitle => self.window_title.view(()),
             // ModuleName::SystemInfo => self.system_info.view(&self.config.system),
             // ModuleName::KeyboardLayout => self.keyboard_layout.view(&self.config.keyboard_layout),
@@ -285,10 +302,19 @@ impl App {
     fn get_module_subscription(&self, module_name: &ModuleName) -> Option<Subscription<Message>> {
         match module_name {
             ModuleName::AppLauncher => None,
+            ModuleName::Custom(name) => self.custom.get(name).map({
+                |custom| {
+                    custom.subscription().map({
+                        let name = name.clone();
+                        move |msg| Message::Custom(name.clone(), msg)
+                    })
+                }
+            }),
             ModuleName::Updates => self
                 .updates
                 .as_ref()
                 .map(|updates| updates.subscription().map(Message::Updates)),
+            ModuleName::Clipboard => None,
             _ => None,
             // ModuleName::Custom(name) => self
             //     .config
@@ -300,7 +326,6 @@ impl App {
             //         error!("Custom module def `{name}` not found");
             //         None
             //     }),
-            // ModuleName::Clipboard => self.clipboard.subscription(()),
             // ModuleName::Workspaces => self.workspaces.subscription(&self.config.workspaces),
             // ModuleName::WindowTitle => self.window_title.subscription(()),
             // ModuleName::SystemInfo => self.system_info.subscription(()),

@@ -85,6 +85,8 @@ pub struct AshellTheme {
     pub bar_style: AppearanceStyle,
     pub opacity: f32,
     pub menu: MenuAppearance,
+    pub workspace_colors: Vec<AppearanceColor>,
+    pub special_workspace_colors: Option<Vec<AppearanceColor>>,
 }
 
 impl AshellTheme {
@@ -97,6 +99,8 @@ impl AshellTheme {
             bar_style: appearance.style,
             opacity: appearance.opacity,
             menu: appearance.menu,
+            workspace_colors: appearance.workspace_colors.clone(),
+            special_workspace_colors: appearance.special_workspace_colors.clone(),
             iced_theme: Theme::custom_with_fn(
                 "local".to_string(),
                 Palette {

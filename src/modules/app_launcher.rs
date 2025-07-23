@@ -1,8 +1,13 @@
-use crate::components::icons::{Icons, icon};
+use crate::{
+    components::icons::{Icons, icon},
+    utils::launcher::execute_command,
+};
 use iced::Element;
 
 #[derive(Debug, Clone)]
-pub enum Message {}
+pub enum Message {
+    Launch,
+}
 
 #[derive(Debug, Clone)]
 pub struct AppLauncher {
@@ -14,7 +19,15 @@ impl AppLauncher {
         Self { command }
     }
 
-    pub fn view(&self) -> Element<'_, Message> {
+    pub fn update(&mut self, message: Message) {
+        match message {
+            Message::Launch => {
+                execute_command(self.command.clone());
+            }
+        }
+    }
+
+    pub fn view(&self) -> Element<Message> {
         icon(Icons::AppLauncher).into()
     }
 }
