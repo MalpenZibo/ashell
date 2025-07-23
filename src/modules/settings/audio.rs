@@ -5,7 +5,7 @@ use crate::{
         ServiceEvent,
         audio::{AudioData, AudioService, DeviceType, Sinks},
     },
-    style::{ghost_button_style, settings_button_style},
+    theme::{ghost_button_style, settings_button_style},
 };
 use iced::{
     Alignment, Element, Length, Theme,

@@ -3,10 +3,8 @@ use crate::{
     config::{AppearanceStyle, ModuleDef, ModuleName},
     menu::MenuType,
     position_button::position_button,
-    style::module_button_style,
+    theme::module_button_style,
 };
-use app_launcher::AppLauncher;
-use custom_module::Custom;
 use iced::{
     Alignment, Border, Color, Element, Length, Subscription,
     widget::{Row, container, row},
@@ -27,10 +25,6 @@ pub mod tray;
 pub mod updates;
 pub mod window_title;
 pub mod workspaces;
-
-use log::error;
-use tray::TrayModule;
-use updates::Updates;
 
 #[derive(Debug, Clone)]
 pub enum OnModulePress {
@@ -68,7 +62,6 @@ pub trait Module2<T> {
         None
     }
 }
-
 impl App {
     pub fn modules_section(&self, id: Id) -> [Element<Message>; 3] {
         [
@@ -248,67 +241,76 @@ impl App {
         module_name: &ModuleName,
     ) -> Option<(Element<Message>, Option<OnModulePress>)> {
         match module_name {
-            ModuleName::AppLauncher => self.app_launcher.view(&self.config.app_launcher_cmd),
-            ModuleName::Custom(name) => self
-                .config
-                .custom_modules
-                .iter()
-                .find(|m| &m.name == name)
-                .and_then(|mc| self.custom.get(name).map(|cm| cm.view(mc)))
-                .unwrap_or_else(|| {
-                    error!("Custom module `{name}` not found");
-                    None
-                }),
-            ModuleName::Updates => self.updates.view(&self.config.updates),
-            ModuleName::Clipboard => self.clipboard.view(&self.config.clipboard_cmd),
-            ModuleName::Workspaces => self.workspaces.view((
-                &self.outputs,
-                id,
-                &self.config.workspaces,
-                &self.config.appearance.workspace_colors,
-                self.config.appearance.special_workspace_colors.as_deref(),
-            )),
-            ModuleName::WindowTitle => self.window_title.view(()),
-            ModuleName::SystemInfo => self.system_info.view(&self.config.system),
-            ModuleName::KeyboardLayout => self.keyboard_layout.view(&self.config.keyboard_layout),
-            ModuleName::KeyboardSubmap => self.keyboard_submap.view(()),
-            ModuleName::Tray => self.tray.view((id, opacity)),
-            ModuleName::Clock => self.clock.view(&self.config.clock.format),
-            ModuleName::Privacy => self.privacy.view(()),
-            ModuleName::Settings => self.settings.view(()),
-            ModuleName::MediaPlayer => self.media_player.view(&self.config.media_player),
+            ModuleName::AppLauncher => self
+                .app_launcher
+                .as_ref()
+                .map(|app_launcher| (app_launcher.view().map(Message::AppLauncher), None)),
+            // ModuleName::Custom(name) => self
+            //     .config
+            //     .custom_modules
+            //     .iter()
+            //     .find(|m| &m.name == name)
+            //     .and_then(|mc| self.custom.get(name).map(|cm| cm.view(mc)))
+            //     .unwrap_or_else(|| {
+            //         error!("Custom module `{name}` not found");
+            //         None
+            //     }),
+            ModuleName::Updates => self.updates.as_ref().map(|updates| {
+                (
+                    updates.view(&self.theme).map(Message::Updates),
+                    Some(OnModulePress::ToggleMenu(MenuType::Updates)),
+                )
+            }),
+            // ModuleName::Clipboard => self.clipboard.view(&self.config.clipboard_cmd),
+            // ModuleName::Workspaces => self.workspaces.view((
+            //     &self.outputs,
+            //     id,
+            //     &self.config.workspaces,
+            //     &self.config.appearance.workspace_colors,
+            //     self.config.appearance.special_workspace_colors.as_deref(),
+            // )),
+            // ModuleName::WindowTitle => self.window_title.view(()),
+            // ModuleName::SystemInfo => self.system_info.view(&self.config.system),
+            // ModuleName::KeyboardLayout => self.keyboard_layout.view(&self.config.keyboard_layout),
+            // ModuleName::KeyboardSubmap => self.keyboard_submap.view(()),
+            // ModuleName::Tray => self.tray.view((id, opacity)),
+            // ModuleName::Clock => self.clock.view(&self.config.clock.format),
+            // ModuleName::Privacy => self.privacy.view(()),
+            // ModuleName::Settings => self.settings.view(()),
+            // ModuleName::MediaPlayer => self.media_player.view(&self.config.media_player),
+            _ => None,
         }
     }
 
     fn get_module_subscription(&self, module_name: &ModuleName) -> Option<Subscription<Message>> {
         match module_name {
-            ModuleName::AppLauncher => self.app_launcher.subscription(()),
-            ModuleName::Custom(name) => self
-                .config
-                .custom_modules
-                .iter()
-                .find(|m| &m.name == name)
-                .and_then(|mc| self.custom.get(name).map(|cm| cm.subscription(mc)))
-                .unwrap_or_else(|| {
-                    error!("Custom module def `{name}` not found");
-                    None
-                }),
+            ModuleName::AppLauncher => None,
             ModuleName::Updates => self
-                .config
                 .updates
                 .as_ref()
-                .and_then(|updates_config| self.updates.subscription(updates_config)),
-            ModuleName::Clipboard => self.clipboard.subscription(()),
-            ModuleName::Workspaces => self.workspaces.subscription(&self.config.workspaces),
-            ModuleName::WindowTitle => self.window_title.subscription(()),
-            ModuleName::SystemInfo => self.system_info.subscription(()),
-            ModuleName::KeyboardLayout => self.keyboard_layout.subscription(()),
-            ModuleName::KeyboardSubmap => self.keyboard_submap.subscription(()),
-            ModuleName::Tray => self.tray.subscription(()),
-            ModuleName::Clock => self.clock.subscription(&self.config.clock.format),
-            ModuleName::Privacy => self.privacy.subscription(()),
-            ModuleName::Settings => self.settings.subscription(()),
-            ModuleName::MediaPlayer => self.media_player.subscription(()),
+                .map(|updates| updates.subscription().map(Message::Updates)),
+            _ => None,
+            // ModuleName::Custom(name) => self
+            //     .config
+            //     .custom_modules
+            //     .iter()
+            //     .find(|m| &m.name == name)
+            //     .and_then(|mc| self.custom.get(name).map(|cm| cm.subscription(mc)))
+            //     .unwrap_or_else(|| {
+            //         error!("Custom module def `{name}` not found");
+            //         None
+            //     }),
+            // ModuleName::Clipboard => self.clipboard.subscription(()),
+            // ModuleName::Workspaces => self.workspaces.subscription(&self.config.workspaces),
+            // ModuleName::WindowTitle => self.window_title.subscription(()),
+            // ModuleName::SystemInfo => self.system_info.subscription(()),
+            // ModuleName::KeyboardLayout => self.keyboard_layout.subscription(()),
+            // ModuleName::KeyboardSubmap => self.keyboard_submap.subscription(()),
+            // ModuleName::Tray => self.tray.subscription(()),
+            // ModuleName::Clock => self.clock.subscription(&self.config.clock.format),
+            // ModuleName::Privacy => self.privacy.subscription(()),
+            // ModuleName::Settings => self.settings.subscription(()),
+            // ModuleName::MediaPlayer => self.media_player.subscription(()),
         }
     }
 }

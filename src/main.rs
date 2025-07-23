@@ -20,7 +20,7 @@ mod outputs;
 mod password_dialog;
 mod position_button;
 mod services;
-mod style;
+mod theme;
 mod utils;
 
 const ICON_FONT: &[u8] = include_bytes!("../assets/SymbolsNerdFont-Regular.ttf");

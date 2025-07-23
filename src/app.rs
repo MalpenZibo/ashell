@@ -4,8 +4,8 @@ use crate::{
     get_log_spec,
     menu::{MenuSize, MenuType},
     modules::{
-        self, Module2,
-        app_launcher::AppLauncher,
+        self,
+        app_launcher::{self, AppLauncher},
         clipboard::Clipboard,
         clock::Clock,
         custom_module::Custom,
@@ -23,7 +23,7 @@ use crate::{
     outputs::{HasOutput, Outputs},
     position_button::ButtonUIRef,
     services::{Service, ServiceEvent, brightness::BrightnessCommand, tray::TrayEvent},
-    style::{AshellTheme, backdrop_color, darken_color},
+    theme::{AshellTheme, backdrop_color, darken_color},
     utils,
 };
 use flexi_logger::LoggerHandle;
@@ -48,9 +48,9 @@ pub struct App {
     logger: LoggerHandle,
     pub config: Config,
     pub outputs: Outputs,
-    pub app_launcher: AppLauncher,
+    pub app_launcher: Option<AppLauncher>,
     pub custom: HashMap<String, Custom>,
-    pub updates: Updates,
+    pub updates: Option<Updates>,
     pub clipboard: Clipboard,
     pub workspaces: Workspaces,
     pub window_title: WindowTitle,
@@ -72,6 +72,7 @@ pub enum Message {
     CloseMenu(Id),
     OpenLauncher,
     OpenClipboard,
+    AppLauncher(app_launcher::Message),
     Updates(modules::updates::Message),
     Workspaces(modules::workspaces::Message),
     WindowTitle(modules::window_title::Message),
@@ -110,9 +111,12 @@ impl App {
                     theme: AshellTheme::new(config.position, &config.appearance),
                     logger,
                     outputs,
-                    app_launcher: AppLauncher,
+                    app_launcher: config
+                        .app_launcher_cmd
+                        .as_ref()
+                        .map(|cmd| AppLauncher::new(cmd.to_owned())),
                     custom,
-                    updates: Updates::default(),
+                    updates: config.clone().updates.map(|config| Updates::new(config)),
                     clipboard: Clipboard,
                     workspaces: Workspaces::new(&config.workspaces),
                     window_title: WindowTitle::new(&config.window_title),
@@ -191,7 +195,9 @@ impl App {
                 let mut cmd = vec![];
                 match &menu_type {
                     MenuType::Updates => {
-                        self.updates.is_updates_list_open = false;
+                        if let Some(updates) = self.updates.as_mut() {
+                            updates.update(modules::updates::Message::MenuOpened);
+                        }
                     }
                     MenuType::Tray(name) => {
                         if let Some(_tray) = self
@@ -224,9 +230,17 @@ impl App {
             }
             Message::CloseMenu(id) => self.outputs.close_menu(id),
             Message::Updates(message) => {
-                if let Some(updates_config) = self.config.updates.as_ref() {
-                    self.updates
-                        .update(message, updates_config, &mut self.outputs)
+                if let Some(updates) = self.updates.as_mut() {
+                    match updates.update(message) {
+                        modules::updates::Action::None => Task::none(),
+                        modules::updates::Action::CheckForUpdates(task) => {
+                            task.map(Message::Updates)
+                        }
+                        modules::updates::Action::CloseMenu(id, task) => Task::batch(vec![
+                            task.map(Message::Updates),
+                            self.outputs.close_menu_if(id, MenuType::Updates),
+                        ]),
+                    }
                 } else {
                     Task::none()
                 }
@@ -419,49 +433,56 @@ impl App {
                     .into()
             }
             Some(HasOutput::Menu(menu_info)) => match menu_info {
-                Some((MenuType::Updates, button_ui_ref)) => self.menu_wrapper(
-                    id,
-                    <Self as Module2<Updates>>::menu_view(self, id),
-                    MenuSize::Normal,
-                    *button_ui_ref,
-                ),
-                Some((MenuType::Tray(name), button_ui_ref)) => self.menu_wrapper(
-                    id,
-                    <Self as Module2<TrayModule>>::menu_view(self, name),
-                    MenuSize::Normal,
-                    *button_ui_ref,
-                ),
-                Some((MenuType::Settings, button_ui_ref)) => self.menu_wrapper(
-                    id,
-                    self.settings
-                        .menu_view(
+                Some((MenuType::Updates, button_ui_ref)) => {
+                    if let Some(updates) = self.updates.as_ref() {
+                        self.menu_wrapper(
                             id,
-                            &self.config.settings,
-                            self.config.appearance.menu.opacity,
-                            self.config.position,
+                            updates.menu_view(id, &self.theme).map(Message::Updates),
+                            MenuSize::Medium,
+                            *button_ui_ref,
                         )
-                        .map(Message::Settings),
-                    MenuSize::Large,
-                    *button_ui_ref,
-                ),
-                Some((MenuType::MediaPlayer, button_ui_ref)) => self.menu_wrapper(
-                    id,
-                    self.media_player
-                        .menu_view(
-                            &self.config.media_player,
-                            self.config.appearance.menu.opacity,
-                        )
-                        .map(Message::MediaPlayer),
-                    MenuSize::Large,
-                    *button_ui_ref,
-                ),
-                Some((MenuType::SystemInfo, button_ui_ref)) => self.menu_wrapper(
-                    id,
-                    self.system_info.menu_view().map(Message::SystemInfo),
-                    MenuSize::Large,
-                    *button_ui_ref,
-                ),
+                    } else {
+                        Row::new().into()
+                    }
+                }
+                // Some((MenuType::Tray(name), button_ui_ref)) => self.menu_wrapper(
+                //     id,
+                //     <Self as Module2<TrayModule>>::menu_view(self, name),
+                //     MenuSize::Medium,
+                //     *button_ui_ref,
+                // ),
+                // Some((MenuType::Settings, button_ui_ref)) => self.menu_wrapper(
+                //     id,
+                //     self.settings
+                //         .menu_view(
+                //             id,
+                //             &self.config.settings,
+                //             self.config.appearance.menu.opacity,
+                //             self.config.position,
+                //         )
+                //         .map(Message::Settings),
+                //     MenuSize::Large,
+                //     *button_ui_ref,
+                // ),
+                // Some((MenuType::MediaPlayer, button_ui_ref)) => self.menu_wrapper(
+                //     id,
+                //     self.media_player
+                //         .menu_view(
+                //             &self.config.media_player,
+                //             self.config.appearance.menu.opacity,
+                //         )
+                //         .map(Message::MediaPlayer),
+                //     MenuSize::Large,
+                //     *button_ui_ref,
+                // ),
+                // Some((MenuType::SystemInfo, button_ui_ref)) => self.menu_wrapper(
+                //     id,
+                //     self.system_info.menu_view().map(Message::SystemInfo),
+                //     MenuSize::Large,
+                //     *button_ui_ref,
+                // ),
                 None => Row::new().into(),
+                _ => Row::new().into(),
             },
             None => Row::new().into(),
         }

@@ -8,7 +8,7 @@ use crate::{
             dbus::ConnectivityState,
         },
     },
-    style::{ghost_button_style, settings_button_style},
+    theme::{ghost_button_style, settings_button_style},
     utils::IndicatorState,
 };
 use iced::{

@@ -75,7 +75,7 @@ impl Default for FontSize {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct AshellTheme {
     iced_theme: Theme,
     pub space: Space,

@@ -1,7 +1,7 @@
 use crate::app::{self, App};
 use crate::config::{AppearanceStyle, Position};
 use crate::position_button::ButtonUIRef;
-use crate::style::backdrop_color;
+use crate::theme::backdrop_color;
 use iced::alignment::{Horizontal, Vertical};
 use iced::platform_specific::shell::commands::layer_surface::{
     KeyboardInteractivity, Layer, set_keyboard_interactivity, set_layer,

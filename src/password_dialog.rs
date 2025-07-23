@@ -7,7 +7,7 @@ use iced::{
 
 use crate::{
     components::icons::{Icons, icon},
-    style::{confirm_button_style, outline_button_style, text_input_style},
+    theme::{confirm_button_style, outline_button_style, text_input_style},
 };
 
 #[derive(Debug, Clone)]

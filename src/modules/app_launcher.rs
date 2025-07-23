@@ -1,29 +1,20 @@
-use super::{Module2, OnModulePress};
-use crate::{
-    app::{self, App, Message},
-    components::icons::{Icons, icon},
-};
+use crate::components::icons::{Icons, icon};
 use iced::Element;
 
-#[derive(Default, Debug, Clone)]
-pub struct AppLauncher;
+#[derive(Debug, Clone)]
+pub enum Message {}
 
-impl Module2<AppLauncher> for App {
-    type ViewData<'a> = ();
-    type MenuViewData<'a> = ();
-    type SubscriptionData<'a> = ();
+#[derive(Debug, Clone)]
+pub struct AppLauncher {
+    command: String,
+}
 
-    fn view(
-        &self,
-        _: Self::ViewData<'_>,
-    ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
-        if self.config.app_launcher_cmd.is_some() {
-            Some((
-                icon(Icons::AppLauncher).into(),
-                Some(OnModulePress::Action(Box::new(Message::OpenLauncher))),
-            ))
-        } else {
-            None
-        }
+impl AppLauncher {
+    pub fn new(command: String) -> Self {
+        Self { command }
+    }
+
+    pub fn view(&self) -> Element<'_, Message> {
+        icon(Icons::AppLauncher).into()
     }
 }
