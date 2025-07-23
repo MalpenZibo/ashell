@@ -20,7 +20,7 @@ use crate::{
         network::{NetworkCommand, NetworkEvent, NetworkService},
         upower::{PowerProfileCommand, UPowerService},
     },
-    style::{
+    theme::{
         quick_settings_button_style, quick_settings_submenu_button_style, settings_button_style,
     },
 };

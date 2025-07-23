@@ -1,10 +1,7 @@
-use super::{Module2, OnModulePress};
 use crate::{
-    app::{self, App},
     components::icons::{Icons, icon},
     config::UpdatesModuleConfig,
-    menu::MenuType,
-    outputs::Outputs,
+    theme::AshellTheme,
 };
 use iced::{
     Alignment, Element, Length, Subscription, Task,
@@ -74,9 +71,16 @@ async fn update(update_cmd: &str) {
 pub enum Message {
     UpdatesCheckCompleted(Vec<Update>),
     UpdateFinished,
+    MenuOpened,
     ToggleUpdatesList,
     CheckNow,
     Update(Id),
+}
+
+pub enum Action {
+    None,
+    CheckForUpdates(Task<Message>),
+    CloseMenu(Id, Task<Message>),
 }
 
 #[derive(Debug, Default, Clone, Eq, PartialEq)]
@@ -86,133 +90,127 @@ enum State {
     Ready,
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct Updates {
+    config: UpdatesModuleConfig,
     state: State,
-    pub updates: Vec<Update>,
-    pub is_updates_list_open: bool,
+    updates: Vec<Update>,
+    is_updates_list_open: bool,
 }
 
 impl Updates {
-    pub fn update(
-        &mut self,
-        message: Message,
-        config: &UpdatesModuleConfig,
-        outputs: &mut Outputs,
-    ) -> Task<crate::app::Message> {
+    pub fn new(config: UpdatesModuleConfig) -> Self {
+        Self {
+            config,
+            state: State::default(),
+            updates: Vec::new(),
+            is_updates_list_open: false,
+        }
+    }
+
+    pub fn update(&mut self, message: Message) -> Action {
         match message {
             Message::UpdatesCheckCompleted(updates) => {
                 self.updates = updates;
                 self.state = State::Ready;
 
-                Task::none()
+                Action::None
             }
             Message::UpdateFinished => {
                 self.updates.clear();
                 self.state = State::Ready;
 
-                Task::none()
+                Action::None
+            }
+            Message::MenuOpened => {
+                self.is_updates_list_open = false;
+
+                Action::None
             }
             Message::ToggleUpdatesList => {
                 self.is_updates_list_open = !self.is_updates_list_open;
 
-                Task::none()
+                Action::None
             }
             Message::CheckNow => {
                 self.state = State::Checking;
-                let check_command = config.check_cmd.clone();
-                Task::perform(
+                let check_command = self.config.check_cmd.clone();
+
+                Action::CheckForUpdates(Task::perform(
                     async move { check_update_now(&check_command).await },
-                    move |updates| app::Message::Updates(Message::UpdatesCheckCompleted(updates)),
-                )
+                    Message::UpdatesCheckCompleted,
+                ))
             }
             Message::Update(id) => {
-                let update_command = config.update_cmd.clone();
-                let mut cmds = vec![Task::perform(
-                    async move {
-                        spawn({
-                            async move {
-                                update(&update_command).await;
-                            }
-                        })
-                        .await
-                    },
-                    move |_| app::Message::Updates(Message::UpdateFinished),
-                )];
+                let update_command = self.config.update_cmd.clone();
 
-                cmds.push(outputs.close_menu_if(id, MenuType::Updates));
-
-                Task::batch(cmds)
+                Action::CloseMenu(
+                    id,
+                    Task::perform(
+                        async move {
+                            spawn({
+                                async move {
+                                    update(&update_command).await;
+                                }
+                            })
+                            .await
+                        },
+                        move |_| Message::UpdateFinished,
+                    ),
+                )
             }
         }
     }
-}
 
-impl Module2<Updates> for App {
-    type ViewData<'a> = ();
-    type MenuViewData<'a> = Id;
-    type SubscriptionData<'a> = ();
+    pub fn view(&self, theme: &AshellTheme) -> Element<'_, Message> {
+        let mut content = row!(container(icon(match self.state {
+            State::Checking => Icons::Refresh,
+            State::Ready if self.updates.is_empty() => Icons::NoUpdatesAvailable,
+            _ => Icons::UpdatesAvailable,
+        })))
+        .align_y(Alignment::Center)
+        .spacing(theme.space.xxs);
 
-    fn view(
-        &self,
-        _: Self::ViewData<'_>,
-    ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
-        if self.config.updates.is_some() {
-            let mut content = row!(container(icon(match self.updates.state {
-                State::Checking => Icons::Refresh,
-                State::Ready if self.updates.updates.is_empty() => Icons::NoUpdatesAvailable,
-                _ => Icons::UpdatesAvailable,
-            })))
-            .align_y(Alignment::Center)
-            .spacing(self.theme.space.xxs);
-
-            if !self.updates.updates.is_empty() {
-                content = content.push(text(self.updates.updates.len()));
-            }
-
-            Some((
-                content.into(),
-                Some(OnModulePress::ToggleMenu(MenuType::Updates)),
-            ))
-        } else {
-            None
+        if !self.updates.is_empty() {
+            content = content.push(text(self.updates.len()));
         }
+
+        content.into()
     }
 
-    fn menu_view(&self, id: Id) -> Element<app::Message> {
+    pub fn menu_view<'a>(&'a self, id: Id, theme: &'a AshellTheme) -> Element<'a, Message> {
         column!(
-            if self.updates.updates.is_empty() {
+            if self.updates.is_empty() {
                 convert::Into::<Element<'_, _, _>>::into(
-                    container(text("Up to date ;)")).padding(self.theme.space.xs),
+                    container(text("Up to date ;)")).padding(theme.space.xs),
                 )
             } else {
                 let mut elements = column!(
                     button(row!(
-                        text(format!("{} Updates available", self.updates.updates.len()))
+                        text(format!("{} Updates available", self.updates.len()))
                             .width(Length::Fill),
-                        icon(if self.updates.is_updates_list_open {
+                        icon(if self.is_updates_list_open {
                             Icons::MenuClosed
                         } else {
                             Icons::MenuOpen
                         })
                     ))
-                    .style(self.theme.ghost_button_style())
-                    .padding(self.theme.space.xs)
-                    .on_press(app::Message::Updates(Message::ToggleUpdatesList))
+                    .style(theme.ghost_button_style())
+                    .padding(theme.space.xs)
+                    .on_press(Message::ToggleUpdatesList)
                     .width(Length::Fill),
                 );
 
-                if self.updates.is_updates_list_open {
+                if self.is_updates_list_open {
                     elements = elements.push(
                         container(scrollable(
                             Column::with_children(
                                 self.updates
-                                    .updates
                                     .iter()
                                     .map(|update| {
                                         column!(
                                             text(update.package.clone())
-                                                .size(self.theme.font_size.xs)
+                                                .size(theme.font_size.xs)
                                                 .width(Length::Fill),
                                             text(format!(
                                                 "{} -> {}",
@@ -231,16 +229,16 @@ impl Module2<Updates> for App {
                                             ))
                                             .width(Length::Fill)
                                             .align_x(Horizontal::Right)
-                                            .size(self.theme.font_size.xs)
+                                            .size(theme.font_size.xs)
                                         )
                                         .into()
                                     })
                                     .collect::<Vec<Element<'_, _, _>>>(),
                             )
-                            .padding(self.theme.space.md)
-                            .spacing(self.theme.space.xxs),
+                            .padding(theme.space.md)
+                            .spacing(theme.space.xxs),
                         ))
-                        .padding([self.theme.space.xs, 0])
+                        .padding([theme.space.xs, 0])
                         .max_height(300),
                     );
                 }
@@ -248,46 +246,43 @@ impl Module2<Updates> for App {
             },
             horizontal_rule(1),
             button("Update")
-                .style(self.theme.ghost_button_style())
-                .padding(self.theme.space.xs)
-                .on_press(app::Message::Updates(Message::Update(id)))
+                .style(theme.ghost_button_style())
+                .padding(theme.space.xs)
+                .on_press(Message::Update(id))
                 .width(Length::Fill),
             button({
                 let mut content = row!(text("Check now").width(Length::Fill),);
 
-                if self.updates.state == State::Checking {
+                if self.state == State::Checking {
                     content = content.push(icon(Icons::Refresh));
                 }
 
                 content
             })
-            .style(self.theme.ghost_button_style())
-            .padding(self.theme.space.xs)
-            .on_press(app::Message::Updates(Message::CheckNow))
+            .style(theme.ghost_button_style())
+            .padding(theme.space.xs)
+            .on_press(Message::CheckNow)
             .width(Length::Fill),
         )
-        .spacing(self.theme.space.xxs)
+        .spacing(theme.space.xxs)
         .into()
     }
 
-    fn subscription(&self, _: Self::SubscriptionData<'_>) -> Option<Subscription<app::Message>> {
-        self.config.updates.as_ref().map(|config| {
-            let check_cmd = config.check_cmd.clone();
-            let id = TypeId::of::<Self>();
+    pub fn subscription(&self) -> Subscription<Message> {
+        let check_cmd = self.config.check_cmd.clone();
+        let id = TypeId::of::<Self>();
 
-            Subscription::run_with_id(
-                id,
-                channel(10, async move |mut output| {
-                    loop {
-                        let updates = check_update_now(&check_cmd).await;
+        Subscription::run_with_id(
+            id,
+            channel(10, async move |mut output| {
+                loop {
+                    let updates = check_update_now(&check_cmd).await;
 
-                        let _ = output.try_send(Message::UpdatesCheckCompleted(updates));
+                    let _ = output.try_send(Message::UpdatesCheckCompleted(updates));
 
-                        sleep(Duration::from_secs(3600)).await;
-                    }
-                }),
-            )
-            .map(app::Message::Updates)
-        })
+                    sleep(Duration::from_secs(3600)).await;
+                }
+            }),
+        )
     }
 }

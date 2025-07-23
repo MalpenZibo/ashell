@@ -3,7 +3,7 @@ use crate::{
     app,
     config::{AppearanceColor, WorkspaceVisibilityMode, WorkspacesModuleConfig},
     outputs::Outputs,
-    style::workspace_button_style,
+    theme::workspace_button_style,
 };
 use hyprland::{
     dispatch::MonitorIdentifier,
