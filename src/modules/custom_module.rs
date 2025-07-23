@@ -1,8 +1,7 @@
-use super::{Module2, OnModulePress};
 use crate::{
-    app::{self, App},
     components::icons::{Icons, icon, icon_raw},
     config::CustomModuleDef,
+    utils::launcher::execute_command,
 };
 use iced::widget::canvas;
 use iced::{
@@ -25,19 +24,10 @@ use tokio::{
     process::Command,
 };
 
-#[derive(Default, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct Custom {
+    config: CustomModuleDef,
     data: CustomListenData,
-}
-
-impl Custom {
-    pub fn update(&mut self, msg: Message) {
-        match msg {
-            Message::Update(data) => {
-                self.data = data;
-            }
-        }
-    }
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -48,6 +38,7 @@ pub struct CustomListenData {
 
 #[derive(Debug, Clone)]
 pub enum Message {
+    LaunchCommand,
     Update(CustomListenData),
 }
 
@@ -78,23 +69,35 @@ impl<Message> Program<Message> for AlertIndicator {
     }
 }
 
-impl Module2<Custom> for App {
-    type ViewData<'a> = (&'a Custom, &'a CustomModuleDef);
-    type MenuViewData<'a> = ();
-    type SubscriptionData<'a> = &'a CustomModuleDef;
+impl Custom {
+    pub fn new(config: CustomModuleDef) -> Self {
+        Self {
+            config,
+            data: CustomListenData::default(),
+        }
+    }
 
-    fn view(
-        &self,
-        (custom, config): Self::ViewData<'_>,
-    ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
-        let mut icon_element = config
+    pub fn update(&mut self, msg: Message) {
+        match msg {
+            Message::LaunchCommand => {
+                execute_command(self.config.command.clone());
+            }
+            Message::Update(data) => {
+                self.data = data;
+            }
+        }
+    }
+
+    pub fn view(&self) -> Element<Message> {
+        let mut icon_element = self
+            .config
             .icon
             .as_ref()
             .map_or_else(|| icon(Icons::None), |text| icon_raw(text.clone()));
 
-        if let Some(icons_map) = &config.icons {
+        if let Some(icons_map) = &self.config.icons {
             for (re, icon_str) in icons_map {
-                if re.is_match(&custom.data.alt) {
+                if re.is_match(&self.data.alt) {
                     icon_element = icon_raw(icon_str.clone());
                     break; // Use the first match
                 }
@@ -105,8 +108,8 @@ impl Module2<Custom> for App {
         let padded_icon_container = container(icon_element).padding([0, 1]);
 
         let mut show_alert = false;
-        if let Some(re) = &config.alert {
-            if re.is_match(&custom.data.alt) {
+        if let Some(re) = &self.config.alert {
+            if re.is_match(&self.data.alt) {
                 show_alert = true;
             }
         }
@@ -133,7 +136,7 @@ impl Module2<Custom> for App {
             padded_icon_container.into() // No alert, just the padded icon
         };
 
-        let maybe_text_element = custom.data.text.as_ref().and_then(|text_content| {
+        let maybe_text_element = self.data.text.as_ref().and_then(|text_content| {
             if !text_content.is_empty() {
                 Some(text(text_content.clone()))
             } else {
@@ -141,34 +144,23 @@ impl Module2<Custom> for App {
             }
         });
 
-        let row_content = if let Some(text_element) = maybe_text_element {
+        if let Some(text_element) = maybe_text_element {
             row![icon_with_alert, text_element].spacing(8).into()
         } else {
             icon_with_alert
-        };
-
-        Some((
-            row_content,
-            Some(OnModulePress::Action(Box::new(
-                app::Message::LaunchCommand(config.command.clone()),
-            ))),
-        ))
+        }
     }
 
-    fn subscription(
-        &self,
-        config: Self::SubscriptionData<'_>,
-    ) -> Option<Subscription<app::Message>> {
-        if let Some(check_cmd) = config.listen_cmd.clone() {
-            let id = TypeId::of::<Self>();
-            let name = config.name.clone();
-
-            Some(Subscription::run_with_id(
+    pub fn subscription(&self) -> Subscription<Message> {
+        let id = TypeId::of::<Self>();
+        let name = self.config.name.clone();
+        if let Some(listen_cmd) = self.config.listen_cmd.clone() {
+            Subscription::run_with_id(
                 format!("{id:?}-{name}"),
                 channel(10, async move |mut output| {
                     let command = Command::new("bash")
                         .arg("-c")
-                        .arg(&check_cmd)
+                        .arg(&listen_cmd)
                         .stdout(Stdio::piped())
                         .spawn();
 
@@ -190,19 +182,16 @@ impl Module2<Custom> for App {
 
                                 while let Some(line) = reader.next_line().await.ok().flatten() {
                                     match serde_json::from_str(&line) {
-                                        Ok(event) => output
-                                            .try_send(app::Message::CustomUpdate(
-                                                name.clone(),
-                                                Message::Update(event),
-                                            ))
-                                            .unwrap(),
+                                        Ok(event) => {
+                                            output.try_send(Message::Update(event)).unwrap()
+                                        }
                                         Err(e) => {
                                             error!("Failed to parse JSON: {e} for line {line}");
                                         }
                                     }
                                 }
                             } else {
-                                error!("Failed to capture stdout for command: {check_cmd}");
+                                error!("Failed to capture stdout for command: {listen_cmd}");
                             }
                         }
                         Err(error) => {
@@ -210,9 +199,9 @@ impl Module2<Custom> for App {
                         }
                     }
                 }),
-            ))
+            )
         } else {
-            None
+            Subscription::none()
         }
     }
 }

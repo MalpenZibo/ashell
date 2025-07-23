@@ -162,7 +162,7 @@ impl Updates {
         }
     }
 
-    pub fn view(&self, theme: &AshellTheme) -> Element<'_, Message> {
+    pub fn view(&self, theme: &AshellTheme) -> Element<Message> {
         let mut content = row!(container(icon(match self.state {
             State::Checking => Icons::Refresh,
             State::Ready if self.updates.is_empty() => Icons::NoUpdatesAvailable,
