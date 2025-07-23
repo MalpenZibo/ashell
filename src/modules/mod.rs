@@ -298,8 +298,30 @@ impl App {
                 self.system_info.view(&self.theme).map(Message::SystemInfo),
                 Some(OnModulePress::ToggleMenu(MenuType::SystemInfo)),
             )),
-            // ModuleName::KeyboardLayout => self.keyboard_layout.view(&self.config.keyboard_layout),
-            // ModuleName::KeyboardSubmap => self.keyboard_submap.view(()),
+            ModuleName::KeyboardLayout => {
+                if self.keyboard_layout.should_appear() {
+                    Some((
+                        self.keyboard_layout
+                            .view(&self.theme)
+                            .map(Message::KeyboardLayout),
+                        Some(OnModulePress::Action(Box::new(Message::KeyboardLayout(
+                            keyboard_layout::Message::ChangeLayout,
+                        )))),
+                    ))
+                } else {
+                    None
+                }
+            }
+            ModuleName::KeyboardSubmap => {
+                if self.keyboard_submap.should_appear() {
+                    Some((
+                        self.keyboard_submap.view().map(Message::KeyboardSubmap),
+                        None,
+                    ))
+                } else {
+                    None
+                }
+            }
             // ModuleName::Tray => self.tray.view((id, opacity)),
             // ModuleName::Clock => self.clock.view(&self.config.clock.format),
             // ModuleName::Privacy => self.privacy.view(()),
@@ -332,9 +354,17 @@ impl App {
             ModuleName::SystemInfo => {
                 Some(self.system_info.subscription().map(Message::SystemInfo))
             }
+            ModuleName::KeyboardLayout => Some(
+                self.keyboard_layout
+                    .subscription()
+                    .map(Message::KeyboardLayout),
+            ),
+            ModuleName::KeyboardSubmap => Some(
+                self.keyboard_submap
+                    .subscription()
+                    .map(Message::KeyboardSubmap),
+            ),
             _ => None,
-            // ModuleName::KeyboardLayout => self.keyboard_layout.subscription(()),
-            // ModuleName::KeyboardSubmap => self.keyboard_submap.subscription(()),
             // ModuleName::Tray => self.tray.subscription(()),
             // ModuleName::Clock => self.clock.subscription(&self.config.clock.format),
             // ModuleName::Privacy => self.privacy.subscription(()),
