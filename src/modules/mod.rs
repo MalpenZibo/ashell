@@ -298,35 +298,23 @@ impl App {
                 self.system_info.view(&self.theme).map(Message::SystemInfo),
                 Some(OnModulePress::ToggleMenu(MenuType::SystemInfo)),
             )),
-            ModuleName::KeyboardLayout => {
-                if self.keyboard_layout.should_appear() {
-                    Some((
-                        self.keyboard_layout
-                            .view(&self.theme)
-                            .map(Message::KeyboardLayout),
-                        Some(OnModulePress::Action(Box::new(Message::KeyboardLayout(
-                            keyboard_layout::Message::ChangeLayout,
-                        )))),
-                    ))
-                } else {
-                    None
-                }
-            }
-            ModuleName::KeyboardSubmap => {
-                if self.keyboard_submap.should_appear() {
-                    Some((
-                        self.keyboard_submap.view().map(Message::KeyboardSubmap),
-                        None,
-                    ))
-                } else {
-                    None
-                }
-            }
+            ModuleName::KeyboardLayout => self.keyboard_layout.view(&self.theme).map(|view| {
+                (
+                    view.map(Message::KeyboardLayout),
+                    Some(OnModulePress::Action(Box::new(Message::KeyboardLayout(
+                        keyboard_layout::Message::ChangeLayout,
+                    )))),
+                )
+            }),
+            ModuleName::KeyboardSubmap => self
+                .keyboard_submap
+                .view()
+                .map(|view| (view.map(Message::KeyboardSubmap), None)),
             ModuleName::Tray => self
                 .tray
                 .view(id, &self.theme)
                 .map(|view| (view.map(Message::Tray), None)),
-            // ModuleName::Clock => self.clock.view(&self.config.clock.format),
+            ModuleName::Clock => Some((self.clock.view(&self.theme).map(Message::Clock), None)),
             // ModuleName::Privacy => self.privacy.view(()),
             // ModuleName::Settings => self.settings.view(()),
             // ModuleName::MediaPlayer => self.media_player.view(&self.config.media_player),
@@ -368,8 +356,8 @@ impl App {
                     .map(Message::KeyboardSubmap),
             ),
             ModuleName::Tray => Some(self.tray.subscription().map(Message::Tray)),
+            ModuleName::Clock => Some(self.clock.subscription().map(Message::Clock)),
             _ => None,
-            // ModuleName::Clock => self.clock.subscription(&self.config.clock.format),
             // ModuleName::Privacy => self.privacy.subscription(()),
             // ModuleName::Settings => self.settings.subscription(()),
             // ModuleName::MediaPlayer => self.media_player.subscription(()),

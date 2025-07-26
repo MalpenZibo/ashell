@@ -32,12 +32,12 @@ impl KeyboardSubmap {
         }
     }
 
-    pub fn should_appear(&self) -> bool {
-        !self.submap.is_empty()
-    }
-
-    pub fn view(&self) -> Element<Message> {
-        text(&self.submap).into()
+    pub fn view(&self) -> Option<Element<Message>> {
+        if !self.submap.is_empty() {
+            Some(text(&self.submap).into())
+        } else {
+            None
+        }
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
