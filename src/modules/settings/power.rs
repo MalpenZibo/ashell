@@ -1,7 +1,7 @@
 use crate::{
     components::icons::{Icons, icon},
     config::SettingsModuleConfig,
-    style::ghost_button_style,
+    theme::ghost_button_style,
     utils,
 };
 use iced::{

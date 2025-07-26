@@ -10,7 +10,7 @@ use crate::{
             MprisPlayerCommand, MprisPlayerData, MprisPlayerService, PlaybackStatus, PlayerCommand,
         },
     },
-    style::settings_button_style,
+    theme::settings_button_style,
     utils::truncate_text,
 };
 use iced::{

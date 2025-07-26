@@ -1,32 +1,29 @@
-use std::{collections::HashMap, f32::consts::PI};
-
 use crate::{
     HEIGHT, centerbox,
     config::{self, AppearanceStyle, Config, Position},
     get_log_spec,
-    menu::{MenuSize, MenuType, menu_wrapper},
+    menu::{MenuSize, MenuType},
     modules::{
         self,
-        app_launcher::AppLauncher,
-        clipboard::Clipboard,
+        app_launcher::{self, AppLauncher},
+        clipboard::{self, Clipboard},
         clock::Clock,
-        custom_module::Custom,
+        custom_module::{self, Custom},
         keyboard_layout::KeyboardLayout,
         keyboard_submap::KeyboardSubmap,
         media_player::MediaPlayer,
         privacy::Privacy,
         settings::{Settings, brightness::BrightnessMessage},
         system_info::SystemInfo,
-        tray::{TrayMessage, TrayModule},
+        tray::TrayModule,
         updates::Updates,
         window_title::WindowTitle,
         workspaces::Workspaces,
     },
     outputs::{HasOutput, Outputs},
     position_button::ButtonUIRef,
-    services::{Service, ServiceEvent, brightness::BrightnessCommand, tray::TrayEvent},
-    style::{ashell_theme, backdrop_color, darken_color},
-    utils,
+    services::{Service, brightness::BrightnessCommand},
+    theme::{AshellTheme, backdrop_color, darken_color},
 };
 use flexi_logger::LoggerHandle;
 use iced::{
@@ -40,17 +37,19 @@ use iced::{
     widget::{Row, container},
     window::Id,
 };
-use log::{debug, error, info, warn};
+use log::{debug, info, warn};
+use std::{collections::HashMap, f32::consts::PI};
 use wayland_client::protocol::wl_output::WlOutput;
 
 pub struct App {
+    pub theme: AshellTheme,
     logger: LoggerHandle,
     pub config: Config,
     pub outputs: Outputs,
-    pub app_launcher: AppLauncher,
+    pub app_launcher: Option<AppLauncher>,
     pub custom: HashMap<String, Custom>,
-    pub updates: Updates,
-    pub clipboard: Clipboard,
+    pub updates: Option<Updates>,
+    pub clipboard: Option<Clipboard>,
     pub workspaces: Workspaces,
     pub window_title: WindowTitle,
     pub system_info: SystemInfo,
@@ -69,22 +68,21 @@ pub enum Message {
     ConfigChanged(Box<Config>),
     ToggleMenu(MenuType, Id, ButtonUIRef),
     CloseMenu(Id),
-    OpenLauncher,
-    OpenClipboard,
+    Clipboard(clipboard::Message),
+    AppLauncher(app_launcher::Message),
+    Custom(String, custom_module::Message),
     Updates(modules::updates::Message),
     Workspaces(modules::workspaces::Message),
     WindowTitle(modules::window_title::Message),
     SystemInfo(modules::system_info::Message),
     KeyboardLayout(modules::keyboard_layout::Message),
     KeyboardSubmap(modules::keyboard_submap::Message),
-    Tray(modules::tray::TrayMessage),
+    Tray(modules::tray::Message),
     Clock(modules::clock::Message),
     Privacy(modules::privacy::PrivacyMessage),
     Settings(modules::settings::Message),
     MediaPlayer(modules::media_player::Message),
     OutputEvent((OutputEvent, WlOutput)),
-    LaunchCommand(String),
-    CustomUpdate(String, modules::custom_module::Message),
 }
 
 impl App {
@@ -94,24 +92,33 @@ impl App {
 
             let custom = config
                 .custom_modules
-                .iter()
-                .map(|o| (o.name.clone(), Custom::default()))
+                .clone()
+                .into_iter()
+                .map(|o| (o.name.clone(), Custom::new(o)))
                 .collect();
+
             (
                 App {
+                    theme: AshellTheme::new(config.position, &config.appearance),
                     logger,
                     outputs,
-                    app_launcher: AppLauncher,
+                    app_launcher: config
+                        .app_launcher_cmd
+                        .as_ref()
+                        .map(|cmd| AppLauncher::new(cmd.clone())),
                     custom,
-                    updates: Updates::default(),
-                    clipboard: Clipboard,
-                    workspaces: Workspaces::new(&config.workspaces),
-                    window_title: WindowTitle::new(&config.window_title),
-                    system_info: SystemInfo::default(),
-                    keyboard_layout: KeyboardLayout::default(),
+                    updates: config.clone().updates.map(|config| Updates::new(config)),
+                    clipboard: config
+                        .clipboard_cmd
+                        .as_ref()
+                        .map(|cmd| Clipboard::new(cmd.clone())),
+                    workspaces: Workspaces::new(config.workspaces),
+                    window_title: WindowTitle::new(config.window_title),
+                    system_info: SystemInfo::new(config.system.clone()),
+                    keyboard_layout: KeyboardLayout::new(config.keyboard_layout.clone()),
                     keyboard_submap: KeyboardSubmap::default(),
                     tray: TrayModule::default(),
-                    clock: Clock::default(),
+                    clock: Clock::new(config.clock.clone()),
                     privacy: Privacy::default(),
                     settings: Settings::default(),
                     media_player: MediaPlayer::default(),
@@ -127,7 +134,7 @@ impl App {
     }
 
     pub fn theme(&self, _id: Id) -> Theme {
-        ashell_theme(&self.config.appearance)
+        self.theme.get_theme().clone()
     }
 
     pub fn style(&self, theme: &Theme) -> Appearance {
@@ -169,17 +176,13 @@ impl App {
                 let mut cmd = vec![];
                 match &menu_type {
                     MenuType::Updates => {
-                        self.updates.is_updates_list_open = false;
+                        if let Some(updates) = self.updates.as_mut() {
+                            updates.update(modules::updates::Message::MenuOpened);
+                        }
                     }
                     MenuType::Tray(name) => {
-                        if let Some(_tray) = self
-                            .tray
-                            .service
-                            .as_ref()
-                            .and_then(|t| t.iter().find(|t| &t.name == name))
-                        {
-                            self.tray.submenus.clear();
-                        }
+                        self.tray
+                            .update(modules::tray::Message::MenuOpened(name.clone()));
                     }
                     MenuType::Settings => {
                         self.settings.sub_menu = None;
@@ -201,47 +204,55 @@ impl App {
                 Task::batch(cmd)
             }
             Message::CloseMenu(id) => self.outputs.close_menu(id),
-            Message::Updates(message) => {
-                if let Some(updates_config) = self.config.updates.as_ref() {
-                    self.updates
-                        .update(message, updates_config, &mut self.outputs)
+            Message::AppLauncher(msg) => {
+                if let Some(app_launcher) = self.app_launcher.as_mut() {
+                    app_launcher.update(msg);
+                }
+
+                Task::none()
+            }
+            Message::Custom(name, msg) => {
+                if let Some(custom) = self.custom.get_mut(&name) {
+                    custom.update(msg);
+                }
+
+                Task::none()
+            }
+            Message::Updates(msg) => {
+                if let Some(updates) = self.updates.as_mut() {
+                    match updates.update(msg) {
+                        modules::updates::Action::None => Task::none(),
+                        modules::updates::Action::CheckForUpdates(task) => {
+                            task.map(Message::Updates)
+                        }
+                        modules::updates::Action::CloseMenu(id, task) => Task::batch(vec![
+                            task.map(Message::Updates),
+                            self.outputs.close_menu_if(id, MenuType::Updates),
+                        ]),
+                    }
                 } else {
                     Task::none()
                 }
             }
-            Message::OpenLauncher => {
-                if let Some(app_launcher_cmd) = self.config.app_launcher_cmd.as_ref() {
-                    utils::launcher::execute_command(app_launcher_cmd.to_string());
+            Message::Clipboard(msg) => {
+                if let Some(clipboard) = self.clipboard.as_mut() {
+                    clipboard.update(msg);
                 }
-                Task::none()
-            }
-            Message::LaunchCommand(command) => {
-                utils::launcher::execute_command(command);
-                Task::none()
-            }
-            Message::CustomUpdate(name, message) => {
-                match self.custom.get_mut(&name) {
-                    Some(c) => c.update(message),
-                    None => error!("Custom module '{name}' not found"),
-                };
-                Task::none()
-            }
-            Message::OpenClipboard => {
-                if let Some(clipboard_cmd) = self.config.clipboard_cmd.as_ref() {
-                    utils::launcher::execute_command(clipboard_cmd.to_string());
-                }
-                Task::none()
-            }
-            Message::Workspaces(msg) => {
-                self.workspaces.update(msg, &self.config.workspaces);
 
                 Task::none()
             }
-            Message::WindowTitle(message) => {
-                self.window_title.update(message, &self.config.window_title);
+            Message::Workspaces(msg) => {
+                self.workspaces.update(msg);
                 Task::none()
             }
-            Message::SystemInfo(message) => self.system_info.update(message),
+            Message::WindowTitle(msg) => {
+                self.window_title.update(msg);
+                Task::none()
+            }
+            Message::SystemInfo(msg) => {
+                self.system_info.update(msg);
+                Task::none()
+            }
             Message::KeyboardLayout(message) => {
                 self.keyboard_layout.update(message);
                 Task::none()
@@ -250,21 +261,16 @@ impl App {
                 self.keyboard_submap.update(message);
                 Task::none()
             }
-            Message::Tray(msg) => {
-                let close_tray = match &msg {
-                    TrayMessage::Event(event) => {
-                        if let ServiceEvent::Update(TrayEvent::Unregistered(name)) = event.as_ref()
-                        {
-                            self.outputs.close_all_menu_if(MenuType::Tray(name.clone()))
-                        } else {
-                            Task::none()
-                        }
-                    }
-                    _ => Task::none(),
-                };
-
-                Task::batch(vec![self.tray.update(msg), close_tray])
-            }
+            Message::Tray(msg) => match self.tray.update(msg) {
+                modules::tray::Action::None => Task::none(),
+                modules::tray::Action::ToggleMenu(name, id, button_ui_ref) => self
+                    .outputs
+                    .toggle_menu(id, MenuType::Tray(name), button_ui_ref),
+                modules::tray::Action::TrayMenuCommand(task) => task.map(Message::Tray),
+                modules::tray::Action::CloseTrayMenu(name) => {
+                    self.outputs.close_all_menu_if(MenuType::Tray(name))
+                }
+            },
             Message::Clock(message) => {
                 self.clock.update(message);
                 Task::none()
@@ -307,24 +313,10 @@ impl App {
     pub fn view(&self, id: Id) -> Element<Message> {
         match self.outputs.has(id) {
             Some(HasOutput::Main) => {
-                let left = self.modules_section(
-                    &self.config.modules.left,
-                    id,
-                    self.config.appearance.opacity,
-                );
-                let center = self.modules_section(
-                    &self.config.modules.center,
-                    id,
-                    self.config.appearance.opacity,
-                );
-                let right = self.modules_section(
-                    &self.config.modules.right,
-                    id,
-                    self.config.appearance.opacity,
-                );
+                let [left, center, right] = self.modules_section(id);
 
                 let centerbox = centerbox::Centerbox::new([left, center, right])
-                    .spacing(4)
+                    .spacing(self.theme.space.xxs)
                     .width(Length::Fill)
                     .align_items(Alignment::Center)
                     .height(
@@ -336,14 +328,14 @@ impl App {
                     )
                     .padding(
                         if self.config.appearance.style == AppearanceStyle::Islands {
-                            [4, 4]
+                            [self.theme.space.xxs, self.theme.space.xxs]
                         } else {
                             [0, 0]
                         },
                     );
 
                 container(centerbox)
-                    .style(|t| container::Style {
+                    .style(|t: &Theme| container::Style {
                         background: match self.config.appearance.style {
                             AppearanceStyle::Gradient => Some({
                                 let start_color = t
@@ -409,73 +401,56 @@ impl App {
                     .into()
             }
             Some(HasOutput::Menu(menu_info)) => match menu_info {
-                Some((MenuType::Updates, button_ui_ref)) => menu_wrapper(
-                    id,
-                    self.updates
-                        .menu_view(id, self.config.appearance.menu.opacity)
-                        .map(Message::Updates),
-                    MenuSize::Small,
-                    *button_ui_ref,
-                    self.config.position,
-                    self.config.appearance.style,
-                    self.config.appearance.menu.opacity,
-                    self.config.appearance.menu.backdrop,
-                ),
-                Some((MenuType::Tray(name), button_ui_ref)) => menu_wrapper(
-                    id,
-                    self.tray
-                        .menu_view(name, self.config.appearance.menu.opacity)
-                        .map(Message::Tray),
-                    MenuSize::Small,
-                    *button_ui_ref,
-                    self.config.position,
-                    self.config.appearance.style,
-                    self.config.appearance.menu.opacity,
-                    self.config.appearance.menu.backdrop,
-                ),
-                Some((MenuType::Settings, button_ui_ref)) => menu_wrapper(
-                    id,
-                    self.settings
-                        .menu_view(
+                Some((MenuType::Updates, button_ui_ref)) => {
+                    if let Some(updates) = self.updates.as_ref() {
+                        self.menu_wrapper(
                             id,
-                            &self.config.settings,
-                            self.config.appearance.menu.opacity,
-                            self.config.position,
+                            updates.menu_view(id, &self.theme).map(Message::Updates),
+                            MenuSize::Medium,
+                            *button_ui_ref,
                         )
-                        .map(Message::Settings),
+                    } else {
+                        Row::new().into()
+                    }
+                }
+                Some((MenuType::Tray(name), button_ui_ref)) => self.menu_wrapper(
+                    id,
+                    self.tray.menu_view(&self.theme, name).map(Message::Tray),
                     MenuSize::Medium,
                     *button_ui_ref,
-                    self.config.position,
-                    self.config.appearance.style,
-                    self.config.appearance.menu.opacity,
-                    self.config.appearance.menu.backdrop,
                 ),
-                Some((MenuType::MediaPlayer, button_ui_ref)) => menu_wrapper(
-                    id,
-                    self.media_player
-                        .menu_view(
-                            &self.config.media_player,
-                            self.config.appearance.menu.opacity,
-                        )
-                        .map(Message::MediaPlayer),
-                    MenuSize::Large,
-                    *button_ui_ref,
-                    self.config.position,
-                    self.config.appearance.style,
-                    self.config.appearance.menu.opacity,
-                    self.config.appearance.menu.backdrop,
-                ),
-                Some((MenuType::SystemInfo, button_ui_ref)) => menu_wrapper(
+                // Some((MenuType::Settings, button_ui_ref)) => self.menu_wrapper(
+                //     id,
+                //     self.settings
+                //         .menu_view(
+                //             id,
+                //             &self.config.settings,
+                //             self.config.appearance.menu.opacity,
+                //             self.config.position,
+                //         )
+                //         .map(Message::Settings),
+                //     MenuSize::Large,
+                //     *button_ui_ref,
+                // ),
+                // Some((MenuType::MediaPlayer, button_ui_ref)) => self.menu_wrapper(
+                //     id,
+                //     self.media_player
+                //         .menu_view(
+                //             &self.config.media_player,
+                //             self.config.appearance.menu.opacity,
+                //         )
+                //         .map(Message::MediaPlayer),
+                //     MenuSize::Large,
+                //     *button_ui_ref,
+                // ),
+                Some((MenuType::SystemInfo, button_ui_ref)) => self.menu_wrapper(
                     id,
                     self.system_info.menu_view().map(Message::SystemInfo),
-                    MenuSize::Medium,
+                    MenuSize::Large,
                     *button_ui_ref,
-                    self.config.position,
-                    self.config.appearance.style,
-                    self.config.appearance.menu.opacity,
-                    self.config.appearance.menu.backdrop,
                 ),
                 None => Row::new().into(),
+                _ => Row::new().into(),
             },
             None => Row::new().into(),
         }
