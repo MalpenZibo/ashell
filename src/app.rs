@@ -15,14 +15,14 @@ use crate::{
         privacy::Privacy,
         settings::{Settings, brightness::BrightnessMessage},
         system_info::SystemInfo,
-        tray::{TrayMessage, TrayModule},
+        tray::TrayModule,
         updates::Updates,
         window_title::WindowTitle,
         workspaces::Workspaces,
     },
     outputs::{HasOutput, Outputs},
     position_button::ButtonUIRef,
-    services::{Service, ServiceEvent, brightness::BrightnessCommand, tray::TrayEvent},
+    services::{Service, brightness::BrightnessCommand},
     theme::{AshellTheme, backdrop_color, darken_color},
 };
 use flexi_logger::LoggerHandle;
@@ -78,7 +78,7 @@ pub enum Message {
     SystemInfo(modules::system_info::Message),
     KeyboardLayout(modules::keyboard_layout::Message),
     KeyboardSubmap(modules::keyboard_submap::Message),
-    Tray(modules::tray::TrayMessage),
+    Tray(modules::tray::Message),
     Clock(modules::clock::Message),
     Privacy(modules::privacy::PrivacyMessage),
     Settings(modules::settings::Message),
@@ -202,14 +202,8 @@ impl App {
                         }
                     }
                     MenuType::Tray(name) => {
-                        if let Some(_tray) = self
-                            .tray
-                            .service
-                            .as_ref()
-                            .and_then(|t| t.iter().find(|t| &t.name == name))
-                        {
-                            self.tray.submenus.clear();
-                        }
+                        self.tray
+                            .update(modules::tray::Message::MenuOpened(name.clone()));
                     }
                     MenuType::Settings => {
                         self.settings.sub_menu = None;
@@ -288,21 +282,16 @@ impl App {
                 self.keyboard_submap.update(message);
                 Task::none()
             }
-            Message::Tray(msg) => {
-                let close_tray = match &msg {
-                    TrayMessage::Event(event) => {
-                        if let ServiceEvent::Update(TrayEvent::Unregistered(name)) = event.as_ref()
-                        {
-                            self.outputs.close_all_menu_if(MenuType::Tray(name.clone()))
-                        } else {
-                            Task::none()
-                        }
-                    }
-                    _ => Task::none(),
-                };
-
-                Task::batch(vec![self.tray.update(msg), close_tray])
-            }
+            Message::Tray(msg) => match self.tray.update(msg) {
+                modules::tray::Action::None => Task::none(),
+                modules::tray::Action::ToggleMenu(name, id, button_ui_ref) => self
+                    .outputs
+                    .toggle_menu(id, MenuType::Tray(name), button_ui_ref),
+                modules::tray::Action::TrayMenuCommand(task) => task.map(Message::Tray),
+                modules::tray::Action::CloseTrayMenu(name) => {
+                    self.outputs.close_all_menu_if(MenuType::Tray(name))
+                }
+            },
             Message::Clock(message) => {
                 self.clock.update(message);
                 Task::none()
@@ -447,12 +436,12 @@ impl App {
                         Row::new().into()
                     }
                 }
-                // Some((MenuType::Tray(name), button_ui_ref)) => self.menu_wrapper(
-                //     id,
-                //     <Self as Module2<TrayModule>>::menu_view(self, name),
-                //     MenuSize::Medium,
-                //     *button_ui_ref,
-                // ),
+                Some((MenuType::Tray(name), button_ui_ref)) => self.menu_wrapper(
+                    id,
+                    self.tray.menu_view(&self.theme, name).map(Message::Tray),
+                    MenuSize::Medium,
+                    *button_ui_ref,
+                ),
                 // Some((MenuType::Settings, button_ui_ref)) => self.menu_wrapper(
                 //     id,
                 //     self.settings

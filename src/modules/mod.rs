@@ -322,7 +322,10 @@ impl App {
                     None
                 }
             }
-            // ModuleName::Tray => self.tray.view((id, opacity)),
+            ModuleName::Tray => self
+                .tray
+                .view(id, &self.theme)
+                .map(|view| (view.map(Message::Tray), None)),
             // ModuleName::Clock => self.clock.view(&self.config.clock.format),
             // ModuleName::Privacy => self.privacy.view(()),
             // ModuleName::Settings => self.settings.view(()),
@@ -364,8 +367,8 @@ impl App {
                     .subscription()
                     .map(Message::KeyboardSubmap),
             ),
+            ModuleName::Tray => Some(self.tray.subscription().map(Message::Tray)),
             _ => None,
-            // ModuleName::Tray => self.tray.subscription(()),
             // ModuleName::Clock => self.clock.subscription(&self.config.clock.format),
             // ModuleName::Privacy => self.privacy.subscription(()),
             // ModuleName::Settings => self.settings.subscription(()),
