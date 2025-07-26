@@ -70,17 +70,17 @@ impl KeyboardLayout {
         }
     }
 
-    pub fn should_appear(&self) -> bool {
-        self.multiple_layout
-    }
+    pub fn view(&self, theme: &AshellTheme) -> Option<Element<Message>> {
+        if self.multiple_layout {
+            let active = match self.config.labels.get(&self.active) {
+                Some(value) => value.to_string(),
+                None => self.active.clone(),
+            };
 
-    pub fn view(&self, theme: &AshellTheme) -> Element<Message> {
-        let active = match self.config.labels.get(&self.active) {
-            Some(value) => value.to_string(),
-            None => self.active.clone(),
-        };
-
-        text(active).into()
+            Some(text(active).into())
+        } else {
+            None
+        }
     }
 
     pub fn subscription(&self) -> Subscription<Message> {

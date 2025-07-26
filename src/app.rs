@@ -126,7 +126,7 @@ impl App {
                     keyboard_layout: KeyboardLayout::new(config.keyboard_layout.clone()),
                     keyboard_submap: KeyboardSubmap::default(),
                     tray: TrayModule::default(),
-                    clock: Clock::default(),
+                    clock: Clock::new(config.clock.clone()),
                     privacy: Privacy::default(),
                     settings: Settings::default(),
                     media_player: MediaPlayer::default(),
