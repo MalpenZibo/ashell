@@ -44,3 +44,5 @@ regex = "1.11.1"
 serde_with = "3.12.0"
 tokio-stream = "0.1.17"
 uuid = { version = "1.16.0", features = ["v4"] }
+clap = { version = "4.5", features = ["derive"] }
+shellexpand = "3"

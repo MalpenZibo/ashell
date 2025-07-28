@@ -11,13 +11,10 @@ use serde::{Deserialize, Deserializer, de::Visitor};
 use serde_with::DisplayFromStr;
 use serde_with::serde_as;
 use std::{
-    any::TypeId, collections::HashMap, env, error::Error, fs::File, io::Read, ops::Deref,
-    path::Path,
+    any::TypeId, collections::HashMap, error::Error, fs::File, io::Read, ops::Deref, path::Path,
 };
 
 use crate::app::Message;
-
-const CONFIG_PATH: &str = "~/.config/ashell/config.toml";
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct UpdatesModuleConfig {
@@ -687,12 +684,15 @@ impl Default for Config {
     }
 }
 
-pub fn read_config() -> Result<Config, Box<dyn Error + Send>> {
-    let home_dir = env::var("HOME").expect("Could not get HOME environment variable");
-    let file_path = format!("{}{}", home_dir, CONFIG_PATH.replace('~', ""));
+pub fn read_config(path: &str) -> Result<Config, Box<dyn Error + Send>> {
+    let file_path = shellexpand::tilde(path);
+    // let home_dir = env::var("HOME").expect("Could not get HOME environment variable");
+    // let expand = path.to_string_lossy
+    // let file_path = format!("{}{}", home_dir, path.as_ref().replace('~', ""));
 
     let mut content = String::new();
-    let read_result = File::open(&file_path).and_then(|mut file| file.read_to_string(&mut content));
+    let read_result =
+        File::open(file_path.to_string()).and_then(|mut file| file.read_to_string(&mut content));
 
     match read_result {
         Ok(_) => {
@@ -704,16 +704,19 @@ pub fn read_config() -> Result<Config, Box<dyn Error + Send>> {
     }
 }
 
-pub fn subscription() -> Subscription<Message> {
+pub fn subscription(path: &str) -> Subscription<Message> {
     let id = TypeId::of::<Config>();
+    let path = path.to_string();
 
     Subscription::run_with_id(
         id,
-        channel(100, async |mut output| {
-            let home_dir = env::var("HOME").expect("Could not get HOME environment variable");
+        channel(100, async move |mut output| {
+            // let home_dir = env::var("HOME").expect("Could not get HOME environment variable");
 
-            let file_path = format!("{}{}", home_dir, CONFIG_PATH.replace('~', ""));
-            let config_file_path = Path::new(&file_path);
+            // let file_path = format!("{}{}", home_dir, path.replace('~', ""));
+            let file_path = shellexpand::tilde(&path);
+            let file_path_string = file_path.to_string();
+            let config_file_path = Path::new(&file_path_string);
 
             let ashell_config_dir = config_file_path
                 .parent()
@@ -762,7 +765,7 @@ pub fn subscription() -> Subscription<Message> {
                                 _ => {
                                     log::info!("ashell config file events: {name:?}");
                                     if name.is_some_and(|name| name == "config.toml") {
-                                        let new_config = read_config();
+                                        let new_config = read_config(&path);
                                         match new_config {
                                             Ok(new_config) => {
                                                 let _ = output
@@ -798,7 +801,7 @@ pub fn subscription() -> Subscription<Message> {
                         if config_file_path.exists() {
                             log::info!("Config file created");
 
-                            let new_config = read_config();
+                            let new_config = read_config(&path);
                             match new_config {
                                 Ok(new_config) => {
                                     let _ = output

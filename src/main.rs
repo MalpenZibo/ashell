@@ -1,4 +1,5 @@
 use app::App;
+use clap::{Parser, command};
 use config::{Config, read_config};
 use flexi_logger::{
     Age, Cleanup, Criterion, FileSpec, LogSpecBuilder, LogSpecification, Logger, Naming,
@@ -24,6 +25,13 @@ mod utils;
 const ICON_FONT: &[u8] = include_bytes!("../assets/SymbolsNerdFont-Regular.ttf");
 const HEIGHT: u32 = 34;
 
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    #[arg(short, long, default_value = "~/.config/ashell/config.toml")]
+    config_path: String,
+}
+
 fn get_log_spec(log_level: &str) -> LogSpecification {
     LogSpecification::env_or_parse(log_level).unwrap_or_else(|err| {
         panic!("Failed to parse log level: {err}");
@@ -32,6 +40,8 @@ fn get_log_spec(log_level: &str) -> LogSpecification {
 
 #[tokio::main]
 async fn main() -> iced::Result {
+    let args = Args::parse();
+
     let logger = Logger::with(
         LogSpecBuilder::new()
             .default(log::LevelFilter::Info)
@@ -55,7 +65,9 @@ async fn main() -> iced::Result {
         error!("Panic: {info} \n {b}");
     }));
 
-    let config = read_config().unwrap_or_else(|err| {
+    println!(" args: {args:?}");
+
+    let config = read_config(&args.config_path).unwrap_or_else(|err| {
         error!("Failed to parse config file: {err}");
 
         warn!("Using default config");
@@ -75,5 +87,5 @@ async fn main() -> iced::Result {
         .style(App::style)
         .font(Cow::from(ICON_FONT))
         .default_font(font)
-        .run_with(App::new((logger, config)))
+        .run_with(App::new((logger, config, args.config_path)))
 }
