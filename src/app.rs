@@ -80,7 +80,7 @@ pub enum Message {
     KeyboardSubmap(modules::keyboard_submap::Message),
     Tray(modules::tray::Message),
     Clock(modules::clock::Message),
-    Privacy(modules::privacy::PrivacyMessage),
+    Privacy(modules::privacy::Message),
     Settings(modules::settings::Message),
     MediaPlayer(modules::media_player::Message),
     OutputEvent((OutputEvent, WlOutput)),
@@ -115,7 +115,7 @@ impl App {
                         .as_ref()
                         .map(|cmd| AppLauncher::new(cmd.clone())),
                     custom,
-                    updates: config.clone().updates.map(|config| Updates::new(config)),
+                    updates: config.clone().updates.map(Updates::new),
                     clipboard: config
                         .clipboard_cmd
                         .as_ref()
@@ -129,7 +129,7 @@ impl App {
                     clock: Clock::new(config.clock.clone()),
                     privacy: Privacy::default(),
                     settings: Settings::default(),
-                    media_player: MediaPlayer::default(),
+                    media_player: MediaPlayer::new(config.media_player.clone()),
                     config,
                 },
                 task,
@@ -182,8 +182,9 @@ impl App {
                 }
                 let custom = config
                     .custom_modules
-                    .iter()
-                    .map(|o| (o.name.clone(), Custom::default()))
+                    .clone()
+                    .into_iter()
+                    .map(|o| (o.name.clone(), Custom::new(o)))
                     .collect();
 
                 self.config = *config;
@@ -296,7 +297,10 @@ impl App {
                 self.clock.update(message);
                 Task::none()
             }
-            Message::Privacy(msg) => self.privacy.update(msg),
+            Message::Privacy(msg) => {
+                self.privacy.update(msg);
+                Task::none()
+            }
             Message::Settings(message) => {
                 self.settings
                     .update(message, &self.config.settings, &mut self.outputs)
@@ -329,7 +333,10 @@ impl App {
                 }
                 _ => Task::none(),
             },
-            Message::MediaPlayer(msg) => self.media_player.update(msg),
+            Message::MediaPlayer(msg) => match self.media_player.update(msg) {
+                modules::media_player::Action::None => Task::none(),
+                modules::media_player::Action::Command(task) => task.map(Message::MediaPlayer),
+            },
         }
     }
 
@@ -455,17 +462,14 @@ impl App {
                 //     MenuSize::Large,
                 //     *button_ui_ref,
                 // ),
-                // Some((MenuType::MediaPlayer, button_ui_ref)) => self.menu_wrapper(
-                //     id,
-                //     self.media_player
-                //         .menu_view(
-                //             &self.config.media_player,
-                //             self.config.appearance.menu.opacity,
-                //         )
-                //         .map(Message::MediaPlayer),
-                //     MenuSize::Large,
-                //     *button_ui_ref,
-                // ),
+                Some((MenuType::MediaPlayer, button_ui_ref)) => self.menu_wrapper(
+                    id,
+                    self.media_player
+                        .menu_view(&self.theme)
+                        .map(Message::MediaPlayer),
+                    MenuSize::Large,
+                    *button_ui_ref,
+                ),
                 Some((MenuType::SystemInfo, button_ui_ref)) => self.menu_wrapper(
                     id,
                     self.system_info.menu_view().map(Message::SystemInfo),

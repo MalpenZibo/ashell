@@ -315,9 +315,17 @@ impl App {
                 .view(id, &self.theme)
                 .map(|view| (view.map(Message::Tray), None)),
             ModuleName::Clock => Some((self.clock.view(&self.theme).map(Message::Clock), None)),
-            // ModuleName::Privacy => self.privacy.view(()),
+            ModuleName::Privacy => self
+                .privacy
+                .view(&self.theme)
+                .map(|view| (view.map(Message::Privacy), None)),
+            ModuleName::MediaPlayer => self.media_player.view(&self.theme).map(|view| {
+                (
+                    view.map(Message::MediaPlayer),
+                    Some(OnModulePress::ToggleMenu(MenuType::MediaPlayer)),
+                )
+            }),
             // ModuleName::Settings => self.settings.view(()),
-            // ModuleName::MediaPlayer => self.media_player.view(&self.config.media_player),
             _ => None,
         }
     }
@@ -357,10 +365,12 @@ impl App {
             ),
             ModuleName::Tray => Some(self.tray.subscription().map(Message::Tray)),
             ModuleName::Clock => Some(self.clock.subscription().map(Message::Clock)),
+            ModuleName::Privacy => Some(self.privacy.subscription().map(Message::Privacy)),
+            ModuleName::MediaPlayer => {
+                Some(self.media_player.subscription().map(Message::MediaPlayer))
+            }
             _ => None,
-            // ModuleName::Privacy => self.privacy.subscription(()),
             // ModuleName::Settings => self.settings.subscription(()),
-            // ModuleName::MediaPlayer => self.media_player.subscription(()),
         }
     }
 }
