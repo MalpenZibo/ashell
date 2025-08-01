@@ -36,7 +36,7 @@ itertools = "0.14"
 hex_color = { version = "3", features = ["serde"] }
 anyhow = "1"
 udev = { version = "0.9", features = ["send", "sync"] }
-toml = "0.8"
+toml = "0.9"
 freedesktop-icons = "0.3.1"
 linicon-theme = "1.2.0"
 serde_json = "1.0.140"
