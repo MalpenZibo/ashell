@@ -115,11 +115,20 @@ This will build ashell from source, but you can also use `pkgs.ashell` from nixp
 
 ## Configuration
 
+See more about all the possible configuration on the
+[website](https://malpenzibo.github.io/ashell/docs/configuration)
+
 > The following are the configuration for the `main` branch and could contain breaking changes.
 > For the tagged release you can find the configuration instruction in the corresponding README file.
-> eg: https://github.com/MalpenZibo/ashell/blob/0.5.0/README.md
+> eg: <https://github.com/MalpenZibo/ashell/blob/0.5.0/README.md>
 
 The configuration file uses the toml file format and is named `~/.config/ashell/config.toml`
+
+You can use a different file by passing the `--config-path` flag to ashell, for example:
+
+```bash
+ashell --config-path /path/to/config.toml
+```
 
 ```toml
 # Ashell log level filter, possible values "debug" | "info" | "warn" | "error". Needs reload

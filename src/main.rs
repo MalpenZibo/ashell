@@ -1,11 +1,13 @@
+use crate::config::get_config;
 use app::App;
-use config::{Config, read_config};
+use clap::{Parser, command};
 use flexi_logger::{
     Age, Cleanup, Criterion, FileSpec, LogSpecBuilder, LogSpecification, Logger, Naming,
 };
 use iced::Font;
-use log::{error, warn};
+use log::{debug, error};
 use std::panic;
+use std::path::PathBuf;
 use std::{backtrace::Backtrace, borrow::Cow};
 
 mod app;
@@ -24,6 +26,13 @@ mod utils;
 const ICON_FONT: &[u8] = include_bytes!("../assets/SymbolsNerdFont-Regular.ttf");
 const HEIGHT: u32 = 34;
 
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    #[arg(short, long, value_parser = clap::value_parser!(PathBuf))]
+    config_path: Option<PathBuf>,
+}
+
 fn get_log_spec(log_level: &str) -> LogSpecification {
     LogSpecification::env_or_parse(log_level).unwrap_or_else(|err| {
         panic!("Failed to parse log level: {err}");
@@ -32,6 +41,9 @@ fn get_log_spec(log_level: &str) -> LogSpecification {
 
 #[tokio::main]
 async fn main() -> iced::Result {
+    let args = Args::parse();
+    debug!("args: {args:?}");
+
     let logger = Logger::with(
         LogSpecBuilder::new()
             .default(log::LevelFilter::Info)
@@ -55,11 +67,10 @@ async fn main() -> iced::Result {
         error!("Panic: {info} \n {b}");
     }));
 
-    let config = read_config().unwrap_or_else(|err| {
-        error!("Failed to parse config file: {err}");
+    let (config, config_path) = get_config(args.config_path).unwrap_or_else(|err| {
+        error!("Failed to read config: {err}");
 
-        warn!("Using default config");
-        Config::default()
+        std::process::exit(1);
     });
 
     logger.set_new_spec(get_log_spec(&config.log_level));
@@ -75,5 +86,5 @@ async fn main() -> iced::Result {
         .style(App::style)
         .font(Cow::from(ICON_FONT))
         .default_font(font)
-        .run_with(App::new((logger, config)))
+        .run_with(App::new((logger, config, config_path)))
 }

@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add option to remove the airplane button
 - Add window title configuration
 - Add modes to window title module.
+- Add a optional command line parameter (`config-path`) to specify
+  the path to the configuration file
 
 ### Changed
 
@@ -29,7 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 The configuration switch from `yaml` to `toml` format. The configuration file must be updated to adapt to the new format.
 The `camelCase` format has been removed in favor of `snake_case`, which better aligns with the `toml` syntax.
 
-You could use an online tool like: https://transform.tools/yaml-to-toml but remember to change the `camelCase` to `snake_case` format.
+You could use an online tool like: <https://transform.tools/yaml-to-toml> but remember to change the `camelCase` to `snake_case` format.
 
 Now the configuration file is located in `~/.config/ashell/config.toml`
 
