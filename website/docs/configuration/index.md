@@ -19,10 +19,10 @@ See more about the [TOML format](https://toml.io/en/).
 
 ## Command line parameters
 
-You can pass a configuration file to Ashell using the `--config_path` parameter:
+You can pass a configuration file to Ashell using the `--config-path` parameter:
 
 ```bash
-ashell --config_path /path/to/config.toml
+ashell --config-path /path/to/config.toml
 ```
 
 This allows you to use a different configuration file than the default one.

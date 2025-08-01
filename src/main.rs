@@ -42,6 +42,7 @@ fn get_log_spec(log_level: &str) -> LogSpecification {
 #[tokio::main]
 async fn main() -> iced::Result {
     let args = Args::parse();
+    debug!("args: {args:?}");
 
     let logger = Logger::with(
         LogSpecBuilder::new()
@@ -66,7 +67,6 @@ async fn main() -> iced::Result {
         error!("Panic: {info} \n {b}");
     }));
 
-    debug!(" args: {args:?}");
     let (config, config_path) = get_config(args.config_path).unwrap_or_else(|err| {
         error!("Failed to read config: {err}");
 

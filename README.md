@@ -124,10 +124,10 @@ See more about all the possible configuration in the
 
 The configuration file uses the toml file format and is named `~/.config/ashell/config.toml`
 
-You can use a different file by passing the `--config_path` flag to ashell, for example:
+You can use a different file by passing the `--config-path` flag to ashell, for example:
 
 ```bash
-ashell --config_path /path/to/config.toml
+ashell --config-path /path/to/config.toml
 ```
 
 ```toml
