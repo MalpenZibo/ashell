@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: nixbuild/nix-quick-install-action@v29
+      - uses: nixbuild/nix-quick-install-action@v32
 
       - name: Restore and save Nix store
         uses: nix-community/cache-nix-action@v6
