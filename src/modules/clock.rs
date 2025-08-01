@@ -1,26 +1,26 @@
-use crate::app;
-
-use super::{Module, OnModulePress};
+use crate::{config::ClockModuleConfig, theme::AshellTheme};
 use chrono::{DateTime, Local};
 use iced::{Element, Subscription, time::every, widget::text};
 use std::time::Duration;
-
-pub struct Clock {
-    date: DateTime<Local>,
-}
-
-impl Default for Clock {
-    fn default() -> Self {
-        Self { date: Local::now() }
-    }
-}
 
 #[derive(Debug, Clone)]
 pub enum Message {
     Update,
 }
 
+pub struct Clock {
+    config: ClockModuleConfig,
+    date: DateTime<Local>,
+}
+
 impl Clock {
+    pub fn new(config: ClockModuleConfig) -> Self {
+        Self {
+            config,
+            date: Local::now(),
+        }
+    }
+
     pub fn update(&mut self, message: Message) {
         match message {
             Message::Update => {
@@ -28,22 +28,12 @@ impl Clock {
             }
         }
     }
-}
 
-impl Module for Clock {
-    type ViewData<'a> = &'a str;
-    type SubscriptionData<'a> = &'a str;
-    fn view(
-        &self,
-        format: Self::ViewData<'_>,
-    ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
-        Some((text(self.date.format(format).to_string()).into(), None))
+    pub fn view(&self, theme: &AshellTheme) -> Element<Message> {
+        text(self.date.format(&self.config.format).to_string()).into()
     }
 
-    fn subscription(
-        &self,
-        format: Self::SubscriptionData<'_>,
-    ) -> Option<Subscription<app::Message>> {
+    pub fn subscription(&self) -> Subscription<Message> {
         let second_specifiers = [
             "%S",  // Seconds (00-60)
             "%T",  // Hour:Minute:Second
@@ -52,16 +42,15 @@ impl Module for Clock {
             "%:z", // UTC offset with seconds
             "%s",  // Unix timestamp (seconds since epoch)
         ];
-        let interval = if second_specifiers.iter().any(|&spec| format.contains(spec)) {
+        let interval = if second_specifiers
+            .iter()
+            .any(|&spec| self.config.format.contains(spec))
+        {
             Duration::from_secs(1)
         } else {
             Duration::from_secs(5)
         };
 
-        Some(
-            every(interval)
-                .map(|_| Message::Update)
-                .map(app::Message::Clock),
-        )
+        every(interval).map(|_| Message::Update)
     }
 }

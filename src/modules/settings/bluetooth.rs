@@ -5,7 +5,7 @@ use crate::{
         ServiceEvent,
         bluetooth::{BluetoothData, BluetoothService, BluetoothState},
     },
-    style::ghost_button_style,
+    theme::ghost_button_style,
 };
 use iced::{
     Element, Length, Theme,
