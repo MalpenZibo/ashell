@@ -1,4 +1,4 @@
-use std::{collections::HashMap, f32::consts::PI};
+use std::{collections::HashMap, f32::consts::PI, path::PathBuf};
 
 use crate::{
     HEIGHT, centerbox,
@@ -44,7 +44,7 @@ use log::{debug, error, info, warn};
 use wayland_client::protocol::wl_output::WlOutput;
 
 pub struct App {
-    config_path: String,
+    config_path: PathBuf,
     logger: LoggerHandle,
     pub config: Config,
     pub outputs: Outputs,
@@ -90,7 +90,7 @@ pub enum Message {
 
 impl App {
     pub fn new(
-        (logger, config, config_path): (LoggerHandle, Config, String),
+        (logger, config, config_path): (LoggerHandle, Config, PathBuf),
     ) -> impl FnOnce() -> (Self, Task<Message>) {
         || {
             let (outputs, task) = Outputs::new(config.appearance.style, config.position);
@@ -163,7 +163,14 @@ impl App {
                         config.position,
                     ));
                 }
+                let custom = config
+                    .custom_modules
+                    .iter()
+                    .map(|o| (o.name.clone(), Custom::default()))
+                    .collect();
+
                 self.config = *config;
+                self.custom = custom;
                 self.logger
                     .set_new_spec(get_log_spec(&self.config.log_level));
 

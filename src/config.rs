@@ -1,20 +1,23 @@
+use crate::app::Message;
 use hex_color::HexColor;
-use iced::{
-    Color, Subscription,
-    futures::{SinkExt, StreamExt},
-    stream::channel,
-    theme::palette,
-};
-use inotify::{Event, EventMask, Inotify, WatchMask};
+use iced::futures::StreamExt;
+use iced::{Color, Subscription, futures::SinkExt, stream::channel, theme::palette};
+use inotify::EventMask;
+use inotify::Inotify;
+use inotify::WatchMask;
+use log::debug;
+use log::error;
+use log::info;
 use regex::Regex;
 use serde::{Deserialize, Deserializer, de::Visitor};
 use serde_with::DisplayFromStr;
 use serde_with::serde_as;
+use std::path::PathBuf;
 use std::{
     any::TypeId, collections::HashMap, error::Error, fs::File, io::Read, ops::Deref, path::Path,
 };
 
-use crate::app::Message;
+pub const DEFAULT_CONFIG_FILE_PATH: &str = "~/.config/ashell/config.toml";
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct UpdatesModuleConfig {
@@ -684,136 +687,158 @@ impl Default for Config {
     }
 }
 
-pub fn read_config(path: &str) -> Result<Config, Box<dyn Error + Send>> {
-    let file_path = shellexpand::tilde(path);
-    // let home_dir = env::var("HOME").expect("Could not get HOME environment variable");
-    // let expand = path.to_string_lossy
-    // let file_path = format!("{}{}", home_dir, path.as_ref().replace('~', ""));
-
-    let mut content = String::new();
-    let read_result =
-        File::open(file_path.to_string()).and_then(|mut file| file.read_to_string(&mut content));
-
-    match read_result {
-        Ok(_) => {
-            log::info!("Reading config file");
-
-            toml::from_str(&content).map_err(|e| Box::new(e) as Box<dyn Error + Send>)
+pub fn get_config(path: Option<PathBuf>) -> Result<(Config, PathBuf), Box<dyn Error + Send>> {
+    match path {
+        Some(p) => {
+            info!("Config path provided {p:?}");
+            expand_path(p).and_then(|expanded| {
+                if !expanded.exists() {
+                    Err(Box::new(std::io::Error::new(
+                        std::io::ErrorKind::NotFound,
+                        format!("Config file does not exist: {}", expanded.display()),
+                    )))
+                } else {
+                    Ok((read_config(&expanded).unwrap_or_default(), expanded))
+                }
+            })
         }
-        Err(e) => Err(Box::new(e)),
+        None => expand_path(PathBuf::from(DEFAULT_CONFIG_FILE_PATH)).map(|expanded| {
+            let parent = expanded
+                .parent()
+                .expect("Failed to get default config parent directory");
+
+            if !parent.exists() {
+                std::fs::create_dir_all(parent)
+                    .expect("Failed to create default config parent directory");
+            }
+
+            (read_config(&expanded).unwrap_or_default(), expanded)
+        }),
     }
 }
 
-pub fn subscription(path: &str) -> Subscription<Message> {
+fn expand_path(path: PathBuf) -> Result<PathBuf, Box<dyn Error + Send>> {
+    let str_path = path.to_string_lossy();
+    let expanded =
+        shellexpand::full(&str_path).map_err(|e| Box::new(e) as Box<dyn Error + Send>)?;
+
+    Ok(PathBuf::from(expanded.to_string()))
+}
+
+fn read_config(path: &Path) -> Result<Config, Box<dyn Error + Send>> {
+    let mut content = String::new();
+    let read_result = File::open(path).and_then(|mut file| file.read_to_string(&mut content));
+
+    match read_result {
+        Ok(_) => {
+            log::info!("Decoding config file {path:?}");
+
+            toml::from_str(&content).map_err(|e| Box::new(e) as Box<dyn Error + Send>)
+        }
+        Err(e) => {
+            debug!("Failed to read config file: {e}");
+
+            Err(Box::new(e))
+        }
+    }
+}
+
+enum Event {
+    Changed,
+    Removed,
+}
+
+pub fn subscription(path: &Path) -> Subscription<Message> {
     let id = TypeId::of::<Config>();
-    let path = path.to_string();
+    let path = path.to_path_buf();
 
     Subscription::run_with_id(
         id,
         channel(100, async move |mut output| {
-            // let home_dir = env::var("HOME").expect("Could not get HOME environment variable");
+            match (path.parent(), path.file_name(), Inotify::init()) {
+                (Some(folder), Some(file_name), Ok(inotify)) => {
+                    debug!("Watching config file at {path:?}");
 
-            // let file_path = format!("{}{}", home_dir, path.replace('~', ""));
-            let file_path = shellexpand::tilde(&path);
-            let file_path_string = file_path.to_string();
-            let config_file_path = Path::new(&file_path_string);
+                    let res = inotify.watches().add(
+                        folder,
+                        WatchMask::CREATE | WatchMask::DELETE | WatchMask::MOVE | WatchMask::MODIFY,
+                    );
 
-            let ashell_config_dir = config_file_path
-                .parent()
-                .expect("Failed to get ashell config directory");
-            let config_dir = ashell_config_dir
-                .parent()
-                .expect("Failed to get config directory");
+                    if let Err(e) = res {
+                        error!("Failed to add watch for {folder:?}: {e}");
+                        return;
+                    }
 
-            loop {
-                let inotify = Inotify::init().expect("Failed to initialize inotify");
+                    let buffer = [0; 1024];
+                    let stream = inotify.into_event_stream(buffer);
 
-                let mut watches = inotify.watches();
+                    if let Ok(stream) = stream {
+                        let mut stream = stream.ready_chunks(10);
 
-                if ashell_config_dir.exists() {
-                    watches
-                        .add(
-                            ashell_config_dir,
-                            WatchMask::MOVE
-                                | WatchMask::MODIFY
-                                | WatchMask::MOVE_SELF
-                                | WatchMask::CREATE
-                                | WatchMask::DELETE_SELF,
-                        )
-                        .expect("Failed to add file watch for the ashell config directory");
+                        loop {
+                            let events = stream.next().await.unwrap_or(vec![]);
 
-                    let mut buffer = [0; 1024];
-                    let mut stream = inotify
-                        .into_event_stream(&mut buffer)
-                        .expect("Failed to create event stream");
+                            let mut file_event = None;
 
-                    loop {
-                        let event = stream.next().await;
+                            for event in events {
+                                debug!("Event: {event:?}");
+                                match event {
+                                    Ok(inotify::Event {
+                                        name: Some(name),
+                                        mask: EventMask::DELETE | EventMask::MOVED_FROM,
+                                        ..
+                                    }) if file_name == name => {
+                                        debug!("File deleted or moved");
+                                        file_event = Some(Event::Removed);
+                                    }
+                                    Ok(inotify::Event {
+                                        name: Some(name),
+                                        mask:
+                                            EventMask::CREATE | EventMask::MODIFY | EventMask::MOVED_TO,
+                                        ..
+                                    }) if file_name == name => {
+                                        debug!("File created or moved");
 
-                        log::debug!("ashell config folder event: {event:?}");
-
-                        if let Some(Ok(Event { mask, name, .. })) = event {
-                            match mask {
-                                EventMask::DELETE_SELF | EventMask::MOVE_SELF => {
-                                    log::warn!("ashell config directory disappear");
-
-                                    let _ =
-                                        output.send(Message::ConfigChanged(Box::default())).await;
-
-                                    break;
-                                }
-                                _ => {
-                                    log::info!("ashell config file events: {name:?}");
-                                    if name.is_some_and(|name| name == "config.toml") {
-                                        let new_config = read_config(&path);
-                                        match new_config {
-                                            Ok(new_config) => {
-                                                let _ = output
-                                                    .send(Message::ConfigChanged(Box::new(
-                                                        new_config,
-                                                    )))
-                                                    .await;
-                                            }
-                                            Err(err) => {
-                                                log::warn!("Failed to read config file: {err:?}");
-                                            }
-                                        }
+                                        file_event = Some(Event::Changed);
+                                    }
+                                    _ => {
+                                        debug!("Ignoring event");
                                     }
                                 }
                             }
-                        }
-                    }
-                } else {
-                    watches
-                        .add(config_dir, WatchMask::CREATE | WatchMask::MOVED_TO)
-                        .expect("Failed to add file watch for the config directory");
 
-                    let mut buffer = [0; 1024];
-                    let mut stream = inotify
-                        .into_event_stream(&mut buffer)
-                        .expect("Failed to create event stream");
+                            match file_event {
+                                Some(Event::Changed) => {
+                                    info!("Reload config file");
 
-                    let event = stream.next().await;
+                                    let new_config = read_config(&path).unwrap_or_default();
 
-                    log::debug!("Config folder event: {event:?}");
-
-                    if let Some(Ok(_)) = event {
-                        if config_file_path.exists() {
-                            log::info!("Config file created");
-
-                            let new_config = read_config(&path);
-                            match new_config {
-                                Ok(new_config) => {
                                     let _ = output
                                         .send(Message::ConfigChanged(Box::new(new_config)))
                                         .await;
                                 }
-                                Err(err) => {
-                                    log::warn!("Failed to read config file: {err:?}");
+                                Some(Event::Removed) => {
+                                    info!("Config file removed");
+                                    let _ =
+                                        output.send(Message::ConfigChanged(Box::default())).await;
+                                }
+                                None => {
+                                    debug!("No relevant file event detected.");
                                 }
                             }
                         }
                     }
+                }
+                (None, _, _) => {
+                    error!(
+                        "Config file path does not have a parent directory, cannot watch for changes"
+                    );
+                }
+                (_, None, _) => {
+                    error!("Config file path does not have a file name, cannot watch for changes");
+                }
+                (_, _, Err(e)) => {
+                    error!("Failed to initialize inotify: {e}");
                 }
             }
         }),

@@ -1,12 +1,13 @@
+use crate::config::get_config;
 use app::App;
 use clap::{Parser, command};
-use config::{Config, read_config};
 use flexi_logger::{
     Age, Cleanup, Criterion, FileSpec, LogSpecBuilder, LogSpecification, Logger, Naming,
 };
 use iced::Font;
-use log::{error, warn};
+use log::{debug, error};
 use std::panic;
+use std::path::PathBuf;
 use std::{backtrace::Backtrace, borrow::Cow};
 
 mod app;
@@ -28,8 +29,8 @@ const HEIGHT: u32 = 34;
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-    #[arg(short, long, default_value = "~/.config/ashell/config.toml")]
-    config_path: String,
+    #[arg(short, long, value_parser = clap::value_parser!(PathBuf))]
+    config_path: Option<PathBuf>,
 }
 
 fn get_log_spec(log_level: &str) -> LogSpecification {
@@ -65,13 +66,11 @@ async fn main() -> iced::Result {
         error!("Panic: {info} \n {b}");
     }));
 
-    println!(" args: {args:?}");
+    debug!(" args: {args:?}");
+    let (config, config_path) = get_config(args.config_path).unwrap_or_else(|err| {
+        error!("Failed to read config: {err}");
 
-    let config = read_config(&args.config_path).unwrap_or_else(|err| {
-        error!("Failed to parse config file: {err}");
-
-        warn!("Using default config");
-        Config::default()
+        std::process::exit(1);
     });
 
     logger.set_new_spec(get_log_spec(&config.log_level));
@@ -87,5 +86,5 @@ async fn main() -> iced::Result {
         .style(App::style)
         .font(Cow::from(ICON_FONT))
         .default_font(font)
-        .run_with(App::new((logger, config, args.config_path)))
+        .run_with(App::new((logger, config, config_path)))
 }
