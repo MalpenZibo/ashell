@@ -1657,9 +1657,9 @@ checksum = "aa9a19cbb55df58761df49b23516a86d432839add4af60fc256da840f66ed35b"
 
 [[package]]
 name = "freedesktop-icons"
-version = "0.3.1"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72e592df580f8f0e7c48135383e9c0e0d18d9de346b95f9839857fe27a67ad47"
+checksum = "95f87364ea709292a3b3f74014ce3ee78412c89807eea75a358c8e029b000994"
 dependencies = [
  "dirs",
  "ini_core",
