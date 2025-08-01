@@ -1,0 +1,19 @@
+version: 2
+updates:
+  # Rust (Cargo)
+  - package-ecosystem: cargo
+    directory: "/" 
+    schedule:
+      interval: weekly
+      
+  # NPM
+  - package-ecosystem: npm
+    directory: "/website"
+    schedule:
+      interval: weekly
+      
+  # GitHub Actions
+  - package-ecosystem: github-actions
+    directory: "/" 
+    schedule:
+      interval: weekly
