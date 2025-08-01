@@ -39,7 +39,7 @@ udev = { version = "0.9", features = ["send", "sync"] }
 toml = "0.8"
 freedesktop-icons = "0.3.1"
 linicon-theme = "1.2.0"
-serde_json = "1.0.140"
+serde_json = "1.0.142"
 regex = "1.11.1"
 serde_with = "3.12.0"
 tokio-stream = "0.1.17"
