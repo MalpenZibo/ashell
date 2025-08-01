@@ -17,7 +17,7 @@ immediately—so you can tweak the configuration while Ashell is running.
 
 See more about the [TOML format](https://toml.io/en/).
 
-## Command line parameters
+## Command-line parameters
 
 You can pass a configuration file to Ashell using the `--config-path` parameter:
 
@@ -25,6 +25,6 @@ You can pass a configuration file to Ashell using the `--config-path` parameter:
 ashell --config-path /path/to/config.toml
 ```
 
-This allows you to use a different configuration file than the default one.
+This allows you to use a different configuration file instead of the default one.
 
 Ashell will still watch this file for changes and apply updates immediately.

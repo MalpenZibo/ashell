@@ -115,7 +115,7 @@ This will build ashell from source, but you can also use `pkgs.ashell` from nixp
 
 ## Configuration
 
-See more about all the possible configuration in the
+See more about all the possible configuration on the
 [website](https://malpenzibo.github.io/ashell/docs/configuration)
 
 > The following are the configuration for the `main` branch and could contain breaking changes.
