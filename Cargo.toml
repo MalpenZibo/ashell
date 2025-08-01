@@ -22,13 +22,13 @@ iced = { git = "https://github.com/MalpenZibo/iced", features = [
 chrono = "0.4"
 hyprland = "0.4.0-beta.2"
 serde = "1.0"
-sysinfo = "0.33"
+sysinfo = "0.36"
 tokio = { version = "1", features = ["full"] }
 zbus = { version = "5", default-features = false, features = ["tokio"] }
 libpulse-binding = { version = "2.28", features = ["pa_v15"] }
 inotify = "0.11"
 log = { version = "0.4", features = ["serde"] }
-flexi_logger = "0.29"
+flexi_logger = "0.31"
 pipewire = "0.8"
 wayland-client = "0.31.5"
 wayland-protocols = { version = "0.32.3", features = ["client", "unstable"] }
@@ -36,10 +36,10 @@ itertools = "0.14"
 hex_color = { version = "3", features = ["serde"] }
 anyhow = "1"
 udev = { version = "0.9", features = ["send", "sync"] }
-toml = "0.8"
-freedesktop-icons = "0.3.1"
+toml = "0.9"
+freedesktop-icons = "0.4"
 linicon-theme = "1.2.0"
-serde_json = "1.0.140"
+serde_json = "1"
 regex = "1.11.1"
 serde_with = "3.12.0"
 tokio-stream = "0.1.17"
