@@ -22,7 +22,7 @@ iced = { git = "https://github.com/MalpenZibo/iced", features = [
 chrono = "0.4"
 hyprland = "0.4.0-beta.2"
 serde = "1.0"
-sysinfo = "0.33"
+sysinfo = "0.35"
 tokio = { version = "1", features = ["full"] }
 zbus = { version = "5", default-features = false, features = ["tokio"] }
 libpulse-binding = { version = "2.28", features = ["pa_v15"] }
