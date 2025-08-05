@@ -6,7 +6,7 @@ use crate::services::{
 use super::{AccessPoint, ActiveConnectionInfo, KnownConnection, Vpn};
 use iced::futures::{Stream, StreamExt, stream::select_all};
 use itertools::Itertools;
-use log::debug;
+use log::{debug, warn};
 use std::{collections::HashMap, ops::Deref};
 use tokio::process::Command;
 use zbus::{
@@ -540,7 +540,11 @@ impl NetworkDbus<'_> {
                 .path(c.clone())?
                 .build()
                 .await?;
-            let s = cs.get_settings().await.unwrap();
+            let Ok(s) = cs.get_settings().await else {
+                warn!("Failed to get settings for connection {}", c);
+                continue;
+            };
+
             let wifi = s.get("802-11-wireless");
 
             if wifi.is_some() {
