@@ -69,13 +69,30 @@ And in your `configuration.nix`:
 { pkgs, inputs, ... }:
 
 {
-  environment.systemPackages = [inputs.ashell.defaultPackage.${pkgs.system}];
+  environment.systemPackages = [inputs.ashell.packages.${pkgs.system}.default];
   # or home.packages = ...
 }
 ```
 
-This will build Ashell from source.  
+This will build Ashell from source.
 Alternatively, you can use `pkgs.ashell` from `nixpkgs`, which is cached.
+
+You can also use the Home Manager module:
+
+```nix
+{ pkgs, inputs, ... }:
+
+{
+  imports = [inputs.ashell.modules.homeManager.ashell];
+  services.ashell = {
+    enable = true;
+    # package = pkgs.ashell; # to use the chached package from nixpkgs
+    settings = {
+      # ... your configuration as a nix attrset
+    };
+  };
+}
+```
 
 ## Building from Source
 
