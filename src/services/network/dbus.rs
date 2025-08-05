@@ -541,7 +541,7 @@ impl NetworkDbus<'_> {
                 .build()
                 .await?;
             let Ok(s) = cs.get_settings().await else {
-                warn!("Failed to get settings for connection {}", c);
+                warn!("Failed to get settings for connection {c}");
                 continue;
             };
 
