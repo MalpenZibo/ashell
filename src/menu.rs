@@ -44,7 +44,7 @@ impl Menu {
 
         Task::batch(vec![
             set_layer(self.id, Layer::Overlay),
-            set_keyboard_interactivity(self.id, KeyboardInteractivity::None),
+            set_keyboard_interactivity(self.id, KeyboardInteractivity::OnDemand),
         ])
     }
 

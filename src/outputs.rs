@@ -82,7 +82,7 @@ impl Outputs {
             size: Some((None, Some(height as u32))),
             layer: Layer::Bottom,
             pointer_interactivity: true,
-            keyboard_interactivity: KeyboardInteractivity::None,
+            keyboard_interactivity: KeyboardInteractivity::OnDemand,
             exclusive_zone: height as i32,
             output: wl_output.clone().map_or(IcedOutput::Active, |wl_output| {
                 IcedOutput::Output(wl_output)
@@ -479,6 +479,25 @@ impl Outputs {
                 .map(|(_, shell_info, _)| {
                     if let Some(shell_info) = shell_info {
                         shell_info.menu.close_if(menu_type.clone())
+                    } else {
+                        Task::none()
+                    }
+                })
+                .collect::<Vec<_>>(),
+        )
+    }
+
+    pub fn close_all_menus<Message: 'static>(&mut self) -> Task<Message> {
+        Task::batch(
+            self.0
+                .iter_mut()
+                .map(|(_, shell_info, _)| {
+                    if let Some(shell_info) = shell_info {
+                        if shell_info.menu.menu_info.is_some() {
+                            shell_info.menu.close()
+                        } else {
+                            Task::none()
+                        }
                     } else {
                         Task::none()
                     }

@@ -37,6 +37,7 @@ use iced::{
         wayland::{Event as WaylandEvent, OutputEvent},
     },
     gradient::Linear,
+    keyboard,
     widget::{Row, container},
     window::Id,
 };
@@ -70,6 +71,7 @@ pub enum Message {
     ConfigChanged(Box<Config>),
     ToggleMenu(MenuType, Id, ButtonUIRef),
     CloseMenu(Id),
+    CloseAllMenus,
     OpenLauncher,
     OpenClipboard,
     Updates(modules::updates::Message),
@@ -222,6 +224,13 @@ impl App {
                 Task::batch(cmd)
             }
             Message::CloseMenu(id) => self.outputs.close_menu(id),
+            Message::CloseAllMenus => {
+                if self.outputs.menu_is_open() {
+                    self.outputs.close_all_menus()
+                } else {
+                    Task::none()
+                }
+            }
             Message::Updates(message) => {
                 if let Some(updates_config) = self.config.updates.as_ref() {
                     self.updates
@@ -516,6 +525,15 @@ impl App {
                 )) => {
                     debug!("Wayland event: {event:?}");
                     Some(Message::OutputEvent((event, wl_output)))
+                }
+                iced::Event::Keyboard(keyboard::Event::KeyPressed { key, .. }) => {
+                    debug!("Keyboard event received: {:?}", key);
+                    if matches!(key, keyboard::Key::Named(keyboard::key::Named::Escape)) {
+                        debug!("ESC key pressed, closing all menus");
+                        Some(Message::CloseAllMenus)
+                    } else {
+                        None
+                    }
                 }
                 _ => None,
             }),
