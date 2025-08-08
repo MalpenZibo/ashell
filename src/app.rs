@@ -527,7 +527,7 @@ impl App {
                     Some(Message::OutputEvent((event, wl_output)))
                 }
                 iced::Event::Keyboard(keyboard::Event::KeyPressed { key, .. }) => {
-                    debug!("Keyboard event received: {:?}", key);
+                    debug!("Keyboard event received: {key:?}");
                     if matches!(key, keyboard::Key::Named(keyboard::key::Named::Escape)) {
                         debug!("ESC key pressed, closing all menus");
                         Some(Message::CloseAllMenus)
