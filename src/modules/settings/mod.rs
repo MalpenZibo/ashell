@@ -627,12 +627,12 @@ impl Settings {
 }
 
 impl Module for Settings {
-    type ViewData<'a> = ();
+    type ViewData<'a> = f32;
     type SubscriptionData<'a> = ();
 
     fn view(
         &self,
-        _: Self::ViewData<'_>,
+        scale: Self::ViewData<'_>,
     ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         Some((
             Row::new()
@@ -641,37 +641,41 @@ impl Module for Settings {
                         .as_ref()
                         .filter(|i| i.is_inhibited())
                         .map(|_| {
-                            container(icon(Icons::EyeOpened)).style(|theme: &Theme| {
-                                container::Style {
+                            container(icon(Icons::EyeOpened).size(16. * scale)).style(
+                                |theme: &Theme| container::Style {
                                     text_color: Some(theme.palette().danger),
                                     ..Default::default()
-                                }
-                            })
+                                },
+                            )
                         }),
                 )
                 .push_maybe(
                     self.upower
                         .as_ref()
-                        .and_then(|p| p.power_profile.indicator()),
+                        .and_then(|p| p.power_profile.indicator(scale)),
                 )
-                .push_maybe(self.audio.as_ref().and_then(|a| a.sink_indicator()))
+                .push_maybe(self.audio.as_ref().and_then(|a| a.sink_indicator(scale)))
                 .push(
                     Row::new()
                         .push_maybe(
                             self.network
                                 .as_ref()
-                                .and_then(|n| n.get_connection_indicator()),
+                                .and_then(|n| n.get_connection_indicator(scale)),
                         )
-                        .push_maybe(self.network.as_ref().and_then(|n| n.get_vpn_indicator()))
-                        .spacing(4),
+                        .push_maybe(
+                            self.network
+                                .as_ref()
+                                .and_then(|n| n.get_vpn_indicator(scale)),
+                        )
+                        .spacing(4. * scale),
                 )
                 .push_maybe(
                     self.upower
                         .as_ref()
                         .and_then(|upower| upower.battery)
-                        .map(|battery| battery.indicator()),
+                        .map(|battery| battery.indicator(scale)),
                 )
-                .spacing(8)
+                .spacing(8. * scale)
                 .into(),
             Some(OnModulePress::ToggleMenu(MenuType::Settings)),
         ))

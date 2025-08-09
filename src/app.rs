@@ -1,7 +1,7 @@
 use std::{collections::HashMap, f32::consts::PI, path::PathBuf};
 
 use crate::{
-    HEIGHT, centerbox,
+    get_height, centerbox,
     config::{self, AppearanceStyle, Config, Position},
     get_log_spec,
     menu::{MenuSize, MenuType, menu_wrapper},
@@ -93,7 +93,7 @@ impl App {
         (logger, config, config_path): (LoggerHandle, Config, PathBuf),
     ) -> impl FnOnce() -> (Self, Task<Message>) {
         || {
-            let (outputs, task) = Outputs::new(config.appearance.style, config.position);
+            let (outputs, task) = Outputs::new(config.appearance.style, config.position, config.appearance.scale);
 
             let custom = config
                 .custom_modules
@@ -161,6 +161,7 @@ impl App {
                         config.appearance.style,
                         &config.outputs,
                         config.position,
+                        config.appearance.scale,
                     ));
                 }
                 let custom = config
@@ -299,6 +300,7 @@ impl App {
                         self.config.position,
                         name,
                         wl_output,
+                        self.config.appearance.scale,
                     )
                 }
                 iced::event::wayland::OutputEvent::Removed => {
@@ -307,6 +309,7 @@ impl App {
                         self.config.appearance.style,
                         self.config.position,
                         wl_output,
+                        self.config.appearance.scale,
                     )
                 }
                 _ => Task::none(),
@@ -322,16 +325,19 @@ impl App {
                     &self.config.modules.left,
                     id,
                     self.config.appearance.opacity,
+                    self.config.appearance.scale,
                 );
                 let center = self.modules_section(
                     &self.config.modules.center,
                     id,
                     self.config.appearance.opacity,
+                    self.config.appearance.scale,
                 );
                 let right = self.modules_section(
                     &self.config.modules.right,
                     id,
                     self.config.appearance.opacity,
+                    self.config.appearance.scale,
                 );
 
                 let centerbox = centerbox::Centerbox::new([left, center, right])
@@ -340,9 +346,9 @@ impl App {
                     .align_items(Alignment::Center)
                     .height(
                         if self.config.appearance.style == AppearanceStyle::Islands {
-                            HEIGHT
+                            get_height(self.config.appearance.scale)
                         } else {
-                            HEIGHT - 8
+                            get_height(self.config.appearance.scale) - 8.
                         } as f32,
                     )
                     .padding(
@@ -423,7 +429,7 @@ impl App {
                 Some((MenuType::Updates, button_ui_ref)) => menu_wrapper(
                     id,
                     self.updates
-                        .menu_view(id, self.config.appearance.menu.opacity)
+                        .menu_view(id, self.config.appearance.menu.opacity, self.config.appearance.scale)
                         .map(Message::Updates),
                     MenuSize::Small,
                     *button_ui_ref,
@@ -478,7 +484,7 @@ impl App {
                 ),
                 Some((MenuType::SystemInfo, button_ui_ref)) => menu_wrapper(
                     id,
-                    self.system_info.menu_view().map(Message::SystemInfo),
+                    self.system_info.menu_view(self.config.appearance.scale).map(Message::SystemInfo),
                     MenuSize::Medium,
                     *button_ui_ref,
                     self.config.position,

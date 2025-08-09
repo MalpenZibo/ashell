@@ -172,11 +172,11 @@ impl SystemInfo {
         }
     }
 
-    fn info_element<'a>(info_icon: Icons, label: String, value: String) -> Element<'a, Message> {
+    fn info_element<'a>(info_icon: Icons, label: String, value: String, scale: f32) -> Element<'a, Message> {
         row!(
-            container(icon(info_icon).size(22)).center_x(Length::Fixed(32.)),
-            text(label).width(Length::Fill),
-            text(value)
+            container(icon(info_icon).size(16.0*scale)).center_x(Length::Fixed(22.0*scale)),
+            text(label).width(Length::Fill).size(10. * scale),
+            text(value).size(10. * scale)
         )
         .align_y(Alignment::Center)
         .spacing(8)
@@ -189,17 +189,18 @@ impl SystemInfo {
         unit: &str,
         threshold: Option<(V, V)>,
         prefix: Option<&str>,
+        scale: f32,
     ) -> Element<'a, app::Message> {
         let element = container(
             row!(
-                icon(info_icon),
+                icon(info_icon).size(14. * scale),
                 if let Some(prefix) = prefix {
-                    text(format!("{prefix} {value}{unit}"))
+                    container(text(format!("{prefix} {value}{unit}")).size(12. * scale)).padding([1. * scale, 0., 0., 0.])
                 } else {
-                    text(format!("{value}{unit}"))
+                    container(text(format!("{value}{unit}")).size(12. * scale)).padding([1. * scale, 0., 0., 0.])
                 }
             )
-            .spacing(4),
+            .spacing(4. * scale),
         );
 
         if let Some((warn_threshold, alert_threshold)) = threshold {
@@ -220,28 +221,31 @@ impl SystemInfo {
         }
     }
 
-    pub fn menu_view(&self) -> Element<Message> {
+    pub fn menu_view(&self, scale: f32) -> Element<Message> {
         column!(
-            text("System Info").size(20),
+            text("System Info").size(14.0*scale),
             horizontal_rule(1),
             Column::new()
                 .push(Self::info_element(
                     Icons::Cpu,
                     "CPU Usage".to_string(),
                     format!("{}%", self.data.cpu_usage),
+                    scale,
                 ))
                 .push(Self::info_element(
                     Icons::Mem,
                     "Memory Usage".to_string(),
                     format!("{}%", self.data.memory_usage),
+                    scale,
                 ))
                 .push(Self::info_element(
                     Icons::Mem,
                     "Swap memory Usage".to_string(),
                     format!("{}%", self.data.memory_swap_usage),
+                    scale,
                 ))
                 .push_maybe(self.data.temperature.map(|temp| {
-                    Self::info_element(Icons::Temp, "Temperature".to_string(), format!("{temp}°C"))
+                    Self::info_element(Icons::Temp, "Temperature".to_string(), format!("{temp}°C"), scale)
                 }))
                 .push(
                     Column::with_children(
@@ -253,6 +257,7 @@ impl SystemInfo {
                                     Icons::Drive,
                                     format!("Disk Usage {mount_point}"),
                                     format!("{usage}%"),
+                                    scale,
                                 )
                             })
                             .collect::<Vec<Element<_>>>(),
@@ -265,6 +270,7 @@ impl SystemInfo {
                             Icons::IpAddress,
                             "IP Address".to_string(),
                             network.ip.clone(),
+                            scale,
                         ),
                         Self::info_element(
                             Icons::DownloadSpeed,
@@ -274,6 +280,7 @@ impl SystemInfo {
                             } else {
                                 format!("{} KB/s", network.download_speed)
                             },
+                            scale,
                         ),
                         Self::info_element(
                             Icons::UploadSpeed,
@@ -283,6 +290,7 @@ impl SystemInfo {
                             } else {
                                 format!("{} KB/s", network.upload_speed)
                             },
+                            scale,
                         ),
                     ])
                 }))
@@ -295,12 +303,12 @@ impl SystemInfo {
 }
 
 impl Module for SystemInfo {
-    type ViewData<'a> = &'a SystemModuleConfig;
+    type ViewData<'a> = (&'a SystemModuleConfig, f32);
     type SubscriptionData<'a> = ();
 
     fn view(
         &self,
-        config: Self::ViewData<'_>,
+        (config, scale): Self::ViewData<'_>,
     ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         let indicators = config.indicators.iter().filter_map(|i| match i {
             SystemIndicator::Cpu => Some(Self::indicator_info_element(
@@ -309,6 +317,7 @@ impl Module for SystemInfo {
                 "%",
                 Some((config.cpu.warn_threshold, config.cpu.alert_threshold)),
                 None,
+                scale,
             )),
             SystemIndicator::Memory => Some(Self::indicator_info_element(
                 Icons::Mem,
@@ -316,6 +325,7 @@ impl Module for SystemInfo {
                 "%",
                 Some((config.memory.warn_threshold, config.memory.alert_threshold)),
                 None,
+                scale,
             )),
             SystemIndicator::MemorySwap => Some(Self::indicator_info_element(
                 Icons::Mem,
@@ -323,6 +333,7 @@ impl Module for SystemInfo {
                 "%",
                 Some((config.memory.warn_threshold, config.memory.alert_threshold)),
                 Some("swap"),
+                scale,
             )),
             SystemIndicator::Temperature => self.data.temperature.map(|temperature| {
                 Self::indicator_info_element(
@@ -334,6 +345,7 @@ impl Module for SystemInfo {
                         config.temperature.alert_threshold,
                     )),
                     None,
+                    scale,
                 )
             }),
             SystemIndicator::Disk(mount) => {
@@ -345,6 +357,7 @@ impl Module for SystemInfo {
                             "%",
                             Some((config.disk.warn_threshold, config.disk.alert_threshold)),
                             Some(disk_mount),
+                            scale,
                         ))
                     } else {
                         None
@@ -358,6 +371,7 @@ impl Module for SystemInfo {
                     "",
                     None,
                     None,
+                    scale,
                 )
             }),
             SystemIndicator::DownloadSpeed => self.data.network.as_ref().map(|network| {
@@ -375,6 +389,7 @@ impl Module for SystemInfo {
                     },
                     None,
                     None,
+                    scale,
                 )
             }),
             SystemIndicator::UploadSpeed => self.data.network.as_ref().map(|network| {
@@ -392,6 +407,7 @@ impl Module for SystemInfo {
                     },
                     None,
                     None,
+                    scale,
                 )
             }),
         });
@@ -399,7 +415,7 @@ impl Module for SystemInfo {
         Some((
             Row::with_children(indicators)
                 .align_y(Alignment::Center)
-                .spacing(4)
+                .spacing(10.*scale)
                 .into(),
             Some(OnModulePress::ToggleMenu(MenuType::SystemInfo)),
         ))

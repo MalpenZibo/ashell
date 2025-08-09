@@ -24,7 +24,10 @@ mod style;
 mod utils;
 
 const ICON_FONT: &[u8] = include_bytes!("../assets/SymbolsNerdFont-Regular.ttf");
-const HEIGHT: u32 = 34;
+
+fn get_height(scale: f32) -> f32 {
+    30. * scale + (4.*scale)   // min-size + scale + (padidng*scale)
+}
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]

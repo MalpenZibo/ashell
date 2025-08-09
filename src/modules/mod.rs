@@ -54,17 +54,18 @@ impl App {
         modules_def: &Vec<ModuleDef>,
         id: Id,
         opacity: f32,
+        scale: f32,
     ) -> Element<Message> {
         let mut row = row!()
             .height(Length::Shrink)
             .align_y(Alignment::Center)
-            .spacing(4);
+            .spacing(4. * scale);
 
         for module_def in modules_def {
             row = row.push_maybe(match module_def {
                 // life parsing of string to module
-                ModuleDef::Single(module) => self.single_module_wrapper(module, id, opacity),
-                ModuleDef::Group(group) => self.group_module_wrapper(group, id, opacity),
+                ModuleDef::Single(module) => self.single_module_wrapper(module, id, opacity, scale),
+                ModuleDef::Group(group) => self.group_module_wrapper(group, id, opacity, scale),
             });
         }
 
@@ -92,8 +93,9 @@ impl App {
         module_name: &ModuleName,
         id: Id,
         opacity: f32,
+        scale: f32,
     ) -> Option<Element<Message>> {
-        let module = self.get_module_view(module_name, id, opacity);
+        let module = self.get_module_view(module_name, id, opacity, scale);
 
         module.map(|(content, action)| match action {
             Some(action) => {
@@ -102,7 +104,7 @@ impl App {
                         .align_y(Alignment::Center)
                         .height(Length::Fill),
                 )
-                .padding([2, 8])
+                .padding([2. * scale, 8. * scale])
                 .height(Length::Fill)
                 .style(module_button_style(
                     self.config.appearance.style,
@@ -122,8 +124,8 @@ impl App {
             }
             _ => {
                 let container = container(content)
-                    .padding([2, 8])
-                    .height(Length::Fill)
+                .padding([2. * scale, 8. * scale])
+                .height(Length::Fill)
                     .align_y(Alignment::Center);
 
                 match self.config.appearance.style {
@@ -155,10 +157,11 @@ impl App {
         group: &[ModuleName],
         id: Id,
         opacity: f32,
+        scale: f32,
     ) -> Option<Element<Message>> {
         let modules = group
             .iter()
-            .filter_map(|module| self.get_module_view(module, id, opacity))
+            .filter_map(|module| self.get_module_view(module, id, opacity, scale))
             .collect::<Vec<_>>();
 
         if modules.is_empty() {
@@ -175,7 +178,7 @@ impl App {
                                         .align_y(Alignment::Center)
                                         .height(Length::Fill),
                                 )
-                                .padding([2, 8])
+                                .padding([2. * scale, 8. * scale])
                                 .height(Length::Fill)
                                 .style(module_button_style(
                                     self.config.appearance.style,
@@ -197,8 +200,8 @@ impl App {
                                 .into()
                             }
                             _ => container(content)
-                                .padding([2, 8])
-                                .height(Length::Fill)
+                            .padding([2. * scale, 8. * scale])
+                            .height(Length::Fill)
                                 .align_y(Alignment::Center)
                                 .into(),
                         })
@@ -234,6 +237,7 @@ impl App {
         module_name: &ModuleName,
         id: Id,
         opacity: f32,
+        scale: f32,
     ) -> Option<(Element<Message>, Option<OnModulePress>)> {
         match module_name {
             ModuleName::AppLauncher => self.app_launcher.view(&self.config.app_launcher_cmd),
@@ -242,29 +246,30 @@ impl App {
                 .custom_modules
                 .iter()
                 .find(|m| &m.name == name)
-                .and_then(|mc| self.custom.get(name).map(|cm| cm.view(mc)))
+                .and_then(|mc| self.custom.get(name).map(|cm| cm.view((mc, scale))))
                 .unwrap_or_else(|| {
                     error!("Custom module `{name}` not found");
                     None
                 }),
             ModuleName::Updates => self.updates.view(&self.config.updates),
-            ModuleName::Clipboard => self.clipboard.view(&self.config.clipboard_cmd),
+            ModuleName::Clipboard => self.clipboard.view((&self.config.clipboard_cmd, scale)),
             ModuleName::Workspaces => self.workspaces.view((
                 &self.outputs,
                 id,
                 &self.config.workspaces,
                 &self.config.appearance.workspace_colors,
                 self.config.appearance.special_workspace_colors.as_deref(),
+                scale,
             )),
-            ModuleName::WindowTitle => self.window_title.view(()),
-            ModuleName::SystemInfo => self.system_info.view(&self.config.system),
-            ModuleName::KeyboardLayout => self.keyboard_layout.view(&self.config.keyboard_layout),
-            ModuleName::KeyboardSubmap => self.keyboard_submap.view(()),
-            ModuleName::Tray => self.tray.view((id, opacity)),
-            ModuleName::Clock => self.clock.view(&self.config.clock.format),
-            ModuleName::Privacy => self.privacy.view(()),
-            ModuleName::Settings => self.settings.view(()),
-            ModuleName::MediaPlayer => self.media_player.view(&self.config.media_player),
+            ModuleName::WindowTitle => self.window_title.view(scale),
+            ModuleName::SystemInfo => self.system_info.view((&self.config.system, scale)),
+            ModuleName::KeyboardLayout => self.keyboard_layout.view((&self.config.keyboard_layout, scale)),
+            ModuleName::KeyboardSubmap => self.keyboard_submap.view(scale),
+            ModuleName::Tray => self.tray.view((id, opacity, scale)),
+            ModuleName::Clock => self.clock.view((&self.config.clock.format, scale)),
+            ModuleName::Privacy => self.privacy.view(scale),
+            ModuleName::Settings => self.settings.view(scale),
+            ModuleName::MediaPlayer => self.media_player.view((&self.config.media_player, scale)),
         }
     }
 

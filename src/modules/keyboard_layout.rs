@@ -75,12 +75,12 @@ impl KeyboardLayout {
 }
 
 impl Module for KeyboardLayout {
-    type ViewData<'a> = &'a KeyboardLayoutModuleConfig;
+    type ViewData<'a> = (&'a KeyboardLayoutModuleConfig, f32);
     type SubscriptionData<'a> = ();
 
     fn view(
         &self,
-        config: Self::ViewData<'_>,
+        (config, scale): Self::ViewData<'_>,
     ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         if !self.multiple_layout {
             None
@@ -90,7 +90,7 @@ impl Module for KeyboardLayout {
                 None => self.active.clone(),
             };
             Some((
-                text(active).into(),
+                text(active).size(12. * scale).into(),
                 Some(OnModulePress::Action(Box::new(
                     app::Message::KeyboardLayout(Message::ChangeLayout),
                 ))),

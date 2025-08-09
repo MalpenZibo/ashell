@@ -149,7 +149,7 @@ impl Updates {
         }
     }
 
-    pub fn menu_view(&self, id: Id, opacity: f32) -> Element<Message> {
+    pub fn menu_view(&self, id: Id, opacity: f32, scale: f32) -> Element<Message> {
         column!(
             if self.updates.is_empty() {
                 convert::Into::<Element<'_, _, _>>::into(
@@ -181,7 +181,7 @@ impl Updates {
                                     .map(|update| {
                                         column!(
                                             text(update.package.clone())
-                                                .size(10)
+                                                .size(10. * scale)
                                                 .width(Length::Fill),
                                             text(format!(
                                                 "{} -> {}",
@@ -200,7 +200,7 @@ impl Updates {
                                             ))
                                             .width(Length::Fill)
                                             .align_x(Horizontal::Right)
-                                            .size(10)
+                                            .size(10. * scale)
                                         )
                                         .into()
                                     })

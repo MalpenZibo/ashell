@@ -148,24 +148,24 @@ impl MediaPlayer {
 }
 
 impl Module for MediaPlayer {
-    type ViewData<'a> = &'a MediaPlayerModuleConfig;
+    type ViewData<'a> = (&'a MediaPlayerModuleConfig, f32);
     type SubscriptionData<'a> = ();
 
     fn view(
         &self,
-        config: Self::ViewData<'_>,
+        (config, scale): Self::ViewData<'_>,
     ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         self.service.as_ref().and_then(|s| match s.len() {
             0 => None,
             _ => Some((
                 row![
-                    icon(Icons::MusicNote),
+                    icon(Icons::MusicNote).size(16. * scale),
                     text(Self::get_title(&s[0], config))
                         .wrapping(text::Wrapping::WordOrGlyph)
-                        .size(12)
+                        .size(12. * scale)
                 ]
                 .align_y(Vertical::Center)
-                .spacing(8)
+                .spacing(8. * scale)
                 .into(),
                 Some(OnModulePress::ToggleMenu(MenuType::MediaPlayer)),
             )),
