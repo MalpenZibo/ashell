@@ -10,16 +10,16 @@ use super::{Module, OnModulePress};
 pub struct Clipboard;
 
 impl Module for Clipboard {
-    type ViewData<'a> = &'a Option<String>;
+    type ViewData<'a> = (&'a Option<String>, f32);
     type SubscriptionData<'a> = ();
 
     fn view(
         &self,
-        config: Self::ViewData<'_>,
+        (config, scale): Self::ViewData<'_>,
     ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         if config.is_some() {
             Some((
-                icon(Icons::Clipboard).into(),
+                icon(Icons::Clipboard).size(16. * scale).into(),
                 Some(OnModulePress::Action(Box::new(app::Message::OpenClipboard))),
             ))
         } else {

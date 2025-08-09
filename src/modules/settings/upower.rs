@@ -20,14 +20,17 @@ pub enum UPowerMessage {
 }
 
 impl BatteryData {
-    pub fn indicator<'a, Message: 'static>(&self) -> Element<'a, Message> {
+    pub fn indicator<'a, Message: 'static>(&self, scale: f32) -> Element<'a, Message> {
         let icon_type = self.get_icon();
         let state = self.get_indicator_state();
 
         container(
-            row!(icon(icon_type), text(format!("{}%", self.capacity)))
-                .spacing(4)
-                .align_y(Alignment::Center),
+            row!(
+                icon(icon_type).size(16. * scale),
+                text(format!("{}%", self.capacity)).size(16. * scale)
+            )
+            .spacing(4. * scale)
+            .align_y(Alignment::Center),
         )
         .style(move |theme: &Theme| container::Style {
             text_color: Some(match state {
@@ -75,11 +78,11 @@ impl BatteryData {
 }
 
 impl PowerProfile {
-    pub fn indicator<Message: 'static>(&self) -> Option<Element<Message>> {
+    pub fn indicator<Message: 'static>(&self, scale: f32) -> Option<Element<Message>> {
         match self {
             PowerProfile::Balanced => None,
             PowerProfile::Performance => Some(
-                container(icon(Icons::Performance))
+                container(icon(Icons::Performance).size(16. * scale))
                     .style(|theme: &Theme| container::Style {
                         text_color: Some(theme.palette().danger),
                         ..Default::default()
@@ -87,7 +90,7 @@ impl PowerProfile {
                     .into(),
             ),
             PowerProfile::PowerSaver => Some(
-                container(icon(Icons::PowerSaver))
+                container(icon(Icons::PowerSaver).size(16. * scale))
                     .style(|theme: &Theme| container::Style {
                         text_color: Some(theme.palette().success),
                         ..Default::default()

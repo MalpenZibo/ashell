@@ -31,13 +31,18 @@ impl Clock {
 }
 
 impl Module for Clock {
-    type ViewData<'a> = &'a str;
+    type ViewData<'a> = (&'a str, f32);
     type SubscriptionData<'a> = &'a str;
     fn view(
         &self,
-        format: Self::ViewData<'_>,
+        (format, scale): Self::ViewData<'_>,
     ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
-        Some((text(self.date.format(format).to_string()).into(), None))
+        Some((
+            text(self.date.format(format).to_string())
+                .size(12. * scale)
+                .into(),
+            None,
+        ))    
     }
 
     fn subscription(

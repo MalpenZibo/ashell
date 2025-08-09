@@ -54,17 +54,17 @@ impl WindowTitle {
 }
 
 impl Module for WindowTitle {
-    type ViewData<'a> = ();
+    type ViewData<'a> = f32;
     type SubscriptionData<'a> = ();
 
     fn view(
         &self,
-        _: Self::ViewData<'_>,
+        scale: Self::ViewData<'_>,
     ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         self.value.as_ref().map(|value| {
             (
                 text(value)
-                    .size(12)
+                    .size(16. * scale)
                     .wrapping(text::Wrapping::WordOrGlyph)
                     .into(),
                 None,

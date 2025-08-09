@@ -27,11 +27,11 @@ pub enum AudioMessage {
 }
 
 impl AudioData {
-    pub fn sink_indicator<Message>(&self) -> Option<Element<Message>> {
+    pub fn sink_indicator<Message>(&self, scale: f32) -> Option<Element<Message>> {
         if !self.sinks.is_empty() {
             let icon_type = self.sinks.get_icon(&self.server_info.default_sink);
 
-            Some(icon(icon_type).into())
+            Some(icon(icon_type).size(16. * scale).into())
         } else {
             None
         }

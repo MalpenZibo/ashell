@@ -190,12 +190,13 @@ impl Module for Workspaces {
         &'a WorkspacesModuleConfig,
         &'a [AppearanceColor],
         Option<&'a [AppearanceColor]>,
+        f32,
     );
     type SubscriptionData<'a> = &'a WorkspacesModuleConfig;
 
     fn view(
         &self,
-        (outputs, id, config, workspace_colors, special_workspace_colors): Self::ViewData<'_>,
+        (outputs, id, config, workspace_colors, special_workspace_colors, scale): Self::ViewData<'_>,
     ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         let monitor_name = outputs.get_monitor_name(id);
 
@@ -231,7 +232,7 @@ impl Module for Workspaces {
                                             } else {
                                                 text(w.id)
                                             }
-                                            .size(10),
+                                            .size(14. * scale),
                                         )
                                         .align_x(alignment::Horizontal::Center)
                                         .align_y(alignment::Vertical::Center),
@@ -250,11 +251,11 @@ impl Module for Workspaces {
                                     .width(if w.id < 0 {
                                         Length::Shrink
                                     } else if w.active {
-                                        Length::Fixed(32.)
+                                        Length::Fixed(36. * scale)
                                     } else {
-                                        Length::Fixed(16.)
+                                        Length::Fixed(24. * scale)
                                     })
-                                    .height(16)
+                                    .height(24. * scale)
                                     .into(),
                                 )
                             } else {
@@ -264,7 +265,7 @@ impl Module for Workspaces {
                         .collect::<Vec<Element<'_, _, _>>>(),
                 )
                 .padding([2, 0])
-                .spacing(4),
+                .spacing(4. * scale),
             )
             .map(app::Message::Workspaces),
             None,

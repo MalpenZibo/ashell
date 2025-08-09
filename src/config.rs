@@ -360,6 +360,8 @@ impl Default for MenuAppearance {
 pub struct Appearance {
     #[serde(default)]
     pub font_name: Option<String>,
+    #[serde(default = "default_scale")]
+    pub scale: f32,
     #[serde(default)]
     pub style: AppearanceStyle,
     #[serde(default = "default_opacity")]
@@ -384,6 +386,10 @@ pub struct Appearance {
 }
 
 static PRIMARY: HexColor = HexColor::rgb(250, 179, 135);
+
+fn default_scale() -> f32 {
+    1.0
+}
 
 fn default_opacity() -> f32 {
     1.0
@@ -445,6 +451,7 @@ impl Default for Appearance {
     fn default() -> Self {
         Self {
             font_name: None,
+            scale: default_scale(),
             style: AppearanceStyle::default(),
             opacity: default_opacity(),
             menu: MenuAppearance::default(),

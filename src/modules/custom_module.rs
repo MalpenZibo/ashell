@@ -54,8 +54,10 @@ pub enum Message {
 }
 
 // Define a struct for the canvas program
-#[derive(Debug, Clone, Copy, Default)]
-struct AlertIndicator;
+#[derive(Debug, Clone, Copy)]
+struct AlertIndicator {
+    scale: f32,
+}
 
 impl<Message> Program<Message> for AlertIndicator {
     type State = ();
@@ -73,7 +75,7 @@ impl<Message> Program<Message> for AlertIndicator {
         vec![cache.draw(renderer, bounds.size(), |frame| {
             let center = frame.center();
             // Use a smaller radius so the circle doesn't touch the canvas edges
-            let radius = 2.0; // Creates a 4px diameter circle
+            let radius = 2.0 * self.scale; // Creates a 4px diameter circle
             let circle = Path::circle(center, radius);
             frame.fill(&circle, theme.palette().danger);
         })]
@@ -81,22 +83,23 @@ impl<Message> Program<Message> for AlertIndicator {
 }
 
 impl Module for Custom {
-    type ViewData<'a> = &'a CustomModuleDef;
+    type ViewData<'a> = (&'a CustomModuleDef, f32);
     type SubscriptionData<'a> = &'a CustomModuleDef;
 
     fn view(
         &self,
-        config: Self::ViewData<'_>,
+        (config, scale): Self::ViewData<'_>,
     ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         let mut icon_element = config
             .icon
             .as_ref()
-            .map_or_else(|| icon(Icons::None), |text| icon_raw(text.clone()));
+            .map_or_else(|| icon(Icons::None), |text| icon_raw(text.clone()))
+            .size(14. * scale);
 
         if let Some(icons_map) = &config.icons {
             for (re, icon_str) in icons_map {
                 if re.is_match(&self.data.alt) {
-                    icon_element = icon_raw(icon_str.clone());
+                    icon_element = icon_raw(icon_str.clone()).size(14. * scale);
                     break; // Use the first match
                 }
             }
@@ -113,9 +116,9 @@ impl Module for Custom {
         }
 
         let icon_with_alert = if show_alert {
-            let alert_canvas = canvas(AlertIndicator)
-                .width(Length::Fixed(5.0)) // Size of the dot
-                .height(Length::Fixed(5.0));
+            let alert_canvas = canvas(AlertIndicator { scale })
+                .width(Length::Fixed(5.0 * scale)) // Size of the dot
+                .height(Length::Fixed(5.0 * scale));
 
             // Container to position the dot at the top-right
             let alert_indicator_container = container(alert_canvas)
@@ -136,14 +139,16 @@ impl Module for Custom {
 
         let maybe_text_element = self.data.text.as_ref().and_then(|text_content| {
             if !text_content.is_empty() {
-                Some(text(text_content.clone()))
+                Some(container(text(text_content.clone()).size(12. * scale)).padding([2. * scale, 0., 0., 0.]))
             } else {
                 None
             }
         });
 
         let row_content = if let Some(text_element) = maybe_text_element {
-            row![icon_with_alert, text_element].spacing(8).into()
+            row![icon_with_alert, text_element]
+                .spacing(8. * scale)
+                .into()
         } else {
             icon_with_alert
         };

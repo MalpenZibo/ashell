@@ -11,7 +11,7 @@ use log::debug;
 use wayland_client::protocol::wl_output::WlOutput;
 
 use crate::{
-    HEIGHT,
+    get_height,
     config::{self, AppearanceStyle, Position},
     menu::{Menu, MenuType},
     position_button::ButtonUIRef,
@@ -37,8 +37,9 @@ impl Outputs {
     pub fn new<Message: 'static>(
         style: AppearanceStyle,
         position: Position,
+        scale: f32,
     ) -> (Self, Task<Message>) {
-        let (id, menu_id, task) = Self::create_output_layers(style, None, position);
+        let (id, menu_id, task) = Self::create_output_layers(style, None, position, scale);
 
         (
             Self(vec![(
@@ -55,8 +56,10 @@ impl Outputs {
         )
     }
 
-    fn get_height(style: AppearanceStyle) -> u32 {
-        HEIGHT
+    fn get_height(style: AppearanceStyle, scale: f32) -> u32 {
+        let height_u32 = get_height(scale) as u32;
+
+        height_u32
             - match style {
                 AppearanceStyle::Solid | AppearanceStyle::Gradient => 8,
                 AppearanceStyle::Islands => 0,
@@ -67,9 +70,10 @@ impl Outputs {
         style: AppearanceStyle,
         wl_output: Option<WlOutput>,
         position: Position,
+        scale: f32,
     ) -> (Id, Id, Task<Message>) {
         let id = Id::unique();
-        let height = Self::get_height(style);
+        let height = Self::get_height(style, scale);
 
         let task = get_layer_surface(SctkLayerSurfaceSettings {
             id,
@@ -151,7 +155,9 @@ impl Outputs {
     pub fn has_name(&self, name: &str) -> bool {
         self.0
             .iter()
-            .any(|(n, info, _)| info.is_some() && n.as_ref().map(|n| n.as_str()) == Some(name))
+            .any(|(output_name, _, _)| {
+                output_name.as_ref().map(|n| n.as_str()) == Some(name)
+            })
     }
 
     pub fn add<Message: 'static>(
@@ -161,6 +167,7 @@ impl Outputs {
         position: Position,
         name: &str,
         wl_output: WlOutput,
+        scale: f32,
     ) -> Task<Message> {
         let target = Self::name_in_config(Some(name), request_outputs);
 
@@ -168,7 +175,7 @@ impl Outputs {
             debug!("Found target output, creating a new layer surface");
 
             let (id, menu_id, task) =
-                Self::create_output_layers(style, Some(wl_output.clone()), position);
+                Self::create_output_layers(style, Some(wl_output.clone()), position, scale);
 
             let destroy_task = match self
                 .0
@@ -237,6 +244,7 @@ impl Outputs {
         style: AppearanceStyle,
         position: Position,
         wl_output: WlOutput,
+        scale: f32,
     ) -> Task<Message> {
         match self.0.iter().position(|(_, _, assigned_wl_output)| {
             assigned_wl_output
@@ -263,7 +271,7 @@ impl Outputs {
                 if !self.0.iter().any(|(_, shell_info, _)| shell_info.is_some()) {
                     debug!("No outputs left, creating a fallback layer surface");
 
-                    let (id, menu_id, task) = Self::create_output_layers(style, None, position);
+                    let (id, menu_id, task) = Self::create_output_layers(style, None, position, scale);
 
                     self.0.push((
                         None,
@@ -290,6 +298,7 @@ impl Outputs {
         style: AppearanceStyle,
         request_outputs: &config::Outputs,
         position: Position,
+        scale: f32,
     ) -> Task<Message> {
         debug!("Syncing outputs: {self:?}, request_outputs: {request_outputs:?}");
 
@@ -335,13 +344,14 @@ impl Outputs {
                         position,
                         name.as_str(),
                         wl_output,
+                        scale,
                     ));
                 }
             }
         }
 
         for wl_output in to_remove {
-            tasks.push(self.remove(style, position, wl_output));
+            tasks.push(self.remove(style, position, wl_output, scale));
         }
 
         for shell_info in self.0.iter_mut().filter_map(|(_, shell_info, _)| {
@@ -386,7 +396,7 @@ impl Outputs {
                 shell_info.id, style
             );
             shell_info.style = style;
-            let height = Self::get_height(style);
+            let height = Self::get_height(style, scale);
             tasks.push(Task::batch(vec![
                 set_size(shell_info.id, None, Some(height)),
                 set_exclusive_zone(shell_info.id, height as i32),

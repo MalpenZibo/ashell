@@ -40,12 +40,12 @@ impl Privacy {
 }
 
 impl Module for Privacy {
-    type ViewData<'a> = ();
+    type ViewData<'a> = f32;
     type SubscriptionData<'a> = ();
 
     fn view(
         &self,
-        _: Self::ViewData<'_>,
+        scale: Self::ViewData<'_>,
     ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         if let Some(service) = self.service.as_ref() {
             if !service.no_access() {
@@ -55,12 +55,20 @@ impl Module for Privacy {
                             .push_maybe(
                                 service
                                     .screenshare_access()
-                                    .then(|| icon(Icons::ScreenShare)),
+                                    .then(|| icon(Icons::ScreenShare).size(16. * scale)),
                             )
-                            .push_maybe(service.webcam_access().then(|| icon(Icons::Webcam)))
-                            .push_maybe(service.microphone_access().then(|| icon(Icons::Mic1)))
+                            .push_maybe(
+                                service
+                                    .webcam_access()
+                                    .then(|| icon(Icons::Webcam).size(16. * scale)),
+                            )
+                            .push_maybe(
+                                service
+                                    .microphone_access()
+                                    .then(|| icon(Icons::Mic1).size(16. * scale)),
+                            )
                             .align_y(Alignment::Center)
-                            .spacing(8),
+                            .spacing(8. * scale),
                     )
                     .style(|theme| container::Style {
                         text_color: Some(theme.extended_palette().danger.weak.color),

@@ -38,17 +38,17 @@ impl KeyboardSubmap {
 }
 
 impl Module for KeyboardSubmap {
-    type ViewData<'a> = ();
+    type ViewData<'a> = f32;
     type SubscriptionData<'a> = ();
 
     fn view(
         &self,
-        _: Self::ViewData<'_>,
+        scale: Self::ViewData<'_>,
     ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         if self.submap.is_empty() {
             None
         } else {
-            Some((text(&self.submap).into(), None))
+            Some((text(&self.submap).size(12. * scale).into(), None))
         }
     }
 

@@ -157,12 +157,12 @@ impl TrayModule {
 }
 
 impl Module for TrayModule {
-    type ViewData<'a> = (Id, f32);
+    type ViewData<'a> = (Id, f32, f32);
     type SubscriptionData<'a> = ();
 
     fn view(
         &self,
-        (id, opacity): Self::ViewData<'_>,
+        (id, opacity, scale): Self::ViewData<'_>,
     ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
         self.service
             .as_ref()
@@ -176,14 +176,15 @@ impl Module for TrayModule {
                             .map(|item| {
                                 position_button(match &item.icon {
                                     Some(TrayIcon::Image(handle)) => Into::<Element<_>>::into(
-                                        Image::new(handle.clone()).height(Length::Fixed(14.)),
+                                        Image::new(handle.clone())
+                                            .height(Length::Fixed(14. * scale)),
                                     ),
                                     Some(TrayIcon::Svg(handle)) => Into::<Element<_>>::into(
                                         Svg::new(handle.clone())
-                                            .height(Length::Fixed(16.))
+                                            .height(Length::Fixed(16. * scale))
                                             .width(Length::Shrink),
                                     ),
-                                    _ => icon(Icons::Point).into(),
+                                    _ => icon(Icons::Point).size(16. * scale).into(),
                                 })
                                 .on_press_with_position(move |button_ui_ref| {
                                     app::Message::ToggleMenu(
@@ -199,7 +200,7 @@ impl Module for TrayModule {
                             .collect::<Vec<_>>(),
                     )
                     .align_y(Alignment::Center)
-                    .spacing(8)
+                    .spacing(8. * scale)
                     .into(),
                     None,
                 )

@@ -75,7 +75,10 @@ impl ActiveConnectionInfo {
 }
 
 impl NetworkData {
-    pub fn get_connection_indicator<Message: 'static>(&self) -> Option<Element<Message>> {
+    pub fn get_connection_indicator<Message: 'static>(
+        &self,
+        scale: f32,
+    ) -> Option<Element<Message>> {
         if self.airplane_mode || !self.wifi_present {
             None
         } else {
@@ -87,12 +90,12 @@ impl NetworkData {
                             || matches!(c, ActiveConnectionInfo::Wired { .. })
                     })
                     .map_or_else(
-                        || icon(Icons::Wifi0).into(),
+                        || icon(Icons::Wifi0).size(16. * scale).into(),
                         |a| {
                             let icon_type = a.get_icon();
                             let state = (self.connectivity, a.get_indicator_state());
 
-                            container(icon(icon_type))
+                            container(icon(icon_type).size(16. * scale))
                                 .style(move |theme: &Theme| container::Style {
                                     text_color: match state {
                                         (ConnectivityState::Full, IndicatorState::Warning) => {
@@ -110,14 +113,14 @@ impl NetworkData {
         }
     }
 
-    pub fn get_vpn_indicator<Message: 'static>(&self) -> Option<Element<Message>> {
+    pub fn get_vpn_indicator<Message: 'static>(&self, scale: f32) -> Option<Element<Message>> {
         self.active_connections
             .iter()
             .find(|c| matches!(c, ActiveConnectionInfo::Vpn { .. }))
             .map(|a| {
                 let icon_type = a.get_icon();
 
-                container(icon(icon_type))
+                container(icon(icon_type).size(16. * scale))
                     .style(|theme: &Theme| container::Style {
                         text_color: Some(theme.extended_palette().danger.weak.color),
                         ..Default::default()
