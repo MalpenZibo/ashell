@@ -37,6 +37,8 @@ pub struct WorkspacesModuleConfig {
     #[serde(default)]
     pub enable_workspace_filling: bool,
     pub max_workspaces: Option<u32>,
+    #[serde(default)]
+    pub enable_virtual_desktops: bool,
 }
 
 #[derive(Deserialize, Clone, Default, PartialEq, Eq, Debug)]

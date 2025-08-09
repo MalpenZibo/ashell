@@ -215,6 +215,11 @@ enable_workspace_filling = false
 # In addition to the 4 workspaces described above it will also show workspaces 5 and 6
 # Only works with `enable_workspace_filling = true`
 
+# If you want to handle virtual desktops as workspaces
+# enable_virtual_workspaces = true
+# Only works if the Hyprland pluigin hyprland-virtual-desktops is enabled
+# See: https://github.com/levnikmyskin/hyprland-virtual-desktops
+
 # WindowTitle module configuration, optional
 [window_title]
 # The information to get from your active window.
