@@ -1,6 +1,7 @@
 use crate::{
     components::icons::{Icons, icon, icon_raw},
     config::CustomModuleDef,
+    theme::AshellTheme,
     utils::launcher::execute_command,
 };
 use iced::widget::canvas;
@@ -88,7 +89,7 @@ impl Custom {
         }
     }
 
-    pub fn view(&self) -> Element<Message> {
+    pub fn view(&self, theme: &AshellTheme) -> Element<Message> {
         let mut icon_element = self
             .config
             .icon
@@ -116,8 +117,8 @@ impl Custom {
 
         let icon_with_alert = if show_alert {
             let alert_canvas = canvas(AlertIndicator)
-                .width(Length::Fixed(5.0)) // Size of the dot
-                .height(Length::Fixed(5.0));
+                .width(Length::Fixed(theme.space.xs as f32)) // Size of the dot
+                .height(Length::Fixed(theme.space.xs as f32));
 
             // Container to position the dot at the top-right
             let alert_indicator_container = container(alert_canvas)
@@ -125,8 +126,6 @@ impl Custom {
                 .height(Length::Fill) // Take full height
                 .align_x(iced::alignment::Horizontal::Right)
                 .align_y(iced::alignment::Vertical::Top);
-            // Optional: Add padding to nudge it slightly
-            // .padding([2, 2, 0, 0]); // top, right, bottom, left
 
             Stack::new()
                 .push(padded_icon_container) // Padded icon is the base layer
@@ -145,7 +144,9 @@ impl Custom {
         });
 
         if let Some(text_element) = maybe_text_element {
-            row![icon_with_alert, text_element].spacing(8).into()
+            row![icon_with_alert, text_element]
+                .spacing(theme.space.xs)
+                .into()
         } else {
             icon_with_alert
         }

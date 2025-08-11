@@ -229,7 +229,9 @@ impl App {
             }),
             ModuleName::Custom(name) => self.custom.get(name).map(|custom| {
                 (
-                    custom.view().map(|msg| Message::Custom(name.clone(), msg)),
+                    custom
+                        .view(&self.theme)
+                        .map(|msg| Message::Custom(name.clone(), msg)),
                     Some(OnModulePress::Action(Box::new(Message::Custom(
                         name.clone(),
                         custom_module::Message::LaunchCommand,
@@ -278,7 +280,7 @@ impl App {
             }),
             ModuleName::KeyboardSubmap => self
                 .keyboard_submap
-                .view()
+                .view(&self.theme)
                 .map(|view| (view.map(Message::KeyboardSubmap), None)),
             ModuleName::Tray => self
                 .tray

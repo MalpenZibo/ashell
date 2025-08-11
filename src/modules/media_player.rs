@@ -73,7 +73,7 @@ impl MediaPlayer {
         match &self.service {
             None => text("Not connected to MPRIS service").into(),
             Some(s) => column!(
-                text("Players").size(20),
+                text("Players").size(theme.font_size.lg),
                 horizontal_rule(1),
                 column(s.iter().map(|d| {
                     let title = text(self.get_title(d))
@@ -88,17 +88,17 @@ impl MediaPlayer {
                     let buttons = row![
                         button(icon(Icons::SkipPrevious))
                             .on_press(Message::Prev(d.service.clone()))
-                            .padding([5, 12])
+                            .padding([theme.space.xs, theme.space.md])
                             .style(theme.settings_button_style()),
                         button(icon(play_pause_icon))
                             .on_press(Message::PlayPause(d.service.clone()))
                             .style(theme.settings_button_style()),
                         button(icon(Icons::SkipNext))
                             .on_press(Message::Next(d.service.clone()))
-                            .padding([5, 12])
+                            .padding([theme.space.xs, theme.space.md])
                             .style(theme.settings_button_style()),
                     ]
-                    .spacing(8);
+                    .spacing(theme.space.xs);
 
                     let volume_slider = d.volume.map(|v| {
                         slider(0.0..=100.0, v, move |v| {
@@ -108,9 +108,13 @@ impl MediaPlayer {
 
                     container(
                         Column::new()
-                            .push(row!(title, buttons).spacing(8).align_y(Vertical::Center))
+                            .push(
+                                row!(title, buttons)
+                                    .spacing(theme.space.xs)
+                                    .align_y(Vertical::Center),
+                            )
                             .push_maybe(volume_slider)
-                            .spacing(8),
+                            .spacing(theme.space.xs),
                     )
                     .style(move |app_theme: &Theme| container::Style {
                         background: Background::Color(
@@ -122,16 +126,16 @@ impl MediaPlayer {
                                 .scale_alpha(theme.opacity),
                         )
                         .into(),
-                        border: Border::default().rounded(16),
+                        border: Border::default().rounded(theme.radius.lg),
                         ..container::Style::default()
                     })
-                    .padding(16)
+                    .padding(theme.space.md)
                     .width(Length::Fill)
                     .into()
                 }))
-                .spacing(16)
+                .spacing(theme.space.md)
             )
-            .spacing(8)
+            .spacing(theme.space.xs)
             .into(),
         }
     }

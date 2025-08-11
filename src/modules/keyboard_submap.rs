@@ -6,6 +6,8 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use crate::theme::AshellTheme;
+
 #[derive(Debug, Clone)]
 pub enum Message {
     SubmapChanged(String),
@@ -32,7 +34,7 @@ impl KeyboardSubmap {
         }
     }
 
-    pub fn view(&self) -> Option<Element<Message>> {
+    pub fn view(&self, _: &AshellTheme) -> Option<Element<Message>> {
         if !self.submap.is_empty() {
             Some(text(&self.submap).into())
         } else {

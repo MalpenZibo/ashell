@@ -70,7 +70,7 @@ impl KeyboardLayout {
         }
     }
 
-    pub fn view(&self, theme: &AshellTheme) -> Option<Element<Message>> {
+    pub fn view(&self, _: &AshellTheme) -> Option<Element<Message>> {
         if self.multiple_layout {
             let active = match self.config.labels.get(&self.active) {
                 Some(value) => value.to_string(),
