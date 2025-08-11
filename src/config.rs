@@ -361,6 +361,8 @@ pub struct Appearance {
     #[serde(default)]
     pub font_name: Option<String>,
     #[serde(default)]
+    pub scale_factor: f64,
+    #[serde(default)]
     pub style: AppearanceStyle,
     #[serde(default = "default_opacity")]
     pub opacity: f32,
@@ -445,6 +447,7 @@ impl Default for Appearance {
     fn default() -> Self {
         Self {
             font_name: None,
+            scale_factor: 1.0,
             style: AppearanceStyle::default(),
             opacity: default_opacity(),
             menu: MenuAppearance::default(),

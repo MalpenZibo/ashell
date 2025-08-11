@@ -93,7 +93,11 @@ impl App {
         (logger, config, config_path): (LoggerHandle, Config, PathBuf),
     ) -> impl FnOnce() -> (Self, Task<Message>) {
         || {
-            let (outputs, task) = Outputs::new(config.appearance.style, config.position);
+            let (outputs, task) = Outputs::new(
+                config.appearance.style,
+                config.position,
+                config.appearance.scale_factor,
+            );
 
             let custom = config
                 .custom_modules
@@ -142,6 +146,10 @@ impl App {
         }
     }
 
+    pub fn scale_factor(&self, _id: Id) -> f64 {
+        self.config.appearance.scale_factor
+    }
+
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::None => Task::none(),
@@ -155,12 +163,14 @@ impl App {
                 if self.config.outputs != config.outputs
                     || self.config.position != config.position
                     || self.config.appearance.style != config.appearance.style
+                    || self.config.appearance.scale_factor != config.appearance.scale_factor
                 {
                     warn!("Outputs changed, syncing");
                     tasks.push(self.outputs.sync(
                         config.appearance.style,
                         &config.outputs,
                         config.position,
+                        config.appearance.scale_factor,
                     ));
                 }
                 let custom = config
@@ -299,6 +309,7 @@ impl App {
                         self.config.position,
                         name,
                         wl_output,
+                        self.config.appearance.scale_factor,
                     )
                 }
                 iced::event::wayland::OutputEvent::Removed => {
@@ -307,6 +318,7 @@ impl App {
                         self.config.appearance.style,
                         self.config.position,
                         wl_output,
+                        self.config.appearance.scale_factor,
                     )
                 }
                 _ => Task::none(),
@@ -342,7 +354,7 @@ impl App {
                         if self.config.appearance.style == AppearanceStyle::Islands {
                             HEIGHT
                         } else {
-                            HEIGHT - 8
+                            HEIGHT - 8.
                         } as f32,
                     )
                     .padding(
