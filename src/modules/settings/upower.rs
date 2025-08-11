@@ -4,6 +4,7 @@ use crate::{
         ServiceEvent,
         upower::{BatteryData, BatteryStatus, PowerProfile, UPowerService},
     },
+    theme::AshellTheme,
     utils::{IndicatorState, format_duration},
 };
 use iced::{
@@ -98,10 +99,10 @@ impl PowerProfile {
         }
     }
 
-    pub fn get_quick_setting_button(
-        &self,
-        opacity: f32,
-    ) -> Option<(Element<Message>, Option<Element<Message>>)> {
+    pub fn get_quick_setting_button<'a>(
+        &'a self,
+        theme: &'a AshellTheme,
+    ) -> Option<(Element<'a, Message>, Option<Element<'a, Message>>)> {
         if !matches!(self, PowerProfile::Unknown) {
             Some((
                 quick_setting_button(
@@ -117,7 +118,7 @@ impl PowerProfile {
                     true,
                     Message::UPower(UPowerMessage::TogglePowerProfile),
                     None,
-                    opacity,
+                    theme,
                 ),
                 None,
             ))

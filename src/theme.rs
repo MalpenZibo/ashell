@@ -38,6 +38,7 @@ pub struct Radius {
     pub sm: u16,
     pub md: u16,
     pub lg: u16,
+    pub xl: u16,
 }
 
 impl Default for Radius {
@@ -46,6 +47,7 @@ impl Default for Radius {
             sm: 4,
             md: 8,
             lg: 16,
+            xl: 32,
         }
     }
 }
@@ -254,7 +256,7 @@ impl AshellTheme {
                 ),
                 border: Border {
                     width: 0.0,
-                    radius: 32.0.into(),
+                    radius: self.radius.xl.into(),
                     color: Color::TRANSPARENT,
                 },
                 text_color: theme.palette().text,
@@ -271,6 +273,92 @@ impl AshellTheme {
                             .color
                             .scale_alpha(self.opacity)
                             .into(),
+                    );
+                    base
+                }
+                _ => base,
+            }
+        }
+    }
+
+    pub fn quick_settings_submenu_button_style(
+        &self,
+        is_active: bool,
+    ) -> impl Fn(&Theme, Status) -> button::Style {
+        move |theme: &Theme, status: Status| {
+            let mut base = button::Style {
+                background: None,
+                border: Border {
+                    width: 0.0,
+                    radius: self.radius.lg.into(),
+                    color: Color::TRANSPARENT,
+                },
+                text_color: if is_active {
+                    theme.extended_palette().primary.base.text
+                } else {
+                    theme.palette().text
+                },
+                ..button::Style::default()
+            };
+            match status {
+                Status::Active => base,
+                Status::Hovered => {
+                    base.background = Some(
+                        theme
+                            .extended_palette()
+                            .background
+                            .weak
+                            .color
+                            .scale_alpha(self.opacity)
+                            .into(),
+                    );
+                    base.text_color = theme.palette().text;
+                    base
+                }
+                _ => base,
+            }
+        }
+    }
+
+    pub fn quick_settings_button_style(
+        &self,
+        is_active: bool,
+    ) -> impl Fn(&Theme, Status) -> button::Style {
+        move |theme: &Theme, status: Status| {
+            let mut base = button::Style {
+                background: Some(
+                    if is_active {
+                        theme.palette().primary
+                    } else {
+                        theme.extended_palette().background.weak.color
+                    }
+                    .scale_alpha(self.opacity)
+                    .into(),
+                ),
+                border: Border {
+                    width: 0.0,
+                    radius: self.radius.xl.into(),
+                    color: Color::TRANSPARENT,
+                },
+                text_color: if is_active {
+                    theme.extended_palette().primary.base.text
+                } else {
+                    theme.palette().text
+                },
+                ..button::Style::default()
+            };
+            match status {
+                Status::Active => base,
+                Status::Hovered => {
+                    let peach = theme.extended_palette().primary.weak.color;
+                    base.background = Some(
+                        if is_active {
+                            peach
+                        } else {
+                            theme.extended_palette().background.strong.color
+                        }
+                        .scale_alpha(self.opacity)
+                        .into(),
                     );
                     base
                 }
@@ -428,45 +516,6 @@ pub fn confirm_button_style(opacity: f32) -> impl Fn(&Theme, Status) -> button::
     }
 }
 
-pub fn settings_button_style(opacity: f32) -> impl Fn(&Theme, Status) -> button::Style {
-    move |theme, status| {
-        let mut base = button::Style {
-            background: Some(
-                theme
-                    .extended_palette()
-                    .background
-                    .weak
-                    .color
-                    .scale_alpha(opacity)
-                    .into(),
-            ),
-            border: Border {
-                width: 0.0,
-                radius: 32.0.into(),
-                color: Color::TRANSPARENT,
-            },
-            text_color: theme.palette().text,
-            ..button::Style::default()
-        };
-        match status {
-            Status::Active => base,
-            Status::Hovered => {
-                base.background = Some(
-                    theme
-                        .extended_palette()
-                        .background
-                        .strong
-                        .color
-                        .scale_alpha(opacity)
-                        .into(),
-                );
-                base
-            }
-            _ => base,
-        }
-    }
-}
-
 pub fn workspace_button_style(
     is_empty: bool,
     colors: Option<Option<AppearanceColor>>,
@@ -546,92 +595,6 @@ pub fn workspace_button_style(
                 } else {
                     fg_color
                 };
-                base
-            }
-            _ => base,
-        }
-    }
-}
-
-pub fn quick_settings_button_style(
-    is_active: bool,
-    opacity: f32,
-) -> impl Fn(&Theme, Status) -> button::Style {
-    move |theme: &Theme, status: Status| {
-        let mut base = button::Style {
-            background: Some(
-                if is_active {
-                    theme.palette().primary
-                } else {
-                    theme.extended_palette().background.weak.color
-                }
-                .scale_alpha(opacity)
-                .into(),
-            ),
-            border: Border {
-                width: 0.0,
-                radius: 32.0.into(),
-                color: Color::TRANSPARENT,
-            },
-            text_color: if is_active {
-                theme.extended_palette().primary.base.text
-            } else {
-                theme.palette().text
-            },
-            ..button::Style::default()
-        };
-        match status {
-            Status::Active => base,
-            Status::Hovered => {
-                let peach = theme.extended_palette().primary.weak.color;
-                base.background = Some(
-                    if is_active {
-                        peach
-                    } else {
-                        theme.extended_palette().background.strong.color
-                    }
-                    .scale_alpha(opacity)
-                    .into(),
-                );
-                base
-            }
-            _ => base,
-        }
-    }
-}
-
-pub fn quick_settings_submenu_button_style(
-    is_active: bool,
-    opacity: f32,
-) -> impl Fn(&Theme, Status) -> button::Style {
-    move |theme: &Theme, status: Status| {
-        let mut base = button::Style {
-            background: None,
-            border: Border {
-                width: 0.0,
-                radius: 16.0.into(),
-                color: Color::TRANSPARENT,
-            },
-            text_color: if is_active {
-                theme.extended_palette().primary.base.text
-            } else {
-                theme.palette().text
-            },
-            ..button::Style::default()
-        };
-        match status {
-            Status::Active => base,
-            Status::Hovered => {
-                base.background = Some(
-                    theme
-                        .extended_palette()
-                        .background
-                        .weak
-                        .color
-                        .scale_alpha(opacity)
-                        .into(),
-                );
-                base.text_color = theme.palette().text;
                 base
             }
             _ => base,

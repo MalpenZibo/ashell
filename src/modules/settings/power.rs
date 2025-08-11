@@ -1,7 +1,7 @@
 use crate::{
     components::icons::{Icons, icon},
     config::SettingsModuleConfig,
-    theme::ghost_button_style,
+    theme::{AshellTheme, ghost_button_style},
     utils,
 };
 use iced::{
@@ -36,29 +36,32 @@ impl PowerMessage {
     }
 }
 
-pub fn power_menu<'a>(opacity: f32, config: &SettingsModuleConfig) -> Element<'a, PowerMessage> {
+pub fn power_menu<'a>(
+    theme: &'a AshellTheme,
+    config: &SettingsModuleConfig,
+) -> Element<'a, PowerMessage> {
     column!(
         button(row!(icon(Icons::Suspend), text("Suspend")).spacing(16))
             .padding([4, 12])
             .on_press(PowerMessage::Suspend(config.suspend_cmd.clone()))
             .width(Length::Fill)
-            .style(ghost_button_style(opacity)),
+            .style(theme.ghost_button_style()),
         button(row!(icon(Icons::Reboot), text("Reboot")).spacing(16))
             .padding([4, 12])
             .on_press(PowerMessage::Reboot(config.reboot_cmd.clone()))
             .width(Length::Fill)
-            .style(ghost_button_style(opacity)),
+            .style(theme.ghost_button_style()),
         button(row!(icon(Icons::Power), text("Shutdown")).spacing(16))
             .padding([4, 12])
             .on_press(PowerMessage::Shutdown(config.shutdown_cmd.clone()))
             .width(Length::Fill)
-            .style(ghost_button_style(opacity)),
+            .style(theme.ghost_button_style()),
         horizontal_rule(1),
         button(row!(icon(Icons::Logout), text("Logout")).spacing(16))
             .padding([4, 12])
             .on_press(PowerMessage::Logout(config.logout_cmd.clone()))
             .width(Length::Fill)
-            .style(ghost_button_style(opacity)),
+            .style(theme.ghost_button_style()),
     )
     .padding(8)
     .width(Length::Fill)

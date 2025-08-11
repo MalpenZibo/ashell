@@ -5,7 +5,7 @@ use crate::{
         ServiceEvent,
         bluetooth::{BluetoothData, BluetoothService, BluetoothState},
     },
-    theme::ghost_button_style,
+    theme::{AshellTheme, ghost_button_style},
 };
 use iced::{
     Element, Length, Theme,
@@ -21,13 +21,13 @@ pub enum BluetoothMessage {
 }
 
 impl BluetoothData {
-    pub fn get_quick_setting_button(
-        &self,
+    pub fn get_quick_setting_button<'a>(
+        &'a self,
         id: Id,
         sub_menu: Option<SubMenu>,
         show_more_button: bool,
-        opacity: f32,
-    ) -> Option<(Element<Message>, Option<Element<Message>>)> {
+        theme: &'a AshellTheme,
+    ) -> Option<(Element<'a, Message>, Option<Element<'a, Message>>)> {
         Some((
             quick_setting_button(
                 Icons::Bluetooth,
@@ -41,15 +41,20 @@ impl BluetoothData {
                     Message::ToggleSubMenu(SubMenu::Bluetooth),
                 ))
                 .filter(|_| self.state == BluetoothState::Active),
-                opacity,
+                theme,
             ),
             sub_menu
                 .filter(|menu_type| *menu_type == SubMenu::Bluetooth)
-                .map(|_| self.bluetooth_menu(id, show_more_button, opacity)),
+                .map(|_| self.bluetooth_menu(id, show_more_button, theme)),
         ))
     }
 
-    pub fn bluetooth_menu(&self, id: Id, show_more_button: bool, opacity: f32) -> Element<Message> {
+    pub fn bluetooth_menu<'a>(
+        &'a self,
+        id: Id,
+        show_more_button: bool,
+        theme: &'a AshellTheme,
+    ) -> Element<'a, Message> {
         let main = if self.devices.is_empty() {
             text("No devices connected").into()
         } else {
@@ -64,7 +69,7 @@ impl BluetoothData {
                     })
                     .collect::<Vec<Element<Message>>>(),
             )
-            .spacing(8)
+            .spacing(theme.space.xs)
             .into()
         };
 
@@ -76,7 +81,7 @@ impl BluetoothData {
                     .on_press(Message::Bluetooth(BluetoothMessage::More(id)))
                     .padding([4, 12])
                     .width(Length::Fill)
-                    .style(ghost_button_style(opacity))
+                    .style(theme.ghost_button_style())
             )
             .spacing(12)
             .into()

@@ -1,9 +1,7 @@
 use self::{
     audio::AudioMessage, bluetooth::BluetoothMessage, network::NetworkMessage, power::PowerMessage,
 };
-use super::{Module, OnModulePress};
 use crate::{
-    app,
     components::icons::{Icons, icon},
     config::{Position, SettingsModuleConfig},
     menu::MenuType,
@@ -20,9 +18,7 @@ use crate::{
         network::{NetworkCommand, NetworkEvent, NetworkService},
         upower::{PowerProfileCommand, UPowerService},
     },
-    theme::{
-        quick_settings_button_style, quick_settings_submenu_button_style, settings_button_style,
-    },
+    theme::AshellTheme,
 };
 use brightness::BrightnessMessage;
 use iced::{
@@ -42,6 +38,7 @@ mod power;
 mod upower;
 
 pub struct Settings {
+    config: SettingsModuleConfig,
     audio: Option<AudioService>,
     pub brightness: Option<BrightnessService>,
     network: Option<NetworkService>,
@@ -50,21 +47,6 @@ pub struct Settings {
     pub sub_menu: Option<SubMenu>,
     upower: Option<UPowerService>,
     pub password_dialog: Option<(String, String)>,
-}
-
-impl Default for Settings {
-    fn default() -> Self {
-        Settings {
-            audio: None,
-            brightness: None,
-            network: None,
-            bluetooth: None,
-            idle_inhibitor: IdleInhibitorManager::new(),
-            sub_menu: None,
-            upower: None,
-            password_dialog: None,
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -93,6 +75,20 @@ pub enum SubMenu {
 }
 
 impl Settings {
+    pub fn new(config: SettingsModuleConfig) -> Self {
+        Settings {
+            config,
+            audio: None,
+            brightness: None,
+            network: None,
+            bluetooth: None,
+            idle_inhibitor: IdleInhibitorManager::new(),
+            sub_menu: None,
+            upower: None,
+            password_dialog: None,
+        }
+    }
+
     pub fn update(
         &mut self,
         message: Message,
@@ -449,15 +445,15 @@ impl Settings {
         }
     }
 
-    pub fn menu_view(
-        &self,
+    pub fn menu_view<'a>(
+        &'a self,
         id: Id,
-        config: &SettingsModuleConfig,
-        opacity: f32,
+        theme: &'a AshellTheme,
         position: Position,
-    ) -> Element<Message> {
+    ) -> Element<'a, Message> {
         if let Some((ssid, current_password)) = &self.password_dialog {
-            password_dialog::view(id, ssid, current_password, opacity).map(Message::PasswordDialog)
+            password_dialog::view(id, ssid, current_password, theme.opacity)
+                .map(Message::PasswordDialog)
         } else {
             let battery_data = self
                 .upower
@@ -465,11 +461,11 @@ impl Settings {
                 .and_then(|upower| upower.battery)
                 .map(|battery| battery.settings_indicator());
             let right_buttons = Row::new()
-                .push_maybe(config.lock_cmd.as_ref().map(|_| {
+                .push_maybe(self.config.lock_cmd.as_ref().map(|_| {
                     button(icon(Icons::Lock))
                         .padding([8, 13])
                         .on_press(Message::Lock)
-                        .style(settings_button_style(opacity))
+                        .style(theme.settings_button_style())
                 }))
                 .push(
                     button(icon(if self.sub_menu == Some(SubMenu::Power) {
@@ -479,7 +475,7 @@ impl Settings {
                     }))
                     .padding([8, 13])
                     .on_press(Message::ToggleSubMenu(SubMenu::Power))
-                    .style(settings_button_style(opacity)),
+                    .style(theme.settings_button_style()),
                 )
                 .spacing(8);
 
@@ -493,15 +489,15 @@ impl Settings {
             let (sink_slider, source_slider) = self
                 .audio
                 .as_ref()
-                .map(|a| a.audio_sliders(self.sub_menu, opacity))
+                .map(|a| a.audio_sliders(self.sub_menu, theme))
                 .unwrap_or((None, None));
 
             let wifi_setting_button = self.network.as_ref().and_then(|n| {
                 n.get_wifi_quick_setting_button(
                     id,
                     self.sub_menu,
-                    config.wifi_more_cmd.is_some(),
-                    opacity,
+                    self.config.wifi_more_cmd.is_some(),
+                    theme,
                 )
             });
             let quick_settings = quick_settings_section(
@@ -514,23 +510,23 @@ impl Settings {
                             b.get_quick_setting_button(
                                 id,
                                 self.sub_menu,
-                                config.bluetooth_more_cmd.is_some(),
-                                opacity,
+                                self.config.bluetooth_more_cmd.is_some(),
+                                theme,
                             )
                         }),
                     self.network.as_ref().and_then(|n| {
                         n.get_vpn_quick_setting_button(
                             id,
                             self.sub_menu,
-                            config.vpn_more_cmd.is_some(),
-                            opacity,
+                            self.config.vpn_more_cmd.is_some(),
+                            theme,
                         )
                     }),
                     self.network.as_ref().and_then(|n| {
-                        if config.remove_airplane_btn {
+                        if self.config.remove_airplane_btn {
                             None
                         } else {
-                            Some(n.get_airplane_mode_quick_setting_button(opacity))
+                            Some(n.get_airplane_mode_quick_setting_button(theme))
                         }
                     }),
                     self.idle_inhibitor.as_ref().map(|idle_inhibitor| {
@@ -546,19 +542,19 @@ impl Settings {
                                 idle_inhibitor.is_inhibited(),
                                 Message::ToggleInhibitIdle,
                                 None,
-                                opacity,
+                                theme,
                             ),
                             None,
                         )
                     }),
                     self.upower
                         .as_ref()
-                        .and_then(|u| u.power_profile.get_quick_setting_button(opacity)),
+                        .and_then(|u| u.power_profile.get_quick_setting_button(theme)),
                 ]
                 .into_iter()
                 .flatten()
                 .collect::<Vec<_>>(),
-                opacity,
+                theme,
             );
 
             let (top_sink_slider, bottom_sink_slider) = match position {
@@ -577,8 +573,8 @@ impl Settings {
                         .filter(|menu_type| *menu_type == SubMenu::Power)
                         .map(|_| {
                             sub_menu_wrapper(
-                                power_menu(opacity, config).map(Message::Power),
-                                opacity,
+                                power_menu(theme, &self.config).map(Message::Power),
+                                theme,
                             )
                         }),
                 )
@@ -591,10 +587,10 @@ impl Settings {
                                 sub_menu_wrapper(
                                     a.sinks_submenu(
                                         id,
-                                        config.audio_sinks_more_cmd.is_some(),
-                                        opacity,
+                                        self.config.audio_sinks_more_cmd.is_some(),
+                                        theme,
                                     ),
-                                    opacity,
+                                    theme,
                                 )
                             })
                         }),
@@ -609,10 +605,10 @@ impl Settings {
                                 sub_menu_wrapper(
                                     a.sources_submenu(
                                         id,
-                                        config.audio_sources_more_cmd.is_some(),
-                                        opacity,
+                                        self.config.audio_sources_more_cmd.is_some(),
+                                        theme,
                                     ),
-                                    opacity,
+                                    theme,
                                 )
                             })
                         }),
@@ -624,80 +620,62 @@ impl Settings {
                 .into()
         }
     }
-}
 
-impl Module for Settings {
-    type ViewData<'a> = ();
-    type SubscriptionData<'a> = ();
-
-    fn view(
-        &self,
-        _: Self::ViewData<'_>,
-    ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
-        Some((
-            Row::new()
-                .push_maybe(
-                    self.idle_inhibitor
-                        .as_ref()
-                        .filter(|i| i.is_inhibited())
-                        .map(|_| {
-                            container(icon(Icons::EyeOpened)).style(|theme: &Theme| {
-                                container::Style {
-                                    text_color: Some(theme.palette().danger),
-                                    ..Default::default()
-                                }
-                            })
-                        }),
-                )
-                .push_maybe(
-                    self.upower
-                        .as_ref()
-                        .and_then(|p| p.power_profile.indicator()),
-                )
-                .push_maybe(self.audio.as_ref().and_then(|a| a.sink_indicator()))
-                .push(
-                    Row::new()
-                        .push_maybe(
-                            self.network
-                                .as_ref()
-                                .and_then(|n| n.get_connection_indicator()),
-                        )
-                        .push_maybe(self.network.as_ref().and_then(|n| n.get_vpn_indicator()))
-                        .spacing(4),
-                )
-                .push_maybe(
-                    self.upower
-                        .as_ref()
-                        .and_then(|upower| upower.battery)
-                        .map(|battery| battery.indicator()),
-                )
-                .spacing(8)
-                .into(),
-            Some(OnModulePress::ToggleMenu(MenuType::Settings)),
-        ))
+    pub fn view(&self, theme: &AshellTheme) -> Element<Message> {
+        Row::new()
+            .push_maybe(
+                self.idle_inhibitor
+                    .as_ref()
+                    .filter(|i| i.is_inhibited())
+                    .map(|_| {
+                        container(icon(Icons::EyeOpened)).style(|theme: &Theme| container::Style {
+                            text_color: Some(theme.palette().danger),
+                            ..Default::default()
+                        })
+                    }),
+            )
+            .push_maybe(
+                self.upower
+                    .as_ref()
+                    .and_then(|p| p.power_profile.indicator()),
+            )
+            .push_maybe(self.audio.as_ref().and_then(|a| a.sink_indicator()))
+            .push(
+                Row::new()
+                    .push_maybe(
+                        self.network
+                            .as_ref()
+                            .and_then(|n| n.get_connection_indicator()),
+                    )
+                    .push_maybe(self.network.as_ref().and_then(|n| n.get_vpn_indicator()))
+                    .spacing(4),
+            )
+            .push_maybe(
+                self.upower
+                    .as_ref()
+                    .and_then(|upower| upower.battery)
+                    .map(|battery| battery.indicator()),
+            )
+            .spacing(8)
+            .into()
     }
 
-    fn subscription(&self, _: Self::SubscriptionData<'_>) -> Option<Subscription<app::Message>> {
-        Some(
-            Subscription::batch(vec![
-                UPowerService::subscribe()
-                    .map(|event| Message::UPower(UPowerMessage::Event(event))),
-                AudioService::subscribe().map(|evenet| Message::Audio(AudioMessage::Event(evenet))),
-                BrightnessService::subscribe()
-                    .map(|event| Message::Brightness(BrightnessMessage::Event(event))),
-                NetworkService::subscribe()
-                    .map(|event| Message::Network(NetworkMessage::Event(event))),
-                BluetoothService::subscribe()
-                    .map(|event| Message::Bluetooth(BluetoothMessage::Event(event))),
-            ])
-            .map(app::Message::Settings),
-        )
+    pub fn subscription(&self) -> Subscription<Message> {
+        Subscription::batch(vec![
+            UPowerService::subscribe().map(|event| Message::UPower(UPowerMessage::Event(event))),
+            AudioService::subscribe().map(|evenet| Message::Audio(AudioMessage::Event(evenet))),
+            BrightnessService::subscribe()
+                .map(|event| Message::Brightness(BrightnessMessage::Event(event))),
+            NetworkService::subscribe().map(|event| Message::Network(NetworkMessage::Event(event))),
+            BluetoothService::subscribe()
+                .map(|event| Message::Bluetooth(BluetoothMessage::Event(event))),
+        ])
     }
 }
 
 fn quick_settings_section<'a>(
     buttons: Vec<(Element<'a, Message>, Option<Element<'a, Message>>)>,
-    opacity: f32,
+    theme: &'a AshellTheme,
 ) -> Element<'a, Message> {
     let mut section = column!().spacing(8);
 
@@ -709,11 +687,11 @@ fn quick_settings_section<'a>(
                 section = section.push(row![before_button, button].width(Length::Fill).spacing(8));
 
                 if let Some(menu) = before_menu {
-                    section = section.push(sub_menu_wrapper(menu, opacity));
+                    section = section.push(sub_menu_wrapper(menu, theme));
                 }
 
                 if let Some(menu) = menu {
-                    section = section.push(sub_menu_wrapper(menu, opacity));
+                    section = section.push(sub_menu_wrapper(menu, theme));
                 }
             }
             _ => {
@@ -730,14 +708,17 @@ fn quick_settings_section<'a>(
         );
 
         if let Some(menu) = before_menu {
-            section = section.push(sub_menu_wrapper(menu, opacity));
+            section = section.push(sub_menu_wrapper(menu, theme));
         }
     }
 
     section.into()
 }
 
-fn sub_menu_wrapper<Msg: 'static>(content: Element<Msg>, opacity: f32) -> Element<Msg> {
+fn sub_menu_wrapper<'a, Msg: 'static>(
+    content: Element<'a, Msg>,
+    ashell_theme: &'a AshellTheme,
+) -> Element<'a, Msg> {
     container(content)
         .style(move |theme: &Theme| container::Style {
             background: Background::Color(
@@ -746,7 +727,7 @@ fn sub_menu_wrapper<Msg: 'static>(content: Element<Msg>, opacity: f32) -> Elemen
                     .secondary
                     .strong
                     .color
-                    .scale_alpha(opacity),
+                    .scale_alpha(ashell_theme.opacity),
             )
             .into(),
             border: Border::default().rounded(16),
@@ -764,7 +745,7 @@ fn quick_setting_button<'a, Msg: Clone + 'static>(
     active: bool,
     on_press: Msg,
     with_submenu: Option<(SubMenu, Option<SubMenu>, Msg)>,
-    opacity: f32,
+    theme: &'a AshellTheme,
 ) -> Element<'a, Msg> {
     let main_content = row!(
         icon(icon_type).size(20),
@@ -792,7 +773,7 @@ fn quick_setting_button<'a, Msg: Clone + 'static>(
                     .align_x(Horizontal::Center),
                 )
                 .padding([4, if Some(menu_type) == submenu { 9 } else { 12 }])
-                .style(quick_settings_submenu_button_style(active, opacity))
+                .style(theme.quick_settings_submenu_button_style(active))
                 .width(Length::Shrink)
                 .height(Length::Shrink)
                 .on_press(msg)
@@ -805,7 +786,7 @@ fn quick_setting_button<'a, Msg: Clone + 'static>(
     .on_press(on_press)
     .height(Length::Fill)
     .width(Length::Fill)
-    .style(quick_settings_button_style(active, opacity))
+    .style(theme.quick_settings_button_style(active))
     .width(Length::Fill)
     .height(Length::Fixed(50.))
     .into()

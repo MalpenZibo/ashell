@@ -128,7 +128,7 @@ impl App {
                     tray: TrayModule::default(),
                     clock: Clock::new(config.clock.clone()),
                     privacy: Privacy::default(),
-                    settings: Settings::default(),
+                    settings: Settings::new(config.settings.clone()),
                     media_player: MediaPlayer::new(config.media_player.clone()),
                     config,
                 },
@@ -449,19 +449,14 @@ impl App {
                     MenuSize::Medium,
                     *button_ui_ref,
                 ),
-                // Some((MenuType::Settings, button_ui_ref)) => self.menu_wrapper(
-                //     id,
-                //     self.settings
-                //         .menu_view(
-                //             id,
-                //             &self.config.settings,
-                //             self.config.appearance.menu.opacity,
-                //             self.config.position,
-                //         )
-                //         .map(Message::Settings),
-                //     MenuSize::Large,
-                //     *button_ui_ref,
-                // ),
+                Some((MenuType::Settings, button_ui_ref)) => self.menu_wrapper(
+                    id,
+                    self.settings
+                        .menu_view(id, &self.theme, self.config.position)
+                        .map(Message::Settings),
+                    MenuSize::Large,
+                    *button_ui_ref,
+                ),
                 Some((MenuType::MediaPlayer, button_ui_ref)) => self.menu_wrapper(
                     id,
                     self.media_player
@@ -477,7 +472,6 @@ impl App {
                     *button_ui_ref,
                 ),
                 None => Row::new().into(),
-                _ => Row::new().into(),
             },
             None => Row::new().into(),
         }

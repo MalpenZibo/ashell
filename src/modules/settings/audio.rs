@@ -5,7 +5,7 @@ use crate::{
         ServiceEvent,
         audio::{AudioData, AudioService, DeviceType, Sinks},
     },
-    theme::{ghost_button_style, settings_button_style},
+    theme::AshellTheme,
 };
 use iced::{
     Alignment, Element, Length, Theme,
@@ -37,11 +37,11 @@ impl AudioData {
         }
     }
 
-    pub fn audio_sliders(
-        &self,
+    pub fn audio_sliders<'a>(
+        &'a self,
         sub_menu: Option<SubMenu>,
-        opacity: f32,
-    ) -> (Option<Element<Message>>, Option<Element<Message>>) {
+        theme: &'a AshellTheme,
+    ) -> (Option<Element<'a, Message>>, Option<Element<'a, Message>>) {
         let active_sink = self
             .sinks
             .iter()
@@ -59,7 +59,7 @@ impl AudioData {
                 } else {
                     None
                 },
-                opacity,
+                theme,
             )
         });
 
@@ -81,7 +81,7 @@ impl AudioData {
                     } else {
                         None
                     },
-                    opacity,
+                    theme,
                 )
             });
 
@@ -91,7 +91,12 @@ impl AudioData {
         }
     }
 
-    pub fn sinks_submenu(&self, id: Id, show_more: bool, opacity: f32) -> Element<Message> {
+    pub fn sinks_submenu<'a>(
+        &'a self,
+        id: Id,
+        show_more: bool,
+        theme: &'a AshellTheme,
+    ) -> Element<'a, Message> {
         audio_submenu(
             self.sinks
                 .iter()
@@ -112,11 +117,16 @@ impl AudioData {
             } else {
                 None
             },
-            opacity,
+            theme,
         )
     }
 
-    pub fn sources_submenu(&self, id: Id, show_more: bool, opacity: f32) -> Element<Message> {
+    pub fn sources_submenu<'a>(
+        &'a self,
+        id: Id,
+        show_more: bool,
+        theme: &'a AshellTheme,
+    ) -> Element<'a, Message> {
         audio_submenu(
             self.sources
                 .iter()
@@ -137,7 +147,7 @@ impl AudioData {
             } else {
                 None
             },
-            opacity,
+            theme,
         )
     }
 }
@@ -154,7 +164,7 @@ pub fn audio_slider<'a, Message: 'a + Clone>(
     volume: i32,
     volume_changed: impl Fn(i32) -> Message + 'a,
     with_submenu: Option<(Option<SubMenu>, Message)>,
-    opacity: f32,
+    theme: &'a AshellTheme,
 ) -> Element<'a, Message> {
     Row::new()
         .push(
@@ -177,7 +187,7 @@ pub fn audio_slider<'a, Message: 'a + Clone>(
                 },
             ])
             .on_press(toggle_mute)
-            .style(settings_button_style(opacity)),
+            .style(theme.settings_button_style()),
         )
         .push(
             slider(0..=100, volume, volume_changed)
@@ -192,7 +202,7 @@ pub fn audio_slider<'a, Message: 'a + Clone>(
             }))
             .padding([8, 13])
             .on_press(msg)
-            .style(settings_button_style(opacity))
+            .style(theme.settings_button_style())
         }))
         .align_y(Alignment::Center)
         .spacing(8)
@@ -209,7 +219,7 @@ pub struct SubmenuEntry<Message> {
 pub fn audio_submenu<'a, Message: 'a + Clone>(
     entries: Vec<SubmenuEntry<Message>>,
     more_msg: Option<Message>,
-    opacity: f32,
+    theme: &'a AshellTheme,
 ) -> Element<'a, Message> {
     let entries = Column::with_children(
         entries
@@ -236,7 +246,7 @@ pub fn audio_submenu<'a, Message: 'a + Clone>(
                     .on_press(e.msg)
                     .padding([4, 12])
                     .width(Length::Fill)
-                    .style(ghost_button_style(opacity))
+                    .style(theme.ghost_button_style())
                     .into()
                 }
             })
@@ -253,7 +263,7 @@ pub fn audio_submenu<'a, Message: 'a + Clone>(
                 .on_press(more_msg)
                 .padding([4, 12])
                 .width(Length::Fill)
-                .style(ghost_button_style(opacity)),
+                .style(theme.ghost_button_style()),
         )
         .spacing(12)
         .into(),

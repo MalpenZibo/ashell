@@ -1,5 +1,5 @@
 use crate::{
-    app::{self, App, Message},
+    app::{App, Message},
     config::{AppearanceStyle, ModuleDef, ModuleName},
     menu::MenuType,
     position_button::position_button,
@@ -32,36 +32,6 @@ pub enum OnModulePress {
     ToggleMenu(MenuType),
 }
 
-pub trait Module {
-    type ViewData<'a>;
-    type SubscriptionData<'a>;
-
-    fn view(
-        &self,
-        data: Self::ViewData<'_>,
-    ) -> Option<(Element<app::Message>, Option<OnModulePress>)>;
-
-    fn subscription(&self, _: Self::SubscriptionData<'_>) -> Option<Subscription<app::Message>> {
-        None
-    }
-}
-
-pub trait Module2<T> {
-    type ViewData<'a>;
-    type MenuViewData<'a>;
-    type SubscriptionData<'a>;
-
-    fn view(&self, _: Self::ViewData<'_>)
-    -> Option<(Element<app::Message>, Option<OnModulePress>)>;
-
-    fn menu_view(&self, _: Self::MenuViewData<'_>) -> Element<app::Message> {
-        row!().into()
-    }
-
-    fn subscription(&self, _: Self::SubscriptionData<'_>) -> Option<Subscription<app::Message>> {
-        None
-    }
-}
 impl App {
     pub fn modules_section(&self, id: Id) -> [Element<Message>; 3] {
         [
@@ -325,8 +295,10 @@ impl App {
                     Some(OnModulePress::ToggleMenu(MenuType::MediaPlayer)),
                 )
             }),
-            // ModuleName::Settings => self.settings.view(()),
-            _ => None,
+            ModuleName::Settings => Some((
+                self.settings.view(&self.theme).map(Message::Settings),
+                Some(OnModulePress::ToggleMenu(MenuType::Settings)),
+            )),
         }
     }
 
@@ -369,8 +341,7 @@ impl App {
             ModuleName::MediaPlayer => {
                 Some(self.media_player.subscription().map(Message::MediaPlayer))
             }
-            _ => None,
-            // ModuleName::Settings => self.settings.subscription(()),
+            ModuleName::Settings => Some(self.settings.subscription().map(Message::Settings)),
         }
     }
 }
