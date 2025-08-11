@@ -151,7 +151,7 @@ impl Custom {
         }
     }
 
-    pub fn subscription(&self) -> Subscription<Message> {
+    pub fn subscription(&self) -> Subscription<(String, Message)> {
         let id = TypeId::of::<Self>();
         let name = self.config.name.clone();
         if let Some(listen_cmd) = self.config.listen_cmd.clone() {
@@ -182,9 +182,9 @@ impl Custom {
 
                                 while let Some(line) = reader.next_line().await.ok().flatten() {
                                     match serde_json::from_str(&line) {
-                                        Ok(event) => {
-                                            output.try_send(Message::Update(event)).unwrap()
-                                        }
+                                        Ok(event) => output
+                                            .try_send((name.clone(), Message::Update(event)))
+                                            .unwrap(),
                                         Err(e) => {
                                             error!("Failed to parse JSON: {e} for line {line}");
                                         }

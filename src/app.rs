@@ -467,8 +467,10 @@ impl App {
                 ),
                 Some((MenuType::SystemInfo, button_ui_ref)) => self.menu_wrapper(
                     id,
-                    self.system_info.menu_view().map(Message::SystemInfo),
-                    MenuSize::Large,
+                    self.system_info
+                        .menu_view(&self.theme)
+                        .map(Message::SystemInfo),
+                    MenuSize::Medium,
                     *button_ui_ref,
                 ),
                 None => Row::new().into(),

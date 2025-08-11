@@ -1,7 +1,7 @@
 use crate::{
     config::{WorkspaceVisibilityMode, WorkspacesModuleConfig},
     outputs::Outputs,
-    theme::{AshellTheme, workspace_button_style},
+    theme::AshellTheme,
 };
 use hyprland::{
     dispatch::MonitorIdentifier,
@@ -180,7 +180,12 @@ impl Workspaces {
         }
     }
 
-    pub fn view(&self, id: Id, theme: &AshellTheme, outputs: &Outputs) -> Element<Message> {
+    pub fn view<'a>(
+        &'a self,
+        id: Id,
+        theme: &'a AshellTheme,
+        outputs: &Outputs,
+    ) -> Element<'a, Message> {
         let monitor_name = outputs.get_monitor_name(id);
 
         Into::<Element<Message>>::into(
@@ -216,14 +221,18 @@ impl Workspaces {
                                         } else {
                                             text(w.id)
                                         }
-                                        .size(10),
+                                        .size(theme.font_size.xs),
                                     )
                                     .align_x(alignment::Horizontal::Center)
                                     .align_y(alignment::Vertical::Center),
                                 )
-                                .style(workspace_button_style(empty, color))
+                                .style(theme.workspace_button_style(empty, color))
                                 .padding(if w.id < 0 {
-                                    if w.active { [0, 16] } else { [0, 8] }
+                                    if w.active {
+                                        [0, theme.space.md]
+                                    } else {
+                                        [0, theme.space.xs]
+                                    }
                                 } else {
                                     [0, 0]
                                 })
@@ -235,11 +244,11 @@ impl Workspaces {
                                 .width(if w.id < 0 {
                                     Length::Shrink
                                 } else if w.active {
-                                    Length::Fixed(32.)
+                                    Length::Fixed(theme.space.xl as f32)
                                 } else {
-                                    Length::Fixed(16.)
+                                    Length::Fixed(theme.space.md as f32)
                                 })
-                                .height(16)
+                                .height(theme.space.md)
                                 .into(),
                             )
                         } else {
@@ -248,8 +257,7 @@ impl Workspaces {
                     })
                     .collect::<Vec<Element<'_, _, _>>>(),
             )
-            .padding([2, 0])
-            .spacing(4),
+            .spacing(theme.space.xxs),
         )
     }
 

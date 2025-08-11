@@ -167,18 +167,25 @@ impl SystemInfo {
         }
     }
 
-    fn info_element<'a>(info_icon: Icons, label: String, value: String) -> Element<'a, Message> {
+    fn info_element<'a>(
+        theme: &AshellTheme,
+        info_icon: Icons,
+        label: String,
+        value: String,
+    ) -> Element<'a, Message> {
         row!(
-            container(icon(info_icon).size(22)).center_x(Length::Fixed(32.)),
+            container(icon(info_icon).size(theme.font_size.xl))
+                .center_x(Length::Fixed(theme.space.xl as f32)),
             text(label).width(Length::Fill),
             text(value)
         )
         .align_y(Alignment::Center)
-        .spacing(8)
+        .spacing(theme.space.xs)
         .into()
     }
 
     fn indicator_info_element<'a, V: std::fmt::Display + PartialOrd + 'a>(
+        theme: &AshellTheme,
         info_icon: Icons,
         value: V,
         unit: &str,
@@ -194,7 +201,7 @@ impl SystemInfo {
                     text(format!("{value}{unit}"))
                 }
             )
-            .spacing(4),
+            .spacing(theme.space.xxs),
         );
 
         if let Some((warn_threshold, alert_threshold)) = threshold {
@@ -215,28 +222,36 @@ impl SystemInfo {
         }
     }
 
-    pub fn menu_view(&self) -> Element<Message> {
+    pub fn menu_view(&self, theme: &AshellTheme) -> Element<Message> {
         column!(
-            text("System Info").size(20),
+            text("System Info").size(theme.font_size.lg),
             horizontal_rule(1),
             Column::new()
                 .push(Self::info_element(
+                    theme,
                     Icons::Cpu,
                     "CPU Usage".to_string(),
                     format!("{}%", self.data.cpu_usage),
                 ))
                 .push(Self::info_element(
+                    theme,
                     Icons::Mem,
                     "Memory Usage".to_string(),
                     format!("{}%", self.data.memory_usage),
                 ))
                 .push(Self::info_element(
+                    theme,
                     Icons::Mem,
                     "Swap memory Usage".to_string(),
                     format!("{}%", self.data.memory_swap_usage),
                 ))
                 .push_maybe(self.data.temperature.map(|temp| {
-                    Self::info_element(Icons::Temp, "Temperature".to_string(), format!("{temp}°C"))
+                    Self::info_element(
+                        theme,
+                        Icons::Temp,
+                        "Temperature".to_string(),
+                        format!("{temp}°C"),
+                    )
                 }))
                 .push(
                     Column::with_children(
@@ -245,6 +260,7 @@ impl SystemInfo {
                             .iter()
                             .map(|(mount_point, usage)| {
                                 Self::info_element(
+                                    theme,
                                     Icons::Drive,
                                     format!("Disk Usage {mount_point}"),
                                     format!("{usage}%"),
@@ -257,11 +273,13 @@ impl SystemInfo {
                 .push_maybe(self.data.network.as_ref().map(|network| {
                     Column::with_children(vec![
                         Self::info_element(
+                            theme,
                             Icons::IpAddress,
                             "IP Address".to_string(),
                             network.ip.clone(),
                         ),
                         Self::info_element(
+                            theme,
                             Icons::DownloadSpeed,
                             "Download Speed".to_string(),
                             if network.download_speed > 1000 {
@@ -271,6 +289,7 @@ impl SystemInfo {
                             },
                         ),
                         Self::info_element(
+                            theme,
                             Icons::UploadSpeed,
                             "Upload Speed".to_string(),
                             if network.upload_speed > 1000 {
@@ -291,6 +310,7 @@ impl SystemInfo {
     pub fn view(&self, theme: &AshellTheme) -> Element<Message> {
         let indicators = self.config.indicators.iter().filter_map(|i| match i {
             SystemIndicator::Cpu => Some(Self::indicator_info_element(
+                theme,
                 Icons::Cpu,
                 self.data.cpu_usage,
                 "%",
@@ -301,6 +321,7 @@ impl SystemInfo {
                 None,
             )),
             SystemIndicator::Memory => Some(Self::indicator_info_element(
+                theme,
                 Icons::Mem,
                 self.data.memory_usage,
                 "%",
@@ -311,6 +332,7 @@ impl SystemInfo {
                 None,
             )),
             SystemIndicator::MemorySwap => Some(Self::indicator_info_element(
+                theme,
                 Icons::Mem,
                 self.data.memory_swap_usage,
                 "%",
@@ -322,6 +344,7 @@ impl SystemInfo {
             )),
             SystemIndicator::Temperature => self.data.temperature.map(|temperature| {
                 Self::indicator_info_element(
+                    theme,
                     Icons::Temp,
                     temperature,
                     "°C",
@@ -336,6 +359,7 @@ impl SystemInfo {
                 self.data.disks.iter().find_map(|(disk_mount, disk)| {
                     if disk_mount == mount {
                         Some(Self::indicator_info_element(
+                            theme,
                             Icons::Drive,
                             *disk,
                             "%",
@@ -352,6 +376,7 @@ impl SystemInfo {
             }
             SystemIndicator::IpAddress => self.data.network.as_ref().map(|network| {
                 Self::indicator_info_element(
+                    theme,
                     Icons::IpAddress,
                     network.ip.to_string(),
                     "",
@@ -361,6 +386,7 @@ impl SystemInfo {
             }),
             SystemIndicator::DownloadSpeed => self.data.network.as_ref().map(|network| {
                 Self::indicator_info_element(
+                    theme,
                     Icons::DownloadSpeed,
                     if network.download_speed > 1000 {
                         network.download_speed / 1000
@@ -378,6 +404,7 @@ impl SystemInfo {
             }),
             SystemIndicator::UploadSpeed => self.data.network.as_ref().map(|network| {
                 Self::indicator_info_element(
+                    theme,
                     Icons::UploadSpeed,
                     if network.upload_speed > 1000 {
                         network.upload_speed / 1000
@@ -397,16 +424,8 @@ impl SystemInfo {
 
         Row::with_children(indicators)
             .align_y(Alignment::Center)
-            .spacing(4)
+            .spacing(theme.space.xxs)
             .into()
-
-        // Some((
-        //     Row::with_children(indicators)
-        //         .align_y(Alignment::Center)
-        //         .spacing(4)
-        //         .into(),
-        //     Some(OnModulePress::ToggleMenu(MenuType::SystemInfo)),
-        // ))
     }
 
     pub fn subscription(&self) -> Subscription<Message> {

@@ -366,6 +366,93 @@ impl AshellTheme {
             }
         }
     }
+
+    pub fn workspace_button_style(
+        &self,
+        is_empty: bool,
+        colors: Option<Option<AppearanceColor>>,
+    ) -> impl Fn(&Theme, Status) -> button::Style {
+        move |theme: &Theme, status: Status| {
+            let (bg_color, fg_color) = colors
+                .map(|c| {
+                    c.map_or(
+                        (
+                            theme.extended_palette().primary.base.color,
+                            theme.extended_palette().primary.base.text,
+                        ),
+                        |c| {
+                            let color = palette::Primary::generate(
+                                c.get_base(),
+                                theme.palette().background,
+                                c.get_text().unwrap_or(theme.palette().text),
+                            );
+                            (color.base.color, color.base.text)
+                        },
+                    )
+                })
+                .unwrap_or((
+                    theme.extended_palette().background.weak.color,
+                    theme.palette().text,
+                ));
+            let mut base = button::Style {
+                background: Some(Background::Color(if is_empty {
+                    theme.extended_palette().background.weak.color
+                } else {
+                    bg_color
+                })),
+                border: Border {
+                    width: if is_empty { 1.0 } else { 0.0 },
+                    color: bg_color,
+                    radius: self.radius.lg.into(),
+                },
+                text_color: if is_empty {
+                    theme.extended_palette().background.weak.text
+                } else {
+                    fg_color
+                },
+                ..button::Style::default()
+            };
+            match status {
+                Status::Active => base,
+                Status::Hovered => {
+                    let (bg_color, fg_color) = colors
+                        .map(|c| {
+                            c.map_or(
+                                (
+                                    theme.extended_palette().primary.strong.color,
+                                    theme.extended_palette().primary.strong.text,
+                                ),
+                                |c| {
+                                    let color = palette::Primary::generate(
+                                        c.get_base(),
+                                        theme.palette().background,
+                                        c.get_text().unwrap_or(theme.palette().text),
+                                    );
+                                    (color.strong.color, color.strong.text)
+                                },
+                            )
+                        })
+                        .unwrap_or((
+                            theme.extended_palette().background.strong.color,
+                            theme.palette().text,
+                        ));
+
+                    base.background = Some(Background::Color(if is_empty {
+                        theme.extended_palette().background.strong.color
+                    } else {
+                        bg_color
+                    }));
+                    base.text_color = if is_empty {
+                        theme.extended_palette().background.weak.text
+                    } else {
+                        fg_color
+                    };
+                    base
+                }
+                _ => base,
+            }
+        }
+    }
 }
 
 /// Note: the transparent argument, when true, makes the base color bg
@@ -509,92 +596,6 @@ pub fn confirm_button_style(opacity: f32) -> impl Fn(&Theme, Status) -> button::
                         .scale_alpha(opacity)
                         .into(),
                 );
-                base
-            }
-            _ => base,
-        }
-    }
-}
-
-pub fn workspace_button_style(
-    is_empty: bool,
-    colors: Option<Option<AppearanceColor>>,
-) -> impl Fn(&Theme, Status) -> button::Style {
-    move |theme: &Theme, status: Status| {
-        let (bg_color, fg_color) = colors
-            .map(|c| {
-                c.map_or(
-                    (
-                        theme.extended_palette().primary.base.color,
-                        theme.extended_palette().primary.base.text,
-                    ),
-                    |c| {
-                        let color = palette::Primary::generate(
-                            c.get_base(),
-                            theme.palette().background,
-                            c.get_text().unwrap_or(theme.palette().text),
-                        );
-                        (color.base.color, color.base.text)
-                    },
-                )
-            })
-            .unwrap_or((
-                theme.extended_palette().background.weak.color,
-                theme.palette().text,
-            ));
-        let mut base = button::Style {
-            background: Some(Background::Color(if is_empty {
-                theme.extended_palette().background.weak.color
-            } else {
-                bg_color
-            })),
-            border: Border {
-                width: if is_empty { 1.0 } else { 0.0 },
-                color: bg_color,
-                radius: 16.0.into(),
-            },
-            text_color: if is_empty {
-                theme.extended_palette().background.weak.text
-            } else {
-                fg_color
-            },
-            ..button::Style::default()
-        };
-        match status {
-            Status::Active => base,
-            Status::Hovered => {
-                let (bg_color, fg_color) = colors
-                    .map(|c| {
-                        c.map_or(
-                            (
-                                theme.extended_palette().primary.strong.color,
-                                theme.extended_palette().primary.strong.text,
-                            ),
-                            |c| {
-                                let color = palette::Primary::generate(
-                                    c.get_base(),
-                                    theme.palette().background,
-                                    c.get_text().unwrap_or(theme.palette().text),
-                                );
-                                (color.strong.color, color.strong.text)
-                            },
-                        )
-                    })
-                    .unwrap_or((
-                        theme.extended_palette().background.strong.color,
-                        theme.palette().text,
-                    ));
-
-                base.background = Some(Background::Color(if is_empty {
-                    theme.extended_palette().background.strong.color
-                } else {
-                    bg_color
-                }));
-                base.text_color = if is_empty {
-                    theme.extended_palette().background.weak.text
-                } else {
-                    fg_color
-                };
                 base
             }
             _ => base,

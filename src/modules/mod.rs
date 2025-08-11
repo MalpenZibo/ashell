@@ -305,13 +305,10 @@ impl App {
     fn get_module_subscription(&self, module_name: &ModuleName) -> Option<Subscription<Message>> {
         match module_name {
             ModuleName::AppLauncher => None,
-            ModuleName::Custom(name) => self.custom.get(name).map({
-                |custom| {
-                    custom.subscription().map({
-                        let name = name.clone();
-                        move |msg| Message::Custom(name.clone(), msg)
-                    })
-                }
+            ModuleName::Custom(name) => self.custom.get(name).map(|custom| {
+                custom
+                    .subscription()
+                    .map(|(name, msg)| Message::Custom(name, msg))
             }),
             ModuleName::Updates => self
                 .updates
