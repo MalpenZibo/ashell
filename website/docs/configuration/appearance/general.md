@@ -16,6 +16,13 @@ is optional—if not set, the `iced` library will use the default font.
 font_name = "Comic Sans MS"
 ```
 
+## Scaling Factor
+
+You can change the scaling factor of the status bar using the `scale_factor` field.
+
+The value should be a float greater than `0.0` and less then `2.0`.
+The default value is `1.0`.
+
 ## Status Bar Style
 
 You can change the style of the status bar using the `style` field.
