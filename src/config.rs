@@ -5,9 +5,7 @@ use iced::{Color, Subscription, futures::SinkExt, stream::channel, theme::palett
 use inotify::EventMask;
 use inotify::Inotify;
 use inotify::WatchMask;
-use log::error;
-use log::info;
-use log::{debug, warn};
+use log::{debug, error, info, warn};
 use regex::Regex;
 use serde::{Deserialize, Deserializer, de::Visitor};
 use serde_with::DisplayFromStr;
@@ -341,7 +339,7 @@ pub enum AppearanceStyle {
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct MenuAppearance {
-    #[serde(default = "default_opacity")]
+    #[serde(deserialize_with = "opacity_deserializer", default = "default_opacity")]
     pub opacity: f32,
     #[serde(default)]
     pub backdrop: f32,
