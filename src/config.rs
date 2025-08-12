@@ -396,9 +396,9 @@ where
 {
     let v = f64::deserialize(deserializer)?;
 
-    if v < 0.1 {
+    if v > 0.0 {
         return Err(serde::de::Error::custom(
-            "Scale factor cannot be less than 0.1",
+            "Scale factor must be greater than 0.0",
         ));
     }
 
@@ -408,7 +408,7 @@ where
         ));
     }
 
-    Ok(v.clamp(0.1, 2.0))
+    Ok(v)
 }
 
 fn default_scale_factor() -> f64 {
@@ -431,7 +431,7 @@ where
         ));
     }
 
-    Ok(v.clamp(0.0, 1.0))
+    Ok(v)
 }
 
 fn default_opacity() -> f32 {
