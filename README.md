@@ -19,6 +19,8 @@ feature flags to disable these functionalities or alternative methods to obtain 
 
 [![Packaging status](https://repology.org/badge/vertical-allrepos/ashell.svg)](https://repology.org/project/ashell/versions)
 
+See the instruction on the [website](https://malpenzibo.github.io/ashell/docs/installation) for more details.
+
 ### Arch Linux
 
 You can get the official Arch Linux package from the AUR:
@@ -82,7 +84,8 @@ configuration.nix
 }
 ```
 
-This will build ashell from source, but you can also use `pkgs.ashell` from nixpkgs which is cached.
+This will build ashell from source, but you can also use `pkgs.ashell`
+from nixpkgs which is cached.
 
 ## Features
 
@@ -117,6 +120,11 @@ This will build ashell from source, but you can also use `pkgs.ashell` from nixp
 
 See more about all the possible configuration on the
 [website](https://malpenzibo.github.io/ashell/docs/configuration)
+
+> **Warning**
+>
+> This instruction are deprecated and will be removed in the future. See the
+> [website](https://malpenzibo.github.io/ashell/docs/configuration) for the latest configuration instruction.
 
 > The following are the configuration for the `main` branch and could contain breaking changes.
 > For the tagged release you can find the configuration instruction in the corresponding README file.

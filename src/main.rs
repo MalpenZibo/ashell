@@ -24,7 +24,7 @@ mod style;
 mod utils;
 
 const ICON_FONT: &[u8] = include_bytes!("../assets/SymbolsNerdFont-Regular.ttf");
-const HEIGHT: u32 = 34;
+const HEIGHT: f64 = 34.;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -84,6 +84,7 @@ async fn main() -> iced::Result {
         .subscription(App::subscription)
         .theme(App::theme)
         .style(App::style)
+        .scale_factor(App::scale_factor)
         .font(Cow::from(ICON_FONT))
         .default_font(font)
         .run_with(App::new((logger, config, config_path)))
