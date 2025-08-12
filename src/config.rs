@@ -396,7 +396,7 @@ where
 {
     let v = f64::deserialize(deserializer)?;
 
-    if v > 0.0 {
+    if v <= 0.0 {
         return Err(serde::de::Error::custom(
             "Scale factor must be greater than 0.0",
         ));

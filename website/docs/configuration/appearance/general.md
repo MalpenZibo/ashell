@@ -20,7 +20,7 @@ font_name = "Comic Sans MS"
 
 You can change the scaling factor of the status bar using the `scale_factor` field.
 
-The value should be a float greater than `0.0` and less than `2.0`.
+The value should be a float greater than `0.0` and less than or equal to `2.0`.
 The default value is `1.0`.
 
 ## Status Bar Style
