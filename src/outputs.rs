@@ -23,6 +23,7 @@ struct ShellInfo {
     position: Position,
     style: AppearanceStyle,
     menu: Menu,
+    scale_factor: f64,
 }
 
 #[derive(Debug, Clone)]
@@ -49,6 +50,7 @@ impl Outputs {
                     menu: Menu::new(menu_id),
                     position,
                     style,
+                    scale_factor,
                 }),
                 None,
             )]),
@@ -56,12 +58,13 @@ impl Outputs {
         )
     }
 
-    fn get_height(style: AppearanceStyle) -> f64 {
-        HEIGHT
+    fn get_height(style: AppearanceStyle, scale_factor: f64) -> f64 {
+        (HEIGHT
             - match style {
                 AppearanceStyle::Solid | AppearanceStyle::Gradient => 8.,
                 AppearanceStyle::Islands => 0.,
-            }
+            })
+            * scale_factor
     }
 
     fn create_output_layers<Message: 'static>(
@@ -71,7 +74,7 @@ impl Outputs {
         scale_factor: f64,
     ) -> (Id, Id, Task<Message>) {
         let id = Id::unique();
-        let height = Self::get_height(style) * scale_factor;
+        let height = Self::get_height(style, scale_factor);
 
         let task = get_layer_surface(SctkLayerSurfaceSettings {
             id,
@@ -201,6 +204,7 @@ impl Outputs {
                     menu: Menu::new(menu_id),
                     position,
                     style,
+                    scale_factor,
                 }),
                 Some(wl_output),
             ));
@@ -277,6 +281,7 @@ impl Outputs {
                             menu: Menu::new(menu_id),
                             position,
                             style,
+                            scale_factor,
                         }),
                         None,
                     ));
@@ -352,12 +357,10 @@ impl Outputs {
         }
 
         for shell_info in self.0.iter_mut().filter_map(|(_, shell_info, _)| {
-            if let Some(shell_info) = shell_info {
-                if shell_info.position != position {
-                    Some(shell_info)
-                } else {
-                    None
-                }
+            if let Some(shell_info) = shell_info
+                && shell_info.position != position
+            {
+                Some(shell_info)
             } else {
                 None
             }
@@ -378,22 +381,21 @@ impl Outputs {
         }
 
         for shell_info in self.0.iter_mut().filter_map(|(_, shell_info, _)| {
-            if let Some(shell_info) = shell_info {
-                if shell_info.style != style {
-                    Some(shell_info)
-                } else {
-                    None
-                }
+            if let Some(shell_info) = shell_info
+                && (shell_info.style != style || shell_info.scale_factor != scale_factor)
+            {
+                Some(shell_info)
             } else {
                 None
             }
         }) {
             debug!(
-                "Change style for output: {:?}, new style {:?}",
-                shell_info.id, style
+                "Change style or scale_factor for output: {:?}, new style {:?}, new scale_factor {:?}",
+                shell_info.id, style, scale_factor
             );
             shell_info.style = style;
-            let height = Self::get_height(style);
+            shell_info.scale_factor = scale_factor;
+            let height = Self::get_height(style, scale_factor);
             tasks.push(Task::batch(vec![
                 set_size(shell_info.id, None, Some(height as u32)),
                 set_exclusive_zone(shell_info.id, height as i32),
