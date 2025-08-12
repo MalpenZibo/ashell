@@ -5,9 +5,9 @@ use iced::{Color, Subscription, futures::SinkExt, stream::channel, theme::palett
 use inotify::EventMask;
 use inotify::Inotify;
 use inotify::WatchMask;
-use log::debug;
 use log::error;
 use log::info;
+use log::{debug, warn};
 use regex::Regex;
 use serde::{Deserialize, Deserializer, de::Visitor};
 use serde_with::DisplayFromStr;
@@ -360,11 +360,14 @@ impl Default for MenuAppearance {
 pub struct Appearance {
     #[serde(default)]
     pub font_name: Option<String>,
-    #[serde(default = "default_scale_factor")]
+    #[serde(
+        deserialize_with = "scale_factor_deserializer",
+        default = "default_scale_factor"
+    )]
     pub scale_factor: f64,
     #[serde(default)]
     pub style: AppearanceStyle,
-    #[serde(default = "default_opacity")]
+    #[serde(deserialize_with = "opacity_deserializer", default = "default_opacity")]
     pub opacity: f32,
     #[serde(default)]
     pub menu: MenuAppearance,
@@ -387,8 +390,48 @@ pub struct Appearance {
 
 static PRIMARY: HexColor = HexColor::rgb(250, 179, 135);
 
+fn scale_factor_deserializer<'de, D>(deserializer: D) -> Result<f64, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let v = f64::deserialize(deserializer)?;
+
+    if v < 0.1 {
+        return Err(serde::de::Error::custom(
+            "Scale factor cannot be less than 0.1",
+        ));
+    }
+
+    if v > 2.0 {
+        return Err(serde::de::Error::custom(
+            "Scale factor cannot be greater than 2.0",
+        ));
+    }
+
+    Ok(v.clamp(0.1, 2.0))
+}
+
 fn default_scale_factor() -> f64 {
     1.0
+}
+
+fn opacity_deserializer<'de, D>(deserializer: D) -> Result<f32, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let v = f32::deserialize(deserializer)?;
+
+    if v < 0.0 {
+        return Err(serde::de::Error::custom("Opacity cannot be negative"));
+    }
+
+    if v > 1.0 {
+        return Err(serde::de::Error::custom(
+            "Opacity cannot be greater than 1.0",
+        ));
+    }
+
+    Ok(v.clamp(0.0, 1.0))
 }
 
 fn default_opacity() -> f32 {
@@ -738,12 +781,23 @@ fn read_config(path: &Path) -> Result<Config, Box<dyn Error + Send>> {
 
     match read_result {
         Ok(_) => {
-            log::info!("Decoding config file {path:?}");
+            info!("Decoding config file {path:?}");
 
-            toml::from_str(&content).map_err(|e| Box::new(e) as Box<dyn Error + Send>)
+            let res = toml::from_str(&content);
+
+            match res {
+                Ok(config) => {
+                    info!("Config file loaded successfully");
+                    Ok(config)
+                }
+                Err(e) => {
+                    warn!("Failed to parse config file: {e}");
+                    Err(Box::new(e))
+                }
+            }
         }
         Err(e) => {
-            debug!("Failed to read config file: {e}");
+            warn!("Failed to read config file: {e}");
 
             Err(Box::new(e))
         }
