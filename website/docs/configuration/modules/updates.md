@@ -30,8 +30,8 @@ lazygit 0.52.0-1 -> 0.53.0-1
 
 ## Example
 
-In this example, I am using an Arch Linux distribution, with paru as my
-AUR package manager and alacritty as a terminal emulator.
+In this example, I am using an Arch Linux distribution, with `paru` as my
+AUR package manager and `alacritty` as a terminal emulator.
 
 ```toml
 [updates]
