@@ -11,7 +11,7 @@ These are all the appearance options not related to the color palette.
 You can change the font used by setting the `font_name` field. This configuration
 is optional—if not set, the `iced` library will use the default font.
 
-```yaml
+```toml
 [appearance]
 font_name = "Comic Sans MS"
 ```
@@ -22,6 +22,11 @@ You can change the scaling factor of the status bar using the `scale_factor` fie
 
 The value should be a float greater than `0.0` and less than or equal to `2.0`.
 The default value is `1.0`.
+
+```toml
+[appearance]
+scale_factor = 1.5
+```
 
 ## Status Bar Style
 
@@ -36,7 +41,7 @@ You can choose between:
 
 ### Example
 
-```yaml
+```toml
 [appearance]
 style = "Gradient"
 ```
@@ -55,14 +60,14 @@ include a backdrop effect.
 
 Setting the opacity of the status bar components:
 
-```yaml
+```toml
 [appearance]
 opacity = 0.8
 ```
 
 Also setting the opacity of the status bar menus and adding a backdrop effect:
 
-```yaml
+```toml
 [appearance]
 opacity = 0.8
 

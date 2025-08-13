@@ -46,12 +46,13 @@ The following colors are used for the workspaces module.
 You can specify which color to use for workspace indicators based on  
 the monitor to which a workspace is attached.
 
-For example, if workspace 1 is attached to `monitorA`, the first color will be used;  
-if workspace 2 is attached to `monitorB`, the second color will be used, and so on.
+For example, if workspace 1 is attached to `monitorA`, the first
+color will be used; if workspace 2 is attached to `monitorB`,
+the second color will be used, and so on.
 
 Use the `workspace_colors` field for regular workspaces, and  
 `special_workspace_colors` for special workspaces.
 
 If `special_workspace_colors` is not defined, `workspace_colors` will be used.  
-If neither `workspace_colors` is defined nor a color exists for a given monitor,  
-the `primary_color` will be used.
+If neither `workspace_colors` is defined nor a color exists
+for a given monitor, the `primary_color` will be used.
