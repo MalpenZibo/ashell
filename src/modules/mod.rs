@@ -85,7 +85,8 @@ impl App {
                 let button = position_button(
                     container(content)
                         .align_y(Alignment::Center)
-                        .height(Length::Fill),
+                        .height(Length::Fill)
+                        .clip(true),
                 )
                 .padding([2, self.theme.space.xs])
                 .height(Length::Fill)
@@ -109,7 +110,8 @@ impl App {
                 let container = container(content)
                     .padding([2, self.theme.space.xs])
                     .height(Length::Fill)
-                    .align_y(Alignment::Center);
+                    .align_y(Alignment::Center)
+                    .clip(true);
 
                 match self.config.appearance.style {
                     AppearanceStyle::Solid | AppearanceStyle::Gradient => container.into(),
@@ -157,7 +159,8 @@ impl App {
                                 let button = position_button(
                                     container(content)
                                         .align_y(Alignment::Center)
-                                        .height(Length::Fill),
+                                        .height(Length::Fill)
+                                        .clip(true),
                                 )
                                 .padding([2, self.theme.space.xs])
                                 .height(Length::Fill)
@@ -184,6 +187,7 @@ impl App {
                                 .padding([2, self.theme.space.xs])
                                 .height(Length::Fill)
                                 .align_y(Alignment::Center)
+                                .clip(true)
                                 .into(),
                         })
                         .collect::<Vec<_>>(),

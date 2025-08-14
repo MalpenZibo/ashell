@@ -197,20 +197,15 @@ impl TrayModule {
                                 })
                                 .on_press_with_position(move |button_ui_ref| {
                                     Message::ToggleMenu(item.name.to_owned(), id, button_ui_ref)
-                                    // app::Message::ToggleMenu(
-                                    //     MenuType::Tray(item.name.to_owned()),
-                                    //     id,
-                                    //     button_ui_ref,
-                                    // )
                                 })
-                                .padding([2, 2])
+                                .padding(theme.space.xxs)
                                 .style(theme.ghost_button_style())
                                 .into()
                             })
                             .collect::<Vec<_>>(),
                     )
                     .align_y(Alignment::Center)
-                    .spacing(theme.space.xs),
+                    .padding([0, theme.space.xxs]),
                 )
             })
     }

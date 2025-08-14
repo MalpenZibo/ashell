@@ -268,7 +268,7 @@ impl SystemInfo {
                             })
                             .collect::<Vec<Element<_>>>(),
                     )
-                    .spacing(4),
+                    .spacing(theme.space.xxs),
                 )
                 .push_maybe(self.data.network.as_ref().map(|network| {
                     Column::with_children(vec![
@@ -300,10 +300,10 @@ impl SystemInfo {
                         ),
                     ])
                 }))
-                .spacing(4)
-                .padding([0, 8])
+                .spacing(theme.space.xxs)
+                .padding([0, theme.space.xs])
         )
-        .spacing(8)
+        .spacing(theme.space.xs)
         .into()
     }
 

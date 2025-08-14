@@ -50,7 +50,7 @@ impl Privacy {
                         .push_maybe(service.webcam_access().then(|| icon(Icons::Webcam)))
                         .push_maybe(service.microphone_access().then(|| icon(Icons::Mic1)))
                         .align_y(Alignment::Center)
-                        .spacing(8),
+                        .spacing(theme.space.xs),
                 )
                 .style(|theme| container::Style {
                     text_color: Some(theme.extended_palette().danger.weak.color),
