@@ -1,17 +1,14 @@
-use self::{
-    audio::AudioMessage, bluetooth::BluetoothMessage, network::NetworkMessage, power::PowerMessage,
-};
+use self::{bluetooth::BluetoothMessage, network::NetworkMessage, power::PowerMessage};
 use crate::{
     components::icons::{Icons, icon},
     config::{Position, SettingsModuleConfig},
     menu::MenuType,
-    modules::settings::power::power_menu,
+    modules::settings::{audio::AudioSettings, power::power_menu},
     outputs::Outputs,
     password_dialog,
     position_button::ButtonUIRef,
     services::{
         ReadOnlyService, Service, ServiceEvent,
-        audio::{AudioCommand, AudioService},
         bluetooth::{BluetoothCommand, BluetoothService, BluetoothState},
         brightness::{BrightnessCommand, BrightnessService},
         idle_inhibitor::IdleInhibitorManager,
@@ -39,7 +36,7 @@ mod upower;
 
 pub struct Settings {
     config: SettingsModuleConfig,
-    audio: Option<AudioService>,
+    audio: AudioSettings,
     pub brightness: Option<BrightnessService>,
     network: Option<NetworkService>,
     bluetooth: Option<BluetoothService>,
@@ -55,7 +52,7 @@ pub enum Message {
     UPower(UPowerMessage),
     Network(NetworkMessage),
     Bluetooth(BluetoothMessage),
-    Audio(AudioMessage),
+    Audio(audio::Message),
     Brightness(BrightnessMessage),
     ToggleInhibitIdle,
     Lock,
@@ -77,8 +74,10 @@ pub enum SubMenu {
 impl Settings {
     pub fn new(config: SettingsModuleConfig) -> Self {
         Settings {
-            config,
-            audio: None,
+            audio: AudioSettings::new(
+                config.audio_sinks_more_cmd.clone(),
+                config.audio_sources_more_cmd.clone(),
+            ),
             brightness: None,
             network: None,
             bluetooth: None,
@@ -86,6 +85,7 @@ impl Settings {
             sub_menu: None,
             upower: None,
             password_dialog: None,
+            config,
         }
     }
 
@@ -101,80 +101,33 @@ impl Settings {
                 self.password_dialog = None;
                 outputs.toggle_menu(id, MenuType::Settings, button_ui_ref)
             }
-            Message::Audio(msg) => match msg {
-                AudioMessage::Event(event) => match event {
-                    ServiceEvent::Init(service) => {
-                        self.audio = Some(service);
-                        Task::none()
-                    }
-                    ServiceEvent::Update(data) => {
-                        if let Some(audio) = self.audio.as_mut() {
-                            audio.update(data);
-
-                            if self.sub_menu == Some(SubMenu::Sinks) && audio.sinks.len() < 2 {
-                                self.sub_menu = None;
-                            }
-
-                            if self.sub_menu == Some(SubMenu::Sources) && audio.sources.len() < 2 {
-                                self.sub_menu = None;
-                            }
-                        }
-                        Task::none()
-                    }
-                    ServiceEvent::Error(_) => Task::none(),
-                },
-                AudioMessage::ToggleSinkMute => {
-                    if let Some(audio) = self.audio.as_mut() {
-                        let _ = audio.command(AudioCommand::ToggleSinkMute);
-                    }
-                    Task::none()
-                }
-                AudioMessage::SinkVolumeChanged(value) => {
-                    if let Some(audio) = self.audio.as_mut() {
-                        let _ = audio.command(AudioCommand::SinkVolume(value));
-                    }
-                    Task::none()
-                }
-                AudioMessage::DefaultSinkChanged(name, port) => {
-                    if let Some(audio) = self.audio.as_mut() {
-                        let _ = audio.command(AudioCommand::DefaultSink(name, port));
-                    }
-                    Task::none()
-                }
-                AudioMessage::ToggleSourceMute => {
-                    if let Some(audio) = self.audio.as_mut() {
-                        let _ = audio.command(AudioCommand::ToggleSourceMute);
-                    }
-                    Task::none()
-                }
-                AudioMessage::SourceVolumeChanged(value) => {
-                    if let Some(audio) = self.audio.as_mut() {
-                        let _ = audio.command(AudioCommand::SourceVolume(value));
-                    }
-                    Task::none()
-                }
-                AudioMessage::DefaultSourceChanged(name, port) => {
-                    if let Some(audio) = self.audio.as_mut() {
-                        let _ = audio.command(AudioCommand::DefaultSource(name, port));
-                    }
-                    Task::none()
-                }
-                AudioMessage::SinksMore(id) => {
-                    if let Some(cmd) = &config.audio_sinks_more_cmd {
-                        crate::utils::launcher::execute_command(cmd.to_string());
-                        outputs.close_menu(id)
+            Message::Audio(msg) => match self.audio.update(msg) {
+                audio::Action::None => Task::none(),
+                audio::Action::ToggleSinksMenu => {
+                    if self.sub_menu == Some(SubMenu::Sinks) {
+                        self.sub_menu.take();
                     } else {
-                        Task::none()
+                        self.sub_menu.replace(SubMenu::Sinks);
                     }
+                    Task::none()
                 }
-                AudioMessage::SourcesMore(id) => {
-                    if let Some(cmd) = &config.audio_sources_more_cmd {
-                        crate::utils::launcher::execute_command(cmd.to_string());
-                        outputs.close_menu(id)
+                audio::Action::ToggleSourcesMenu => {
+                    if self.sub_menu == Some(SubMenu::Sources) {
+                        self.sub_menu.take();
                     } else {
-                        Task::none()
+                        self.sub_menu.replace(SubMenu::Sources);
                     }
+                    Task::none()
                 }
+                audio::Action::CloseSubMenu => {
+                    if self.sub_menu == Some(SubMenu::Sinks)
+                        || self.sub_menu == Some(SubMenu::Sources)
+                    {
+                        self.sub_menu.take();
+                    }
+                    Task::none()
+                }
+                audio::Action::CloseMenu(id) => outputs.close_menu(id),
             },
             Message::UPower(msg) => match msg {
                 UPowerMessage::Event(event) => match event {
@@ -486,11 +439,7 @@ impl Settings {
                 .spacing(theme.space.xs)
                 .width(Length::Fill);
 
-            let (sink_slider, source_slider) = self
-                .audio
-                .as_ref()
-                .map(|a| a.audio_sliders(self.sub_menu, theme))
-                .unwrap_or((None, None));
+            let (sink_slider, source_slider) = self.audio.sliders(self.sub_menu, theme);
 
             let wifi_setting_button = self.network.as_ref().and_then(|n| {
                 n.get_wifi_quick_setting_button(
@@ -558,12 +507,12 @@ impl Settings {
             );
 
             let (top_sink_slider, bottom_sink_slider) = match position {
-                Position::Top => (sink_slider, None),
-                Position::Bottom => (None, sink_slider),
+                Position::Top => (sink_slider.map(|e| e.map(Message::Audio)), None),
+                Position::Bottom => (None, sink_slider.map(|e| e.map(Message::Audio))),
             };
             let (top_source_slider, bottom_source_slider) = match position {
-                Position::Top => (source_slider, None),
-                Position::Bottom => (None, source_slider),
+                Position::Top => (source_slider.map(|e| e.map(Message::Audio)), None),
+                Position::Bottom => (None, source_slider.map(|e| e.map(Message::Audio))),
             };
 
             Column::new()
@@ -583,16 +532,9 @@ impl Settings {
                     self.sub_menu
                         .filter(|menu_type| *menu_type == SubMenu::Sinks)
                         .and_then(|_| {
-                            self.audio.as_ref().map(|a| {
-                                sub_menu_wrapper(
-                                    a.sinks_submenu(
-                                        id,
-                                        self.config.audio_sinks_more_cmd.is_some(),
-                                        theme,
-                                    ),
-                                    theme,
-                                )
-                            })
+                            self.audio
+                                .sinks_submenu(id, theme)
+                                .map(|submenu| sub_menu_wrapper(submenu.map(Message::Audio), theme))
                         }),
                 )
                 .push_maybe(bottom_sink_slider)
@@ -601,16 +543,9 @@ impl Settings {
                     self.sub_menu
                         .filter(|menu_type| *menu_type == SubMenu::Sources)
                         .and_then(|_| {
-                            self.audio.as_ref().map(|a| {
-                                sub_menu_wrapper(
-                                    a.sources_submenu(
-                                        id,
-                                        self.config.audio_sources_more_cmd.is_some(),
-                                        theme,
-                                    ),
-                                    theme,
-                                )
-                            })
+                            self.audio
+                                .sources_submenu(id, theme)
+                                .map(|submenu| sub_menu_wrapper(submenu.map(Message::Audio), theme))
                         }),
                 )
                 .push_maybe(bottom_source_slider)
@@ -639,7 +574,7 @@ impl Settings {
                     .as_ref()
                     .and_then(|p| p.power_profile.indicator()),
             )
-            .push_maybe(self.audio.as_ref().and_then(|a| a.sink_indicator()))
+            .push_maybe(self.audio.sink_indicator().map(|e| e.map(Message::Audio)))
             .push(
                 Row::new()
                     .push_maybe(
@@ -663,7 +598,7 @@ impl Settings {
     pub fn subscription(&self) -> Subscription<Message> {
         Subscription::batch(vec![
             UPowerService::subscribe().map(|event| Message::UPower(UPowerMessage::Event(event))),
-            AudioService::subscribe().map(|evenet| Message::Audio(AudioMessage::Event(evenet))),
+            self.audio.subscription().map(Message::Audio),
             BrightnessService::subscribe()
                 .map(|event| Message::Brightness(BrightnessMessage::Event(event))),
             NetworkService::subscribe().map(|event| Message::Network(NetworkMessage::Event(event))),
