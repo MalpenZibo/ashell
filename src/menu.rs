@@ -98,16 +98,16 @@ impl Menu {
         }
     }
 
-    pub fn request_keyboard<Message: 'static>(&self, config: &crate::config::Config) -> Task<Message> {
-        if config.menu_keyboard_focus {
+    pub fn request_keyboard<Message: 'static>(&self, menu_keyboard_focus: bool) -> Task<Message> {
+        if menu_keyboard_focus {
             set_keyboard_interactivity(self.id, KeyboardInteractivity::OnDemand)
         } else {
             Task::none()
         }
     }
 
-    pub fn release_keyboard<Message: 'static>(&self, config: &crate::config::Config) -> Task<Message> {
-        if config.menu_keyboard_focus {
+    pub fn release_keyboard<Message: 'static>(&self, menu_keyboard_focus: bool) -> Task<Message> {
+        if menu_keyboard_focus {
             set_keyboard_interactivity(self.id, KeyboardInteractivity::None)
         } else {
             Task::none()

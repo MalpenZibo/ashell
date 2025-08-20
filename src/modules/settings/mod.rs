@@ -262,7 +262,7 @@ impl Settings {
                 NetworkMessage::RequestWiFiPassword(id, ssid) => {
                     info!("Requesting password for {ssid}");
                     self.password_dialog = Some((ssid, "".to_string()));
-                    outputs.request_keyboard(id, main_config)
+                    outputs.request_keyboard(id, main_config.menu_keyboard_focus)
                 }
                 NetworkMessage::ScanNearByWiFi => match self.network.as_mut() {
                     Some(network) => network
@@ -436,15 +436,15 @@ impl Settings {
                             }
                             _ => Task::none(),
                         };
-                        Task::batch(vec![network_command, outputs.release_keyboard(id, main_config)])
+                        Task::batch(vec![network_command, outputs.release_keyboard(id, main_config.menu_keyboard_focus)])
                     } else {
-                        outputs.release_keyboard(id, main_config)
+                        outputs.release_keyboard(id, main_config.menu_keyboard_focus)
                     }
                 }
                 password_dialog::Message::DialogCancelled(id) => {
                     self.password_dialog = None;
 
-                    outputs.release_keyboard(id, main_config)
+                    outputs.release_keyboard(id, main_config.menu_keyboard_focus)
                 }
             },
         }

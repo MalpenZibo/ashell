@@ -515,7 +515,7 @@ impl App {
             Subscription::batch(self.modules_subscriptions(&self.config.modules.center)),
             Subscription::batch(self.modules_subscriptions(&self.config.modules.right)),
             config::subscription(&self.config_path),
-            listen_with(|evt, _, _| match evt {
+            listen_with(move |evt, _, _| match evt {
                 iced::Event::PlatformSpecific(iced::event::PlatformSpecific::Wayland(
                     WaylandEvent::Output(event, wl_output),
                 )) => {
