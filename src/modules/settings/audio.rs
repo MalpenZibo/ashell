@@ -152,6 +152,7 @@ impl AudioData {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 pub enum SliderType {
     Sink,
     Source,
@@ -196,11 +197,19 @@ pub fn audio_slider<'a, Message: 'a + Clone>(
         )
         .push_maybe(with_submenu.map(|(submenu, msg)| {
             button(icon(match (slider_type, submenu) {
-                (SliderType::Sink, Some(SubMenu::Sinks)) => Icons::Close,
-                (SliderType::Source, Some(SubMenu::Sources)) => Icons::Close,
+                (SliderType::Sink, Some(SubMenu::Sinks))
+                | (SliderType::Source, Some(SubMenu::Sources)) => Icons::Close,
                 _ => Icons::RightArrow,
             }))
-            .padding([8, 13])
+            .padding([
+                theme.space.xs,
+                theme.space.sm
+                    + match (slider_type, submenu) {
+                        (SliderType::Sink, Some(SubMenu::Sinks))
+                        | (SliderType::Source, Some(SubMenu::Sources)) => 2,
+                        _ => 1,
+                    },
+            ])
             .on_press(msg)
             .style(theme.settings_button_style())
         }))

@@ -463,7 +463,7 @@ impl Settings {
             let right_buttons = Row::new()
                 .push_maybe(self.config.lock_cmd.as_ref().map(|_| {
                     button(icon(Icons::Lock))
-                        .padding([8, 13])
+                        .padding([theme.space.xs, theme.space.sm + 1])
                         .on_press(Message::Lock)
                         .style(theme.settings_button_style())
                 }))
@@ -473,17 +473,17 @@ impl Settings {
                     } else {
                         Icons::Power
                     }))
-                    .padding([8, 13])
+                    .padding([theme.space.xs, theme.space.sm + 1])
                     .on_press(Message::ToggleSubMenu(SubMenu::Power))
                     .style(theme.settings_button_style()),
                 )
-                .spacing(8);
+                .spacing(theme.space.xs);
 
             let header = Row::new()
                 .push_maybe(battery_data)
                 .push(Space::with_width(Length::Fill))
                 .push(right_buttons)
-                .spacing(8)
+                .spacing(theme.space.xs)
                 .width(Length::Fill);
 
             let (sink_slider, source_slider) = self
@@ -616,7 +616,7 @@ impl Settings {
                 .push_maybe(bottom_source_slider)
                 .push_maybe(self.brightness.as_ref().map(|b| b.brightness_slider()))
                 .push(quick_settings)
-                .spacing(16)
+                .spacing(theme.space.md)
                 .into()
         }
     }
@@ -656,7 +656,7 @@ impl Settings {
                     .and_then(|upower| upower.battery)
                     .map(|battery| battery.indicator()),
             )
-            .spacing(8)
+            .spacing(theme.space.xs)
             .into()
     }
 
@@ -677,14 +677,18 @@ fn quick_settings_section<'a>(
     buttons: Vec<(Element<'a, Message>, Option<Element<'a, Message>>)>,
     theme: &'a AshellTheme,
 ) -> Element<'a, Message> {
-    let mut section = column!().spacing(8);
+    let mut section = column!().spacing(theme.space.xs);
 
     let mut before: Option<(Element<'a, Message>, Option<Element<'a, Message>>)> = None;
 
     for (button, menu) in buttons.into_iter() {
         match before.take() {
             Some((before_button, before_menu)) => {
-                section = section.push(row![before_button, button].width(Length::Fill).spacing(8));
+                section = section.push(
+                    row![before_button, button]
+                        .width(Length::Fill)
+                        .spacing(theme.space.xs),
+                );
 
                 if let Some(menu) = before_menu {
                     section = section.push(sub_menu_wrapper(menu, theme));
@@ -704,7 +708,7 @@ fn quick_settings_section<'a>(
         section = section.push(
             row![before_button, horizontal_space()]
                 .width(Length::Fill)
-                .spacing(8),
+                .spacing(theme.space.xs),
         );
 
         if let Some(menu) = before_menu {
@@ -730,10 +734,10 @@ fn sub_menu_wrapper<'a, Msg: 'static>(
                     .scale_alpha(ashell_theme.opacity),
             )
             .into(),
-            border: Border::default().rounded(16),
+            border: Border::default().rounded(ashell_theme.radius.lg),
             ..container::Style::default()
         })
-        .padding(16)
+        .padding(ashell_theme.space.md)
         .width(Length::Fill)
         .into()
 }
@@ -748,14 +752,14 @@ fn quick_setting_button<'a, Msg: Clone + 'static>(
     theme: &'a AshellTheme,
 ) -> Element<'a, Msg> {
     let main_content = row!(
-        icon(icon_type).size(20),
+        icon(icon_type).size(theme.font_size.lg),
         Column::new()
-            .push(text(title).size(12))
-            .push_maybe(subtitle.map(|s| text(s).size(10)))
-            .spacing(4)
+            .push(text(title).size(theme.font_size.sm))
+            .push_maybe(subtitle.map(|s| text(s).size(theme.font_size.xs)))
+            .spacing(theme.space.xxs)
     )
-    .spacing(8)
-    .padding(Padding::ZERO.left(4))
+    .spacing(theme.space.xs)
+    .padding(Padding::ZERO.left(theme.space.xxs))
     .width(Length::Fill)
     .align_y(Alignment::Center);
 
@@ -772,17 +776,24 @@ fn quick_setting_button<'a, Msg: Clone + 'static>(
                     .align_y(Vertical::Center)
                     .align_x(Horizontal::Center),
                 )
-                .padding([4, if Some(menu_type) == submenu { 9 } else { 12 }])
+                .padding([
+                    theme.space.xxs,
+                    if Some(menu_type) == submenu {
+                        theme.space.xs + 1
+                    } else {
+                        theme.space.sm
+                    },
+                ])
                 .style(theme.quick_settings_submenu_button_style(active))
                 .width(Length::Shrink)
                 .height(Length::Shrink)
                 .on_press(msg)
             }))
-            .spacing(4)
+            .spacing(theme.space.xxs)
             .align_y(Alignment::Center)
             .height(Length::Fill),
     )
-    .padding([4, 8])
+    .padding([theme.space.xxs, theme.space.xs])
     .on_press(on_press)
     .height(Length::Fill)
     .width(Length::Fill)

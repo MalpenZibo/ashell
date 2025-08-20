@@ -454,7 +454,7 @@ impl App {
                     self.settings
                         .menu_view(id, &self.theme, self.config.position)
                         .map(Message::Settings),
-                    MenuSize::Large,
+                    MenuSize::Medium,
                     *button_ui_ref,
                 ),
                 Some((MenuType::MediaPlayer, button_ui_ref)) => self.menu_wrapper(
