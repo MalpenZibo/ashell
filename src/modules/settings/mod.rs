@@ -1,18 +1,13 @@
-use self::network::NetworkMessage;
 use crate::{
     components::icons::{Icons, icon},
     config::{Position, SettingsModuleConfig},
     modules::settings::{
         audio::AudioSettings, bluetooth::BluetoothSettings, brightness::BrightnessSettings,
-        power::PowerSettings,
+        network::NetworkSettings, power::PowerSettings,
     },
     outputs::Outputs,
     password_dialog,
-    services::{
-        ReadOnlyService, Service, ServiceEvent,
-        idle_inhibitor::IdleInhibitorManager,
-        network::{NetworkCommand, NetworkEvent, NetworkService},
-    },
+    services::idle_inhibitor::IdleInhibitorManager,
     theme::AshellTheme,
 };
 use iced::{
@@ -21,7 +16,6 @@ use iced::{
     widget::{Column, Row, Space, button, column, container, horizontal_space, row, text},
     window::Id,
 };
-use log::info;
 
 mod audio;
 mod bluetooth;
@@ -34,16 +28,16 @@ pub struct Settings {
     power: PowerSettings,
     audio: AudioSettings,
     brightness: BrightnessSettings,
-    network: Option<NetworkService>,
+    network: NetworkSettings,
     bluetooth: BluetoothSettings,
     idle_inhibitor: Option<IdleInhibitorManager>,
-    pub sub_menu: Option<SubMenu>,
-    pub password_dialog: Option<(String, String)>,
+    sub_menu: Option<SubMenu>,
+    password_dialog: Option<(String, String)>,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    Network(NetworkMessage),
+    Network(network::Message),
     Bluetooth(bluetooth::Message),
     Audio(audio::Message),
     Brightness(brightness::Message),
@@ -79,7 +73,11 @@ impl Settings {
                 config.audio_sources_more_cmd.clone(),
             ),
             brightness: BrightnessSettings::new(),
-            network: None,
+            network: NetworkSettings::new(
+                config.wifi_more_cmd.clone(),
+                config.vpn_more_cmd.clone(),
+                config.remove_airplane_btn,
+            ),
             bluetooth: BluetoothSettings::new(config.bluetooth_more_cmd.clone()),
             idle_inhibitor: IdleInhibitorManager::new(),
             sub_menu: None,
@@ -129,104 +127,43 @@ impl Settings {
                 }
                 audio::Action::CloseMenu(id) => outputs.close_menu(id),
             },
-            Message::Network(msg) => match msg {
-                NetworkMessage::Event(event) => match event {
-                    ServiceEvent::Init(service) => {
-                        self.network = Some(service);
-                        Task::none()
-                    }
-                    ServiceEvent::Update(NetworkEvent::RequestPasswordForSSID(ssid)) => {
-                        self.password_dialog = Some((ssid, "".to_string()));
-                        Task::none()
-                    }
-                    ServiceEvent::Update(data) => {
-                        if let Some(network) = self.network.as_mut() {
-                            network.update(data);
-                        }
-                        Task::none()
-                    }
-                    _ => Task::none(),
-                },
-                NetworkMessage::ToggleAirplaneMode => match self.network.as_mut() {
-                    Some(network) => {
-                        if self.sub_menu == Some(SubMenu::Wifi) {
-                            self.sub_menu = None;
-                        }
-
-                        network
-                            .command(NetworkCommand::ToggleAirplaneMode)
-                            .map(|event| {
-                                crate::app::Message::Settings(Message::Network(
-                                    NetworkMessage::Event(event),
-                                ))
-                            })
-                    }
-                    _ => Task::none(),
-                },
-                NetworkMessage::ToggleWiFi => match self.network.as_mut() {
-                    Some(network) => {
-                        if self.sub_menu == Some(SubMenu::Wifi) {
-                            self.sub_menu = None;
-                        }
-                        network.command(NetworkCommand::ToggleWiFi).map(|event| {
-                            crate::app::Message::Settings(Message::Network(NetworkMessage::Event(
-                                event,
-                            )))
-                        })
-                    }
-                    _ => Task::none(),
-                },
-                NetworkMessage::SelectAccessPoint(ac) => match self.network.as_mut() {
-                    Some(network) => network
-                        .command(NetworkCommand::SelectAccessPoint((ac, None)))
-                        .map(|event| {
-                            crate::app::Message::Settings(Message::Network(NetworkMessage::Event(
-                                event,
-                            )))
-                        }),
-                    _ => Task::none(),
-                },
-                NetworkMessage::RequestWiFiPassword(id, ssid) => {
-                    info!("Requesting password for {ssid}");
+            Message::Network(msg) => match self.network.update(msg) {
+                network::Action::None => Task::none(),
+                network::Action::RequestPasswordForSSID(ssid) => {
+                    self.password_dialog = Some((ssid, "".to_string()));
+                    Task::none()
+                }
+                network::Action::RequestPassword(id, ssid) => {
                     self.password_dialog = Some((ssid, "".to_string()));
                     outputs.request_keyboard(id)
                 }
-                NetworkMessage::ScanNearByWiFi => match self.network.as_mut() {
-                    Some(network) => network
-                        .command(NetworkCommand::ScanNearByWiFi)
-                        .map(|event| {
-                            crate::app::Message::Settings(Message::Network(NetworkMessage::Event(
-                                event,
-                            )))
-                        }),
-                    _ => Task::none(),
-                },
-                NetworkMessage::WiFiMore(id) => {
-                    if let Some(cmd) = &config.wifi_more_cmd {
-                        crate::utils::launcher::execute_command(cmd.to_string());
-                        outputs.close_menu(id)
-                    } else {
-                        Task::none()
-                    }
+                network::Action::Command(task) => {
+                    task.map(|msg| crate::app::Message::Settings(Message::Network(msg)))
                 }
-                NetworkMessage::VpnMore(id) => {
-                    if let Some(cmd) = &config.vpn_more_cmd {
-                        crate::utils::launcher::execute_command(cmd.to_string());
-                        outputs.close_menu(id)
+                network::Action::ToggleWifiMenu => {
+                    if self.sub_menu == Some(SubMenu::Wifi) {
+                        self.sub_menu.take();
                     } else {
-                        Task::none()
+                        self.sub_menu.replace(SubMenu::Wifi);
                     }
+                    Task::none()
                 }
-                NetworkMessage::ToggleVpn(vpn) => match self.network.as_mut() {
-                    Some(network) => network
-                        .command(NetworkCommand::ToggleVpn(vpn))
-                        .map(|event| {
-                            crate::app::Message::Settings(Message::Network(NetworkMessage::Event(
-                                event,
-                            )))
-                        }),
-                    _ => Task::none(),
-                },
+                network::Action::ToggleVpnMenu => {
+                    if self.sub_menu == Some(SubMenu::Vpn) {
+                        self.sub_menu.take();
+                    } else {
+                        self.sub_menu.replace(SubMenu::Vpn);
+                    }
+                    Task::none()
+                }
+                network::Action::CloseSubMenu(task) => {
+                    if self.sub_menu == Some(SubMenu::Wifi) || self.sub_menu == Some(SubMenu::Vpn) {
+                        self.sub_menu.take();
+                    }
+
+                    task.map(|msg| crate::app::Message::Settings(Message::Network(msg)))
+                }
+                network::Action::CloseMenu(id) => outputs.close_menu(id),
             },
             Message::Bluetooth(msg) => match self.bluetooth.update(msg) {
                 bluetooth::Action::None => Task::none(),
@@ -256,23 +193,22 @@ impl Settings {
             Message::ToggleSubMenu(menu_type) => {
                 if self.sub_menu == Some(menu_type) {
                     self.sub_menu.take();
+
+                    Task::none()
                 } else {
                     self.sub_menu.replace(menu_type);
 
                     if menu_type == SubMenu::Wifi {
-                        if let Some(network) = self.network.as_mut() {
-                            return network
-                                .command(NetworkCommand::ScanNearByWiFi)
-                                .map(|event| {
-                                    crate::app::Message::Settings(Message::Network(
-                                        NetworkMessage::Event(event),
-                                    ))
-                                });
+                        match self.network.update(network::Message::WifiMenuOpened) {
+                            network::Action::Command(task) => {
+                                task.map(|msg| crate::app::Message::Settings(Message::Network(msg)))
+                            }
+                            _ => Task::none(),
                         }
+                    } else {
+                        Task::none()
                     }
                 }
-
-                Task::none()
             }
             Message::ToggleInhibitIdle => {
                 if let Some(idle_inhibitor) = &mut self.idle_inhibitor {
@@ -296,31 +232,20 @@ impl Settings {
                 }
                 password_dialog::Message::DialogConfirmed(id) => {
                     if let Some((ssid, password)) = self.password_dialog.take() {
-                        let network_command = match self.network.as_mut() {
-                            Some(network) => {
-                                let ap = network
-                                    .wireless_access_points
-                                    .iter()
-                                    .find(|ap| ap.ssid == ssid)
-                                    .cloned();
-                                if let Some(ap) = ap {
-                                    network
-                                        .command(NetworkCommand::SelectAccessPoint((
-                                            ap,
-                                            Some(password),
-                                        )))
-                                        .map(|event| {
-                                            crate::app::Message::Settings(Message::Network(
-                                                NetworkMessage::Event(event),
-                                            ))
-                                        })
-                                } else {
-                                    Task::none()
-                                }
-                            }
-                            _ => Task::none(),
-                        };
-                        Task::batch(vec![network_command, outputs.release_keyboard(id)])
+                        Task::batch(vec![
+                            match self
+                                .network
+                                .update(network::Message::PasswordDialogConfirmed(
+                                    ssid.clone(),
+                                    password.clone(),
+                                )) {
+                                network::Action::Command(task) => task.map(|msg| {
+                                    crate::app::Message::Settings(Message::Network(msg))
+                                }),
+                                _ => Task::none(),
+                            },
+                            outputs.release_keyboard(id),
+                        ])
                     } else {
                         outputs.release_keyboard(id)
                     }
@@ -386,15 +311,17 @@ impl Settings {
 
             let (sink_slider, source_slider) = self.audio.sliders(theme, self.sub_menu);
 
-            let wifi_setting_button = self.network.as_ref().and_then(|n| {
-                n.get_wifi_quick_setting_button(
-                    id,
-                    self.sub_menu,
-                    self.config.wifi_more_cmd.is_some(),
-                    theme,
-                )
-            });
+            let wifi_setting_button = self
+                .network
+                .wifi_quick_setting_button(id, theme, self.sub_menu)
+                .map(|(button, submenu)| {
+                    (
+                        button.map(Message::Network),
+                        submenu.map(|e| e.map(Message::Network)),
+                    )
+                });
             let quick_settings = quick_settings_section(
+                theme,
                 vec![
                     wifi_setting_button,
                     self.bluetooth
@@ -405,21 +332,17 @@ impl Settings {
                                 submenu.map(|e| e.map(Message::Bluetooth)),
                             )
                         }),
-                    self.network.as_ref().and_then(|n| {
-                        n.get_vpn_quick_setting_button(
-                            id,
-                            self.sub_menu,
-                            self.config.vpn_more_cmd.is_some(),
-                            theme,
-                        )
-                    }),
-                    self.network.as_ref().and_then(|n| {
-                        if self.config.remove_airplane_btn {
-                            None
-                        } else {
-                            Some(n.get_airplane_mode_quick_setting_button(theme))
-                        }
-                    }),
+                    self.network
+                        .vpn_quick_setting_button(id, theme, self.sub_menu)
+                        .map(|(button, submenu)| {
+                            (
+                                button.map(Message::Network),
+                                submenu.map(|e| e.map(Message::Network)),
+                            )
+                        }),
+                    self.network
+                        .airplane_mode_quick_setting_button(theme)
+                        .map(|(button, _)| (button.map(Message::Network), None)),
                     self.idle_inhibitor.as_ref().map(|idle_inhibitor| {
                         (
                             quick_setting_button(
@@ -450,7 +373,6 @@ impl Settings {
                 .into_iter()
                 .flatten()
                 .collect::<Vec<_>>(),
-                theme,
             );
 
             let (top_sink_slider, bottom_sink_slider) = match position {
@@ -468,7 +390,7 @@ impl Settings {
                     self.sub_menu
                         .filter(|menu_type| *menu_type == SubMenu::Power)
                         .map(|_| {
-                            sub_menu_wrapper(self.power.menu(theme).map(Message::Power), theme)
+                            sub_menu_wrapper(theme, self.power.menu(theme).map(Message::Power))
                         }),
                 )
                 .push_maybe(top_sink_slider)
@@ -478,7 +400,7 @@ impl Settings {
                         .and_then(|_| {
                             self.audio
                                 .sinks_submenu(id, theme)
-                                .map(|submenu| sub_menu_wrapper(submenu.map(Message::Audio), theme))
+                                .map(|submenu| sub_menu_wrapper(theme, submenu.map(Message::Audio)))
                         }),
                 )
                 .push_maybe(bottom_sink_slider)
@@ -489,7 +411,7 @@ impl Settings {
                         .and_then(|_| {
                             self.audio
                                 .sources_submenu(id, theme)
-                                .map(|submenu| sub_menu_wrapper(submenu.map(Message::Audio), theme))
+                                .map(|submenu| sub_menu_wrapper(theme, submenu.map(Message::Audio)))
                         }),
                 )
                 .push_maybe(bottom_source_slider)
@@ -504,7 +426,7 @@ impl Settings {
         }
     }
 
-    pub fn view(&self, theme: &AshellTheme) -> Element<Message> {
+    pub fn view<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
         Row::new()
             .push_maybe(
                 self.idle_inhibitor
@@ -527,11 +449,15 @@ impl Settings {
                 Row::new()
                     .push_maybe(
                         self.network
-                            .as_ref()
-                            .and_then(|n| n.get_connection_indicator()),
+                            .connection_indicator(theme)
+                            .map(|e| e.map(Message::Network)),
                     )
-                    .push_maybe(self.network.as_ref().and_then(|n| n.get_vpn_indicator()))
-                    .spacing(4),
+                    .push_maybe(
+                        self.network
+                            .vpn_indicator(theme)
+                            .map(|e| e.map(Message::Network)),
+                    )
+                    .spacing(theme.space.xxs),
             )
             .push_maybe(
                 self.power
@@ -547,15 +473,15 @@ impl Settings {
             self.power.subscription().map(Message::Power),
             self.audio.subscription().map(Message::Audio),
             self.brightness.subscription().map(Message::Brightness),
-            NetworkService::subscribe().map(|event| Message::Network(NetworkMessage::Event(event))),
+            self.network.subscription().map(Message::Network),
             self.bluetooth.subscription().map(Message::Bluetooth),
         ])
     }
 }
 
 fn quick_settings_section<'a>(
-    buttons: Vec<(Element<'a, Message>, Option<Element<'a, Message>>)>,
     theme: &'a AshellTheme,
+    buttons: Vec<(Element<'a, Message>, Option<Element<'a, Message>>)>,
 ) -> Element<'a, Message> {
     let mut section = column!().spacing(theme.space.xs);
 
@@ -571,11 +497,11 @@ fn quick_settings_section<'a>(
                 );
 
                 if let Some(menu) = before_menu {
-                    section = section.push(sub_menu_wrapper(menu, theme));
+                    section = section.push(sub_menu_wrapper(theme, menu));
                 }
 
                 if let Some(menu) = menu {
-                    section = section.push(sub_menu_wrapper(menu, theme));
+                    section = section.push(sub_menu_wrapper(theme, menu));
                 }
             }
             _ => {
@@ -592,7 +518,7 @@ fn quick_settings_section<'a>(
         );
 
         if let Some(menu) = before_menu {
-            section = section.push(sub_menu_wrapper(menu, theme));
+            section = section.push(sub_menu_wrapper(theme, menu));
         }
     }
 
@@ -600,8 +526,8 @@ fn quick_settings_section<'a>(
 }
 
 fn sub_menu_wrapper<'a, Msg: 'static>(
-    content: Element<'a, Msg>,
     ashell_theme: &'a AshellTheme,
+    content: Element<'a, Msg>,
 ) -> Element<'a, Msg> {
     container(content)
         .style(move |theme: &Theme| container::Style {
