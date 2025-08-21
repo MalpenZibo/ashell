@@ -13,7 +13,7 @@ use crate::{
         keyboard_submap::KeyboardSubmap,
         media_player::MediaPlayer,
         privacy::Privacy,
-        settings::{Settings, brightness::BrightnessMessage},
+        settings::Settings,
         system_info::SystemInfo,
         tray::TrayModule,
         updates::Updates,
@@ -22,7 +22,6 @@ use crate::{
     },
     outputs::{HasOutput, Outputs},
     position_button::ButtonUIRef,
-    services::{Service, brightness::BrightnessCommand},
     theme::{AshellTheme, backdrop_color, darken_color},
 };
 use flexi_logger::LoggerHandle;
@@ -207,17 +206,11 @@ impl App {
                             .update(modules::tray::Message::MenuOpened(name.clone()));
                     }
                     MenuType::Settings => {
-                        self.settings.sub_menu = None;
-
-                        if let Some(brightness) = self.settings.brightness.as_mut() {
-                            cmd.push(brightness.command(BrightnessCommand::Refresh).map(|event| {
-                                crate::app::Message::Settings(
-                                    crate::modules::settings::Message::Brightness(
-                                        BrightnessMessage::Event(event),
-                                    ),
-                                )
-                            }));
-                        }
+                        cmd.push(self.settings.update(
+                            modules::settings::Message::MenuOpened,
+                            &self.config.settings,
+                            &mut self.outputs,
+                        ));
                     }
                     _ => {}
                 };

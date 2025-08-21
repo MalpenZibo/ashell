@@ -3,20 +3,21 @@ use crate::{
     components::icons::{Icons, icon},
     config::{Position, SettingsModuleConfig},
     menu::MenuType,
-    modules::settings::{audio::AudioSettings, bluetooth::BluetoothSettings, power::power_menu},
+    modules::settings::{
+        audio::AudioSettings, bluetooth::BluetoothSettings, brightness::BrightnessSettings,
+        power::power_menu,
+    },
     outputs::Outputs,
     password_dialog,
     position_button::ButtonUIRef,
     services::{
         ReadOnlyService, Service, ServiceEvent,
-        brightness::{BrightnessCommand, BrightnessService},
         idle_inhibitor::IdleInhibitorManager,
         network::{NetworkCommand, NetworkEvent, NetworkService},
         upower::{PowerProfileCommand, UPowerService},
     },
     theme::AshellTheme,
 };
-use brightness::BrightnessMessage;
 use iced::{
     Alignment, Background, Border, Element, Length, Padding, Subscription, Task, Theme,
     alignment::{Horizontal, Vertical},
@@ -36,7 +37,7 @@ mod upower;
 pub struct Settings {
     config: SettingsModuleConfig,
     audio: AudioSettings,
-    pub brightness: Option<BrightnessService>,
+    brightness: BrightnessSettings,
     network: Option<NetworkService>,
     bluetooth: BluetoothSettings,
     idle_inhibitor: Option<IdleInhibitorManager>,
@@ -52,12 +53,13 @@ pub enum Message {
     Network(NetworkMessage),
     Bluetooth(bluetooth::Message),
     Audio(audio::Message),
-    Brightness(BrightnessMessage),
+    Brightness(brightness::Message),
     ToggleInhibitIdle,
     Lock,
     Power(PowerMessage),
     ToggleSubMenu(SubMenu),
     PasswordDialog(password_dialog::Message),
+    MenuOpened,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -77,7 +79,7 @@ impl Settings {
                 config.audio_sinks_more_cmd.clone(),
                 config.audio_sources_more_cmd.clone(),
             ),
-            brightness: None,
+            brightness: BrightnessSettings::new(),
             network: None,
             bluetooth: BluetoothSettings::new(config.bluetooth_more_cmd.clone()),
             idle_inhibitor: IdleInhibitorManager::new(),
@@ -267,32 +269,11 @@ impl Settings {
                 }
                 bluetooth::Action::CloseMenu(id) => outputs.close_menu(id),
             },
-            Message::Brightness(msg) => match msg {
-                BrightnessMessage::Event(event) => match event {
-                    ServiceEvent::Init(service) => {
-                        self.brightness = Some(service);
-                        Task::none()
-                    }
-                    ServiceEvent::Update(data) => {
-                        if let Some(brightness) = self.brightness.as_mut() {
-                            brightness.update(data);
-                        }
-                        Task::none()
-                    }
-                    _ => Task::none(),
-                },
-                BrightnessMessage::Change(value) => match self.brightness.as_mut() {
-                    Some(brightness) => {
-                        brightness
-                            .command(BrightnessCommand::Set(value))
-                            .map(|event| {
-                                crate::app::Message::Settings(Message::Brightness(
-                                    BrightnessMessage::Event(event),
-                                ))
-                            })
-                    }
-                    _ => Task::none(),
-                },
+            Message::Brightness(msg) => match self.brightness.update(msg) {
+                brightness::Action::None => Task::none(),
+                brightness::Action::Command(task) => {
+                    task.map(|msg| crate::app::Message::Settings(Message::Brightness(msg)))
+                }
             },
             Message::ToggleSubMenu(menu_type) => {
                 if self.sub_menu == Some(menu_type) {
@@ -376,6 +357,16 @@ impl Settings {
                     outputs.release_keyboard(id)
                 }
             },
+            Message::MenuOpened => {
+                self.sub_menu = None;
+
+                match self.brightness.update(brightness::Message::MenuOpened) {
+                    brightness::Action::None => Task::none(),
+                    brightness::Action::Command(task) => {
+                        task.map(|msg| crate::app::Message::Settings(Message::Brightness(msg)))
+                    }
+                }
+            }
         }
     }
 
@@ -527,7 +518,11 @@ impl Settings {
                         }),
                 )
                 .push_maybe(bottom_source_slider)
-                .push_maybe(self.brightness.as_ref().map(|b| b.brightness_slider()))
+                .push_maybe(
+                    self.brightness
+                        .slider(theme)
+                        .map(|e| e.map(Message::Brightness)),
+                )
                 .push(quick_settings)
                 .spacing(theme.space.md)
                 .into()
@@ -577,8 +572,7 @@ impl Settings {
         Subscription::batch(vec![
             UPowerService::subscribe().map(|event| Message::UPower(UPowerMessage::Event(event))),
             self.audio.subscription().map(Message::Audio),
-            BrightnessService::subscribe()
-                .map(|event| Message::Brightness(BrightnessMessage::Event(event))),
+            self.brightness.subscription().map(Message::Brightness),
             NetworkService::subscribe().map(|event| Message::Network(NetworkMessage::Event(event))),
             self.bluetooth.subscription().map(Message::Bluetooth),
         ])
