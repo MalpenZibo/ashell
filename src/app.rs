@@ -345,7 +345,7 @@ impl App {
         }
     }
 
-    pub fn view(&self, id: Id) -> Element<Message> {
+    pub fn view(&'_ self, id: Id) -> Element<'_, Message> {
         match self.outputs.has(id) {
             Some(HasOutput::Main) => {
                 let [left, center, right] = self.modules_section(id, &self.theme);

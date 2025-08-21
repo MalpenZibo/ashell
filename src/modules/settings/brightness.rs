@@ -69,7 +69,7 @@ impl BrightnessSettings {
         }
     }
 
-    pub fn slider(&self, theme: &AshellTheme) -> Option<Element<Message>> {
+    pub fn slider(&'_ self, theme: &AshellTheme) -> Option<Element<'_, Message>> {
         self.service.as_ref().map(|service| {
             row!(
                 container(icon(Icons::Brightness)).padding([theme.space.xs, theme.space.sm - 1]),

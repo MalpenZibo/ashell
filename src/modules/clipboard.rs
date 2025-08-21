@@ -27,7 +27,7 @@ impl Clipboard {
         }
     }
 
-    pub fn view(&self) -> Element<Message> {
+    pub fn view(&'_ self) -> Element<'_, Message> {
         icon(Icons::Clipboard).into()
     }
 }

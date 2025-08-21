@@ -159,7 +159,7 @@ impl MediaPlayer {
         }
     }
 
-    pub fn view(&self, theme: &AshellTheme) -> Option<Element<Message>> {
+    pub fn view(&'_ self, theme: &AshellTheme) -> Option<Element<'_, Message>> {
         self.service.as_ref().and_then(|s| match s.len() {
             0 => None,
             _ => Some(

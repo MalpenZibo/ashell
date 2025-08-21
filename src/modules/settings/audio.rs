@@ -145,7 +145,7 @@ impl AudioSettings {
         }
     }
 
-    pub fn sink_indicator(&self) -> Option<Element<Message>> {
+    pub fn sink_indicator(&'_ self) -> Option<Element<'_, Message>> {
         self.service
             .as_ref()
             .filter(|service| !service.sinks.is_empty())

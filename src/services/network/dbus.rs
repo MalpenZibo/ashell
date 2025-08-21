@@ -470,14 +470,8 @@ impl NetworkDbus<'_> {
 
                 match device.device_type().await.map(DeviceType::from).ok() {
                     Some(DeviceType::Ethernet) => {
-                        let wired_device = WiredDeviceProxy::builder(self.0.inner().connection())
-                            .path(device.0.path())?
-                            .build()
-                            .await?;
-
                         info.push(ActiveConnectionInfo::Wired {
                             name: connection.id().await?,
-                            speed: wired_device.speed().await?,
                         });
                     }
                     Some(DeviceType::Wifi) => {
@@ -495,7 +489,6 @@ impl NetworkDbus<'_> {
                                     .await?;
 
                             info.push(ActiveConnectionInfo::WiFi {
-                                id: connection.id().await?,
                                 name: String::from_utf8_lossy(&access_point.ssid().await?)
                                     .into_owned(),
                                 strength: access_point.strength().await.unwrap_or_default(),
@@ -766,6 +759,7 @@ impl From<u32> for DeviceType {
     }
 }
 
+#[allow(unused)]
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ActiveConnectionState {
     #[default]

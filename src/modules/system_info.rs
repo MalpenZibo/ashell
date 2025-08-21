@@ -222,7 +222,7 @@ impl SystemInfo {
         }
     }
 
-    pub fn menu_view(&self, theme: &AshellTheme) -> Element<Message> {
+    pub fn menu_view(&'_ self, theme: &AshellTheme) -> Element<'_, Message> {
         column!(
             text("System Info").size(theme.font_size.lg),
             horizontal_rule(1),
@@ -307,7 +307,7 @@ impl SystemInfo {
         .into()
     }
 
-    pub fn view(&self, theme: &AshellTheme) -> Element<Message> {
+    pub fn view(&'_ self, theme: &AshellTheme) -> Element<'_, Message> {
         let indicators = self.config.indicators.iter().filter_map(|i| match i {
             SystemIndicator::Cpu => Some(Self::indicator_info_element(
                 theme,

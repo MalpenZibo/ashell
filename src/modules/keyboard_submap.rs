@@ -34,7 +34,7 @@ impl KeyboardSubmap {
         }
     }
 
-    pub fn view(&self, _: &AshellTheme) -> Option<Element<Message>> {
+    pub fn view(&'_ self, _: &AshellTheme) -> Option<Element<'_, Message>> {
         if !self.submap.is_empty() {
             Some(text(&self.submap).into())
         } else {

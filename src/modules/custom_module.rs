@@ -89,7 +89,7 @@ impl Custom {
         }
     }
 
-    pub fn view(&self, theme: &AshellTheme) -> Element<Message> {
+    pub fn view(&'_ self, theme: &AshellTheme) -> Element<'_, Message> {
         let mut icon_element = self
             .config
             .icon

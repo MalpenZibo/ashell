@@ -123,7 +123,7 @@ impl Outputs {
         }
     }
 
-    pub fn has(&self, id: Id) -> Option<HasOutput> {
+    pub fn has(&'_ self, id: Id) -> Option<HasOutput<'_>> {
         self.0.iter().find_map(|(_, info, _)| {
             if let Some(info) = info {
                 if info.id == id {

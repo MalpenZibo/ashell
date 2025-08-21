@@ -29,7 +29,7 @@ impl Clock {
         }
     }
 
-    pub fn view(&self, _: &AshellTheme) -> Element<Message> {
+    pub fn view(&'_ self, _: &AshellTheme) -> Element<'_, Message> {
         text(self.date.format(&self.config.format).to_string()).into()
     }
 

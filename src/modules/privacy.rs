@@ -35,7 +35,7 @@ impl Privacy {
         }
     }
 
-    pub fn view(&self, theme: &AshellTheme) -> Option<Element<Message>> {
+    pub fn view(&'_ self, theme: &AshellTheme) -> Option<Element<'_, Message>> {
         if let Some(service) = self.service.as_ref()
             && !service.no_access()
         {

@@ -59,7 +59,7 @@ impl WindowTitle {
         self.value.clone()
     }
 
-    pub fn view(&self, theme: &AshellTheme, title: String) -> Element<Message> {
+    pub fn view(&'_ self, theme: &AshellTheme, title: String) -> Element<'_, Message> {
         text(title.to_string())
             .size(theme.font_size.sm)
             .wrapping(text::Wrapping::WordOrGlyph)
