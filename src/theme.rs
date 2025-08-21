@@ -8,6 +8,7 @@ use iced::{
     },
 };
 
+#[allow(unused)]
 #[derive(Debug, Copy, Clone)]
 pub struct Space {
     pub xxs: u16,
@@ -33,6 +34,7 @@ impl Default for Space {
     }
 }
 
+#[allow(unused)]
 #[derive(Debug, Clone, Copy)]
 pub struct Radius {
     pub sm: u16,
@@ -52,6 +54,7 @@ impl Default for Radius {
     }
 }
 
+#[allow(unused)]
 #[derive(Debug, Copy, Clone)]
 pub struct FontSize {
     pub xxs: u16,
