@@ -368,7 +368,7 @@ impl AudioSettings {
                 })
                 .collect::<Vec<_>>(),
         )
-        .spacing(4)
+        .spacing(theme.space.xxs)
         .into();
 
         match more_msg {

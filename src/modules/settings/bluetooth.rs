@@ -88,6 +88,7 @@ impl BluetoothSettings {
         {
             Some((
                 quick_setting_button(
+                    theme,
                     Icons::Bluetooth,
                     "Bluetooth".to_owned(),
                     None,
@@ -95,7 +96,6 @@ impl BluetoothSettings {
                     Message::Toggle,
                     Some((SubMenu::Bluetooth, sub_menu, Message::ToggleSubMenu))
                         .filter(|_| service.state == BluetoothState::Active),
-                    theme,
                 ),
                 sub_menu
                     .filter(|menu_type| *menu_type == SubMenu::Bluetooth)

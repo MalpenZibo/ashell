@@ -1,20 +1,17 @@
-use self::{network::NetworkMessage, power::PowerMessage};
+use self::network::NetworkMessage;
 use crate::{
     components::icons::{Icons, icon},
     config::{Position, SettingsModuleConfig},
-    menu::MenuType,
     modules::settings::{
         audio::AudioSettings, bluetooth::BluetoothSettings, brightness::BrightnessSettings,
-        power::power_menu,
+        power::PowerSettings,
     },
     outputs::Outputs,
     password_dialog,
-    position_button::ButtonUIRef,
     services::{
         ReadOnlyService, Service, ServiceEvent,
         idle_inhibitor::IdleInhibitorManager,
         network::{NetworkCommand, NetworkEvent, NetworkService},
-        upower::{PowerProfileCommand, UPowerService},
     },
     theme::AshellTheme,
 };
@@ -25,38 +22,34 @@ use iced::{
     window::Id,
 };
 use log::info;
-use upower::UPowerMessage;
 
-pub mod audio;
-pub mod bluetooth;
-pub mod brightness;
+mod audio;
+mod bluetooth;
+mod brightness;
 pub mod network;
 mod power;
-mod upower;
 
 pub struct Settings {
     config: SettingsModuleConfig,
+    power: PowerSettings,
     audio: AudioSettings,
     brightness: BrightnessSettings,
     network: Option<NetworkService>,
     bluetooth: BluetoothSettings,
     idle_inhibitor: Option<IdleInhibitorManager>,
     pub sub_menu: Option<SubMenu>,
-    upower: Option<UPowerService>,
     pub password_dialog: Option<(String, String)>,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    ToggleMenu(Id, ButtonUIRef),
-    UPower(UPowerMessage),
     Network(NetworkMessage),
     Bluetooth(bluetooth::Message),
     Audio(audio::Message),
     Brightness(brightness::Message),
     ToggleInhibitIdle,
     Lock,
-    Power(PowerMessage),
+    Power(power::Message),
     ToggleSubMenu(SubMenu),
     PasswordDialog(password_dialog::Message),
     MenuOpened,
@@ -75,6 +68,12 @@ pub enum SubMenu {
 impl Settings {
     pub fn new(config: SettingsModuleConfig) -> Self {
         Settings {
+            power: PowerSettings::new(
+                config.suspend_cmd.clone(),
+                config.reboot_cmd.clone(),
+                config.shutdown_cmd.clone(),
+                config.logout_cmd.clone(),
+            ),
             audio: AudioSettings::new(
                 config.audio_sinks_more_cmd.clone(),
                 config.audio_sources_more_cmd.clone(),
@@ -84,7 +83,6 @@ impl Settings {
             bluetooth: BluetoothSettings::new(config.bluetooth_more_cmd.clone()),
             idle_inhibitor: IdleInhibitorManager::new(),
             sub_menu: None,
-            upower: None,
             password_dialog: None,
             config,
         }
@@ -97,11 +95,12 @@ impl Settings {
         outputs: &mut Outputs,
     ) -> Task<crate::app::Message> {
         match message {
-            Message::ToggleMenu(id, button_ui_ref) => {
-                self.sub_menu = None;
-                self.password_dialog = None;
-                outputs.toggle_menu(id, MenuType::Settings, button_ui_ref)
-            }
+            Message::Power(msg) => match self.power.update(msg) {
+                power::Action::None => Task::none(),
+                power::Action::Command(task) => {
+                    task.map(|msg| crate::app::Message::Settings(Message::Power(msg)))
+                }
+            },
             Message::Audio(msg) => match self.audio.update(msg) {
                 audio::Action::None => Task::none(),
                 audio::Action::ToggleSinksMenu => {
@@ -129,27 +128,6 @@ impl Settings {
                     Task::none()
                 }
                 audio::Action::CloseMenu(id) => outputs.close_menu(id),
-            },
-            Message::UPower(msg) => match msg {
-                UPowerMessage::Event(event) => match event {
-                    ServiceEvent::Init(service) => {
-                        self.upower = Some(service);
-                        Task::none()
-                    }
-                    ServiceEvent::Update(data) => {
-                        if let Some(upower) = self.upower.as_mut() {
-                            upower.update(data);
-                        }
-                        Task::none()
-                    }
-                    ServiceEvent::Error(_) => Task::none(),
-                },
-                UPowerMessage::TogglePowerProfile => match self.upower.as_mut() {
-                    Some(upower) => upower.command(PowerProfileCommand::Toggle).map(|event| {
-                        crate::app::Message::Settings(Message::UPower(UPowerMessage::Event(event)))
-                    }),
-                    _ => Task::none(),
-                },
             },
             Message::Network(msg) => match msg {
                 NetworkMessage::Event(event) => match event {
@@ -308,10 +286,6 @@ impl Settings {
                 }
                 Task::none()
             }
-            Message::Power(msg) => {
-                msg.update();
-                Task::none()
-            }
             Message::PasswordDialog(msg) => match msg {
                 password_dialog::Message::PasswordChanged(password) => {
                     if let Some((_, current_password)) = &mut self.password_dialog {
@@ -381,10 +355,9 @@ impl Settings {
                 .map(Message::PasswordDialog)
         } else {
             let battery_data = self
-                .upower
-                .as_ref()
-                .and_then(|upower| upower.battery)
-                .map(|battery| battery.settings_indicator());
+                .power
+                .battery_menu_indicator(theme)
+                .map(|e| e.map(Message::Power));
             let right_buttons = Row::new()
                 .push_maybe(self.config.lock_cmd.as_ref().map(|_| {
                     button(icon(Icons::Lock))
@@ -450,6 +423,7 @@ impl Settings {
                     self.idle_inhibitor.as_ref().map(|idle_inhibitor| {
                         (
                             quick_setting_button(
+                                theme,
                                 if idle_inhibitor.is_inhibited() {
                                     Icons::EyeOpened
                                 } else {
@@ -460,14 +434,18 @@ impl Settings {
                                 idle_inhibitor.is_inhibited(),
                                 Message::ToggleInhibitIdle,
                                 None,
-                                theme,
                             ),
                             None,
                         )
                     }),
-                    self.upower
-                        .as_ref()
-                        .and_then(|u| u.power_profile.get_quick_setting_button(theme)),
+                    self.power
+                        .quick_setting_button(theme)
+                        .map(|(button, submenu)| {
+                            (
+                                button.map(Message::Power),
+                                submenu.map(|e| e.map(Message::Power)),
+                            )
+                        }),
                 ]
                 .into_iter()
                 .flatten()
@@ -490,10 +468,7 @@ impl Settings {
                     self.sub_menu
                         .filter(|menu_type| *menu_type == SubMenu::Power)
                         .map(|_| {
-                            sub_menu_wrapper(
-                                power_menu(theme, &self.config).map(Message::Power),
-                                theme,
-                            )
+                            sub_menu_wrapper(self.power.menu(theme).map(Message::Power), theme)
                         }),
                 )
                 .push_maybe(top_sink_slider)
@@ -543,9 +518,9 @@ impl Settings {
                     }),
             )
             .push_maybe(
-                self.upower
-                    .as_ref()
-                    .and_then(|p| p.power_profile.indicator()),
+                self.power
+                    .power_profile_indicator()
+                    .map(|e| e.map(Message::Power)),
             )
             .push_maybe(self.audio.sink_indicator().map(|e| e.map(Message::Audio)))
             .push(
@@ -559,10 +534,9 @@ impl Settings {
                     .spacing(4),
             )
             .push_maybe(
-                self.upower
-                    .as_ref()
-                    .and_then(|upower| upower.battery)
-                    .map(|battery| battery.indicator()),
+                self.power
+                    .battery_indicator(theme)
+                    .map(|e| e.map(Message::Power)),
             )
             .spacing(theme.space.xs)
             .into()
@@ -570,7 +544,7 @@ impl Settings {
 
     pub fn subscription(&self) -> Subscription<Message> {
         Subscription::batch(vec![
-            UPowerService::subscribe().map(|event| Message::UPower(UPowerMessage::Event(event))),
+            self.power.subscription().map(Message::Power),
             self.audio.subscription().map(Message::Audio),
             self.brightness.subscription().map(Message::Brightness),
             NetworkService::subscribe().map(|event| Message::Network(NetworkMessage::Event(event))),
@@ -649,13 +623,13 @@ fn sub_menu_wrapper<'a, Msg: 'static>(
 }
 
 fn quick_setting_button<'a, Msg: Clone + 'static>(
+    theme: &'a AshellTheme,
     icon_type: Icons,
     title: String,
     subtitle: Option<String>,
     active: bool,
     on_press: Msg,
     with_submenu: Option<(SubMenu, Option<SubMenu>, Msg)>,
-    theme: &'a AshellTheme,
 ) -> Element<'a, Msg> {
     let main_content = row!(
         icon(icon_type).size(theme.font_size.lg),

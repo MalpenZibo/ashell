@@ -143,6 +143,7 @@ impl NetworkData {
 
             Some((
                 quick_setting_button(
+                    theme,
                     active_connection.map_or_else(|| Icons::Wifi0, |(_, _, icon)| icon),
                     "Wi-Fi".to_string(),
                     active_connection.map(|(name, _, _)| name.clone()),
@@ -154,7 +155,6 @@ impl NetworkData {
                         Message::ToggleSubMenu(SubMenu::Wifi),
                     ))
                     .filter(|_| self.wifi_enabled),
-                    theme,
                 ),
                 sub_menu
                     .filter(|menu_type| *menu_type == SubMenu::Wifi)
@@ -186,6 +186,7 @@ impl NetworkData {
             .then(|| {
                 (
                     quick_setting_button(
+                        theme,
                         Icons::Vpn,
                         "Vpn".to_string(),
                         None,
@@ -194,7 +195,6 @@ impl NetworkData {
                             .any(|c| matches!(c, ActiveConnectionInfo::Vpn { .. })),
                         Message::ToggleSubMenu(SubMenu::Vpn),
                         None,
-                        theme,
                     ),
                     sub_menu
                         .filter(|menu_type| *menu_type == SubMenu::Vpn)
@@ -365,13 +365,13 @@ impl NetworkData {
     ) -> (Element<'a, Message>, Option<Element<'a, Message>>) {
         (
             quick_setting_button(
+                theme,
                 Icons::Airplane,
                 "Airplane Mode".to_string(),
                 None,
                 self.airplane_mode,
                 Message::Network(NetworkMessage::ToggleAirplaneMode),
                 None,
-                theme,
             ),
             None,
         )
