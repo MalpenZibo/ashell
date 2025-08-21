@@ -157,8 +157,8 @@ impl AudioSettings {
 
     pub fn sliders<'a>(
         &'a self,
-        sub_menu: Option<SubMenu>,
         theme: &'a AshellTheme,
+        sub_menu: Option<SubMenu>,
     ) -> (Option<Element<'a, Message>>, Option<Element<'a, Message>>) {
         if let Some(service) = &self.service {
             let active_sink = service
@@ -168,6 +168,7 @@ impl AudioSettings {
 
             let sink_slider = active_sink.map(|s| {
                 Self::slider(
+                    theme,
                     SliderType::Sink,
                     s.is_mute,
                     Message::ToggleSinkMute,
@@ -178,7 +179,6 @@ impl AudioSettings {
                     } else {
                         None
                     },
-                    theme,
                 )
             });
 
@@ -190,6 +190,7 @@ impl AudioSettings {
 
                 let source_slider = active_source.map(|s| {
                     Self::slider(
+                        theme,
                         SliderType::Source,
                         s.is_mute,
                         Message::ToggleSourceMute,
@@ -200,7 +201,6 @@ impl AudioSettings {
                         } else {
                             None
                         },
-                        theme,
                     )
                 });
 
@@ -220,6 +220,7 @@ impl AudioSettings {
     ) -> Option<Element<'a, Message>> {
         self.service.as_ref().map(|service| {
             Self::submenu(
+                theme,
                 service
                     .sinks
                     .iter()
@@ -237,7 +238,6 @@ impl AudioSettings {
                 } else {
                     None
                 },
-                theme,
             )
         })
     }
@@ -249,6 +249,7 @@ impl AudioSettings {
     ) -> Option<Element<'a, Message>> {
         self.service.as_ref().map(|service| {
             Self::submenu(
+                theme,
                 service
                     .sources
                     .iter()
@@ -266,19 +267,18 @@ impl AudioSettings {
                 } else {
                     None
                 },
-                theme,
             )
         })
     }
 
     fn slider<'a>(
+        theme: &'a AshellTheme,
         slider_type: SliderType,
         is_mute: bool,
         toggle_mute: Message,
         volume: i32,
         volume_changed: impl Fn(i32) -> Message + 'a,
         with_submenu: Option<(Option<SubMenu>, Message)>,
-        theme: &'a AshellTheme,
     ) -> Element<'a, Message> {
         Row::new()
             .push(
@@ -333,9 +333,9 @@ impl AudioSettings {
     }
 
     fn submenu<'a>(
+        theme: &'a AshellTheme,
         entries: Vec<SubmenuEntry<Message>>,
         more_msg: Option<Message>,
-        theme: &'a AshellTheme,
     ) -> Element<'a, Message> {
         let entries = Column::with_children(
             entries

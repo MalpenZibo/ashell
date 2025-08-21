@@ -1,15 +1,14 @@
-use self::{bluetooth::BluetoothMessage, network::NetworkMessage, power::PowerMessage};
+use self::{network::NetworkMessage, power::PowerMessage};
 use crate::{
     components::icons::{Icons, icon},
     config::{Position, SettingsModuleConfig},
     menu::MenuType,
-    modules::settings::{audio::AudioSettings, power::power_menu},
+    modules::settings::{audio::AudioSettings, bluetooth::BluetoothSettings, power::power_menu},
     outputs::Outputs,
     password_dialog,
     position_button::ButtonUIRef,
     services::{
         ReadOnlyService, Service, ServiceEvent,
-        bluetooth::{BluetoothCommand, BluetoothService, BluetoothState},
         brightness::{BrightnessCommand, BrightnessService},
         idle_inhibitor::IdleInhibitorManager,
         network::{NetworkCommand, NetworkEvent, NetworkService},
@@ -39,7 +38,7 @@ pub struct Settings {
     audio: AudioSettings,
     pub brightness: Option<BrightnessService>,
     network: Option<NetworkService>,
-    bluetooth: Option<BluetoothService>,
+    bluetooth: BluetoothSettings,
     idle_inhibitor: Option<IdleInhibitorManager>,
     pub sub_menu: Option<SubMenu>,
     upower: Option<UPowerService>,
@@ -51,7 +50,7 @@ pub enum Message {
     ToggleMenu(Id, ButtonUIRef),
     UPower(UPowerMessage),
     Network(NetworkMessage),
-    Bluetooth(BluetoothMessage),
+    Bluetooth(bluetooth::Message),
     Audio(audio::Message),
     Brightness(BrightnessMessage),
     ToggleInhibitIdle,
@@ -80,7 +79,7 @@ impl Settings {
             ),
             brightness: None,
             network: None,
-            bluetooth: None,
+            bluetooth: BluetoothSettings::new(config.bluetooth_more_cmd.clone()),
             idle_inhibitor: IdleInhibitorManager::new(),
             sub_menu: None,
             upower: None,
@@ -249,42 +248,24 @@ impl Settings {
                     _ => Task::none(),
                 },
             },
-            Message::Bluetooth(msg) => match msg {
-                BluetoothMessage::Event(event) => match event {
-                    ServiceEvent::Init(service) => {
-                        self.bluetooth = Some(service);
-                        Task::none()
-                    }
-                    ServiceEvent::Update(data) => {
-                        if let Some(bluetooth) = self.bluetooth.as_mut() {
-                            bluetooth.update(data);
-                        }
-                        Task::none()
-                    }
-                    _ => Task::none(),
-                },
-                BluetoothMessage::Toggle => match self.bluetooth.as_mut() {
-                    Some(bluetooth) => {
-                        if self.sub_menu == Some(SubMenu::Bluetooth) {
-                            self.sub_menu = None;
-                        }
-
-                        bluetooth.command(BluetoothCommand::Toggle).map(|event| {
-                            crate::app::Message::Settings(Message::Bluetooth(
-                                BluetoothMessage::Event(event),
-                            ))
-                        })
-                    }
-                    _ => Task::none(),
-                },
-                BluetoothMessage::More(id) => {
-                    if let Some(cmd) = &config.bluetooth_more_cmd {
-                        crate::utils::launcher::execute_command(cmd.to_string());
-                        outputs.close_menu(id)
+            Message::Bluetooth(msg) => match self.bluetooth.update(msg) {
+                bluetooth::Action::None => Task::none(),
+                bluetooth::Action::ToggleBluetoothMenu => {
+                    if self.sub_menu == Some(SubMenu::Bluetooth) {
+                        self.sub_menu.take();
                     } else {
-                        Task::none()
+                        self.sub_menu.replace(SubMenu::Bluetooth);
                     }
+                    Task::none()
                 }
+                bluetooth::Action::CloseSubMenu(task) => {
+                    if self.sub_menu == Some(SubMenu::Bluetooth) {
+                        self.sub_menu.take();
+                    }
+
+                    task.map(|msg| crate::app::Message::Settings(Message::Bluetooth(msg)))
+                }
+                bluetooth::Action::CloseMenu(id) => outputs.close_menu(id),
             },
             Message::Brightness(msg) => match msg {
                 BrightnessMessage::Event(event) => match event {
@@ -439,7 +420,7 @@ impl Settings {
                 .spacing(theme.space.xs)
                 .width(Length::Fill);
 
-            let (sink_slider, source_slider) = self.audio.sliders(self.sub_menu, theme);
+            let (sink_slider, source_slider) = self.audio.sliders(theme, self.sub_menu);
 
             let wifi_setting_button = self.network.as_ref().and_then(|n| {
                 n.get_wifi_quick_setting_button(
@@ -453,14 +434,11 @@ impl Settings {
                 vec![
                     wifi_setting_button,
                     self.bluetooth
-                        .as_ref()
-                        .filter(|b| b.state != BluetoothState::Unavailable)
-                        .and_then(|b| {
-                            b.get_quick_setting_button(
-                                id,
-                                self.sub_menu,
-                                self.config.bluetooth_more_cmd.is_some(),
-                                theme,
+                        .quick_setting_button(id, theme, self.sub_menu)
+                        .map(|(button, submenu)| {
+                            (
+                                button.map(Message::Bluetooth),
+                                submenu.map(|e| e.map(Message::Bluetooth)),
                             )
                         }),
                     self.network.as_ref().and_then(|n| {
@@ -602,8 +580,7 @@ impl Settings {
             BrightnessService::subscribe()
                 .map(|event| Message::Brightness(BrightnessMessage::Event(event))),
             NetworkService::subscribe().map(|event| Message::Network(NetworkMessage::Event(event))),
-            BluetoothService::subscribe()
-                .map(|event| Message::Bluetooth(BluetoothMessage::Event(event))),
+            self.bluetooth.subscription().map(Message::Bluetooth),
         ])
     }
 }

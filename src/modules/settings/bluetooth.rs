@@ -1,96 +1,159 @@
-use super::{Message, SubMenu, quick_setting_button};
+use super::{SubMenu, quick_setting_button};
 use crate::{
     components::icons::{Icons, icon},
     services::{
-        ServiceEvent,
-        bluetooth::{BluetoothData, BluetoothService, BluetoothState},
+        ReadOnlyService, Service, ServiceEvent,
+        bluetooth::{BluetoothCommand, BluetoothService, BluetoothState},
     },
-    theme::{AshellTheme, ghost_button_style},
+    theme::AshellTheme,
 };
 use iced::{
-    Element, Length, Theme,
+    Element, Length, Subscription, Task, Theme,
     widget::{Column, Row, button, column, container, horizontal_rule, row, text},
     window::Id,
 };
 
 #[derive(Debug, Clone)]
-pub enum BluetoothMessage {
+pub enum Message {
     Event(ServiceEvent<BluetoothService>),
     Toggle,
+    ToggleSubMenu,
     More(Id),
 }
 
-impl BluetoothData {
-    pub fn get_quick_setting_button<'a>(
-        &'a self,
-        id: Id,
-        sub_menu: Option<SubMenu>,
-        show_more_button: bool,
-        theme: &'a AshellTheme,
-    ) -> Option<(Element<'a, Message>, Option<Element<'a, Message>>)> {
-        Some((
-            quick_setting_button(
-                Icons::Bluetooth,
-                "Bluetooth".to_owned(),
-                None,
-                self.state == BluetoothState::Active,
-                Message::Bluetooth(BluetoothMessage::Toggle),
-                Some((
-                    SubMenu::Bluetooth,
-                    sub_menu,
-                    Message::ToggleSubMenu(SubMenu::Bluetooth),
-                ))
-                .filter(|_| self.state == BluetoothState::Active),
-                theme,
-            ),
-            sub_menu
-                .filter(|menu_type| *menu_type == SubMenu::Bluetooth)
-                .map(|_| self.bluetooth_menu(id, show_more_button, theme)),
-        ))
-    }
+pub enum Action {
+    None,
+    ToggleBluetoothMenu,
+    CloseMenu(Id),
+    CloseSubMenu(Task<Message>),
+}
 
-    pub fn bluetooth_menu<'a>(
-        &'a self,
-        id: Id,
-        show_more_button: bool,
-        theme: &'a AshellTheme,
-    ) -> Element<'a, Message> {
-        let main = if self.devices.is_empty() {
-            text("No devices connected").into()
-        } else {
-            Column::with_children(
-                self.devices
-                    .iter()
-                    .map(|d| {
-                        Row::new()
-                            .push(text(d.name.to_string()).width(Length::Fill))
-                            .push_maybe(d.battery.map(Self::battery_level))
-                            .into()
-                    })
-                    .collect::<Vec<Element<Message>>>(),
-            )
-            .spacing(theme.space.xs)
-            .into()
-        };
+pub struct BluetoothSettings {
+    more_cmd: Option<String>,
+    service: Option<BluetoothService>,
+}
 
-        if show_more_button {
-            column!(
-                main,
-                horizontal_rule(1),
-                button("More")
-                    .on_press(Message::Bluetooth(BluetoothMessage::More(id)))
-                    .padding([4, 12])
-                    .width(Length::Fill)
-                    .style(theme.ghost_button_style())
-            )
-            .spacing(12)
-            .into()
-        } else {
-            main
+impl BluetoothSettings {
+    pub fn new(more_cmd: Option<String>) -> Self {
+        Self {
+            more_cmd,
+            service: None,
         }
     }
 
-    fn battery_level<'a>(battery: u8) -> Element<'a, Message> {
+    pub fn update(&mut self, message: Message) -> Action {
+        match message {
+            Message::Event(event) => match event {
+                ServiceEvent::Init(service) => {
+                    self.service = Some(service);
+                    Action::None
+                }
+                ServiceEvent::Update(data) => {
+                    if let Some(service) = self.service.as_mut() {
+                        service.update(data);
+                    }
+                    Action::None
+                }
+                _ => Action::None,
+            },
+            Message::Toggle => match self.service.as_mut() {
+                Some(service) => Action::CloseSubMenu(
+                    service
+                        .command(BluetoothCommand::Toggle)
+                        .map(Message::Event),
+                ),
+                _ => Action::None,
+            },
+            Message::ToggleSubMenu => Action::ToggleBluetoothMenu,
+            Message::More(id) => {
+                if let Some(cmd) = &self.more_cmd {
+                    crate::utils::launcher::execute_command(cmd.to_string());
+
+                    Action::CloseMenu(id)
+                } else {
+                    Action::None
+                }
+            }
+        }
+    }
+
+    pub fn quick_setting_button<'a>(
+        &'a self,
+        id: Id,
+        theme: &'a AshellTheme,
+        sub_menu: Option<SubMenu>,
+    ) -> Option<(Element<'a, Message>, Option<Element<'a, Message>>)> {
+        if let Some(service) = &self.service
+            && service.state != BluetoothState::Unavailable
+        {
+            Some((
+                quick_setting_button(
+                    Icons::Bluetooth,
+                    "Bluetooth".to_owned(),
+                    None,
+                    service.state == BluetoothState::Active,
+                    Message::Toggle,
+                    Some((SubMenu::Bluetooth, sub_menu, Message::ToggleSubMenu))
+                        .filter(|_| service.state == BluetoothState::Active),
+                    theme,
+                ),
+                sub_menu
+                    .filter(|menu_type| *menu_type == SubMenu::Bluetooth)
+                    .and_then(|_| self.bluetooth_menu(id, theme)),
+            ))
+        } else {
+            None
+        }
+    }
+
+    fn bluetooth_menu<'a>(
+        &'a self,
+        id: Id,
+        theme: &'a AshellTheme,
+    ) -> Option<Element<'a, Message>> {
+        if let Some(service) = &self.service {
+            let main = if service.devices.is_empty() {
+                text("No devices connected").into()
+            } else {
+                Column::with_children(
+                    service
+                        .devices
+                        .iter()
+                        .map(|d| {
+                            Row::new()
+                                .push(text(d.name.to_string()).width(Length::Fill))
+                                .push_maybe(d.battery.map(|v| Self::battery_level(theme, v)))
+                                .into()
+                        })
+                        .collect::<Vec<Element<Message>>>(),
+                )
+                .spacing(theme.space.xs)
+                .into()
+            };
+
+            if self.more_cmd.is_some() {
+                Some(
+                    column!(
+                        main,
+                        horizontal_rule(1),
+                        button("More")
+                            .on_press(Message::More(id))
+                            .padding([theme.space.xxs, theme.space.sm])
+                            .width(Length::Fill)
+                            .style(theme.ghost_button_style())
+                    )
+                    .spacing(theme.space.sm)
+                    .into(),
+                )
+            } else {
+                Some(main)
+            }
+        } else {
+            None
+        }
+    }
+
+    fn battery_level<'a>(theme: &AshellTheme, battery: u8) -> Element<'a, Message> {
         container(
             row!(
                 icon(match battery {
@@ -102,7 +165,7 @@ impl BluetoothData {
                 }),
                 text(format!("{battery}%"))
             )
-            .spacing(8)
+            .spacing(theme.space.xs)
             .width(Length::Shrink),
         )
         .style(move |theme: &Theme| container::Style {
@@ -114,5 +177,9 @@ impl BluetoothData {
             ..container::Style::default()
         })
         .into()
+    }
+
+    pub fn subscription(&self) -> Subscription<Message> {
+        BluetoothService::subscribe().map(Message::Event)
     }
 }
