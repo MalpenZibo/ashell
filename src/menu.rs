@@ -136,7 +136,7 @@ impl App {
                                 theme
                                     .palette()
                                     .background
-                                    .scale_alpha(self.theme.opacity)
+                                    .scale_alpha(self.theme.menu.opacity)
                                     .into(),
                             ),
                             border: Border {
@@ -145,7 +145,7 @@ impl App {
                                     .secondary
                                     .base
                                     .color
-                                    .scale_alpha(self.theme.opacity),
+                                    .scale_alpha(self.theme.menu.opacity),
                                 width: 1.,
                                 radius: self.theme.radius.lg.into(),
                             },

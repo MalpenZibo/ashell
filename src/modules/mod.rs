@@ -3,7 +3,7 @@ use crate::{
     config::{AppearanceStyle, ModuleDef, ModuleName},
     menu::MenuType,
     position_button::position_button,
-    theme::module_button_style,
+    theme::AshellTheme,
 };
 use iced::{
     Alignment, Border, Color, Element, Length, Subscription,
@@ -33,7 +33,11 @@ pub enum OnModulePress {
 }
 
 impl App {
-    pub fn modules_section(&self, id: Id) -> [Element<Message>; 3] {
+    pub fn modules_section<'a>(
+        &'a self,
+        id: Id,
+        theme: &'a AshellTheme,
+    ) -> [Element<'a, Message>; 3] {
         [
             &self.config.modules.left,
             &self.config.modules.center,
@@ -48,8 +52,8 @@ impl App {
             for module_def in modules_def {
                 row = row.push_maybe(match module_def {
                     // life parsing of string to module
-                    ModuleDef::Single(module) => self.single_module_wrapper(id, module),
-                    ModuleDef::Group(group) => self.group_module_wrapper(id, group),
+                    ModuleDef::Single(module) => self.single_module_wrapper(id, theme, module),
+                    ModuleDef::Group(group) => self.group_module_wrapper(id, theme, group),
                 });
             }
 
@@ -76,6 +80,7 @@ impl App {
     fn single_module_wrapper<'a>(
         &'a self,
         id: Id,
+        theme: &'a AshellTheme,
         module_name: &'a ModuleName,
     ) -> Option<Element<'a, Message>> {
         let module = self.get_module_view(id, module_name);
@@ -90,11 +95,7 @@ impl App {
                 )
                 .padding([2, self.theme.space.xs])
                 .height(Length::Fill)
-                .style(module_button_style(
-                    self.config.appearance.style,
-                    self.config.appearance.opacity,
-                    false,
-                ));
+                .style(theme.module_button_style(false));
 
                 match action {
                     OnModulePress::Action(action) => button.on_press(*action),
@@ -140,6 +141,7 @@ impl App {
     fn group_module_wrapper<'a>(
         &'a self,
         id: Id,
+        theme: &'a AshellTheme,
         group: &'a [ModuleName],
     ) -> Option<Element<'a, Message>> {
         let modules = group
@@ -164,11 +166,7 @@ impl App {
                                 )
                                 .padding([2, self.theme.space.xs])
                                 .height(Length::Fill)
-                                .style(module_button_style(
-                                    self.config.appearance.style,
-                                    self.config.appearance.opacity,
-                                    true,
-                                ));
+                                .style(theme.module_button_style(true));
 
                                 match action {
                                     OnModulePress::Action(action) => button.on_press(*action),

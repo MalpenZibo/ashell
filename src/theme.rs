@@ -72,7 +72,7 @@ impl Default for FontSize {
             md: 16,
             lg: 20,
             xl: 22,
-            xxl: 24,
+            xxl: 32,
         }
     }
 }
@@ -453,179 +453,149 @@ impl AshellTheme {
             }
         }
     }
-}
 
-/// Note: the transparent argument, when true, makes the base color bg
-/// transparent but still has a hover bg color. Not to be confused with opacity,
-/// which affects opacity at all times.
-pub fn module_button_style(
-    style: AppearanceStyle,
-    opacity: f32,
-    transparent: bool,
-) -> impl Fn(&Theme, Status) -> button::Style {
-    move |theme, status| {
-        let mut base = button::Style {
-            background: match style {
-                AppearanceStyle::Solid | AppearanceStyle::Gradient => None,
-                AppearanceStyle::Islands => {
-                    if transparent {
-                        None
-                    } else {
-                        Some(theme.palette().background.scale_alpha(opacity).into())
-                    }
+    pub fn text_input_style(&self) -> impl Fn(&Theme, text_input::Status) -> text_input::Style {
+        move |theme: &Theme, status: text_input::Status| {
+            let mut base = text_input::Style {
+                background: theme.palette().background.into(),
+                border: Border {
+                    width: 2.0,
+                    radius: self.radius.xl.into(),
+                    color: theme.extended_palette().background.weak.color,
+                },
+                icon: theme.palette().text,
+                placeholder: theme.palette().text,
+                value: theme.palette().text,
+                selection: theme.palette().primary,
+            };
+            match status {
+                text_input::Status::Active => base,
+                text_input::Status::Focused | text_input::Status::Hovered => {
+                    base.border.color = theme.extended_palette().background.strong.color;
+                    base
                 }
-            },
-            border: Border {
-                width: 0.0,
-                radius: 12.0.into(),
-                color: Color::TRANSPARENT,
-            },
-            text_color: theme.palette().text,
-            ..button::Style::default()
-        };
-        match status {
-            Status::Active => base,
-            Status::Hovered => {
-                base.background = Some(
+                text_input::Status::Disabled => {
+                    base.background = theme.extended_palette().background.weak.color.into();
+                    base.border.color = Color::TRANSPARENT;
+                    base
+                }
+            }
+        }
+    }
+
+    pub fn outline_button_style(&self) -> impl Fn(&Theme, Status) -> button::Style {
+        move |theme, status| {
+            let mut base = button::Style {
+                background: None,
+                border: Border {
+                    width: 2.0,
+                    radius: self.radius.xl.into(),
+                    color: theme.extended_palette().background.weak.color,
+                },
+                text_color: theme.palette().text,
+                ..button::Style::default()
+            };
+            match status {
+                Status::Active => base,
+                Status::Hovered => {
+                    base.background = Some(
+                        theme
+                            .extended_palette()
+                            .background
+                            .weak
+                            .color
+                            .scale_alpha(self.opacity)
+                            .into(),
+                    );
+                    base
+                }
+                _ => base,
+            }
+        }
+    }
+
+    pub fn confirm_button_style(&self) -> impl Fn(&Theme, Status) -> button::Style {
+        move |theme, status| {
+            let mut base = button::Style {
+                background: Some(
                     theme
                         .extended_palette()
                         .background
                         .weak
                         .color
-                        .scale_alpha(opacity)
+                        .scale_alpha(self.opacity)
                         .into(),
-                );
-                base
+                ),
+                border: Border {
+                    width: 2.0,
+                    radius: 32.0.into(),
+                    color: Color::TRANSPARENT,
+                },
+                text_color: theme.palette().text,
+                ..button::Style::default()
+            };
+            match status {
+                Status::Active => base,
+                Status::Hovered => {
+                    base.background = Some(
+                        theme
+                            .extended_palette()
+                            .background
+                            .strong
+                            .color
+                            .scale_alpha(self.opacity)
+                            .into(),
+                    );
+                    base
+                }
+                _ => base,
             }
-            _ => base,
         }
     }
-}
 
-pub fn ghost_button_style(opacity: f32) -> impl Fn(&Theme, Status) -> button::Style {
-    move |theme, status| {
-        let mut base = button::Style {
-            background: None,
-            border: Border {
-                width: 0.0,
-                radius: 4.0.into(),
-                color: Color::TRANSPARENT,
-            },
-            text_color: theme.palette().text,
-            ..button::Style::default()
-        };
-        match status {
-            Status::Active => base,
-            Status::Hovered => {
-                base.background = Some(
-                    theme
-                        .extended_palette()
-                        .background
-                        .weak
-                        .color
-                        .scale_alpha(opacity)
-                        .into(),
-                );
-                base
+    /// Note: the transparent argument, when true, makes the base color bg
+    /// transparent but still has a hover bg color. Not to be confused with opacity,
+    /// which affects opacity at all times.
+    pub fn module_button_style(
+        &self,
+        transparent: bool,
+    ) -> impl Fn(&Theme, Status) -> button::Style {
+        move |theme, status| {
+            let mut base = button::Style {
+                background: match self.bar_style {
+                    AppearanceStyle::Solid | AppearanceStyle::Gradient => None,
+                    AppearanceStyle::Islands => {
+                        if transparent {
+                            None
+                        } else {
+                            Some(theme.palette().background.scale_alpha(self.opacity).into())
+                        }
+                    }
+                },
+                border: Border {
+                    width: 0.0,
+                    radius: 12.0.into(),
+                    color: Color::TRANSPARENT,
+                },
+                text_color: theme.palette().text,
+                ..button::Style::default()
+            };
+            match status {
+                Status::Active => base,
+                Status::Hovered => {
+                    base.background = Some(
+                        theme
+                            .extended_palette()
+                            .background
+                            .weak
+                            .color
+                            .scale_alpha(self.opacity)
+                            .into(),
+                    );
+                    base
+                }
+                _ => base,
             }
-            _ => base,
-        }
-    }
-}
-
-pub fn outline_button_style(opacity: f32) -> impl Fn(&Theme, Status) -> button::Style {
-    move |theme, status| {
-        let mut base = button::Style {
-            background: None,
-            border: Border {
-                width: 2.0,
-                radius: 32.into(),
-                color: theme.extended_palette().background.weak.color,
-            },
-            text_color: theme.palette().text,
-            ..button::Style::default()
-        };
-        match status {
-            Status::Active => base,
-            Status::Hovered => {
-                base.background = Some(
-                    theme
-                        .extended_palette()
-                        .background
-                        .weak
-                        .color
-                        .scale_alpha(opacity)
-                        .into(),
-                );
-                base
-            }
-            _ => base,
-        }
-    }
-}
-
-pub fn confirm_button_style(opacity: f32) -> impl Fn(&Theme, Status) -> button::Style {
-    move |theme, status| {
-        let mut base = button::Style {
-            background: Some(
-                theme
-                    .extended_palette()
-                    .background
-                    .weak
-                    .color
-                    .scale_alpha(opacity)
-                    .into(),
-            ),
-            border: Border {
-                width: 2.0,
-                radius: 32.0.into(),
-                color: Color::TRANSPARENT,
-            },
-            text_color: theme.palette().text,
-            ..button::Style::default()
-        };
-        match status {
-            Status::Active => base,
-            Status::Hovered => {
-                base.background = Some(
-                    theme
-                        .extended_palette()
-                        .background
-                        .strong
-                        .color
-                        .scale_alpha(opacity)
-                        .into(),
-                );
-                base
-            }
-            _ => base,
-        }
-    }
-}
-
-pub fn text_input_style(theme: &Theme, status: text_input::Status) -> text_input::Style {
-    let mut base = text_input::Style {
-        background: theme.palette().background.into(),
-        border: Border {
-            width: 2.0,
-            radius: 32.0.into(),
-            color: theme.extended_palette().background.weak.color,
-        },
-        icon: theme.palette().text,
-        placeholder: theme.palette().text,
-        value: theme.palette().text,
-        selection: theme.palette().primary,
-    };
-    match status {
-        text_input::Status::Active => base,
-        text_input::Status::Focused | text_input::Status::Hovered => {
-            base.border.color = theme.extended_palette().background.strong.color;
-            base
-        }
-        text_input::Status::Disabled => {
-            base.background = theme.extended_palette().background.weak.color.into();
-            base.border.color = Color::TRANSPARENT;
-            base
         }
     }
 }

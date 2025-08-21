@@ -206,11 +206,14 @@ impl App {
                             .update(modules::tray::Message::MenuOpened(name.clone()));
                     }
                     MenuType::Settings => {
-                        cmd.push(self.settings.update(
-                            modules::settings::Message::MenuOpened,
-                            &self.config.settings,
-                            &mut self.outputs,
-                        ));
+                        cmd.push(
+                            match self.settings.update(modules::settings::Message::MenuOpened) {
+                                modules::settings::Action::Command(task) => {
+                                    task.map(Message::Settings)
+                                }
+                                _ => Task::none(),
+                            },
+                        );
                     }
                     _ => {}
                 };
@@ -294,10 +297,19 @@ impl App {
                 self.privacy.update(msg);
                 Task::none()
             }
-            Message::Settings(message) => {
-                self.settings
-                    .update(message, &self.config.settings, &mut self.outputs)
-            }
+            Message::Settings(message) => match self.settings.update(message) {
+                modules::settings::Action::None => Task::none(),
+                modules::settings::Action::Command(task) => task.map(Message::Settings),
+                modules::settings::Action::CloseMenu(id) => self.outputs.close_menu(id),
+                modules::settings::Action::RequestKeyboard(id) => self.outputs.request_keyboard(id),
+                modules::settings::Action::ReleaseKeyboard(id) => self.outputs.release_keyboard(id),
+                modules::settings::Action::ReleaseKeyboardWithCommand(id, task) => {
+                    Task::batch(vec![
+                        task.map(Message::Settings),
+                        self.outputs.release_keyboard(id),
+                    ])
+                }
+            },
             Message::OutputEvent((event, wl_output)) => match event {
                 iced::event::wayland::OutputEvent::Created(info) => {
                     info!("Output created: {info:?}");
@@ -336,7 +348,7 @@ impl App {
     pub fn view(&self, id: Id) -> Element<Message> {
         match self.outputs.has(id) {
             Some(HasOutput::Main) => {
-                let [left, center, right] = self.modules_section(id);
+                let [left, center, right] = self.modules_section(id, &self.theme);
 
                 let centerbox = centerbox::Centerbox::new([left, center, right])
                     .spacing(self.theme.space.xxs)

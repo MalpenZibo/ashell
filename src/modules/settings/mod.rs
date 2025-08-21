@@ -5,7 +5,6 @@ use crate::{
         audio::AudioSettings, bluetooth::BluetoothSettings, brightness::BrightnessSettings,
         network::NetworkSettings, power::PowerSettings,
     },
-    outputs::Outputs,
     password_dialog,
     services::idle_inhibitor::IdleInhibitorManager,
     theme::AshellTheme,
@@ -20,11 +19,11 @@ use iced::{
 mod audio;
 mod bluetooth;
 mod brightness;
-pub mod network;
+mod network;
 mod power;
 
 pub struct Settings {
-    config: SettingsModuleConfig,
+    lock_cmd: Option<String>,
     power: PowerSettings,
     audio: AudioSettings,
     brightness: BrightnessSettings,
@@ -49,6 +48,15 @@ pub enum Message {
     MenuOpened,
 }
 
+pub enum Action {
+    None,
+    Command(Task<Message>),
+    CloseMenu(Id),
+    RequestKeyboard(Id),
+    ReleaseKeyboard(Id),
+    ReleaseKeyboardWithCommand(Id, Task<Message>),
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum SubMenu {
     Power,
@@ -62,52 +70,42 @@ pub enum SubMenu {
 impl Settings {
     pub fn new(config: SettingsModuleConfig) -> Self {
         Settings {
+            lock_cmd: config.lock_cmd,
             power: PowerSettings::new(
-                config.suspend_cmd.clone(),
-                config.reboot_cmd.clone(),
-                config.shutdown_cmd.clone(),
-                config.logout_cmd.clone(),
+                config.suspend_cmd,
+                config.reboot_cmd,
+                config.shutdown_cmd,
+                config.logout_cmd,
             ),
-            audio: AudioSettings::new(
-                config.audio_sinks_more_cmd.clone(),
-                config.audio_sources_more_cmd.clone(),
-            ),
+            audio: AudioSettings::new(config.audio_sinks_more_cmd, config.audio_sources_more_cmd),
             brightness: BrightnessSettings::new(),
             network: NetworkSettings::new(
-                config.wifi_more_cmd.clone(),
-                config.vpn_more_cmd.clone(),
+                config.wifi_more_cmd,
+                config.vpn_more_cmd,
                 config.remove_airplane_btn,
             ),
-            bluetooth: BluetoothSettings::new(config.bluetooth_more_cmd.clone()),
+            bluetooth: BluetoothSettings::new(config.bluetooth_more_cmd),
             idle_inhibitor: IdleInhibitorManager::new(),
             sub_menu: None,
             password_dialog: None,
-            config,
         }
     }
 
-    pub fn update(
-        &mut self,
-        message: Message,
-        config: &SettingsModuleConfig,
-        outputs: &mut Outputs,
-    ) -> Task<crate::app::Message> {
+    pub fn update(&mut self, message: Message) -> Action {
         match message {
             Message::Power(msg) => match self.power.update(msg) {
-                power::Action::None => Task::none(),
-                power::Action::Command(task) => {
-                    task.map(|msg| crate::app::Message::Settings(Message::Power(msg)))
-                }
+                power::Action::None => Action::None,
+                power::Action::Command(task) => Action::Command(task.map(Message::Power)),
             },
             Message::Audio(msg) => match self.audio.update(msg) {
-                audio::Action::None => Task::none(),
+                audio::Action::None => Action::None,
                 audio::Action::ToggleSinksMenu => {
                     if self.sub_menu == Some(SubMenu::Sinks) {
                         self.sub_menu.take();
                     } else {
                         self.sub_menu.replace(SubMenu::Sinks);
                     }
-                    Task::none()
+                    Action::None
                 }
                 audio::Action::ToggleSourcesMenu => {
                     if self.sub_menu == Some(SubMenu::Sources) {
@@ -115,7 +113,7 @@ impl Settings {
                     } else {
                         self.sub_menu.replace(SubMenu::Sources);
                     }
-                    Task::none()
+                    Action::None
                 }
                 audio::Action::CloseSubMenu => {
                     if self.sub_menu == Some(SubMenu::Sinks)
@@ -123,30 +121,28 @@ impl Settings {
                     {
                         self.sub_menu.take();
                     }
-                    Task::none()
+                    Action::None
                 }
-                audio::Action::CloseMenu(id) => outputs.close_menu(id),
+                audio::Action::CloseMenu(id) => Action::CloseMenu(id),
             },
             Message::Network(msg) => match self.network.update(msg) {
-                network::Action::None => Task::none(),
+                network::Action::None => Action::None,
                 network::Action::RequestPasswordForSSID(ssid) => {
                     self.password_dialog = Some((ssid, "".to_string()));
-                    Task::none()
+                    Action::None
                 }
                 network::Action::RequestPassword(id, ssid) => {
                     self.password_dialog = Some((ssid, "".to_string()));
-                    outputs.request_keyboard(id)
+                    Action::RequestKeyboard(id)
                 }
-                network::Action::Command(task) => {
-                    task.map(|msg| crate::app::Message::Settings(Message::Network(msg)))
-                }
+                network::Action::Command(task) => Action::Command(task.map(Message::Network)),
                 network::Action::ToggleWifiMenu => {
                     if self.sub_menu == Some(SubMenu::Wifi) {
                         self.sub_menu.take();
                     } else {
                         self.sub_menu.replace(SubMenu::Wifi);
                     }
-                    Task::none()
+                    Action::None
                 }
                 network::Action::ToggleVpnMenu => {
                     if self.sub_menu == Some(SubMenu::Vpn) {
@@ -154,59 +150,57 @@ impl Settings {
                     } else {
                         self.sub_menu.replace(SubMenu::Vpn);
                     }
-                    Task::none()
+                    Action::None
                 }
                 network::Action::CloseSubMenu(task) => {
                     if self.sub_menu == Some(SubMenu::Wifi) || self.sub_menu == Some(SubMenu::Vpn) {
                         self.sub_menu.take();
                     }
 
-                    task.map(|msg| crate::app::Message::Settings(Message::Network(msg)))
+                    Action::Command(task.map(Message::Network))
                 }
-                network::Action::CloseMenu(id) => outputs.close_menu(id),
+                network::Action::CloseMenu(id) => Action::CloseMenu(id),
             },
             Message::Bluetooth(msg) => match self.bluetooth.update(msg) {
-                bluetooth::Action::None => Task::none(),
+                bluetooth::Action::None => Action::None,
                 bluetooth::Action::ToggleBluetoothMenu => {
                     if self.sub_menu == Some(SubMenu::Bluetooth) {
                         self.sub_menu.take();
                     } else {
                         self.sub_menu.replace(SubMenu::Bluetooth);
                     }
-                    Task::none()
+                    Action::None
                 }
                 bluetooth::Action::CloseSubMenu(task) => {
                     if self.sub_menu == Some(SubMenu::Bluetooth) {
                         self.sub_menu.take();
                     }
 
-                    task.map(|msg| crate::app::Message::Settings(Message::Bluetooth(msg)))
+                    Action::Command(task.map(Message::Bluetooth))
                 }
-                bluetooth::Action::CloseMenu(id) => outputs.close_menu(id),
+                bluetooth::Action::CloseMenu(id) => Action::CloseMenu(id),
             },
             Message::Brightness(msg) => match self.brightness.update(msg) {
-                brightness::Action::None => Task::none(),
-                brightness::Action::Command(task) => {
-                    task.map(|msg| crate::app::Message::Settings(Message::Brightness(msg)))
-                }
+                brightness::Action::None => Action::None,
+                brightness::Action::Command(task) => Action::Command(task.map(Message::Brightness)),
             },
             Message::ToggleSubMenu(menu_type) => {
                 if self.sub_menu == Some(menu_type) {
                     self.sub_menu.take();
 
-                    Task::none()
+                    Action::None
                 } else {
                     self.sub_menu.replace(menu_type);
 
                     if menu_type == SubMenu::Wifi {
                         match self.network.update(network::Message::WifiMenuOpened) {
                             network::Action::Command(task) => {
-                                task.map(|msg| crate::app::Message::Settings(Message::Network(msg)))
+                                Action::Command(task.map(Message::Network))
                             }
-                            _ => Task::none(),
+                            _ => Action::None,
                         }
                     } else {
-                        Task::none()
+                        Action::None
                     }
                 }
             }
@@ -214,13 +208,13 @@ impl Settings {
                 if let Some(idle_inhibitor) = &mut self.idle_inhibitor {
                     idle_inhibitor.toggle();
                 }
-                Task::none()
+                Action::None
             }
             Message::Lock => {
-                if let Some(lock_cmd) = &config.lock_cmd {
+                if let Some(lock_cmd) = &self.lock_cmd {
                     crate::utils::launcher::execute_command(lock_cmd.to_string());
                 }
-                Task::none()
+                Action::None
             }
             Message::PasswordDialog(msg) => match msg {
                 password_dialog::Message::PasswordChanged(password) => {
@@ -228,41 +222,38 @@ impl Settings {
                         *current_password = password;
                     }
 
-                    Task::none()
+                    Action::None
                 }
                 password_dialog::Message::DialogConfirmed(id) => {
                     if let Some((ssid, password)) = self.password_dialog.take() {
-                        Task::batch(vec![
-                            match self
-                                .network
-                                .update(network::Message::PasswordDialogConfirmed(
-                                    ssid.clone(),
-                                    password.clone(),
-                                )) {
-                                network::Action::Command(task) => task.map(|msg| {
-                                    crate::app::Message::Settings(Message::Network(msg))
-                                }),
-                                _ => Task::none(),
-                            },
-                            outputs.release_keyboard(id),
-                        ])
+                        match self
+                            .network
+                            .update(network::Message::PasswordDialogConfirmed(
+                                ssid.clone(),
+                                password.clone(),
+                            )) {
+                            network::Action::Command(task) => {
+                                Action::ReleaseKeyboardWithCommand(id, task.map(Message::Network))
+                            }
+                            _ => Action::ReleaseKeyboard(id),
+                        }
                     } else {
-                        outputs.release_keyboard(id)
+                        Action::ReleaseKeyboard(id)
                     }
                 }
                 password_dialog::Message::DialogCancelled(id) => {
                     self.password_dialog = None;
 
-                    outputs.release_keyboard(id)
+                    Action::ReleaseKeyboard(id)
                 }
             },
             Message::MenuOpened => {
                 self.sub_menu = None;
 
                 match self.brightness.update(brightness::Message::MenuOpened) {
-                    brightness::Action::None => Task::none(),
+                    brightness::Action::None => Action::None,
                     brightness::Action::Command(task) => {
-                        task.map(|msg| crate::app::Message::Settings(Message::Brightness(msg)))
+                        Action::Command(task.map(Message::Brightness))
                     }
                 }
             }
@@ -276,15 +267,14 @@ impl Settings {
         position: Position,
     ) -> Element<'a, Message> {
         if let Some((ssid, current_password)) = &self.password_dialog {
-            password_dialog::view(id, ssid, current_password, theme.opacity)
-                .map(Message::PasswordDialog)
+            password_dialog::view(id, theme, ssid, current_password).map(Message::PasswordDialog)
         } else {
             let battery_data = self
                 .power
                 .battery_menu_indicator(theme)
                 .map(|e| e.map(Message::Power));
             let right_buttons = Row::new()
-                .push_maybe(self.config.lock_cmd.as_ref().map(|_| {
+                .push_maybe(self.lock_cmd.as_ref().map(|_| {
                     button(icon(Icons::Lock))
                         .padding([theme.space.xs, theme.space.sm + 1])
                         .on_press(Message::Lock)
