@@ -23,6 +23,7 @@ pub enum Message {
     Next(String),
     SetVolume(String, f64),
     Event(ServiceEvent<MprisPlayerService>),
+    ConfigReloaded(MediaPlayerModuleConfig),
 }
 
 pub enum Action {
@@ -66,6 +67,10 @@ impl MediaPlayer {
                 }
                 ServiceEvent::Error(_) => Action::None,
             },
+            Message::ConfigReloaded(c) => {
+                self.config = c;
+                Action::None
+            }
         }
     }
 

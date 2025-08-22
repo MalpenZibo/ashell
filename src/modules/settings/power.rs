@@ -21,6 +21,7 @@ pub enum Message {
     Reboot,
     Shutdown,
     Logout,
+    ConfigReloaded(PowerSettingsConfig),
 }
 
 pub enum Action {
@@ -28,15 +29,15 @@ pub enum Action {
     Command(Task<Message>),
 }
 
-pub struct PowerSettings {
-    suspend_cmd: String,
-    reboot_cmd: String,
-    shutdown_cmd: String,
-    logout_cmd: String,
-    service: Option<UPowerService>,
+#[derive(Debug, Clone)]
+pub struct PowerSettingsConfig {
+    pub suspend_cmd: String,
+    pub reboot_cmd: String,
+    pub shutdown_cmd: String,
+    pub logout_cmd: String,
 }
 
-impl PowerSettings {
+impl PowerSettingsConfig {
     pub fn new(
         suspend_cmd: String,
         reboot_cmd: String,
@@ -48,6 +49,19 @@ impl PowerSettings {
             reboot_cmd,
             shutdown_cmd,
             logout_cmd,
+        }
+    }
+}
+
+pub struct PowerSettings {
+    config: PowerSettingsConfig,
+    service: Option<UPowerService>,
+}
+
+impl PowerSettings {
+    pub fn new(config: PowerSettingsConfig) -> Self {
+        Self {
+            config,
             service: None,
         }
     }
@@ -76,19 +90,23 @@ impl PowerSettings {
                 _ => Action::None,
             },
             Message::Suspend => {
-                utils::launcher::suspend(self.suspend_cmd.clone());
+                utils::launcher::suspend(self.config.suspend_cmd.clone());
                 Action::None
             }
             Message::Reboot => {
-                utils::launcher::reboot(self.reboot_cmd.clone());
+                utils::launcher::reboot(self.config.reboot_cmd.clone());
                 Action::None
             }
             Message::Shutdown => {
-                utils::launcher::shutdown(self.shutdown_cmd.clone());
+                utils::launcher::shutdown(self.config.shutdown_cmd.clone());
                 Action::None
             }
             Message::Logout => {
-                utils::launcher::logout(self.logout_cmd.clone());
+                utils::launcher::logout(self.config.logout_cmd.clone());
+                Action::None
+            }
+            Message::ConfigReloaded(config) => {
+                self.config = config;
                 Action::None
             }
         }

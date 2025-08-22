@@ -266,7 +266,7 @@ impl Workspaces {
         let enable_workspace_filling = self.config.enable_workspace_filling;
 
         Subscription::run_with_id(
-            format!("{id:?}-{enable_workspace_filling}"),
+            (id, enable_workspace_filling),
             channel(10, async move |output| {
                 let output = Arc::new(RwLock::new(output));
                 loop {

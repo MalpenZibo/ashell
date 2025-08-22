@@ -157,7 +157,7 @@ impl Custom {
         let name = self.config.name.clone();
         if let Some(listen_cmd) = self.config.listen_cmd.clone() {
             Subscription::run_with_id(
-                format!("{id:?}-{name}"),
+                (id, name.clone(), listen_cmd.clone()),
                 channel(10, async move |mut output| {
                     let command = Command::new("bash")
                         .arg("-c")

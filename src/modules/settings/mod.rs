@@ -2,8 +2,11 @@ use crate::{
     components::icons::{Icons, icon},
     config::{Position, SettingsModuleConfig},
     modules::settings::{
-        audio::AudioSettings, bluetooth::BluetoothSettings, brightness::BrightnessSettings,
-        network::NetworkSettings, power::PowerSettings,
+        audio::{AudioSettings, AudioSettingsConfig},
+        bluetooth::{BluetoothSettings, BluetoothSettingsConfig},
+        brightness::BrightnessSettings,
+        network::{NetworkSettings, NetworkSettingsConfig},
+        power::{PowerSettings, PowerSettingsConfig},
     },
     password_dialog,
     services::idle_inhibitor::IdleInhibitorManager,
@@ -46,6 +49,7 @@ pub enum Message {
     ToggleSubMenu(SubMenu),
     PasswordDialog(password_dialog::Message),
     MenuOpened,
+    ConfigReloaded(SettingsModuleConfig),
 }
 
 pub enum Action {
@@ -71,20 +75,25 @@ impl Settings {
     pub fn new(config: SettingsModuleConfig) -> Self {
         Settings {
             lock_cmd: config.lock_cmd,
-            power: PowerSettings::new(
+            power: PowerSettings::new(PowerSettingsConfig::new(
                 config.suspend_cmd,
                 config.reboot_cmd,
                 config.shutdown_cmd,
                 config.logout_cmd,
-            ),
-            audio: AudioSettings::new(config.audio_sinks_more_cmd, config.audio_sources_more_cmd),
+            )),
+            audio: AudioSettings::new(AudioSettingsConfig::new(
+                config.audio_sinks_more_cmd,
+                config.audio_sources_more_cmd,
+            )),
             brightness: BrightnessSettings::new(),
-            network: NetworkSettings::new(
+            network: NetworkSettings::new(NetworkSettingsConfig::new(
                 config.wifi_more_cmd,
                 config.vpn_more_cmd,
                 config.remove_airplane_btn,
-            ),
-            bluetooth: BluetoothSettings::new(config.bluetooth_more_cmd),
+            )),
+            bluetooth: BluetoothSettings::new(BluetoothSettingsConfig::new(
+                config.bluetooth_more_cmd,
+            )),
             idle_inhibitor: IdleInhibitorManager::new(),
             sub_menu: None,
             password_dialog: None,
@@ -256,6 +265,32 @@ impl Settings {
                         Action::Command(task.map(Message::Brightness))
                     }
                 }
+            }
+            Message::ConfigReloaded(config) => {
+                self.lock_cmd = config.lock_cmd;
+                self.power
+                    .update(power::Message::ConfigReloaded(PowerSettingsConfig::new(
+                        config.suspend_cmd,
+                        config.reboot_cmd,
+                        config.shutdown_cmd,
+                        config.logout_cmd,
+                    )));
+                self.audio
+                    .update(audio::Message::ConfigReloaded(AudioSettingsConfig::new(
+                        config.audio_sinks_more_cmd,
+                        config.audio_sources_more_cmd,
+                    )));
+                self.network.update(network::Message::ConfigReloaded(
+                    NetworkSettingsConfig::new(
+                        config.wifi_more_cmd,
+                        config.vpn_more_cmd,
+                        config.remove_airplane_btn,
+                    ),
+                ));
+                self.bluetooth.update(bluetooth::Message::ConfigReloaded(
+                    BluetoothSettingsConfig::new(config.bluetooth_more_cmd),
+                ));
+                Action::None
             }
         }
     }

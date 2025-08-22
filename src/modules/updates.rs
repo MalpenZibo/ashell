@@ -273,7 +273,7 @@ impl Updates {
         let id = TypeId::of::<Self>();
 
         Subscription::run_with_id(
-            id,
+            (id, check_cmd.clone()),
             channel(10, async move |mut output| {
                 loop {
                     let updates = check_update_now(&check_cmd).await;

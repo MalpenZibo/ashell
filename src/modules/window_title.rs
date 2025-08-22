@@ -17,6 +17,13 @@ fn get_window(config: &WindowTitleConfig) -> Option<String> {
             WindowTitleMode::Title => w.title,
             WindowTitleMode::Class => w.class,
         })
+        .map(|v| {
+            if config.truncate_title_after_length > 0 {
+                truncate_text(&v, config.truncate_title_after_length)
+            } else {
+                v
+            }
+        })
     })
 }
 
@@ -43,14 +50,7 @@ impl WindowTitle {
     pub fn update(&mut self, message: Message) {
         match message {
             Message::TitleChanged => {
-                if let Some(value) = get_window(&self.config) {
-                    self.value = Some(truncate_text(
-                        &value,
-                        self.config.truncate_title_after_length,
-                    ));
-                } else {
-                    self.value = None;
-                }
+                self.value = get_window(&self.config);
             }
         }
     }

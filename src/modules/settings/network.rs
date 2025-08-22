@@ -77,6 +77,7 @@ pub enum Message {
     ToggleVPNMenu,
     WifiMenuOpened,
     PasswordDialogConfirmed(String, String),
+    ConfigReloaded(NetworkSettingsConfig),
 }
 
 pub enum Action {
@@ -90,14 +91,14 @@ pub enum Action {
     CloseMenu(Id),
 }
 
-pub struct NetworkSettings {
-    wifi_more_cmd: Option<String>,
-    vpn_more_cmd: Option<String>,
-    remove_airplane_btn: bool,
-    service: Option<NetworkService>,
+#[derive(Debug, Clone)]
+pub struct NetworkSettingsConfig {
+    pub wifi_more_cmd: Option<String>,
+    pub vpn_more_cmd: Option<String>,
+    pub remove_airplane_btn: bool,
 }
 
-impl NetworkSettings {
+impl NetworkSettingsConfig {
     pub fn new(
         wifi_more_cmd: Option<String>,
         vpn_more_cmd: Option<String>,
@@ -107,6 +108,19 @@ impl NetworkSettings {
             wifi_more_cmd,
             vpn_more_cmd,
             remove_airplane_btn,
+        }
+    }
+}
+
+pub struct NetworkSettings {
+    config: NetworkSettingsConfig,
+    service: Option<NetworkService>,
+}
+
+impl NetworkSettings {
+    pub fn new(config: NetworkSettingsConfig) -> Self {
+        Self {
+            config,
             service: None,
         }
     }
@@ -166,7 +180,7 @@ impl NetworkSettings {
                 _ => Action::None,
             },
             Message::WiFiMore(id) => {
-                if let Some(cmd) = &self.wifi_more_cmd {
+                if let Some(cmd) = &self.config.wifi_more_cmd {
                     crate::utils::launcher::execute_command(cmd.to_string());
                     Action::CloseMenu(id)
                 } else {
@@ -174,7 +188,7 @@ impl NetworkSettings {
                 }
             }
             Message::VpnMore(id) => {
-                if let Some(cmd) = &self.vpn_more_cmd {
+                if let Some(cmd) = &self.config.vpn_more_cmd {
                     crate::utils::launcher::execute_command(cmd.to_string());
                     Action::CloseMenu(id)
                 } else {
@@ -221,6 +235,10 @@ impl NetworkSettings {
                 }
                 _ => Action::None,
             },
+            Message::ConfigReloaded(config) => {
+                self.config = config;
+                Action::None
+            }
         }
     }
 
@@ -316,7 +334,7 @@ impl NetworkSettings {
                                 theme,
                                 active_connection
                                     .map(|(name, strengh, _)| (name.as_str(), *strengh)),
-                                self.wifi_more_cmd.is_some(),
+                                self.config.wifi_more_cmd.is_some(),
                             )
                         }),
                 ))
@@ -354,7 +372,12 @@ impl NetworkSettings {
                         sub_menu
                             .filter(|menu_type| *menu_type == SubMenu::Vpn)
                             .map(|_| {
-                                Self::vpn_menu(service, id, theme, self.vpn_more_cmd.is_some())
+                                Self::vpn_menu(
+                                    service,
+                                    id,
+                                    theme,
+                                    self.config.vpn_more_cmd.is_some(),
+                                )
                             }),
                     )
                 })
@@ -365,7 +388,7 @@ impl NetworkSettings {
         &'a self,
         theme: &'a AshellTheme,
     ) -> Option<(Element<'a, Message>, Option<Element<'a, Message>>)> {
-        if self.remove_airplane_btn {
+        if self.config.remove_airplane_btn {
             None
         } else {
             self.service.as_ref().map(|service| {

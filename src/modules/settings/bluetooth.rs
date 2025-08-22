@@ -19,6 +19,7 @@ pub enum Message {
     Toggle,
     ToggleSubMenu,
     More(Id),
+    ConfigReloaded(BluetoothSettingsConfig),
 }
 
 pub enum Action {
@@ -28,15 +29,26 @@ pub enum Action {
     CloseSubMenu(Task<Message>),
 }
 
+#[derive(Debug, Clone)]
+pub struct BluetoothSettingsConfig {
+    pub more_cmd: Option<String>,
+}
+
+impl BluetoothSettingsConfig {
+    pub fn new(more_cmd: Option<String>) -> Self {
+        Self { more_cmd }
+    }
+}
+
 pub struct BluetoothSettings {
-    more_cmd: Option<String>,
+    config: BluetoothSettingsConfig,
     service: Option<BluetoothService>,
 }
 
 impl BluetoothSettings {
-    pub fn new(more_cmd: Option<String>) -> Self {
+    pub fn new(config: BluetoothSettingsConfig) -> Self {
         Self {
-            more_cmd,
+            config,
             service: None,
         }
     }
@@ -66,13 +78,17 @@ impl BluetoothSettings {
             },
             Message::ToggleSubMenu => Action::ToggleBluetoothMenu,
             Message::More(id) => {
-                if let Some(cmd) = &self.more_cmd {
+                if let Some(cmd) = &self.config.more_cmd {
                     crate::utils::launcher::execute_command(cmd.to_string());
 
                     Action::CloseMenu(id)
                 } else {
                     Action::None
                 }
+            }
+            Message::ConfigReloaded(config) => {
+                self.config = config;
+                Action::None
             }
         }
     }
@@ -131,7 +147,7 @@ impl BluetoothSettings {
                 .into()
             };
 
-            if self.more_cmd.is_some() {
+            if self.config.more_cmd.is_some() {
                 Some(
                     column!(
                         main,

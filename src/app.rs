@@ -136,6 +136,42 @@ impl App {
         }
     }
 
+    fn refesh_config(&mut self) {
+        let config = &self.config;
+
+        let custom = config
+            .custom_modules
+            .clone()
+            .into_iter()
+            .map(|o| (o.name.clone(), Custom::new(o)))
+            .collect();
+
+        self.app_launcher = config
+            .app_launcher_cmd
+            .as_ref()
+            .map(|cmd| AppLauncher::new(cmd.clone()));
+        self.custom = custom;
+        self.updates = config.clone().updates.map(Updates::new);
+        self.clipboard = config
+            .clipboard_cmd
+            .as_ref()
+            .map(|cmd| Clipboard::new(cmd.clone()));
+        self.workspaces = Workspaces::new(config.workspaces);
+        self.window_title = WindowTitle::new(config.window_title);
+        self.system_info = SystemInfo::new(config.system.clone());
+        self.keyboard_layout = KeyboardLayout::new(config.keyboard_layout.clone());
+        self.keyboard_submap = KeyboardSubmap::default();
+        self.clock = Clock::new(config.clock.clone());
+        self.settings
+            .update(modules::settings::Message::ConfigReloaded(
+                self.config.settings.clone(),
+            ));
+        self.media_player
+            .update(modules::media_player::Message::ConfigReloaded(
+                self.config.media_player.clone(),
+            ));
+    }
+
     pub fn title(&self, _id: Id) -> String {
         String::from("ashell")
     }
@@ -179,15 +215,9 @@ impl App {
                         config.appearance.scale_factor,
                     ));
                 }
-                let custom = config
-                    .custom_modules
-                    .clone()
-                    .into_iter()
-                    .map(|o| (o.name.clone(), Custom::new(o)))
-                    .collect();
 
                 self.config = *config;
-                self.custom = custom;
+                self.refesh_config();
                 self.logger
                     .set_new_spec(get_log_spec(&self.config.log_level));
 

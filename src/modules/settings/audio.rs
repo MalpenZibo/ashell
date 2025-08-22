@@ -26,6 +26,7 @@ pub enum Message {
     SourcesMore(Id),
     ToggleSinksMenu,
     ToggleSourcesMenu,
+    ConfigReloaded(AudioSettingsConfig),
 }
 
 pub enum Action {
@@ -36,9 +37,23 @@ pub enum Action {
     CloseSubMenu,
 }
 
+#[derive(Debug, Clone)]
+pub struct AudioSettingsConfig {
+    pub sinks_more_cmd: Option<String>,
+    pub sources_more_cmd: Option<String>,
+}
+
+impl AudioSettingsConfig {
+    pub fn new(sinks_more_cmd: Option<String>, sources_more_cmd: Option<String>) -> Self {
+        Self {
+            sinks_more_cmd,
+            sources_more_cmd,
+        }
+    }
+}
+
 pub struct AudioSettings {
-    sinks_more_cmd: Option<String>,
-    sources_more_cmd: Option<String>,
+    config: AudioSettingsConfig,
     service: Option<AudioService>,
 }
 
@@ -56,10 +71,9 @@ pub enum SliderType {
 }
 
 impl AudioSettings {
-    pub fn new(sinks_more_cmd: Option<String>, sources_more_cmd: Option<String>) -> Self {
+    pub fn new(config: AudioSettingsConfig) -> Self {
         Self {
-            sinks_more_cmd,
-            sources_more_cmd,
+            config,
             service: None,
         }
     }
@@ -125,7 +139,7 @@ impl AudioSettings {
                 Action::None
             }
             Message::SinksMore(id) => {
-                if let Some(cmd) = &self.sinks_more_cmd {
+                if let Some(cmd) = &self.config.sinks_more_cmd {
                     crate::utils::launcher::execute_command(cmd.to_string());
                     Action::CloseMenu(id)
                 } else {
@@ -133,7 +147,7 @@ impl AudioSettings {
                 }
             }
             Message::SourcesMore(id) => {
-                if let Some(cmd) = &self.sources_more_cmd {
+                if let Some(cmd) = &self.config.sources_more_cmd {
                     crate::utils::launcher::execute_command(cmd.to_string());
                     Action::CloseMenu(id)
                 } else {
@@ -142,6 +156,10 @@ impl AudioSettings {
             }
             Message::ToggleSinksMenu => Action::ToggleSinksMenu,
             Message::ToggleSourcesMenu => Action::ToggleSourcesMenu,
+            Message::ConfigReloaded(config) => {
+                self.config = config;
+                Action::None
+            }
         }
     }
 
@@ -233,7 +251,7 @@ impl AudioSettings {
                         })
                     })
                     .collect(),
-                if self.sinks_more_cmd.is_some() {
+                if self.config.sinks_more_cmd.is_some() {
                     Some(Message::SinksMore(id))
                 } else {
                     None
@@ -262,7 +280,7 @@ impl AudioSettings {
                         })
                     })
                     .collect(),
-                if self.sources_more_cmd.is_some() {
+                if self.config.sources_more_cmd.is_some() {
                     Some(Message::SourcesMore(id))
                 } else {
                     None
