@@ -39,23 +39,31 @@ impl Menu {
         &mut self,
         menu_type: MenuType,
         button_ui_ref: ButtonUIRef,
+        config: &crate::config::Config,
     ) -> Task<Message> {
         self.menu_info.replace((menu_type, button_ui_ref));
 
-        Task::batch(vec![
-            set_layer(self.id, Layer::Overlay),
-            set_keyboard_interactivity(self.id, KeyboardInteractivity::OnDemand),
-        ])
+        let mut tasks = vec![set_layer(self.id, Layer::Overlay)];
+
+        if config.menu_keyboard_focus {
+            tasks.push(set_keyboard_interactivity(self.id, KeyboardInteractivity::OnDemand));
+        }
+
+        Task::batch(tasks)
     }
 
-    pub fn close<Message: 'static>(&mut self) -> Task<Message> {
+    pub fn close<Message: 'static>(&mut self, config: &crate::config::Config) -> Task<Message> {
         if self.menu_info.is_some() {
             self.menu_info.take();
 
-            Task::batch(vec![
-                set_layer(self.id, Layer::Background),
-                set_keyboard_interactivity(self.id, KeyboardInteractivity::None),
-            ])
+            let mut tasks = vec![set_layer(self.id, Layer::Background)];
+            
+            if config.menu_keyboard_focus {
+                tasks.push(set_keyboard_interactivity(self.id, KeyboardInteractivity::None));
+            }
+
+            Task::batch(tasks)
+
         } else {
             Task::none()
         }
@@ -65,10 +73,11 @@ impl Menu {
         &mut self,
         menu_type: MenuType,
         button_ui_ref: ButtonUIRef,
+        config: &crate::config::Config,
     ) -> Task<Message> {
         match self.menu_info.as_mut() {
-            None => self.open(menu_type, button_ui_ref),
-            Some((current_type, _)) if *current_type == menu_type => self.close(),
+            None => self.open(menu_type, button_ui_ref, config),
+            Some((current_type, _)) if *current_type == menu_type => self.close(config),
             Some((current_type, current_button_ui_ref)) => {
                 *current_type = menu_type;
                 *current_button_ui_ref = button_ui_ref;
@@ -77,10 +86,10 @@ impl Menu {
         }
     }
 
-    pub fn close_if<Message: 'static>(&mut self, menu_type: MenuType) -> Task<Message> {
+    pub fn close_if<Message: 'static>(&mut self, menu_type: MenuType, config: &crate::config::Config) -> Task<Message> {
         if let Some((current_type, _)) = self.menu_info.as_ref() {
             if *current_type == menu_type {
-                self.close()
+                self.close(config)
             } else {
                 Task::none()
             }
@@ -89,12 +98,20 @@ impl Menu {
         }
     }
 
-    pub fn request_keyboard<Message: 'static>(&self) -> Task<Message> {
-        set_keyboard_interactivity(self.id, KeyboardInteractivity::OnDemand)
+    pub fn request_keyboard<Message: 'static>(&self, config: &crate::config::Config) -> Task<Message> {
+        if config.menu_keyboard_focus {
+            set_keyboard_interactivity(self.id, KeyboardInteractivity::OnDemand)
+        } else {
+            Task::none()
+        }
     }
 
-    pub fn release_keyboard<Message: 'static>(&self) -> Task<Message> {
-        set_keyboard_interactivity(self.id, KeyboardInteractivity::None)
+    pub fn release_keyboard<Message: 'static>(&self, config: &crate::config::Config) -> Task<Message> {
+        if config.menu_keyboard_focus {
+            set_keyboard_interactivity(self.id, KeyboardInteractivity::None)
+        } else {
+            Task::none()
+        }
     }
 }
 

@@ -95,11 +95,7 @@ impl App {
         (logger, config, config_path): (LoggerHandle, Config, PathBuf),
     ) -> impl FnOnce() -> (Self, Task<Message>) {
         || {
-            let (outputs, task) = Outputs::new(
-                config.appearance.style,
-                config.position,
-                config.appearance.scale_factor,
-            );
+            let (outputs, task) = Outputs::new(config.appearance.style, config.position, &config);
 
             let custom = config
                 .custom_modules
@@ -172,7 +168,7 @@ impl App {
                         config.appearance.style,
                         &config.outputs,
                         config.position,
-                        config.appearance.scale_factor,
+                        &config,
                     ));
                 }
                 let custom = config
@@ -219,14 +215,14 @@ impl App {
                     }
                     _ => {}
                 };
-                cmd.push(self.outputs.toggle_menu(id, menu_type, button_ui_ref));
+                cmd.push(self.outputs.toggle_menu(id, menu_type, button_ui_ref, &self.config));
 
                 Task::batch(cmd)
             }
-            Message::CloseMenu(id) => self.outputs.close_menu(id),
+            Message::CloseMenu(id) => self.outputs.close_menu(id, &self.config),
             Message::CloseAllMenus => {
                 if self.outputs.menu_is_open() {
-                    self.outputs.close_all_menus()
+                    self.outputs.close_all_menus(&self.config)
                 } else {
                     Task::none()
                 }
@@ -234,7 +230,7 @@ impl App {
             Message::Updates(message) => {
                 if let Some(updates_config) = self.config.updates.as_ref() {
                     self.updates
-                        .update(message, updates_config, &mut self.outputs)
+                        .update(message, updates_config, &mut self.outputs, &self.config)
                 } else {
                     Task::none()
                 }
@@ -285,7 +281,7 @@ impl App {
                     TrayMessage::Event(event) => {
                         if let ServiceEvent::Update(TrayEvent::Unregistered(name)) = event.as_ref()
                         {
-                            self.outputs.close_all_menu_if(MenuType::Tray(name.clone()))
+                            self.outputs.close_all_menu_if(MenuType::Tray(name.clone()), &self.config)
                         } else {
                             Task::none()
                         }
@@ -302,7 +298,7 @@ impl App {
             Message::Privacy(msg) => self.privacy.update(msg),
             Message::Settings(message) => {
                 self.settings
-                    .update(message, &self.config.settings, &mut self.outputs)
+                    .update(message, &self.config.settings, &mut self.outputs, &self.config)
             }
             Message::OutputEvent((event, wl_output)) => match event {
                 iced::event::wayland::OutputEvent::Created(info) => {
@@ -318,7 +314,7 @@ impl App {
                         self.config.position,
                         name,
                         wl_output,
-                        self.config.appearance.scale_factor,
+                        &self.config,
                     )
                 }
                 iced::event::wayland::OutputEvent::Removed => {
@@ -327,7 +323,7 @@ impl App {
                         self.config.appearance.style,
                         self.config.position,
                         wl_output,
-                        self.config.appearance.scale_factor,
+                        &self.config,
                     )
                 }
                 _ => Task::none(),

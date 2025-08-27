@@ -702,10 +702,16 @@ pub struct Config {
     pub media_player: MediaPlayerModuleConfig,
     #[serde(default)]
     pub keyboard_layout: KeyboardLayoutModuleConfig,
+    #[serde(default)]
+    pub menu_keyboard_focus: bool,
 }
 
 fn default_log_level() -> String {
     "warn".to_owned()
+}
+
+fn default_menu_keyboard_focus() -> bool {
+    true
 }
 
 fn default_truncate_title_after_length() -> u32 {
@@ -731,6 +737,7 @@ impl Default for Config {
             media_player: MediaPlayerModuleConfig::default(),
             keyboard_layout: KeyboardLayoutModuleConfig::default(),
             custom_modules: vec![],
+            menu_keyboard_focus: default_menu_keyboard_focus(),
         }
     }
 }
