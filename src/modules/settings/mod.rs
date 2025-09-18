@@ -80,6 +80,7 @@ pub enum Message {
     Power(PowerMessage),
     ToggleSubMenu(SubMenu),
     PasswordDialog(password_dialog::Message),
+    CustomButton(String),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -446,6 +447,12 @@ impl Settings {
                     outputs.release_keyboard(id)
                 }
             },
+            Message::CustomButton(name) => {
+                if let Some(button) = config.custom_buttons.iter().find(|b| b.name == name) {
+                    crate::utils::launcher::execute_command(button.command.clone());
+                }
+                Task::none()
+            }
         }
     }
 
@@ -557,6 +564,24 @@ impl Settings {
                 ]
                 .into_iter()
                 .flatten()
+                .chain(
+                    config.custom_buttons.iter().map(|button| {
+                        let is_active = check_toggle_status(&button.status_command);
+
+                        (
+                            quick_setting_button(
+                                Icons::AppLauncher,
+                                button.name.clone(),
+                                button.tooltip.clone(),
+                                is_active,
+                                Message::CustomButton(button.name.clone()),
+                                None,
+                                opacity,
+                            ),
+                            None,
+                        )
+                    })
+                )
                 .collect::<Vec<_>>(),
                 opacity,
             );
@@ -809,4 +834,15 @@ fn quick_setting_button<'a, Msg: Clone + 'static>(
     .width(Length::Fill)
     .height(Length::Fixed(50.))
     .into()
+}
+
+fn check_toggle_status(status_command: &Option<String>) -> bool {
+    status_command.as_ref().map_or(false, |cmd| {
+        std::process::Command::new("bash")
+            .arg("-c")
+            .arg(cmd)
+            .output()
+            .map(|output| output.status.success())
+            .unwrap_or(false)
+    })
 }

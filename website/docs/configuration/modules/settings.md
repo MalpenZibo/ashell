@@ -55,6 +55,43 @@ you can set commands to open the network, VPN and bluetooth settings.
 
 With the `remove_airplane_btn` option you can remove the airplane mode button.
 
+## Custom Buttons
+
+You can add custom buttons to the settings panel using the `CustomButton` configuration.
+These buttons can execute commands when clicked.
+
+### Button Behavior
+
+- If `status_command` is provided, the button acts as a **toggle** with visual state tracking
+- If `status_command` is not provided, the button acts as a **launcher** (simple command execution)
+
+### Configuration
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | Yes | Display name of the button |
+| `icon` | Yes | Icon to display (currently not implemented, placeholder) |
+| `command` | Yes | Command to execute when button is clicked |
+| `status_command` | No | Command to check if toggle is active (exit code 0 = active) |
+| `tooltip` | No | Tooltip text shown on hover |
+
+```toml
+# Toggle button example (with status_command)
+[[settings.CustomButton]]
+name = "Virtual Keyboard"
+icon = "⌨️"
+command = "/path/to/toggle-keyboard.sh"
+status_command = "/path/to/check-keyboard-status.sh"
+tooltip = "Toggle On-Screen Keyboard"
+
+# Launcher button example (without status_command)
+[[settings.CustomButton]]
+name = "Terminal"
+icon = ""
+command = "alacritty"
+tooltip = "Open Terminal"
+```
+
 ## Example
 
 In the following example we use:
@@ -76,4 +113,17 @@ wifi_more_cmd = "nm-connection-editor"
 vpn_more_cmd = "nm-connection-editor"
 bluetooth_more_cmd = "blueman-manager"
 remove_airplane_btn = true
+
+[[settings.CustomButton]]
+name = "Virtual Keyboard"
+icon = "⌨️"
+command = "toggle-onscreen-keyboard.sh"
+status_command = "pgrep -x onboard"
+tooltip = "Toggle On-Screen Keyboard"
+
+[[settings.CustomButton]]
+name = "File Manager"
+icon = ""
+command = "nautilus"
+tooltip = "Open Files"
 ```
