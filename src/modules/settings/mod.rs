@@ -94,7 +94,11 @@ impl Settings {
             bluetooth: BluetoothSettings::new(BluetoothSettingsConfig::new(
                 config.bluetooth_more_cmd,
             )),
-            idle_inhibitor: IdleInhibitorManager::new(),
+            idle_inhibitor: if config.remove_idle_btn {
+                None
+            } else {
+                IdleInhibitorManager::new()
+            },
             sub_menu: None,
             password_dialog: None,
         }
@@ -290,6 +294,11 @@ impl Settings {
                 self.bluetooth.update(bluetooth::Message::ConfigReloaded(
                     BluetoothSettingsConfig::new(config.bluetooth_more_cmd),
                 ));
+                if config.remove_idle_btn {
+                    self.idle_inhibitor = None;
+                } else if self.idle_inhibitor.is_none() {
+                    self.idle_inhibitor = IdleInhibitorManager::new();
+                }
                 Action::None
             }
         }
