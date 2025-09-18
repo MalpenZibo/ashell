@@ -533,23 +533,27 @@ impl Settings {
                             Some(n.get_airplane_mode_quick_setting_button(opacity))
                         }
                     }),
-                    self.idle_inhibitor.as_ref().map(|idle_inhibitor| {
-                        (
-                            quick_setting_button(
-                                if idle_inhibitor.is_inhibited() {
-                                    Icons::EyeOpened
-                                } else {
-                                    Icons::EyeClosed
-                                },
-                                "Idle Inhibitor".to_string(),
+                    self.idle_inhibitor.as_ref().and_then(|i| {
+                        if config.remove_idle_btn {
+                            None
+                        } else {
+                            Some((
+                                quick_setting_button(
+                                    if i.is_inhibited() {
+                                        Icons::EyeOpened
+                                    } else {
+                                        Icons::EyeClosed
+                                    },
+                                    "Idle Inhibitor".to_string(),
+                                    None,
+                                    i.is_inhibited(),
+                                    Message::ToggleInhibitIdle,
+                                    None,
+                                    opacity,
+                                ),
                                 None,
-                                idle_inhibitor.is_inhibited(),
-                                Message::ToggleInhibitIdle,
-                                None,
-                                opacity,
-                            ),
-                            None,
-                        )
+                            ))
+                        }
                     }),
                     self.upower
                         .as_ref()
