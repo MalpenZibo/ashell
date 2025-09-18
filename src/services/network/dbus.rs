@@ -621,7 +621,7 @@ impl NetworkDbus<'_> {
                     .path(&path)?
                     .build()
                     .await?;
-                wireless_device.request_scan(HashMap::new()).await?;
+                // wireless_device.request_scan(HashMap::new()).await?;
                 let mut scan_changed = wireless_device.receive_last_scan_changed().await;
                 if let Some(t) = scan_changed.next().await {
                     if let Ok(-1) = t.get().await {
