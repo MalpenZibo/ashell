@@ -204,8 +204,7 @@ impl TrayModule {
                             })
                             .collect::<Vec<_>>(),
                     )
-                    .align_y(Alignment::Center)
-                    .padding([0, theme.space.xxs]),
+                    .align_y(Alignment::Center),
                 )
             })
     }
