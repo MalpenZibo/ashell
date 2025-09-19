@@ -109,10 +109,8 @@ pub enum KnownConnection {
 pub enum ActiveConnectionInfo {
     Wired {
         name: String,
-        speed: u32,
     },
     WiFi {
-        id: String,
         name: String,
         strength: u8,
     },

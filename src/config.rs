@@ -23,14 +23,14 @@ pub struct UpdatesModuleConfig {
     pub update_cmd: String,
 }
 
-#[derive(Deserialize, Clone, Default, PartialEq, Eq, Debug)]
+#[derive(Deserialize, Copy, Clone, Default, PartialEq, Eq, Debug)]
 pub enum WorkspaceVisibilityMode {
     #[default]
     All,
     MonitorSpecific,
 }
 
-#[derive(Deserialize, Clone, Default, Debug)]
+#[derive(Deserialize, Copy, Clone, Default, Debug)]
 pub struct WorkspacesModuleConfig {
     #[serde(default)]
     pub visibility_mode: WorkspaceVisibilityMode,
@@ -39,14 +39,14 @@ pub struct WorkspacesModuleConfig {
     pub max_workspaces: Option<u32>,
 }
 
-#[derive(Deserialize, Clone, Default, PartialEq, Eq, Debug)]
+#[derive(Deserialize, Copy, Clone, Default, PartialEq, Eq, Debug)]
 pub enum WindowTitleMode {
     #[default]
     Title,
     Class,
 }
 
-#[derive(Deserialize, Clone, Default, Debug)]
+#[derive(Deserialize, Copy, Clone, Default, Debug)]
 pub struct WindowTitleConfig {
     #[serde(default)]
     pub mode: WindowTitleMode,
@@ -339,7 +339,7 @@ pub enum AppearanceStyle {
     Gradient,
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Clone, Copy, Debug)]
 pub struct MenuAppearance {
     #[serde(deserialize_with = "opacity_deserializer", default = "default_opacity")]
     pub opacity: f32,
