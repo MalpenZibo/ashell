@@ -40,7 +40,7 @@ impl Outputs {
         position: Position,
         config: &crate::config::Config,
     ) -> (Self, Task<Message>) {
-        let (id, menu_id, task) = Self::create_output_layers(style, None, position, config.menu_keyboard_focus);
+        let (id, menu_id, task) = Self::create_output_layers(style, None, position, config.menu_keyboard_focus, config.appearance.scale_factor);
 
         (
             Self(vec![(
@@ -72,9 +72,10 @@ impl Outputs {
         wl_output: Option<WlOutput>,
         position: Position,
         menu_keyboard_focus: bool,
+        scale_factor: f64,
     ) -> (Id, Id, Task<Message>) {
         let id = Id::unique();
-        let height = Self::get_height(style, config.appearance.scale_factor);
+        let height = Self::get_height(style, scale_factor);
 
         let task = get_layer_surface(SctkLayerSurfaceSettings {
             id,
@@ -178,7 +179,7 @@ impl Outputs {
             debug!("Found target output, creating a new layer surface");
 
             let (id, menu_id, task) =
-                Self::create_output_layers(style, Some(wl_output.clone()), position, config.menu_keyboard_focus);
+                Self::create_output_layers(style, Some(wl_output.clone()), position, config.menu_keyboard_focus, config.appearance.scale_factor);
 
             let destroy_task = match self
                 .0
@@ -275,7 +276,7 @@ impl Outputs {
                 if !self.0.iter().any(|(_, shell_info, _)| shell_info.is_some()) {
                     debug!("No outputs left, creating a fallback layer surface");
 
-                    let (id, menu_id, task) = Self::create_output_layers(style, None, position, config.menu_keyboard_focus);
+                    let (id, menu_id, task) = Self::create_output_layers(style, None, position, config.menu_keyboard_focus, config.appearance.scale_factor);
 
                     self.0.push((
                         None,
