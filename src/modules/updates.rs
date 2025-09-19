@@ -101,6 +101,7 @@ impl Updates {
         message: Message,
         config: &UpdatesModuleConfig,
         outputs: &mut Outputs,
+        main_config: &crate::config::Config,
     ) -> Task<crate::app::Message> {
         match message {
             Message::UpdatesCheckCompleted(updates) => {
@@ -142,7 +143,7 @@ impl Updates {
                     move |_| app::Message::Updates(Message::UpdateFinished),
                 )];
 
-                cmds.push(outputs.close_menu_if(id, MenuType::Updates));
+                cmds.push(outputs.close_menu_if(id, MenuType::Updates, main_config));
 
                 Task::batch(cmds)
             }
