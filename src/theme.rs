@@ -531,7 +531,7 @@ impl AshellTheme {
                 ),
                 border: Border {
                     width: 2.0,
-                    radius: 32.0.into(),
+                    radius: self.radius.xl.into(),
                     color: Color::TRANSPARENT,
                 },
                 text_color: theme.palette().text,
@@ -577,7 +577,7 @@ impl AshellTheme {
                 },
                 border: Border {
                     width: 0.0,
-                    radius: 12.0.into(),
+                    radius: self.radius.lg.into(),
                     color: Color::TRANSPARENT,
                 },
                 text_color: theme.palette().text,

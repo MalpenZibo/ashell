@@ -471,7 +471,7 @@ impl App {
                         self.menu_wrapper(
                             id,
                             updates.menu_view(id, &self.theme).map(Message::Updates),
-                            MenuSize::Medium,
+                            MenuSize::Small,
                             *button_ui_ref,
                         )
                     } else {

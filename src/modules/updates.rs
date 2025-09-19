@@ -199,7 +199,8 @@ impl Updates {
                     .padding(theme.space.xs)
                     .on_press(Message::ToggleUpdatesList)
                     .width(Length::Fill),
-                );
+                )
+                .spacing(theme.space.xs);
 
                 if self.is_updates_list_open {
                     elements = elements.push(
@@ -235,36 +236,42 @@ impl Updates {
                                     })
                                     .collect::<Vec<Element<'_, _, _>>>(),
                             )
-                            .padding(theme.space.md)
-                            .spacing(theme.space.xxs),
+                            .spacing(theme.space.xs)
+                            .padding([
+                                0,
+                                theme.space.md,
+                                0,
+                                theme.space.xs,
+                            ]),
                         ))
-                        .padding([theme.space.xs, 0])
                         .max_height(300),
                     );
                 }
                 elements.into()
             },
             horizontal_rule(1),
-            button("Update")
+            column!(
+                button("Update")
+                    .style(theme.ghost_button_style())
+                    .padding(theme.space.xs)
+                    .on_press(Message::Update(id))
+                    .width(Length::Fill),
+                button({
+                    let mut content = row!(text("Check now").width(Length::Fill),);
+
+                    if self.state == State::Checking {
+                        content = content.push(icon(Icons::Refresh));
+                    }
+
+                    content
+                })
                 .style(theme.ghost_button_style())
                 .padding(theme.space.xs)
-                .on_press(Message::Update(id))
-                .width(Length::Fill),
-            button({
-                let mut content = row!(text("Check now").width(Length::Fill),);
-
-                if self.state == State::Checking {
-                    content = content.push(icon(Icons::Refresh));
-                }
-
-                content
-            })
-            .style(theme.ghost_button_style())
-            .padding(theme.space.xs)
-            .on_press(Message::CheckNow)
-            .width(Length::Fill),
+                .on_press(Message::CheckNow)
+                .width(Length::Fill)
+            ),
         )
-        .spacing(theme.space.xxs)
+        .spacing(theme.space.xs)
         .into()
     }
 
