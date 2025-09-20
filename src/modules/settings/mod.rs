@@ -98,12 +98,13 @@ impl Settings {
         message: Message,
         config: &SettingsModuleConfig,
         outputs: &mut Outputs,
+        main_config: &crate::config::Config,
     ) -> Task<crate::app::Message> {
         match message {
             Message::ToggleMenu(id, button_ui_ref) => {
                 self.sub_menu = None;
                 self.password_dialog = None;
-                outputs.toggle_menu(id, MenuType::Settings, button_ui_ref)
+                outputs.toggle_menu(id, MenuType::Settings, button_ui_ref, main_config)
             }
             Message::Audio(msg) => match msg {
                 AudioMessage::Event(event) => match event {
@@ -166,7 +167,7 @@ impl Settings {
                 AudioMessage::SinksMore(id) => {
                     if let Some(cmd) = &config.audio_sinks_more_cmd {
                         crate::utils::launcher::execute_command(cmd.to_string());
-                        outputs.close_menu(id)
+                        outputs.close_menu(id, main_config)
                     } else {
                         Task::none()
                     }
@@ -174,7 +175,7 @@ impl Settings {
                 AudioMessage::SourcesMore(id) => {
                     if let Some(cmd) = &config.audio_sources_more_cmd {
                         crate::utils::launcher::execute_command(cmd.to_string());
-                        outputs.close_menu(id)
+                        outputs.close_menu(id, main_config)
                     } else {
                         Task::none()
                     }
@@ -261,7 +262,7 @@ impl Settings {
                 NetworkMessage::RequestWiFiPassword(id, ssid) => {
                     info!("Requesting password for {ssid}");
                     self.password_dialog = Some((ssid, "".to_string()));
-                    outputs.request_keyboard(id)
+                    outputs.request_keyboard(id, main_config.menu_keyboard_focus)
                 }
                 NetworkMessage::ScanNearByWiFi => match self.network.as_mut() {
                     Some(network) => network
@@ -276,7 +277,7 @@ impl Settings {
                 NetworkMessage::WiFiMore(id) => {
                     if let Some(cmd) = &config.wifi_more_cmd {
                         crate::utils::launcher::execute_command(cmd.to_string());
-                        outputs.close_menu(id)
+                        outputs.close_menu(id, main_config)
                     } else {
                         Task::none()
                     }
@@ -284,7 +285,7 @@ impl Settings {
                 NetworkMessage::VpnMore(id) => {
                     if let Some(cmd) = &config.vpn_more_cmd {
                         crate::utils::launcher::execute_command(cmd.to_string());
-                        outputs.close_menu(id)
+                        outputs.close_menu(id, main_config)
                     } else {
                         Task::none()
                     }
@@ -331,7 +332,7 @@ impl Settings {
                 BluetoothMessage::More(id) => {
                     if let Some(cmd) = &config.bluetooth_more_cmd {
                         crate::utils::launcher::execute_command(cmd.to_string());
-                        outputs.close_menu(id)
+                        outputs.close_menu(id, main_config)
                     } else {
                         Task::none()
                     }
@@ -435,15 +436,15 @@ impl Settings {
                             }
                             _ => Task::none(),
                         };
-                        Task::batch(vec![network_command, outputs.release_keyboard(id)])
+                        Task::batch(vec![network_command, outputs.release_keyboard(id, main_config.menu_keyboard_focus)])
                     } else {
-                        outputs.release_keyboard(id)
+                        outputs.release_keyboard(id, main_config.menu_keyboard_focus)
                     }
                 }
                 password_dialog::Message::DialogCancelled(id) => {
                     self.password_dialog = None;
 
-                    outputs.release_keyboard(id)
+                    outputs.release_keyboard(id, main_config.menu_keyboard_focus)
                 }
             },
         }
