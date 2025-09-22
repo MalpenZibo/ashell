@@ -34,7 +34,7 @@ use iced::{
     },
     gradient::Linear,
     keyboard,
-    widget::{Row, container},
+    widget::{Row, container, mouse_area},
     window::Id,
 };
 use log::{debug, info, warn};
@@ -96,6 +96,7 @@ impl App {
                 config.appearance.style,
                 config.position,
                 config.appearance.scale_factor,
+                config.enable_esc_key,
             );
 
             let custom = config
@@ -208,6 +209,7 @@ impl App {
                     || self.config.position != config.position
                     || self.config.appearance.style != config.appearance.style
                     || self.config.appearance.scale_factor != config.appearance.scale_factor
+                    || self.config.enable_esc_key != config.enable_esc_key
                 {
                     warn!("Outputs changed, syncing");
                     tasks.push(self.outputs.sync(
@@ -215,6 +217,7 @@ impl App {
                         &config.outputs,
                         config.position,
                         config.appearance.scale_factor,
+                        config.enable_esc_key,
                     ));
                 }
 
@@ -367,6 +370,7 @@ impl App {
                         name,
                         wl_output,
                         self.config.appearance.scale_factor,
+                        self.config.enable_esc_key,
                     )
                 }
                 iced::event::wayland::OutputEvent::Removed => {
@@ -376,6 +380,7 @@ impl App {
                         self.config.position,
                         wl_output,
                         self.config.appearance.scale_factor,
+                        self.config.enable_esc_key,
                     )
                 }
                 _ => Task::none(),
@@ -418,71 +423,75 @@ impl App {
                         },
                     );
 
-                container(centerbox)
-                    .style(|t: &Theme| container::Style {
-                        background: match self.config.appearance.style {
-                            AppearanceStyle::Gradient => Some({
-                                let start_color = t
-                                    .palette()
-                                    .background
-                                    .scale_alpha(self.config.appearance.opacity);
+                let status_bar = container(centerbox).style(|t: &Theme| container::Style {
+                    background: match self.config.appearance.style {
+                        AppearanceStyle::Gradient => Some({
+                            let start_color = t
+                                .palette()
+                                .background
+                                .scale_alpha(self.config.appearance.opacity);
 
-                                let start_color = if self.outputs.menu_is_open() {
-                                    darken_color(start_color, self.config.appearance.menu.backdrop)
-                                } else {
-                                    start_color
-                                };
+                            let start_color = if self.outputs.menu_is_open() {
+                                darken_color(start_color, self.config.appearance.menu.backdrop)
+                            } else {
+                                start_color
+                            };
 
-                                let end_color = if self.outputs.menu_is_open() {
-                                    backdrop_color(self.config.appearance.menu.backdrop)
-                                } else {
-                                    Color::TRANSPARENT
-                                };
+                            let end_color = if self.outputs.menu_is_open() {
+                                backdrop_color(self.config.appearance.menu.backdrop)
+                            } else {
+                                Color::TRANSPARENT
+                            };
 
-                                Gradient::Linear(
-                                    Linear::new(Radians(PI))
-                                        .add_stop(
-                                            0.0,
-                                            match self.config.position {
-                                                Position::Top => start_color,
-                                                Position::Bottom => end_color,
-                                            },
-                                        )
-                                        .add_stop(
-                                            1.0,
-                                            match self.config.position {
-                                                Position::Top => end_color,
-                                                Position::Bottom => start_color,
-                                            },
-                                        ),
-                                )
-                                .into()
-                            }),
-                            AppearanceStyle::Solid => Some({
-                                let bg = t
-                                    .palette()
-                                    .background
-                                    .scale_alpha(self.config.appearance.opacity);
-                                if self.outputs.menu_is_open() {
-                                    darken_color(bg, self.config.appearance.menu.backdrop)
-                                } else {
-                                    bg
-                                }
-                                .into()
-                            }),
-                            AppearanceStyle::Islands => {
-                                if self.outputs.menu_is_open() {
-                                    Some(
-                                        backdrop_color(self.config.appearance.menu.backdrop).into(),
+                            Gradient::Linear(
+                                Linear::new(Radians(PI))
+                                    .add_stop(
+                                        0.0,
+                                        match self.config.position {
+                                            Position::Top => start_color,
+                                            Position::Bottom => end_color,
+                                        },
                                     )
-                                } else {
-                                    None
-                                }
+                                    .add_stop(
+                                        1.0,
+                                        match self.config.position {
+                                            Position::Top => end_color,
+                                            Position::Bottom => start_color,
+                                        },
+                                    ),
+                            )
+                            .into()
+                        }),
+                        AppearanceStyle::Solid => Some({
+                            let bg = t
+                                .palette()
+                                .background
+                                .scale_alpha(self.config.appearance.opacity);
+                            if self.outputs.menu_is_open() {
+                                darken_color(bg, self.config.appearance.menu.backdrop)
+                            } else {
+                                bg
                             }
-                        },
-                        ..Default::default()
-                    })
-                    .into()
+                            .into()
+                        }),
+                        AppearanceStyle::Islands => {
+                            if self.outputs.menu_is_open() {
+                                Some(backdrop_color(self.config.appearance.menu.backdrop).into())
+                            } else {
+                                None
+                            }
+                        }
+                    },
+                    ..Default::default()
+                });
+
+                if self.outputs.menu_is_open() {
+                    mouse_area(status_bar)
+                        .on_release(Message::CloseMenu(id))
+                        .into()
+                } else {
+                    status_bar.into()
+                }
             }
             Some(HasOutput::Menu(menu_info)) => match menu_info {
                 Some((MenuType::Updates, button_ui_ref)) => {

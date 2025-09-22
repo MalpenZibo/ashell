@@ -48,7 +48,7 @@ impl Menu {
         if request_keyboard {
             tasks.push(set_keyboard_interactivity(
                 self.id,
-                KeyboardInteractivity::Exclusive,
+                KeyboardInteractivity::OnDemand,
             ));
         }
 

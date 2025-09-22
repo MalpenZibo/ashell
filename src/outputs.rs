@@ -39,8 +39,10 @@ impl Outputs {
         style: AppearanceStyle,
         position: Position,
         scale_factor: f64,
+        request_keyboard: bool,
     ) -> (Self, Task<Message>) {
-        let (id, menu_id, task) = Self::create_output_layers(style, None, position, scale_factor);
+        let (id, menu_id, task) =
+            Self::create_output_layers(style, None, position, scale_factor, request_keyboard);
 
         (
             Self(vec![(
@@ -72,6 +74,7 @@ impl Outputs {
         wl_output: Option<WlOutput>,
         position: Position,
         scale_factor: f64,
+        request_keyboard: bool,
     ) -> (Id, Id, Task<Message>) {
         let id = Id::unique();
         let height = Self::get_height(style, scale_factor);
@@ -82,7 +85,11 @@ impl Outputs {
             size: Some((None, Some(height as u32))),
             layer: Layer::Bottom,
             pointer_interactivity: true,
-            keyboard_interactivity: KeyboardInteractivity::None,
+            keyboard_interactivity: if request_keyboard {
+                KeyboardInteractivity::OnDemand
+            } else {
+                KeyboardInteractivity::None
+            },
             exclusive_zone: height as i32,
             output: wl_output.clone().map_or(IcedOutput::Active, |wl_output| {
                 IcedOutput::Output(wl_output)
@@ -159,6 +166,7 @@ impl Outputs {
             .any(|(n, info, _)| info.is_some() && n.as_ref().map(|n| n.as_str()) == Some(name))
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn add<Message: 'static>(
         &mut self,
         style: AppearanceStyle,
@@ -167,14 +175,20 @@ impl Outputs {
         name: &str,
         wl_output: WlOutput,
         scale_factor: f64,
+        request_keyboard: bool,
     ) -> Task<Message> {
         let target = Self::name_in_config(Some(name), request_outputs);
 
         if target {
             debug!("Found target output, creating a new layer surface");
 
-            let (id, menu_id, task) =
-                Self::create_output_layers(style, Some(wl_output.clone()), position, scale_factor);
+            let (id, menu_id, task) = Self::create_output_layers(
+                style,
+                Some(wl_output.clone()),
+                position,
+                scale_factor,
+                request_keyboard,
+            );
 
             let destroy_task = match self
                 .0
@@ -245,6 +259,7 @@ impl Outputs {
         position: Position,
         wl_output: WlOutput,
         scale_factor: f64,
+        request_keyboard: bool,
     ) -> Task<Message> {
         match self.0.iter().position(|(_, _, assigned_wl_output)| {
             assigned_wl_output
@@ -271,8 +286,13 @@ impl Outputs {
                 if !self.0.iter().any(|(_, shell_info, _)| shell_info.is_some()) {
                     debug!("No outputs left, creating a fallback layer surface");
 
-                    let (id, menu_id, task) =
-                        Self::create_output_layers(style, None, position, scale_factor);
+                    let (id, menu_id, task) = Self::create_output_layers(
+                        style,
+                        None,
+                        position,
+                        scale_factor,
+                        request_keyboard,
+                    );
 
                     self.0.push((
                         None,
@@ -301,6 +321,7 @@ impl Outputs {
         request_outputs: &config::Outputs,
         position: Position,
         scale_factor: f64,
+        request_keyboard: bool,
     ) -> Task<Message> {
         debug!("Syncing outputs: {self:?}, request_outputs: {request_outputs:?}");
 
@@ -347,13 +368,14 @@ impl Outputs {
                         name.as_str(),
                         wl_output,
                         scale_factor,
+                        request_keyboard,
                     ));
                 }
             }
         }
 
         for wl_output in to_remove {
-            tasks.push(self.remove(style, position, wl_output, scale_factor));
+            tasks.push(self.remove(style, position, wl_output, scale_factor, request_keyboard));
         }
 
         for shell_info in self.0.iter_mut().filter_map(|(_, shell_info, _)| {
@@ -446,6 +468,7 @@ impl Outputs {
                     })
                     .collect::<Vec<_>>();
                 tasks.push(toggle_task);
+
                 Task::batch(tasks)
             }
             _ => Task::none(),
