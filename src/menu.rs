@@ -39,34 +39,32 @@ impl Menu {
         &mut self,
         menu_type: MenuType,
         button_ui_ref: ButtonUIRef,
-        menu_keyboard_focus: bool,
+        request_keyboard: bool,
     ) -> Task<Message> {
         self.menu_info.replace((menu_type, button_ui_ref));
 
         let mut tasks = vec![set_layer(self.id, Layer::Overlay)];
 
-        if menu_keyboard_focus {
+        if request_keyboard {
             tasks.push(set_keyboard_interactivity(
                 self.id,
-                KeyboardInteractivity::OnDemand,
+                KeyboardInteractivity::Exclusive,
             ));
         }
 
         Task::batch(tasks)
     }
 
-    pub fn close<Message: 'static>(&mut self, menu_keyboard_focus: bool) -> Task<Message> {
+    pub fn close<Message: 'static>(&mut self) -> Task<Message> {
         if self.menu_info.is_some() {
             self.menu_info.take();
 
             let mut tasks = vec![set_layer(self.id, Layer::Background)];
 
-            if menu_keyboard_focus {
-                tasks.push(set_keyboard_interactivity(
-                    self.id,
-                    KeyboardInteractivity::None,
-                ));
-            }
+            tasks.push(set_keyboard_interactivity(
+                self.id,
+                KeyboardInteractivity::None,
+            ));
 
             Task::batch(tasks)
         } else {
@@ -78,13 +76,11 @@ impl Menu {
         &mut self,
         menu_type: MenuType,
         button_ui_ref: ButtonUIRef,
-        menu_keyboard_focus: bool,
+        request_keyboard: bool,
     ) -> Task<Message> {
         match self.menu_info.as_mut() {
-            None => self.open(menu_type, button_ui_ref, menu_keyboard_focus),
-            Some((current_type, _)) if *current_type == menu_type => {
-                self.close(menu_keyboard_focus)
-            }
+            None => self.open(menu_type, button_ui_ref, request_keyboard),
+            Some((current_type, _)) if *current_type == menu_type => self.close(),
             Some((current_type, current_button_ui_ref)) => {
                 *current_type = menu_type;
                 *current_button_ui_ref = button_ui_ref;
@@ -93,14 +89,10 @@ impl Menu {
         }
     }
 
-    pub fn close_if<Message: 'static>(
-        &mut self,
-        menu_type: MenuType,
-        menu_keyboard_focus: bool,
-    ) -> Task<Message> {
+    pub fn close_if<Message: 'static>(&mut self, menu_type: MenuType) -> Task<Message> {
         if let Some((current_type, _)) = self.menu_info.as_ref() {
             if *current_type == menu_type {
-                self.close(menu_keyboard_focus)
+                self.close()
             } else {
                 Task::none()
             }
@@ -109,20 +101,12 @@ impl Menu {
         }
     }
 
-    pub fn request_keyboard<Message: 'static>(&self, menu_keyboard_focus: bool) -> Task<Message> {
-        if menu_keyboard_focus {
-            set_keyboard_interactivity(self.id, KeyboardInteractivity::OnDemand)
-        } else {
-            Task::none()
-        }
+    pub fn request_keyboard<Message: 'static>(&self) -> Task<Message> {
+        set_keyboard_interactivity(self.id, KeyboardInteractivity::OnDemand)
     }
 
-    pub fn release_keyboard<Message: 'static>(&self, menu_keyboard_focus: bool) -> Task<Message> {
-        if menu_keyboard_focus {
-            set_keyboard_interactivity(self.id, KeyboardInteractivity::None)
-        } else {
-            Task::none()
-        }
+    pub fn release_keyboard<Message: 'static>(&self) -> Task<Message> {
+        set_keyboard_interactivity(self.id, KeyboardInteractivity::None)
     }
 }
 

@@ -38,15 +38,9 @@ impl Outputs {
     pub fn new<Message: 'static>(
         style: AppearanceStyle,
         position: Position,
-        config: &crate::config::Config,
+        scale_factor: f64,
     ) -> (Self, Task<Message>) {
-        let (id, menu_id, task) = Self::create_output_layers(
-            style,
-            None,
-            position,
-            config.menu_keyboard_focus,
-            config.appearance.scale_factor,
-        );
+        let (id, menu_id, task) = Self::create_output_layers(style, None, position, scale_factor);
 
         (
             Self(vec![(
@@ -56,7 +50,7 @@ impl Outputs {
                     menu: Menu::new(menu_id),
                     position,
                     style,
-                    scale_factor: config.appearance.scale_factor,
+                    scale_factor,
                 }),
                 None,
             )]),
@@ -77,7 +71,6 @@ impl Outputs {
         style: AppearanceStyle,
         wl_output: Option<WlOutput>,
         position: Position,
-        menu_keyboard_focus: bool,
         scale_factor: f64,
     ) -> (Id, Id, Task<Message>) {
         let id = Id::unique();
@@ -89,11 +82,7 @@ impl Outputs {
             size: Some((None, Some(height as u32))),
             layer: Layer::Bottom,
             pointer_interactivity: true,
-            keyboard_interactivity: if menu_keyboard_focus {
-                KeyboardInteractivity::OnDemand
-            } else {
-                KeyboardInteractivity::None
-            },
+            keyboard_interactivity: KeyboardInteractivity::None,
             exclusive_zone: height as i32,
             output: wl_output.clone().map_or(IcedOutput::Active, |wl_output| {
                 IcedOutput::Output(wl_output)
@@ -177,20 +166,15 @@ impl Outputs {
         position: Position,
         name: &str,
         wl_output: WlOutput,
-        config: &crate::config::Config,
+        scale_factor: f64,
     ) -> Task<Message> {
         let target = Self::name_in_config(Some(name), request_outputs);
 
         if target {
             debug!("Found target output, creating a new layer surface");
 
-            let (id, menu_id, task) = Self::create_output_layers(
-                style,
-                Some(wl_output.clone()),
-                position,
-                config.menu_keyboard_focus,
-                config.appearance.scale_factor,
-            );
+            let (id, menu_id, task) =
+                Self::create_output_layers(style, Some(wl_output.clone()), position, scale_factor);
 
             let destroy_task = match self
                 .0
@@ -220,7 +204,7 @@ impl Outputs {
                     menu: Menu::new(menu_id),
                     position,
                     style,
-                    scale_factor: config.appearance.scale_factor,
+                    scale_factor,
                 }),
                 Some(wl_output),
             ));
@@ -260,7 +244,7 @@ impl Outputs {
         style: AppearanceStyle,
         position: Position,
         wl_output: WlOutput,
-        config: &crate::config::Config,
+        scale_factor: f64,
     ) -> Task<Message> {
         match self.0.iter().position(|(_, _, assigned_wl_output)| {
             assigned_wl_output
@@ -287,13 +271,8 @@ impl Outputs {
                 if !self.0.iter().any(|(_, shell_info, _)| shell_info.is_some()) {
                     debug!("No outputs left, creating a fallback layer surface");
 
-                    let (id, menu_id, task) = Self::create_output_layers(
-                        style,
-                        None,
-                        position,
-                        config.menu_keyboard_focus,
-                        config.appearance.scale_factor,
-                    );
+                    let (id, menu_id, task) =
+                        Self::create_output_layers(style, None, position, scale_factor);
 
                     self.0.push((
                         None,
@@ -302,7 +281,7 @@ impl Outputs {
                             menu: Menu::new(menu_id),
                             position,
                             style,
-                            scale_factor: config.appearance.scale_factor,
+                            scale_factor,
                         }),
                         None,
                     ));
@@ -321,7 +300,7 @@ impl Outputs {
         style: AppearanceStyle,
         request_outputs: &config::Outputs,
         position: Position,
-        config: &crate::config::Config,
+        scale_factor: f64,
     ) -> Task<Message> {
         debug!("Syncing outputs: {self:?}, request_outputs: {request_outputs:?}");
 
@@ -367,14 +346,14 @@ impl Outputs {
                         position,
                         name.as_str(),
                         wl_output,
-                        config,
+                        scale_factor,
                     ));
                 }
             }
         }
 
         for wl_output in to_remove {
-            tasks.push(self.remove(style, position, wl_output, config));
+            tasks.push(self.remove(style, position, wl_output, scale_factor));
         }
 
         for shell_info in self.0.iter_mut().filter_map(|(_, shell_info, _)| {
@@ -403,8 +382,7 @@ impl Outputs {
 
         for shell_info in self.0.iter_mut().filter_map(|(_, shell_info, _)| {
             if let Some(shell_info) = shell_info
-                && (shell_info.style != style
-                    || shell_info.scale_factor != config.appearance.scale_factor)
+                && (shell_info.style != style || shell_info.scale_factor != scale_factor)
             {
                 Some(shell_info)
             } else {
@@ -413,11 +391,11 @@ impl Outputs {
         }) {
             debug!(
                 "Change style or scale_factor for output: {:?}, new style {:?}, new scale_factor {:?}",
-                shell_info.id, style, config.appearance.scale_factor
+                shell_info.id, style, scale_factor
             );
             shell_info.style = style;
-            shell_info.scale_factor = config.appearance.scale_factor;
-            let height = Self::get_height(style, config.appearance.scale_factor);
+            shell_info.scale_factor = scale_factor;
+            let height = Self::get_height(style, scale_factor);
             tasks.push(Task::batch(vec![
                 set_size(shell_info.id, None, Some(height as u32)),
                 set_exclusive_zone(shell_info.id, height as i32),
@@ -441,7 +419,7 @@ impl Outputs {
         id: Id,
         menu_type: MenuType,
         button_ui_ref: ButtonUIRef,
-        menu_keyboard_focus: bool,
+        request_keyboard: bool,
     ) -> Task<Message> {
         match self.0.iter_mut().find(|(_, shell_info, _)| {
             shell_info.as_ref().map(|shell_info| shell_info.id) == Some(id)
@@ -451,14 +429,14 @@ impl Outputs {
                 let toggle_task =
                     shell_info
                         .menu
-                        .toggle(menu_type, button_ui_ref, menu_keyboard_focus);
+                        .toggle(menu_type, button_ui_ref, request_keyboard);
                 let mut tasks = self
                     .0
                     .iter_mut()
                     .filter_map(|(_, shell_info, _)| {
                         if let Some(shell_info) = shell_info {
                             if shell_info.id != id && shell_info.menu.id != id {
-                                Some(shell_info.menu.close(menu_keyboard_focus))
+                                Some(shell_info.menu.close())
                             } else {
                                 None
                             }
@@ -474,16 +452,12 @@ impl Outputs {
         }
     }
 
-    pub fn close_menu<Message: 'static>(
-        &mut self,
-        id: Id,
-        menu_keyboard_focus: bool,
-    ) -> Task<Message> {
+    pub fn close_menu<Message: 'static>(&mut self, id: Id) -> Task<Message> {
         match self.0.iter_mut().find(|(_, shell_info, _)| {
             shell_info.as_ref().map(|shell_info| shell_info.id) == Some(id)
                 || shell_info.as_ref().map(|shell_info| shell_info.menu.id) == Some(id)
         }) {
-            Some((_, Some(shell_info), _)) => shell_info.menu.close(menu_keyboard_focus),
+            Some((_, Some(shell_info), _)) => shell_info.menu.close(),
             _ => Task::none(),
         }
     }
@@ -492,32 +466,23 @@ impl Outputs {
         &mut self,
         id: Id,
         menu_type: MenuType,
-        menu_keyboard_focus: bool,
     ) -> Task<Message> {
         match self.0.iter_mut().find(|(_, shell_info, _)| {
             shell_info.as_ref().map(|shell_info| shell_info.id) == Some(id)
                 || shell_info.as_ref().map(|shell_info| shell_info.menu.id) == Some(id)
         }) {
-            Some((_, Some(shell_info), _)) => {
-                shell_info.menu.close_if(menu_type, menu_keyboard_focus)
-            }
+            Some((_, Some(shell_info), _)) => shell_info.menu.close_if(menu_type),
             _ => Task::none(),
         }
     }
 
-    pub fn close_all_menu_if<Message: 'static>(
-        &mut self,
-        menu_type: MenuType,
-        menu_keyboard_focus: bool,
-    ) -> Task<Message> {
+    pub fn close_all_menu_if<Message: 'static>(&mut self, menu_type: MenuType) -> Task<Message> {
         Task::batch(
             self.0
                 .iter_mut()
                 .map(|(_, shell_info, _)| {
                     if let Some(shell_info) = shell_info {
-                        shell_info
-                            .menu
-                            .close_if(menu_type.clone(), menu_keyboard_focus)
+                        shell_info.menu.close_if(menu_type.clone())
                     } else {
                         Task::none()
                     }
@@ -526,17 +491,14 @@ impl Outputs {
         )
     }
 
-    pub fn close_all_menus<Message: 'static>(
-        &mut self,
-        menu_keyboard_focus: bool,
-    ) -> Task<Message> {
+    pub fn close_all_menus<Message: 'static>(&mut self) -> Task<Message> {
         Task::batch(
             self.0
                 .iter_mut()
                 .map(|(_, shell_info, _)| {
                     if let Some(shell_info) = shell_info {
                         if shell_info.menu.menu_info.is_some() {
-                            shell_info.menu.close(menu_keyboard_focus)
+                            shell_info.menu.close()
                         } else {
                             Task::none()
                         }
@@ -548,30 +510,22 @@ impl Outputs {
         )
     }
 
-    pub fn request_keyboard<Message: 'static>(
-        &self,
-        id: Id,
-        menu_keyboard_focus: bool,
-    ) -> Task<Message> {
+    pub fn request_keyboard<Message: 'static>(&self, id: Id) -> Task<Message> {
         match self.0.iter().find(|(_, shell_info, _)| {
             shell_info.as_ref().map(|shell_info| shell_info.id) == Some(id)
                 || shell_info.as_ref().map(|shell_info| shell_info.menu.id) == Some(id)
         }) {
-            Some((_, Some(shell_info), _)) => shell_info.menu.request_keyboard(menu_keyboard_focus),
+            Some((_, Some(shell_info), _)) => shell_info.menu.request_keyboard(),
             _ => Task::none(),
         }
     }
 
-    pub fn release_keyboard<Message: 'static>(
-        &self,
-        id: Id,
-        menu_keyboard_focus: bool,
-    ) -> Task<Message> {
+    pub fn release_keyboard<Message: 'static>(&self, id: Id) -> Task<Message> {
         match self.0.iter().find(|(_, shell_info, _)| {
             shell_info.as_ref().map(|shell_info| shell_info.id) == Some(id)
                 || shell_info.as_ref().map(|shell_info| shell_info.menu.id) == Some(id)
         }) {
-            Some((_, Some(shell_info), _)) => shell_info.menu.release_keyboard(menu_keyboard_focus),
+            Some((_, Some(shell_info), _)) => shell_info.menu.release_keyboard(),
             _ => Task::none(),
         }
     }
