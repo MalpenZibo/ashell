@@ -5,7 +5,7 @@ use flexi_logger::{
     Age, Cleanup, Criterion, FileSpec, LogSpecBuilder, LogSpecification, Logger, Naming,
 };
 use iced::Font;
-use log::{debug, error};
+use log::{debug, error, warn};
 use std::panic;
 use std::path::PathBuf;
 use std::{backtrace::Backtrace, borrow::Cow};
@@ -34,9 +34,16 @@ struct Args {
 }
 
 fn get_log_spec(log_level: &str) -> LogSpecification {
-    LogSpecification::env_or_parse(log_level).unwrap_or_else(|err| {
-        panic!("Failed to parse log level: {err}");
-    })
+    let new_spec = LogSpecification::env_or_parse(log_level);
+
+    match new_spec {
+        Ok(spec) => spec,
+        Err(err) => {
+            warn!("Failed to parse log level: {err}, use the default");
+
+            LogSpecification::default()
+        }
+    }
 }
 
 #[tokio::main]
