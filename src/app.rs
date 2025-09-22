@@ -33,6 +33,7 @@ use iced::{
         wayland::{Event as WaylandEvent, OutputEvent},
     },
     gradient::Linear,
+    keyboard,
     widget::{Row, container},
     window::Id,
 };
@@ -83,6 +84,7 @@ pub enum Message {
     Settings(modules::settings::Message),
     MediaPlayer(modules::media_player::Message),
     OutputEvent((OutputEvent, WlOutput)),
+    CloseAllMenus,
 }
 
 impl App {
@@ -90,11 +92,7 @@ impl App {
         (logger, config, config_path): (LoggerHandle, Config, PathBuf),
     ) -> impl FnOnce() -> (Self, Task<Message>) {
         || {
-            let (outputs, task) = Outputs::new(
-                config.appearance.style,
-                config.position,
-                config.appearance.scale_factor,
-            );
+            let (outputs, task) = Outputs::new(config.appearance.style, config.position, &config);
 
             let custom = config
                 .custom_modules
@@ -212,7 +210,7 @@ impl App {
                         config.appearance.style,
                         &config.outputs,
                         config.position,
-                        config.appearance.scale_factor,
+                        &config,
                     ));
                 }
 
@@ -247,11 +245,16 @@ impl App {
                     }
                     _ => {}
                 };
-                cmd.push(self.outputs.toggle_menu(id, menu_type, button_ui_ref));
+                cmd.push(self.outputs.toggle_menu(
+                    id,
+                    menu_type,
+                    button_ui_ref,
+                    self.config.menu_keyboard_focus,
+                ));
 
                 Task::batch(cmd)
             }
-            Message::CloseMenu(id) => self.outputs.close_menu(id),
+            Message::CloseMenu(id) => self.outputs.close_menu(id, self.config.menu_keyboard_focus),
             Message::AppLauncher(msg) => {
                 if let Some(app_launcher) = self.app_launcher.as_mut() {
                     app_launcher.update(msg);
@@ -275,7 +278,11 @@ impl App {
                         }
                         modules::updates::Action::CloseMenu(id, task) => Task::batch(vec![
                             task.map(Message::Updates),
-                            self.outputs.close_menu_if(id, MenuType::Updates),
+                            self.outputs.close_menu_if(
+                                id,
+                                MenuType::Updates,
+                                self.config.menu_keyboard_focus,
+                            ),
                         ]),
                     }
                 } else {
@@ -311,13 +318,18 @@ impl App {
             }
             Message::Tray(msg) => match self.tray.update(msg) {
                 modules::tray::Action::None => Task::none(),
-                modules::tray::Action::ToggleMenu(name, id, button_ui_ref) => self
-                    .outputs
-                    .toggle_menu(id, MenuType::Tray(name), button_ui_ref),
-                modules::tray::Action::TrayMenuCommand(task) => task.map(Message::Tray),
-                modules::tray::Action::CloseTrayMenu(name) => {
-                    self.outputs.close_all_menu_if(MenuType::Tray(name))
+                modules::tray::Action::ToggleMenu(name, id, button_ui_ref) => {
+                    self.outputs.toggle_menu(
+                        id,
+                        MenuType::Tray(name),
+                        button_ui_ref,
+                        self.config.menu_keyboard_focus,
+                    )
                 }
+                modules::tray::Action::TrayMenuCommand(task) => task.map(Message::Tray),
+                modules::tray::Action::CloseTrayMenu(name) => self
+                    .outputs
+                    .close_all_menu_if(MenuType::Tray(name), self.config.menu_keyboard_focus),
             },
             Message::Clock(message) => {
                 self.clock.update(message);
@@ -330,13 +342,20 @@ impl App {
             Message::Settings(message) => match self.settings.update(message) {
                 modules::settings::Action::None => Task::none(),
                 modules::settings::Action::Command(task) => task.map(Message::Settings),
-                modules::settings::Action::CloseMenu(id) => self.outputs.close_menu(id),
-                modules::settings::Action::RequestKeyboard(id) => self.outputs.request_keyboard(id),
-                modules::settings::Action::ReleaseKeyboard(id) => self.outputs.release_keyboard(id),
+                modules::settings::Action::CloseMenu(id) => {
+                    self.outputs.close_menu(id, self.config.menu_keyboard_focus)
+                }
+                modules::settings::Action::RequestKeyboard(id) => self
+                    .outputs
+                    .request_keyboard(id, self.config.menu_keyboard_focus),
+                modules::settings::Action::ReleaseKeyboard(id) => self
+                    .outputs
+                    .release_keyboard(id, self.config.menu_keyboard_focus),
                 modules::settings::Action::ReleaseKeyboardWithCommand(id, task) => {
                     Task::batch(vec![
                         task.map(Message::Settings),
-                        self.outputs.release_keyboard(id),
+                        self.outputs
+                            .release_keyboard(id, self.config.menu_keyboard_focus),
                     ])
                 }
             },
@@ -354,7 +373,7 @@ impl App {
                         self.config.position,
                         name,
                         wl_output,
-                        self.config.appearance.scale_factor,
+                        &self.config,
                     )
                 }
                 iced::event::wayland::OutputEvent::Removed => {
@@ -363,7 +382,7 @@ impl App {
                         self.config.appearance.style,
                         self.config.position,
                         wl_output,
-                        self.config.appearance.scale_factor,
+                        &self.config,
                     )
                 }
                 _ => Task::none(),
@@ -372,6 +391,14 @@ impl App {
                 modules::media_player::Action::None => Task::none(),
                 modules::media_player::Action::Command(task) => task.map(Message::MediaPlayer),
             },
+            Message::CloseAllMenus => {
+                if self.outputs.menu_is_open() {
+                    self.outputs
+                        .close_all_menus(self.config.menu_keyboard_focus)
+                } else {
+                    Task::none()
+                }
+            }
         }
     }
 
@@ -520,12 +547,21 @@ impl App {
             Subscription::batch(self.modules_subscriptions(&self.config.modules.center)),
             Subscription::batch(self.modules_subscriptions(&self.config.modules.right)),
             config::subscription(&self.config_path),
-            listen_with(|evt, _, _| match evt {
+            listen_with(move |evt, _, _| match evt {
                 iced::Event::PlatformSpecific(iced::event::PlatformSpecific::Wayland(
                     WaylandEvent::Output(event, wl_output),
                 )) => {
                     debug!("Wayland event: {event:?}");
                     Some(Message::OutputEvent((event, wl_output)))
+                }
+                iced::Event::Keyboard(keyboard::Event::KeyPressed { key, .. }) => {
+                    debug!("Keyboard event received: {key:?}");
+                    if matches!(key, keyboard::Key::Named(keyboard::key::Named::Escape)) {
+                        debug!("ESC key pressed, closing all menus");
+                        Some(Message::CloseAllMenus)
+                    } else {
+                        None
+                    }
                 }
                 _ => None,
             }),
