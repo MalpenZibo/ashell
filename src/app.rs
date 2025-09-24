@@ -96,7 +96,6 @@ impl App {
                 config.appearance.style,
                 config.position,
                 config.appearance.scale_factor,
-                config.enable_esc_key,
             );
 
             let custom = config
@@ -217,7 +216,6 @@ impl App {
                         &config.outputs,
                         config.position,
                         config.appearance.scale_factor,
-                        config.enable_esc_key,
                     ));
                 }
 
@@ -261,7 +259,7 @@ impl App {
 
                 Task::batch(cmd)
             }
-            Message::CloseMenu(id) => self.outputs.close_menu(id),
+            Message::CloseMenu(id) => self.outputs.close_menu(id, self.config.enable_esc_key),
             Message::AppLauncher(msg) => {
                 if let Some(app_launcher) = self.app_launcher.as_mut() {
                     app_launcher.update(msg);
@@ -285,7 +283,11 @@ impl App {
                         }
                         modules::updates::Action::CloseMenu(id, task) => Task::batch(vec![
                             task.map(Message::Updates),
-                            self.outputs.close_menu_if(id, MenuType::Updates),
+                            self.outputs.close_menu_if(
+                                id,
+                                MenuType::Updates,
+                                self.config.enable_esc_key,
+                            ),
                         ]),
                     }
                 } else {
@@ -330,9 +332,9 @@ impl App {
                     )
                 }
                 modules::tray::Action::TrayMenuCommand(task) => task.map(Message::Tray),
-                modules::tray::Action::CloseTrayMenu(name) => {
-                    self.outputs.close_all_menu_if(MenuType::Tray(name))
-                }
+                modules::tray::Action::CloseTrayMenu(name) => self
+                    .outputs
+                    .close_all_menu_if(MenuType::Tray(name), self.config.enable_esc_key),
             },
             Message::Clock(message) => {
                 self.clock.update(message);
@@ -345,7 +347,9 @@ impl App {
             Message::Settings(message) => match self.settings.update(message) {
                 modules::settings::Action::None => Task::none(),
                 modules::settings::Action::Command(task) => task.map(Message::Settings),
-                modules::settings::Action::CloseMenu(id) => self.outputs.close_menu(id),
+                modules::settings::Action::CloseMenu(id) => {
+                    self.outputs.close_menu(id, self.config.enable_esc_key)
+                }
                 modules::settings::Action::RequestKeyboard(id) => self.outputs.request_keyboard(id),
                 modules::settings::Action::ReleaseKeyboard(id) => self.outputs.release_keyboard(id),
                 modules::settings::Action::ReleaseKeyboardWithCommand(id, task) => {
@@ -370,7 +374,6 @@ impl App {
                         name,
                         wl_output,
                         self.config.appearance.scale_factor,
-                        self.config.enable_esc_key,
                     )
                 }
                 iced::event::wayland::OutputEvent::Removed => {
@@ -380,7 +383,6 @@ impl App {
                         self.config.position,
                         wl_output,
                         self.config.appearance.scale_factor,
-                        self.config.enable_esc_key,
                     )
                 }
                 _ => Task::none(),
@@ -391,7 +393,7 @@ impl App {
             },
             Message::CloseAllMenus => {
                 if self.outputs.menu_is_open() {
-                    self.outputs.close_all_menus()
+                    self.outputs.close_all_menus(self.config.enable_esc_key)
                 } else {
                     Task::none()
                 }

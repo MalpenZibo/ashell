@@ -2,7 +2,7 @@ use iced::{
     Task,
     platform_specific::shell::commands::layer_surface::{
         Anchor, KeyboardInteractivity, Layer, destroy_layer_surface, get_layer_surface, set_anchor,
-        set_exclusive_zone, set_size,
+        set_exclusive_zone, set_keyboard_interactivity, set_size,
     },
     runtime::platform_specific::wayland::layer_surface::{IcedOutput, SctkLayerSurfaceSettings},
     window::Id,
@@ -39,10 +39,8 @@ impl Outputs {
         style: AppearanceStyle,
         position: Position,
         scale_factor: f64,
-        request_keyboard: bool,
     ) -> (Self, Task<Message>) {
-        let (id, menu_id, task) =
-            Self::create_output_layers(style, None, position, scale_factor, request_keyboard);
+        let (id, menu_id, task) = Self::create_output_layers(style, None, position, scale_factor);
 
         (
             Self(vec![(
@@ -74,7 +72,6 @@ impl Outputs {
         wl_output: Option<WlOutput>,
         position: Position,
         scale_factor: f64,
-        request_keyboard: bool,
     ) -> (Id, Id, Task<Message>) {
         let id = Id::unique();
         let height = Self::get_height(style, scale_factor);
@@ -85,11 +82,7 @@ impl Outputs {
             size: Some((None, Some(height as u32))),
             layer: Layer::Bottom,
             pointer_interactivity: true,
-            keyboard_interactivity: if request_keyboard {
-                KeyboardInteractivity::OnDemand
-            } else {
-                KeyboardInteractivity::None
-            },
+            keyboard_interactivity: KeyboardInteractivity::None,
             exclusive_zone: height as i32,
             output: wl_output.clone().map_or(IcedOutput::Active, |wl_output| {
                 IcedOutput::Output(wl_output)
@@ -175,20 +168,14 @@ impl Outputs {
         name: &str,
         wl_output: WlOutput,
         scale_factor: f64,
-        request_keyboard: bool,
     ) -> Task<Message> {
         let target = Self::name_in_config(Some(name), request_outputs);
 
         if target {
             debug!("Found target output, creating a new layer surface");
 
-            let (id, menu_id, task) = Self::create_output_layers(
-                style,
-                Some(wl_output.clone()),
-                position,
-                scale_factor,
-                request_keyboard,
-            );
+            let (id, menu_id, task) =
+                Self::create_output_layers(style, Some(wl_output.clone()), position, scale_factor);
 
             let destroy_task = match self
                 .0
@@ -259,7 +246,6 @@ impl Outputs {
         position: Position,
         wl_output: WlOutput,
         scale_factor: f64,
-        request_keyboard: bool,
     ) -> Task<Message> {
         match self.0.iter().position(|(_, _, assigned_wl_output)| {
             assigned_wl_output
@@ -286,13 +272,8 @@ impl Outputs {
                 if !self.0.iter().any(|(_, shell_info, _)| shell_info.is_some()) {
                     debug!("No outputs left, creating a fallback layer surface");
 
-                    let (id, menu_id, task) = Self::create_output_layers(
-                        style,
-                        None,
-                        position,
-                        scale_factor,
-                        request_keyboard,
-                    );
+                    let (id, menu_id, task) =
+                        Self::create_output_layers(style, None, position, scale_factor);
 
                     self.0.push((
                         None,
@@ -321,7 +302,6 @@ impl Outputs {
         request_outputs: &config::Outputs,
         position: Position,
         scale_factor: f64,
-        request_keyboard: bool,
     ) -> Task<Message> {
         debug!("Syncing outputs: {self:?}, request_outputs: {request_outputs:?}");
 
@@ -368,14 +348,13 @@ impl Outputs {
                         name.as_str(),
                         wl_output,
                         scale_factor,
-                        request_keyboard,
                     ));
                 }
             }
         }
 
         for wl_output in to_remove {
-            tasks.push(self.remove(style, position, wl_output, scale_factor, request_keyboard));
+            tasks.push(self.remove(style, position, wl_output, scale_factor));
         }
 
         for shell_info in self.0.iter_mut().filter_map(|(_, shell_info, _)| {
@@ -443,7 +422,7 @@ impl Outputs {
         button_ui_ref: ButtonUIRef,
         request_keyboard: bool,
     ) -> Task<Message> {
-        match self.0.iter_mut().find(|(_, shell_info, _)| {
+        let task = match self.0.iter_mut().find(|(_, shell_info, _)| {
             shell_info.as_ref().map(|shell_info| shell_info.id) == Some(id)
                 || shell_info.as_ref().map(|shell_info| shell_info.menu.id) == Some(id)
         }) {
@@ -472,16 +451,45 @@ impl Outputs {
                 Task::batch(tasks)
             }
             _ => Task::none(),
+        };
+
+        if request_keyboard {
+            if self.menu_is_open() {
+                Task::batch(vec![
+                    task,
+                    set_keyboard_interactivity(id, KeyboardInteractivity::OnDemand),
+                ])
+            } else {
+                Task::batch(vec![
+                    task,
+                    set_keyboard_interactivity(id, KeyboardInteractivity::None),
+                ])
+            }
+        } else {
+            task
         }
     }
 
-    pub fn close_menu<Message: 'static>(&mut self, id: Id) -> Task<Message> {
-        match self.0.iter_mut().find(|(_, shell_info, _)| {
+    pub fn close_menu<Message: 'static>(
+        &mut self,
+        id: Id,
+        esc_button_enabled: bool,
+    ) -> Task<Message> {
+        let task = match self.0.iter_mut().find(|(_, shell_info, _)| {
             shell_info.as_ref().map(|shell_info| shell_info.id) == Some(id)
                 || shell_info.as_ref().map(|shell_info| shell_info.menu.id) == Some(id)
         }) {
             Some((_, Some(shell_info), _)) => shell_info.menu.close(),
             _ => Task::none(),
+        };
+
+        if esc_button_enabled && !self.menu_is_open() {
+            Task::batch(vec![
+                task,
+                set_keyboard_interactivity(id, KeyboardInteractivity::None),
+            ])
+        } else {
+            task
         }
     }
 
@@ -489,18 +497,32 @@ impl Outputs {
         &mut self,
         id: Id,
         menu_type: MenuType,
+        esc_button_enabled: bool,
     ) -> Task<Message> {
-        match self.0.iter_mut().find(|(_, shell_info, _)| {
+        let task = match self.0.iter_mut().find(|(_, shell_info, _)| {
             shell_info.as_ref().map(|shell_info| shell_info.id) == Some(id)
                 || shell_info.as_ref().map(|shell_info| shell_info.menu.id) == Some(id)
         }) {
             Some((_, Some(shell_info), _)) => shell_info.menu.close_if(menu_type),
             _ => Task::none(),
+        };
+
+        if esc_button_enabled && !self.menu_is_open() {
+            Task::batch(vec![
+                task,
+                set_keyboard_interactivity(id, KeyboardInteractivity::None),
+            ])
+        } else {
+            task
         }
     }
 
-    pub fn close_all_menu_if<Message: 'static>(&mut self, menu_type: MenuType) -> Task<Message> {
-        Task::batch(
+    pub fn close_all_menu_if<Message: 'static>(
+        &mut self,
+        menu_type: MenuType,
+        esc_button_enabled: bool,
+    ) -> Task<Message> {
+        let task = Task::batch(
             self.0
                 .iter_mut()
                 .map(|(_, shell_info, _)| {
@@ -511,11 +533,28 @@ impl Outputs {
                     }
                 })
                 .collect::<Vec<_>>(),
-        )
+        );
+
+        if esc_button_enabled && !self.menu_is_open() {
+            let keyboard_tasks = self
+                .0
+                .iter()
+                .map(|(_, shell_info, _)| {
+                    if let Some(shell_info) = shell_info {
+                        set_keyboard_interactivity(shell_info.id, KeyboardInteractivity::None)
+                    } else {
+                        Task::none()
+                    }
+                })
+                .collect::<Vec<_>>();
+            Task::batch(vec![task, Task::batch(keyboard_tasks)])
+        } else {
+            task
+        }
     }
 
-    pub fn close_all_menus<Message: 'static>(&mut self) -> Task<Message> {
-        Task::batch(
+    pub fn close_all_menus<Message: 'static>(&mut self, esc_button_enabled: bool) -> Task<Message> {
+        let task = Task::batch(
             self.0
                 .iter_mut()
                 .map(|(_, shell_info, _)| {
@@ -530,7 +569,24 @@ impl Outputs {
                     }
                 })
                 .collect::<Vec<_>>(),
-        )
+        );
+
+        if esc_button_enabled && !self.menu_is_open() {
+            let keyboard_tasks = self
+                .0
+                .iter()
+                .map(|(_, shell_info, _)| {
+                    if let Some(shell_info) = shell_info {
+                        set_keyboard_interactivity(shell_info.id, KeyboardInteractivity::None)
+                    } else {
+                        Task::none()
+                    }
+                })
+                .collect::<Vec<_>>();
+            Task::batch(vec![task, Task::batch(keyboard_tasks)])
+        } else {
+            task
+        }
     }
 
     pub fn request_keyboard<Message: 'static>(&self, id: Id) -> Task<Message> {
