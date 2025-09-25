@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the path to the configuration file
 - Add `scale_factor` configuration to change the scaling factor of the status bar
 - Add custom commands for power menu actions
+- Support for custom workspace naming via the `workspace_names` config option.  
 
 ### Changed
 
