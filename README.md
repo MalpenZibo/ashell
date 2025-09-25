@@ -352,6 +352,9 @@ bluetooth_more_cmd = "blueman-manager"
 # option to remove the airtplane button
 # optional, default false
 remove_airplane_btn = true
+# option to remove the idle inhibitor button
+# optional, default false
+remove_idle_btn = true
 
 # Appearance config
 # Each color could be a simple hex color like #228800 or an
