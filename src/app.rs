@@ -1,32 +1,28 @@
-use std::{collections::HashMap, f32::consts::PI, path::PathBuf};
-
 use crate::{
     HEIGHT, centerbox,
-    config::{self, AppearanceStyle, Config, Position},
+    config::{self, AppearanceStyle, Config, Modules, Position},
     get_log_spec,
-    menu::{MenuSize, MenuType, menu_wrapper},
+    menu::{MenuSize, MenuType},
     modules::{
         self,
-        app_launcher::AppLauncher,
-        clipboard::Clipboard,
+        app_launcher::{self, AppLauncher},
+        clipboard::{self, Clipboard},
         clock::Clock,
-        custom_module::Custom,
+        custom_module::{self, Custom},
         keyboard_layout::KeyboardLayout,
         keyboard_submap::KeyboardSubmap,
         media_player::MediaPlayer,
         privacy::Privacy,
-        settings::{Settings, brightness::BrightnessMessage},
+        settings::Settings,
         system_info::SystemInfo,
-        tray::{TrayMessage, TrayModule},
+        tray::TrayModule,
         updates::Updates,
         window_title::WindowTitle,
         workspaces::Workspaces,
     },
     outputs::{HasOutput, Outputs},
     position_button::ButtonUIRef,
-    services::{Service, ServiceEvent, brightness::BrightnessCommand, tray::TrayEvent},
-    style::{ashell_theme, backdrop_color, darken_color},
-    utils,
+    theme::{AshellTheme, backdrop_color, darken_color},
 };
 use flexi_logger::LoggerHandle;
 use iced::{
@@ -38,21 +34,29 @@ use iced::{
     },
     gradient::Linear,
     keyboard,
-    widget::{Row, container},
+    widget::{Row, container, mouse_area},
     window::Id,
 };
-use log::{debug, error, info, warn};
+use log::{debug, info, warn};
+use std::{collections::HashMap, f32::consts::PI, path::PathBuf};
 use wayland_client::protocol::wl_output::WlOutput;
+
+pub struct GeneralConfig {
+    outputs: config::Outputs,
+    pub modules: Modules,
+    enable_esc_key: bool,
+}
 
 pub struct App {
     config_path: PathBuf,
+    pub theme: AshellTheme,
     logger: LoggerHandle,
-    pub config: Config,
+    pub general_config: GeneralConfig,
     pub outputs: Outputs,
-    pub app_launcher: AppLauncher,
+    pub app_launcher: Option<AppLauncher>,
     pub custom: HashMap<String, Custom>,
-    pub updates: Updates,
-    pub clipboard: Clipboard,
+    pub updates: Option<Updates>,
+    pub clipboard: Option<Clipboard>,
     pub workspaces: Workspaces,
     pub window_title: WindowTitle,
     pub system_info: SystemInfo,
@@ -71,61 +75,101 @@ pub enum Message {
     ConfigChanged(Box<Config>),
     ToggleMenu(MenuType, Id, ButtonUIRef),
     CloseMenu(Id),
-    CloseAllMenus,
-    OpenLauncher,
-    OpenClipboard,
+    Clipboard(clipboard::Message),
+    AppLauncher(app_launcher::Message),
+    Custom(String, custom_module::Message),
     Updates(modules::updates::Message),
     Workspaces(modules::workspaces::Message),
     WindowTitle(modules::window_title::Message),
     SystemInfo(modules::system_info::Message),
     KeyboardLayout(modules::keyboard_layout::Message),
     KeyboardSubmap(modules::keyboard_submap::Message),
-    Tray(modules::tray::TrayMessage),
+    Tray(modules::tray::Message),
     Clock(modules::clock::Message),
-    Privacy(modules::privacy::PrivacyMessage),
+    Privacy(modules::privacy::Message),
     Settings(modules::settings::Message),
     MediaPlayer(modules::media_player::Message),
     OutputEvent((OutputEvent, WlOutput)),
-    LaunchCommand(String),
-    CustomUpdate(String, modules::custom_module::Message),
+    CloseAllMenus,
 }
 
 impl App {
     pub fn new(
         (logger, config, config_path): (LoggerHandle, Config, PathBuf),
     ) -> impl FnOnce() -> (Self, Task<Message>) {
-        || {
-            let (outputs, task) = Outputs::new(config.appearance.style, config.position, &config);
+        move || {
+            let (outputs, task) = Outputs::new(
+                config.appearance.style,
+                config.position,
+                config.appearance.scale_factor,
+            );
 
             let custom = config
                 .custom_modules
-                .iter()
-                .map(|o| (o.name.clone(), Custom::default()))
+                .clone()
+                .into_iter()
+                .map(|o| (o.name.clone(), Custom::new(o)))
                 .collect();
+
             (
                 App {
                     config_path,
+                    theme: AshellTheme::new(config.position, &config.appearance),
                     logger,
+                    general_config: GeneralConfig {
+                        outputs: config.outputs,
+                        modules: config.modules,
+                        enable_esc_key: config.enable_esc_key,
+                    },
                     outputs,
-                    app_launcher: AppLauncher,
+                    app_launcher: config.app_launcher_cmd.map(AppLauncher::new),
                     custom,
-                    updates: Updates::default(),
-                    clipboard: Clipboard,
-                    workspaces: Workspaces::new(&config.workspaces),
-                    window_title: WindowTitle::new(&config.window_title),
-                    system_info: SystemInfo::default(),
-                    keyboard_layout: KeyboardLayout::default(),
+                    updates: config.updates.map(Updates::new),
+                    clipboard: config.clipboard_cmd.map(Clipboard::new),
+                    workspaces: Workspaces::new(config.workspaces),
+                    window_title: WindowTitle::new(config.window_title),
+                    system_info: SystemInfo::new(config.system),
+                    keyboard_layout: KeyboardLayout::new(config.keyboard_layout),
                     keyboard_submap: KeyboardSubmap::default(),
                     tray: TrayModule::default(),
-                    clock: Clock::default(),
+                    clock: Clock::new(config.clock),
                     privacy: Privacy::default(),
-                    settings: Settings::default(),
-                    media_player: MediaPlayer::default(),
-                    config,
+                    settings: Settings::new(config.settings),
+                    media_player: MediaPlayer::new(config.media_player),
                 },
                 task,
             )
         }
+    }
+
+    fn refesh_config(&mut self, config: Box<Config>) {
+        self.general_config = GeneralConfig {
+            outputs: config.outputs,
+            modules: config.modules,
+            enable_esc_key: config.enable_esc_key,
+        };
+        let custom = config
+            .custom_modules
+            .into_iter()
+            .map(|o| (o.name.clone(), Custom::new(o)))
+            .collect();
+
+        self.app_launcher = config.app_launcher_cmd.map(AppLauncher::new);
+        self.custom = custom;
+        self.updates = config.updates.map(Updates::new);
+        self.clipboard = config.clipboard_cmd.map(Clipboard::new);
+        self.workspaces = Workspaces::new(config.workspaces);
+        self.window_title = WindowTitle::new(config.window_title);
+        self.system_info = SystemInfo::new(config.system);
+        self.keyboard_layout = KeyboardLayout::new(config.keyboard_layout);
+        self.keyboard_submap = KeyboardSubmap::default();
+        self.clock = Clock::new(config.clock);
+        self.settings
+            .update(modules::settings::Message::ConfigReloaded(config.settings));
+        self.media_player
+            .update(modules::media_player::Message::ConfigReloaded(
+                config.media_player,
+            ));
     }
 
     pub fn title(&self, _id: Id) -> String {
@@ -133,7 +177,7 @@ impl App {
     }
 
     pub fn theme(&self, _id: Id) -> Theme {
-        ashell_theme(&self.config.appearance)
+        self.theme.get_theme().clone()
     }
 
     pub fn style(&self, theme: &Theme) -> Appearance {
@@ -145,7 +189,7 @@ impl App {
     }
 
     pub fn scale_factor(&self, _id: Id) -> f64 {
-        self.config.appearance.scale_factor
+        self.theme.scale_factor
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
@@ -156,31 +200,24 @@ impl App {
                 let mut tasks = Vec::new();
                 info!(
                     "Current outputs: {:?}, new outputs: {:?}",
-                    self.config.outputs, config.outputs
+                    self.general_config.outputs, config.outputs
                 );
-                if self.config.outputs != config.outputs
-                    || self.config.position != config.position
-                    || self.config.appearance.style != config.appearance.style
-                    || self.config.appearance.scale_factor != config.appearance.scale_factor
+                if self.general_config.outputs != config.outputs
+                    || self.theme.bar_position != config.position
+                    || self.theme.bar_style != config.appearance.style
+                    || self.theme.scale_factor != config.appearance.scale_factor
                 {
                     warn!("Outputs changed, syncing");
                     tasks.push(self.outputs.sync(
                         config.appearance.style,
                         &config.outputs,
                         config.position,
-                        &config,
+                        config.appearance.scale_factor,
                     ));
                 }
-                let custom = config
-                    .custom_modules
-                    .iter()
-                    .map(|o| (o.name.clone(), Custom::default()))
-                    .collect();
 
-                self.config = *config;
-                self.custom = custom;
-                self.logger
-                    .set_new_spec(get_log_spec(&self.config.log_level));
+                self.logger.set_new_spec(get_log_spec(&config.log_level));
+                self.refesh_config(config);
 
                 Task::batch(tasks)
             }
@@ -188,86 +225,91 @@ impl App {
                 let mut cmd = vec![];
                 match &menu_type {
                     MenuType::Updates => {
-                        self.updates.is_updates_list_open = false;
+                        if let Some(updates) = self.updates.as_mut() {
+                            updates.update(modules::updates::Message::MenuOpened);
+                        }
                     }
                     MenuType::Tray(name) => {
-                        if let Some(_tray) = self
-                            .tray
-                            .service
-                            .as_ref()
-                            .and_then(|t| t.iter().find(|t| &t.name == name))
-                        {
-                            self.tray.submenus.clear();
-                        }
+                        self.tray
+                            .update(modules::tray::Message::MenuOpened(name.clone()));
                     }
                     MenuType::Settings => {
-                        self.settings.sub_menu = None;
-
-                        if let Some(brightness) = self.settings.brightness.as_mut() {
-                            cmd.push(brightness.command(BrightnessCommand::Refresh).map(|event| {
-                                crate::app::Message::Settings(
-                                    crate::modules::settings::Message::Brightness(
-                                        BrightnessMessage::Event(event),
-                                    ),
-                                )
-                            }));
-                        }
+                        cmd.push(
+                            match self.settings.update(modules::settings::Message::MenuOpened) {
+                                modules::settings::Action::Command(task) => {
+                                    task.map(Message::Settings)
+                                }
+                                _ => Task::none(),
+                            },
+                        );
                     }
                     _ => {}
                 };
-                cmd.push(self.outputs.toggle_menu(id, menu_type, button_ui_ref, &self.config));
+                cmd.push(self.outputs.toggle_menu(
+                    id,
+                    menu_type,
+                    button_ui_ref,
+                    self.general_config.enable_esc_key,
+                ));
 
                 Task::batch(cmd)
             }
-            Message::CloseMenu(id) => self.outputs.close_menu(id, &self.config),
-            Message::CloseAllMenus => {
-                if self.outputs.menu_is_open() {
-                    self.outputs.close_all_menus(&self.config)
-                } else {
-                    Task::none()
+            Message::CloseMenu(id) => self
+                .outputs
+                .close_menu(id, self.general_config.enable_esc_key),
+            Message::AppLauncher(msg) => {
+                if let Some(app_launcher) = self.app_launcher.as_mut() {
+                    app_launcher.update(msg);
                 }
-            }
-            Message::Updates(message) => {
-                if let Some(updates_config) = self.config.updates.as_ref() {
-                    self.updates
-                        .update(message, updates_config, &mut self.outputs, &self.config)
-                } else {
-                    Task::none()
-                }
-            }
-            Message::OpenLauncher => {
-                if let Some(app_launcher_cmd) = self.config.app_launcher_cmd.as_ref() {
-                    utils::launcher::execute_command(app_launcher_cmd.to_string());
-                }
-                Task::none()
-            }
-            Message::LaunchCommand(command) => {
-                utils::launcher::execute_command(command);
-                Task::none()
-            }
-            Message::CustomUpdate(name, message) => {
-                match self.custom.get_mut(&name) {
-                    Some(c) => c.update(message),
-                    None => error!("Custom module '{name}' not found"),
-                };
-                Task::none()
-            }
-            Message::OpenClipboard => {
-                if let Some(clipboard_cmd) = self.config.clipboard_cmd.as_ref() {
-                    utils::launcher::execute_command(clipboard_cmd.to_string());
-                }
-                Task::none()
-            }
-            Message::Workspaces(msg) => {
-                self.workspaces.update(msg, &self.config.workspaces);
 
                 Task::none()
             }
-            Message::WindowTitle(message) => {
-                self.window_title.update(message, &self.config.window_title);
+            Message::Custom(name, msg) => {
+                if let Some(custom) = self.custom.get_mut(&name) {
+                    custom.update(msg);
+                }
+
                 Task::none()
             }
-            Message::SystemInfo(message) => self.system_info.update(message),
+            Message::Updates(msg) => {
+                if let Some(updates) = self.updates.as_mut() {
+                    match updates.update(msg) {
+                        modules::updates::Action::None => Task::none(),
+                        modules::updates::Action::CheckForUpdates(task) => {
+                            task.map(Message::Updates)
+                        }
+                        modules::updates::Action::CloseMenu(id, task) => Task::batch(vec![
+                            task.map(Message::Updates),
+                            self.outputs.close_menu_if(
+                                id,
+                                MenuType::Updates,
+                                self.general_config.enable_esc_key,
+                            ),
+                        ]),
+                    }
+                } else {
+                    Task::none()
+                }
+            }
+            Message::Clipboard(msg) => {
+                if let Some(clipboard) = self.clipboard.as_mut() {
+                    clipboard.update(msg);
+                }
+
+                Task::none()
+            }
+            Message::Workspaces(msg) => {
+                self.workspaces.update(msg);
+                Task::none()
+            }
+            Message::WindowTitle(msg) => {
+                self.window_title.update(msg);
+                Task::none()
+            }
+            Message::SystemInfo(msg) => {
+                self.system_info.update(msg);
+                Task::none()
+            }
             Message::KeyboardLayout(message) => {
                 self.keyboard_layout.update(message);
                 Task::none()
@@ -276,30 +318,44 @@ impl App {
                 self.keyboard_submap.update(message);
                 Task::none()
             }
-            Message::Tray(msg) => {
-                let close_tray = match &msg {
-                    TrayMessage::Event(event) => {
-                        if let ServiceEvent::Update(TrayEvent::Unregistered(name)) = event.as_ref()
-                        {
-                            self.outputs.close_all_menu_if(MenuType::Tray(name.clone()), &self.config)
-                        } else {
-                            Task::none()
-                        }
-                    }
-                    _ => Task::none(),
-                };
-
-                Task::batch(vec![self.tray.update(msg), close_tray])
-            }
+            Message::Tray(msg) => match self.tray.update(msg) {
+                modules::tray::Action::None => Task::none(),
+                modules::tray::Action::ToggleMenu(name, id, button_ui_ref) => {
+                    self.outputs.toggle_menu(
+                        id,
+                        MenuType::Tray(name),
+                        button_ui_ref,
+                        self.general_config.enable_esc_key,
+                    )
+                }
+                modules::tray::Action::TrayMenuCommand(task) => task.map(Message::Tray),
+                modules::tray::Action::CloseTrayMenu(name) => self
+                    .outputs
+                    .close_all_menu_if(MenuType::Tray(name), self.general_config.enable_esc_key),
+            },
             Message::Clock(message) => {
                 self.clock.update(message);
                 Task::none()
             }
-            Message::Privacy(msg) => self.privacy.update(msg),
-            Message::Settings(message) => {
-                self.settings
-                    .update(message, &self.config.settings, &mut self.outputs, &self.config)
+            Message::Privacy(msg) => {
+                self.privacy.update(msg);
+                Task::none()
             }
+            Message::Settings(message) => match self.settings.update(message) {
+                modules::settings::Action::None => Task::none(),
+                modules::settings::Action::Command(task) => task.map(Message::Settings),
+                modules::settings::Action::CloseMenu(id) => self
+                    .outputs
+                    .close_menu(id, self.general_config.enable_esc_key),
+                modules::settings::Action::RequestKeyboard(id) => self.outputs.request_keyboard(id),
+                modules::settings::Action::ReleaseKeyboard(id) => self.outputs.release_keyboard(id),
+                modules::settings::Action::ReleaseKeyboardWithCommand(id, task) => {
+                    Task::batch(vec![
+                        task.map(Message::Settings),
+                        self.outputs.release_keyboard(id),
+                    ])
+                }
+            },
             Message::OutputEvent((event, wl_output)) => match event {
                 iced::event::wayland::OutputEvent::Created(info) => {
                     info!("Output created: {info:?}");
@@ -309,199 +365,167 @@ impl App {
                         .unwrap_or("");
 
                     self.outputs.add(
-                        self.config.appearance.style,
-                        &self.config.outputs,
-                        self.config.position,
+                        self.theme.bar_style,
+                        &self.general_config.outputs,
+                        self.theme.bar_position,
                         name,
                         wl_output,
-                        &self.config,
+                        self.theme.scale_factor,
                     )
                 }
                 iced::event::wayland::OutputEvent::Removed => {
                     info!("Output destroyed");
                     self.outputs.remove(
-                        self.config.appearance.style,
-                        self.config.position,
+                        self.theme.bar_style,
+                        self.theme.bar_position,
                         wl_output,
-                        &self.config,
+                        self.theme.scale_factor,
                     )
                 }
                 _ => Task::none(),
             },
-            Message::MediaPlayer(msg) => self.media_player.update(msg),
+            Message::MediaPlayer(msg) => match self.media_player.update(msg) {
+                modules::media_player::Action::None => Task::none(),
+                modules::media_player::Action::Command(task) => task.map(Message::MediaPlayer),
+            },
+            Message::CloseAllMenus => {
+                if self.outputs.menu_is_open() {
+                    self.outputs
+                        .close_all_menus(self.general_config.enable_esc_key)
+                } else {
+                    Task::none()
+                }
+            }
         }
     }
 
-    pub fn view(&self, id: Id) -> Element<Message> {
+    pub fn view(&'_ self, id: Id) -> Element<'_, Message> {
         match self.outputs.has(id) {
             Some(HasOutput::Main) => {
-                let left = self.modules_section(
-                    &self.config.modules.left,
-                    id,
-                    self.config.appearance.opacity,
-                );
-                let center = self.modules_section(
-                    &self.config.modules.center,
-                    id,
-                    self.config.appearance.opacity,
-                );
-                let right = self.modules_section(
-                    &self.config.modules.right,
-                    id,
-                    self.config.appearance.opacity,
-                );
+                let [left, center, right] = self.modules_section(id, &self.theme);
 
                 let centerbox = centerbox::Centerbox::new([left, center, right])
-                    .spacing(4)
+                    .spacing(self.theme.space.xxs)
                     .width(Length::Fill)
                     .align_items(Alignment::Center)
-                    .height(
-                        if self.config.appearance.style == AppearanceStyle::Islands {
-                            HEIGHT
-                        } else {
-                            HEIGHT - 8.
-                        } as f32,
-                    )
-                    .padding(
-                        if self.config.appearance.style == AppearanceStyle::Islands {
-                            [4, 4]
-                        } else {
-                            [0, 0]
-                        },
-                    );
+                    .height(if self.theme.bar_style == AppearanceStyle::Islands {
+                        HEIGHT
+                    } else {
+                        HEIGHT - 8.
+                    } as f32)
+                    .padding(if self.theme.bar_style == AppearanceStyle::Islands {
+                        [self.theme.space.xxs, self.theme.space.xxs]
+                    } else {
+                        [0, 0]
+                    });
 
-                container(centerbox)
-                    .style(|t| container::Style {
-                        background: match self.config.appearance.style {
-                            AppearanceStyle::Gradient => Some({
-                                let start_color = t
-                                    .palette()
-                                    .background
-                                    .scale_alpha(self.config.appearance.opacity);
+                let status_bar = container(centerbox).style(|t: &Theme| container::Style {
+                    background: match self.theme.bar_style {
+                        AppearanceStyle::Gradient => Some({
+                            let start_color =
+                                t.palette().background.scale_alpha(self.theme.opacity);
 
-                                let start_color = if self.outputs.menu_is_open() {
-                                    darken_color(start_color, self.config.appearance.menu.backdrop)
-                                } else {
-                                    start_color
-                                };
+                            let start_color = if self.outputs.menu_is_open() {
+                                darken_color(start_color, self.theme.menu.backdrop)
+                            } else {
+                                start_color
+                            };
 
-                                let end_color = if self.outputs.menu_is_open() {
-                                    backdrop_color(self.config.appearance.menu.backdrop)
-                                } else {
-                                    Color::TRANSPARENT
-                                };
+                            let end_color = if self.outputs.menu_is_open() {
+                                backdrop_color(self.theme.menu.backdrop)
+                            } else {
+                                Color::TRANSPARENT
+                            };
 
-                                Gradient::Linear(
-                                    Linear::new(Radians(PI))
-                                        .add_stop(
-                                            0.0,
-                                            match self.config.position {
-                                                Position::Top => start_color,
-                                                Position::Bottom => end_color,
-                                            },
-                                        )
-                                        .add_stop(
-                                            1.0,
-                                            match self.config.position {
-                                                Position::Top => end_color,
-                                                Position::Bottom => start_color,
-                                            },
-                                        ),
-                                )
-                                .into()
-                            }),
-                            AppearanceStyle::Solid => Some({
-                                let bg = t
-                                    .palette()
-                                    .background
-                                    .scale_alpha(self.config.appearance.opacity);
-                                if self.outputs.menu_is_open() {
-                                    darken_color(bg, self.config.appearance.menu.backdrop)
-                                } else {
-                                    bg
-                                }
-                                .into()
-                            }),
-                            AppearanceStyle::Islands => {
-                                if self.outputs.menu_is_open() {
-                                    Some(
-                                        backdrop_color(self.config.appearance.menu.backdrop).into(),
+                            Gradient::Linear(
+                                Linear::new(Radians(PI))
+                                    .add_stop(
+                                        0.0,
+                                        match self.theme.bar_position {
+                                            Position::Top => start_color,
+                                            Position::Bottom => end_color,
+                                        },
                                     )
-                                } else {
-                                    None
-                                }
+                                    .add_stop(
+                                        1.0,
+                                        match self.theme.bar_position {
+                                            Position::Top => end_color,
+                                            Position::Bottom => start_color,
+                                        },
+                                    ),
+                            )
+                            .into()
+                        }),
+                        AppearanceStyle::Solid => Some({
+                            let bg = t.palette().background.scale_alpha(self.theme.opacity);
+                            if self.outputs.menu_is_open() {
+                                darken_color(bg, self.theme.menu.backdrop)
+                            } else {
+                                bg
                             }
-                        },
-                        ..Default::default()
-                    })
-                    .into()
+                            .into()
+                        }),
+                        AppearanceStyle::Islands => {
+                            if self.outputs.menu_is_open() {
+                                Some(backdrop_color(self.theme.menu.backdrop).into())
+                            } else {
+                                None
+                            }
+                        }
+                    },
+                    ..Default::default()
+                });
+
+                if self.outputs.menu_is_open() {
+                    mouse_area(status_bar)
+                        .on_release(Message::CloseMenu(id))
+                        .into()
+                } else {
+                    status_bar.into()
+                }
             }
             Some(HasOutput::Menu(menu_info)) => match menu_info {
-                Some((MenuType::Updates, button_ui_ref)) => menu_wrapper(
+                Some((MenuType::Updates, button_ui_ref)) => {
+                    if let Some(updates) = self.updates.as_ref() {
+                        self.menu_wrapper(
+                            id,
+                            updates.menu_view(id, &self.theme).map(Message::Updates),
+                            MenuSize::Small,
+                            *button_ui_ref,
+                        )
+                    } else {
+                        Row::new().into()
+                    }
+                }
+                Some((MenuType::Tray(name), button_ui_ref)) => self.menu_wrapper(
                     id,
-                    self.updates
-                        .menu_view(id, self.config.appearance.menu.opacity)
-                        .map(Message::Updates),
-                    MenuSize::Small,
+                    self.tray.menu_view(&self.theme, name).map(Message::Tray),
+                    MenuSize::Medium,
                     *button_ui_ref,
-                    self.config.position,
-                    self.config.appearance.style,
-                    self.config.appearance.menu.opacity,
-                    self.config.appearance.menu.backdrop,
                 ),
-                Some((MenuType::Tray(name), button_ui_ref)) => menu_wrapper(
-                    id,
-                    self.tray
-                        .menu_view(name, self.config.appearance.menu.opacity)
-                        .map(Message::Tray),
-                    MenuSize::Small,
-                    *button_ui_ref,
-                    self.config.position,
-                    self.config.appearance.style,
-                    self.config.appearance.menu.opacity,
-                    self.config.appearance.menu.backdrop,
-                ),
-                Some((MenuType::Settings, button_ui_ref)) => menu_wrapper(
+                Some((MenuType::Settings, button_ui_ref)) => self.menu_wrapper(
                     id,
                     self.settings
-                        .menu_view(
-                            id,
-                            &self.config.settings,
-                            self.config.appearance.menu.opacity,
-                            self.config.position,
-                        )
+                        .menu_view(id, &self.theme, self.theme.bar_position)
                         .map(Message::Settings),
                     MenuSize::Medium,
                     *button_ui_ref,
-                    self.config.position,
-                    self.config.appearance.style,
-                    self.config.appearance.menu.opacity,
-                    self.config.appearance.menu.backdrop,
                 ),
-                Some((MenuType::MediaPlayer, button_ui_ref)) => menu_wrapper(
+                Some((MenuType::MediaPlayer, button_ui_ref)) => self.menu_wrapper(
                     id,
                     self.media_player
-                        .menu_view(
-                            &self.config.media_player,
-                            self.config.appearance.menu.opacity,
-                        )
+                        .menu_view(&self.theme)
                         .map(Message::MediaPlayer),
                     MenuSize::Large,
                     *button_ui_ref,
-                    self.config.position,
-                    self.config.appearance.style,
-                    self.config.appearance.menu.opacity,
-                    self.config.appearance.menu.backdrop,
                 ),
-                Some((MenuType::SystemInfo, button_ui_ref)) => menu_wrapper(
+                Some((MenuType::SystemInfo, button_ui_ref)) => self.menu_wrapper(
                     id,
-                    self.system_info.menu_view().map(Message::SystemInfo),
+                    self.system_info
+                        .menu_view(&self.theme)
+                        .map(Message::SystemInfo),
                     MenuSize::Medium,
                     *button_ui_ref,
-                    self.config.position,
-                    self.config.appearance.style,
-                    self.config.appearance.menu.opacity,
-                    self.config.appearance.menu.backdrop,
                 ),
                 None => Row::new().into(),
             },
@@ -511,9 +535,9 @@ impl App {
 
     pub fn subscription(&self) -> Subscription<Message> {
         Subscription::batch(vec![
-            Subscription::batch(self.modules_subscriptions(&self.config.modules.left)),
-            Subscription::batch(self.modules_subscriptions(&self.config.modules.center)),
-            Subscription::batch(self.modules_subscriptions(&self.config.modules.right)),
+            Subscription::batch(self.modules_subscriptions(&self.general_config.modules.left)),
+            Subscription::batch(self.modules_subscriptions(&self.general_config.modules.center)),
+            Subscription::batch(self.modules_subscriptions(&self.general_config.modules.right)),
             config::subscription(&self.config_path),
             listen_with(move |evt, _, _| match evt {
                 iced::Event::PlatformSpecific(iced::event::PlatformSpecific::Wayland(

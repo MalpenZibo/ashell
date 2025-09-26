@@ -1,16 +1,5 @@
 use std::collections::HashMap;
-use std::ops::Deref;
 use zbus::{Result, proxy, zvariant::OwnedValue};
-
-pub struct MprisPlayerDbus<'a>(MprisPlayerProxy<'a>);
-
-impl<'a> Deref for MprisPlayerDbus<'a> {
-    type Target = MprisPlayerProxy<'a>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
 
 #[proxy(
     interface = "org.mpris.MediaPlayer2.Player",

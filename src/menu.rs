@@ -1,7 +1,7 @@
-use crate::app::{self};
+use crate::app::{self, App};
 use crate::config::{AppearanceStyle, Position};
 use crate::position_button::ButtonUIRef;
-use crate::style::backdrop_color;
+use crate::theme::backdrop_color;
 use iced::alignment::{Horizontal, Vertical};
 use iced::platform_specific::shell::commands::layer_surface::{
     KeyboardInteractivity, Layer, set_keyboard_interactivity, set_layer,
@@ -39,31 +39,34 @@ impl Menu {
         &mut self,
         menu_type: MenuType,
         button_ui_ref: ButtonUIRef,
-        config: &crate::config::Config,
+        request_keyboard: bool,
     ) -> Task<Message> {
         self.menu_info.replace((menu_type, button_ui_ref));
 
         let mut tasks = vec![set_layer(self.id, Layer::Overlay)];
 
-        if config.menu_keyboard_focus {
-            tasks.push(set_keyboard_interactivity(self.id, KeyboardInteractivity::OnDemand));
+        if request_keyboard {
+            tasks.push(set_keyboard_interactivity(
+                self.id,
+                KeyboardInteractivity::OnDemand,
+            ));
         }
 
         Task::batch(tasks)
     }
 
-    pub fn close<Message: 'static>(&mut self, config: &crate::config::Config) -> Task<Message> {
+    pub fn close<Message: 'static>(&mut self) -> Task<Message> {
         if self.menu_info.is_some() {
             self.menu_info.take();
 
             let mut tasks = vec![set_layer(self.id, Layer::Background)];
-            
-            if config.menu_keyboard_focus {
-                tasks.push(set_keyboard_interactivity(self.id, KeyboardInteractivity::None));
-            }
+
+            tasks.push(set_keyboard_interactivity(
+                self.id,
+                KeyboardInteractivity::None,
+            ));
 
             Task::batch(tasks)
-
         } else {
             Task::none()
         }
@@ -73,11 +76,11 @@ impl Menu {
         &mut self,
         menu_type: MenuType,
         button_ui_ref: ButtonUIRef,
-        config: &crate::config::Config,
+        request_keyboard: bool,
     ) -> Task<Message> {
         match self.menu_info.as_mut() {
-            None => self.open(menu_type, button_ui_ref, config),
-            Some((current_type, _)) if *current_type == menu_type => self.close(config),
+            None => self.open(menu_type, button_ui_ref, request_keyboard),
+            Some((current_type, _)) if *current_type == menu_type => self.close(),
             Some((current_type, current_button_ui_ref)) => {
                 *current_type = menu_type;
                 *current_button_ui_ref = button_ui_ref;
@@ -86,10 +89,10 @@ impl Menu {
         }
     }
 
-    pub fn close_if<Message: 'static>(&mut self, menu_type: MenuType, config: &crate::config::Config) -> Task<Message> {
+    pub fn close_if<Message: 'static>(&mut self, menu_type: MenuType) -> Task<Message> {
         if let Some((current_type, _)) = self.menu_info.as_ref() {
             if *current_type == menu_type {
-                self.close(config)
+                self.close()
             } else {
                 Task::none()
             }
@@ -98,23 +101,16 @@ impl Menu {
         }
     }
 
-    pub fn request_keyboard<Message: 'static>(&self, menu_keyboard_focus: bool) -> Task<Message> {
-        if menu_keyboard_focus {
-            set_keyboard_interactivity(self.id, KeyboardInteractivity::OnDemand)
-        } else {
-            Task::none()
-        }
+    pub fn request_keyboard<Message: 'static>(&self) -> Task<Message> {
+        set_keyboard_interactivity(self.id, KeyboardInteractivity::OnDemand)
     }
 
-    pub fn release_keyboard<Message: 'static>(&self, menu_keyboard_focus: bool) -> Task<Message> {
-        if menu_keyboard_focus {
-            set_keyboard_interactivity(self.id, KeyboardInteractivity::None)
-        } else {
-            Task::none()
-        }
+    pub fn release_keyboard<Message: 'static>(&self) -> Task<Message> {
+        set_keyboard_interactivity(self.id, KeyboardInteractivity::None)
     }
 }
 
+#[allow(unused)]
 pub enum MenuSize {
     Small,
     Medium,
@@ -131,78 +127,83 @@ impl MenuSize {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-pub fn menu_wrapper(
-    id: Id,
-    content: Element<app::Message>,
-    menu_size: MenuSize,
-    button_ui_ref: ButtonUIRef,
-    bar_position: Position,
-    style: AppearanceStyle,
-    opacity: f32,
-    menu_backdrop: f32,
-) -> Element<app::Message> {
-    mouse_area(
-        container(
-            mouse_area(
-                container(content)
-                    .height(Length::Shrink)
-                    .width(Length::Shrink)
-                    .max_width(menu_size.size())
-                    .padding(16)
-                    .style(move |theme: &Theme| Style {
-                        background: Some(theme.palette().background.scale_alpha(opacity).into()),
-                        border: Border {
-                            color: theme
-                                .extended_palette()
-                                .secondary
-                                .base
-                                .color
-                                .scale_alpha(opacity),
-                            width: 1.,
-                            radius: 16.0.into(),
-                        },
-                        ..Default::default()
-                    }),
+impl App {
+    #[allow(clippy::too_many_arguments)]
+    pub fn menu_wrapper<'a>(
+        &'a self,
+        id: Id,
+        content: Element<'a, app::Message>,
+        menu_size: MenuSize,
+        button_ui_ref: ButtonUIRef,
+    ) -> Element<'a, app::Message> {
+        mouse_area(
+            container(
+                mouse_area(
+                    container(content)
+                        .height(Length::Shrink)
+                        .width(Length::Shrink)
+                        .max_width(menu_size.size())
+                        .padding(self.theme.space.md)
+                        .style(move |theme: &Theme| Style {
+                            background: Some(
+                                theme
+                                    .palette()
+                                    .background
+                                    .scale_alpha(self.theme.menu.opacity)
+                                    .into(),
+                            ),
+                            border: Border {
+                                color: theme
+                                    .extended_palette()
+                                    .secondary
+                                    .base
+                                    .color
+                                    .scale_alpha(self.theme.menu.opacity),
+                                width: 1.,
+                                radius: self.theme.radius.lg.into(),
+                            },
+                            ..Default::default()
+                        }),
+                )
+                .on_release(app::Message::None),
             )
-            .on_release(app::Message::None),
+            .align_y(match self.theme.bar_position {
+                Position::Top => Vertical::Top,
+                Position::Bottom => Vertical::Bottom,
+            })
+            .align_x(Horizontal::Left)
+            .padding({
+                let size = menu_size.size();
+
+                let v_padding = match self.theme.bar_style {
+                    AppearanceStyle::Solid | AppearanceStyle::Gradient => 2,
+                    AppearanceStyle::Islands => 0,
+                };
+
+                Padding::new(0.)
+                    .top(if self.theme.bar_position == Position::Top {
+                        v_padding
+                    } else {
+                        0
+                    })
+                    .bottom(if self.theme.bar_position == Position::Bottom {
+                        v_padding
+                    } else {
+                        0
+                    })
+                    .left(f32::min(
+                        f32::max(button_ui_ref.position.x - size / 2., 8.),
+                        button_ui_ref.viewport.0 - size - 8.,
+                    ))
+            })
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .style(move |_| Style {
+                background: Some(backdrop_color(self.theme.menu.backdrop).into()),
+                ..Default::default()
+            }),
         )
-        .align_y(match bar_position {
-            Position::Top => Vertical::Top,
-            Position::Bottom => Vertical::Bottom,
-        })
-        .align_x(Horizontal::Left)
-        .padding({
-            let size = menu_size.size();
-
-            let v_padding = match style {
-                AppearanceStyle::Solid | AppearanceStyle::Gradient => 2,
-                AppearanceStyle::Islands => 0,
-            };
-
-            Padding::new(0.)
-                .top(if bar_position == Position::Top {
-                    v_padding
-                } else {
-                    0
-                })
-                .bottom(if bar_position == Position::Bottom {
-                    v_padding
-                } else {
-                    0
-                })
-                .left(f32::min(
-                    f32::max(button_ui_ref.position.x - size / 2., 8.),
-                    button_ui_ref.viewport.0 - size - 8.,
-                ))
-        })
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .style(move |_| Style {
-            background: Some(backdrop_color(menu_backdrop).into()),
-            ..Default::default()
-        }),
-    )
-    .on_release(app::Message::CloseMenu(id))
-    .into()
+        .on_release(app::Message::CloseMenu(id))
+        .into()
+    }
 }

@@ -16,7 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the path to the configuration file
 - Add `scale_factor` configuration to change the scaling factor of the status bar
 - Add custom commands for power menu actions
-- Support for custom workspace naming via the `workspace_names` config option.  
+- Add `enable_esc_key` configuration to close the menu with the ESC key
+- Support for custom workspace naming via the `workspace_names` config option.
 
 ### Changed
 
@@ -26,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Bluetooth: use alias instead of name for device name
 - Airplane button fail when the `rfkill` returns an error or is not present
+- Reduced wifi rescan requests
 
 ## [0.5.0] - 2025-05-20
 

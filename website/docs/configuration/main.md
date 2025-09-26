@@ -107,3 +107,21 @@ Set the bar position to the bottom:
 ```toml
 position = "Bottom"
 ```
+
+## Close menu with esc
+
+You can enable the use of the `Esc` key to close the menu.
+
+:::warning
+
+With these features enabled ashell will use the keyboard
+in an exclusive way when a menu is open.
+
+That means other applications will not be able to use
+the keyboard when the menu is open.
+
+:::
+
+```toml
+enable_esc_key = true
+```
