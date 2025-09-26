@@ -1,6 +1,6 @@
 use crate::{
     HEIGHT, centerbox,
-    config::{self, AppearanceStyle, Config, Position},
+    config::{self, AppearanceStyle, Config, Modules, Position},
     get_log_spec,
     menu::{MenuSize, MenuType},
     modules::{
@@ -41,11 +41,17 @@ use log::{debug, info, warn};
 use std::{collections::HashMap, f32::consts::PI, path::PathBuf};
 use wayland_client::protocol::wl_output::WlOutput;
 
+pub struct GeneralConfig {
+    outputs: config::Outputs,
+    pub modules: Modules,
+    enable_esc_key: bool,
+}
+
 pub struct App {
     config_path: PathBuf,
     pub theme: AshellTheme,
     logger: LoggerHandle,
-    pub config: Config,
+    pub general_config: GeneralConfig,
     pub outputs: Outputs,
     pub app_launcher: Option<AppLauncher>,
     pub custom: HashMap<String, Custom>,
@@ -91,7 +97,7 @@ impl App {
     pub fn new(
         (logger, config, config_path): (LoggerHandle, Config, PathBuf),
     ) -> impl FnOnce() -> (Self, Task<Message>) {
-        || {
+        move || {
             let (outputs, task) = Outputs::new(
                 config.appearance.style,
                 config.position,
@@ -110,67 +116,59 @@ impl App {
                     config_path,
                     theme: AshellTheme::new(config.position, &config.appearance),
                     logger,
+                    general_config: GeneralConfig {
+                        outputs: config.outputs,
+                        modules: config.modules,
+                        enable_esc_key: config.enable_esc_key,
+                    },
                     outputs,
-                    app_launcher: config
-                        .app_launcher_cmd
-                        .as_ref()
-                        .map(|cmd| AppLauncher::new(cmd.clone())),
+                    app_launcher: config.app_launcher_cmd.map(AppLauncher::new),
                     custom,
-                    updates: config.clone().updates.map(Updates::new),
-                    clipboard: config
-                        .clipboard_cmd
-                        .as_ref()
-                        .map(|cmd| Clipboard::new(cmd.clone())),
-                    workspaces: Workspaces::new(config.workspaces.clone()),
+                    updates: config.updates.map(Updates::new),
+                    clipboard: config.clipboard_cmd.map(Clipboard::new),
+                    workspaces: Workspaces::new(config.workspaces),
                     window_title: WindowTitle::new(config.window_title),
-                    system_info: SystemInfo::new(config.system.clone()),
-                    keyboard_layout: KeyboardLayout::new(config.keyboard_layout.clone()),
+                    system_info: SystemInfo::new(config.system),
+                    keyboard_layout: KeyboardLayout::new(config.keyboard_layout),
                     keyboard_submap: KeyboardSubmap::default(),
                     tray: TrayModule::default(),
-                    clock: Clock::new(config.clock.clone()),
+                    clock: Clock::new(config.clock),
                     privacy: Privacy::default(),
-                    settings: Settings::new(config.settings.clone()),
-                    media_player: MediaPlayer::new(config.media_player.clone()),
-                    config,
+                    settings: Settings::new(config.settings),
+                    media_player: MediaPlayer::new(config.media_player),
                 },
                 task,
             )
         }
     }
 
-    fn refesh_config(&mut self) {
-        let config = &self.config;
-
+    fn refesh_config(&mut self, config: Box<Config>) {
+        self.general_config = GeneralConfig {
+            outputs: config.outputs,
+            modules: config.modules,
+            enable_esc_key: config.enable_esc_key,
+        };
         let custom = config
             .custom_modules
-            .clone()
             .into_iter()
             .map(|o| (o.name.clone(), Custom::new(o)))
             .collect();
 
-        self.app_launcher = config
-            .app_launcher_cmd
-            .as_ref()
-            .map(|cmd| AppLauncher::new(cmd.clone()));
+        self.app_launcher = config.app_launcher_cmd.map(AppLauncher::new);
         self.custom = custom;
-        self.updates = config.clone().updates.map(Updates::new);
-        self.clipboard = config
-            .clipboard_cmd
-            .as_ref()
-            .map(|cmd| Clipboard::new(cmd.clone()));
-        self.workspaces = Workspaces::new(config.workspaces.clone());
+        self.updates = config.updates.map(Updates::new);
+        self.clipboard = config.clipboard_cmd.map(Clipboard::new);
+        self.workspaces = Workspaces::new(config.workspaces);
         self.window_title = WindowTitle::new(config.window_title);
-        self.system_info = SystemInfo::new(config.system.clone());
-        self.keyboard_layout = KeyboardLayout::new(config.keyboard_layout.clone());
+        self.system_info = SystemInfo::new(config.system);
+        self.keyboard_layout = KeyboardLayout::new(config.keyboard_layout);
         self.keyboard_submap = KeyboardSubmap::default();
-        self.clock = Clock::new(config.clock.clone());
+        self.clock = Clock::new(config.clock);
         self.settings
-            .update(modules::settings::Message::ConfigReloaded(
-                self.config.settings.clone(),
-            ));
+            .update(modules::settings::Message::ConfigReloaded(config.settings));
         self.media_player
             .update(modules::media_player::Message::ConfigReloaded(
-                self.config.media_player.clone(),
+                config.media_player,
             ));
     }
 
@@ -191,7 +189,7 @@ impl App {
     }
 
     pub fn scale_factor(&self, _id: Id) -> f64 {
-        self.config.appearance.scale_factor
+        self.theme.scale_factor
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
@@ -202,13 +200,12 @@ impl App {
                 let mut tasks = Vec::new();
                 info!(
                     "Current outputs: {:?}, new outputs: {:?}",
-                    self.config.outputs, config.outputs
+                    self.general_config.outputs, config.outputs
                 );
-                if self.config.outputs != config.outputs
-                    || self.config.position != config.position
-                    || self.config.appearance.style != config.appearance.style
-                    || self.config.appearance.scale_factor != config.appearance.scale_factor
-                    || self.config.enable_esc_key != config.enable_esc_key
+                if self.general_config.outputs != config.outputs
+                    || self.theme.bar_position != config.position
+                    || self.theme.bar_style != config.appearance.style
+                    || self.theme.scale_factor != config.appearance.scale_factor
                 {
                     warn!("Outputs changed, syncing");
                     tasks.push(self.outputs.sync(
@@ -219,10 +216,8 @@ impl App {
                     ));
                 }
 
-                self.config = *config;
-                self.refesh_config();
-                self.logger
-                    .set_new_spec(get_log_spec(&self.config.log_level));
+                self.logger.set_new_spec(get_log_spec(&config.log_level));
+                self.refesh_config(config);
 
                 Task::batch(tasks)
             }
@@ -254,12 +249,14 @@ impl App {
                     id,
                     menu_type,
                     button_ui_ref,
-                    self.config.enable_esc_key,
+                    self.general_config.enable_esc_key,
                 ));
 
                 Task::batch(cmd)
             }
-            Message::CloseMenu(id) => self.outputs.close_menu(id, self.config.enable_esc_key),
+            Message::CloseMenu(id) => self
+                .outputs
+                .close_menu(id, self.general_config.enable_esc_key),
             Message::AppLauncher(msg) => {
                 if let Some(app_launcher) = self.app_launcher.as_mut() {
                     app_launcher.update(msg);
@@ -286,7 +283,7 @@ impl App {
                             self.outputs.close_menu_if(
                                 id,
                                 MenuType::Updates,
-                                self.config.enable_esc_key,
+                                self.general_config.enable_esc_key,
                             ),
                         ]),
                     }
@@ -328,13 +325,13 @@ impl App {
                         id,
                         MenuType::Tray(name),
                         button_ui_ref,
-                        self.config.enable_esc_key,
+                        self.general_config.enable_esc_key,
                     )
                 }
                 modules::tray::Action::TrayMenuCommand(task) => task.map(Message::Tray),
                 modules::tray::Action::CloseTrayMenu(name) => self
                     .outputs
-                    .close_all_menu_if(MenuType::Tray(name), self.config.enable_esc_key),
+                    .close_all_menu_if(MenuType::Tray(name), self.general_config.enable_esc_key),
             },
             Message::Clock(message) => {
                 self.clock.update(message);
@@ -347,9 +344,9 @@ impl App {
             Message::Settings(message) => match self.settings.update(message) {
                 modules::settings::Action::None => Task::none(),
                 modules::settings::Action::Command(task) => task.map(Message::Settings),
-                modules::settings::Action::CloseMenu(id) => {
-                    self.outputs.close_menu(id, self.config.enable_esc_key)
-                }
+                modules::settings::Action::CloseMenu(id) => self
+                    .outputs
+                    .close_menu(id, self.general_config.enable_esc_key),
                 modules::settings::Action::RequestKeyboard(id) => self.outputs.request_keyboard(id),
                 modules::settings::Action::ReleaseKeyboard(id) => self.outputs.release_keyboard(id),
                 modules::settings::Action::ReleaseKeyboardWithCommand(id, task) => {
@@ -368,21 +365,21 @@ impl App {
                         .unwrap_or("");
 
                     self.outputs.add(
-                        self.config.appearance.style,
-                        &self.config.outputs,
-                        self.config.position,
+                        self.theme.bar_style,
+                        &self.general_config.outputs,
+                        self.theme.bar_position,
                         name,
                         wl_output,
-                        self.config.appearance.scale_factor,
+                        self.theme.scale_factor,
                     )
                 }
                 iced::event::wayland::OutputEvent::Removed => {
                     info!("Output destroyed");
                     self.outputs.remove(
-                        self.config.appearance.style,
-                        self.config.position,
+                        self.theme.bar_style,
+                        self.theme.bar_position,
                         wl_output,
-                        self.config.appearance.scale_factor,
+                        self.theme.scale_factor,
                     )
                 }
                 _ => Task::none(),
@@ -393,7 +390,8 @@ impl App {
             },
             Message::CloseAllMenus => {
                 if self.outputs.menu_is_open() {
-                    self.outputs.close_all_menus(self.config.enable_esc_key)
+                    self.outputs
+                        .close_all_menus(self.general_config.enable_esc_key)
                 } else {
                     Task::none()
                 }
@@ -410,37 +408,31 @@ impl App {
                     .spacing(self.theme.space.xxs)
                     .width(Length::Fill)
                     .align_items(Alignment::Center)
-                    .height(
-                        if self.config.appearance.style == AppearanceStyle::Islands {
-                            HEIGHT
-                        } else {
-                            HEIGHT - 8.
-                        } as f32,
-                    )
-                    .padding(
-                        if self.config.appearance.style == AppearanceStyle::Islands {
-                            [self.theme.space.xxs, self.theme.space.xxs]
-                        } else {
-                            [0, 0]
-                        },
-                    );
+                    .height(if self.theme.bar_style == AppearanceStyle::Islands {
+                        HEIGHT
+                    } else {
+                        HEIGHT - 8.
+                    } as f32)
+                    .padding(if self.theme.bar_style == AppearanceStyle::Islands {
+                        [self.theme.space.xxs, self.theme.space.xxs]
+                    } else {
+                        [0, 0]
+                    });
 
                 let status_bar = container(centerbox).style(|t: &Theme| container::Style {
-                    background: match self.config.appearance.style {
+                    background: match self.theme.bar_style {
                         AppearanceStyle::Gradient => Some({
-                            let start_color = t
-                                .palette()
-                                .background
-                                .scale_alpha(self.config.appearance.opacity);
+                            let start_color =
+                                t.palette().background.scale_alpha(self.theme.opacity);
 
                             let start_color = if self.outputs.menu_is_open() {
-                                darken_color(start_color, self.config.appearance.menu.backdrop)
+                                darken_color(start_color, self.theme.menu.backdrop)
                             } else {
                                 start_color
                             };
 
                             let end_color = if self.outputs.menu_is_open() {
-                                backdrop_color(self.config.appearance.menu.backdrop)
+                                backdrop_color(self.theme.menu.backdrop)
                             } else {
                                 Color::TRANSPARENT
                             };
@@ -449,14 +441,14 @@ impl App {
                                 Linear::new(Radians(PI))
                                     .add_stop(
                                         0.0,
-                                        match self.config.position {
+                                        match self.theme.bar_position {
                                             Position::Top => start_color,
                                             Position::Bottom => end_color,
                                         },
                                     )
                                     .add_stop(
                                         1.0,
-                                        match self.config.position {
+                                        match self.theme.bar_position {
                                             Position::Top => end_color,
                                             Position::Bottom => start_color,
                                         },
@@ -465,12 +457,9 @@ impl App {
                             .into()
                         }),
                         AppearanceStyle::Solid => Some({
-                            let bg = t
-                                .palette()
-                                .background
-                                .scale_alpha(self.config.appearance.opacity);
+                            let bg = t.palette().background.scale_alpha(self.theme.opacity);
                             if self.outputs.menu_is_open() {
-                                darken_color(bg, self.config.appearance.menu.backdrop)
+                                darken_color(bg, self.theme.menu.backdrop)
                             } else {
                                 bg
                             }
@@ -478,7 +467,7 @@ impl App {
                         }),
                         AppearanceStyle::Islands => {
                             if self.outputs.menu_is_open() {
-                                Some(backdrop_color(self.config.appearance.menu.backdrop).into())
+                                Some(backdrop_color(self.theme.menu.backdrop).into())
                             } else {
                                 None
                             }
@@ -517,7 +506,7 @@ impl App {
                 Some((MenuType::Settings, button_ui_ref)) => self.menu_wrapper(
                     id,
                     self.settings
-                        .menu_view(id, &self.theme, self.config.position)
+                        .menu_view(id, &self.theme, self.theme.bar_position)
                         .map(Message::Settings),
                     MenuSize::Medium,
                     *button_ui_ref,
@@ -546,9 +535,9 @@ impl App {
 
     pub fn subscription(&self) -> Subscription<Message> {
         Subscription::batch(vec![
-            Subscription::batch(self.modules_subscriptions(&self.config.modules.left)),
-            Subscription::batch(self.modules_subscriptions(&self.config.modules.center)),
-            Subscription::batch(self.modules_subscriptions(&self.config.modules.right)),
+            Subscription::batch(self.modules_subscriptions(&self.general_config.modules.left)),
+            Subscription::batch(self.modules_subscriptions(&self.general_config.modules.center)),
+            Subscription::batch(self.modules_subscriptions(&self.general_config.modules.right)),
             config::subscription(&self.config_path),
             listen_with(move |evt, _, _| match evt {
                 iced::Event::PlatformSpecific(iced::event::PlatformSpecific::Wayland(

@@ -39,9 +39,9 @@ impl App {
         theme: &'a AshellTheme,
     ) -> [Element<'a, Message>; 3] {
         [
-            &self.config.modules.left,
-            &self.config.modules.center,
-            &self.config.modules.right,
+            &self.general_config.modules.left,
+            &self.general_config.modules.center,
+            &self.general_config.modules.right,
         ]
         .map(|modules_def| {
             let mut row = row!()
@@ -114,7 +114,7 @@ impl App {
                     .align_y(Alignment::Center)
                     .clip(true);
 
-                match self.config.appearance.style {
+                match self.theme.bar_style {
                     AppearanceStyle::Solid | AppearanceStyle::Gradient => container.into(),
                     AppearanceStyle::Islands => container
                         .style(|theme| container::Style {
@@ -122,7 +122,7 @@ impl App {
                                 theme
                                     .palette()
                                     .background
-                                    .scale_alpha(self.config.appearance.opacity)
+                                    .scale_alpha(self.theme.opacity)
                                     .into(),
                             ),
                             border: Border {
@@ -191,7 +191,7 @@ impl App {
                         .collect::<Vec<_>>(),
                 );
 
-                match self.config.appearance.style {
+                match self.theme.bar_style {
                     AppearanceStyle::Solid | AppearanceStyle::Gradient => group.into(),
                     AppearanceStyle::Islands => container(group)
                         .style(|theme| container::Style {
@@ -199,7 +199,7 @@ impl App {
                                 theme
                                     .palette()
                                     .background
-                                    .scale_alpha(self.config.appearance.opacity)
+                                    .scale_alpha(self.theme.opacity)
                                     .into(),
                             ),
                             border: Border {
