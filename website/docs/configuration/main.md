@@ -120,10 +120,8 @@ in an exclusive way when a menu is open.
 That means other applications will not be able to use
 the keyboard when the menu is open.
 
-In the future, there will be a solution to avoid this problem.
-
 :::
 
 ```toml
-`enable_esc_key = true
+enable_esc_key = true
 ```
