@@ -121,7 +121,7 @@ impl App {
                         .clipboard_cmd
                         .as_ref()
                         .map(|cmd| Clipboard::new(cmd.clone())),
-                    workspaces: Workspaces::new(config.workspaces),
+                    workspaces: Workspaces::new(config.workspaces.clone()),
                     window_title: WindowTitle::new(config.window_title),
                     system_info: SystemInfo::new(config.system.clone()),
                     keyboard_layout: KeyboardLayout::new(config.keyboard_layout.clone()),
@@ -158,7 +158,7 @@ impl App {
             .clipboard_cmd
             .as_ref()
             .map(|cmd| Clipboard::new(cmd.clone()));
-        self.workspaces = Workspaces::new(config.workspaces);
+        self.workspaces = Workspaces::new(config.workspaces.clone());
         self.window_title = WindowTitle::new(config.window_title);
         self.system_info = SystemInfo::new(config.system.clone());
         self.keyboard_layout = KeyboardLayout::new(config.keyboard_layout.clone());

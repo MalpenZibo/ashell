@@ -66,9 +66,19 @@ fn get_workspaces(config: &WorkspacesModuleConfig) -> Vec<Workspace> {
 
     // map normal workspaces
     for w in normal.iter() {
+        let display_name = if w.id > 0 {
+            let idx = (w.id - 1) as usize;
+            config
+                .workspace_names
+                .get(idx)
+                .cloned()
+                .unwrap_or_else(|| w.id.to_string())
+        } else {
+            w.name.clone()
+        };
         result.push(Workspace {
             id: w.id,
-            name: w.name.clone(),
+            name: display_name,
             monitor_id: Some(w.monitor_id as usize),
             monitor: w.monitor.clone(),
             active: Some(w.id) == active.as_ref().map(|a| a.id),
@@ -98,9 +108,19 @@ fn get_workspaces(config: &WorkspacesModuleConfig) -> Vec<Workspace> {
     result.reserve(missing_ids.len());
 
     for id in missing_ids {
+        let display_name = if id > 0 {
+            let idx = (id - 1) as usize;
+            config
+                .workspace_names
+                .get(idx)
+                .cloned()
+                .unwrap_or_else(|| id.to_string())
+        } else {
+            id.to_string()
+        };
         result.push(Workspace {
             id,
-            name: id.to_string(),
+            name: display_name,
             monitor_id: None,
             monitor: "".to_string(),
             active: false,
@@ -215,16 +235,9 @@ impl Workspaces {
 
                             Some(
                                 button(
-                                    container(
-                                        if w.id < 0 {
-                                            text(w.name.as_str())
-                                        } else {
-                                            text(w.id)
-                                        }
-                                        .size(theme.font_size.xs),
-                                    )
-                                    .align_x(alignment::Horizontal::Center)
-                                    .align_y(alignment::Vertical::Center),
+                                    container(text(w.name.as_str()).size(theme.font_size.xs))
+                                        .align_x(alignment::Horizontal::Center)
+                                        .align_y(alignment::Vertical::Center),
                                 )
                                 .style(theme.workspace_button_style(empty, color))
                                 .padding(if w.id < 0 {

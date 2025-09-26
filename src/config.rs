@@ -30,13 +30,15 @@ pub enum WorkspaceVisibilityMode {
     MonitorSpecific,
 }
 
-#[derive(Deserialize, Copy, Clone, Default, Debug)]
+#[derive(Deserialize, Clone, Default, Debug)]
 pub struct WorkspacesModuleConfig {
     #[serde(default)]
     pub visibility_mode: WorkspaceVisibilityMode,
     #[serde(default)]
     pub enable_workspace_filling: bool,
     pub max_workspaces: Option<u32>,
+    #[serde(default)]
+    pub workspace_names: Vec<String>,
 }
 
 #[derive(Deserialize, Copy, Clone, Default, PartialEq, Eq, Debug)]
