@@ -25,7 +25,7 @@ use std::{
 pub struct Workspace {
     pub id: i32,
     pub name: String,
-    pub monitor_id: Option<usize>,
+    pub monitor_id: Option<i128>,
     pub monitor: String,
     pub active: bool,
     pub windows: u16,
@@ -57,7 +57,7 @@ fn get_workspaces(config: &WorkspacesModuleConfig) -> Vec<Workspace> {
                 .split(":")
                 .last()
                 .map_or_else(|| "".to_string(), |s| s.to_owned()),
-            monitor_id: Some(w.monitor_id as usize),
+            monitor_id: w.monitor_id,
             monitor: w.monitor.clone(),
             active: monitors.iter().any(|m| m.special_workspace.id == w.id),
             windows: w.windows,
@@ -79,7 +79,7 @@ fn get_workspaces(config: &WorkspacesModuleConfig) -> Vec<Workspace> {
         result.push(Workspace {
             id: w.id,
             name: display_name,
-            monitor_id: Some(w.monitor_id as usize),
+            monitor_id: w.monitor_id,
             monitor: w.monitor.clone(),
             active: Some(w.id) == active.as_ref().map(|a| a.id),
             windows: w.windows,
@@ -181,7 +181,7 @@ impl Workspaces {
                     debug!("toggle special workspace: {id}");
                     let res = hyprland::dispatch::Dispatch::call(
                         hyprland::dispatch::DispatchType::FocusMonitor(MonitorIdentifier::Id(
-                            special.monitor_id.unwrap_or_default() as i128,
+                            special.monitor_id.unwrap_or_default(),
                         )),
                     )
                     .and_then(|_| {
@@ -222,13 +222,13 @@ impl Workspaces {
 
                             let color = monitor.map(|m| {
                                 if w.id > 0 {
-                                    theme.workspace_colors.get(m).copied()
+                                    theme.workspace_colors.get(m as usize).copied()
                                 } else {
                                     theme
                                         .special_workspace_colors
                                         .as_ref()
                                         .unwrap_or(&theme.workspace_colors)
-                                        .get(m)
+                                        .get(m as usize)
                                         .copied()
                                 }
                             });
