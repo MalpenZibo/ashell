@@ -97,12 +97,14 @@ impl MediaPlayer {
                             .style(theme.settings_button_style()),
                         button(icon(play_pause_icon))
                             .on_press(Message::PlayPause(d.service.clone()))
+                            .padding([theme.space.xs, theme.space.md])
                             .style(theme.settings_button_style()),
                         button(icon(Icons::SkipNext))
                             .on_press(Message::Next(d.service.clone()))
                             .padding([theme.space.xs, theme.space.md])
                             .style(theme.settings_button_style()),
                     ]
+                    .align_y(Vertical::Center)
                     .spacing(theme.space.xs);
 
                     let volume_slider = d.volume.map(|v| {
@@ -170,9 +172,12 @@ impl MediaPlayer {
             _ => Some(
                 row![
                     icon(Icons::MusicNote),
-                    text(self.get_title(&s[0]))
-                        .wrapping(text::Wrapping::WordOrGlyph)
-                        .size(theme.font_size.sm)
+                    container(
+                        text(self.get_title(&s[0]))
+                            .wrapping(text::Wrapping::None)
+                            .size(theme.font_size.sm)
+                    )
+                    .clip(true)
                 ]
                 .align_y(Vertical::Center)
                 .spacing(theme.space.xs)
