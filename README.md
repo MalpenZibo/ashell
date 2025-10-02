@@ -1,6 +1,8 @@
-<a href="https://malpenzibo.github.io/ashell/">
-  <img src="https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/logo_header_dark.svg" alt="Ashell" height="120"/>
-</a>
+<div align="center">
+  <a href="https://malpenzibo.github.io/ashell/">
+    <img src="https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/logo_header_dark.svg" alt="Ashell" height="140"/>
+  </a>
+</div>
 
 ## What is Ashell?
 
