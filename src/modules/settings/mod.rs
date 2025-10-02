@@ -1,6 +1,6 @@
 use crate::{
     components::icons::{Icons, icon},
-    config::{Position, SettingsModuleConfig},
+    config::{Position, SettingsModuleConfig, SettingsCustomButton},
     modules::settings::{
         audio::{AudioSettings, AudioSettingsConfig},
         bluetooth::{BluetoothSettings, BluetoothSettingsConfig},
@@ -35,6 +35,7 @@ pub struct Settings {
     idle_inhibitor: Option<IdleInhibitorManager>,
     sub_menu: Option<SubMenu>,
     password_dialog: Option<(String, String)>,
+    custom_buttons: Vec<SettingsCustomButton>,
 }
 
 #[derive(Debug, Clone)]
@@ -102,6 +103,7 @@ impl Settings {
             },
             sub_menu: None,
             password_dialog: None,
+            custom_buttons: config.custom_buttons,
         }
     }
 
@@ -262,10 +264,11 @@ impl Settings {
                 }
             },
             Message::CustomButton(name) => {
-                if let Some(button) = config.custom_buttons.iter().find(|b| b.name == name) {
+                if let Some(button) = self.custom_buttons.iter().find(|b| b.name == name) {
                     crate::utils::launcher::execute_command(button.command.clone());
                 }
-                Task::none()
+                Action::Command(Task::none())
+            }
             Message::MenuOpened => {
                 self.sub_menu = None;
 
@@ -413,18 +416,18 @@ impl Settings {
                 .into_iter()
                 .flatten()
                 .chain(
-                    config.custom_buttons.iter().map(|button| {
+                    self.custom_buttons.iter().map(|button| {
                         let is_active = check_toggle_status(&button.status_command);
 
                         (
                             quick_setting_button(
-                                Icons::AppLauncher,
+                                theme,
+                                Icons::AppLauncher, // Replace with button.icon when icon handling is implemented
                                 button.name.clone(),
                                 button.tooltip.clone(),
                                 is_active,
                                 Message::CustomButton(button.name.clone()),
                                 None,
-                                opacity,
                             ),
                             None,
                         )

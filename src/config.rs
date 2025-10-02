@@ -255,6 +255,8 @@ pub struct SettingsModuleConfig {
     pub bluetooth_more_cmd: Option<String>,
     #[serde(default)]
     pub remove_airplane_btn: bool,
+    #[serde(default)]
+    pub remove_idle_btn: bool,
     #[serde(default, rename = "CustomButton")]
     pub custom_buttons: Vec<SettingsCustomButton>,
 }
@@ -266,8 +268,6 @@ pub struct SettingsCustomButton {
     pub command: String,
     pub status_command: Option<String>,
     pub tooltip: Option<String>,
-    #[serde(default)]
-    pub remove_idle_btn: bool,
 }
 
 #[derive(Deserialize, Clone, Debug)]
