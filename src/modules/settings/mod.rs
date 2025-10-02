@@ -261,13 +261,11 @@ impl Settings {
                     Action::ReleaseKeyboard(id)
                 }
             },
-<<<<<<< HEAD
             Message::CustomButton(name) => {
                 if let Some(button) = config.custom_buttons.iter().find(|b| b.name == name) {
                     crate::utils::launcher::execute_command(button.command.clone());
                 }
                 Task::none()
-=======
             Message::MenuOpened => {
                 self.sub_menu = None;
 
@@ -308,7 +306,6 @@ impl Settings {
                     self.idle_inhibitor = IdleInhibitorManager::new();
                 }
                 Action::None
->>>>>>> main
             }
         }
     }
