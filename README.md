@@ -5,7 +5,9 @@ A ready to go Wayland status bar for Hyprland.
 Feel free to fork this project and customize it for your needs or just open an
 issue to request a particular feature.
 
-[🚀 Getting Started](https://malpenzibo.github.io/ashell/docs/intro)
+## 🚀 Getting Started
+
+Refer to the [Getting Started](https://malpenzibo.github.io/ashell/docs/intro) page on website
 
 ## ✨ Features
 

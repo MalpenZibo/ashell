@@ -77,7 +77,7 @@ const config: Config = {
         {
           to: "docs/intro",
           position: "left",
-          label: "Get Started",
+          label: "Getting Started",
         },
         {
           to: "docs/configuration",
