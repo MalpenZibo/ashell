@@ -1,12 +1,12 @@
 <div align="center">
   <a href="https://malpenzibo.github.io/ashell/">
-    <img src="https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/logo_header_dark.svg" alt="Ashell" height="140"/>
+    <img src="https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/logo_header_dark.svg" alt="ashell" height="140"/>
   </a>
 </div>
 
-## What is Ashell?
+## What is ashell?
 
-Ashell is a ready to go Wayland status bar for Hyprland.
+ashell is a ready to go Wayland status bar for Hyprland.
 
 Feel free to fork this project and customize it for your needs or just open an
 issue to request a particular feature.
@@ -54,7 +54,7 @@ page for more details.
 
 ## ⚙️ Configuration
 
-Ashell comes with a default configuration that should work out of the box.
+ashell comes with a default configuration that should work out of the box.
 
 If you want to customize it you can refer to
 the [Configuration](https://malpenzibo.github.io/ashell/docs/configuration)
