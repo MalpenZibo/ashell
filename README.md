@@ -1,93 +1,22 @@
-# Ashell
+<div align="center">
+  <a href="https://malpenzibo.github.io/ashell/">
+    <img src="https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/logo_header_dark.svg" alt="ashell" height="140"/>
+  </a>
+</div>
 
-A ready to go Wayland status bar for Hyprland.
+## What is ashell?
+
+ashell is a ready to go Wayland status bar for Hyprland.
 
 Feel free to fork this project and customize it for your needs or just open an
 issue to request a particular feature.
 
-> If you have graphical issues like missing transparency or graphical artifact you could launch ashell with WGPU_BACKEND=gl. This env var forces wgpu to use OpenGL instead of Vulkan
+## 🚀 Getting Started
 
-### Does it only work on Hyprland?
+Refer to the [Getting Started](https://malpenzibo.github.io/ashell/docs/intro)
+page on website
 
-While it's currently tailored for Hyprland, it could work with other compositors.
-
-However, it currently relies on [hyprland-rs](https://github.com/hyprland-community/hyprland-rs)
-to gather information about the active window and workspaces. I haven't implemented any
-feature flags to disable these functionalities or alternative methods to obtain this data.
-
-## Install
-
-[![Packaging status](https://repology.org/badge/vertical-allrepos/ashell.svg)](https://repology.org/project/ashell/versions)
-
-See the instruction on the [website](https://malpenzibo.github.io/ashell/docs/installation) for more details.
-
-### Arch Linux
-
-You can get the official Arch Linux package from the AUR:
-
-#### Tagged release
-
-```
-paru/yay -S ashell
-```
-
-#### Main branch
-
-```
-paru/yay -S ashell-git
-```
-
-### ALT Linux
-
-```
-su -
-apt-get install ashell
-```
-
-### Nix
-
-To install ashell using the nix package be sure to enable flakes and then run
-
-#### Tagged release
-
-```
-nix profile install github:MalpenZibo/ashell?ref=0.3.1
-```
-
-#### Main branch
-
-```
-nix profile install github:MalpenZibo/ashell
-```
-
-### NixOS/Home-Manager
-
-To use this flake do
-
-```nix
-flake.nix
-inputs = {
-  # ... other inputs
-  ashell.url = "github:MalpenZibo/ashell";
-  # ... other inputs
-};
-outputs = {...} @ inputs: {<outputs>}; # Make sure to pass inputs to your specialArgs!
-```
-
-```nix
-configuration.nix
-{ pkgs, inputs, ... }:
-
-{
-  environment.systemPackages = [inputs.ashell.defaultPackage.${pkgs.system}];
-  # or home.packages = ...
-}
-```
-
-This will build ashell from source, but you can also use `pkgs.ashell`
-from nixpkgs which is cached.
-
-## Features
+## ✨ Features
 
 - App Launcher button
 - Сlipboard button
@@ -116,23 +45,20 @@ from nixpkgs which is cached.
   - Simple (execute command on click)
   - Advanced (update UI with command output)
 
-## Configuration
+## 🛠️ Install
 
-See more about all the possible configuration on the
-[website](https://malpenzibo.github.io/ashell/docs/configuration)
+[![Packaging status](https://repology.org/badge/vertical-allrepos/ashell.svg)](https://repology.org/project/ashell/versions)
 
-> **Warning**
->
-> This instruction are deprecated and will be removed in the future. See the
-> [website](https://malpenzibo.github.io/ashell/docs/configuration) for the latest configuration instruction.
+Refer to the [Installation](https://malpenzibo.github.io/ashell/docs/installation)
+page for more details.
 
-> The following are the configuration for the `main` branch and could contain breaking changes.
-> For the tagged release you can find the configuration instruction in the corresponding README file.
-> eg: <https://github.com/MalpenZibo/ashell/blob/0.5.0/README.md>
+## ⚙️ Configuration
 
-The configuration file uses the toml file format and is named `~/.config/ashell/config.toml`
+ashell comes with a default configuration that should work out of the box.
 
-You can use a different file by passing the `--config-path` flag to ashell, for example:
+If you want to customize it you can refer to
+the [Configuration](https://malpenzibo.github.io/ashell/docs/configuration)
+page for more details.
 
 ```bash
 ashell --config-path /path/to/config.toml
@@ -416,29 +342,29 @@ opacity = 0.7
 backdrop = 0.3
 ```
 
-## Some screenshots
+## 📷 Screenshots
 
 I will try my best to keep these screenshots as updated as possible but some details
 could be different
 
 #### default style
 
-<img src="https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/ashell.png"></img>
+<img src="https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/ashell.png"></img>
 
 #### solid style
 
-<img src="https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/ashell-solid.png"></img>
+<img src="https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/ashell-solid.png"></img>
 
 #### gradient style
 
-<img src="https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/ashell-gradient.png"></img>
+<img src="https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/ashell-gradient.png"></img>
 
 #### opacity settings
 
-<img src="https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/opacity.png"></img>
+<img src="https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/opacity.png"></img>
 
-| ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/updates-panel.png) | ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/settings-panel.png)  |
-| ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/power-menu.png)    | ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/sinks-selection.png) |
-| ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/network-menu.png)  | ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/bluetooth-menu.png)  |
-| ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/vpn-menu.png)      | ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/screenshots/airplane-mode.png)   |
+| ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/updates-panel.png) | ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/settings-panel.png)  |
+| ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/power-menu.png)    | ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/sinks-selection.png) |
+| ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/network-menu.png)  | ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/bluetooth-menu.png)  |
+| ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/vpn-menu.png)      | ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/airplane-mode.png)   |

@@ -2,7 +2,7 @@ use iced::{
     Task,
     platform_specific::shell::commands::layer_surface::{
         Anchor, KeyboardInteractivity, Layer, destroy_layer_surface, get_layer_surface, set_anchor,
-        set_exclusive_zone, set_size,
+        set_exclusive_zone, set_keyboard_interactivity, set_size,
     },
     runtime::platform_specific::wayland::layer_surface::{IcedOutput, SctkLayerSurfaceSettings},
     window::Id,
@@ -123,7 +123,7 @@ impl Outputs {
         }
     }
 
-    pub fn has(&self, id: Id) -> Option<HasOutput> {
+    pub fn has(&'_ self, id: Id) -> Option<HasOutput<'_>> {
         self.0.iter().find_map(|(_, info, _)| {
             if let Some(info) = info {
                 if info.id == id {
@@ -159,6 +159,7 @@ impl Outputs {
             .any(|(n, info, _)| info.is_some() && n.as_ref().map(|n| n.as_str()) == Some(name))
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn add<Message: 'static>(
         &mut self,
         style: AppearanceStyle,
@@ -419,13 +420,17 @@ impl Outputs {
         id: Id,
         menu_type: MenuType,
         button_ui_ref: ButtonUIRef,
+        request_keyboard: bool,
     ) -> Task<Message> {
-        match self.0.iter_mut().find(|(_, shell_info, _)| {
+        let task = match self.0.iter_mut().find(|(_, shell_info, _)| {
             shell_info.as_ref().map(|shell_info| shell_info.id) == Some(id)
                 || shell_info.as_ref().map(|shell_info| shell_info.menu.id) == Some(id)
         }) {
             Some((_, Some(shell_info), _)) => {
-                let toggle_task = shell_info.menu.toggle(menu_type, button_ui_ref);
+                let toggle_task =
+                    shell_info
+                        .menu
+                        .toggle(menu_type, button_ui_ref, request_keyboard);
                 let mut tasks = self
                     .0
                     .iter_mut()
@@ -442,19 +447,49 @@ impl Outputs {
                     })
                     .collect::<Vec<_>>();
                 tasks.push(toggle_task);
+
                 Task::batch(tasks)
             }
             _ => Task::none(),
+        };
+
+        if request_keyboard {
+            if self.menu_is_open() {
+                Task::batch(vec![
+                    task,
+                    set_keyboard_interactivity(id, KeyboardInteractivity::OnDemand),
+                ])
+            } else {
+                Task::batch(vec![
+                    task,
+                    set_keyboard_interactivity(id, KeyboardInteractivity::None),
+                ])
+            }
+        } else {
+            task
         }
     }
 
-    pub fn close_menu<Message: 'static>(&mut self, id: Id) -> Task<Message> {
-        match self.0.iter_mut().find(|(_, shell_info, _)| {
+    pub fn close_menu<Message: 'static>(
+        &mut self,
+        id: Id,
+        esc_button_enabled: bool,
+    ) -> Task<Message> {
+        let task = match self.0.iter_mut().find(|(_, shell_info, _)| {
             shell_info.as_ref().map(|shell_info| shell_info.id) == Some(id)
                 || shell_info.as_ref().map(|shell_info| shell_info.menu.id) == Some(id)
         }) {
             Some((_, Some(shell_info), _)) => shell_info.menu.close(),
             _ => Task::none(),
+        };
+
+        if esc_button_enabled && !self.menu_is_open() {
+            Task::batch(vec![
+                task,
+                set_keyboard_interactivity(id, KeyboardInteractivity::None),
+            ])
+        } else {
+            task
         }
     }
 
@@ -462,18 +497,32 @@ impl Outputs {
         &mut self,
         id: Id,
         menu_type: MenuType,
+        esc_button_enabled: bool,
     ) -> Task<Message> {
-        match self.0.iter_mut().find(|(_, shell_info, _)| {
+        let task = match self.0.iter_mut().find(|(_, shell_info, _)| {
             shell_info.as_ref().map(|shell_info| shell_info.id) == Some(id)
                 || shell_info.as_ref().map(|shell_info| shell_info.menu.id) == Some(id)
         }) {
             Some((_, Some(shell_info), _)) => shell_info.menu.close_if(menu_type),
             _ => Task::none(),
+        };
+
+        if esc_button_enabled && !self.menu_is_open() {
+            Task::batch(vec![
+                task,
+                set_keyboard_interactivity(id, KeyboardInteractivity::None),
+            ])
+        } else {
+            task
         }
     }
 
-    pub fn close_all_menu_if<Message: 'static>(&mut self, menu_type: MenuType) -> Task<Message> {
-        Task::batch(
+    pub fn close_all_menu_if<Message: 'static>(
+        &mut self,
+        menu_type: MenuType,
+        esc_button_enabled: bool,
+    ) -> Task<Message> {
+        let task = Task::batch(
             self.0
                 .iter_mut()
                 .map(|(_, shell_info, _)| {
@@ -484,7 +533,60 @@ impl Outputs {
                     }
                 })
                 .collect::<Vec<_>>(),
-        )
+        );
+
+        if esc_button_enabled && !self.menu_is_open() {
+            let keyboard_tasks = self
+                .0
+                .iter()
+                .map(|(_, shell_info, _)| {
+                    if let Some(shell_info) = shell_info {
+                        set_keyboard_interactivity(shell_info.id, KeyboardInteractivity::None)
+                    } else {
+                        Task::none()
+                    }
+                })
+                .collect::<Vec<_>>();
+            Task::batch(vec![task, Task::batch(keyboard_tasks)])
+        } else {
+            task
+        }
+    }
+
+    pub fn close_all_menus<Message: 'static>(&mut self, esc_button_enabled: bool) -> Task<Message> {
+        let task = Task::batch(
+            self.0
+                .iter_mut()
+                .map(|(_, shell_info, _)| {
+                    if let Some(shell_info) = shell_info {
+                        if shell_info.menu.menu_info.is_some() {
+                            shell_info.menu.close()
+                        } else {
+                            Task::none()
+                        }
+                    } else {
+                        Task::none()
+                    }
+                })
+                .collect::<Vec<_>>(),
+        );
+
+        if esc_button_enabled && !self.menu_is_open() {
+            let keyboard_tasks = self
+                .0
+                .iter()
+                .map(|(_, shell_info, _)| {
+                    if let Some(shell_info) = shell_info {
+                        set_keyboard_interactivity(shell_info.id, KeyboardInteractivity::None)
+                    } else {
+                        Task::none()
+                    }
+                })
+                .collect::<Vec<_>>();
+            Task::batch(vec![task, Task::batch(keyboard_tasks)])
+        } else {
+            task
+        }
     }
 
     pub fn request_keyboard<Message: 'static>(&self, id: Id) -> Task<Message> {

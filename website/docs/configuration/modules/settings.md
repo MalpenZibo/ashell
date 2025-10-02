@@ -50,10 +50,12 @@ With the `audio_sinks_more_cmd` and `audio_sources_more_cmd`
 options you can set commands to open the audio settings  
 for sinks and sources, if not set the related buttons will not appear.
 
-With the `network_more_cmd`, `vpn_more_cmd` and `bluetooth_more_cmd` options  
+With the `wifi_more_cmd`, `vpn_more_cmd` and `bluetooth_more_cmd` options  
 you can set commands to open the network, VPN and bluetooth settings.
 
 With the `remove_airplane_btn` option you can remove the airplane mode button.
+
+With the `remove_idle_btn` option you can remove the idle inhibitor button.
 
 ## Custom Buttons
 
@@ -67,13 +69,13 @@ These buttons can execute commands when clicked.
 
 ### Configuration
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `name` | Yes | Display name of the button |
-| `icon` | Yes | Icon to display (currently not implemented, placeholder) |
-| `command` | Yes | Command to execute when button is clicked |
-| `status_command` | No | Command to check if toggle is active (exit code 0 = active) |
-| `tooltip` | No | Tooltip text shown on hover |
+| Field            | Required | Description                                                 |
+| ---------------- | -------- | ----------------------------------------------------------- |
+| `name`           | Yes      | Display name of the button                                  |
+| `icon`           | Yes      | Icon to display (currently not implemented, placeholder)    |
+| `command`        | Yes      | Command to execute when button is clicked                   |
+| `status_command` | No       | Command to check if toggle is active (exit code 0 = active) |
+| `tooltip`        | No       | Tooltip text shown on hover                                 |
 
 ```toml
 # Toggle button example (with status_command)
@@ -99,10 +101,10 @@ In the following example we use:
 - `hyprlock` to lock the screen
 - `pavucontrol` to open the audio settings for sinks and sources  
   directly in the correct tab.
-- `nm-connection-editor` to open the network and VPN settings
+- `nm-connection-editor` to open the wifi and VPN settings
 - `blueman-manager` to open the bluetooth settings
 
-We also disable the airplane mode button.
+We also disable the airplane mode button and the idle inhibitor button.
 
 ```toml
 [settings]
@@ -113,6 +115,7 @@ wifi_more_cmd = "nm-connection-editor"
 vpn_more_cmd = "nm-connection-editor"
 bluetooth_more_cmd = "blueman-manager"
 remove_airplane_btn = true
+<<<<<<< HEAD
 
 [[settings.CustomButton]]
 name = "Virtual Keyboard"
@@ -126,4 +129,7 @@ name = "File Manager"
 icon = ""
 command = "nautilus"
 tooltip = "Open Files"
+=======
+remove_idle_btn = true
+>>>>>>> main
 ```

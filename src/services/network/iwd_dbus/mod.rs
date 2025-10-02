@@ -237,6 +237,7 @@ macro_rules! list_proxies {
     };
 }
 
+#[allow(unused)]
 enum IwdStationState {
     Connected,
     Disconnected,
@@ -310,19 +311,19 @@ impl IwdDbus<'_> {
 
     // adapter <- device (station mode) <- station
 
-    pub async fn stations(&self) -> anyhow::Result<Vec<StationProxy>> {
+    pub async fn stations(&'_ self) -> anyhow::Result<Vec<StationProxy<'_>>> {
         list_proxies!(&self._inner, "net.connman.iwd.Station", StationProxy).await
     }
 
-    pub async fn adapters(&self) -> anyhow::Result<Vec<AdapterProxy>> {
+    pub async fn adapters(&'_ self) -> anyhow::Result<Vec<AdapterProxy<'_>>> {
         list_proxies!(&self._inner, "net.connman.iwd.Adapter", AdapterProxy).await
     }
 
-    pub async fn devices(&self) -> anyhow::Result<Vec<DeviceProxy>> {
+    pub async fn devices(&'_ self) -> anyhow::Result<Vec<DeviceProxy<'_>>> {
         list_proxies!(&self._inner, "net.connman.iwd.Device", DeviceProxy).await
     }
 
-    pub async fn agent_manager(&self) -> anyhow::Result<AgentManagerProxy> {
+    pub async fn agent_manager(&'_ self) -> anyhow::Result<AgentManagerProxy<'_>> {
         list_proxies!(
             &self._inner,
             "net.connman.iwd.AgentManager",
@@ -334,7 +335,7 @@ impl IwdDbus<'_> {
         .ok_or_else(|| anyhow::anyhow!("No AgentManagerProxy found"))
     }
 
-    pub async fn known_networks_proxies(&self) -> anyhow::Result<Vec<KnownNetworkProxy>> {
+    pub async fn known_networks_proxies(&'_ self) -> anyhow::Result<Vec<KnownNetworkProxy<'_>>> {
         list_proxies!(
             &self._inner,
             "net.connman.iwd.KnownNetwork",
@@ -343,11 +344,11 @@ impl IwdDbus<'_> {
         .await
     }
 
-    pub async fn networks_proxies(&self) -> anyhow::Result<Vec<NetworkProxy>> {
+    pub async fn networks_proxies(&'_ self) -> anyhow::Result<Vec<NetworkProxy<'_>>> {
         list_proxies!(&self._inner, "net.connman.iwd.Network", NetworkProxy).await
     }
 
-    pub async fn access_points_proxies(&self) -> anyhow::Result<Vec<AccessPointProxy>> {
+    pub async fn access_points_proxies(&'_ self) -> anyhow::Result<Vec<AccessPointProxy<'_>>> {
         // Note: AccessPoint interface might not be directly on the root object manager.
         // It might be associated with a Device or Station. This function assumes they might appear.
         // If this doesn't work as expected, the logic might need refinement based on IWD's structure.
@@ -359,7 +360,7 @@ impl IwdDbus<'_> {
         .await
     }
 
-    pub async fn reachable_networks(&self) -> anyhow::Result<Vec<(NetworkProxy, i16)>> {
+    pub async fn reachable_networks(&'_ self) -> anyhow::Result<Vec<(NetworkProxy<'_>, i16)>> {
         let stations = self.stations().await?;
         let mut networks = Vec::new();
 
@@ -614,7 +615,7 @@ impl IwdDbus<'_> {
     }
 
     /// List all networks currently connected (Connected = true)
-    pub async fn active_connections(&self) -> anyhow::Result<Vec<(NetworkProxy, i16)>> {
+    pub async fn active_connections(&'_ self) -> anyhow::Result<Vec<(NetworkProxy<'_>, i16)>> {
         let mut networks = Vec::new();
         for (net, strength) in self.reachable_networks().await? {
             if net.connected().await? {
@@ -634,7 +635,6 @@ impl IwdDbus<'_> {
             let ssid = net.name().await?;
             // strength not directly on Network; placeholder 0
             info.push(ActiveConnectionInfo::WiFi {
-                id: ssid.clone(),
                 name: ssid,
                 strength: (s / 100 + 100) as u8,
             });
@@ -643,7 +643,7 @@ impl IwdDbus<'_> {
     }
 
     /// List all wireless (station-mode) devices
-    pub async fn wireless_devices(&self) -> anyhow::Result<Vec<DeviceProxy>> {
+    pub async fn wireless_devices(&'_ self) -> anyhow::Result<Vec<DeviceProxy<'_>>> {
         let devices = self.devices().await?;
         let mut devs = Vec::new();
         for d in devices {

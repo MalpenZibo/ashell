@@ -33,7 +33,7 @@ truncate_title_after_length = 100
 [settings]
 lock_cmd = "playerctl --all-players pause; nixGL hyprlock &"
 audio_sinks_more_cmd = "pavucontrol -t 3"
-audio_source_more_cmd = "pavucontrol -t 4"
+audio_sources_more_cmd = "pavucontrol -t 4"
 wifi_more_cmd = "nm-connection-editor"
 vpn_more_cmd = "nm-connection-editor"
 bluetooth_more_cmd = "blueberry"
