@@ -18,10 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add custom commands for power menu actions
 - Add `enable_esc_key` configuration to close the menu with the ESC key
 - Support for custom workspace naming via the `workspace_names` config option.
+- Add `remove_idle_btn` to disable the idle inhibitor button from settings menu
 
 ### Changed
 
-- Move "truncate_title_after_length" to the window_title configuration
+- Move `truncate_title_after_length` to the window_title configuration
 
 ### Fixed
 
