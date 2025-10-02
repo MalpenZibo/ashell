@@ -1,13 +1,16 @@
-# Ashell
+# [![Ashell](https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/logo_header_dark.svg)](https://malpenzibo.github.io/ashell/)
 
-A ready to go Wayland status bar for Hyprland.
+## What is Ashell?
+
+Ashell is a ready to go Wayland status bar for Hyprland.
 
 Feel free to fork this project and customize it for your needs or just open an
 issue to request a particular feature.
 
 ## 🚀 Getting Started
 
-Refer to the [Getting Started](https://malpenzibo.github.io/ashell/docs/intro) page on website
+Refer to the [Getting Started](https://malpenzibo.github.io/ashell/docs/intro)
+page on website
 
 ## ✨ Features
 
