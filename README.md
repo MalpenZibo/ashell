@@ -41,10 +41,11 @@ Refer to the [Getting Started](https://malpenzibo.github.io/ashell/docs/intro) p
 ## 🛠️ Install
 
 [![Packaging status](https://repology.org/badge/vertical-allrepos/ashell.svg)](https://repology.org/project/ashell/versions)
+
 Refer to the [Installation](https://malpenzibo.github.io/ashell/docs/installation)
 page for more details.
 
-## ⚙️Configuration
+## ⚙️ Configuration
 
 Ashell comes with a default configuration that should work out of the box.
 
@@ -52,7 +53,7 @@ If you want to customize it you can refer to
 the [Configuration](https://malpenzibo.github.io/ashell/docs/configuration)
 page for more details.
 
-## Some screenshots
+## 📷 Screenshots
 
 I will try my best to keep these screenshots as updated as possible but some details
 could be different
