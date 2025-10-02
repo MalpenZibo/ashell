@@ -1,4 +1,6 @@
-# [![Ashell](https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/logo_header_dark.svg)](https://malpenzibo.github.io/ashell/)
+<a href="https://malpenzibo.github.io/ashell/">
+  <img src="https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/logo_header_dark.svg" alt="Ashell" height="120"/>
+</a>
 
 ## What is Ashell?
 
