@@ -1,3 +1,7 @@
+use std::collections::HashMap;
+use wait_timeout::ChildExt;
+use std::time::Duration;
+
 use crate::{
     components::icons::{Icons, icon},
     config::{Position, SettingsModuleConfig, SettingsCustomButton},
@@ -36,6 +40,7 @@ pub struct Settings {
     sub_menu: Option<SubMenu>,
     password_dialog: Option<(String, String)>,
     custom_buttons: Vec<SettingsCustomButton>,
+    custom_buttons_status: HashMap<String, Option<bool>>,
 }
 
 #[derive(Debug, Clone)]
@@ -50,6 +55,7 @@ pub enum Message {
     ToggleSubMenu(SubMenu),
     PasswordDialog(password_dialog::Message),
     CustomButton(String),
+    CustomButtonsStatus(Vec<(String, Option<bool>)>),
     MenuOpened,
     ConfigReloaded(SettingsModuleConfig),
 }
@@ -104,6 +110,7 @@ impl Settings {
             sub_menu: None,
             password_dialog: None,
             custom_buttons: config.custom_buttons,
+            custom_buttons_status: HashMap::new(),
         }
     }
 
@@ -269,16 +276,64 @@ impl Settings {
                 }
                 Action::Command(Task::none())
             }
-            Message::MenuOpened => {
-                self.sub_menu = None;
-
-                match self.brightness.update(brightness::Message::MenuOpened) {
-                    brightness::Action::None => Action::None,
-                    brightness::Action::Command(task) => {
-                        Action::Command(task.map(Message::Brightness))
-                    }
+            Message::CustomButtonsStatus(statuses) => {
+                for (name, status) in statuses.into_iter() {
+                    self.custom_buttons_status.insert(name, status);
                 }
+                Action::None
             }
+             Message::MenuOpened => {
+                 self.sub_menu = None;
+
+                 // prepare and spawn a background task to evaluate status_command for custom buttons
+                 let buttons = self.custom_buttons.clone();
+
+                 let task = Task::perform(
+                     async move {
+                         let mut results: Vec<(String, Option<bool>)> = Vec::new();
+
+                         for button in buttons.into_iter() {
+                             if let Some(cmd) = button.status_command.clone() {
+                                 // spawn child and wait with timeout
+                                 match std::process::Command::new("bash").arg("-c").arg(cmd).spawn() {
+                                     Ok(mut child) => {
+                                         let timeout = Duration::from_millis(1000);
+                                         match child.wait_timeout(timeout).ok().flatten() {
+                                             Some(status) => {
+                                                 results.push((button.name.clone(), Some(status.success())));
+                                             }
+                                             None => {
+                                                 // timed out -> kill child and mark unknown
+                                                 let _ = child.kill();
+                                                 let _ = child.wait();
+                                                 results.push((button.name.clone(), None));
+                                             }
+                                         }
+                                     }
+                                     Err(_) => {
+                                         results.push((button.name.clone(), None));
+                                     }
+                                 }
+                             } else {
+                                 // no status command -> push inactive by default
+                                 results.push((button.name.clone(), Some(false)));
+                             }
+                         }
+
+                         results
+                     },
+                     |statuses| Message::CustomButtonsStatus(statuses),
+                 );
+
+                 match self.brightness.update(brightness::Message::MenuOpened) {
+                     brightness::Action::None => Action::Command(task.map(|m| m)),
+                     brightness::Action::Command(task2) => {
+                         // chain tasks: run brightness task first then our status task
+                         // return our status task for now; the brightness command will be handled elsewhere
+                         Action::Command(task)
+                     }
+                 }
+             }
             Message::ConfigReloaded(config) => {
                 self.lock_cmd = config.lock_cmd;
                 self.power
@@ -417,12 +472,16 @@ impl Settings {
                 .flatten()
                 .chain(
                     self.custom_buttons.iter().map(|button| {
-                        let is_active = check_toggle_status(&button.status_command);
+                        let is_active = self
+                            .custom_buttons_status
+                            .get(&button.name)
+                            .and_then(|v| *v)
+                            .unwrap_or(false);
 
                         (
                             quick_setting_button(
                                 theme,
-                                Icons::AppLauncher, // Replace with button.icon when icon handling is implemented
+                                Icons::AppLauncher, // TODO: map button.icon -> Icons when implemented
                                 button.name.clone(),
                                 button.tooltip.clone(),
                                 is_active,
@@ -432,8 +491,8 @@ impl Settings {
                             None,
                         )
                     })
-                )
-                .collect::<Vec<_>>(),
+                 )
+                 .collect::<Vec<_>>(),
             );
 
             let (top_sink_slider, bottom_sink_slider) = match position {
