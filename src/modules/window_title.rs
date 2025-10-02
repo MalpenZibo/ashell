@@ -4,7 +4,11 @@ use crate::{
     utils::truncate_text,
 };
 use hyprland::{data::Client, event_listener::AsyncEventListener, shared::HyprDataActiveOptional};
-use iced::{Element, Subscription, stream::channel, widget::text};
+use iced::{
+    Element, Subscription,
+    stream::channel,
+    widget::{container, text},
+};
 use log::{debug, error};
 use std::{
     any::TypeId,
@@ -60,10 +64,13 @@ impl WindowTitle {
     }
 
     pub fn view(&'_ self, theme: &AshellTheme, title: String) -> Element<'_, Message> {
-        text(title.to_string())
-            .size(theme.font_size.sm)
-            .wrapping(text::Wrapping::WordOrGlyph)
-            .into()
+        container(
+            text(title.to_string())
+                .size(theme.font_size.sm)
+                .wrapping(text::Wrapping::None),
+        )
+        .clip(true)
+        .into()
     }
 
     pub fn subscription(&self) -> Subscription<Message> {

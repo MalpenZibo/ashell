@@ -593,10 +593,13 @@ fn quick_setting_button<'a, Msg: Clone + 'static>(
 ) -> Element<'a, Msg> {
     let main_content = row!(
         icon(icon_type).size(theme.font_size.lg),
-        Column::new()
-            .push(text(title).size(theme.font_size.sm))
-            .push_maybe(subtitle.map(|s| text(s).size(theme.font_size.xs)))
-            .spacing(theme.space.xxs)
+        container(
+            Column::new()
+                .push(text(title).size(theme.font_size.sm))
+                .push_maybe(subtitle.map(|s| text(s).size(theme.font_size.xs)))
+                .spacing(theme.space.xxs)
+        )
+        .clip(true)
     )
     .spacing(theme.space.xs)
     .padding(Padding::ZERO.left(theme.space.xxs))
