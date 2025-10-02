@@ -115,7 +115,7 @@ wifi_more_cmd = "nm-connection-editor"
 vpn_more_cmd = "nm-connection-editor"
 bluetooth_more_cmd = "blueman-manager"
 remove_airplane_btn = true
-<<<<<<< HEAD
+remove_idle_btn = true
 
 [[settings.CustomButton]]
 name = "Virtual Keyboard"
@@ -129,7 +129,4 @@ name = "File Manager"
 icon = ""
 command = "nautilus"
 tooltip = "Open Files"
-=======
-remove_idle_btn = true
->>>>>>> main
 ```
