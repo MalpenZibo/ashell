@@ -1,6 +1,6 @@
 use crate::{
     components::icons::{Icons, icon},
-    config::{Position, SettingsModuleConfig, SettingsCustomButton},
+    config::{Position, SettingsCustomButton, SettingsModuleConfig},
     modules::settings::{
         audio::{AudioSettings, AudioSettingsConfig},
         bluetooth::{BluetoothSettings, BluetoothSettingsConfig},
@@ -415,24 +415,22 @@ impl Settings {
                 ]
                 .into_iter()
                 .flatten()
-                .chain(
-                    self.custom_buttons.iter().map(|button| {
-                        let is_active = check_toggle_status(&button.status_command);
+                .chain(self.custom_buttons.iter().map(|button| {
+                    let is_active = check_toggle_status(&button.status_command);
 
-                        (
-                            quick_setting_button(
-                                theme,
-                                Icons::AppLauncher, // Replace with button.icon when icon handling is implemented
-                                button.name.clone(),
-                                button.tooltip.clone(),
-                                is_active,
-                                Message::CustomButton(button.name.clone()),
-                                None,
-                            ),
+                    (
+                        quick_setting_button(
+                            theme,
+                            Icons::AppLauncher, // Replace with button.icon when icon handling is implemented
+                            button.name.clone(),
+                            button.tooltip.clone(),
+                            is_active,
+                            Message::CustomButton(button.name.clone()),
                             None,
-                        )
-                    })
-                )
+                        ),
+                        None,
+                    )
+                }))
                 .collect::<Vec<_>>(),
             );
 
