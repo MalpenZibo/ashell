@@ -415,8 +415,12 @@ impl Settings {
                 ]
                 .into_iter()
                 .flatten()
-                .chain(self.custom_buttons.iter().map(|button| {
-                    let is_active = check_toggle_status(&button.status_command);
+                .chain(
+                    self.custom_buttons.iter().map(|button| {
+                        // currently icon handling isn't implemented in the quick_setting_button
+                        // but read the `icon` field so it's not flagged as dead/unused
+                        let _ = &button.icon;
+                        let is_active = check_toggle_status(&button.status_command);
 
                     (
                         quick_setting_button(
@@ -672,7 +676,7 @@ fn quick_setting_button<'a, Msg: Clone + 'static>(
 }
 
 fn check_toggle_status(status_command: &Option<String>) -> bool {
-    status_command.as_ref().map_or(false, |cmd| {
+    status_command.as_ref().is_some_and(|cmd| {
         std::process::Command::new("bash")
             .arg("-c")
             .arg(cmd)
