@@ -33,6 +33,7 @@ fn get_system_info(
     components: &mut Components,
     disks: &mut Disks,
     (networks, last_check): (&mut Networks, Option<Instant>),
+    temperature_sensor: &str,
 ) -> SystemInfoData {
     system.refresh_memory();
     system.refresh_cpu_specifics(sysinfo::CpuRefreshKind::everything());
@@ -52,7 +53,7 @@ fn get_system_info(
 
     let temperature = components
         .iter()
-        .find(|c| c.label() == "acpitz temp1")
+        .find(|c| c.label() == temperature_sensor)
         .and_then(|c| c.temperature().map(|t| t as i32));
 
     let disks = disks
@@ -139,6 +140,7 @@ impl SystemInfo {
             &mut components,
             &mut disks,
             (&mut networks, None),
+            &config.temperature.sensor,
         );
 
         Self {
@@ -162,6 +164,7 @@ impl SystemInfo {
                         &mut self.networks,
                         self.data.network.as_ref().map(|n| n.last_check),
                     ),
+                    &self.config.temperature.sensor,
                 );
             }
         }
