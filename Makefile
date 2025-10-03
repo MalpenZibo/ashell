@@ -5,7 +5,7 @@ help:
 	@echo ""
 	@echo "Targets:"
 	@echo "  help          Show this help message"
-	@echo "  build         Build the project
+	@echo "  build         Build the project"
 	@echo "  start         Run the build"
 	@echo "  install       Install the build to /usr/bin"
 	@echo "  fmt           Format the code"
