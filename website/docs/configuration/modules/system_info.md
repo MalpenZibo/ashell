@@ -85,6 +85,17 @@ The Temperature indicator displays the current temperature of the system's CPU.
 
 To enable this indicator, add `Temperature` to the `indicators` configuration.
 
+By default, the temperature sensor used is `acpitz temp1` (ACPI thermal zone).
+You can configure which sensor to use with the `sensor` option in the `[system.temperature]` section.
+
+To see available sensors on your system, you can check the output of `sensors` command or
+look at the component labels returned by the sysinfo library.
+
+Common sensor labels include:
+- `acpitz temp1` - ACPI thermal zone
+- `coretemp Package id 0` - Average CPU temperature
+- `k10temp Tctl` - AMD Ryzen CPU temperature
+
 ## Warning and Alert Thresholds
 
 You can also configure the warning and alert thresholds for the following indicators:
@@ -131,4 +142,5 @@ alert_threshold = 90
 [system.temperature]
 warn_threshold = 60
 alert_threshold = 80
+sensor = "coretemp Package id 0"
 ```
