@@ -148,6 +148,7 @@ impl App {
             modules: config.modules,
             enable_esc_key: config.enable_esc_key,
         };
+        self.theme = AshellTheme::new(config.position, &config.appearance);
         let custom = config
             .custom_modules
             .into_iter()
