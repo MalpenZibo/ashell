@@ -11,9 +11,11 @@ use serde::{Deserialize, Deserializer, de::Visitor};
 use serde_with::DisplayFromStr;
 use serde_with::serde_as;
 use std::path::PathBuf;
+use std::time::Duration;
 use std::{
     any::TypeId, collections::HashMap, error::Error, fs::File, io::Read, ops::Deref, path::Path,
 };
+use tokio::time::sleep;
 
 pub const DEFAULT_CONFIG_FILE_PATH: &str = "~/.config/ashell/config.toml";
 
@@ -884,9 +886,15 @@ pub fn subscription(path: &Path) -> Subscription<Message> {
                                         .await;
                                 }
                                 Some(Event::Removed) => {
-                                    info!("Config file removed");
-                                    let _ =
-                                        output.send(Message::ConfigChanged(Box::default())).await;
+                                    // wait and double check if the file is really gone
+                                    sleep(Duration::from_millis(250)).await;
+
+                                    if !path.exists() {
+                                        info!("Config file removed");
+                                        let _ = output
+                                            .send(Message::ConfigChanged(Box::default()))
+                                            .await;
+                                    }
                                 }
                                 None => {
                                     debug!("No relevant file event detected.");
