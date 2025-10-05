@@ -843,8 +843,12 @@ pub fn subscription(path: &Path) -> Subscription<Message> {
                     if let Ok(stream) = stream {
                         let mut stream = stream.ready_chunks(10);
 
+                        debug!("Starting config file watch loop");
+
                         loop {
                             let events = stream.next().await.unwrap_or(vec![]);
+
+                            debug!("Received inotify events: {events:?}");
 
                             let mut file_event = None;
 
@@ -887,7 +891,7 @@ pub fn subscription(path: &Path) -> Subscription<Message> {
                                 }
                                 Some(Event::Removed) => {
                                     // wait and double check if the file is really gone
-                                    sleep(Duration::from_millis(250)).await;
+                                    sleep(Duration::from_millis(500)).await;
 
                                     if !path.exists() {
                                         info!("Config file removed");
@@ -901,6 +905,8 @@ pub fn subscription(path: &Path) -> Subscription<Message> {
                                 }
                             }
                         }
+                    } else {
+                        error!("Failed to create inotify event stream");
                     }
                 }
                 (None, _, _) => {
