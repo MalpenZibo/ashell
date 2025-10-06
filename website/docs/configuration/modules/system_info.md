@@ -55,7 +55,7 @@ where `path` is the path to the disk you want to monitor.
 To monitor the home directory disk space, you can add the following to your configuration:
 
 ```toml
-[system]
+[system_info]
 indicators = [ { Disk = "/home" } ]
 ```
 
@@ -97,7 +97,7 @@ You can also configure the warning and alert thresholds for the following indica
 To configure a threshold, you can add the following to your configuration:
 
 ```toml
-[system.threshold_type]
+[system_info.threshold_type]
 warn_threshold = 60
 alert_threshold = 80
 ```
@@ -113,22 +113,22 @@ configure and can be one of:
 ## Default Configuration
 
 ```toml
-[system]
+[system_info]
 indicators = [ "Cpu", "Memory", "Temperature" ]
 
-[system.cpu]
+[system_info.cpu]
 warn_threshold = 60
 alert_threshold = 80
 
-[system.memory]
+[system_info.memory]
 warn_threshold = 70
 alert_threshold = 85
 
-[system.disk]
+[system_info.disk]
 warn_threshold = 80
 alert_threshold = 90
 
-[system.temperature]
+[system_info.temperature]
 warn_threshold = 60
 alert_threshold = 80
 ```
