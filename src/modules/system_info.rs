@@ -1,6 +1,6 @@
 use crate::{
     components::icons::{Icons, icon},
-    config::{SystemIndicator, SystemModuleConfig},
+    config::{SystemInfoIndicator, SystemInfoModuleConfig},
     theme::AshellTheme,
 };
 use iced::{
@@ -120,7 +120,7 @@ pub enum Message {
 }
 
 pub struct SystemInfo {
-    config: SystemModuleConfig,
+    config: SystemInfoModuleConfig,
     system: System,
     components: Components,
     disks: Disks,
@@ -129,7 +129,7 @@ pub struct SystemInfo {
 }
 
 impl SystemInfo {
-    pub fn new(config: SystemModuleConfig) -> Self {
+    pub fn new(config: SystemInfoModuleConfig) -> Self {
         let mut system = System::new();
         let mut components = Components::new_with_refreshed_list();
         let mut disks = Disks::new_with_refreshed_list();
@@ -309,7 +309,7 @@ impl SystemInfo {
 
     pub fn view(&'_ self, theme: &AshellTheme) -> Element<'_, Message> {
         let indicators = self.config.indicators.iter().filter_map(|i| match i {
-            SystemIndicator::Cpu => Some(Self::indicator_info_element(
+            SystemInfoIndicator::Cpu => Some(Self::indicator_info_element(
                 theme,
                 Icons::Cpu,
                 self.data.cpu_usage,
@@ -320,7 +320,7 @@ impl SystemInfo {
                 )),
                 None,
             )),
-            SystemIndicator::Memory => Some(Self::indicator_info_element(
+            SystemInfoIndicator::Memory => Some(Self::indicator_info_element(
                 theme,
                 Icons::Mem,
                 self.data.memory_usage,
@@ -331,7 +331,7 @@ impl SystemInfo {
                 )),
                 None,
             )),
-            SystemIndicator::MemorySwap => Some(Self::indicator_info_element(
+            SystemInfoIndicator::MemorySwap => Some(Self::indicator_info_element(
                 theme,
                 Icons::Mem,
                 self.data.memory_swap_usage,
@@ -342,7 +342,7 @@ impl SystemInfo {
                 )),
                 Some("swap"),
             )),
-            SystemIndicator::Temperature => self.data.temperature.map(|temperature| {
+            SystemInfoIndicator::Temperature => self.data.temperature.map(|temperature| {
                 Self::indicator_info_element(
                     theme,
                     Icons::Temp,
@@ -355,7 +355,7 @@ impl SystemInfo {
                     None,
                 )
             }),
-            SystemIndicator::Disk(mount) => {
+            SystemInfoIndicator::Disk(mount) => {
                 self.data.disks.iter().find_map(|(disk_mount, disk)| {
                     if disk_mount == mount {
                         Some(Self::indicator_info_element(
@@ -374,7 +374,7 @@ impl SystemInfo {
                     }
                 })
             }
-            SystemIndicator::IpAddress => self.data.network.as_ref().map(|network| {
+            SystemInfoIndicator::IpAddress => self.data.network.as_ref().map(|network| {
                 Self::indicator_info_element(
                     theme,
                     Icons::IpAddress,
@@ -384,7 +384,7 @@ impl SystemInfo {
                     None,
                 )
             }),
-            SystemIndicator::DownloadSpeed => self.data.network.as_ref().map(|network| {
+            SystemInfoIndicator::DownloadSpeed => self.data.network.as_ref().map(|network| {
                 Self::indicator_info_element(
                     theme,
                     Icons::DownloadSpeed,
@@ -402,7 +402,7 @@ impl SystemInfo {
                     None,
                 )
             }),
-            SystemIndicator::UploadSpeed => self.data.network.as_ref().map(|network| {
+            SystemInfoIndicator::UploadSpeed => self.data.network.as_ref().map(|network| {
                 Self::indicator_info_element(
                     theme,
                     Icons::UploadSpeed,

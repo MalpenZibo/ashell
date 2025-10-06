@@ -128,7 +128,7 @@ impl App {
                     clipboard: config.clipboard_cmd.map(Clipboard::new),
                     workspaces: Workspaces::new(config.workspaces),
                     window_title: WindowTitle::new(config.window_title),
-                    system_info: SystemInfo::new(config.system),
+                    system_info: SystemInfo::new(config.system_info),
                     keyboard_layout: KeyboardLayout::new(config.keyboard_layout),
                     keyboard_submap: KeyboardSubmap::default(),
                     tray: TrayModule::default(),
@@ -161,7 +161,7 @@ impl App {
         self.clipboard = config.clipboard_cmd.map(Clipboard::new);
         self.workspaces = Workspaces::new(config.workspaces);
         self.window_title = WindowTitle::new(config.window_title);
-        self.system_info = SystemInfo::new(config.system);
+        self.system_info = SystemInfo::new(config.system_info);
         self.keyboard_layout = KeyboardLayout::new(config.keyboard_layout);
         self.keyboard_submap = KeyboardSubmap::default();
         self.clock = Clock::new(config.clock);
