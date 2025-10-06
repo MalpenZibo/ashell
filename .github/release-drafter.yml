@@ -1,0 +1,74 @@
+name-template: "$RESOLVED_VERSION"
+tag-template: "$RESOLVED_VERSION"
+categories:
+  - title: "💥 Breaking changes"
+    labels:
+      - "breaking"
+  - title: "🚀 Features"
+    labels:
+      - "feature"
+      - "enhancement"
+  - title: "🐞 Bug fixes"
+    labels:
+      - "fix"
+      - "bugfix"
+      - "bug"
+  - title: "🔧 Dependency updates"
+    labels:
+      - "dependencies"
+  - title: "📚 Documentation"
+    labels:
+      - "documentation"
+      - "docs"
+  - title: "🧰 Maintenance"
+    label:
+      - "chore"
+change-template: "- $TITLE @$AUTHOR (#$NUMBER)"
+change-title-escapes: '\<*_&'
+exclude-labels:
+  - "skip-changelog"
+exclude-contributors:
+  - "MalpenZibo"
+  - "github-actions[bot]"
+no-contributors-template: "just me this time 😅"
+autolabeler:
+  - label: "docs"
+    files:
+      - "*.md"
+  - label: "bug"
+    branch:
+      - '/fix\/.+/'
+    title:
+      - "/fix/i"
+  - label: "feature"
+    branch:
+      - '/feature\/.+/'
+    title:
+      - "/feature/i"
+  - label: "chore"
+    branch:
+      - '/chore\/.+/'
+    title:
+      - "/chore/i"
+  - label: "dependencies"
+    branch:
+      - '/dependabot\/.+/'
+version-resolver:
+  major:
+    labels:
+      - "major"
+  minor:
+    labels:
+      - "minor"
+  patch:
+    labels:
+      - "patch"
+  default: patch
+template: |
+  ## Changes
+
+  $CHANGES
+
+  ## Contributors
+
+  ❤️ A big thanks to $CONTRIBUTORS
