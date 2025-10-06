@@ -39,6 +39,10 @@ The `system` configuration section has been renamed into `system_info`. [SystemI
 - Airplane button fail when the `rfkill` returns an error or is not present
 - Reduced wifi rescan requests
 
+### Thanks
+
+A big thanks to @ineu, @tqwewe, @beeender, @Pebor, @CodedNil, @GabMus, @repomaa, @adamm-xyz, @sudo-Tiz
+
 ## [0.5.0] - 2025-05-20
 
 ### WARNING BREAKING CHANGES
