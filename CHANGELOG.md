@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2025-10-06
+
 ### WARNING BREAKING CHANGES
 
 The `truncate_title_after_length` configuration has been moved

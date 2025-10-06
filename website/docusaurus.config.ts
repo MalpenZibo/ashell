@@ -90,6 +90,10 @@ const config: Config = {
           position: "left",
         },
         {
+          type: "docsVersionDropdown",
+          position: "right",
+        },
+        {
           position: "right",
           type: "html",
           value:
