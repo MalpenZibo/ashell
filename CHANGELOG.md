@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### WARNING BREAKING CHANGES
+
+The `truncate_title_after_length` configuration has been moved
+inside the `window_title` configuration section. [WindowTitle](https://malpenzibo.github.io/ashell/docs/configuration/modules/window_title)
+
+The `system` configuration section has been renamed into `system_info`. [SystemInfo](https://malpenzibo.github.io/ashell/docs/configuration/modules/system_info)
+
 ### Added
 
 - Add option to remove the airplane button
