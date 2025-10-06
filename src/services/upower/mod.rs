@@ -91,7 +91,7 @@ impl fmt::Display for PeripheralDeviceKind {
 #[derive(Debug, Clone)]
 pub enum UPowerEvent {
     UpdateSystemBattery(BatteryData),
-    UpdatePeripheral(Vec<Peripheral>),
+    UpdatePeripherals(Vec<Peripheral>),
     NoBattery,
     UpdatePowerProfile(PowerProfile),
 }
@@ -137,7 +137,7 @@ impl From<PowerProfile> for StaticIcon {
 #[derive(Debug, Clone)]
 pub struct UPowerService {
     pub system_battery: Option<BatteryData>,
-    pub peripheral: Vec<Peripheral>,
+    pub peripherals: Vec<Peripheral>,
     pub power_profile: PowerProfile,
     conn: zbus::Connection,
 }
@@ -161,8 +161,8 @@ impl ReadOnlyService for UPowerService {
             UPowerEvent::UpdateSystemBattery(data) => {
                 self.system_battery.replace(data);
             }
-            UPowerEvent::UpdatePeripheral(data) => {
-                self.peripheral = data;
+            UPowerEvent::UpdatePeripherals(data) => {
+                self.peripherals = data;
             }
             UPowerEvent::NoBattery => {
                 self.system_battery = None;
@@ -195,22 +195,17 @@ impl UPowerService {
     ) -> anyhow::Result<(
         Option<(BatteryData, Vec<ObjectPath<'static>>)>,
         Vec<Peripheral>,
-        Vec<ObjectPath<'static>>,
         PowerProfile,
     )> {
         let system_battery = UPowerService::initialize_system_battery_data(conn).await?;
         let peripherals = UPowerService::initialize_peripheral_data(conn).await?;
-        let peripheral_paths = peripherals
-            .iter()
-            .map(|device| device.device.inner().path().to_owned())
-            .collect();
+
         let power_profile = UPowerService::initialize_power_profile_data(conn).await;
 
         match (system_battery, power_profile) {
             (Some(battery), Ok(power_profile)) => Ok((
                 Some((battery.0, battery.1.get_devices_path())),
                 peripherals,
-                peripheral_paths,
                 power_profile,
             )),
             (Some(battery), Err(err)) => {
@@ -219,15 +214,14 @@ impl UPowerService {
                 Ok((
                     Some((battery.0, battery.1.get_devices_path())),
                     peripherals,
-                    peripheral_paths,
                     PowerProfile::Unknown,
                 ))
             }
-            (None, Ok(power_profile)) => Ok((None, peripherals, peripheral_paths, power_profile)),
+            (None, Ok(power_profile)) => Ok((None, peripherals, power_profile)),
             (None, Err(err)) => {
                 warn!("Failed to get power profile: {}", err);
 
-                Ok((None, peripherals, peripheral_paths, PowerProfile::Unknown))
+                Ok((None, peripherals, PowerProfile::Unknown))
             }
         }
     }
@@ -423,7 +417,7 @@ impl UPowerService {
                                 Self::initialize_peripheral_data(&conn)
                                     .await
                                     .ok()
-                                    .map(UPowerEvent::UpdatePeripheral)
+                                    .map(UPowerEvent::UpdatePeripherals)
                             }
                         }
                     })
@@ -448,7 +442,7 @@ impl UPowerService {
                         Self::initialize_peripheral_data(&conn)
                             .await
                             .ok()
-                            .map(UPowerEvent::UpdatePeripheral)
+                            .map(UPowerEvent::UpdatePeripherals)
                     }
                 }
             })
@@ -465,7 +459,7 @@ impl UPowerService {
                         Self::initialize_peripheral_data(&conn)
                             .await
                             .ok()
-                            .map(UPowerEvent::UpdatePeripheral)
+                            .map(UPowerEvent::UpdatePeripherals)
                     }
                 }
             })
@@ -497,46 +491,29 @@ impl UPowerService {
     async fn start_listening(state: State, output: &mut Sender<ServiceEvent<Self>>) -> State {
         match state {
             State::Init => match zbus::Connection::system().await {
-                Ok(conn) => {
-                    let (
-                        system_battery,
-                        peripherals,
-                        system_battery_paths,
-                        peripheral_paths,
-                        power_profile,
-                    ) = match UPowerService::initialize_data(&conn).await {
-                        Ok((
-                            Some((battery_data, battery_path)),
+                Ok(conn) => match UPowerService::initialize_data(&conn).await {
+                    Ok((system_battery, peripherals, power_profile)) => {
+                        let peripheral_paths = peripherals
+                            .iter()
+                            .map(|p| p.device.inner().path().clone())
+                            .collect();
+
+                        let service = UPowerService {
+                            system_battery: system_battery.as_ref().map(|b| b.0),
                             peripherals,
-                            peripheral_paths,
                             power_profile,
-                        )) => (
-                            Some(battery_data),
-                            peripherals,
-                            Some(battery_path),
-                            peripheral_paths,
-                            power_profile,
-                        ),
-                        Ok((None, peripherals, peripheral_paths, power_profile)) => {
-                            (None, peripherals, None, peripheral_paths, power_profile)
-                        }
-                        Err(err) => {
-                            error!("Failed to initialize upower service: {}", err);
+                            conn: conn.clone(),
+                        };
+                        let _ = output.send(ServiceEvent::Init(service)).await;
 
-                            return State::Error;
-                        }
-                    };
+                        State::Active(conn, system_battery.map(|b| b.1), peripheral_paths)
+                    }
+                    Err(err) => {
+                        error!("Failed to initialize upower service: {}", err);
 
-                    let service = UPowerService {
-                        system_battery,
-                        peripheral: peripherals,
-                        power_profile,
-                        conn: conn.clone(),
-                    };
-                    let _ = output.send(ServiceEvent::Init(service)).await;
-
-                    State::Active(conn, system_battery_paths, peripheral_paths)
-                }
+                        State::Error
+                    }
+                },
                 Err(err) => {
                     error!("Failed to connect to system bus for upower: {}", err);
                     State::Error

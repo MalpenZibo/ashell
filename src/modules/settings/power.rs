@@ -149,7 +149,7 @@ impl PowerSettings {
         ashell_theme: &AshellTheme,
     ) -> Option<Element<'a, Message>> {
         self.service.as_ref().and_then(|service| {
-            service.battery.map(|battery| {
+            service.system_battery.map(|battery| {
                 let icon_type = battery.get_icon();
                 let state = battery.get_indicator_state();
 
@@ -176,7 +176,7 @@ impl PowerSettings {
         ashell_theme: &AshellTheme,
     ) -> Option<Element<'a, Message>> {
         self.service.as_ref().and_then(|service| {
-            service.battery.map(|battery| {
+            service.system_battery.map(|battery| {
                 let state = battery.get_indicator_state();
 
                 container({
