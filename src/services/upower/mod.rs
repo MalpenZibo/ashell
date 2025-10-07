@@ -12,6 +12,7 @@ use iced::{
     stream::channel,
 };
 use log::{error, warn};
+use serde::Deserialize;
 use std::{any::TypeId, fmt, time::Duration};
 use zbus::zvariant::ObjectPath;
 
@@ -73,7 +74,7 @@ pub struct Peripheral {
     pub device: DeviceProxy<'static>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Deserialize, Copy, Clone, PartialEq, Eq, Debug)]
 pub enum PeripheralDeviceKind {
     Keyboard,
     Mouse,
@@ -84,6 +85,15 @@ impl fmt::Display for PeripheralDeviceKind {
         match self {
             PeripheralDeviceKind::Keyboard => write!(f, "Keyboard"),
             PeripheralDeviceKind::Mouse => write!(f, "Mouse"),
+        }
+    }
+}
+
+impl PeripheralDeviceKind {
+    pub fn get_icon(&self) -> Icons {
+        match self {
+            PeripheralDeviceKind::Keyboard => Icons::Keyboard,
+            PeripheralDeviceKind::Mouse => Icons::Mouse,
         }
     }
 }

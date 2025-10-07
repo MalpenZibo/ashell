@@ -1,3 +1,4 @@
+use log::debug;
 use std::ops::Deref;
 use zbus::{
     proxy,
@@ -108,6 +109,11 @@ pub enum UpDeviceKind {
     Tablet = 10,
     Computer = 11,
     GamingInput = 12,
+    Pen = 13,
+    Touchpad = 14,
+    Headset = 17,
+    Speakers = 18,
+    Headphones = 19,
 }
 
 impl UpDeviceKind {
@@ -143,7 +149,7 @@ impl UpDeviceKind {
 
     /// Check if this device type is a system power source
     pub fn is_power_source(&self) -> bool {
-        matches!(self, Self::Battery | Self::Ups | Self::LinePower)
+        matches!(self, Self::Battery)
     }
 
     /// Get a human-readable description
@@ -162,6 +168,11 @@ impl UpDeviceKind {
             Self::Tablet => "Tablet",
             Self::Computer => "Computer",
             Self::GamingInput => "Gaming Input",
+            Self::Pen => "Pen",
+            Self::Touchpad => "Touchpad",
+            Self::Headset => "Headset",
+            Self::Speakers => "Speakers",
+            Self::Headphones => "Headphones",
         }
     }
 }
@@ -232,6 +243,8 @@ impl UPowerDbus<'_> {
     ) -> anyhow::Result<Vec<DeviceProxy<'static>>> {
         let devices = self.enumerate_devices().await?;
 
+        debug!("Found {} devices", devices.len());
+
         let mut res = Vec::new();
 
         for device in devices {
@@ -245,7 +258,15 @@ impl UPowerDbus<'_> {
                 .await?
                 .try_into()
                 .unwrap_or(UpDeviceKind::Unknown);
+
             let power_supply = device.power_supply().await?;
+
+            debug!(
+                "Device: {}, Type: {}, Power Supply: {}",
+                device.inner().path(),
+                device_type,
+                power_supply
+            );
 
             if f(device_type, power_supply) {
                 res.push(device);
