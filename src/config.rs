@@ -164,6 +164,8 @@ pub struct SystemInfoTemperature {
     pub warn_threshold: i32,
     #[serde(default = "default_temp_alert_threshold")]
     pub alert_threshold: i32,
+    #[serde(default = "default_temp_sensor")]
+    pub sensor: String,
 }
 
 impl Default for SystemInfoTemperature {
@@ -171,6 +173,7 @@ impl Default for SystemInfoTemperature {
         Self {
             warn_threshold: default_temp_warn_threshold(),
             alert_threshold: default_temp_alert_threshold(),
+            sensor: default_temp_sensor(),
         }
     }
 }
@@ -256,6 +259,10 @@ fn default_temp_warn_threshold() -> i32 {
 
 fn default_temp_alert_threshold() -> i32 {
     80
+}
+
+fn default_temp_sensor() -> String {
+    "acpitz temp1".to_string()
 }
 
 fn default_disk_warn_threshold() -> u32 {
