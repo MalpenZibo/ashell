@@ -2,6 +2,7 @@ use std::convert;
 
 use crate::{
     components::icons::{StaticIcon, icon},
+    config::{BatteryFormat, PeripheralIndicators},
     modules::settings::quick_setting_button,
     services::{
         ReadOnlyService, Service, ServiceEvent,
@@ -12,7 +13,7 @@ use crate::{
 };
 use iced::{
     Alignment, Element, Length, Subscription, Task, Theme,
-    widget::{button, column, container, horizontal_rule, row, text},
+    widget::{Row, button, column, container, horizontal_rule, row, text},
 };
 
 #[derive(Debug, Clone)]
@@ -39,6 +40,9 @@ pub struct PowerSettingsConfig {
     pub reboot_cmd: String,
     pub shutdown_cmd: String,
     pub logout_cmd: String,
+    pub battery_format: BatteryFormat,
+    pub peripheral_indicators: PeripheralIndicators,
+    pub peripheral_battery_format: BatteryFormat,
 }
 
 impl PowerSettingsConfig {
@@ -48,6 +52,9 @@ impl PowerSettingsConfig {
         reboot_cmd: String,
         shutdown_cmd: String,
         logout_cmd: String,
+        battery_format: BatteryFormat,
+        peripheral_indicators: PeripheralIndicators,
+        peripheral_battery_format: BatteryFormat,
     ) -> Self {
         Self {
             suspend_cmd,
@@ -55,6 +62,9 @@ impl PowerSettingsConfig {
             reboot_cmd,
             shutdown_cmd,
             logout_cmd,
+            battery_format,
+            peripheral_indicators,
+            peripheral_battery_format,
         }
     }
 }
@@ -155,6 +165,43 @@ impl PowerSettings {
         .width(Length::Fill)
         .spacing(theme.space.xs)
         .into()
+    }
+
+    pub fn peripheral_indicators<'a>(
+        &self,
+        ashell_theme: &AshellTheme,
+    ) -> Option<Element<'a, Message>> {
+        // if self.config.peripheral_indicators {
+        self.service.as_ref().map(|s| {
+            Row::with_children(s.peripherals.iter().map(|p| {
+                let device_icon = p.kind.get_icon();
+                let battery_icon = p.data.get_icon();
+                let state = p.data.get_indicator_state();
+
+                container(
+                    row!(
+                        icon(battery_icon),
+                        icon(device_icon).size(ashell_theme.font_size.sm),
+                        text(format!("{}%", p.data.capacity))
+                    )
+                    .spacing(ashell_theme.space.xxs)
+                    .align_y(Alignment::Center),
+                )
+                .style(move |theme: &Theme| container::Style {
+                    text_color: Some(match state {
+                        IndicatorState::Success => theme.palette().success,
+                        IndicatorState::Danger => theme.palette().danger,
+                        _ => theme.palette().text,
+                    }),
+                    ..Default::default()
+                })
+                .into()
+            }))
+            .into()
+        })
+        // } else {
+        //     None
+        // }
     }
 
     pub fn battery_indicator<'a>(
