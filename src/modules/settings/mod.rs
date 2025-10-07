@@ -80,6 +80,9 @@ impl Settings {
                 config.reboot_cmd,
                 config.shutdown_cmd,
                 config.logout_cmd,
+                config.battery_format,
+                config.peripheral_indicators,
+                config.peripheral_battery_format,
             )),
             audio: AudioSettings::new(AudioSettingsConfig::new(
                 config.audio_sinks_more_cmd,
@@ -278,6 +281,9 @@ impl Settings {
                         config.reboot_cmd,
                         config.shutdown_cmd,
                         config.logout_cmd,
+                        config.battery_format,
+                        config.peripheral_indicators,
+                        config.peripheral_battery_format,
                     )));
                 self.audio
                     .update(audio::Message::ConfigReloaded(AudioSettingsConfig::new(
@@ -494,6 +500,11 @@ impl Settings {
                             .map(|e| e.map(Message::Network)),
                     )
                     .spacing(theme.space.xxs),
+            )
+            .push_maybe(
+                self.power
+                    .peripheral_indicators(theme)
+                    .map(|e| e.map(Message::Power)),
             )
             .push_maybe(
                 self.power
