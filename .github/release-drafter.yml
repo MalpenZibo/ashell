@@ -13,9 +13,6 @@ categories:
       - "fix"
       - "bugfix"
       - "bug"
-  - title: "🔧 Dependency updates"
-    labels:
-      - "dependencies"
   - title: "📚 Documentation"
     labels:
       - "documentation"
@@ -23,13 +20,17 @@ categories:
   - title: "🧰 Maintenance"
     label:
       - "chore"
+  - title: "🔧 Dependency updates"
+    labels:
+      - "dependencies"
 change-template: "- $TITLE @$AUTHOR (#$NUMBER)"
 change-title-escapes: '\<*_&'
 exclude-labels:
   - "skip-changelog"
 exclude-contributors:
   - "MalpenZibo"
-  - "github-actions[bot]"
+  - "dependabot"
+  - "dependabot[bot]"
 no-contributors-template: "just me this time 😅"
 autolabeler:
   - label: "docs"
