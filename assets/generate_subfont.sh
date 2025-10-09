@@ -6,8 +6,9 @@
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 ICONS_FILE="$SCRIPT_DIR/../src/components/icons.rs"
 FONT_IN="$SCRIPT_DIR/SymbolsNerdFont-Regular.ttf"
-CUSTOM_FONT_IN="$SCRIPT_DIR/custom_icon.ttf"
-SUBSTET_FONT_OUT="$SCRIPT_DIR/nerdfonts_subset.ttf"
+CUSTOM_FONT_IN="$SCRIPT_DIR/custom_icon_font.otf"
+CUSTOM_FONT_IN_TTF="$SCRIPT_DIR/custom_icon_font.ttf"
+SUBSET_FONT_OUT="$SCRIPT_DIR/nerdfonts_subset.ttf"
 FONT_OUT="$SCRIPT_DIR/ashell_icon.ttf"
 
 PYTON_RENAME_SCRIPT="$SCRIPT_DIR/rename_font.py"
@@ -46,19 +47,12 @@ echo
 # --- Run pyftsubset ---
 echo "Subsetting font..."
 pyftsubset "$FONT_IN" \
-  --output-file="$SUBSTET_FONT_OUT" \
+  --output-file="$SUBSET_FONT_OUT" \
   --unicodes="$UNICODE_LIST" \
-  --layout-features='*' \
-  --glyph-names \
-  --symbol-cmap \
-  --legacy-cmap \
-  --notdef-glyph \
-  --recommended-glyphs \
-  --name-IDs='*' \
-  --name-legacy \
-  --drop-tables= \
-  --no-hinting
+  --no-layout-closure
 
-pyftmerge $CUSTOM_FONT_IN $SUBSTET_FONT_OUT --output-file=$FONT_OUT
+echo "Convert custom icon font to ttf and merge with subset font..."
+fontforge -lang=ff -c 'Open($1); Generate($2)' $CUSTOM_FONT_IN $CUSTOM_FONT_IN_TTF
+pyftmerge $CUSTOM_FONT_IN_TTF $SUBSET_FONT_OUT --output-file=$FONT_OUT
 
-python $PYTON_RENAME_SCRIPT
+# python $PYTON_RENAME_SCRIPT
