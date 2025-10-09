@@ -13,7 +13,8 @@ use crate::{
 };
 use iced::{
     Alignment, Element, Length, Subscription, Task, Theme,
-    widget::{Row, button, column, container, horizontal_rule, row, text},
+    alignment::Vertical,
+    widget::{Row, button, column, container, horizontal_rule, row, stack, text},
 };
 
 #[derive(Debug, Clone)]
@@ -175,18 +176,24 @@ impl PowerSettings {
         self.service.as_ref().map(|s| {
             Row::with_children(s.peripherals.iter().map(|p| {
                 let device_icon = p.kind.get_icon();
-                let battery_icon = p.data.get_icon();
                 let state = p.data.get_indicator_state();
 
-                container(
-                    row!(
-                        icon(battery_icon),
+                container(match self.config.peripheral_battery_format {
+                    BatteryFormat::Icon => row!(
+                        icon(p.data.get_icon()),
                         icon(device_icon).size(ashell_theme.font_size.sm),
-                        text(format!("{}%", p.data.capacity))
                     )
                     .spacing(ashell_theme.space.xxs)
                     .align_y(Alignment::Center),
-                )
+                    BatteryFormat::Percentage => {
+                        row!(icon(device_icon), text(format!("{}%", p.data.capacity)))
+                            .spacing(ashell_theme.space.xxs)
+                            .align_y(Alignment::Center)
+                    }
+                    BatteryFormat::IconAndPercentage => row!(text(format!("{}%", p.data.capacity)))
+                        .spacing(ashell_theme.space.xxs)
+                        .align_y(Alignment::Center),
+                })
                 .style(move |theme: &Theme| container::Style {
                     text_color: Some(match state {
                         IndicatorState::Success => theme.palette().success,
@@ -210,14 +217,21 @@ impl PowerSettings {
     ) -> Option<Element<'a, Message>> {
         self.service.as_ref().and_then(|service| {
             service.system_battery.map(|battery| {
-                let icon_type = battery.get_icon();
                 let state = battery.get_indicator_state();
 
-                container(
-                    row!(icon(icon_type), text(format!("{}%", battery.capacity)))
-                        .spacing(ashell_theme.space.xxs)
-                        .align_y(Alignment::Center),
-                )
+                container(match self.config.battery_format {
+                    BatteryFormat::Icon => icon(battery.get_icon()).into(),
+                    BatteryFormat::Percentage => convert::Into::<Element<'_, _, _>>::into(text(
+                        format!("{}%", battery.capacity),
+                    )),
+                    BatteryFormat::IconAndPercentage => row!(
+                        icon(battery.get_icon()),
+                        text(format!("{}%", battery.capacity))
+                    )
+                    .spacing(ashell_theme.space.xxs)
+                    .align_y(Alignment::Center)
+                    .into(),
+                })
                 .style(move |theme: &Theme| container::Style {
                     text_color: Some(match state {
                         IndicatorState::Success => theme.palette().success,

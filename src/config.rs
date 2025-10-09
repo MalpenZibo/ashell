@@ -373,8 +373,11 @@ pub struct SettingsModuleConfig {
     pub reboot_cmd: String,
     #[serde(default = "default_logout_cmd")]
     pub logout_cmd: String,
+    #[serde(default)]
     pub battery_format: BatteryFormat,
+    #[serde(default)]
     pub peripheral_indicators: PeripheralIndicators,
+    #[serde(default)]
     pub peripheral_battery_format: BatteryFormat,
     pub audio_sinks_more_cmd: Option<String>,
     pub audio_sources_more_cmd: Option<String>,
