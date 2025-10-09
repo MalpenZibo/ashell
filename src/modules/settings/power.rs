@@ -1,3 +1,5 @@
+use std::convert;
+
 use crate::{
     components::icons::{StaticIcon, icon},
     modules::settings::quick_setting_button,
@@ -248,7 +250,7 @@ impl PowerSettings {
                 Some((
                     quick_setting_button(
                         theme,
-                        (service.power_profile).into(),
+                        convert::Into::<StaticIcon>::into(service.power_profile),
                         match service.power_profile {
                             PowerProfile::Balanced => "Balanced",
                             PowerProfile::Performance => "Performance",

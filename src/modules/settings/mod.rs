@@ -1,5 +1,5 @@
 use crate::{
-    components::icons::{StaticIcon, icon},
+    components::icons::{Icon, StaticIcon, icon},
     config::{Position, SettingsModuleConfig},
     modules::settings::{
         audio::{AudioSettings, AudioSettingsConfig},
@@ -584,9 +584,9 @@ fn sub_menu_wrapper<'a, Msg: 'static>(
         .into()
 }
 
-fn quick_setting_button<'a, Msg: Clone + 'static>(
+fn quick_setting_button<'a, Msg: Clone + 'static, I: Icon>(
     theme: &'a AshellTheme,
-    icon_type: StaticIcon,
+    icon_type: I,
     title: String,
     subtitle: Option<String>,
     active: bool,

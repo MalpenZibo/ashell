@@ -3,10 +3,15 @@ use iced::{
     widget::{Text, text},
 };
 
-// Aftern adding a new icon here,
+pub trait Icon {
+    fn to_text<'a>(self) -> Text<'a>;
+}
+
+// After adding a new icon here,
 // dont forget to run the `generate_ashell_icon` script
 // to update the icon font. Check the assets folder for more info.
 #[derive(Copy, Clone, Default)]
+#[allow(dead_code)]
 pub enum StaticIcon {
     #[default]
     None,
@@ -83,9 +88,9 @@ pub enum StaticIcon {
     Test,
 }
 
-impl<'a> From<StaticIcon> for Text<'a> {
-    fn from(icon: StaticIcon) -> Text<'a> {
-        text(match icon {
+impl Icon for StaticIcon {
+    fn to_text<'a>(self) -> Text<'a> {
+        text(match self {
             StaticIcon::None => "",
             StaticIcon::AppLauncher => "\u{f003b}",
             StaticIcon::Clipboard => "\u{f014c}",
@@ -166,12 +171,12 @@ impl<'a> From<StaticIcon> for Text<'a> {
 #[derive(Clone)]
 pub struct DynamicIcon(pub String);
 
-impl<'a> From<DynamicIcon> for Text<'a> {
-    fn from(icon: DynamicIcon) -> Text<'a> {
-        text(icon.0).font(Font::with_name("Symbols Nerd Font"))
+impl Icon for DynamicIcon {
+    fn to_text<'a>(self) -> Text<'a> {
+        text(self.0).font(Font::with_name("Symbols Nerd Font"))
     }
 }
 
-pub fn icon<'a>(icon: impl Into<Text<'a>>) -> Text<'a> {
-    icon.into()
+pub fn icon<'a>(icon: impl Icon) -> Text<'a> {
+    icon.to_text()
 }
