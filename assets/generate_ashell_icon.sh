@@ -6,7 +6,7 @@
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 ICONS_FILE="$SCRIPT_DIR/../src/components/icons.rs"
 FONT_IN="$SCRIPT_DIR/SymbolsNerdFont-Regular.ttf"
-CUSTOM_FONT_IN="$SCRIPT_DIR/custom_icon_font.otf"
+CUSTOM_FONT_IN="$SCRIPT_DIR/custom_icon.otf"
 CUSTOM_FONT_IN_TTF="$SCRIPT_DIR/custom_icon_font.ttf"
 SUBSET_FONT_OUT="$SCRIPT_DIR/nerdfonts_subset.ttf"
 FONT_OUT="$SCRIPT_DIR/ashell_icon.ttf"

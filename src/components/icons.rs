@@ -3,6 +3,9 @@ use iced::{
     widget::{Text, text},
 };
 
+// Aftern adding a new icon here,
+// dont forget to run the `generate_ashell_icon` script
+// to update the icon font. Check the assets folder for more info.
 #[derive(Copy, Clone, Default)]
 pub enum StaticIcon {
     #[default]

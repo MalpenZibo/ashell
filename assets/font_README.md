@@ -3,7 +3,7 @@
 ashell uses a subset of [Nerd Fonts](https://www.nerdfonts.com/)
 and some custom icons for its terminal UI.
 
-This custom font is generated using the `generate_font.sh`
+This custom font is generated using the `generate_ashell_icon.sh`
 script located in the `assets` directory.
 
 This script extract the unicodes used in the ashell `icons.rs`
