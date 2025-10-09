@@ -154,7 +154,7 @@ impl From<Icons> for &'static str {
             Icons::RightChevron => "\u{f0142}",
             Icons::Keyboard => "\u{f030c}",
             Icons::Mouse => "\u{f037d}",
-            Icons::Test => "\u{000041}",
+            Icons::Test => "\u{c0000}",
         }
     }
 }
@@ -164,5 +164,5 @@ pub fn icon<'a>(r#type: Icons) -> Text<'a> {
 }
 
 pub fn icon_raw<'a>(s: String) -> Text<'a> {
-    text(s).font(Font::with_name("Symbols Nerd Font"))
+    text(s).font(Font::with_name("Ashell Nerd Font"))
 }
