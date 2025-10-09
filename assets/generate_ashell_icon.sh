@@ -52,6 +52,6 @@ pyftsubset "$FONT_IN" \
 
 echo "Convert custom icon font to ttf and merge with subset font..."
 fontforge -lang=ff -c 'Open($1); Generate($2)' $CUSTOM_FONT_IN $CUSTOM_FONT_IN_TTF
-pyftmerge $FONT_IN $CUSTOM_FONT_IN_TTF --output-file=$FONT_OUT
+pyftmerge $SUBSET_FONT_OUT $CUSTOM_FONT_IN_TTF --output-file=$FONT_OUT
 
 python $PYTON_RENAME_SCRIPT
