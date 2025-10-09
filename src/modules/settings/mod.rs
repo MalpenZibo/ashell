@@ -1,6 +1,6 @@
 use crate::{
     components::icons::{Icons, icon},
-    config::{Position, SettingsModuleConfig},
+    config::{Position, SettingsCustomButton, SettingsModuleConfig},
     modules::settings::{
         audio::{AudioSettings, AudioSettingsConfig},
         bluetooth::{BluetoothSettings, BluetoothSettingsConfig},
@@ -35,6 +35,7 @@ pub struct Settings {
     idle_inhibitor: Option<IdleInhibitorManager>,
     sub_menu: Option<SubMenu>,
     password_dialog: Option<(String, String)>,
+    custom_buttons: Vec<SettingsCustomButton>,
 }
 
 #[derive(Debug, Clone)]
@@ -48,6 +49,7 @@ pub enum Message {
     Power(power::Message),
     ToggleSubMenu(SubMenu),
     PasswordDialog(password_dialog::Message),
+    CustomButton(String),
     MenuOpened,
     ConfigReloaded(SettingsModuleConfig),
 }
@@ -101,6 +103,7 @@ impl Settings {
             },
             sub_menu: None,
             password_dialog: None,
+            custom_buttons: config.custom_buttons,
         }
     }
 
@@ -260,6 +263,12 @@ impl Settings {
                     Action::ReleaseKeyboard(id)
                 }
             },
+            Message::CustomButton(name) => {
+                if let Some(button) = self.custom_buttons.iter().find(|b| b.name == name) {
+                    crate::utils::launcher::execute_command(button.command.clone());
+                }
+                Action::Command(Task::none())
+            }
             Message::MenuOpened => {
                 self.sub_menu = None;
 
@@ -406,6 +415,25 @@ impl Settings {
                 ]
                 .into_iter()
                 .flatten()
+                .chain(self.custom_buttons.iter().map(|button| {
+                    // currently icon handling isn't implemented in the quick_setting_button
+                    // but read the `icon` field so it's not flagged as dead/unused
+                    let _ = &button.icon;
+                    let is_active = check_toggle_status(&button.status_command);
+
+                    (
+                        quick_setting_button(
+                            theme,
+                            Icons::AppLauncher, // Replace with button.icon when icon handling is implemented
+                            button.name.clone(),
+                            button.tooltip.clone(),
+                            is_active,
+                            Message::CustomButton(button.name.clone()),
+                            None,
+                        ),
+                        None,
+                    )
+                }))
                 .collect::<Vec<_>>(),
             );
 
@@ -644,4 +672,15 @@ fn quick_setting_button<'a, Msg: Clone + 'static>(
     .width(Length::Fill)
     .height(Length::Fixed(50.))
     .into()
+}
+
+fn check_toggle_status(status_command: &Option<String>) -> bool {
+    status_command.as_ref().is_some_and(|cmd| {
+        std::process::Command::new("bash")
+            .arg("-c")
+            .arg(cmd)
+            .output()
+            .map(|output| output.status.success())
+            .unwrap_or(false)
+    })
 }
