@@ -1,6 +1,6 @@
 use super::{SubMenu, quick_setting_button};
 use crate::{
-    components::icons::{Icons, icon},
+    components::icons::{StaticIcon, icon},
     services::{
         ReadOnlyService, Service, ServiceEvent,
         bluetooth::{BluetoothCommand, BluetoothService, BluetoothState},
@@ -105,7 +105,7 @@ impl BluetoothSettings {
             Some((
                 quick_setting_button(
                     theme,
-                    Icons::Bluetooth,
+                    StaticIcon::Bluetooth,
                     "Bluetooth".to_owned(),
                     None,
                     service.state == BluetoothState::Active,
@@ -173,11 +173,11 @@ impl BluetoothSettings {
         container(
             row!(
                 icon(match battery {
-                    0..=20 => Icons::Battery0,
-                    21..=40 => Icons::Battery1,
-                    41..=60 => Icons::Battery2,
-                    61..=80 => Icons::Battery3,
-                    _ => Icons::Battery4,
+                    0..=20 => StaticIcon::Battery0,
+                    21..=40 => StaticIcon::Battery1,
+                    41..=60 => StaticIcon::Battery2,
+                    61..=80 => StaticIcon::Battery3,
+                    _ => StaticIcon::Battery4,
                 }),
                 text(format!("{battery}%"))
             )

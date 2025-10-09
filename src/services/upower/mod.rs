@@ -1,5 +1,5 @@
 use super::{ReadOnlyService, Service, ServiceEvent};
-use crate::{components::icons::Icons, utils::IndicatorState};
+use crate::{components::icons::StaticIcon, utils::IndicatorState};
 use dbus::{Battery, PowerProfilesProxy, UPowerDbus};
 use iced::{
     Subscription,
@@ -38,29 +38,29 @@ impl BatteryData {
         }
     }
 
-    pub fn get_icon(&self) -> Icons {
+    pub fn get_icon(&self) -> StaticIcon {
         match self {
             BatteryData {
                 status: BatteryStatus::Charging(_),
                 ..
-            } => Icons::BatteryCharging,
+            } => StaticIcon::BatteryCharging,
             BatteryData {
                 status: BatteryStatus::Discharging(_),
                 capacity,
-            } if *capacity < 20 => Icons::Battery0,
+            } if *capacity < 20 => StaticIcon::Battery0,
             BatteryData {
                 status: BatteryStatus::Discharging(_),
                 capacity,
-            } if *capacity < 40 => Icons::Battery1,
+            } if *capacity < 40 => StaticIcon::Battery1,
             BatteryData {
                 status: BatteryStatus::Discharging(_),
                 capacity,
-            } if *capacity < 60 => Icons::Battery2,
+            } if *capacity < 60 => StaticIcon::Battery2,
             BatteryData {
                 status: BatteryStatus::Discharging(_),
                 capacity,
-            } if *capacity < 80 => Icons::Battery3,
-            _ => Icons::Battery4,
+            } if *capacity < 80 => StaticIcon::Battery3,
+            _ => StaticIcon::Battery4,
         }
     }
 }
@@ -99,13 +99,13 @@ impl From<String> for PowerProfile {
     }
 }
 
-impl From<PowerProfile> for Icons {
+impl From<PowerProfile> for StaticIcon {
     fn from(profile: PowerProfile) -> Self {
         match profile {
-            PowerProfile::Balanced => Icons::Balanced,
-            PowerProfile::Performance => Icons::Performance,
-            PowerProfile::PowerSaver => Icons::PowerSaver,
-            PowerProfile::Unknown => Icons::None,
+            PowerProfile::Balanced => StaticIcon::Balanced,
+            PowerProfile::Performance => StaticIcon::Performance,
+            PowerProfile::PowerSaver => StaticIcon::PowerSaver,
+            PowerProfile::Unknown => StaticIcon::None,
         }
     }
 }

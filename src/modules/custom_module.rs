@@ -1,5 +1,5 @@
 use crate::{
-    components::icons::{Icons, icon, icon_raw},
+    components::icons::{DynamicIcon, StaticIcon, icon},
     config::CustomModuleDef,
     theme::AshellTheme,
     utils::launcher::execute_command,
@@ -90,16 +90,15 @@ impl Custom {
     }
 
     pub fn view(&'_ self, theme: &AshellTheme) -> Element<'_, Message> {
-        let mut icon_element = self
-            .config
-            .icon
-            .as_ref()
-            .map_or_else(|| icon(Icons::None), |text| icon_raw(text.clone()));
+        let mut icon_element = self.config.icon.as_ref().map_or_else(
+            || icon(StaticIcon::None),
+            |text| icon(DynamicIcon(text.clone())),
+        );
 
         if let Some(icons_map) = &self.config.icons {
             for (re, icon_str) in icons_map {
                 if re.is_match(&self.data.alt) {
-                    icon_element = icon_raw(icon_str.clone());
+                    icon_element = icon(DynamicIcon(icon_str.clone()));
                     break; // Use the first match
                 }
             }

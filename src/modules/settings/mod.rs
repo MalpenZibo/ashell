@@ -1,5 +1,5 @@
 use crate::{
-    components::icons::{Icons, icon},
+    components::icons::{StaticIcon, icon},
     config::{Position, SettingsModuleConfig},
     modules::settings::{
         audio::{AudioSettings, AudioSettingsConfig},
@@ -319,16 +319,16 @@ impl Settings {
                 .map(|e| e.map(Message::Power));
             let right_buttons = Row::new()
                 .push_maybe(self.lock_cmd.as_ref().map(|_| {
-                    button(icon(Icons::Lock))
+                    button(icon(StaticIcon::Lock))
                         .padding([theme.space.xs, theme.space.sm + 1])
                         .on_press(Message::Lock)
                         .style(theme.settings_button_style())
                 }))
                 .push(
                     button(icon(if self.sub_menu == Some(SubMenu::Power) {
-                        Icons::Close
+                        StaticIcon::Close
                     } else {
-                        Icons::Power
+                        StaticIcon::Power
                     }))
                     .padding([theme.space.xs, theme.space.sm + 1])
                     .on_press(Message::ToggleSubMenu(SubMenu::Power))
@@ -382,9 +382,9 @@ impl Settings {
                             quick_setting_button(
                                 theme,
                                 if idle_inhibitor.is_inhibited() {
-                                    Icons::EyeOpened
+                                    StaticIcon::EyeOpened
                                 } else {
-                                    Icons::EyeClosed
+                                    StaticIcon::EyeClosed
                                 },
                                 "Idle Inhibitor".to_string(),
                                 None,
@@ -467,9 +467,11 @@ impl Settings {
                     .as_ref()
                     .filter(|i| i.is_inhibited())
                     .map(|_| {
-                        container(icon(Icons::EyeOpened)).style(|theme: &Theme| container::Style {
-                            text_color: Some(theme.palette().danger),
-                            ..Default::default()
+                        container(icon(StaticIcon::EyeOpened)).style(|theme: &Theme| {
+                            container::Style {
+                                text_color: Some(theme.palette().danger),
+                                ..Default::default()
+                            }
                         })
                     }),
             )
@@ -584,7 +586,7 @@ fn sub_menu_wrapper<'a, Msg: 'static>(
 
 fn quick_setting_button<'a, Msg: Clone + 'static>(
     theme: &'a AshellTheme,
-    icon_type: Icons,
+    icon_type: StaticIcon,
     title: String,
     subtitle: Option<String>,
     active: bool,
@@ -612,9 +614,9 @@ fn quick_setting_button<'a, Msg: Clone + 'static>(
             .push_maybe(with_submenu.map(|(menu_type, submenu, msg)| {
                 button(
                     container(icon(if Some(menu_type) == submenu {
-                        Icons::Close
+                        StaticIcon::Close
                     } else {
-                        Icons::RightChevron
+                        StaticIcon::RightChevron
                     }))
                     .align_y(Vertical::Center)
                     .align_x(Horizontal::Center),
