@@ -1,5 +1,5 @@
 use crate::{
-    components::icons::{Icons, icon},
+    components::icons::{StaticIcon, icon},
     services::{
         ReadOnlyService, Service, ServiceEvent,
         brightness::{BrightnessCommand, BrightnessService},
@@ -72,7 +72,8 @@ impl BrightnessSettings {
     pub fn slider(&'_ self, theme: &AshellTheme) -> Option<Element<'_, Message>> {
         self.service.as_ref().map(|service| {
             row!(
-                container(icon(Icons::Brightness)).padding([theme.space.xs, theme.space.sm - 1]),
+                container(icon(StaticIcon::Brightness))
+                    .padding([theme.space.xs, theme.space.sm - 1]),
                 slider(0..=100, service.current * 100 / service.max, |v| {
                     Message::Change(v * service.max / 100)
                 })

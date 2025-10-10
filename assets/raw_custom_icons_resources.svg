@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   height="2048"
+   width="2048"
+   sodipodi:docname="custom_icons.svg"
+   version="1.1"
+   id="svg1"
+   inkscape:version="1.4.2 (ebf0e940d0, 2025-05-08)"
+   inkscape:export-filename="custom_icone.tiff"
+   inkscape:export-xdpi="96"
+   inkscape:export-ydpi="96"
+   viewBox="0 0 2048 2048"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <sodipodi:namedview
+     id="base"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.3"
+     inkscape:pageopacity="0.0"
+     inkscape:pageshadow="2"
+     inkscape:zoom="0.11078071"
+     inkscape:cx="379.12738"
+     inkscape:cy="1945.2845"
+     inkscape:document-units="px"
+     inkscape:current-layer="layer1"
+     showgrid="false"
+     showguides="true"
+     inkscape:window-width="1396"
+     inkscape:window-height="882"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     showborder="true"
+     inkscape:showpageshadow="false"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1">
+    <sodipodi:guide
+       position="0,2048"
+       orientation="0,2048"
+       id="ink-font-guide-ascender"
+       inkscape:label="ascender"
+       inkscape:locked="false" />
+    <sodipodi:guide
+       position="0,1872"
+       orientation="0,2048"
+       id="ink-font-guide-caps"
+       inkscape:label="caps"
+       inkscape:locked="false" />
+    <sodipodi:guide
+       position="0,1434"
+       orientation="0,2048"
+       id="ink-font-guide-x-height"
+       inkscape:label="x-height"
+       inkscape:locked="false" />
+    <sodipodi:guide
+       position="0,0"
+       orientation="0,2048"
+       id="ink-font-guide-descender"
+       inkscape:label="descender"
+       inkscape:locked="false" />
+    <sodipodi:guide
+       position="0,410"
+       orientation="0,2048"
+       id="ink-font-guide-baseline"
+       inkscape:label="baseline"
+       inkscape:locked="false" />
+  </sodipodi:namedview>
+  <defs
+     id="defs4">
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath6">
+      <rect
+         style="display:inline;fill:#00ff00;stroke:none;stroke-width:18.755;stroke-linecap:round;stroke-dasharray:none;stroke-opacity:1"
+         id="rect7"
+         width="474.40231"
+         height="407.88354"
+         x="218.94971"
+         y="339.11646"
+         ry="0"
+         rx="0" />
+    </clipPath>
+    <font
+       horiz-adv-x="2048"
+       id="font1"
+       inkscape:label="font 1"
+       horiz-origin-x="0"
+       horiz-origin-y="0"
+       vert-origin-x="1024"
+       vert-origin-y="0"
+       vert-adv-y="2048">
+      <font-face
+         units-per-em="2048"
+         ascent="1638"
+         cap-height="1462"
+         x-height="1024"
+         descent="410"
+         id="font-face1"
+         font-family="SVGFont 1" />
+      <missing-glyph
+         d="M0,0h1000v1000h-1000z"
+         id="missing-glyph1" />
+      <glyph
+         glyph-name=""
+         unicode=" "
+         id="glyph1"
+         d="m 1279.9976,1877.036 v -167.9983 h -143.9974 c -29.3334,0 -55.3363,-11.3346 -78.003,-34.0012 C 1035.3306,1652.3698 1024,1625.0374 1024,1593.0374 v -107.484 H 151.37118 c -40.86675,0 -76.322883,-15.0246 -106.371986,-45.0737 C 14.950088,1410.4305 -0.0785,1374.9704 -0.0785,1334.1035 V 562.4427 c 0,-40.8667 15.028588,-76.319 45.077694,-106.368 30.049103,-30.0492 65.505236,-45.0776 106.371986,-45.0776 H 1024 V 285.0364 c 0,-32.6668 11.3306,-59.3324 33.9972,-79.999 23.3334,-21.3333 49.3363,-32.0013 78.003,-32.0013 h 799.998 c 28.6667,0 54.6657,10.668 77.9988,32.0013 22.6668,20.6666 34.0014,47.3323 34.0014,79.999 v 1308.001 c 0,32 -11.3346,59.3324 -34.0014,81.9991 -22.6665,22.6666 -48.6654,34.0012 -77.9988,34.0012 H 1791.9968 V 1877.036 Z M 230.69817,1254.7766 H 382.14784 V 1103.3269 H 230.69817 Z m 230.77667,0 H 612.92451 V 1103.3269 H 461.47484 Z m 230.77666,0 H 843.70118 V 1103.3269 H 692.2515 Z m 230.77667,0 H 1024 V 1103.3269 H 923.02817 Z M 230.69817,1024 H 382.14784 V 872.5503 H 230.69817 Z m 230.77667,0 H 612.92451 V 872.5503 H 461.47484 Z m 230.77666,0 H 843.70118 V 872.5503 H 692.2515 Z m 230.77667,0 H 1024 V 872.5503 H 923.02817 Z M 461.47484,717.4964 H 1024 V 562.4426 H 461.47484 Z" />
+    </font>
+  </defs>
+  <metadata
+     id="metadata7">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <g
+     inkscape:groupmode="layer"
+     id="layer1"
+     inkscape:label="RawElement"
+     style="display:inline">
+    <path
+       id="text8"
+       style="font-size:421.324px;font-family:'Symbols Nerd Font';-inkscape-font-specification:'Symbols Nerd Font';text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;display:inline;fill:#000000;fill-opacity:1;stroke-width:0;stroke-linecap:round;stroke-opacity:0.399261"
+       inkscape:label="headphone"
+       d="M 504.85937,568.00002 C 414.37107,568.19217 329.9847,591.0311 251.69164,636.51966 173.94511,681.76225 112.44865,743.25842 67.206274,821.00529 22.529912,898.09371 0.12649379,982.1694 1.5752879e-4,1073.2346 c -3.5443978e-4,0.2595 0,0.5171 0,0.7756 v 395.3176 c 0,0.15 -3.5443978e-4,0.3012 0,0.4504 C 0.10771734,1514.8324 16.363367,1554.2175 48.759635,1587.9268 80.824598,1621.3097 120.79446,1638 168.67233,1638 H 337.34444 V 1187.3364 H 113.32609 v -113.3262 c 0,-69.8402 17.57308,-135.28982 52.71274,-196.34513 35.13972,-61.05546 82.57517,-108.93225 142.31265,-143.63259 60.17669,-35.13977 126.068,-52.71283 197.66511,-52.71283 71.59709,0 137.48213,17.57306 197.65883,52.71283 53.6257,31.15018 97.33715,72.91659 131.14082,125.30464 V 690.67114 C 811.51142,670.65891 786.24956,652.60894 759.02167,636.51966 682.04081,591.0311 598.08583,568.19217 507.16755,568.00002 Z m 169.8231,619.33638 V 1638 h 160.13377 v -450.6636 z" />
+    <path
+       id="text12"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:584.188px;font-family:'Symbols Nerd Font';-inkscape-font-specification:'Symbols Nerd Font';text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;display:none;fill:#000000;stroke-width:0;stroke-linecap:round;stroke-opacity:0.399261"
+       d="M 151.43668,562.483 C 110.573,562.483 75.1211,577.50427 45.074257,607.55112 15.027424,637.59795 0,673.05599 0,713.9197 v 771.6013 c 0,40.8637 15.027424,76.3154 45.074257,106.3625 30.046843,30.0468 65.498743,45.074 106.362423,45.074 H 1024 V 1485.521 H 461.51896 V 1330.4799 H 1024 V 1175.4387 H 923.03804 V 1024.0023 H 1024 V 944.67924 H 923.03804 V 793.24251 H 1024 V 562.483 Z m 79.32285,230.75951 H 382.19619 V 944.67924 H 230.75953 Z m 230.75943,0 H 612.95574 V 944.67924 H 461.51896 Z m 230.75956,0 H 843.71523 V 944.67924 H 692.27852 Z M 230.75953,1024.0023 h 151.43666 v 151.4364 H 230.75953 Z m 230.75943,0 h 151.43678 v 151.4364 H 461.51896 Z m 230.75956,0 h 151.43671 v 151.4364 H 692.27852 Z"
+       inkscape:label="keyboard" />
+    <path
+       id="text4"
+       style="font-size:365.508px;font-family:'Symbols Nerd Font';-inkscape-font-specification:'Symbols Nerd Font';text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;display:none;fill:#000000;fill-opacity:1;stroke-width:0;stroke-linecap:round;stroke-opacity:0.399261"
+       inkscape:label="mouse"
+       d="m 355.28924,529.49235 c -65.92612,7.50058 -125.93326,30.3988 -180.01633,68.6912 C 121.58455,636.0812 78.95254,683.84651 47.37116,741.48247 15.88211,798.94996 0.0922,861.51947 1.2e-4,929.19094 c -2.7e-4,0.19845 0,0.39762 0,0.5962 h 355.28912 z m 99.47912,0 V 929.78714 H 743.69915 V 710.02061 C 714.68067,666.23446 678.37869,628.95585 634.78471,598.18355 580.7016,559.89115 520.69448,536.99293 454.76836,529.49235 Z M 1.2e-4,1031.638 v 201.3302 c 0,0.1991 -2.7e-4,0.3981 0,0.5962 0.0988,72.4112 18.25391,139.7164 54.47343,201.9197 36.3186,62.3731 85.66286,111.7175 148.03606,148.036 62.37317,36.3186 129.87879,54.4799 202.51594,54.4799 72.63716,0 140.14277,-18.1613 202.51596,-54.4799 55.81943,-32.5026 101.20506,-75.433 136.15764,-128.8024 V 1031.638 Z" />
+    <path
+       id="text3"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:266.667px;font-family:'Symbols Nerd Font';-inkscape-font-specification:'Symbols Nerd Font';text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;display:none;fill:#000000;fill-opacity:1;stroke-width:0;stroke-linecap:round;stroke-opacity:0.399261"
+       d="M 1280.005,172 V 340.00001 H 1135.99 c -29.3334,0 -55.3334,11.32329 -78,33.98997 -22.6667,22.66667 -33.99,50.00495 -33.99,82.00496 V 1763.995 c 0,32.6667 11.3233,59.3433 33.99,80.01 23.3333,21.3333 49.3333,31.995 78,31.995 H 1936 c 28.6666,0 54.6666,-10.6617 78,-31.995 22.6666,-20.6667 34.0049,-47.3433 34.005,-80.01 V 455.99494 c 0,-32.00001 -11.3384,-59.33829 -34.005,-82.00496 -22.6667,-22.66668 -48.6667,-33.98997 -78,-33.98997 H 1792 V 172 Z M 1195.99,511.98999 H 1876 V 1708 h -680.01 z m 258.45,172.00498 V 1195.99 h 168.6599 V 683.99497 Z m 0,679.99503 v 172.005 h 168.6599 V 1363.99 Z"
+       inkscape:label="battery_alert" />
+    <path
+       id="text24"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:266.667px;font-family:'Symbols Nerd Font';-inkscape-font-specification:'Symbols Nerd Font';text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;display:none;fill:#000000;fill-opacity:1;stroke-width:0;stroke-linecap:round;stroke-opacity:0.399261"
+       d="m 1280,172 v 168.00001 h -144 c -29.3334,0 -55.3334,11.33829 -78,34.00497 -22.6667,22.66674 -33.99,49.98995 -33.99,81.99007 V 1764.01 c 0,32.6667 11.3233,59.3283 33.99,79.995 23.3334,21.3334 49.3333,31.995 78,31.995 h 800.01 c 28.6667,0 54.6666,-10.6616 78,-31.995 22.6667,-20.6667 33.99,-47.3283 33.99,-79.995 V 455.99505 c 0,-32.00012 -11.3233,-59.32333 -33.99,-81.99007 -22.6667,-22.66668 -48.6666,-34.00497 -78,-34.00497 h -144 V 172 Z m -84,340.00496 h 680.01 V 1708 H 1196 Z M 1620.0049,549.92497 1280,1189.915 h 172.0049 V 1661.92 L 1792.01,1021.915 h -172.0051 z"
+       inkscape:label="battery_charging" />
+    <text
+       xml:space="preserve"
+       style="font-size:2048px;font-family:'Symbols Nerd Font';-inkscape-font-specification:'Symbols Nerd Font';text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;display:none;fill:#000000;stroke-width:0;stroke-linecap:round;stroke-opacity:0.399261"
+       x="1024"
+       y="1638"
+       id="text1"
+       inkscape:label="battery_low"><tspan
+         sodipodi:role="line"
+         id="tspan1"
+         x="1024"
+         y="1638"
+         style="stroke-width:0">󰁻</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:2048px;font-family:'Symbols Nerd Font';-inkscape-font-specification:'Symbols Nerd Font';text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;display:none;fill:#000000;stroke-width:0;stroke-linecap:round;stroke-opacity:0.399261"
+       x="1024"
+       y="1638"
+       id="text5"
+       inkscape:label="battery_medium"><tspan
+         sodipodi:role="line"
+         id="tspan2"
+         x="1024"
+         y="1638"
+         style="stroke-width:0">󰁿</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:2048px;font-family:'Symbols Nerd Font';-inkscape-font-specification:'Symbols Nerd Font';text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;display:inline;fill:#000000;stroke-width:0;stroke-linecap:round;stroke-opacity:0.399261"
+       x="834.81598"
+       y="1638"
+       id="text6"
+       inkscape:label="battery_full"><tspan
+         sodipodi:role="line"
+         id="tspan5"
+         x="834.81598"
+         y="1638"
+         style="stroke-width:0">󰁹</tspan></text>
+  </g>
+</svg>

@@ -1,5 +1,5 @@
 use crate::{
-    components::icons::{Icons, icon},
+    components::icons::{StaticIcon, icon},
     services::{ReadOnlyService, ServiceEvent, privacy::PrivacyService},
     theme::AshellTheme,
 };
@@ -45,10 +45,10 @@ impl Privacy {
                         .push_maybe(
                             service
                                 .screenshare_access()
-                                .then(|| icon(Icons::ScreenShare)),
+                                .then(|| icon(StaticIcon::ScreenShare)),
                         )
-                        .push_maybe(service.webcam_access().then(|| icon(Icons::Webcam)))
-                        .push_maybe(service.microphone_access().then(|| icon(Icons::Mic1)))
+                        .push_maybe(service.webcam_access().then(|| icon(StaticIcon::Webcam)))
+                        .push_maybe(service.microphone_access().then(|| icon(StaticIcon::Mic1)))
                         .align_y(Alignment::Center)
                         .spacing(theme.space.xs),
                 )

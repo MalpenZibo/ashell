@@ -1,13 +1,12 @@
+use crate::{
+    components::icons::{StaticIcon, icon},
+    theme::AshellTheme,
+};
 use iced::{
     Alignment, Element, Length,
     alignment::Vertical,
     widget::{button, column, horizontal_space, row, text, text_input},
     window::Id,
-};
-
-use crate::{
-    components::icons::{Icons, icon},
-    theme::AshellTheme,
 };
 
 #[derive(Debug, Clone)]
@@ -25,7 +24,7 @@ pub fn view<'a>(
 ) -> Element<'a, Message> {
     column!(
         row!(
-            icon(Icons::WifiLock4).size(theme.font_size.xxl),
+            icon(StaticIcon::WifiLock4).size(theme.font_size.xxl),
             text("Authentication required").size(theme.font_size.xl),
         )
         .spacing(theme.space.md)

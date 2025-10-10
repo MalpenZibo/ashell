@@ -1,5 +1,5 @@
 use crate::{
-    components::icons::{Icons, icon},
+    components::icons::{StaticIcon, icon},
     position_button::{ButtonUIRef, position_button},
     services::{
         ReadOnlyService, Service, ServiceEvent,
@@ -132,9 +132,9 @@ impl TrayModule {
                         button(row!(
                             text(label.replace("_", "").to_owned()).width(Length::Fill),
                             icon(if is_open {
-                                Icons::MenuOpen
+                                StaticIcon::MenuOpen
                             } else {
-                                Icons::MenuClosed
+                                StaticIcon::MenuClosed
                             })
                         ))
                         .style(theme.ghost_button_style())
@@ -193,7 +193,7 @@ impl TrayModule {
                                             .height(Length::Fixed(theme.font_size.md as f32))
                                             .width(Length::Shrink),
                                     ),
-                                    _ => icon(Icons::Point).into(),
+                                    _ => icon(StaticIcon::Point).into(),
                                 })
                                 .on_press_with_position(move |button_ui_ref| {
                                     Message::ToggleMenu(item.name.to_owned(), id, button_ui_ref)

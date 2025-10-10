@@ -1,5 +1,5 @@
 use crate::{
-    components::icons::{Icons, icon},
+    components::icons::{StaticIcon, icon},
     config::MediaPlayerModuleConfig,
     services::{
         ReadOnlyService, Service, ServiceEvent,
@@ -86,12 +86,12 @@ impl MediaPlayer {
                         .width(Length::Fill);
 
                     let play_pause_icon = match d.state {
-                        PlaybackStatus::Playing => Icons::Pause,
-                        PlaybackStatus::Paused | PlaybackStatus::Stopped => Icons::Play,
+                        PlaybackStatus::Playing => StaticIcon::Pause,
+                        PlaybackStatus::Paused | PlaybackStatus::Stopped => StaticIcon::Play,
                     };
 
                     let buttons = row![
-                        button(icon(Icons::SkipPrevious))
+                        button(icon(StaticIcon::SkipPrevious))
                             .on_press(Message::Prev(d.service.clone()))
                             .padding([theme.space.xs, theme.space.md])
                             .style(theme.settings_button_style()),
@@ -99,7 +99,7 @@ impl MediaPlayer {
                             .on_press(Message::PlayPause(d.service.clone()))
                             .padding([theme.space.xs, theme.space.md])
                             .style(theme.settings_button_style()),
-                        button(icon(Icons::SkipNext))
+                        button(icon(StaticIcon::SkipNext))
                             .on_press(Message::Next(d.service.clone()))
                             .padding([theme.space.xs, theme.space.md])
                             .style(theme.settings_button_style()),
@@ -171,7 +171,7 @@ impl MediaPlayer {
             0 => None,
             _ => Some(
                 row![
-                    icon(Icons::MusicNote),
+                    icon(StaticIcon::MusicNote),
                     container(
                         text(self.get_title(&s[0]))
                             .wrapping(text::Wrapping::None)
