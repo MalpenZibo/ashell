@@ -90,10 +90,10 @@ impl fmt::Display for PeripheralDeviceKind {
 }
 
 impl PeripheralDeviceKind {
-    pub fn get_icon(&self) -> Icons {
+    pub fn get_icon(&self) -> StaticIcon {
         match self {
-            PeripheralDeviceKind::Keyboard => Icons::Keyboard,
-            PeripheralDeviceKind::Mouse => Icons::Mouse,
+            PeripheralDeviceKind::Keyboard => StaticIcon::Keyboard,
+            PeripheralDeviceKind::Mouse => StaticIcon::Mouse,
         }
     }
 }
