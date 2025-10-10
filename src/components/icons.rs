@@ -85,7 +85,7 @@ pub enum StaticIcon {
     RightChevron,
     Keyboard,
     Mouse,
-    Test,
+    KeyboardBatteryFull,
 }
 
 impl Icon for StaticIcon {
@@ -162,7 +162,7 @@ impl Icon for StaticIcon {
             StaticIcon::RightChevron => "\u{f0142}",
             StaticIcon::Keyboard => "\u{f030c}",
             StaticIcon::Mouse => "\u{f037d}",
-            StaticIcon::Test => "\u{c0000}",
+            StaticIcon::KeyboardBatteryFull => "\u{c0000}",
         })
         .font(Font::with_name("Ashell Nerd Font"))
     }
