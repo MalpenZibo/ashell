@@ -13,8 +13,7 @@ use crate::{
 };
 use iced::{
     Alignment, Element, Length, Subscription, Task, Theme,
-    alignment::Vertical,
-    widget::{Row, button, column, container, horizontal_rule, row, stack, text},
+    widget::{Row, button, column, container, horizontal_rule, row, text},
 };
 
 #[derive(Debug, Clone)]
