@@ -6,7 +6,9 @@ use crate::{
     modules::settings::quick_setting_button,
     services::{
         ReadOnlyService, Service, ServiceEvent,
-        upower::{BatteryStatus, PowerProfile, PowerProfileCommand, UPowerService},
+        upower::{
+            BatteryStatus, PeripheralDeviceKind, PowerProfile, PowerProfileCommand, UPowerService,
+        },
     },
     theme::AshellTheme,
     utils::{self, IndicatorState, format_duration},
@@ -171,42 +173,107 @@ impl PowerSettings {
         &self,
         ashell_theme: &AshellTheme,
     ) -> Option<Element<'a, Message>> {
-        // if self.config.peripheral_indicators {
-        self.service.as_ref().map(|s| {
-            Row::with_children(s.peripherals.iter().map(|p| {
-                let state = p.data.get_indicator_state();
+        let get_indicators = |kinds: Option<&[PeripheralDeviceKind]>| {
+            self.service
+                .as_ref()
+                .filter(|p| {
+                    kinds.is_none_or(|kinds| p.peripherals.iter().any(|p| kinds.contains(&p.kind)))
+                })
+                .map(|service| {
+                    let mut row = Row::new()
+                        .spacing(ashell_theme.space.xxs)
+                        .align_y(Alignment::Center);
 
-                container(match self.config.peripheral_battery_format {
-                    BatteryFormat::Icon => {
-                        convert::Into::<Element<'a, Message>>::into(icon(p.get_icon_state()))
+                    for p in service.peripherals.iter() {
+                        row = row.push_maybe({
+                            if kinds.as_ref().is_none_or(|kinds| kinds.contains(&p.kind)) {
+                                let state = p.data.get_indicator_state();
+
+                                Some(
+                                    container(match self.config.peripheral_battery_format {
+                                        BatteryFormat::Icon => {
+                                            convert::Into::<Element<'a, Message>>::into(icon(
+                                                p.get_icon_state(),
+                                            ))
+                                        }
+                                        BatteryFormat::Percentage => row!(
+                                            icon(p.kind.get_icon()),
+                                            text(format!("{}%", p.data.capacity))
+                                        )
+                                        .spacing(ashell_theme.space.xxs)
+                                        .align_y(Alignment::Center)
+                                        .into(),
+                                        BatteryFormat::IconAndPercentage => row!(
+                                            icon(p.get_icon_state()),
+                                            text(format!("{}%", p.data.capacity))
+                                        )
+                                        .spacing(ashell_theme.space.xxs)
+                                        .align_y(Alignment::Center)
+                                        .into(),
+                                    })
+                                    .style(
+                                        move |theme: &Theme| container::Style {
+                                            text_color: Some(match state {
+                                                IndicatorState::Success => theme.palette().success,
+                                                IndicatorState::Danger => theme.palette().danger,
+                                                _ => theme.palette().text,
+                                            }),
+                                            ..Default::default()
+                                        },
+                                    ),
+                                )
+                            } else {
+                                None
+                            }
+                        });
                     }
-                    BatteryFormat::Percentage => row!(
-                        icon(p.kind.get_icon()),
-                        text(format!("{}%", p.data.capacity))
-                    )
-                    .spacing(ashell_theme.space.xxs)
-                    .align_y(Alignment::Center)
-                    .into(),
-                    BatteryFormat::IconAndPercentage => row!(
-                        icon(p.get_icon_state()),
-                        text(format!("{}%", p.data.capacity))
-                    )
-                    .spacing(ashell_theme.space.xxs)
-                    .align_y(Alignment::Center)
-                    .into(),
+
+                    row
                 })
-                .style(move |theme: &Theme| container::Style {
-                    text_color: Some(match state {
-                        IndicatorState::Success => theme.palette().success,
-                        IndicatorState::Danger => theme.palette().danger,
-                        _ => theme.palette().text,
-                    }),
-                    ..Default::default()
-                })
-                .into()
-            }))
-            .into()
-        })
+        };
+
+        match &self.config.peripheral_indicators {
+            PeripheralIndicators::None => None,
+            PeripheralIndicators::All => get_indicators(None),
+            PeripheralIndicators::Specific(kinds) => get_indicators(Some(kinds)),
+        }
+        .map(|r| r.into())
+        // if self.config.peripheral_indicators.len() > 0 {
+        //     self.service.as_ref().map(|s| {
+        //         Row::with_children(s.peripherals.iter().map(|p| {
+        //             let state = p.data.get_indicator_state();
+        //
+        //             container(match self.config.peripheral_battery_format {
+        //                 BatteryFormat::Icon => {
+        //                     convert::Into::<Element<'a, Message>>::into(icon(p.get_icon_state()))
+        //                 }
+        //                 BatteryFormat::Percentage => row!(
+        //                     icon(p.kind.get_icon()),
+        //                     text(format!("{}%", p.data.capacity))
+        //                 )
+        //                 .spacing(ashell_theme.space.xxs)
+        //                 .align_y(Alignment::Center)
+        //                 .into(),
+        //                 BatteryFormat::IconAndPercentage => row!(
+        //                     icon(p.get_icon_state()),
+        //                     text(format!("{}%", p.data.capacity))
+        //                 )
+        //                 .spacing(ashell_theme.space.xxs)
+        //                 .align_y(Alignment::Center)
+        //                 .into(),
+        //             })
+        //             .style(move |theme: &Theme| container::Style {
+        //                 text_color: Some(match state {
+        //                     IndicatorState::Success => theme.palette().success,
+        //                     IndicatorState::Danger => theme.palette().danger,
+        //                     _ => theme.palette().text,
+        //                 }),
+        //                 ..Default::default()
+        //             })
+        //             .into()
+        //         }))
+        //         .into()
+        //     })
         // } else {
         //     None
         // }
