@@ -104,17 +104,19 @@ impl Peripheral {
                 (PeripheralDeviceKind::Mouse, BatLevel::Medium) => StaticIcon::MouseBatteryMedium,
                 (PeripheralDeviceKind::Mouse, BatLevel::Low) => StaticIcon::MouseBatteryLow,
                 (PeripheralDeviceKind::Mouse, BatLevel::Alert) => StaticIcon::MouseBatteryAlert,
-                (PeripheralDeviceKind::Headphone, BatLevel::Charging) => {
+                (PeripheralDeviceKind::Headphones, BatLevel::Charging) => {
                     StaticIcon::HeadphoneBatteryCharging
                 }
-                (PeripheralDeviceKind::Headphone, BatLevel::Full) => {
+                (PeripheralDeviceKind::Headphones, BatLevel::Full) => {
                     StaticIcon::HeadphoneBatteryFull
                 }
-                (PeripheralDeviceKind::Headphone, BatLevel::Medium) => {
+                (PeripheralDeviceKind::Headphones, BatLevel::Medium) => {
                     StaticIcon::HeadphoneBatteryMedium
                 }
-                (PeripheralDeviceKind::Headphone, BatLevel::Low) => StaticIcon::HeadphoneBatteryLow,
-                (PeripheralDeviceKind::Headphone, BatLevel::Alert) => {
+                (PeripheralDeviceKind::Headphones, BatLevel::Low) => {
+                    StaticIcon::HeadphoneBatteryLow
+                }
+                (PeripheralDeviceKind::Headphones, BatLevel::Alert) => {
                     StaticIcon::HeadphoneBatteryAlert
                 }
                 (PeripheralDeviceKind::Gamepad, BatLevel::Charging) => {
@@ -162,7 +164,7 @@ impl Peripheral {
 pub enum PeripheralDeviceKind {
     Keyboard,
     Mouse,
-    Headphone,
+    Headphones,
     Gamepad,
 }
 
@@ -171,7 +173,7 @@ impl fmt::Display for PeripheralDeviceKind {
         match self {
             PeripheralDeviceKind::Keyboard => write!(f, "Keyboard"),
             PeripheralDeviceKind::Mouse => write!(f, "Mouse"),
-            PeripheralDeviceKind::Headphone => write!(f, "Headphone"),
+            PeripheralDeviceKind::Headphones => write!(f, "Headphones"),
             PeripheralDeviceKind::Gamepad => write!(f, "Gamepad"),
         }
     }
@@ -182,7 +184,7 @@ impl PeripheralDeviceKind {
         match self {
             PeripheralDeviceKind::Keyboard => StaticIcon::Keyboard,
             PeripheralDeviceKind::Mouse => StaticIcon::Mouse,
-            PeripheralDeviceKind::Headphone => StaticIcon::Headphones1,
+            PeripheralDeviceKind::Headphones => StaticIcon::Headphones1,
             PeripheralDeviceKind::Gamepad => StaticIcon::Gamepad,
         }
     }
@@ -391,8 +393,8 @@ impl UPowerService {
             let device_kind = match UpDeviceKind::from_u32(device_type).unwrap_or_default() {
                 UpDeviceKind::Mouse => PeripheralDeviceKind::Mouse,
                 UpDeviceKind::Keyboard => PeripheralDeviceKind::Keyboard,
-                UpDeviceKind::Headphones => PeripheralDeviceKind::Headphone,
-                UpDeviceKind::Headset => PeripheralDeviceKind::Headphone,
+                UpDeviceKind::Headphones => PeripheralDeviceKind::Headphones,
+                UpDeviceKind::Headset => PeripheralDeviceKind::Headphones,
                 UpDeviceKind::GamingInput => PeripheralDeviceKind::Gamepad,
                 _ => continue,
             };
