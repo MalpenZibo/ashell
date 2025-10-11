@@ -261,8 +261,6 @@ impl UPowerDbus<'_> {
                 .build()
                 .await?;
 
-            debug!("Checking device type: {:?}", device.device_type().await);
-
             let device_type = device
                 .device_type()
                 .await?
