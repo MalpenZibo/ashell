@@ -1,4 +1,5 @@
 use crate::app::Message;
+use crate::services::upower::PeripheralDeviceKind;
 use hex_color::HexColor;
 use iced::futures::StreamExt;
 use iced::{Color, Subscription, futures::SinkExt, stream::channel, theme::palette};
@@ -314,6 +315,22 @@ fn default_logout_cmd() -> String {
     "loginctl kill-user $(whoami)".to_string()
 }
 
+#[derive(Deserialize, Copy, Clone, Default, PartialEq, Eq, Debug)]
+pub enum BatteryFormat {
+    Icon,
+    Percentage,
+    #[default]
+    IconAndPercentage,
+}
+
+#[derive(Deserialize, Clone, Default, PartialEq, Eq, Debug)]
+pub enum PeripheralIndicators {
+    #[default]
+    None,
+    All,
+    Specific(Vec<PeripheralDeviceKind>),
+}
+
 #[derive(Deserialize, Default, Clone, Debug)]
 pub struct SettingsModuleConfig {
     pub lock_cmd: Option<String>,
@@ -325,6 +342,12 @@ pub struct SettingsModuleConfig {
     pub reboot_cmd: String,
     #[serde(default = "default_logout_cmd")]
     pub logout_cmd: String,
+    #[serde(default)]
+    pub battery_format: BatteryFormat,
+    #[serde(default)]
+    pub peripheral_indicators: PeripheralIndicators,
+    #[serde(default)]
+    pub peripheral_battery_format: BatteryFormat,
     pub audio_sinks_more_cmd: Option<String>,
     pub audio_sources_more_cmd: Option<String>,
     pub wifi_more_cmd: Option<String>,
