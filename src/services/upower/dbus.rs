@@ -133,6 +133,11 @@ impl UpDeviceKind {
             10 => Some(Self::Tablet),
             11 => Some(Self::Computer),
             12 => Some(Self::GamingInput),
+            13 => Some(Self::Pen),
+            14 => Some(Self::Touchpad),
+            17 => Some(Self::Headset),
+            18 => Some(Self::Speakers),
+            19 => Some(Self::Headphones),
             _ => None,
         }
     }
@@ -144,7 +149,10 @@ impl UpDeviceKind {
 
     /// Check if this device type is a peripheral input device
     pub fn is_peripheral(&self) -> bool {
-        matches!(self, Self::Mouse | Self::Keyboard | Self::GamingInput)
+        matches!(
+            self,
+            Self::Mouse | Self::Keyboard | Self::GamingInput | Self::Headset
+        )
     }
 
     /// Check if this device type is a system power source
@@ -252,6 +260,8 @@ impl UPowerDbus<'_> {
                 .path(device)?
                 .build()
                 .await?;
+
+            debug!("Checking device type: {:?}", device.device_type().await);
 
             let device_type = device
                 .device_type()

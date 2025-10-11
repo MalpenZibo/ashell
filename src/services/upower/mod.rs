@@ -74,10 +74,96 @@ pub struct Peripheral {
     pub device: DeviceProxy<'static>,
 }
 
+impl Peripheral {
+    pub fn get_icon_state(&self) -> StaticIcon {
+        enum BatLevel {
+            Charging,
+            Full,
+            Medium,
+            Low,
+            Alert,
+        }
+
+        let get_type_icon = |bat_level: BatLevel| -> StaticIcon {
+            match (self.kind, bat_level) {
+                (PeripheralDeviceKind::Keyboard, BatLevel::Charging) => {
+                    StaticIcon::KeyboardBatteryCharging
+                }
+                (PeripheralDeviceKind::Keyboard, BatLevel::Full) => StaticIcon::KeyboardBatteryFull,
+                (PeripheralDeviceKind::Keyboard, BatLevel::Medium) => {
+                    StaticIcon::KeyboardBatteryMedium
+                }
+                (PeripheralDeviceKind::Keyboard, BatLevel::Low) => StaticIcon::KeyboardBatteryLow,
+                (PeripheralDeviceKind::Keyboard, BatLevel::Alert) => {
+                    StaticIcon::KeyboardBatteryAlert
+                }
+                (PeripheralDeviceKind::Mouse, BatLevel::Charging) => {
+                    StaticIcon::MouseBatteryCharging
+                }
+                (PeripheralDeviceKind::Mouse, BatLevel::Full) => StaticIcon::MouseBatteryFull,
+                (PeripheralDeviceKind::Mouse, BatLevel::Medium) => StaticIcon::MouseBatteryMedium,
+                (PeripheralDeviceKind::Mouse, BatLevel::Low) => StaticIcon::MouseBatteryLow,
+                (PeripheralDeviceKind::Mouse, BatLevel::Alert) => StaticIcon::MouseBatteryAlert,
+                (PeripheralDeviceKind::Headphone, BatLevel::Charging) => {
+                    StaticIcon::HeadphoneBatteryCharging
+                }
+                (PeripheralDeviceKind::Headphone, BatLevel::Full) => {
+                    StaticIcon::HeadphoneBatteryFull
+                }
+                (PeripheralDeviceKind::Headphone, BatLevel::Medium) => {
+                    StaticIcon::HeadphoneBatteryMedium
+                }
+                (PeripheralDeviceKind::Headphone, BatLevel::Low) => StaticIcon::HeadphoneBatteryLow,
+                (PeripheralDeviceKind::Headphone, BatLevel::Alert) => {
+                    StaticIcon::HeadphoneBatteryAlert
+                }
+                (PeripheralDeviceKind::Gamepad, BatLevel::Charging) => {
+                    StaticIcon::GamepadBatteryCharging
+                }
+                (PeripheralDeviceKind::Gamepad, BatLevel::Full) => StaticIcon::GamepadBatteryFull,
+                (PeripheralDeviceKind::Gamepad, BatLevel::Medium) => {
+                    StaticIcon::GamepadBatteryMedium
+                }
+                (PeripheralDeviceKind::Gamepad, BatLevel::Low) => StaticIcon::GamepadBatteryLow,
+                (PeripheralDeviceKind::Gamepad, BatLevel::Alert) => StaticIcon::GamepadBatteryAlert,
+            }
+        };
+
+        match self.data {
+            BatteryData {
+                status: BatteryStatus::Charging(_),
+                ..
+            } => get_type_icon(BatLevel::Charging),
+            BatteryData {
+                status: BatteryStatus::Discharging(_),
+                capacity,
+            } if capacity < 10 => get_type_icon(BatLevel::Alert),
+            BatteryData {
+                status: BatteryStatus::Discharging(_),
+                capacity,
+            } if capacity < 40 => get_type_icon(BatLevel::Low),
+            BatteryData {
+                status: BatteryStatus::Discharging(_),
+                capacity,
+            } if capacity < 70 => get_type_icon(BatLevel::Medium),
+            BatteryData {
+                status: BatteryStatus::Discharging(_),
+                ..
+            }
+            | BatteryData {
+                status: BatteryStatus::Full,
+                ..
+            } => get_type_icon(BatLevel::Full),
+        }
+    }
+}
+
 #[derive(Deserialize, Copy, Clone, PartialEq, Eq, Debug)]
 pub enum PeripheralDeviceKind {
     Keyboard,
     Mouse,
+    Headphone,
+    Gamepad,
 }
 
 impl fmt::Display for PeripheralDeviceKind {
@@ -85,6 +171,8 @@ impl fmt::Display for PeripheralDeviceKind {
         match self {
             PeripheralDeviceKind::Keyboard => write!(f, "Keyboard"),
             PeripheralDeviceKind::Mouse => write!(f, "Mouse"),
+            PeripheralDeviceKind::Headphone => write!(f, "Headphone"),
+            PeripheralDeviceKind::Gamepad => write!(f, "Gamepad"),
         }
     }
 }
@@ -94,6 +182,8 @@ impl PeripheralDeviceKind {
         match self {
             PeripheralDeviceKind::Keyboard => StaticIcon::Keyboard,
             PeripheralDeviceKind::Mouse => StaticIcon::Mouse,
+            PeripheralDeviceKind::Headphone => StaticIcon::Headphones1,
+            PeripheralDeviceKind::Gamepad => StaticIcon::Gamepad,
         }
     }
 }
@@ -301,6 +391,9 @@ impl UPowerService {
             let device_kind = match UpDeviceKind::from_u32(device_type).unwrap_or_default() {
                 UpDeviceKind::Mouse => PeripheralDeviceKind::Mouse,
                 UpDeviceKind::Keyboard => PeripheralDeviceKind::Keyboard,
+                UpDeviceKind::Headphones => PeripheralDeviceKind::Headphone,
+                UpDeviceKind::Headset => PeripheralDeviceKind::Headphone,
+                UpDeviceKind::GamingInput => PeripheralDeviceKind::Gamepad,
                 _ => continue,
             };
 
