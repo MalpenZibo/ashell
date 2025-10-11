@@ -64,6 +64,7 @@ pub enum Action {
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum SubMenu {
+    PeriheralMenu,
     Power,
     Sinks,
     Sources,
@@ -114,6 +115,14 @@ impl Settings {
         match message {
             Message::Power(msg) => match self.power.update(msg) {
                 power::Action::None => Action::None,
+                power::Action::TogglePeriheralMenu => {
+                    if self.sub_menu == Some(SubMenu::PeriheralMenu) {
+                        self.sub_menu.take();
+                    } else {
+                        self.sub_menu.replace(SubMenu::PeriheralMenu);
+                    }
+                    Action::None
+                }
                 power::Action::Command(task) => Action::Command(task.map(Message::Power)),
             },
             Message::Audio(msg) => match self.audio.update(msg) {
@@ -431,6 +440,15 @@ impl Settings {
 
             Column::new()
                 .push(header)
+                .push_maybe(
+                    self.sub_menu
+                        .filter(|menu_type| *menu_type == SubMenu::PeriheralMenu)
+                        .and_then(|_| {
+                            self.power
+                                .peripheral_menu(theme)
+                                .map(|e| sub_menu_wrapper(theme, e.map(Message::Power)))
+                        }),
+                )
                 .push_maybe(
                     self.sub_menu
                         .filter(|menu_type| *menu_type == SubMenu::Power)
