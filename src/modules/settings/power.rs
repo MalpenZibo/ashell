@@ -174,24 +174,26 @@ impl PowerSettings {
         // if self.config.peripheral_indicators {
         self.service.as_ref().map(|s| {
             Row::with_children(s.peripherals.iter().map(|p| {
-                let device_icon = p.kind.get_icon();
                 let state = p.data.get_indicator_state();
 
                 container(match self.config.peripheral_battery_format {
-                    BatteryFormat::Icon => row!(
-                        icon(p.data.get_icon()),
-                        icon(device_icon).size(ashell_theme.font_size.sm),
+                    BatteryFormat::Icon => {
+                        convert::Into::<Element<'a, Message>>::into(icon(p.get_icon_state()))
+                    }
+                    BatteryFormat::Percentage => row!(
+                        icon(p.kind.get_icon()),
+                        text(format!("{}%", p.data.capacity))
                     )
                     .spacing(ashell_theme.space.xxs)
-                    .align_y(Alignment::Center),
-                    BatteryFormat::Percentage => {
-                        row!(icon(device_icon), text(format!("{}%", p.data.capacity)))
-                            .spacing(ashell_theme.space.xxs)
-                            .align_y(Alignment::Center)
-                    }
-                    BatteryFormat::IconAndPercentage => row!(text(format!("{}%", p.data.capacity)))
-                        .spacing(ashell_theme.space.xxs)
-                        .align_y(Alignment::Center),
+                    .align_y(Alignment::Center)
+                    .into(),
+                    BatteryFormat::IconAndPercentage => row!(
+                        icon(p.get_icon_state()),
+                        text(format!("{}%", p.data.capacity))
+                    )
+                    .spacing(ashell_theme.space.xxs)
+                    .align_y(Alignment::Center)
+                    .into(),
                 })
                 .style(move |theme: &Theme| container::Style {
                     text_color: Some(match state {
