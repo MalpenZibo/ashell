@@ -344,6 +344,10 @@ fn default_settings_indicators() -> Vec<SettingsIndicator> {
     ]
 }
 
+fn default_peripheral_battery_format() -> BatteryFormat {
+    BatteryFormat::Icon
+}
+
 #[derive(Deserialize, Copy, Clone, Default, PartialEq, Eq, Debug)]
 pub enum BatteryFormat {
     Icon,
@@ -377,7 +381,7 @@ pub struct SettingsModuleConfig {
     pub battery_format: BatteryFormat,
     #[serde(default)]
     pub peripheral_indicators: PeripheralIndicators,
-    #[serde(default)]
+    #[serde(default = "default_peripheral_battery_format")]
     pub peripheral_battery_format: BatteryFormat,
     pub audio_sinks_more_cmd: Option<String>,
     pub audio_sources_more_cmd: Option<String>,
