@@ -1,5 +1,7 @@
 use super::{ReadOnlyService, Service, ServiceEvent};
-use crate::{components::icons::StaticIcon, utils::IndicatorState};
+use crate::{
+    components::icons::StaticIcon, services::throttle::ThrottleExt, utils::IndicatorState,
+};
 use dbus::{DeviceProxy, PowerProfilesProxy, SystemBattery, UPowerDbus, UPowerProxy, UpDeviceKind};
 use iced::{
     Subscription,
@@ -470,8 +472,16 @@ impl UPowerService {
                     stream_select!(
                         device.receive_state_changed().await.map(|_| ()),
                         device.receive_percentage_changed().await.map(|_| ()),
-                        device.receive_time_to_full_changed().await.map(|_| ()),
-                        device.receive_time_to_empty_changed().await.map(|_| ()),
+                        device
+                            .receive_time_to_full_changed()
+                            .await
+                            .throttle(Duration::from_secs(30))
+                            .map(|_| ()),
+                        device
+                            .receive_time_to_empty_changed()
+                            .await
+                            .throttle(Duration::from_secs(30))
+                            .map(|_| ()),
                     )
                     .filter_map({
                         let conn = conn.clone();
@@ -511,8 +521,16 @@ impl UPowerService {
                     stream_select!(
                         device.receive_state_changed().await.map(|_| ()),
                         device.receive_percentage_changed().await.map(|_| ()),
-                        device.receive_time_to_full_changed().await.map(|_| ()),
-                        device.receive_time_to_empty_changed().await.map(|_| ()),
+                        device
+                            .receive_time_to_full_changed()
+                            .await
+                            .throttle(Duration::from_secs(30))
+                            .map(|_| ()),
+                        device
+                            .receive_time_to_empty_changed()
+                            .await
+                            .throttle(Duration::from_secs(30))
+                            .map(|_| ()),
                     )
                     .filter_map({
                         let conn = conn.clone();

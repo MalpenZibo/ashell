@@ -7,6 +7,7 @@ pub mod idle_inhibitor;
 pub mod mpris;
 pub mod network;
 pub mod privacy;
+mod throttle;
 pub mod tray;
 pub mod upower;
 
