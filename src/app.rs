@@ -13,6 +13,7 @@ use crate::{
         privacy::Privacy,
         settings::Settings,
         system_info::SystemInfo,
+        tempo::Tempo,
         tray::TrayModule,
         updates::Updates,
         window_title::WindowTitle,
@@ -62,6 +63,7 @@ pub struct App {
     pub keyboard_submap: KeyboardSubmap,
     pub tray: TrayModule,
     pub clock: Clock,
+    pub tempo: Tempo,
     pub privacy: Privacy,
     pub settings: Settings,
     pub media_player: MediaPlayer,
@@ -81,6 +83,7 @@ pub enum Message {
     KeyboardSubmap(modules::keyboard_submap::Message),
     Tray(modules::tray::Message),
     Clock(modules::clock::Message),
+    Tempo(modules::tempo::Message),
     Privacy(modules::privacy::Message),
     Settings(modules::settings::Message),
     MediaPlayer(modules::media_player::Message),
@@ -129,7 +132,8 @@ impl App {
                     keyboard_layout: KeyboardLayout::new(config.keyboard_layout),
                     keyboard_submap: KeyboardSubmap::default(),
                     tray: TrayModule::default(),
-                    clock: Clock::new(config.clock),
+                    clock: Clock::new(config.clock.clone()),
+                    tempo: Tempo::new(config.clock),
                     privacy: Privacy::default(),
                     settings: Settings::new(config.settings),
                     media_player: MediaPlayer::new(config.media_player),
@@ -179,7 +183,8 @@ impl App {
             .map(Message::KeyboardLayout);
 
         self.keyboard_submap = KeyboardSubmap::default();
-        self.clock = Clock::new(config.clock);
+        self.clock = Clock::new(config.clock.clone());
+        self.tempo = Tempo::new(config.clock);
         self.settings
             .update(modules::settings::Message::ConfigReloaded(config.settings));
         self.media_player
@@ -339,6 +344,10 @@ impl App {
             },
             Message::Clock(message) => {
                 self.clock.update(message);
+                Task::none()
+            }
+            Message::Tempo(message) => {
+                self.tempo.update(message);
                 Task::none()
             }
             Message::Privacy(msg) => {
@@ -534,6 +543,13 @@ impl App {
                     self.system_info
                         .menu_view(&self.theme)
                         .map(Message::SystemInfo),
+                    *button_ui_ref,
+                ),
+
+                Some((MenuType::Tempo, button_ui_ref)) => self.menu_wrapper(
+                    id,
+                    self.tempo.menu_view(&self.theme).map(Message::Tempo),
+                    MenuSize::Large,
                     *button_ui_ref,
                 ),
                 None => Row::new().into(),

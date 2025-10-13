@@ -18,6 +18,7 @@ pub enum MenuType {
     Tray(String),
     MediaPlayer,
     SystemInfo,
+    Tempo,
 }
 
 #[derive(Clone, Debug)]
