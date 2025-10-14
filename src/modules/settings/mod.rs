@@ -493,6 +493,11 @@ impl Settings {
                             .vpn_indicator(theme)
                             .map(|e| e.map(Message::Network)),
                     )
+                    .push_maybe(
+                        self.bluetooth
+                            .bluetooth_indicator(theme)
+                            .map(|e| e.map(Message::Bluetooth)),
+                    )
                     .spacing(theme.space.xxs),
             )
             .push_maybe(
