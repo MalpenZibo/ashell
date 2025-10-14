@@ -3,24 +3,25 @@ use crate::{
     config::ClockModuleConfig,
     theme::AshellTheme,
 };
-use chrono::{Date, DateTime, Datelike, Days, Local};
+use chrono::{DateTime, Datelike, Days, Local, Months, NaiveDate, Weekday};
 use iced::{
-    Element, Length, Subscription, Theme,
+    Element, Length, Subscription,
     alignment::{Horizontal, Vertical},
     time::every,
-    widget::{Column, Row, button, column, container, row, text},
+    widget::{Column, Row, button, column, row, text},
 };
 use std::time::Duration;
 
 #[derive(Debug, Clone)]
 pub enum Message {
     Update,
-    ChangeSelectDate,
+    ChangeSelectDate(Option<NaiveDate>),
 }
 
 pub struct Tempo {
     config: ClockModuleConfig,
     date: DateTime<Local>,
+    selected_date: Option<NaiveDate>,
 }
 
 impl Tempo {
@@ -28,6 +29,7 @@ impl Tempo {
         Self {
             config,
             date: Local::now(),
+            selected_date: None,
         }
     }
 
@@ -36,9 +38,7 @@ impl Tempo {
             Message::Update => {
                 self.date = Local::now();
             }
-            Message::ChangeSelectDate => {
-                // Currently does nothing, but could be extended to change the date
-            }
+            Message::ChangeSelectDate(selected_date) => self.selected_date = selected_date,
         }
     }
 
@@ -46,89 +46,141 @@ impl Tempo {
         text(self.date.format(&self.config.format).to_string()).into()
     }
 
-    pub fn menu_view<'a>(&'a self, theme: &'a AshellTheme) -> Element<'_, Message> {
-        let current_month = self.date.date_naive().month0();
-        let first_day_month = self.date.date_naive().with_day0(0).unwrap();
+    pub fn menu_view<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
+        let selected_date = self.selected_date.unwrap_or(self.date.date_naive());
+
+        let current_month = selected_date.month0();
+        let first_day_month = selected_date.with_day0(0).unwrap_or_default();
         let day_of_week_first_day = first_day_month.weekday();
 
-        let mut start = first_day_month
+        let mut current = first_day_month
             .checked_sub_days(Days::new(day_of_week_first_day.number_from_monday() as u64))
-            .unwrap();
+            .unwrap_or_default();
 
-        let mut weeks: Vec<Vec<Element<'_, Message>>> = Vec::new();
-        weeks.push(
-            ["M", "T", "W", "T", "F", "S", "S"]
-                .into_iter()
-                .map(|i| {
-                    text(i)
-                        .align_x(Horizontal::Center)
-                        .width(Length::Fixed(40.0))
-                        .into()
-                })
-                .collect::<Vec<_>>(),
-        );
+        let weeks_in_month = if current
+            .checked_add_days(Days::new(5 * 7))
+            .map(|d| d.month0())
+            .unwrap_or_default()
+            != current_month
+        {
+            5
+        } else {
+            6
+        };
 
-        for w in 0..5 {
-            let mut week_row: Vec<Element<'_, Message>> = Vec::new();
-            for d in 0..7 {
-                week_row.push(
-                    button(
-                        text(start.format("%d").to_string())
+        let calendar = Column::new()
+            .push(
+                row!(
+                    button(icon(StaticIcon::LeftChevron))
+                        .on_press(Message::ChangeSelectDate(
+                            selected_date.checked_sub_months(Months::new(1)),
+                        ))
+                        .padding([theme.space.xs, theme.space.md])
+                        .style(theme.settings_button_style()),
+                    text(selected_date.format("%B").to_string())
+                        .size(theme.font_size.md)
+                        .width(Length::Fill)
+                        .align_x(Horizontal::Center),
+                    button(icon(StaticIcon::RightChevron))
+                        .on_press(Message::ChangeSelectDate(
+                            selected_date.checked_add_months(Months::new(1))
+                        ))
+                        .padding([theme.space.xs, theme.space.md])
+                        .style(theme.settings_button_style())
+                )
+                .width(Length::Fill)
+                .align_y(Vertical::Center),
+            )
+            .push(
+                Row::with_children(
+                    [
+                        Weekday::Mon,
+                        Weekday::Tue,
+                        Weekday::Wed,
+                        Weekday::Thu,
+                        Weekday::Fri,
+                        Weekday::Sat,
+                        Weekday::Sun,
+                    ]
+                    .into_iter()
+                    .map(|i| {
+                        text(i.to_string())
                             .align_x(Horizontal::Center)
-                            .color_maybe({
-                                if start == self.date.date_naive() {
-                                    Some(theme.iced_theme.palette().success)
-                                } else if start.month0() != current_month {
-                                    Some(theme.iced_theme.palette().text.scale_alpha(0.2))
-                                } else {
-                                    None
-                                }
-                            })
-                            .width(Length::Fixed(20.0)),
-                    )
-                    .on_press_maybe(if start != self.date.date_naive() {
-                        Some(Message::ChangeSelectDate)
-                    } else {
-                        None
+                            .width(Length::Fill)
+                            .into()
                     })
-                    .style(theme.ghost_button_style())
-                    .into(),
-                );
+                    .collect::<Vec<Element<'a, Message>>>(),
+                )
+                .width(Length::Fill)
+                .spacing(theme.space.sm),
+            )
+            .push(Column::with_children(
+                (0..weeks_in_month)
+                    .map(|_| {
+                        Row::with_children(
+                            (0..7)
+                                .map(|_| {
+                                    let day = current;
+                                    current = current.succ_opt().unwrap_or(current);
 
-                start = start.succ_opt().unwrap();
-            }
-
-            weeks.push(week_row);
-        }
-
-        let test = Column::with_children(
-            weeks
-                .into_iter()
-                .map(|days| Row::with_children(days).spacing(theme.space.sm).into())
-                .collect::<Vec<_>>(),
-        );
+                                    button(
+                                        text(day.format("%d").to_string())
+                                            .align_x(Horizontal::Center)
+                                            .color_maybe({
+                                                if day == self.date.date_naive() {
+                                                    Some(theme.iced_theme.palette().success)
+                                                } else if day == selected_date {
+                                                    Some(theme.iced_theme.palette().primary)
+                                                } else if day.month0() != current_month {
+                                                    Some(
+                                                        theme
+                                                            .iced_theme
+                                                            .palette()
+                                                            .text
+                                                            .scale_alpha(0.2),
+                                                    )
+                                                } else {
+                                                    None
+                                                }
+                                            }),
+                                    )
+                                    .on_press_maybe(if day != self.date.date_naive() {
+                                        Some(Message::ChangeSelectDate(Some(day)))
+                                    } else {
+                                        None
+                                    })
+                                    .width(Length::Fill)
+                                    .style(theme.ghost_button_style())
+                                    .into()
+                                })
+                                .collect::<Vec<Element<'a, Message>>>(),
+                        )
+                        .spacing(theme.space.sm)
+                        .width(Length::Fill)
+                        .into()
+                    })
+                    .collect::<Vec<Element<'a, Message>>>(),
+            ))
+            .spacing(theme.space.md)
+            .width(Length::Fixed(400.));
 
         column!(
-            text(self.date.format("%A").to_string()).size(theme.font_size.md),
-            text(self.date.format("%d %B %Y").to_string()).size(theme.font_size.lg),
-            row!(
-                button(icon(StaticIcon::LeftChevron))
-                    .on_press(Message::ChangeSelectDate)
-                    .padding([theme.space.xs, theme.space.md])
-                    .style(theme.settings_button_style()),
-                text(self.date.format("%B").to_string())
-                    .size(theme.font_size.md)
-                    .width(Length::Fill)
-                    .align_x(Horizontal::Center),
-                button(icon(StaticIcon::RightChevron))
-                    .on_press(Message::ChangeSelectDate)
-                    .padding([theme.space.xs, theme.space.md])
-                    .style(theme.settings_button_style())
+            button(
+                column!(
+                    text(self.date.format("%A").to_string()).size(theme.font_size.md),
+                    text(self.date.format("%d %B %Y").to_string()).size(theme.font_size.lg),
+                )
+                .spacing(theme.space.xs)
             )
-            .align_y(Vertical::Center),
-            test
+            .on_press_maybe(if self.selected_date.is_some() {
+                Some(Message::ChangeSelectDate(None))
+            } else {
+                None
+            })
+            .style(theme.ghost_button_style()),
+            calendar
         )
-        .spacing(theme.space.md)
+        .spacing(theme.space.lg)
         .into()
     }
 
