@@ -20,6 +20,7 @@ pub enum Message {
     Event(ServiceEvent<UPowerService>),
     TogglePowerProfile,
     Suspend,
+    Hibernate,
     Reboot,
     Shutdown,
     Logout,
@@ -34,6 +35,7 @@ pub enum Action {
 #[derive(Debug, Clone)]
 pub struct PowerSettingsConfig {
     pub suspend_cmd: String,
+    pub hibernate_cmd: String,
     pub reboot_cmd: String,
     pub shutdown_cmd: String,
     pub logout_cmd: String,
@@ -42,12 +44,14 @@ pub struct PowerSettingsConfig {
 impl PowerSettingsConfig {
     pub fn new(
         suspend_cmd: String,
+        hibernate_cmd: String,
         reboot_cmd: String,
         shutdown_cmd: String,
         logout_cmd: String,
     ) -> Self {
         Self {
             suspend_cmd,
+            hibernate_cmd,
             reboot_cmd,
             shutdown_cmd,
             logout_cmd,
@@ -95,6 +99,10 @@ impl PowerSettings {
                 utils::launcher::suspend(self.config.suspend_cmd.clone());
                 Action::None
             }
+            Message::Hibernate => {
+                utils::launcher::hibernate(self.config.hibernate_cmd.clone());
+                Action::None
+            }
             Message::Reboot => {
                 utils::launcher::reboot(self.config.reboot_cmd.clone());
                 Action::None
@@ -119,6 +127,11 @@ impl PowerSettings {
             button(row!(icon(StaticIcon::Suspend), text("Suspend")).spacing(theme.space.md))
                 .padding([theme.space.xxs, theme.space.sm])
                 .on_press(Message::Suspend)
+                .width(Length::Fill)
+                .style(theme.ghost_button_style()),
+            button(row!(icon(StaticIcon::Hibernate), text("Hibernate")).spacing(theme.space.md))
+                .padding([theme.space.xxs, theme.space.sm])
+                .on_press(Message::Hibernate)
                 .width(Length::Fill)
                 .style(theme.ghost_button_style()),
             button(row!(icon(StaticIcon::Reboot), text("Reboot")).spacing(theme.space.md))
