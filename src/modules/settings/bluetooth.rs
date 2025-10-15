@@ -277,12 +277,11 @@ impl BluetoothSettings {
                     paired_devices
                         .iter()
                         .map(|d| {
+                            let avail = available_devices.iter().any(|dev| dev.path == d.path);
                             button(
-                                row![
-                                    text(d.name.clone()).width(Length::Fill),
-                                    text("Connect").size(12),
-                                ]
-                                .spacing(8),
+                                row![text(d.name.clone()).width(Length::Fill)]
+                                    .spacing(8)
+                                    .push_maybe(avail.then(|| text("Connect").size(12))),
                             )
                             .style(theme.ghost_button_style())
                             .padding([8, 8])
