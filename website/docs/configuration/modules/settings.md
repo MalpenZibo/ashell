@@ -7,13 +7,15 @@ sidebar_position: 12
 This module provides access to system settings like audio, network, bluetooth,  
 battery, power profile and idle inhibitor.
 
-It displays in the status bar indicator about:
+It displays in the status bar indicators about:
 
 - Audio volume
 - Network status
+- Bluetooth connection status
 - Battery status
 - Power profile
 - Idle inhibitor status
+- VPN connection status
 
 And let you interact with these settings:
 
@@ -57,6 +59,32 @@ With the `remove_airplane_btn` option you can remove the airplane mode button.
 
 With the `remove_idle_btn` option you can remove the idle inhibitor button.
 
+## Status Bar Indicators
+
+With the `indicators` option you can customize which status indicators are displayed  
+in the status bar and in what order they appear.
+
+Available indicators are:
+
+- `IdleInhibitor` - Shows an icon when idle inhibitor is active
+- `PowerProfile` - Shows the current power profile icon
+- `Audio` - Shows the audio volume level icon
+- `Network` - Shows the network connection status icon
+- `Vpn` - Shows the VPN connection status icon
+- `Bluetooth` - Shows a Bluetooth icon when connected to at least one device
+- `Battery` - Shows the battery level and charging status
+
+By default, all indicators are enabled and appear in the order listed above.
+
+```toml
+[settings]
+# Customize which indicators to show and their order
+indicators = ["Battery", "Bluetooth", "Network", "Audio"]
+
+# Or use all indicators (default)
+indicators = ["IdleInhibitor", "PowerProfile", "Audio", "Network", "Vpn", "Bluetooth", "Battery"]
+```
+
 ## Example
 
 In the following example we use:
@@ -79,4 +107,6 @@ vpn_more_cmd = "nm-connection-editor"
 bluetooth_more_cmd = "blueman-manager"
 remove_airplane_btn = true
 remove_idle_btn = true
+# Only show battery, bluetooth, network and audio indicators
+indicators = ["Battery", "Bluetooth", "Network", "Audio"]
 ```
