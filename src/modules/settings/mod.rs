@@ -1,6 +1,6 @@
 use crate::{
     components::icons::{Icon, StaticIcon, icon},
-    config::{Position, SettingsModuleConfig},
+    config::{Position, SettingsIndicator, SettingsModuleConfig},
     modules::settings::{
         audio::{AudioSettings, AudioSettingsConfig},
         bluetooth::{BluetoothSettings, BluetoothSettingsConfig},
@@ -35,6 +35,7 @@ pub struct Settings {
     idle_inhibitor: Option<IdleInhibitorManager>,
     sub_menu: Option<SubMenu>,
     password_dialog: Option<(String, String)>,
+    indicators: Vec<SettingsIndicator>,
 }
 
 #[derive(Debug, Clone)]
@@ -101,6 +102,7 @@ impl Settings {
             },
             sub_menu: None,
             password_dialog: None,
+            indicators: config.indicators,
         }
     }
 
@@ -299,6 +301,7 @@ impl Settings {
                 } else if self.idle_inhibitor.is_none() {
                     self.idle_inhibitor = IdleInhibitorManager::new();
                 }
+                self.indicators = config.indicators;
                 Action::None
             }
         }
@@ -463,47 +466,82 @@ impl Settings {
     pub fn view<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
         Row::new()
             .push_maybe(
-                self.idle_inhibitor
-                    .as_ref()
-                    .filter(|i| i.is_inhibited())
-                    .map(|_| {
-                        container(icon(StaticIcon::EyeOpened)).style(|theme: &Theme| {
-                            container::Style {
-                                text_color: Some(theme.palette().danger),
-                                ..Default::default()
-                            }
-                        })
-                    }),
+                self.indicators
+                    .contains(&SettingsIndicator::IdleInhibitor)
+                    .then(|| {
+                        self.idle_inhibitor
+                            .as_ref()
+                            .filter(|i| i.is_inhibited())
+                            .map(|_| {
+                                container(icon(StaticIcon::EyeOpened)).style(|theme: &Theme| {
+                                    container::Style {
+                                        text_color: Some(theme.palette().danger),
+                                        ..Default::default()
+                                    }
+                                })
+                            })
+                    })
+                    .flatten(),
             )
             .push_maybe(
-                self.power
-                    .power_profile_indicator()
-                    .map(|e| e.map(Message::Power)),
+                self.indicators
+                    .contains(&SettingsIndicator::PowerProfile)
+                    .then(|| {
+                        self.power
+                            .power_profile_indicator()
+                            .map(|e| e.map(Message::Power))
+                    })
+                    .flatten(),
             )
-            .push_maybe(self.audio.sink_indicator().map(|e| e.map(Message::Audio)))
+            .push_maybe(
+                self.indicators
+                    .contains(&SettingsIndicator::Audio)
+                    .then(|| self.audio.sink_indicator().map(|e| e.map(Message::Audio)))
+                    .flatten(),
+            )
             .push(
                 Row::new()
                     .push_maybe(
-                        self.network
-                            .connection_indicator(theme)
-                            .map(|e| e.map(Message::Network)),
+                        self.indicators
+                            .contains(&SettingsIndicator::Network)
+                            .then(|| {
+                                self.network
+                                    .connection_indicator(theme)
+                                    .map(|e| e.map(Message::Network))
+                            })
+                            .flatten(),
                     )
                     .push_maybe(
-                        self.network
-                            .vpn_indicator(theme)
-                            .map(|e| e.map(Message::Network)),
+                        self.indicators
+                            .contains(&SettingsIndicator::Vpn)
+                            .then(|| {
+                                self.network
+                                    .vpn_indicator(theme)
+                                    .map(|e| e.map(Message::Network))
+                            })
+                            .flatten(),
                     )
                     .push_maybe(
-                        self.bluetooth
-                            .bluetooth_indicator(theme)
-                            .map(|e| e.map(Message::Bluetooth)),
+                        self.indicators
+                            .contains(&SettingsIndicator::Bluetooth)
+                            .then(|| {
+                                self.bluetooth
+                                    .bluetooth_indicator(theme)
+                                    .map(|e| e.map(Message::Bluetooth))
+                            })
+                            .flatten(),
                     )
                     .spacing(theme.space.xxs),
             )
             .push_maybe(
-                self.power
-                    .battery_indicator(theme)
-                    .map(|e| e.map(Message::Power)),
+                self.indicators
+                    .contains(&SettingsIndicator::Battery)
+                    .then(|| {
+                        self.power
+                            .battery_indicator(theme)
+                            .map(|e| e.map(Message::Power))
+                    })
+                    .flatten(),
             )
             .spacing(theme.space.xs)
             .into()

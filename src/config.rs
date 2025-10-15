@@ -314,6 +314,29 @@ fn default_logout_cmd() -> String {
     "loginctl kill-user $(whoami)".to_string()
 }
 
+#[derive(Deserialize, Clone, Debug, PartialEq, Eq)]
+pub enum SettingsIndicator {
+    IdleInhibitor,
+    PowerProfile,
+    Audio,
+    Network,
+    Vpn,
+    Bluetooth,
+    Battery,
+}
+
+fn default_settings_indicators() -> Vec<SettingsIndicator> {
+    vec![
+        SettingsIndicator::IdleInhibitor,
+        SettingsIndicator::PowerProfile,
+        SettingsIndicator::Audio,
+        SettingsIndicator::Network,
+        SettingsIndicator::Vpn,
+        SettingsIndicator::Bluetooth,
+        SettingsIndicator::Battery,
+    ]
+}
+
 #[derive(Deserialize, Default, Clone, Debug)]
 pub struct SettingsModuleConfig {
     pub lock_cmd: Option<String>,
@@ -334,6 +357,8 @@ pub struct SettingsModuleConfig {
     pub remove_airplane_btn: bool,
     #[serde(default)]
     pub remove_idle_btn: bool,
+    #[serde(default = "default_settings_indicators")]
+    pub indicators: Vec<SettingsIndicator>,
 }
 
 #[derive(Deserialize, Clone, Debug)]
