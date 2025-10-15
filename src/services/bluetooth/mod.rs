@@ -296,7 +296,7 @@ impl Service for BluetoothService {
                         let bluetooth = BluetoothDbus::new(&conn).await;
                         if let Ok(bluetooth) = bluetooth {
                             let _ = bluetooth.start_discovery().await;
-                            
+
                             // Auto-stop after 15 seconds
                             tokio::time::sleep(tokio::time::Duration::from_secs(15)).await;
                             let _ = bluetooth.stop_discovery().await;

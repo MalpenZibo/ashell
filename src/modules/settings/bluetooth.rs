@@ -219,13 +219,13 @@ impl BluetoothSettings {
                     } else {
                         StaticIcon::Refresh
                     }))
-                        .padding([4, 10])
-                        .style(theme.settings_button_style())
-                        .on_press(if service.discovering {
-                            Message::StopDiscovery
-                        } else {
-                            Message::StartDiscovery
-                        }),
+                    .padding([4, 10])
+                    .style(theme.settings_button_style())
+                    .on_press(if service.discovering {
+                        Message::StopDiscovery
+                    } else {
+                        Message::StartDiscovery
+                    }),
                 ]
                 .spacing(8)
                 .width(Length::Fill),
