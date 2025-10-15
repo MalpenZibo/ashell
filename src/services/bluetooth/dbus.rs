@@ -106,7 +106,6 @@ impl BluetoothDbus<'_> {
             let name = device.alias().await?;
             let connected = device.connected().await?;
             let paired = device.paired().await?;
-            let trusted = device.trusted().await?;
 
             let battery = if connected && has_battery {
                 let battery_proxy = BatteryProxy::builder(self.bluez.inner().connection())
@@ -125,7 +124,6 @@ impl BluetoothDbus<'_> {
                 path: device_path,
                 connected,
                 paired,
-                trusted,
             });
         }
 
@@ -205,9 +203,6 @@ trait Device {
 
     #[zbus(property)]
     fn paired(&self) -> zbus::Result<bool>;
-
-    #[zbus(property)]
-    fn trusted(&self) -> zbus::Result<bool>;
 
     fn pair(&self) -> zbus::Result<()>;
 

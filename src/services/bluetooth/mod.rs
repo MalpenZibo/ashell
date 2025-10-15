@@ -32,7 +32,6 @@ pub struct BluetoothDevice {
     pub path: OwnedObjectPath,
     pub connected: bool,
     pub paired: bool,
-    pub trusted: bool,
 }
 
 #[derive(Debug, Clone)]
