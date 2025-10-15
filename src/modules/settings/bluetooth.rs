@@ -197,7 +197,7 @@ impl BluetoothSettings {
 
     pub fn bluetooth_indicator<'a>(
         &'a self,
-        theme: &'a AshellTheme,
+        _theme: &'a AshellTheme,
     ) -> Option<Element<'a, Message>> {
         if let Some(service) = &self.service {
             if service.state == BluetoothState::Active && !service.devices.is_empty() {
