@@ -20,6 +20,7 @@ pub enum Message {
     Toggle,
     ToggleSubMenu,
     StartDiscovery,
+    StopDiscovery,
     PairDevice(OwnedObjectPath),
     ConnectDevice(OwnedObjectPath),
     DisconnectDevice(OwnedObjectPath),
@@ -87,6 +88,14 @@ impl BluetoothSettings {
                 Some(service) => Action::Command(
                     service
                         .command(BluetoothCommand::StartDiscovery)
+                        .map(Message::Event),
+                ),
+                _ => Action::None,
+            },
+            Message::StopDiscovery => match self.service.as_mut() {
+                Some(service) => Action::Command(
+                    service
+                        .command(BluetoothCommand::StopDiscovery)
                         .map(Message::Event),
                 ),
                 _ => Action::None,
@@ -205,10 +214,18 @@ impl BluetoothSettings {
                         ""
                     })
                     .size(12),
-                    button(icon(StaticIcon::Refresh))
+                    button(icon(if service.discovering {
+                        StaticIcon::Close
+                    } else {
+                        StaticIcon::Refresh
+                    }))
                         .padding([4, 10])
                         .style(theme.settings_button_style())
-                        .on_press(Message::StartDiscovery),
+                        .on_press(if service.discovering {
+                            Message::StopDiscovery
+                        } else {
+                            Message::StartDiscovery
+                        }),
                 ]
                 .spacing(8)
                 .width(Length::Fill),
