@@ -191,6 +191,7 @@ impl Settings {
 
                     Action::Command(task.map(Message::Bluetooth))
                 }
+                bluetooth::Action::Command(task) => Action::Command(task.map(Message::Bluetooth)),
                 bluetooth::Action::CloseMenu(id) => Action::CloseMenu(id),
             },
             Message::Brightness(msg) => match self.brightness.update(msg) {
