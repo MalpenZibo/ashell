@@ -267,7 +267,6 @@ impl PowerSettings {
         };
 
         match &self.config.peripheral_indicators {
-            PeripheralIndicators::None => None,
             PeripheralIndicators::All => get_indicators(None),
             PeripheralIndicators::Specific(kinds) => get_indicators(Some(kinds)),
         }

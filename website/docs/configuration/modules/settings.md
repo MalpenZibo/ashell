@@ -36,9 +36,9 @@ You can configure some function of this module.
 With the `lock_cmd` option you can set a command to lock  
 the system, if not set the related button will not appear.
 
-With the `shutdown_cmd`, `suspend_cmd`, `hibernate_cmd`, `reboot_cmd`, and `logout_cmd`,  
-you can change the related commands to shut down, suspend, hibernate, reboot,
-or log out of the system.  
+With the `shutdown_cmd`, `suspend_cmd`, `hibernate_cmd`, `reboot_cmd`,
+and `logout_cmd`, you can change the related commands to
+shut down, suspend, hibernate, reboot, or log out of the system.  
 These parameters are optional and have the following default values:
 
 ```toml
@@ -60,10 +60,43 @@ With the `remove_airplane_btn` option you can remove the airplane mode button.
 
 With the `remove_idle_btn` option you can remove the idle inhibitor button.
 
+With the `battery_format` option you can customize the battery indicator format.
+
+The possible values are:
+
+- `Icon` - Show only the battery icon
+- `Percentage` - Show only the battery percentage
+- `IconAndPercentage` - Show both the battery icon and percentage (default)
+
+In the same way it's possible to customize the peripheral battery indicator format.
+The possible values are the same as above, but you need to use
+the `peripheral_battery_format` option.
+The default value is `Icon`.
+
+With the `peripheral_indicators` you can decide which peripheral battery indicators
+are shown in the status bar.
+
+The possible values are:
+
+- `All` - Show all peripheral battery indicators (default)
+- `Specific` - Show only the peripheral battery indicators in the specified categories.
+  The possible categories are:
+  - `Keyboard`
+  - `Mouse`
+  - `Headphones`
+  - `Gamepad`
+
+```toml
+[settings]
+battery_format = "IconAndPercentage"
+peripheral_battery_format = "Icon"
+peripheral_indicators = { Specific = ["Gamepad", "Keyboard"] }
+```
+
 ## Status Bar Indicators
 
-With the `indicators` option you can customize which status indicators are displayed  
-in the status bar and in what order they appear.
+With the `indicators` option you can customize which status indicators
+are displayed in the status bar and in what order they appear.
 
 Available indicators are:
 
@@ -74,16 +107,15 @@ Available indicators are:
 - `Vpn` - Shows the VPN connection status icon
 - `Bluetooth` - Shows a Bluetooth icon when connected to at least one device
 - `Battery` - Shows the battery level and charging status
-
-By default, all indicators are enabled and appear in the order listed above.
+- `PeripheralBattery` - Shows the peripheral battery status
 
 ```toml
 [settings]
 # Customize which indicators to show and their order
 indicators = ["Battery", "Bluetooth", "Network", "Audio"]
 
-# Or use all indicators (default)
-indicators = ["IdleInhibitor", "PowerProfile", "Audio",  "Bluetooth", "Network", "Vpn", "Battery"]
+# The default value is the following, the items are shown in this order:
+indicators = ["IdleInhibitor", "PowerProfile", "Audio", "Bluetooth", "Network", "Vpn", "Battery"]
 ```
 
 ## Example

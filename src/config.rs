@@ -335,7 +335,6 @@ fn default_settings_indicators() -> Vec<SettingsIndicator> {
     vec![
         SettingsIndicator::IdleInhibitor,
         SettingsIndicator::PowerProfile,
-        SettingsIndicator::PeripheralBattery,
         SettingsIndicator::Audio,
         SettingsIndicator::Bluetooth,
         SettingsIndicator::Network,
@@ -359,7 +358,6 @@ pub enum BatteryFormat {
 #[derive(Deserialize, Clone, Default, PartialEq, Eq, Debug)]
 pub enum PeripheralIndicators {
     #[default]
-    None,
     All,
     Specific(Vec<PeripheralDeviceKind>),
 }
