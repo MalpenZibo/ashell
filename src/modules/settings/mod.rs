@@ -77,6 +77,7 @@ impl Settings {
             lock_cmd: config.lock_cmd,
             power: PowerSettings::new(PowerSettingsConfig::new(
                 config.suspend_cmd,
+                config.hibernate_cmd,
                 config.reboot_cmd,
                 config.shutdown_cmd,
                 config.logout_cmd,
@@ -275,6 +276,7 @@ impl Settings {
                 self.power
                     .update(power::Message::ConfigReloaded(PowerSettingsConfig::new(
                         config.suspend_cmd,
+                        config.hibernate_cmd,
                         config.reboot_cmd,
                         config.shutdown_cmd,
                         config.logout_cmd,

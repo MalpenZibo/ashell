@@ -306,6 +306,10 @@ fn default_suspend_cmd() -> String {
     "systemctl suspend".to_string()
 }
 
+fn default_hibernate_cmd() -> String {
+    "systemctl hibernate".to_string()
+}
+
 fn default_reboot_cmd() -> String {
     "systemctl reboot".to_string()
 }
@@ -321,6 +325,8 @@ pub struct SettingsModuleConfig {
     pub shutdown_cmd: String,
     #[serde(default = "default_suspend_cmd")]
     pub suspend_cmd: String,
+    #[serde(default = "default_hibernate_cmd")]
+    pub hibernate_cmd: String,
     #[serde(default = "default_reboot_cmd")]
     pub reboot_cmd: String,
     #[serde(default = "default_logout_cmd")]
