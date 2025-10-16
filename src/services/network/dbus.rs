@@ -640,10 +640,10 @@ impl NetworkDbus<'_> {
                     let ssid = String::from_utf8_lossy(&ap.ssid().await?.clone()).into_owned();
                     let public = ap.flags().await.unwrap_or_default() == 0;
                     let strength = ap.strength().await?;
-                    if let Some(access_point) = aps.get(&ssid) {
-                        if access_point.strength > strength {
-                            continue;
-                        }
+                    if let Some(access_point) = aps.get(&ssid)
+                        && access_point.strength > strength
+                    {
+                        continue;
                     }
 
                     aps.insert(

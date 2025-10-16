@@ -339,17 +339,17 @@ impl Outputs {
         let mut tasks = Vec::new();
 
         for (name, wl_output) in to_add {
-            if let Some(wl_output) = wl_output {
-                if let Some(name) = name {
-                    tasks.push(self.add(
-                        style,
-                        request_outputs,
-                        position,
-                        name.as_str(),
-                        wl_output,
-                        scale_factor,
-                    ));
-                }
+            if let Some(wl_output) = wl_output
+                && let Some(name) = name
+            {
+                tasks.push(self.add(
+                    style,
+                    request_outputs,
+                    position,
+                    name.as_str(),
+                    wl_output,
+                    scale_factor,
+                ));
             }
         }
 

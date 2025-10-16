@@ -85,20 +85,20 @@ impl PrivacyService {
                 .global({
                     let tx = tx.clone();
                     move |global| {
-                        if let Some(props) = global.props {
-                            if let Some(media) = props.get("media.class").filter(|v| {
+                        if let Some(props) = global.props
+                            && let Some(media) = props.get("media.class").filter(|v| {
                                 v == &"Stream/Input/Video" || v == &"Stream/Input/Audio"
-                            }) {
-                                debug!("New global: {global:?}");
-                                let _ = tx.send(PrivacyEvent::AddNode(ApplicationNode {
-                                    id: global.id,
-                                    media: if media == "Stream/Input/Video" {
-                                        Media::Video
-                                    } else {
-                                        Media::Audio
-                                    },
-                                }));
-                            }
+                            })
+                        {
+                            debug!("New global: {global:?}");
+                            let _ = tx.send(PrivacyEvent::AddNode(ApplicationNode {
+                                id: global.id,
+                                media: if media == "Stream/Input/Video" {
+                                    Media::Video
+                                } else {
+                                    Media::Audio
+                                },
+                            }));
                         }
                     }
                 })
@@ -296,10 +296,10 @@ fn is_device_in_use(target: &str) -> i32 {
             // Check file descriptors in each process folder
             if let Ok(fd_entries) = fs::read_dir(pid_path.join("fd")) {
                 for fd_entry in fd_entries.flatten() {
-                    if let Ok(link_path) = fs::read_link(fd_entry.path()) {
-                        if link_path == Path::new(target) {
-                            used_by += 1;
-                        }
+                    if let Ok(link_path) = fs::read_link(fd_entry.path())
+                        && link_path == Path::new(target)
+                    {
+                        used_by += 1;
                     }
                 }
             }

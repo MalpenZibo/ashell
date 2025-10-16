@@ -395,12 +395,11 @@ impl Service for AudioService {
                     .sinks
                     .iter_mut()
                     .find(|sink| sink.name == self.data.server_info.default_sink)
+                    && let Some(volume) = sink.volume.scale_volume(volume as f64 / 100.)
                 {
-                    if let Some(volume) = sink.volume.scale_volume(volume as f64 / 100.) {
-                        let _ = self
-                            .commander
-                            .send(PulseAudioCommand::SinkVolume(sink.name.clone(), *volume));
-                    }
+                    let _ = self
+                        .commander
+                        .send(PulseAudioCommand::SinkVolume(sink.name.clone(), *volume));
                 }
             }
             AudioCommand::SourceVolume(volume) => {
@@ -409,13 +408,12 @@ impl Service for AudioService {
                     .sources
                     .iter_mut()
                     .find(|source| source.name == self.data.server_info.default_source)
+                    && let Some(volume) = source.volume.scale_volume(volume as f64 / 100.)
                 {
-                    if let Some(volume) = source.volume.scale_volume(volume as f64 / 100.) {
-                        let _ = self.commander.send(PulseAudioCommand::SourceVolume(
-                            source.name.clone(),
-                            *volume,
-                        ));
-                    }
+                    let _ = self.commander.send(PulseAudioCommand::SourceVolume(
+                        source.name.clone(),
+                        *volume,
+                    ));
                 }
             }
             AudioCommand::DefaultSink(name, port) => {
