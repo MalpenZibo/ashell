@@ -72,10 +72,36 @@ These buttons can execute commands when clicked.
 | Field            | Required | Description                                                 |
 | ---------------- | -------- | ----------------------------------------------------------- |
 | `name`           | Yes      | Display name of the button                                  |
-| `icon`           | Yes      | Icon to display (currently not implemented, placeholder)    |
-| `command`        | Yes      | Command to execute when button is clicked                   |
+| `icon`           | Yes      | Icon to display (Unicode emoji or Nerd Font symbol)         |
+| `command`        | Yes      | Shell command to execute when button is clicked             |
 | `status_command` | No       | Command to check if toggle is active (exit code 0 = active) |
 | `tooltip`        | No       | Tooltip text shown on hover                                 |
+
+#### Icon Support
+
+The `icon` field accepts:
+- **Unicode emoji**: `⌨️`, `🖥️`, `📁`, `🌐`, etc.
+- **Nerd Font symbols**: ``, ``, ``, etc. (requires Nerd Font installed)
+
+Both are rendered using the `Symbols Nerd Font` and will display correctly in the UI.
+
+#### Command Execution
+
+Both `command` and `status_command` are executed through **bash shell** (`bash -c`), which means you can use:
+- Shell features: pipes (`|`), redirects (`>`), logical operators (`&&`, `||`)
+- Environment variables: `$HOME`, `$USER`, etc.
+- Globs: `*.txt`, `~/Documents/*`
+
+:::warning Security Note
+Commands are executed with your user privileges. Be careful with commands from untrusted sources, as they have full shell access.
+:::
+
+#### Status Command Timeout
+
+Each `status_command` has a **1 second timeout**. If the command doesn't complete within this time:
+- The button state will be shown as "unknown" (grayed out)
+- The process will be killed automatically
+- An error will be logged for debugging
 
 ```toml
 # Toggle button example (with status_command)
