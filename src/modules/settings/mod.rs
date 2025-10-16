@@ -273,8 +273,12 @@ impl Settings {
             Message::CustomButton(name) => {
                 if let Some(button) = self.custom_buttons.iter().find(|b| b.name == name) {
                     crate::utils::launcher::execute_command(button.command.clone());
+                    
+                    // Toggle button state immediately
+                    let current_status = self.custom_buttons_status.get(&name).and_then(|v| *v);
+                    self.custom_buttons_status.insert(name, current_status.map(|s| !s));
                 }
-                Action::Command(Task::none())
+                Action::None
             }
             Message::CustomButtonsStatus(statuses) => {
                 for (name, status) in statuses.into_iter() {
@@ -285,49 +289,32 @@ impl Settings {
             Message::MenuOpened => {
                 self.sub_menu = None;
 
-                // prepare and spawn a background task to evaluate status_command for custom buttons
                 let buttons = self.custom_buttons.clone();
 
                 let task = Task::perform(
                     async move {
-                        let mut results: Vec<(String, Option<bool>)> = Vec::new();
-
-                        for button in buttons.into_iter() {
-                            if let Some(cmd) = button.status_command.clone() {
-                                // spawn child and wait with timeout
-                                match std::process::Command::new("bash")
-                                    .arg("-c")
-                                    .arg(cmd)
-                                    .spawn()
-                                {
-                                    Ok(mut child) => {
-                                        let timeout = Duration::from_millis(1000);
-                                        match child.wait_timeout(timeout).ok().flatten() {
-                                            Some(status) => {
-                                                results.push((
-                                                    button.name.clone(),
-                                                    Some(status.success()),
-                                                ));
-                                            }
-                                            None => {
-                                                // timed out -> kill child and mark unknown
-                                                let _ = child.kill();
-                                                let _ = child.wait();
-                                                results.push((button.name.clone(), None));
+                        buttons.into_iter()
+                            .map(|button| {
+                                let status = if let Some(cmd) = button.status_command {
+                                    match std::process::Command::new("bash").arg("-c").arg(&cmd).spawn() {
+                                        Ok(mut child) => {
+                                            match child.wait_timeout(Duration::from_millis(1000)).ok().flatten() {
+                                                Some(s) => Some(s.success()),
+                                                None => {
+                                                    let _ = child.kill();
+                                                    let _ = child.wait();
+                                                    None
+                                                }
                                             }
                                         }
+                                        Err(_) => None,
                                     }
-                                    Err(_) => {
-                                        results.push((button.name.clone(), None));
-                                    }
-                                }
-                            } else {
-                                // no status command -> push inactive by default
-                                results.push((button.name.clone(), Some(false)));
-                            }
-                        }
-
-                        results
+                                } else {
+                                    Some(false)
+                                };
+                                (button.name, status)
+                            })
+                            .collect()
                     },
                     Message::CustomButtonsStatus,
                 );
