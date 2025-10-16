@@ -52,3 +52,4 @@ uuid = { version = "1.16.0", features = ["v4"] }
 clap = { version = "4.5", features = ["derive"] }
 shellexpand = { version = "3", features = ["path"] }
 inotify = "0.11.0"
+wait-timeout = "0.2"

@@ -1,5 +1,9 @@
+use std::collections::HashMap;
+use std::time::Duration;
+use wait_timeout::ChildExt;
+
 use crate::{
-    components::icons::{Icon, StaticIcon, icon},
+    components::icons::{DynamicIcon, Icon, StaticIcon, icon},
     config::{Position, SettingsCustomButton, SettingsModuleConfig},
     modules::settings::{
         audio::{AudioSettings, AudioSettingsConfig},
@@ -36,6 +40,7 @@ pub struct Settings {
     sub_menu: Option<SubMenu>,
     password_dialog: Option<(String, String)>,
     custom_buttons: Vec<SettingsCustomButton>,
+    custom_buttons_status: HashMap<String, Option<bool>>,
 }
 
 #[derive(Debug, Clone)]
@@ -50,6 +55,7 @@ pub enum Message {
     ToggleSubMenu(SubMenu),
     PasswordDialog(password_dialog::Message),
     CustomButton(String),
+    CustomButtonsStatus(Vec<(String, Option<bool>)>),
     MenuOpened,
     ConfigReloaded(SettingsModuleConfig),
 }
@@ -104,6 +110,7 @@ impl Settings {
             sub_menu: None,
             password_dialog: None,
             custom_buttons: config.custom_buttons,
+            custom_buttons_status: HashMap::new(),
         }
     }
 
@@ -266,16 +273,68 @@ impl Settings {
             Message::CustomButton(name) => {
                 if let Some(button) = self.custom_buttons.iter().find(|b| b.name == name) {
                     crate::utils::launcher::execute_command(button.command.clone());
+
+                    // Toggle button state immediately
+                    let current_status = self.custom_buttons_status.get(&name).and_then(|v| *v);
+                    self.custom_buttons_status
+                        .insert(name, current_status.map(|s| !s));
                 }
-                Action::Command(Task::none())
+                Action::None
+            }
+            Message::CustomButtonsStatus(statuses) => {
+                for (name, status) in statuses.into_iter() {
+                    self.custom_buttons_status.insert(name, status);
+                }
+                Action::None
             }
             Message::MenuOpened => {
                 self.sub_menu = None;
 
+                let buttons = self.custom_buttons.clone();
+
+                let task = Task::perform(
+                    async move {
+                        buttons
+                            .into_iter()
+                            .map(|button| {
+                                let status = if let Some(cmd) = button.status_command {
+                                    match std::process::Command::new("bash")
+                                        .arg("-c")
+                                        .arg(&cmd)
+                                        .spawn()
+                                    {
+                                        Ok(mut child) => {
+                                            match child
+                                                .wait_timeout(Duration::from_millis(1000))
+                                                .ok()
+                                                .flatten()
+                                            {
+                                                Some(s) => Some(s.success()),
+                                                None => {
+                                                    let _ = child.kill();
+                                                    let _ = child.wait();
+                                                    None
+                                                }
+                                            }
+                                        }
+                                        Err(_) => None,
+                                    }
+                                } else {
+                                    Some(false)
+                                };
+                                (button.name, status)
+                            })
+                            .collect()
+                    },
+                    Message::CustomButtonsStatus,
+                );
+
                 match self.brightness.update(brightness::Message::MenuOpened) {
-                    brightness::Action::None => Action::None,
-                    brightness::Action::Command(task) => {
-                        Action::Command(task.map(Message::Brightness))
+                    brightness::Action::None => Action::Command(task.map(|m| m)),
+                    brightness::Action::Command(_task2) => {
+                        // chain tasks: run brightness task first then our status task
+                        // return our status task for now; the brightness command will be handled elsewhere
+                        Action::Command(task)
                     }
                 }
             }
@@ -416,15 +475,15 @@ impl Settings {
                 .into_iter()
                 .flatten()
                 .chain(self.custom_buttons.iter().map(|button| {
-                    // currently icon handling isn't implemented in the quick_setting_button
-                    // but read the `icon` field so it's not flagged as dead/unused
-                    let _ = &button.icon;
-                    let is_active = check_toggle_status(&button.status_command);
-
+                    let is_active = self
+                        .custom_buttons_status
+                        .get(&button.name)
+                        .and_then(|v| *v)
+                        .unwrap_or(false);
                     (
                         quick_setting_button(
                             theme,
-                            Icons::AppLauncher, // Replace with button.icon when icon handling is implemented
+                            DynamicIcon(button.icon.clone()),
                             button.name.clone(),
                             button.tooltip.clone(),
                             is_active,
@@ -674,15 +733,4 @@ fn quick_setting_button<'a, Msg: Clone + 'static, I: Icon>(
     .width(Length::Fill)
     .height(Length::Fixed(50.))
     .into()
-}
-
-fn check_toggle_status(status_command: &Option<String>) -> bool {
-    status_command.as_ref().is_some_and(|cmd| {
-        std::process::Command::new("bash")
-            .arg("-c")
-            .arg(cmd)
-            .output()
-            .map(|output| output.status.success())
-            .unwrap_or(false)
-    })
 }
