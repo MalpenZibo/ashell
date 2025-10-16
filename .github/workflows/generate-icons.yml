@@ -15,7 +15,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          ref: ${{ github.head_ref || github.ref }}
       
       - name: Install FontForge
         run: |
@@ -43,4 +42,4 @@ jobs:
           git config --local user.name "github-actions[bot]"
           git add assets/ashell_icon.ttf
           git commit -m "chore: regenerate icon font [skip ci]"
-          git push
+          git push origin HEAD:${{ github.head_ref || github.ref_name }}
