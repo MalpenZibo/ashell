@@ -82,7 +82,7 @@ By default, all indicators are enabled and appear in the order listed above.
 indicators = ["Battery", "Bluetooth", "Network", "Audio"]
 
 # Or use all indicators (default)
-indicators = ["IdleInhibitor", "PowerProfile", "Audio", "Network", "Vpn", "Bluetooth", "Battery"]
+indicators = ["IdleInhibitor", "PowerProfile", "Audio",  "Bluetooth", "Network", "Vpn", "Battery"]
 ```
 
 ## Example
