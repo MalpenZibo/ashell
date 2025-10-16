@@ -33,6 +33,7 @@ pub struct Config {
     pub window_title: WindowTitleConfig,
     pub system_info: SystemInfoModuleConfig,
     pub clock: ClockModuleConfig,
+    pub tempo: TempoModuleConfig,
     pub settings: SettingsModuleConfig,
     pub appearance: Appearance,
     pub media_player: MediaPlayerModuleConfig,
@@ -53,6 +54,7 @@ impl Default for Config {
             window_title: WindowTitleConfig::default(),
             system_info: SystemInfoModuleConfig::default(),
             clock: ClockModuleConfig::default(),
+            tempo: TempoModuleConfig::default(),
             settings: SettingsModuleConfig::default(),
             appearance: Appearance::default(),
             media_player: MediaPlayerModuleConfig::default(),
@@ -252,6 +254,34 @@ impl Default for ClockModuleConfig {
     fn default() -> Self {
         Self {
             format: "%a %d %b %R".to_string(),
+        }
+    }
+}
+
+#[derive(Deserialize, Clone, Debug)]
+#[serde(default)]
+pub struct TempoModuleConfig {
+    pub clock_format: String,
+    #[serde(default)]
+    pub weather_location: WeatherLocation,
+}
+
+#[derive(Deserialize, Default, Clone, Debug)]
+pub enum WeatherLocation {
+    #[default]
+    Current,
+    City(String),
+    Coordinates {
+        latitude: f32,
+        longitude: f32,
+    },
+}
+
+impl Default for TempoModuleConfig {
+    fn default() -> Self {
+        Self {
+            clock_format: "%a %d %b %R".to_string(),
+            weather_location: WeatherLocation::default(),
         }
     }
 }

@@ -132,8 +132,8 @@ impl App {
                     keyboard_layout: KeyboardLayout::new(config.keyboard_layout),
                     keyboard_submap: KeyboardSubmap::default(),
                     tray: TrayModule::default(),
-                    clock: Clock::new(config.clock.clone()),
-                    tempo: Tempo::new(config.clock),
+                    clock: Clock::new(config.clock),
+                    tempo: Tempo::new(config.tempo),
                     privacy: Privacy::default(),
                     settings: Settings::new(config.settings),
                     media_player: MediaPlayer::new(config.media_player),
@@ -183,8 +183,8 @@ impl App {
             .map(Message::KeyboardLayout);
 
         self.keyboard_submap = KeyboardSubmap::default();
-        self.clock = Clock::new(config.clock.clone());
-        self.tempo = Tempo::new(config.clock);
+        self.clock = Clock::new(config.clock);
+        self.tempo = Tempo::new(config.tempo);
         self.settings
             .update(modules::settings::Message::ConfigReloaded(config.settings));
         self.media_player
@@ -346,10 +346,9 @@ impl App {
                 self.clock.update(message);
                 Task::none()
             }
-            Message::Tempo(message) => {
-                self.tempo.update(message);
-                Task::none()
-            }
+            Message::Tempo(message) => match self.tempo.update(message) {
+                modules::tempo::Action::None => Task::none(),
+            },
             Message::Privacy(msg) => {
                 self.privacy.update(msg);
                 Task::none()
