@@ -195,6 +195,18 @@ impl BluetoothSettings {
         .into()
     }
 
+    pub fn bluetooth_indicator<'a>(
+        &'a self,
+        _theme: &'a AshellTheme,
+    ) -> Option<Element<'a, Message>> {
+        if let Some(service) = &self.service {
+            if service.state == BluetoothState::Active && !service.devices.is_empty() {
+                return Some(icon(StaticIcon::Bluetooth).into());
+            }
+        }
+        None
+    }
+
     pub fn subscription(&self) -> Subscription<Message> {
         BluetoothService::subscribe().map(Message::Event)
     }
