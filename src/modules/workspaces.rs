@@ -95,10 +95,10 @@ fn get_workspaces(config: &WorkspacesModuleConfig) -> Vec<Workspace> {
     // To show workspaces that don't exist in Hyprland we need to create fake ones
     let existing_ids = normal.iter().map(|w| w.id).collect_vec();
     let mut max_id = *existing_ids.iter().max().unwrap_or(&0);
-    if let Some(max_workspaces) = config.max_workspaces {
-        if max_workspaces > max_id as u32 {
-            max_id = max_workspaces as i32;
-        }
+    if let Some(max_workspaces) = config.max_workspaces
+        && max_workspaces > max_id as u32
+    {
+        max_id = max_workspaces as i32;
     }
     let missing_ids: Vec<i32> = (1..=max_id)
         .filter(|id| !existing_ids.contains(id))
