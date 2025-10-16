@@ -330,9 +330,9 @@ fn default_settings_indicators() -> Vec<SettingsIndicator> {
         SettingsIndicator::IdleInhibitor,
         SettingsIndicator::PowerProfile,
         SettingsIndicator::Audio,
+        SettingsIndicator::Bluetooth,
         SettingsIndicator::Network,
         SettingsIndicator::Vpn,
-        SettingsIndicator::Bluetooth,
         SettingsIndicator::Battery,
     ]
 }
