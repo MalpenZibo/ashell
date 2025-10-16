@@ -8,6 +8,9 @@ on:
     paths:
       - 'src/components/icons.rs'
 
+permissions:
+  contents: write
+
 jobs:
   generate-icons:
     runs-on: ubuntu-latest
