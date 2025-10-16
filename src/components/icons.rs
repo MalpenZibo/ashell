@@ -143,7 +143,7 @@ impl Icon for StaticIcon {
             StaticIcon::Power => "\u{f0425}",
             StaticIcon::Reboot => "\u{f0450}",
             StaticIcon::Suspend => "\u{f0904}",
-            StaticIcon::Hibernate => "\u{f0f61}",
+            StaticIcon::Hibernate => "\u{f0717}",
             StaticIcon::Logout => "\u{f05fd}",
             StaticIcon::RightArrow => "\u{f0054}",
             StaticIcon::Brightness => "\u{f00e0}",
