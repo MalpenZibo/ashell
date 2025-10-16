@@ -23,7 +23,7 @@ mod services;
 mod theme;
 mod utils;
 
-const ICON_FONT: &[u8] = include_bytes!("../assets/SymbolsNerdFont-Regular.ttf");
+const ICON_FONT: &[u8] = include_bytes!("../assets/ashell_icon.ttf");
 const HEIGHT: f64 = 34.;
 
 #[derive(Parser, Debug)]

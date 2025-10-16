@@ -3,8 +3,16 @@ use iced::{
     widget::{Text, text},
 };
 
+pub trait Icon {
+    fn to_text<'a>(self) -> Text<'a>;
+}
+
+// After adding a new icon here,
+// dont forget to run the `generate_ashell_icon` script
+// to update the icon font. Check the assets folder for more info.
 #[derive(Copy, Clone, Default)]
-pub enum Icons {
+#[allow(dead_code)]
+pub enum StaticIcon {
     #[default]
     None,
     AppLauncher,
@@ -75,89 +83,100 @@ pub enum Icons {
     UploadSpeed,
     Copy,
     RightChevron,
+    Keyboard,
+    Mouse,
+    KeyboardBatteryFull,
 }
 
-impl From<Icons> for &'static str {
-    fn from(icon: Icons) -> &'static str {
-        match icon {
-            Icons::None => "",
-            Icons::AppLauncher => "󱗼",
-            Icons::Clipboard => "󰅌",
-            Icons::Refresh => "󰑐",
-            Icons::NoUpdatesAvailable => "󰗠",
-            Icons::UpdatesAvailable => "󰳛",
-            Icons::MenuClosed => "",
-            Icons::MenuOpen => "",
-            Icons::Cpu => "󰔂",
-            Icons::Mem => "",
-            Icons::Temp => "󰔏",
-            Icons::Speaker0 => "󰸈",
-            Icons::Speaker1 => "󰕿",
-            Icons::Speaker2 => "󰖀",
-            Icons::Speaker3 => "󰕾",
-            Icons::Headphones0 => "󰟎",
-            Icons::Headphones1 => "󰋋",
-            Icons::Headset => "󰋎",
-            Icons::Mic0 => "󰍭",
-            Icons::Mic1 => "󰍬",
-            Icons::ScreenShare => "󱒃",
-            Icons::MonitorSpeaker => "󰽟",
-            Icons::Battery0 => "󰂃",
-            Icons::Battery1 => "󰁼",
-            Icons::Battery2 => "󰁾",
-            Icons::Battery3 => "󰂀",
-            Icons::Battery4 => "󰁹",
-            Icons::BatteryCharging => "󰂄",
-            Icons::Wifi0 => "󰤭",
-            Icons::Wifi1 => "󰤯",
-            Icons::Wifi2 => "󰤟",
-            Icons::Wifi3 => "󰤢",
-            Icons::Wifi4 => "󰤥",
-            Icons::Wifi5 => "󰤨",
-            Icons::WifiLock1 => "󰤬",
-            Icons::WifiLock2 => "󰤡",
-            Icons::WifiLock3 => "󰤤",
-            Icons::WifiLock4 => "󰤧",
-            Icons::WifiLock5 => "󰤪",
-            Icons::Ethernet => "󰈀",
-            Icons::Vpn => "󰖂",
-            Icons::Bluetooth => "󰂯",
-            Icons::PowerSaver => "󰾆",
-            Icons::Balanced => "󰾅",
-            Icons::Performance => "󰓅",
-            Icons::EyeOpened => "󰈈",
-            Icons::EyeClosed => "󰈉",
-            Icons::Lock => "󰌾",
-            Icons::Power => "󰐥",
-            Icons::Reboot => "󰑐",
-            Icons::Suspend => "󰤄",
-            Icons::Logout => "󰗽",
-            Icons::RightArrow => "󰁔",
-            Icons::Brightness => "󰃠",
-            Icons::Point => "",
-            Icons::Close => "󰅖",
-            Icons::Airplane => "󰀝",
-            Icons::Webcam => "",
-            Icons::SkipPrevious => "󰒮",
-            Icons::Play => "󰐊",
-            Icons::Pause => "󰏤",
-            Icons::SkipNext => "󰒭",
-            Icons::MusicNote => "󰎇",
-            Icons::Drive => "󰋊",
-            Icons::IpAddress => "󰩠",
-            Icons::DownloadSpeed => "󰛴",
-            Icons::UploadSpeed => "󰛶",
-            Icons::Copy => "󰆏",
-            Icons::RightChevron => "󰅂",
-        }
+impl Icon for StaticIcon {
+    fn to_text<'a>(self) -> Text<'a> {
+        text(match self {
+            StaticIcon::None => "",
+            StaticIcon::AppLauncher => "\u{f003b}",
+            StaticIcon::Clipboard => "\u{f014c}",
+            StaticIcon::Refresh => "\u{f0453}",
+            StaticIcon::NoUpdatesAvailable => "\u{f05e0}",
+            StaticIcon::UpdatesAvailable => "\u{f0cdb}",
+            StaticIcon::MenuClosed => "\u{f035f}",
+            StaticIcon::MenuOpen => "\u{f035d}",
+            StaticIcon::Cpu => "\u{f0502}",
+            StaticIcon::Mem => "\u{efc5}",
+            StaticIcon::Temp => "\u{f050f}",
+            StaticIcon::Speaker0 => "\u{f0e08}",
+            StaticIcon::Speaker1 => "\u{f057f}",
+            StaticIcon::Speaker2 => "\u{f0580}",
+            StaticIcon::Speaker3 => "\u{f057e}",
+            StaticIcon::Headphones0 => "\u{f07ce}",
+            StaticIcon::Headphones1 => "\u{f02cb}",
+            StaticIcon::Headset => "\u{f02ce}",
+            StaticIcon::Mic0 => "\u{f036d}",
+            StaticIcon::Mic1 => "\u{f036c}",
+            StaticIcon::ScreenShare => "\u{f1483}",
+            StaticIcon::MonitorSpeaker => "\u{f0f5f}",
+            StaticIcon::Battery0 => "\u{f0083}",
+            StaticIcon::Battery1 => "\u{f007c}",
+            StaticIcon::Battery2 => "\u{f007e}",
+            StaticIcon::Battery3 => "\u{f0080}",
+            StaticIcon::Battery4 => "\u{f0079}",
+            StaticIcon::BatteryCharging => "\u{f0084}",
+            StaticIcon::Wifi0 => "\u{f092d}",
+            StaticIcon::Wifi1 => "\u{f092f}",
+            StaticIcon::Wifi2 => "\u{f091f}",
+            StaticIcon::Wifi3 => "\u{f0922}",
+            StaticIcon::Wifi4 => "\u{f0925}",
+            StaticIcon::Wifi5 => "\u{f0928}",
+            StaticIcon::WifiLock1 => "\u{f092c}",
+            StaticIcon::WifiLock2 => "\u{f0921}",
+            StaticIcon::WifiLock3 => "\u{f0924}",
+            StaticIcon::WifiLock4 => "\u{f0927}",
+            StaticIcon::WifiLock5 => "\u{f092a}",
+            StaticIcon::Ethernet => "\u{f0200}",
+            StaticIcon::Vpn => "\u{f0582}",
+            StaticIcon::Bluetooth => "\u{f00af}",
+            StaticIcon::PowerSaver => "\u{f0f86}",
+            StaticIcon::Balanced => "\u{f0f85}",
+            StaticIcon::Performance => "\u{f04c5}",
+            StaticIcon::EyeOpened => "\u{f0208}",
+            StaticIcon::EyeClosed => "\u{f0209}",
+            StaticIcon::Lock => "\u{f033e}",
+            StaticIcon::Power => "\u{f0425}",
+            StaticIcon::Reboot => "\u{f0450}",
+            StaticIcon::Suspend => "\u{f0904}",
+            StaticIcon::Logout => "\u{f05fd}",
+            StaticIcon::RightArrow => "\u{f0054}",
+            StaticIcon::Brightness => "\u{f00e0}",
+            StaticIcon::Point => "\u{f444}",
+            StaticIcon::Close => "\u{f0156}",
+            StaticIcon::Airplane => "\u{f001d}",
+            StaticIcon::Webcam => "\u{f03d}",
+            StaticIcon::SkipPrevious => "\u{f04ae}",
+            StaticIcon::Play => "\u{f040a}",
+            StaticIcon::Pause => "\u{f03e4}",
+            StaticIcon::SkipNext => "\u{f04ad}",
+            StaticIcon::MusicNote => "\u{f0387}",
+            StaticIcon::Drive => "\u{f02ca}",
+            StaticIcon::IpAddress => "\u{f0a60}",
+            StaticIcon::DownloadSpeed => "\u{f06f4}",
+            StaticIcon::UploadSpeed => "\u{f06f6}",
+            StaticIcon::Copy => "\u{f018f}",
+            StaticIcon::RightChevron => "\u{f0142}",
+            StaticIcon::Keyboard => "\u{f030c}",
+            StaticIcon::Mouse => "\u{f037d}",
+            StaticIcon::KeyboardBatteryFull => "\u{c0000}",
+        })
+        .font(Font::with_name("Ashell Nerd Font"))
     }
 }
 
-pub fn icon<'a>(r#type: Icons) -> Text<'a> {
-    text(std::convert::Into::<&'static str>::into(r#type))
-        .font(Font::with_name("Symbols Nerd Font"))
+#[derive(Clone)]
+pub struct DynamicIcon(pub String);
+
+impl Icon for DynamicIcon {
+    fn to_text<'a>(self) -> Text<'a> {
+        text(self.0).font(Font::with_name("Symbols Nerd Font"))
+    }
 }
 
-pub fn icon_raw<'a>(s: String) -> Text<'a> {
-    text(s).font(Font::with_name("Symbols Nerd Font"))
+pub fn icon<'a>(icon: impl Icon) -> Text<'a> {
+    icon.to_text()
 }

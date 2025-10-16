@@ -1,5 +1,7 @@
+use std::convert;
+
 use crate::{
-    components::icons::{Icons, icon},
+    components::icons::{StaticIcon, icon},
     modules::settings::quick_setting_button,
     services::{
         ReadOnlyService, Service, ServiceEvent,
@@ -114,23 +116,23 @@ impl PowerSettings {
 
     pub fn menu<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
         column!(
-            button(row!(icon(Icons::Suspend), text("Suspend")).spacing(theme.space.md))
+            button(row!(icon(StaticIcon::Suspend), text("Suspend")).spacing(theme.space.md))
                 .padding([theme.space.xxs, theme.space.sm])
                 .on_press(Message::Suspend)
                 .width(Length::Fill)
                 .style(theme.ghost_button_style()),
-            button(row!(icon(Icons::Reboot), text("Reboot")).spacing(theme.space.md))
+            button(row!(icon(StaticIcon::Reboot), text("Reboot")).spacing(theme.space.md))
                 .padding([theme.space.xxs, theme.space.sm])
                 .on_press(Message::Reboot)
                 .width(Length::Fill)
                 .style(theme.ghost_button_style()),
-            button(row!(icon(Icons::Power), text("Shutdown")).spacing(theme.space.md))
+            button(row!(icon(StaticIcon::Power), text("Shutdown")).spacing(theme.space.md))
                 .padding([theme.space.xxs, theme.space.sm])
                 .on_press(Message::Shutdown)
                 .width(Length::Fill)
                 .style(theme.ghost_button_style()),
             horizontal_rule(1),
-            button(row!(icon(Icons::Logout), text("Logout")).spacing(theme.space.md))
+            button(row!(icon(StaticIcon::Logout), text("Logout")).spacing(theme.space.md))
                 .padding([theme.space.xxs, theme.space.sm])
                 .on_press(Message::Logout)
                 .width(Length::Fill)
@@ -220,7 +222,7 @@ impl PowerSettings {
             .and_then(|service| match service.power_profile {
                 PowerProfile::Balanced => None,
                 PowerProfile::Performance => Some(
-                    container(icon(Icons::Performance))
+                    container(icon(StaticIcon::Performance))
                         .style(|theme: &Theme| container::Style {
                             text_color: Some(theme.palette().danger),
                             ..Default::default()
@@ -228,7 +230,7 @@ impl PowerSettings {
                         .into(),
                 ),
                 PowerProfile::PowerSaver => Some(
-                    container(icon(Icons::PowerSaver))
+                    container(icon(StaticIcon::PowerSaver))
                         .style(|theme: &Theme| container::Style {
                             text_color: Some(theme.palette().success),
                             ..Default::default()
@@ -248,7 +250,7 @@ impl PowerSettings {
                 Some((
                     quick_setting_button(
                         theme,
-                        (service.power_profile).into(),
+                        convert::Into::<StaticIcon>::into(service.power_profile),
                         match service.power_profile {
                             PowerProfile::Balanced => "Balanced",
                             PowerProfile::Performance => "Performance",

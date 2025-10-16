@@ -11,11 +11,73 @@ use serde::{Deserialize, Deserializer, de::Visitor};
 use serde_with::DisplayFromStr;
 use serde_with::serde_as;
 use std::path::PathBuf;
+use std::time::Duration;
 use std::{
     any::TypeId, collections::HashMap, error::Error, fs::File, io::Read, ops::Deref, path::Path,
 };
+use tokio::time::sleep;
 
 pub const DEFAULT_CONFIG_FILE_PATH: &str = "~/.config/ashell/config.toml";
+
+#[derive(Deserialize, Clone, Debug)]
+pub struct Config {
+    #[serde(default = "default_log_level")]
+    pub log_level: String,
+    #[serde(default)]
+    pub position: Position,
+    #[serde(default)]
+    pub outputs: Outputs,
+    #[serde(default)]
+    pub modules: Modules,
+    pub app_launcher_cmd: Option<String>,
+    #[serde(rename = "CustomModule", default)]
+    pub custom_modules: Vec<CustomModuleDef>,
+    pub clipboard_cmd: Option<String>,
+    #[serde(default)]
+    pub updates: Option<UpdatesModuleConfig>,
+    #[serde(default)]
+    pub workspaces: WorkspacesModuleConfig,
+    #[serde(default)]
+    pub window_title: WindowTitleConfig,
+    #[serde(default)]
+    pub system_info: SystemInfoModuleConfig,
+    #[serde(default)]
+    pub clock: ClockModuleConfig,
+    #[serde(default)]
+    pub settings: SettingsModuleConfig,
+    #[serde(default)]
+    pub appearance: Appearance,
+    #[serde(default)]
+    pub media_player: MediaPlayerModuleConfig,
+    #[serde(default)]
+    pub keyboard_layout: KeyboardLayoutModuleConfig,
+    #[serde(default)]
+    pub enable_esc_key: bool,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            log_level: default_log_level(),
+            position: Position::Top,
+            outputs: Outputs::default(),
+            modules: Modules::default(),
+            app_launcher_cmd: None,
+            clipboard_cmd: None,
+            updates: None,
+            workspaces: WorkspacesModuleConfig::default(),
+            window_title: WindowTitleConfig::default(),
+            system_info: SystemInfoModuleConfig::default(),
+            clock: ClockModuleConfig::default(),
+            settings: SettingsModuleConfig::default(),
+            appearance: Appearance::default(),
+            media_player: MediaPlayerModuleConfig::default(),
+            keyboard_layout: KeyboardLayoutModuleConfig::default(),
+            custom_modules: vec![],
+            enable_esc_key: false,
+        }
+    }
+}
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct UpdatesModuleConfig {
@@ -102,6 +164,8 @@ pub struct SystemInfoTemperature {
     pub warn_threshold: i32,
     #[serde(default = "default_temp_alert_threshold")]
     pub alert_threshold: i32,
+    #[serde(default = "default_temp_sensor")]
+    pub sensor: String,
 }
 
 impl Default for SystemInfoTemperature {
@@ -109,6 +173,7 @@ impl Default for SystemInfoTemperature {
         Self {
             warn_threshold: default_temp_warn_threshold(),
             alert_threshold: default_temp_alert_threshold(),
+            sensor: default_temp_sensor(),
         }
     }
 }
@@ -131,7 +196,7 @@ impl Default for SystemInfoDisk {
 }
 
 #[derive(Deserialize, Clone, Debug)]
-pub enum SystemIndicator {
+pub enum SystemInfoIndicator {
     Cpu,
     Memory,
     MemorySwap,
@@ -143,9 +208,9 @@ pub enum SystemIndicator {
 }
 
 #[derive(Deserialize, Clone, Debug)]
-pub struct SystemModuleConfig {
+pub struct SystemInfoModuleConfig {
     #[serde(default = "default_system_indicators")]
-    pub indicators: Vec<SystemIndicator>,
+    pub indicators: Vec<SystemInfoIndicator>,
     #[serde(default)]
     pub cpu: SystemInfoCpu,
     #[serde(default)]
@@ -156,11 +221,19 @@ pub struct SystemModuleConfig {
     pub disk: SystemInfoDisk,
 }
 
-fn default_system_indicators() -> Vec<SystemIndicator> {
+fn default_log_level() -> String {
+    "warn".to_owned()
+}
+
+fn default_truncate_title_after_length() -> u32 {
+    150
+}
+
+fn default_system_indicators() -> Vec<SystemInfoIndicator> {
     vec![
-        SystemIndicator::Cpu,
-        SystemIndicator::Memory,
-        SystemIndicator::Temperature,
+        SystemInfoIndicator::Cpu,
+        SystemInfoIndicator::Memory,
+        SystemInfoIndicator::Temperature,
     ]
 }
 
@@ -188,6 +261,10 @@ fn default_temp_alert_threshold() -> i32 {
     80
 }
 
+fn default_temp_sensor() -> String {
+    "acpitz temp1".to_string()
+}
+
 fn default_disk_warn_threshold() -> u32 {
     80
 }
@@ -196,7 +273,7 @@ fn default_disk_alert_threshold() -> u32 {
     90
 }
 
-impl Default for SystemModuleConfig {
+impl Default for SystemInfoModuleConfig {
     fn default() -> Self {
         Self {
             indicators: default_system_indicators(),
@@ -685,74 +762,6 @@ pub struct CustomModuleDef {
     // .. appearance etc
 }
 
-#[derive(Deserialize, Clone, Debug)]
-pub struct Config {
-    #[serde(default = "default_log_level")]
-    pub log_level: String,
-    #[serde(default)]
-    pub position: Position,
-    #[serde(default)]
-    pub outputs: Outputs,
-    #[serde(default)]
-    pub modules: Modules,
-    pub app_launcher_cmd: Option<String>,
-    #[serde(rename = "CustomModule", default)]
-    pub custom_modules: Vec<CustomModuleDef>,
-    pub clipboard_cmd: Option<String>,
-    #[serde(default)]
-    pub updates: Option<UpdatesModuleConfig>,
-    #[serde(default)]
-    pub workspaces: WorkspacesModuleConfig,
-    #[serde(default)]
-    pub window_title: WindowTitleConfig,
-    #[serde(default)]
-    pub system: SystemModuleConfig,
-    #[serde(default)]
-    pub clock: ClockModuleConfig,
-    #[serde(default)]
-    pub settings: SettingsModuleConfig,
-    #[serde(default)]
-    pub appearance: Appearance,
-    #[serde(default)]
-    pub media_player: MediaPlayerModuleConfig,
-    #[serde(default)]
-    pub keyboard_layout: KeyboardLayoutModuleConfig,
-    #[serde(default)]
-    pub enable_esc_key: bool,
-}
-
-fn default_log_level() -> String {
-    "warn".to_owned()
-}
-
-fn default_truncate_title_after_length() -> u32 {
-    150
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            log_level: default_log_level(),
-            position: Position::Top,
-            outputs: Outputs::default(),
-            modules: Modules::default(),
-            app_launcher_cmd: None,
-            clipboard_cmd: None,
-            updates: None,
-            workspaces: WorkspacesModuleConfig::default(),
-            window_title: WindowTitleConfig::default(),
-            system: SystemModuleConfig::default(),
-            clock: ClockModuleConfig::default(),
-            settings: SettingsModuleConfig::default(),
-            appearance: Appearance::default(),
-            media_player: MediaPlayerModuleConfig::default(),
-            keyboard_layout: KeyboardLayoutModuleConfig::default(),
-            custom_modules: vec![],
-            enable_esc_key: false,
-        }
-    }
-}
-
 pub fn get_config(path: Option<PathBuf>) -> Result<(Config, PathBuf), Box<dyn Error + Send>> {
     match path {
         Some(p) => {
@@ -852,8 +861,12 @@ pub fn subscription(path: &Path) -> Subscription<Message> {
                     if let Ok(stream) = stream {
                         let mut stream = stream.ready_chunks(10);
 
+                        debug!("Starting config file watch loop");
+
                         loop {
                             let events = stream.next().await.unwrap_or(vec![]);
+
+                            debug!("Received inotify events: {events:?}");
 
                             let mut file_event = None;
 
@@ -895,15 +908,23 @@ pub fn subscription(path: &Path) -> Subscription<Message> {
                                         .await;
                                 }
                                 Some(Event::Removed) => {
-                                    info!("Config file removed");
-                                    let _ =
-                                        output.send(Message::ConfigChanged(Box::default())).await;
+                                    // wait and double check if the file is really gone
+                                    sleep(Duration::from_millis(500)).await;
+
+                                    if !path.exists() {
+                                        info!("Config file removed");
+                                        let _ = output
+                                            .send(Message::ConfigChanged(Box::default()))
+                                            .await;
+                                    }
                                 }
                                 None => {
                                     debug!("No relevant file event detected.");
                                 }
                             }
                         }
+                    } else {
+                        error!("Failed to create inotify event stream");
                     }
                 }
                 (None, _, _) => {

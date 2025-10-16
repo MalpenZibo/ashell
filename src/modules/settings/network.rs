@@ -1,6 +1,6 @@
 use super::{SubMenu, quick_setting_button};
 use crate::{
-    components::icons::{Icons, icon},
+    components::icons::{StaticIcon, icon},
     services::{
         ReadOnlyService, Service, ServiceEvent,
         network::{
@@ -18,37 +18,37 @@ use iced::{
 };
 use log::info;
 
-static WIFI_SIGNAL_ICONS: [Icons; 6] = [
-    Icons::Wifi0,
-    Icons::Wifi1,
-    Icons::Wifi2,
-    Icons::Wifi3,
-    Icons::Wifi4,
-    Icons::Wifi5,
+static WIFI_SIGNAL_ICONS: [StaticIcon; 6] = [
+    StaticIcon::Wifi0,
+    StaticIcon::Wifi1,
+    StaticIcon::Wifi2,
+    StaticIcon::Wifi3,
+    StaticIcon::Wifi4,
+    StaticIcon::Wifi5,
 ];
 
-static WIFI_LOCK_SIGNAL_ICONS: [Icons; 5] = [
-    Icons::WifiLock1,
-    Icons::WifiLock2,
-    Icons::WifiLock3,
-    Icons::WifiLock4,
-    Icons::WifiLock5,
+static WIFI_LOCK_SIGNAL_ICONS: [StaticIcon; 5] = [
+    StaticIcon::WifiLock1,
+    StaticIcon::WifiLock2,
+    StaticIcon::WifiLock3,
+    StaticIcon::WifiLock4,
+    StaticIcon::WifiLock5,
 ];
 
 impl ActiveConnectionInfo {
-    pub fn get_wifi_icon(signal: u8) -> Icons {
+    pub fn get_wifi_icon(signal: u8) -> StaticIcon {
         WIFI_SIGNAL_ICONS[1 + f32::round(signal as f32 / 100. * 4.) as usize]
     }
 
-    pub fn get_wifi_lock_icon(signal: u8) -> Icons {
+    pub fn get_wifi_lock_icon(signal: u8) -> StaticIcon {
         WIFI_LOCK_SIGNAL_ICONS[f32::round(signal as f32 / 100. * 4.) as usize]
     }
 
-    pub fn get_icon(&self) -> Icons {
+    pub fn get_icon(&self) -> StaticIcon {
         match self {
             Self::WiFi { strength, .. } => Self::get_wifi_icon(*strength),
-            Self::Wired { .. } => Icons::Ethernet,
-            Self::Vpn { .. } => Icons::Vpn,
+            Self::Wired { .. } => StaticIcon::Ethernet,
+            Self::Vpn { .. } => StaticIcon::Vpn,
         }
     }
 
@@ -256,7 +256,7 @@ impl NetworkSettings {
                                 || matches!(c, ActiveConnectionInfo::Wired { .. })
                         })
                         .map_or_else(
-                            || icon(Icons::Wifi0).into(),
+                            || icon(StaticIcon::Wifi0).into(),
                             |a| {
                                 let icon_type = a.get_icon();
                                 let state = (service.connectivity, a.get_indicator_state());
@@ -317,7 +317,7 @@ impl NetworkSettings {
                 Some((
                     quick_setting_button(
                         theme,
-                        active_connection.map_or_else(|| Icons::Wifi0, |(_, _, icon)| icon),
+                        active_connection.map_or_else(|| StaticIcon::Wifi0, |(_, _, icon)| icon),
                         "Wi-Fi".to_string(),
                         active_connection.map(|(name, _, _)| name.clone()),
                         service.wifi_enabled,
@@ -359,7 +359,7 @@ impl NetworkSettings {
                     (
                         quick_setting_button(
                             theme,
-                            Icons::Vpn,
+                            StaticIcon::Vpn,
                             "Vpn".to_string(),
                             None,
                             service
@@ -395,7 +395,7 @@ impl NetworkSettings {
                 (
                     quick_setting_button(
                         theme,
-                        Icons::Airplane,
+                        StaticIcon::Airplane,
                         "Airplane Mode".to_string(),
                         None,
                         service.airplane_mode,
@@ -424,7 +424,7 @@ impl NetworkSettings {
                     ""
                 })
                 .size(12),
-                button(icon(Icons::Refresh))
+                button(icon(StaticIcon::Refresh))
                     .padding([4, 10])
                     .style(theme.settings_button_style())
                     .on_press(Message::ScanNearByWiFi),

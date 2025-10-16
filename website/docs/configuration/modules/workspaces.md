@@ -56,11 +56,27 @@ If you want to set the maximum number of workspaces to 10, you can do it like th
 enable_workspace_filling = true
 max_workspaces = 10
 ```
-You can also assign **custom names** to your workspaces using the `workspace_names` option.  
-This lets you display alternative numerals (e.g., roman numerals, chinese numerals) instead of typical arabic numerals.  
-If a name is missing for a given workspace index, the numeric ID will be used as a fallback.  
+
+You can also assign **custom names** to your workspaces using
+the `workspace_names` option.  
+This lets you display alternative numerals (e.g., roman numerals, chinese numerals)
+instead of typical arabic numerals.  
+If a name is missing for a given workspace index, the numeric ID will be used
+as a fallback.
+
+:::warning
+
+Ashell comes with a set of default icons that are used internally.
+
+If you decide to use a font icon in your workspace names configuration remember
+to install the font with that icon on your system.
+
+For example you can use [Nerd Fonts](https://www.nerdfonts.com/)
+
+:::
 
 ```toml
 [workspaces]
 workspace_names = ["一","二","三","四","五","六","七","八","九","十",]
 
+```
