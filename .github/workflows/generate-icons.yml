@@ -21,6 +21,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y fontforge python3-fontforge
       
+      - name: Install fonttools
+        run: |
+          pip install fonttools
+      
       - name: Generate icon font
         run: |
           cd assets
