@@ -53,7 +53,15 @@ html[data-theme="dark"] {
   fill: var(--ifm-color-primary);
 }
 
+.theme-doc-version-badge {
+  margin-bottom: 16px;
+}
+
 @media screen and (max-width: 996px) {
+  .theme-doc-version-badge {
+    margin-bottom: revert;
+  }
+
   .social {
     margin: 48px 16px;
     display: inline-block;

@@ -47,7 +47,7 @@ To enable this indicator, add `MemorySwap` to the `indicators` configuration.
 
 The Disk indicator displays the disk space usage for a specific path.
 
-To enable this indicator, add `{ disk = "path" }` to the `indicators` configuration,
+To enable this indicator, add `{ Disk = "path" }` to the `indicators` configuration,
 where `path` is the path to the disk you want to monitor.
 
 #### Example
@@ -55,8 +55,8 @@ where `path` is the path to the disk you want to monitor.
 To monitor the home directory disk space, you can add the following to your configuration:
 
 ```toml
-[system]
-indicators = [ { disk = "/home" } ]
+[system_info]
+indicators = [ { Disk = "/home" } ]
 ```
 
 ### IpAddress
@@ -85,6 +85,17 @@ The Temperature indicator displays the current temperature of the system's CPU.
 
 To enable this indicator, add `Temperature` to the `indicators` configuration.
 
+By default, the temperature sensor used is `acpitz temp1` (ACPI thermal zone).
+You can configure which sensor to use with the `sensor` option in the `[system.temperature]` section.
+
+To see available sensors on your system, you can check the output of `sensors` command or
+look at the component labels returned by the sysinfo library.
+
+Common sensor labels include:
+- `acpitz temp1` - ACPI thermal zone
+- `coretemp Package id 0` - Average CPU temperature
+- `k10temp Tctl` - AMD Ryzen CPU temperature
+
 ## Warning and Alert Thresholds
 
 You can also configure the warning and alert thresholds for the following indicators:
@@ -97,7 +108,7 @@ You can also configure the warning and alert thresholds for the following indica
 To configure a threshold, you can add the following to your configuration:
 
 ```toml
-[system.threshold_type]
+[system_info.threshold_type]
 warn_threshold = 60
 alert_threshold = 80
 ```
@@ -113,22 +124,23 @@ configure and can be one of:
 ## Default Configuration
 
 ```toml
-[system]
+[system_info]
 indicators = [ "Cpu", "Memory", "Temperature" ]
 
-[system.cpu]
+[system_info.cpu]
 warn_threshold = 60
 alert_threshold = 80
 
-[system.memory]
+[system_info.memory]
 warn_threshold = 70
 alert_threshold = 85
 
-[system.disk]
+[system_info.disk]
 warn_threshold = 80
 alert_threshold = 90
 
-[system.temperature]
+[system_info.temperature]
 warn_threshold = 60
 alert_threshold = 80
+sensor = "coretemp Package id 0"
 ```

@@ -1,6 +1,6 @@
 use super::SubMenu;
 use crate::{
-    components::icons::{Icons, icon},
+    components::icons::{StaticIcon, icon},
     services::{
         ReadOnlyService, Service, ServiceEvent,
         audio::{AudioCommand, AudioService, DeviceType, Sinks},
@@ -302,13 +302,13 @@ impl AudioSettings {
             .push(
                 button(icon(if is_mute {
                     match slider_type {
-                        SliderType::Sink => Icons::Speaker0,
-                        SliderType::Source => Icons::Mic0,
+                        SliderType::Sink => StaticIcon::Speaker0,
+                        SliderType::Source => StaticIcon::Mic0,
                     }
                 } else {
                     match slider_type {
-                        SliderType::Sink => Icons::Speaker3,
-                        SliderType::Source => Icons::Mic1,
+                        SliderType::Sink => StaticIcon::Speaker3,
+                        SliderType::Source => StaticIcon::Mic1,
                     }
                 }))
                 .padding([
@@ -330,8 +330,8 @@ impl AudioSettings {
             .push_maybe(with_submenu.map(|(submenu, msg)| {
                 button(icon(match (slider_type, submenu) {
                     (SliderType::Sink, Some(SubMenu::Sinks))
-                    | (SliderType::Source, Some(SubMenu::Sources)) => Icons::Close,
-                    _ => Icons::RightArrow,
+                    | (SliderType::Source, Some(SubMenu::Sources)) => StaticIcon::Close,
+                    _ => StaticIcon::RightArrow,
                 }))
                 .padding([
                     theme.space.xs,

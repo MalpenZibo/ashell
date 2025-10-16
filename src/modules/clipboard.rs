@@ -1,5 +1,5 @@
 use crate::{
-    components::icons::{Icons, icon},
+    components::icons::{StaticIcon, icon},
     utils::launcher::execute_command,
 };
 use iced::Element;
@@ -28,6 +28,6 @@ impl Clipboard {
     }
 
     pub fn view(&'_ self) -> Element<'_, Message> {
-        icon(Icons::Clipboard).into()
+        icon(StaticIcon::Clipboard).into()
     }
 }

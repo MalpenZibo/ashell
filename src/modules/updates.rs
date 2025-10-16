@@ -1,5 +1,5 @@
 use crate::{
-    components::icons::{Icons, icon},
+    components::icons::{StaticIcon, icon},
     config::UpdatesModuleConfig,
     theme::AshellTheme,
 };
@@ -164,9 +164,9 @@ impl Updates {
 
     pub fn view(&'_ self, theme: &AshellTheme) -> Element<'_, Message> {
         let mut content = row!(container(icon(match self.state {
-            State::Checking => Icons::Refresh,
-            State::Ready if self.updates.is_empty() => Icons::NoUpdatesAvailable,
-            _ => Icons::UpdatesAvailable,
+            State::Checking => StaticIcon::Refresh,
+            State::Ready if self.updates.is_empty() => StaticIcon::NoUpdatesAvailable,
+            _ => StaticIcon::UpdatesAvailable,
         })))
         .align_y(Alignment::Center)
         .spacing(theme.space.xxs);
@@ -190,9 +190,9 @@ impl Updates {
                         text(format!("{} Updates available", self.updates.len()))
                             .width(Length::Fill),
                         icon(if self.is_updates_list_open {
-                            Icons::MenuClosed
+                            StaticIcon::MenuClosed
                         } else {
-                            Icons::MenuOpen
+                            StaticIcon::MenuOpen
                         })
                     ))
                     .style(theme.ghost_button_style())
@@ -260,7 +260,7 @@ impl Updates {
                     let mut content = row!(text("Check now").width(Length::Fill),);
 
                     if self.state == State::Checking {
-                        content = content.push(icon(Icons::Refresh));
+                        content = content.push(icon(StaticIcon::Refresh));
                     }
 
                     content

@@ -14,6 +14,17 @@ A **custom module** allows you to:
 - Change icons dynamically based on output.
 - Show an alert indicator based on specific conditions.
 
+:::warning
+
+Ashell comes with a set of default icons that are used internally.
+
+If you specify a font icon in the custom module configuration remember
+to install the font with that icon on your system.
+
+For example you can use [Nerd Fonts](https://www.nerdfonts.com/)
+
+:::
+
 ## Configuration
 
 To define a custom module, use the following fields:
