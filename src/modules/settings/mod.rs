@@ -273,10 +273,11 @@ impl Settings {
             Message::CustomButton(name) => {
                 if let Some(button) = self.custom_buttons.iter().find(|b| b.name == name) {
                     crate::utils::launcher::execute_command(button.command.clone());
-                    
+
                     // Toggle button state immediately
                     let current_status = self.custom_buttons_status.get(&name).and_then(|v| *v);
-                    self.custom_buttons_status.insert(name, current_status.map(|s| !s));
+                    self.custom_buttons_status
+                        .insert(name, current_status.map(|s| !s));
                 }
                 Action::None
             }
@@ -293,12 +294,21 @@ impl Settings {
 
                 let task = Task::perform(
                     async move {
-                        buttons.into_iter()
+                        buttons
+                            .into_iter()
                             .map(|button| {
                                 let status = if let Some(cmd) = button.status_command {
-                                    match std::process::Command::new("bash").arg("-c").arg(&cmd).spawn() {
+                                    match std::process::Command::new("bash")
+                                        .arg("-c")
+                                        .arg(&cmd)
+                                        .spawn()
+                                    {
                                         Ok(mut child) => {
-                                            match child.wait_timeout(Duration::from_millis(1000)).ok().flatten() {
+                                            match child
+                                                .wait_timeout(Duration::from_millis(1000))
+                                                .ok()
+                                                .flatten()
+                                            {
                                                 Some(s) => Some(s.success()),
                                                 None => {
                                                     let _ = child.kill();
