@@ -151,7 +151,7 @@ impl UpDeviceKind {
     pub fn is_peripheral(&self) -> bool {
         matches!(
             self,
-            Self::Mouse | Self::Keyboard | Self::GamingInput | Self::Headset
+            Self::Mouse | Self::Keyboard | Self::GamingInput | Self::Headset | Self::Headphones
         )
     }
 

@@ -284,7 +284,7 @@ impl PowerSettings {
 
                 container(match self.config.battery_format {
                     BatteryFormat::Icon => icon(battery.get_icon()).into(),
-                    BatteryFormat::Percentage => convert::Into::<Element<'_, _, _>>::into(text(
+                    BatteryFormat::Percentage => convert::Into::<Element<'a, Message>>::into(text(
                         format!("{}%", battery.capacity),
                     )),
                     BatteryFormat::IconAndPercentage => row!(

@@ -3,10 +3,7 @@ use iced::futures::{
     task::{Context, Poll},
 };
 use pin_project_lite::pin_project;
-use std::{
-    pin::Pin,
-    time::{Duration, Instant},
-};
+use std::{pin::Pin, time::Duration};
 use tokio::time::{self, Sleep};
 
 pin_project! {
@@ -14,7 +11,6 @@ pin_project! {
         #[pin]
         inner: S,
         duration: Duration,
-        last_emit: Option<Instant>,
         sleep: Option<Pin<Box<Sleep>>>,
     }
 }
@@ -24,7 +20,6 @@ impl<S: Stream> Throttle<S> {
         Self {
             inner,
             duration,
-            last_emit: None,
             sleep: None,
         }
     }
@@ -49,8 +44,6 @@ where
 
         match this.inner.as_mut().poll_next(cx) {
             Poll::Ready(Some(item)) => {
-                // Emit this item and start throttle
-                *this.last_emit = Some(Instant::now());
                 *this.sleep = Some(Box::pin(time::sleep(*this.duration)));
                 Poll::Ready(Some(item))
             }
