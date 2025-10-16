@@ -81,7 +81,7 @@ These buttons can execute commands when clicked.
 
 The `icon` field accepts:
 - **Unicode emoji**: `⌨️`, `🖥️`, `📁`, `🌐`, etc.
-- **Nerd Font symbols**: ``, ``, ``, etc. (requires Nerd Font installed)
+- **Nerd Font symbols**: `󰌓`, ``, ``, etc. (requires Nerd Font installed)
 
 Both are rendered using the `Symbols Nerd Font` and will display correctly in the UI.
 
