@@ -64,7 +64,7 @@ pub enum Action {
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum SubMenu {
-    PeriheralMenu,
+    PeripheralMenu,
     Power,
     Sinks,
     Sources,
@@ -115,11 +115,11 @@ impl Settings {
         match message {
             Message::Power(msg) => match self.power.update(msg) {
                 power::Action::None => Action::None,
-                power::Action::TogglePeriheralMenu => {
-                    if self.sub_menu == Some(SubMenu::PeriheralMenu) {
+                power::Action::TogglePeripheralMenu => {
+                    if self.sub_menu == Some(SubMenu::PeripheralMenu) {
                         self.sub_menu.take();
                     } else {
-                        self.sub_menu.replace(SubMenu::PeriheralMenu);
+                        self.sub_menu.replace(SubMenu::PeripheralMenu);
                     }
                     Action::None
                 }
@@ -442,7 +442,7 @@ impl Settings {
                 .push(header)
                 .push_maybe(
                     self.sub_menu
-                        .filter(|menu_type| *menu_type == SubMenu::PeriheralMenu)
+                        .filter(|menu_type| *menu_type == SubMenu::PeripheralMenu)
                         .and_then(|_| {
                             self.power
                                 .peripheral_menu(theme)

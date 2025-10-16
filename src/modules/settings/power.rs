@@ -23,7 +23,7 @@ use iced::{
 #[derive(Debug, Clone)]
 pub enum Message {
     Event(ServiceEvent<UPowerService>),
-    TogglePeriheralMenu,
+    TogglePeripheralMenu,
     TogglePowerProfile,
     Suspend,
     Hibernate,
@@ -35,7 +35,7 @@ pub enum Message {
 
 pub enum Action {
     None,
-    TogglePeriheralMenu,
+    TogglePeripheralMenu,
     Command(Task<Message>),
 }
 
@@ -52,6 +52,7 @@ pub struct PowerSettingsConfig {
 }
 
 impl PowerSettingsConfig {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         suspend_cmd: String,
         hibernate_cmd: String,
@@ -103,7 +104,7 @@ impl PowerSettings {
                 }
                 ServiceEvent::Error(_) => Action::None,
             },
-            Message::TogglePeriheralMenu => Action::TogglePeriheralMenu,
+            Message::TogglePeripheralMenu => Action::TogglePeripheralMenu,
             Message::TogglePowerProfile => match self.service.as_mut() {
                 Some(service) => Action::Command(
                     service
@@ -367,7 +368,7 @@ impl PowerSettings {
                     if !service.peripherals.is_empty() {
                         button(indicator)
                             .padding([0, ashell_theme.space.sm])
-                            .on_press(Message::TogglePeriheralMenu)
+                            .on_press(Message::TogglePeripheralMenu)
                             .style(ashell_theme.settings_button_style())
                             .into()
                     } else {
@@ -385,7 +386,7 @@ impl PowerSettings {
                         Some(if service.peripherals.len() > 1 {
                             button(indicator)
                                 .padding([0, ashell_theme.space.sm])
-                                .on_press(Message::TogglePeriheralMenu)
+                                .on_press(Message::TogglePeripheralMenu)
                                 .style(ashell_theme.settings_button_style())
                                 .into()
                         } else {
