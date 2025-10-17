@@ -1,0 +1,50 @@
+name: Generate Icon Font
+
+on:
+  push:
+    paths:
+      - 'src/components/icons.rs'
+  pull_request:
+    paths:
+      - 'src/components/icons.rs'
+
+permissions:
+  contents: write
+
+jobs:
+  generate-icons:
+    runs-on: ubuntu-latest
+    # Only run on push events to avoid permission issues on PRs from forks
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Install FontForge
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fontforge python3-fontforge
+      
+      - name: Install fonttools
+        run: |
+          pip install fonttools
+      
+      - name: Generate icon font
+        run: |
+          cd assets
+          ./generate_ashell_icon.sh
+      
+      - name: Check for changes
+        id: check_changes
+        run: |
+          git diff --exit-code assets/ashell_icon.ttf || echo "changed=true" >> $GITHUB_OUTPUT
+      
+      - name: Commit and push if changed
+        if: steps.check_changes.outputs.changed == 'true'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add assets/ashell_icon.ttf
+          git commit -m "chore: regenerate icon font [skip ci]"
+          git push origin HEAD:${{ github.head_ref || github.ref_name }}

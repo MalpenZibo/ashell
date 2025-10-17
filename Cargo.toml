@@ -4,11 +4,10 @@ description = "A ready to go Wayland status bar for Hyprland"
 homepage = "https://github.com/MalpenZibo/ashell"
 version = "0.6.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.88"
 
 [profile.release]
 lto = "fat"
-codegen-units = 1
 strip = true
 opt-level = 3 
 panic = "abort"
@@ -28,13 +27,13 @@ iced = { git = "https://github.com/MalpenZibo/iced", features = [
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 hyprland = "0.4.0-beta.2"
 serde = { version = "1.0", default-features = false, features = [] }
-sysinfo = "0.36"
+sysinfo = "0.37"
 tokio = { version = "1", default-features = false, features = [] }
 zbus = { version = "5", default-features = false, features = ["tokio"] }
 libpulse-binding = { version = "2.28", features = ["pa_v15"] }
 log = { version = "0.4", features = [] }
 flexi_logger = "0.31"
-pipewire = "0.8"
+pipewire = "0.9"
 wayland-client = "0.31.5"
 wayland-protocols = { version = "0.32.3", features = ["client", "unstable"] }
 itertools = "0.14"
@@ -45,10 +44,11 @@ toml = "0.9"
 freedesktop-icons = "0.4"
 linicon-theme = "1.2.0"
 serde_json = "1"
-regex = "1.11.1"
+regex = "1.12.2"
 serde_with = "3.12.0"
 tokio-stream = "0.1.17"
 uuid = { version = "1.16.0", features = ["v4"] }
 clap = { version = "4.5", features = ["derive"] }
 shellexpand = { version = "3", features = ["path"] }
 inotify = "0.11.0"
+pin-project-lite = "0.2.16"

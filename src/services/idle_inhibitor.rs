@@ -150,12 +150,12 @@ impl Dispatch<WlRegistry, ()> for IdleInhibitorManagerData {
                     }
                 }
                 _ => {
-                    if let Some((_, idle_manager_name)) = &state.idle_manager {
-                        if name == *idle_manager_name {
-                            warn!(target: "IdleInhibitor::GlobalRemove", "IdleInhibitManager was removed!");
+                    if let Some((_, idle_manager_name)) = &state.idle_manager
+                        && name == *idle_manager_name
+                    {
+                        warn!(target: "IdleInhibitor::GlobalRemove", "IdleInhibitManager was removed!");
 
-                            state.idle_manager = None;
-                        }
+                        state.idle_manager = None;
                     }
                 }
             },

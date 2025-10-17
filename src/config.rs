@@ -1,4 +1,5 @@
 use crate::app::Message;
+use crate::services::upower::PeripheralDeviceKind;
 use hex_color::HexColor;
 use iced::futures::StreamExt;
 use iced::{Color, Subscription, futures::SinkExt, stream::channel, theme::palette};
@@ -306,12 +307,59 @@ fn default_suspend_cmd() -> String {
     "systemctl suspend".to_string()
 }
 
+fn default_hibernate_cmd() -> String {
+    "systemctl hibernate".to_string()
+}
+
 fn default_reboot_cmd() -> String {
     "systemctl reboot".to_string()
 }
 
 fn default_logout_cmd() -> String {
     "loginctl kill-user $(whoami)".to_string()
+}
+
+#[derive(Deserialize, Clone, Debug, PartialEq, Eq)]
+pub enum SettingsIndicator {
+    IdleInhibitor,
+    PowerProfile,
+    Audio,
+    Network,
+    Vpn,
+    Bluetooth,
+    Battery,
+    PeripheralBattery,
+}
+
+fn default_settings_indicators() -> Vec<SettingsIndicator> {
+    vec![
+        SettingsIndicator::IdleInhibitor,
+        SettingsIndicator::PowerProfile,
+        SettingsIndicator::Audio,
+        SettingsIndicator::Bluetooth,
+        SettingsIndicator::Network,
+        SettingsIndicator::Vpn,
+        SettingsIndicator::Battery,
+    ]
+}
+
+fn default_peripheral_battery_format() -> BatteryFormat {
+    BatteryFormat::Icon
+}
+
+#[derive(Deserialize, Copy, Clone, Default, PartialEq, Eq, Debug)]
+pub enum BatteryFormat {
+    Icon,
+    Percentage,
+    #[default]
+    IconAndPercentage,
+}
+
+#[derive(Deserialize, Clone, Default, PartialEq, Eq, Debug)]
+pub enum PeripheralIndicators {
+    #[default]
+    All,
+    Specific(Vec<PeripheralDeviceKind>),
 }
 
 #[derive(Deserialize, Default, Clone, Debug)]
@@ -321,10 +369,18 @@ pub struct SettingsModuleConfig {
     pub shutdown_cmd: String,
     #[serde(default = "default_suspend_cmd")]
     pub suspend_cmd: String,
+    #[serde(default = "default_hibernate_cmd")]
+    pub hibernate_cmd: String,
     #[serde(default = "default_reboot_cmd")]
     pub reboot_cmd: String,
     #[serde(default = "default_logout_cmd")]
     pub logout_cmd: String,
+    #[serde(default)]
+    pub battery_format: BatteryFormat,
+    #[serde(default)]
+    pub peripheral_indicators: PeripheralIndicators,
+    #[serde(default = "default_peripheral_battery_format")]
+    pub peripheral_battery_format: BatteryFormat,
     pub audio_sinks_more_cmd: Option<String>,
     pub audio_sources_more_cmd: Option<String>,
     pub wifi_more_cmd: Option<String>,
@@ -334,6 +390,8 @@ pub struct SettingsModuleConfig {
     pub remove_airplane_btn: bool,
     #[serde(default)]
     pub remove_idle_btn: bool,
+    #[serde(default = "default_settings_indicators")]
+    pub indicators: Vec<SettingsIndicator>,
     #[serde(default, rename = "CustomButton")]
     pub custom_buttons: Vec<SettingsCustomButton>,
 }

@@ -108,10 +108,10 @@ impl Custom {
         let padded_icon_container = container(icon_element).padding([0, 1]);
 
         let mut show_alert = false;
-        if let Some(re) = &self.config.alert {
-            if re.is_match(&self.data.alt) {
-                show_alert = true;
-            }
+        if let Some(re) = &self.config.alert
+            && re.is_match(&self.data.alt)
+        {
+            show_alert = true;
         }
 
         let icon_with_alert = if show_alert {

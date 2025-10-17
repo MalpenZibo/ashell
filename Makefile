@@ -14,7 +14,7 @@ help:
 build:
 	cargo build --release
 
-start: build-release
+start: build
 	./target/release/ashell
 
 install: build

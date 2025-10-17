@@ -22,6 +22,17 @@ pub fn suspend(cmd: String) {
     });
 }
 
+pub fn hibernate(cmd: String) {
+    tokio::spawn(async move {
+        let _ = Command::new("bash")
+            .arg("-c")
+            .arg(cmd)
+            .spawn()
+            .expect("Failed to execute command.")
+            .wait();
+    });
+}
+
 pub fn shutdown(cmd: String) {
     tokio::spawn(async move {
         let _ = Command::new("bash")

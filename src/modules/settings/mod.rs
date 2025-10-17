@@ -43,6 +43,7 @@ pub struct Settings {
     idle_inhibitor: Option<IdleInhibitorManager>,
     sub_menu: Option<SubMenu>,
     password_dialog: Option<(String, String)>,
+    indicators: Vec<SettingsIndicator>,
     custom_buttons: Vec<SettingsCustomButton>,
     custom_buttons_status: HashMap<String, Option<bool>>,
 }
@@ -75,6 +76,7 @@ pub enum Action {
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum SubMenu {
+    PeripheralMenu,
     Power,
     Sinks,
     Sources,
@@ -89,9 +91,13 @@ impl Settings {
             lock_cmd: config.lock_cmd,
             power: PowerSettings::new(PowerSettingsConfig::new(
                 config.suspend_cmd,
+                config.hibernate_cmd,
                 config.reboot_cmd,
                 config.shutdown_cmd,
                 config.logout_cmd,
+                config.battery_format,
+                config.peripheral_indicators,
+                config.peripheral_battery_format,
             )),
             audio: AudioSettings::new(AudioSettingsConfig::new(
                 config.audio_sinks_more_cmd,
@@ -113,6 +119,7 @@ impl Settings {
             },
             sub_menu: None,
             password_dialog: None,
+            indicators: config.indicators,
             custom_buttons: config.custom_buttons,
             custom_buttons_status: HashMap::new(),
         }
@@ -122,6 +129,14 @@ impl Settings {
         match message {
             Message::Power(msg) => match self.power.update(msg) {
                 power::Action::None => Action::None,
+                power::Action::TogglePeripheralMenu => {
+                    if self.sub_menu == Some(SubMenu::PeripheralMenu) {
+                        self.sub_menu.take();
+                    } else {
+                        self.sub_menu.replace(SubMenu::PeripheralMenu);
+                    }
+                    Action::None
+                }
                 power::Action::Command(task) => Action::Command(task.map(Message::Power)),
             },
             Message::Audio(msg) => match self.audio.update(msg) {
@@ -359,9 +374,13 @@ impl Settings {
                 self.power
                     .update(power::Message::ConfigReloaded(PowerSettingsConfig::new(
                         config.suspend_cmd,
+                        config.hibernate_cmd,
                         config.reboot_cmd,
                         config.shutdown_cmd,
                         config.logout_cmd,
+                        config.battery_format,
+                        config.peripheral_indicators,
+                        config.peripheral_battery_format,
                     )));
                 self.audio
                     .update(audio::Message::ConfigReloaded(AudioSettingsConfig::new(
@@ -383,6 +402,7 @@ impl Settings {
                 } else if self.idle_inhibitor.is_none() {
                     self.idle_inhibitor = IdleInhibitorManager::new();
                 }
+                self.indicators = config.indicators;
                 Action::None
             }
         }
@@ -525,6 +545,15 @@ impl Settings {
                 .push(header)
                 .push_maybe(
                     self.sub_menu
+                        .filter(|menu_type| *menu_type == SubMenu::PeripheralMenu)
+                        .and_then(|_| {
+                            self.power
+                                .peripheral_menu(theme)
+                                .map(|e| sub_menu_wrapper(theme, e.map(Message::Power)))
+                        }),
+                )
+                .push_maybe(
+                    self.sub_menu
                         .filter(|menu_type| *menu_type == SubMenu::Power)
                         .map(|_| {
                             sub_menu_wrapper(theme, self.power.menu(theme).map(Message::Power))
@@ -564,47 +593,92 @@ impl Settings {
     }
 
     pub fn view<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
-        Row::new()
-            .push_maybe(
-                self.idle_inhibitor
-                    .as_ref()
-                    .filter(|i| i.is_inhibited())
-                    .map(|_| {
-                        container(icon(StaticIcon::EyeOpened)).style(|theme: &Theme| {
-                            container::Style {
-                                text_color: Some(theme.palette().danger),
-                                ..Default::default()
-                            }
+        let mut row = Row::new();
+
+        for indicator in &self.indicators {
+            match indicator {
+                SettingsIndicator::IdleInhibitor => {
+                    if let Some(element) = self
+                        .idle_inhibitor
+                        .as_ref()
+                        .filter(|i| i.is_inhibited())
+                        .map(|_| {
+                            container(icon(StaticIcon::EyeOpened)).style(|theme: &Theme| {
+                                container::Style {
+                                    text_color: Some(theme.palette().danger),
+                                    ..Default::default()
+                                }
+                            })
                         })
-                    }),
-            )
-            .push_maybe(
-                self.power
-                    .power_profile_indicator()
-                    .map(|e| e.map(Message::Power)),
-            )
-            .push_maybe(self.audio.sink_indicator().map(|e| e.map(Message::Audio)))
-            .push(
-                Row::new()
-                    .push_maybe(
-                        self.network
-                            .connection_indicator(theme)
-                            .map(|e| e.map(Message::Network)),
-                    )
-                    .push_maybe(
-                        self.network
-                            .vpn_indicator(theme)
-                            .map(|e| e.map(Message::Network)),
-                    )
-                    .spacing(theme.space.xxs),
-            )
-            .push_maybe(
-                self.power
-                    .battery_indicator(theme)
-                    .map(|e| e.map(Message::Power)),
-            )
-            .spacing(theme.space.xs)
-            .into()
+                    {
+                        row = row.push(element);
+                    }
+                }
+                SettingsIndicator::PowerProfile => {
+                    if let Some(element) = self
+                        .power
+                        .power_profile_indicator()
+                        .map(|e| e.map(Message::Power))
+                    {
+                        row = row.push(element);
+                    }
+                }
+                SettingsIndicator::Audio => {
+                    if let Some(element) =
+                        self.audio.sink_indicator().map(|e| e.map(Message::Audio))
+                    {
+                        row = row.push(element);
+                    }
+                }
+                SettingsIndicator::Network => {
+                    if let Some(element) = self
+                        .network
+                        .connection_indicator(theme)
+                        .map(|e| e.map(Message::Network))
+                    {
+                        row = row.push(element);
+                    }
+                }
+                SettingsIndicator::Vpn => {
+                    if let Some(element) = self
+                        .network
+                        .vpn_indicator(theme)
+                        .map(|e| e.map(Message::Network))
+                    {
+                        row = row.push(element);
+                    }
+                }
+                SettingsIndicator::Bluetooth => {
+                    if let Some(element) = self
+                        .bluetooth
+                        .bluetooth_indicator(theme)
+                        .map(|e| e.map(Message::Bluetooth))
+                    {
+                        row = row.push(element);
+                    }
+                }
+                SettingsIndicator::Battery => {
+                    if let Some(element) = self
+                        .power
+                        .battery_indicator(theme)
+                        .map(|e| e.map(Message::Power))
+                    {
+                        row = row.push(element);
+                    }
+                }
+                SettingsIndicator::PeripheralBattery => {
+                    if let Some(element) = self
+                        .power
+                        .peripheral_indicators(theme)
+                        .map(|e| e.map(Message::Power))
+                    {
+                        row = row.push(element);
+                    }
+                }
+            }
+        }
+
+        row.spacing(theme.space.xs).into()
     }
 
     pub fn subscription(&self) -> Subscription<Message> {

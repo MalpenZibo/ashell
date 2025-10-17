@@ -2,24 +2,31 @@ use std::convert;
 
 use crate::{
     components::icons::{StaticIcon, icon},
+    config::{BatteryFormat, PeripheralIndicators},
     modules::settings::quick_setting_button,
     services::{
         ReadOnlyService, Service, ServiceEvent,
-        upower::{BatteryStatus, PowerProfile, PowerProfileCommand, UPowerService},
+        upower::{
+            BatteryData, BatteryStatus, PeripheralDeviceKind, PowerProfile, PowerProfileCommand,
+            UPowerService,
+        },
     },
     theme::AshellTheme,
     utils::{self, IndicatorState, format_duration},
 };
 use iced::{
     Alignment, Element, Length, Subscription, Task, Theme,
-    widget::{button, column, container, horizontal_rule, row, text},
+    alignment::Vertical,
+    widget::{Column, Row, button, column, container, horizontal_rule, row, text},
 };
 
 #[derive(Debug, Clone)]
 pub enum Message {
     Event(ServiceEvent<UPowerService>),
+    TogglePeripheralMenu,
     TogglePowerProfile,
     Suspend,
+    Hibernate,
     Reboot,
     Shutdown,
     Logout,
@@ -28,29 +35,43 @@ pub enum Message {
 
 pub enum Action {
     None,
+    TogglePeripheralMenu,
     Command(Task<Message>),
 }
 
 #[derive(Debug, Clone)]
 pub struct PowerSettingsConfig {
     pub suspend_cmd: String,
+    pub hibernate_cmd: String,
     pub reboot_cmd: String,
     pub shutdown_cmd: String,
     pub logout_cmd: String,
+    pub battery_format: BatteryFormat,
+    pub peripheral_indicators: PeripheralIndicators,
+    pub peripheral_battery_format: BatteryFormat,
 }
 
 impl PowerSettingsConfig {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         suspend_cmd: String,
+        hibernate_cmd: String,
         reboot_cmd: String,
         shutdown_cmd: String,
         logout_cmd: String,
+        battery_format: BatteryFormat,
+        peripheral_indicators: PeripheralIndicators,
+        peripheral_battery_format: BatteryFormat,
     ) -> Self {
         Self {
             suspend_cmd,
+            hibernate_cmd,
             reboot_cmd,
             shutdown_cmd,
             logout_cmd,
+            battery_format,
+            peripheral_indicators,
+            peripheral_battery_format,
         }
     }
 }
@@ -83,6 +104,7 @@ impl PowerSettings {
                 }
                 ServiceEvent::Error(_) => Action::None,
             },
+            Message::TogglePeripheralMenu => Action::TogglePeripheralMenu,
             Message::TogglePowerProfile => match self.service.as_mut() {
                 Some(service) => Action::Command(
                     service
@@ -93,6 +115,10 @@ impl PowerSettings {
             },
             Message::Suspend => {
                 utils::launcher::suspend(self.config.suspend_cmd.clone());
+                Action::None
+            }
+            Message::Hibernate => {
+                utils::launcher::hibernate(self.config.hibernate_cmd.clone());
                 Action::None
             }
             Message::Reboot => {
@@ -121,6 +147,11 @@ impl PowerSettings {
                 .on_press(Message::Suspend)
                 .width(Length::Fill)
                 .style(theme.ghost_button_style()),
+            button(row!(icon(StaticIcon::Hibernate), text("Hibernate")).spacing(theme.space.md))
+                .padding([theme.space.xxs, theme.space.sm])
+                .on_press(Message::Hibernate)
+                .width(Length::Fill)
+                .style(theme.ghost_button_style()),
             button(row!(icon(StaticIcon::Reboot), text("Reboot")).spacing(theme.space.md))
                 .padding([theme.space.xxs, theme.space.sm])
                 .on_press(Message::Reboot)
@@ -144,20 +175,125 @@ impl PowerSettings {
         .into()
     }
 
+    pub fn peripheral_menu<'a>(&'a self, theme: &'a AshellTheme) -> Option<Element<'a, Message>> {
+        self.service
+            .as_ref()
+            .filter(|s| !s.peripherals.is_empty())
+            .map(|service| {
+                Column::with_children(
+                    service
+                        .peripherals
+                        .iter()
+                        .map(|p| {
+                            Row::new()
+                                .push(icon(p.kind.get_icon()))
+                                .push(text(p.name.to_string()).width(Length::Fill))
+                                .push(self.menu_indicator(theme, p.data, None))
+                                .align_y(Vertical::Center)
+                                .spacing(theme.space.sm)
+                                .into()
+                        })
+                        .collect::<Vec<Element<Message>>>(),
+                )
+                .spacing(theme.space.xs)
+                .into()
+            })
+    }
+
+    pub fn peripheral_indicators<'a>(
+        &self,
+        ashell_theme: &AshellTheme,
+    ) -> Option<Element<'a, Message>> {
+        let get_indicators = |kinds: Option<&[PeripheralDeviceKind]>| {
+            self.service
+                .as_ref()
+                .filter(|p| {
+                    !p.peripherals.is_empty()
+                        && kinds.is_none_or(|kinds| {
+                            p.peripherals.iter().any(|p| kinds.contains(&p.kind))
+                        })
+                })
+                .map(|service| {
+                    let mut row = Row::new()
+                        .spacing(ashell_theme.space.xxs)
+                        .align_y(Alignment::Center);
+
+                    for p in service.peripherals.iter() {
+                        row = row.push_maybe({
+                            if kinds.as_ref().is_none_or(|kinds| kinds.contains(&p.kind)) {
+                                let state = p.data.get_indicator_state();
+
+                                Some(
+                                    container(match self.config.peripheral_battery_format {
+                                        BatteryFormat::Icon => {
+                                            convert::Into::<Element<'a, Message>>::into(icon(
+                                                p.get_icon_state(),
+                                            ))
+                                        }
+                                        BatteryFormat::Percentage => row!(
+                                            icon(p.kind.get_icon()),
+                                            text(format!("{}%", p.data.capacity))
+                                        )
+                                        .spacing(ashell_theme.space.xxs)
+                                        .align_y(Alignment::Center)
+                                        .into(),
+                                        BatteryFormat::IconAndPercentage => row!(
+                                            icon(p.get_icon_state()),
+                                            text(format!("{}%", p.data.capacity))
+                                        )
+                                        .spacing(ashell_theme.space.xxs)
+                                        .align_y(Alignment::Center)
+                                        .into(),
+                                    })
+                                    .style(
+                                        move |theme: &Theme| container::Style {
+                                            text_color: Some(match state {
+                                                IndicatorState::Success => theme.palette().success,
+                                                IndicatorState::Danger => theme.palette().danger,
+                                                _ => theme.palette().text,
+                                            }),
+                                            ..Default::default()
+                                        },
+                                    ),
+                                )
+                            } else {
+                                None
+                            }
+                        });
+                    }
+
+                    row
+                })
+        };
+
+        match &self.config.peripheral_indicators {
+            PeripheralIndicators::All => get_indicators(None),
+            PeripheralIndicators::Specific(kinds) => get_indicators(Some(kinds)),
+        }
+        .map(|r| r.into())
+    }
+
     pub fn battery_indicator<'a>(
         &self,
         ashell_theme: &AshellTheme,
     ) -> Option<Element<'a, Message>> {
         self.service.as_ref().and_then(|service| {
-            service.battery.map(|battery| {
-                let icon_type = battery.get_icon();
+            service.system_battery.map(|battery| {
                 let state = battery.get_indicator_state();
 
-                container(
-                    row!(icon(icon_type), text(format!("{}%", battery.capacity)))
-                        .spacing(ashell_theme.space.xxs)
-                        .align_y(Alignment::Center),
-                )
+                container(match self.config.battery_format {
+                    BatteryFormat::Icon => icon(battery.get_icon()).into(),
+                    BatteryFormat::Percentage => convert::Into::<Element<'a, Message>>::into(text(
+                        format!("{}%", battery.capacity),
+                    )),
+                    BatteryFormat::IconAndPercentage => row!(
+                        icon(battery.get_icon()),
+                        text(format!("{}%", battery.capacity))
+                    )
+                    .spacing(ashell_theme.space.xxs)
+                    .align_y(Alignment::Center)
+                    .into(),
+                })
                 .style(move |theme: &Theme| container::Style {
                     text_color: Some(match state {
                         IndicatorState::Success => theme.palette().success,
@@ -171,48 +307,94 @@ impl PowerSettings {
         })
     }
 
+    fn menu_indicator<'a>(
+        &self,
+        ashell_theme: &'a AshellTheme,
+        battery: BatteryData,
+        peripheral_icon: Option<StaticIcon>,
+    ) -> Element<'a, Message> {
+        let state = battery.get_indicator_state();
+
+        container({
+            let battery_info = container(
+                Row::new()
+                    .push_maybe(peripheral_icon.map(icon))
+                    .push(icon(battery.get_icon()))
+                    .push(text(format!("{}%", battery.capacity)))
+                    .spacing(ashell_theme.space.xxs),
+            )
+            .style(move |theme: &Theme| container::Style {
+                text_color: Some(match state {
+                    IndicatorState::Success => theme.palette().success,
+                    IndicatorState::Danger => theme.palette().danger,
+                    _ => theme.palette().text,
+                }),
+                ..Default::default()
+            });
+
+            match battery.status {
+                BatteryStatus::Charging(remaining) if battery.capacity < 95 => row!(
+                    battery_info,
+                    text(format!("Full in {}", format_duration(&remaining)))
+                )
+                .spacing(ashell_theme.space.md),
+                BatteryStatus::Discharging(remaining)
+                    if battery.capacity < 95 && !remaining.is_zero() =>
+                {
+                    row!(
+                        battery_info,
+                        text(format!("Empty in {}", format_duration(&remaining)))
+                    )
+                    .spacing(ashell_theme.space.md)
+                }
+                _ => row!(battery_info),
+            }
+        })
+        .padding([ashell_theme.space.xs, ashell_theme.space.xxs])
+        .into()
+    }
+
     pub fn battery_menu_indicator<'a>(
         &self,
-        ashell_theme: &AshellTheme,
+        ashell_theme: &'a AshellTheme,
     ) -> Option<Element<'a, Message>> {
         self.service.as_ref().and_then(|service| {
-            service.battery.map(|battery| {
-                let state = battery.get_indicator_state();
+            service
+                .system_battery
+                .map(|battery| {
+                    let indicator = self.menu_indicator(ashell_theme, battery, None);
 
-                container({
-                    let battery_info = container(
-                        row!(
-                            icon(battery.get_icon()),
-                            text(format!("{}%", battery.capacity))
-                        )
-                        .spacing(ashell_theme.space.xxs),
-                    )
-                    .style(move |theme: &Theme| container::Style {
-                        text_color: Some(match state {
-                            IndicatorState::Success => theme.palette().success,
-                            IndicatorState::Danger => theme.palette().danger,
-                            _ => theme.palette().text,
-                        }),
-                        ..Default::default()
-                    });
-
-                    match battery.status {
-                        BatteryStatus::Charging(remaining) if battery.capacity < 95 => row!(
-                            battery_info,
-                            text(format!("Full in {}", format_duration(&remaining)))
-                        )
-                        .spacing(ashell_theme.space.md),
-                        BatteryStatus::Discharging(remaining) if battery.capacity < 95 => row!(
-                            battery_info,
-                            text(format!("Empty in {}", format_duration(&remaining)))
-                        )
-                        .spacing(ashell_theme.space.md),
-                        _ => row!(battery_info),
+                    if !service.peripherals.is_empty() {
+                        button(indicator)
+                            .padding([0, ashell_theme.space.sm])
+                            .on_press(Message::TogglePeripheralMenu)
+                            .style(ashell_theme.settings_button_style())
+                            .into()
+                    } else {
+                        indicator
                     }
                 })
-                .padding([ashell_theme.space.xs, ashell_theme.space.xxs])
-                .into()
-            })
+                .or_else(|| {
+                    if let Some(peripheral) = service.peripherals.first() {
+                        let indicator = self.menu_indicator(
+                            ashell_theme,
+                            peripheral.data,
+                            Some(peripheral.kind.get_icon()),
+                        );
+
+                        Some(if service.peripherals.len() > 1 {
+                            button(indicator)
+                                .padding([0, ashell_theme.space.sm])
+                                .on_press(Message::TogglePeripheralMenu)
+                                .style(ashell_theme.settings_button_style())
+                                .into()
+                        } else {
+                            indicator
+                        })
+                    } else {
+                        None
+                    }
+                })
         })
     }
 
