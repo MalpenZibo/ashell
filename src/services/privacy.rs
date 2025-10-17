@@ -8,7 +8,7 @@ use iced::{
 };
 use inotify::{EventMask, Inotify, WatchMask};
 use log::{debug, error, info, warn};
-use pipewire::{context::ContextRc, main_loop::MainLoopRc};
+use pipewire::{context::ContextBox, main_loop::MainLoopBox};
 use std::{any::TypeId, fs, ops::Deref, path::Path, thread};
 use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 
@@ -75,10 +75,10 @@ impl PrivacyService {
         let (tx, rx) = unbounded_channel::<PrivacyEvent>();
 
         thread::spawn(move || {
-            let mainloop = MainLoopRc::new(None).unwrap();
-            let context = ContextRc::new(&mainloop, None).unwrap();
-            let core = context.connect_rc(None).unwrap();
-            let registry = core.get_registry_rc().unwrap();
+            let mainloop = MainLoopBox::new(None).unwrap();
+            let context = ContextBox::new(mainloop.loop_(), None).unwrap();
+            let core = context.connect(None).unwrap();
+            let registry = core.get_registry().unwrap();
 
             let _listener = registry
                 .add_listener_local()
