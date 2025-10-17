@@ -1,10 +1,10 @@
 use std::collections::HashMap;
-use std::sync::Arc;
-use std::thread;
 use std::time::Duration;
-use wait_timeout::ChildExt;
 
+use iced::futures::future::join_all;
 use log::{debug, error};
+use tokio::process::Command;
+use tokio::time::timeout;
 
 use crate::{
     components::icons::{DynamicIcon, Icon, StaticIcon, icon},
@@ -296,72 +296,54 @@ impl Settings {
 
                 let buttons = self.custom_buttons.clone();
 
-                // Parallelize status_commands execution using threads
-                let custom_buttons_task = Task::perform(
-                    async move {
-                        if buttons.is_empty() {
-                            return vec![];
-                        }
-
-                        let buttons = Arc::new(buttons);
-                        let mut handles = vec![];
-
-                        // Spawn a thread for each button status check
-                        for button in buttons.iter() {
-                            let button = button.clone();
-                            let handle = thread::spawn(move || {
-                                let status = if let Some(cmd) = button.status_command {
-                                    match std::process::Command::new("bash")
-                                        .arg("-c")
-                                        .arg(&cmd)
-                                        .spawn()
-                                    {
-                                        Ok(mut child) => {
-                                            match child
-                                                .wait_timeout(Duration::from_millis(1000))
-                                                .ok()
-                                                .flatten()
-                                            {
-                                                Some(exit_status) => {
-                                                    debug!(
-                                                        "Custom button '{}' status check completed with exit code: {}",
-                                                        button.name,
-                                                        exit_status.code().unwrap_or(-1)
-                                                    );
-                                                    Some(exit_status.success())
-                                                }
-                                                None => {
-                                                    error!(
-                                                        "Custom button '{}' status_command timed out after 1000ms",
-                                                        button.name
-                                                    );
-                                                    let _ = child.kill();
-                                                    let _ = child.wait();
-                                                    None
-                                                }
-                                            }
+                let custom_buttons_task = if buttons.is_empty() {
+                    Task::none()
+                } else {
+                    Task::perform(
+                        async move {
+                            let futures = buttons.into_iter().map(|button| async move {
+                                if let Some(cmd) = button.status_command {
+                                    let result = timeout(Duration::from_secs(1), async {
+                                        let output = Command::new("bash")
+                                            .arg("-c")
+                                            .arg(cmd)
+                                            .status()
+                                            .await?;
+                                        Ok::<_, std::io::Error>(output.success())
+                                    })
+                                    .await;
+                                    match result {
+                                        Ok(Ok(output)) => {
+                                            debug!(
+                                                "Custom button '{}' status_command executed with result: {}",
+                                                button.name, output
+                                            );
+                                            (button.name, Some(output))
                                         }
-                                        Err(e) => {
+                                        Ok(Err(e)) => {
                                             error!(
                                                 "Failed to spawn status_command for custom button '{}': {}",
                                                 button.name, e
                                             );
-                                            None
+                                            (button.name, None)
+                                        }
+                                        Err(_) => {
+                                            error!(
+                                                "Custom button '{}' status_command timed out after 1000ms",
+                                                button.name
+                                            );
+                                            (button.name, None)
                                         }
                                     }
                                 } else {
-                                    Some(false)
-                                };
-                                (button.name, status)
+                                    (button.name, Some(false))
+                                }
                             });
-                            handles.push(handle);
-                        }
-
-                        // Wait for all threads to complete
-                        handles.into_iter().filter_map(|h| h.join().ok()).collect()
-                    },
-                    Message::CustomButtonsStatus,
-                );
+                            join_all(futures).await
+                        },
+                        Message::CustomButtonsStatus,
+                    )
+                };
 
                 // Batch both tasks to run in parallel
                 let brightness_task = match self.brightness.update(brightness::Message::MenuOpened)
