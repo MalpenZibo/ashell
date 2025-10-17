@@ -34,8 +34,10 @@ exclude-contributors:
 no-contributors-template: "just me this time 😅"
 autolabeler:
   - label: "docs"
-    files:
-      - "*.md"
+    branch:
+      - '/^docs\/.+/'
+    title:
+      - "/^docs/i"
   - label: "bug"
     branch:
       - '/fix\/.+/'
@@ -44,8 +46,10 @@ autolabeler:
   - label: "feature"
     branch:
       - '/feature\/.+/'
+      - '/feat\/.+/'
     title:
       - "/feature/i"
+      - '/feat\/.+/'
   - label: "chore"
     branch:
       - '/chore\/.+/'
