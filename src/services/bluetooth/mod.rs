@@ -30,12 +30,15 @@ pub struct BluetoothDevice {
     pub name: String,
     pub battery: Option<u8>,
     pub path: OwnedObjectPath,
+    pub connected: bool,
+    pub paired: bool,
 }
 
 #[derive(Debug, Clone)]
 pub struct BluetoothData {
     pub state: BluetoothState,
     pub devices: Vec<BluetoothDevice>,
+    pub discovering: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -55,6 +58,12 @@ impl Deref for BluetoothService {
 #[derive(Debug, Clone)]
 pub enum BluetoothCommand {
     Toggle,
+    StartDiscovery,
+    StopDiscovery,
+    PairDevice(OwnedObjectPath),
+    ConnectDevice(OwnedObjectPath),
+    DisconnectDevice(OwnedObjectPath),
+    RemoveDevice(OwnedObjectPath),
 }
 
 enum State {
@@ -76,8 +85,13 @@ impl BluetoothService {
             state => state,
         };
         let devices = bluetooth.devices().await?;
+        let discovering = bluetooth.discovering().await.unwrap_or(false);
 
-        Ok(BluetoothData { state, devices })
+        Ok(BluetoothData {
+            state,
+            devices,
+            discovering,
+        })
     }
 
     async fn events(conn: &zbus::Connection) -> anyhow::Result<impl Stream<Item = ()> + use<>> {
@@ -100,6 +114,7 @@ impl BluetoothService {
         let combined = match bluetooth.adapter.as_ref() {
             Some(adapter) => {
                 let powered = adapter.receive_powered_changed().await.map(|_| {});
+                let discovering = adapter.receive_discovering_changed().await.map(|_| {});
                 let rfkill = BluetoothService::listen_rfkill_soft_block_changes().await?;
                 let devices = bluetooth.devices().await?;
 
@@ -112,7 +127,14 @@ impl BluetoothService {
                     batteries.push(battery.receive_percentage_changed().await.map(|_| {}));
                 }
 
-                stream_select!(interface_changed, powered, rfkill, select_all(batteries)).boxed()
+                stream_select!(
+                    interface_changed,
+                    powered,
+                    discovering,
+                    rfkill,
+                    select_all(batteries)
+                )
+                .boxed()
             }
             _ => interface_changed,
         };
@@ -266,6 +288,128 @@ impl Service for BluetoothService {
                         ServiceEvent::Update,
                     )
                 }
+            }
+            BluetoothCommand::StartDiscovery => {
+                let conn = self.conn.clone();
+                Task::perform(
+                    async move {
+                        let bluetooth = BluetoothDbus::new(&conn).await;
+                        if let Ok(bluetooth) = bluetooth {
+                            let _ = bluetooth.start_discovery().await;
+
+                            // Auto-stop after 15 seconds
+                            tokio::time::sleep(tokio::time::Duration::from_secs(15)).await;
+                            let _ = bluetooth.stop_discovery().await;
+                        }
+                        BluetoothService::initialize_data(&conn)
+                            .await
+                            .unwrap_or_else(|_| BluetoothData {
+                                state: BluetoothState::Unavailable,
+                                devices: vec![],
+                                discovering: false,
+                            })
+                    },
+                    ServiceEvent::Update,
+                )
+            }
+            BluetoothCommand::StopDiscovery => {
+                let conn = self.conn.clone();
+                Task::perform(
+                    async move {
+                        let bluetooth = BluetoothDbus::new(&conn).await;
+                        if let Ok(bluetooth) = bluetooth {
+                            let _ = bluetooth.stop_discovery().await;
+                        }
+                        BluetoothService::initialize_data(&conn)
+                            .await
+                            .unwrap_or_else(|_| BluetoothData {
+                                state: BluetoothState::Unavailable,
+                                devices: vec![],
+                                discovering: false,
+                            })
+                    },
+                    ServiceEvent::Update,
+                )
+            }
+            BluetoothCommand::PairDevice(device_path) => {
+                let conn = self.conn.clone();
+                Task::perform(
+                    async move {
+                        let bluetooth = BluetoothDbus::new(&conn).await;
+                        if let Ok(bluetooth) = bluetooth {
+                            debug!("Pairing device: {:?}", device_path);
+                            let _ = bluetooth.pair_device(&device_path).await;
+                        }
+                        BluetoothService::initialize_data(&conn)
+                            .await
+                            .unwrap_or_else(|_| BluetoothData {
+                                state: BluetoothState::Unavailable,
+                                devices: vec![],
+                                discovering: false,
+                            })
+                    },
+                    ServiceEvent::Update,
+                )
+            }
+            BluetoothCommand::ConnectDevice(device_path) => {
+                let conn = self.conn.clone();
+                Task::perform(
+                    async move {
+                        let bluetooth = BluetoothDbus::new(&conn).await;
+                        if let Ok(bluetooth) = bluetooth {
+                            debug!("Connecting device: {:?}", device_path);
+                            let _ = bluetooth.connect_device(&device_path).await;
+                        }
+                        BluetoothService::initialize_data(&conn)
+                            .await
+                            .unwrap_or_else(|_| BluetoothData {
+                                state: BluetoothState::Unavailable,
+                                devices: vec![],
+                                discovering: false,
+                            })
+                    },
+                    ServiceEvent::Update,
+                )
+            }
+            BluetoothCommand::DisconnectDevice(device_path) => {
+                let conn = self.conn.clone();
+                Task::perform(
+                    async move {
+                        let bluetooth = BluetoothDbus::new(&conn).await;
+                        if let Ok(bluetooth) = bluetooth {
+                            debug!("Disconnecting device: {:?}", device_path);
+                            let _ = bluetooth.disconnect_device(&device_path).await;
+                        }
+                        BluetoothService::initialize_data(&conn)
+                            .await
+                            .unwrap_or_else(|_| BluetoothData {
+                                state: BluetoothState::Unavailable,
+                                devices: vec![],
+                                discovering: false,
+                            })
+                    },
+                    ServiceEvent::Update,
+                )
+            }
+            BluetoothCommand::RemoveDevice(device_path) => {
+                let conn = self.conn.clone();
+                Task::perform(
+                    async move {
+                        let bluetooth = BluetoothDbus::new(&conn).await;
+                        if let Ok(bluetooth) = bluetooth {
+                            debug!("Removing device: {:?}", device_path);
+                            let _ = bluetooth.remove_device(&device_path).await;
+                        }
+                        BluetoothService::initialize_data(&conn)
+                            .await
+                            .unwrap_or_else(|_| BluetoothData {
+                                state: BluetoothState::Unavailable,
+                                devices: vec![],
+                                discovering: false,
+                            })
+                    },
+                    ServiceEvent::Update,
+                )
             }
         }
     }
