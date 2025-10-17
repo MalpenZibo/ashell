@@ -44,8 +44,10 @@ autolabeler:
   - label: "feature"
     branch:
       - '/feature\/.+/'
+      - '/feat\/.+/'
     title:
       - "/feature/i"
+      - '/feat\/.+/'
   - label: "chore"
     branch:
       - '/chore\/.+/'
