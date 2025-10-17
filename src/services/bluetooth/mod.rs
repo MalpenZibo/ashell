@@ -63,6 +63,7 @@ pub enum BluetoothCommand {
     PairDevice(OwnedObjectPath),
     ConnectDevice(OwnedObjectPath),
     DisconnectDevice(OwnedObjectPath),
+    RemoveDevice(OwnedObjectPath),
 }
 
 enum State {
@@ -378,6 +379,26 @@ impl Service for BluetoothService {
                         if let Ok(bluetooth) = bluetooth {
                             debug!("Disconnecting device: {:?}", device_path);
                             let _ = bluetooth.disconnect_device(&device_path).await;
+                        }
+                        BluetoothService::initialize_data(&conn)
+                            .await
+                            .unwrap_or_else(|_| BluetoothData {
+                                state: BluetoothState::Unavailable,
+                                devices: vec![],
+                                discovering: false,
+                            })
+                    },
+                    ServiceEvent::Update,
+                )
+            }
+            BluetoothCommand::RemoveDevice(device_path) => {
+                let conn = self.conn.clone();
+                Task::perform(
+                    async move {
+                        let bluetooth = BluetoothDbus::new(&conn).await;
+                        if let Ok(bluetooth) = bluetooth {
+                            debug!("Removing device: {:?}", device_path);
+                            let _ = bluetooth.remove_device(&device_path).await;
                         }
                         BluetoothService::initialize_data(&conn)
                             .await

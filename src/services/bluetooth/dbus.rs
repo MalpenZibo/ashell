@@ -156,6 +156,13 @@ impl BluetoothDbus<'_> {
 
         device.disconnect().await
     }
+
+    pub async fn remove_device(&self, device_path: &OwnedObjectPath) -> zbus::Result<()> {
+        if let Some(adapter) = &self.adapter {
+            adapter.remove_device(device_path.as_ref()).await?;
+        }
+        Ok(())
+    }
 }
 
 #[proxy(
@@ -191,6 +198,8 @@ pub trait Adapter {
 
     #[zbus(property)]
     fn discovering(&self) -> zbus::Result<bool>;
+
+    fn remove_device(&self, device: zbus::zvariant::ObjectPath<'_>) -> zbus::Result<()>;
 }
 
 #[proxy(default_service = "org.bluez", interface = "org.bluez.Device1")]

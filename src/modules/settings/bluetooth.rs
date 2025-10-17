@@ -25,6 +25,7 @@ pub enum Message {
     PairDevice(OwnedObjectPath),
     ConnectDevice(OwnedObjectPath),
     DisconnectDevice(OwnedObjectPath),
+    RemoveDevice(OwnedObjectPath),
     More(Id),
     ConfigReloaded(BluetoothSettingsConfig),
 }
@@ -121,6 +122,14 @@ impl BluetoothSettings {
                 Some(service) => Action::Command(
                     service
                         .command(BluetoothCommand::DisconnectDevice(device_path))
+                        .map(Message::Event),
+                ),
+                _ => Action::None,
+            },
+            Message::RemoveDevice(device_path) => match self.service.as_mut() {
+                Some(service) => Action::Command(
+                    service
+                        .command(BluetoothCommand::RemoveDevice(device_path))
                         .map(Message::Event),
                 ),
                 _ => Action::None,
@@ -280,18 +289,29 @@ impl BluetoothSettings {
                         .iter()
                         .map(|d| {
                             let avail = available_devices.iter().any(|dev| dev.path == d.path);
-                            button(
-                                row![text(d.name.clone()).width(Length::Fill)]
-                                    .spacing(theme.space.xs)
-                                    .push_maybe(
-                                        avail.then(|| text("Connect").size(theme.font_size.xs)),
-                                    ),
-                            )
-                            .style(theme.ghost_button_style())
-                            .padding([theme.space.xs, theme.space.xs])
-                            .on_press(Message::ConnectDevice(d.path.clone()))
-                            .width(Length::Fill)
-                            .into()
+                            
+                            let mut device_row = row![text(d.name.clone()).width(Length::Fill)]
+                                .spacing(theme.space.xs)
+                                .align_y(Vertical::Center)
+                                .padding([theme.space.xs, theme.space.xs]);
+                            
+                            if avail {
+                                device_row = device_row.push(
+                                    button(text("Connect").size(theme.font_size.xs))
+                                        .style(theme.settings_button_style())
+                                        .padding([theme.space.xxs, theme.space.sm])
+                                        .on_press(Message::ConnectDevice(d.path.clone()))
+                                );
+                            }
+                            
+                            device_row = device_row.push(
+                                button(text("Remove").size(theme.font_size.xs))
+                                    .style(theme.settings_button_style())
+                                    .padding([theme.space.xxs, theme.space.sm])
+                                    .on_press(Message::RemoveDevice(d.path.clone()))
+                            );
+                            
+                            device_row.into()
                         })
                         .collect::<Vec<Element<'a, Message>>>(),
                 )
