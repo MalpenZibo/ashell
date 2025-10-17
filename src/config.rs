@@ -392,6 +392,17 @@ pub struct SettingsModuleConfig {
     pub remove_idle_btn: bool,
     #[serde(default = "default_settings_indicators")]
     pub indicators: Vec<SettingsIndicator>,
+    #[serde(default, rename = "CustomButton")]
+    pub custom_buttons: Vec<SettingsCustomButton>,
+}
+
+#[derive(Deserialize, Clone, Debug)]
+pub struct SettingsCustomButton {
+    pub name: String,
+    pub icon: String,
+    pub command: String,
+    pub status_command: Option<String>,
+    pub tooltip: Option<String>,
 }
 
 #[derive(Deserialize, Clone, Debug)]

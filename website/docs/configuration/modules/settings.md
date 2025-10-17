@@ -118,6 +118,72 @@ indicators = ["Battery", "Bluetooth", "Network", "Audio"]
 indicators = ["IdleInhibitor", "PowerProfile", "Audio", "Bluetooth", "Network", "Vpn", "Battery"]
 ```
 
+## Custom Buttons
+
+You can add custom buttons to the settings panel using the `CustomButton` configuration.
+These buttons can execute commands when clicked.
+
+### Button Behavior
+
+- If `status_command` is provided, the button acts as a **toggle** with visual state tracking
+- If `status_command` is not provided, the button acts as a **launcher** (simple command execution)
+
+### Configuration
+
+| Field            | Required | Description                                                 |
+| ---------------- | -------- | ----------------------------------------------------------- |
+| `name`           | Yes      | Display name of the button                                  |
+| `icon`           | Yes      | Icon to display (Unicode emoji or Nerd Font symbol)         |
+| `command`        | Yes      | Shell command to execute when button is clicked             |
+| `status_command` | No       | Command to check if toggle is active (exit code 0 = active) |
+| `tooltip`        | No       | Tooltip text shown on hover                                 |
+
+#### Icon Support
+
+The `icon` field accepts:
+
+- **Unicode emoji**: `⌨️`, `🖥️`, `📁`, `🌐`, etc.
+- **Nerd Font symbols**: `󰌓`, ``, ``, etc. (requires Nerd Font installed)
+
+Both are rendered using the `Symbols Nerd Font` and will display correctly in the UI.
+
+#### Command Execution
+
+Both `command` and `status_command` are executed through **bash shell** (`bash -c`), which means you can use:
+
+- Shell features: pipes (`|`), redirects (`>`), logical operators (`&&`, `||`)
+- Environment variables: `$HOME`, `$USER`, etc.
+- Globs: `*.txt`, `~/Documents/*`
+
+:::warning Security Note
+Commands are executed with your user privileges. Be careful with commands from untrusted sources, as they have full shell access.
+:::
+
+#### Status Command Timeout
+
+Each `status_command` has a **1 second timeout**. If the command doesn't complete within this time:
+
+- The button state will be shown as "unknown" (grayed out)
+- The process will be killed automatically
+- An error will be logged for debugging
+
+```toml
+# Toggle button example (with status_command)
+[[settings.CustomButton]]
+name = "Virtual Keyboard"
+icon = "⌨️"
+command = "/path/to/toggle-keyboard.sh"
+status_command = "/path/to/check-keyboard-status.sh"
+tooltip = "Toggle On-Screen Keyboard"
+
+# Launcher button example (without status_command)
+[[settings.CustomButton]]
+name = "Terminal"
+icon = ""
+command = "alacritty"
+tooltip = "Open Terminal"
+```
+
 ## Example
 
 In the following example we use:
@@ -140,6 +206,18 @@ vpn_more_cmd = "nm-connection-editor"
 bluetooth_more_cmd = "blueman-manager"
 remove_airplane_btn = true
 remove_idle_btn = true
-# Only show battery, bluetooth, network and audio indicators
 indicators = ["Battery", "Bluetooth", "Network", "Audio"]
+
+[[settings.CustomButton]]
+name = "Virtual Keyboard"
+icon = "⌨️"
+command = "toggle-onscreen-keyboard.sh"
+status_command = "pgrep -x onboard"
+tooltip = "Toggle On-Screen Keyboard"
+
+[[settings.CustomButton]]
+name = "File Manager"
+icon = ""
+command = "nautilus"
+tooltip = "Open Files"
 ```

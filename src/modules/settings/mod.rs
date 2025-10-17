@@ -1,6 +1,14 @@
+use std::collections::HashMap;
+use std::time::Duration;
+
+use iced::futures::future::join_all;
+use log::{debug, error};
+use tokio::process::Command;
+use tokio::time::timeout;
+
 use crate::{
-    components::icons::{Icon, StaticIcon, icon},
-    config::{Position, SettingsIndicator, SettingsModuleConfig},
+    components::icons::{DynamicIcon, Icon, StaticIcon, icon},
+    config::{Position, SettingsCustomButton, SettingsModuleConfig},
     modules::settings::{
         audio::{AudioSettings, AudioSettingsConfig},
         bluetooth::{BluetoothSettings, BluetoothSettingsConfig},
@@ -36,6 +44,8 @@ pub struct Settings {
     sub_menu: Option<SubMenu>,
     password_dialog: Option<(String, String)>,
     indicators: Vec<SettingsIndicator>,
+    custom_buttons: Vec<SettingsCustomButton>,
+    custom_buttons_status: HashMap<String, Option<bool>>,
 }
 
 #[derive(Debug, Clone)]
@@ -49,6 +59,8 @@ pub enum Message {
     Power(power::Message),
     ToggleSubMenu(SubMenu),
     PasswordDialog(password_dialog::Message),
+    CustomButton(String),
+    CustomButtonsStatus(Vec<(String, Option<bool>)>),
     MenuOpened,
     ConfigReloaded(SettingsModuleConfig),
 }
@@ -108,6 +120,8 @@ impl Settings {
             sub_menu: None,
             password_dialog: None,
             indicators: config.indicators,
+            custom_buttons: config.custom_buttons,
+            custom_buttons_status: HashMap::new(),
         }
     }
 
@@ -276,15 +290,85 @@ impl Settings {
                     Action::ReleaseKeyboard(id)
                 }
             },
+            Message::CustomButton(name) => {
+                if let Some(button) = self.custom_buttons.iter().find(|b| b.name == name) {
+                    crate::utils::launcher::execute_command(button.command.clone());
+
+                    // Toggle button state immediately
+                    let current_status = self.custom_buttons_status.get(&name).and_then(|v| *v);
+                    self.custom_buttons_status
+                        .insert(name, current_status.map(|s| !s));
+                }
+                Action::None
+            }
+            Message::CustomButtonsStatus(statuses) => {
+                for (name, status) in statuses.into_iter() {
+                    self.custom_buttons_status.insert(name, status);
+                }
+                Action::None
+            }
             Message::MenuOpened => {
                 self.sub_menu = None;
 
-                match self.brightness.update(brightness::Message::MenuOpened) {
-                    brightness::Action::None => Action::None,
-                    brightness::Action::Command(task) => {
-                        Action::Command(task.map(Message::Brightness))
-                    }
-                }
+                let buttons = self.custom_buttons.clone();
+
+                let custom_buttons_task = if buttons.is_empty() {
+                    Task::none()
+                } else {
+                    Task::perform(
+                        async move {
+                            let futures = buttons.into_iter().map(|button| async move {
+                                if let Some(cmd) = button.status_command {
+                                    let result = timeout(Duration::from_secs(1), async {
+                                        let output = Command::new("bash")
+                                            .arg("-c")
+                                            .arg(cmd)
+                                            .status()
+                                            .await?;
+                                        Ok::<_, std::io::Error>(output.success())
+                                    })
+                                    .await;
+                                    match result {
+                                        Ok(Ok(output)) => {
+                                            debug!(
+                                                "Custom button '{}' status_command executed with result: {}",
+                                                button.name, output
+                                            );
+                                            (button.name, Some(output))
+                                        }
+                                        Ok(Err(e)) => {
+                                            error!(
+                                                "Failed to spawn status_command for custom button '{}': {}",
+                                                button.name, e
+                                            );
+                                            (button.name, None)
+                                        }
+                                        Err(_) => {
+                                            error!(
+                                                "Custom button '{}' status_command timed out after 1000ms",
+                                                button.name
+                                            );
+                                            (button.name, None)
+                                        }
+                                    }
+                                } else {
+                                    (button.name, Some(false))
+                                }
+                            });
+                            join_all(futures).await
+                        },
+                        Message::CustomButtonsStatus,
+                    )
+                };
+
+                // Batch both tasks to run in parallel
+                let brightness_task = match self.brightness.update(brightness::Message::MenuOpened)
+                {
+                    brightness::Action::None => Task::none(),
+                    brightness::Action::Command(task) => task.map(Message::Brightness),
+                };
+
+                Action::Command(Task::batch([custom_buttons_task, brightness_task]))
             }
             Message::ConfigReloaded(config) => {
                 self.lock_cmd = config.lock_cmd;
@@ -427,6 +511,25 @@ impl Settings {
                 ]
                 .into_iter()
                 .flatten()
+                .chain(self.custom_buttons.iter().map(|button| {
+                    let is_active = self
+                        .custom_buttons_status
+                        .get(&button.name)
+                        .and_then(|v| *v)
+                        .unwrap_or(false);
+                    (
+                        quick_setting_button(
+                            theme,
+                            DynamicIcon(button.icon.clone()),
+                            button.name.clone(),
+                            button.tooltip.clone(),
+                            is_active,
+                            Message::CustomButton(button.name.clone()),
+                            None,
+                        ),
+                        None,
+                    )
+                }))
                 .collect::<Vec<_>>(),
             );
 
