@@ -13,15 +13,15 @@ use iced::{
     widget::{Column, Row, button, column, row, text},
 };
 use log::{debug, warn};
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 use std::{any::TypeId, time::Duration};
-use time::OffsetDateTime;
+use time::{Date, OffsetDateTime};
 
 #[derive(Debug, Clone)]
 pub enum Message {
     Update,
     ChangeSelectDate(Option<NaiveDate>),
-    UpdateWeather(WeatherData),
+    UpdateWeather(Box<WeatherData>),
 }
 
 pub enum Action {
@@ -58,7 +58,7 @@ impl Tempo {
                 Action::None
             }
             Message::UpdateWeather(data) => {
-                self.weather_data = Some(data);
+                self.weather_data = Some(*data);
 
                 Action::None
             }
@@ -285,7 +285,7 @@ impl Tempo {
                                             weather_data
                                         );
                                         output
-                                            .send(Message::UpdateWeather(weather_data))
+                                            .send(Message::UpdateWeather(Box::new(weather_data)))
                                             .await
                                             .ok();
                                     }
@@ -368,10 +368,10 @@ async fn fetch_weather_data(location: &Location) -> anyhow::Result<WeatherData> 
     let response = reqwest::get(format!(
         "https://api.open-meteo.com/v1/forecast?\
         latitude={}&longitude={}\
+        &current=weather_code,apparent_temperature,relative_humidity_2m,temperature_2m,is_day,wind_speed_10m,wind_direction_10m\
+        &hourly=weather_code,temperature_2m,is_day\
         &daily=weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,wind_speed_10m_max,wind_direction_10m_dominant\
-        &hourly=weather_code,temperature_2m,apparent_temperature,precipitation_probability,precipitation,rain,showers,snowfall,snow_depth,weather_code,wind_speed_10m,wind_direction_10m\
-        &current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m\
-        &forecast_days=3", 
+        &forecast_days=7", 
         location.latitude, location.longitude
     )).await?;
     let raw_data = response.text().await?;
@@ -384,18 +384,65 @@ async fn fetch_weather_data(location: &Location) -> anyhow::Result<WeatherData> 
 #[derive(Clone, Debug, Deserialize)]
 pub struct WeatherData {
     current: WeatherCondition,
+    hourly: HourlyWeatherData,
+    daily: DailyWeatherData,
 }
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct WeatherCondition {
     #[serde(with = "offsetdatetime_no_seconds")]
     time: OffsetDateTime,
+    weather_code: u32,
     temperature_2m: f32,
     apparent_temperature: f32,
     relative_humidity_2m: u32,
-    weather_code: u32,
     wind_speed_10m: f32,
     wind_direction_10m: u32,
+    is_day: u8,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct HourlyWeatherData {
+    #[serde(deserialize_with = "deserialize_datetime_vec")]
+    time: Vec<OffsetDateTime>,
+    weather_code: Vec<u32>,
+    temperature_2m: Vec<f32>,
+    is_day: Vec<u8>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct DailyWeatherData {
+    #[serde(deserialize_with = "deserialize_date_vec")]
+    time: Vec<Date>,
+    weather_code: Vec<u32>,
+    temperature_2m_max: Vec<f32>,
+    temperature_2m_min: Vec<f32>,
+    apparent_temperature_max: Vec<f32>,
+    apparent_temperature_min: Vec<f32>,
+    wind_speed_10m_max: Vec<f32>,
+    wind_direction_10m_dominant: Vec<u32>,
+}
+
+fn deserialize_datetime_vec<'de, D>(d: D) -> Result<Vec<OffsetDateTime>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let strs = Vec::<String>::deserialize(d)?;
+    strs.into_iter()
+        .map(|s| offsetdatetime_no_seconds::parse_str::<D>(&s))
+        .collect()
+}
+
+fn deserialize_date_vec<'de, D>(d: D) -> Result<Vec<Date>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let fmt = time::format_description::parse("[year]-[month]-[day]")
+        .map_err(serde::de::Error::custom)?;
+    let strs = Vec::<String>::deserialize(d)?;
+    strs.into_iter()
+        .map(|s| time::Date::parse(&s, &fmt).map_err(serde::de::Error::custom))
+        .collect()
 }
 
 mod offsetdatetime_no_seconds {
@@ -404,14 +451,18 @@ mod offsetdatetime_no_seconds {
 
     const FORMAT: &str = "[year]-[month]-[day]T[hour]:[minute]";
 
+    pub fn parse_str<'de, D: Deserializer<'de>>(s: &str) -> Result<OffsetDateTime, D::Error> {
+        let fmt = time::format_description::parse(FORMAT).map_err(serde::de::Error::custom)?;
+        let naive = time::PrimitiveDateTime::parse(s, &fmt).map_err(serde::de::Error::custom)?;
+        Ok(naive.assume_offset(UtcOffset::UTC)) // assume UTC (adjust as needed)
+    }
+
     pub fn deserialize<'de, D>(d: D) -> Result<OffsetDateTime, D::Error>
     where
         D: Deserializer<'de>,
     {
         let s = String::deserialize(d)?;
-        let fmt = time::format_description::parse(FORMAT).map_err(serde::de::Error::custom)?;
-        let naive = time::PrimitiveDateTime::parse(&s, &fmt).map_err(serde::de::Error::custom)?;
-        Ok(naive.assume_offset(UtcOffset::UTC)) // assume UTC (adjust as needed)
+        parse_str::<D>(&s)
     }
 }
 
