@@ -289,28 +289,28 @@ impl BluetoothSettings {
                         .iter()
                         .map(|d| {
                             let avail = available_devices.iter().any(|dev| dev.path == d.path);
-                            
+
                             let mut device_row = row![text(d.name.clone()).width(Length::Fill)]
                                 .spacing(theme.space.xs)
                                 .align_y(Vertical::Center)
                                 .padding([theme.space.xs, theme.space.xs]);
-                            
+
                             if avail {
                                 device_row = device_row.push(
                                     button(text("Connect").size(theme.font_size.xs))
                                         .style(theme.settings_button_style())
                                         .padding([theme.space.xxs, theme.space.sm])
-                                        .on_press(Message::ConnectDevice(d.path.clone()))
+                                        .on_press(Message::ConnectDevice(d.path.clone())),
                                 );
                             }
-                            
+
                             device_row = device_row.push(
                                 button(text("Remove").size(theme.font_size.xs))
                                     .style(theme.settings_button_style())
                                     .padding([theme.space.xxs, theme.space.sm])
-                                    .on_press(Message::RemoveDevice(d.path.clone()))
+                                    .on_press(Message::RemoveDevice(d.path.clone())),
                             );
-                            
+
                             device_row.into()
                         })
                         .collect::<Vec<Element<'a, Message>>>(),
