@@ -8,7 +8,7 @@ use tokio::time::timeout;
 
 use crate::{
     components::icons::{DynamicIcon, Icon, StaticIcon, icon},
-    config::{Position, SettingsCustomButton, SettingsModuleConfig},
+    config::{Position, SettingsCustomButton, SettingsIndicator, SettingsModuleConfig},
     modules::settings::{
         audio::{AudioSettings, AudioSettingsConfig},
         bluetooth::{BluetoothSettings, BluetoothSettingsConfig},
