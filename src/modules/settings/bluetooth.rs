@@ -9,6 +9,7 @@ use crate::{
 };
 use iced::{
     Element, Length, Subscription, Task, Theme,
+    alignment::Vertical,
     widget::{Column, button, column, container, horizontal_rule, row, scrollable, text},
     window::Id,
 };
@@ -213,13 +214,13 @@ impl BluetoothSettings {
                     } else {
                         ""
                     })
-                    .size(12),
+                    .size(theme.font_size.xs),
                     button(icon(if service.discovering {
                         StaticIcon::Close
                     } else {
                         StaticIcon::Refresh
                     }))
-                    .padding([4, 10])
+                    .padding([theme.space.xxs, theme.space.sm])
                     .style(theme.settings_button_style())
                     .on_press(if service.discovering {
                         Message::StopDiscovery
@@ -227,22 +228,23 @@ impl BluetoothSettings {
                         Message::StartDiscovery
                     }),
                 ]
-                .spacing(8)
+                .align_y(Vertical::Center)
+                .spacing(theme.space.xs)
                 .width(Length::Fill),
                 horizontal_rule(1),
             ]
-            .spacing(8);
+            .spacing(theme.space.xs);
 
             // Connected devices section
             if !connected_devices.is_empty() {
-                main_column = main_column.push(text("Connected").size(12));
+                main_column = main_column.push(text("Connected").size(theme.font_size.xs));
 
                 let connected_list = Column::with_children(
                     connected_devices
                         .iter()
                         .map(|d| {
-                            let mut device_row =
-                                row![text(d.name.clone()).width(Length::Fill)].spacing(8);
+                            let mut device_row = row![text(d.name.clone()).width(Length::Fill)]
+                                .spacing(theme.space.xs);
 
                             if let Some(battery) = d.battery {
                                 device_row = device_row.push(Self::battery_level(theme, battery));
@@ -255,14 +257,14 @@ impl BluetoothSettings {
                                 }
                             }))
                             .style(theme.ghost_button_style())
-                            .padding([8, 8])
+                            .padding([theme.space.xs, theme.space.xs])
                             .on_press(Message::DisconnectDevice(d.path.clone()))
                             .width(Length::Fill)
                             .into()
                         })
                         .collect::<Vec<Element<'a, Message>>>(),
                 )
-                .spacing(4);
+                .spacing(theme.space.xxs);
 
                 main_column = main_column
                     .push(container(scrollable(connected_list)).max_height(150))
@@ -271,7 +273,7 @@ impl BluetoothSettings {
 
             // Paired devices section
             if !paired_devices.is_empty() {
-                main_column = main_column.push(text("Paired").size(12));
+                main_column = main_column.push(text("Paired").size(theme.font_size.xs));
 
                 let paired_list = Column::with_children(
                     paired_devices
@@ -280,18 +282,20 @@ impl BluetoothSettings {
                             let avail = available_devices.iter().any(|dev| dev.path == d.path);
                             button(
                                 row![text(d.name.clone()).width(Length::Fill)]
-                                    .spacing(8)
-                                    .push_maybe(avail.then(|| text("Connect").size(12))),
+                                    .spacing(theme.space.xs)
+                                    .push_maybe(
+                                        avail.then(|| text("Connect").size(theme.font_size.xs)),
+                                    ),
                             )
                             .style(theme.ghost_button_style())
-                            .padding([8, 8])
+                            .padding([theme.space.xs, theme.space.xs])
                             .on_press(Message::ConnectDevice(d.path.clone()))
                             .width(Length::Fill)
                             .into()
                         })
                         .collect::<Vec<Element<'a, Message>>>(),
                 )
-                .spacing(4);
+                .spacing(theme.space.xxs);
 
                 main_column = main_column
                     .push(container(scrollable(paired_list)).max_height(150))
@@ -300,7 +304,7 @@ impl BluetoothSettings {
 
             // Available devices section
             if !available_devices.is_empty() {
-                main_column = main_column.push(text("Available").size(12));
+                main_column = main_column.push(text("Available").size(theme.font_size.xs));
 
                 let available_list = Column::with_children(
                     available_devices
@@ -309,19 +313,20 @@ impl BluetoothSettings {
                             button(
                                 row![
                                     text(d.name.clone()).width(Length::Fill),
-                                    text("Pair").size(12),
+                                    text("Pair").size(theme.font_size.xs),
                                 ]
-                                .spacing(8),
+                                .align_y(Vertical::Center)
+                                .spacing(theme.space.xs),
                             )
                             .style(theme.ghost_button_style())
-                            .padding([8, 8])
+                            .padding([theme.space.xs, theme.space.xs])
                             .on_press(Message::PairDevice(d.path.clone()))
                             .width(Length::Fill)
                             .into()
                         })
                         .collect::<Vec<Element<'a, Message>>>(),
                 )
-                .spacing(4);
+                .spacing(theme.space.xxs);
 
                 main_column = main_column
                     .push(container(scrollable(available_list)).max_height(150))

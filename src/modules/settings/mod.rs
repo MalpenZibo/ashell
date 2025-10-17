@@ -599,7 +599,11 @@ fn quick_setting_button<'a, Msg: Clone + 'static, I: Icon>(
         container(
             Column::new()
                 .push(text(title).size(theme.font_size.sm))
-                .push_maybe(subtitle.map(|s| text(s).size(theme.font_size.xs)))
+                .push_maybe(subtitle.map(|s| {
+                    text(s)
+                        .wrapping(text::Wrapping::None)
+                        .size(theme.font_size.xs)
+                }))
                 .spacing(theme.space.xxs)
         )
         .clip(true)
