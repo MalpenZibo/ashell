@@ -17,7 +17,7 @@ jobs:
     # Only run on push events to avoid permission issues on PRs from forks
     if: github.event_name == 'push'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
       
