@@ -322,6 +322,7 @@ dependencies = [
  "libpulse-binding",
  "linicon-theme",
  "log",
+ "pin-project-lite",
  "pipewire",
  "regex",
  "serde",

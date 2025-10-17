@@ -64,6 +64,7 @@ pub enum Action {
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum SubMenu {
+    PeripheralMenu,
     Power,
     Sinks,
     Sources,
@@ -82,6 +83,9 @@ impl Settings {
                 config.reboot_cmd,
                 config.shutdown_cmd,
                 config.logout_cmd,
+                config.battery_format,
+                config.peripheral_indicators,
+                config.peripheral_battery_format,
             )),
             audio: AudioSettings::new(AudioSettingsConfig::new(
                 config.audio_sinks_more_cmd,
@@ -111,6 +115,14 @@ impl Settings {
         match message {
             Message::Power(msg) => match self.power.update(msg) {
                 power::Action::None => Action::None,
+                power::Action::TogglePeripheralMenu => {
+                    if self.sub_menu == Some(SubMenu::PeripheralMenu) {
+                        self.sub_menu.take();
+                    } else {
+                        self.sub_menu.replace(SubMenu::PeripheralMenu);
+                    }
+                    Action::None
+                }
                 power::Action::Command(task) => Action::Command(task.map(Message::Power)),
             },
             Message::Audio(msg) => match self.audio.update(msg) {
@@ -282,6 +294,9 @@ impl Settings {
                         config.reboot_cmd,
                         config.shutdown_cmd,
                         config.logout_cmd,
+                        config.battery_format,
+                        config.peripheral_indicators,
+                        config.peripheral_battery_format,
                     )));
                 self.audio
                     .update(audio::Message::ConfigReloaded(AudioSettingsConfig::new(
@@ -427,6 +442,15 @@ impl Settings {
                 .push(header)
                 .push_maybe(
                     self.sub_menu
+                        .filter(|menu_type| *menu_type == SubMenu::PeripheralMenu)
+                        .and_then(|_| {
+                            self.power
+                                .peripheral_menu(theme)
+                                .map(|e| sub_menu_wrapper(theme, e.map(Message::Power)))
+                        }),
+                )
+                .push_maybe(
+                    self.sub_menu
                         .filter(|menu_type| *menu_type == SubMenu::Power)
                         .map(|_| {
                             sub_menu_wrapper(theme, self.power.menu(theme).map(Message::Power))
@@ -534,6 +558,15 @@ impl Settings {
                     if let Some(element) = self
                         .power
                         .battery_indicator(theme)
+                        .map(|e| e.map(Message::Power))
+                    {
+                        row = row.push(element);
+                    }
+                }
+                SettingsIndicator::PeripheralBattery => {
+                    if let Some(element) = self
+                        .power
+                        .peripheral_indicators(theme)
                         .map(|e| e.map(Message::Power))
                     {
                         row = row.push(element);
