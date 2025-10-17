@@ -8,7 +8,7 @@ use iced::{
 };
 use inotify::{EventMask, Inotify, WatchMask};
 use log::{debug, error, info, warn};
-use pipewire::{context::Context, main_loop::MainLoop};
+use pipewire::{context::ContextBox, main_loop::MainLoopBox};
 use std::{any::TypeId, fs, ops::Deref, path::Path, thread};
 use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 
@@ -75,8 +75,8 @@ impl PrivacyService {
         let (tx, rx) = unbounded_channel::<PrivacyEvent>();
 
         thread::spawn(move || {
-            let mainloop = MainLoop::new(None).unwrap();
-            let context = Context::new(&mainloop).unwrap();
+            let mainloop = MainLoopBox::new(None).unwrap();
+            let context = ContextBox::new(mainloop.loop_(), None).unwrap();
             let core = context.connect(None).unwrap();
             let registry = core.get_registry().unwrap();
 
