@@ -3,7 +3,9 @@ use crate::{
     config::{TempoModuleConfig, WeatherLocation},
     theme::AshellTheme,
 };
-use chrono::{DateTime, Datelike, Days, Local, Months, NaiveDate, Weekday};
+use chrono::{
+    Date, DateTime, Datelike, Days, Local, Months, NaiveDate, NaiveDateTime, Utc, Weekday,
+};
 use iced::{
     Element, Length, Subscription,
     alignment::{Horizontal, Vertical},
@@ -15,7 +17,6 @@ use iced::{
 use log::{debug, warn};
 use serde::{Deserialize, Deserializer};
 use std::{any::TypeId, time::Duration};
-use time::{Date, OffsetDateTime};
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -391,7 +392,7 @@ pub struct WeatherData {
 #[derive(Clone, Debug, Deserialize)]
 pub struct WeatherCondition {
     #[serde(with = "offsetdatetime_no_seconds")]
-    time: OffsetDateTime,
+    time: NaiveDateTime,
     weather_code: u32,
     temperature_2m: f32,
     apparent_temperature: f32,
@@ -404,7 +405,7 @@ pub struct WeatherCondition {
 #[derive(Clone, Debug, Deserialize)]
 pub struct HourlyWeatherData {
     #[serde(deserialize_with = "deserialize_datetime_vec")]
-    time: Vec<OffsetDateTime>,
+    time: Vec<NaiveDateTime>,
     weather_code: Vec<u32>,
     temperature_2m: Vec<f32>,
     is_day: Vec<u8>,
@@ -413,7 +414,7 @@ pub struct HourlyWeatherData {
 #[derive(Clone, Debug, Deserialize)]
 pub struct DailyWeatherData {
     #[serde(deserialize_with = "deserialize_date_vec")]
-    time: Vec<Date>,
+    time: Vec<NaiveDate>,
     weather_code: Vec<u32>,
     temperature_2m_max: Vec<f32>,
     temperature_2m_min: Vec<f32>,
@@ -423,7 +424,7 @@ pub struct DailyWeatherData {
     wind_direction_10m_dominant: Vec<u32>,
 }
 
-fn deserialize_datetime_vec<'de, D>(d: D) -> Result<Vec<OffsetDateTime>, D::Error>
+fn deserialize_datetime_vec<'de, D>(d: D) -> Result<Vec<NaiveDateTime>, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -433,31 +434,27 @@ where
         .collect()
 }
 
-fn deserialize_date_vec<'de, D>(d: D) -> Result<Vec<Date>, D::Error>
+fn deserialize_date_vec<'de, D>(d: D) -> Result<Vec<NaiveDate>, D::Error>
 where
     D: Deserializer<'de>,
 {
-    let fmt = time::format_description::parse("[year]-[month]-[day]")
-        .map_err(serde::de::Error::custom)?;
     let strs = Vec::<String>::deserialize(d)?;
     strs.into_iter()
-        .map(|s| time::Date::parse(&s, &fmt).map_err(serde::de::Error::custom))
+        .map(|s| NaiveDate::parse_from_str(&s, "%Y-%m-%d").map_err(serde::de::Error::custom))
         .collect()
 }
 
 mod offsetdatetime_no_seconds {
+    use chrono::NaiveDateTime;
     use serde::{Deserialize, Deserializer};
-    use time::{OffsetDateTime, UtcOffset};
 
-    const FORMAT: &str = "[year]-[month]-[day]T[hour]:[minute]";
+    pub fn parse_str<'de, D: Deserializer<'de>>(s: &str) -> Result<NaiveDateTime, D::Error> {
+        let naive = NaiveDateTime::parse_from_str(s, "%FT%R").map_err(serde::de::Error::custom)?;
 
-    pub fn parse_str<'de, D: Deserializer<'de>>(s: &str) -> Result<OffsetDateTime, D::Error> {
-        let fmt = time::format_description::parse(FORMAT).map_err(serde::de::Error::custom)?;
-        let naive = time::PrimitiveDateTime::parse(s, &fmt).map_err(serde::de::Error::custom)?;
-        Ok(naive.assume_offset(UtcOffset::UTC)) // assume UTC (adjust as needed)
+        Ok(naive)
     }
 
-    pub fn deserialize<'de, D>(d: D) -> Result<OffsetDateTime, D::Error>
+    pub fn deserialize<'de, D>(d: D) -> Result<NaiveDateTime, D::Error>
     where
         D: Deserializer<'de>,
     {
