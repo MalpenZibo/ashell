@@ -71,7 +71,6 @@ pin-project-lite = "0.2.16"
 niri-ipc = "25.11.0"
 parking_lot = "0.12.5"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
-time = { version = "0.3", default-features = false, features = ["std", "parsing", "formatting", "serde"] }
 
 [build-dependencies]
 allsorts = "0.15"
