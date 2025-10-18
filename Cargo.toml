@@ -79,7 +79,6 @@ shellexpand = { version = "3", features = ["path"] }
 inotify = { version = "0.11.0", default-features = false, features = ["stream"] }
 pin-project-lite = "0.2.16"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
-time = { version = "0.3", default-features = false, features = ["std", "parsing", "formatting", "serde"] }
 
 [build-dependencies]
 allsorts = "0.15"
