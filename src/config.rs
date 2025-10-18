@@ -91,6 +91,7 @@ pub enum WorkspaceVisibilityMode {
     #[default]
     All,
     MonitorSpecific,
+    MonitorSpecificExclusive,
 }
 
 #[derive(Deserialize, Clone, Default, Debug)]

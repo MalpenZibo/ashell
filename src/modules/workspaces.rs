@@ -213,10 +213,17 @@ impl Workspaces {
                 self.workspaces
                     .iter()
                     .filter_map(|w| {
-                        if self.config.visibility_mode == WorkspaceVisibilityMode::All
-                            || w.monitor == monitor_name.unwrap_or_else(|| &w.monitor)
-                            || !outputs.has_name(&w.monitor)
-                        {
+                        let show = match self.config.visibility_mode {
+                            WorkspaceVisibilityMode::All => true,
+                            WorkspaceVisibilityMode::MonitorSpecific => {
+                                w.monitor == monitor_name.unwrap_or_else(|| &w.monitor)
+                                    || !outputs.has_name(&w.monitor)
+                            }
+                            WorkspaceVisibilityMode::MonitorSpecificExclusive => {
+                                w.monitor == monitor_name.unwrap_or_else(|| &w.monitor)
+                            }
+                        };
+                        if show {
                             let empty = w.windows == 0;
                             let monitor = w.monitor_id;
 
