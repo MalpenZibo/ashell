@@ -411,14 +411,14 @@ impl BluetoothSettings {
         &'a self,
         _theme: &'a AshellTheme,
     ) -> Option<Element<'a, Message>> {
-        if let Some(service) = &self.service {
-            if service.state == BluetoothState::Active {
-                let connected_count = service.devices.iter().filter(|d| d.connected).count();
-                if connected_count > 0 {
-                    return Some(icon(StaticIcon::BluetoothConnected).into());
-                } else {
-                    return Some(icon(StaticIcon::Bluetooth).into());
-                }
+        if let Some(service) = &self.service
+            && service.state == BluetoothState::Active
+        {
+            let connected_count = service.devices.iter().filter(|d| d.connected).count();
+            if connected_count > 0 {
+                return Some(icon(StaticIcon::BluetoothConnected).into());
+            } else {
+                return Some(icon(StaticIcon::Bluetooth).into());
             }
         }
         None
