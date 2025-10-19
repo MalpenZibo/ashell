@@ -7,21 +7,34 @@ sidebar_position: 4
 This module provides information about the current workspaces  
 and allows switching between them.
 
-You can switch between two main visibility modes:
+## Visibility Modes
 
-- `All`: All workspaces will be displayed.
-- `MonitorSpecific`: Only the workspaces of the related monitor will be displayed.
+You can configure how workspaces are displayed using the `visibility_mode` option.
+
+### All
+
+This mode displays all workspaces across all monitors. Workspaces from different
+monitors are shown using different colors.
+
+### MonitorSpecific
+
+This mode displays only the workspaces associated with the monitor
+where `ashell` is displayed.
+If `ashell` is not displayed on a specific monitor, the monitor
+where `asehll` is displayed will contains also the workspaces
+from the other monitor.
+
+### MonitorSpecificExclusive
+
+This mode displays only the workspaces associated with the monitor
+where `ashell` is displayed.
+If `ashell` is not displayed on a specific monitor the workspaces for that monitor
+will not be shown.
+
+## Workspace Filling And Maximum Workspaces
 
 You can also enable or disable filling the workspace  
 list with empty workspaces using the `enable_workspace_filling` option.
-
-The default configuration is:
-
-```toml
-[workspaces]
-visibility_mode = "All"
-enable_workspace_filling = true
-```
 
 If you want a specific number of empty workspaces always displayed,  
 you can use the `max_workspaces` option. This setting only works  
@@ -38,24 +51,7 @@ workspaces 6, 7, 8, 9, and 10.
 
 By default, `max_workspaces` is None, which disables this feature.
 
-## Examples
-
-If you want to disable workspace filling and set the visibility mode  
-to "MonitorSpecific", you can do it like this:
-
-```toml
-[workspaces]
-visibility_mode = "MonitorSpecific"
-enable_workspace_filling = false
-```
-
-If you want to set the maximum number of workspaces to 10, you can do it like this:
-
-```toml
-[workspaces]
-enable_workspace_filling = true
-max_workspaces = 10
-```
+## Custom Workspace Names
 
 You can also assign **custom names** to your workspaces using
 the `workspace_names` option.  
@@ -79,4 +75,33 @@ For example you can use [Nerd Fonts](https://www.nerdfonts.com/)
 [workspaces]
 workspace_names = ["一","二","三","四","五","六","七","八","九","十",]
 
+```
+
+## Default Configuration
+
+The default configuration is:
+
+```toml
+[workspaces]
+visibility_mode = "All"
+enable_workspace_filling = true
+```
+
+## Examples
+
+If you want to disable workspace filling and set the visibility mode  
+to `MonitorSpecific`, you can do it like this:
+
+```toml
+[workspaces]
+visibility_mode = "MonitorSpecific"
+enable_workspace_filling = false
+```
+
+If you want to set the maximum number of workspaces to 10, you can do it like this:
+
+```toml
+[workspaces]
+enable_workspace_filling = true
+max_workspaces = 10
 ```
