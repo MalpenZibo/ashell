@@ -16,6 +16,12 @@ is optional—if not set, the `iced` library will use the default font.
 font_name = "Comic Sans MS"
 ```
 
+:::warning
+
+Changing the font requires to kill and restart ashell process. The font configuration does not support hot-reloading
+
+:::
+
 ## Scaling Factor
 
 You can change the scaling factor of the status bar using the `scale_factor` field.
