@@ -155,7 +155,7 @@ impl Icon for StaticIcon {
             StaticIcon::Ethernet => "\u{f0200}",
             StaticIcon::Vpn => "\u{f0582}",
             StaticIcon::Bluetooth => "\u{f00af}",
-            StaticIcon::BluetoothConnected => "\u{f293}",
+            StaticIcon::BluetoothConnected => "\u{f00b1}",
             StaticIcon::PowerSaver => "\u{f0f86}",
             StaticIcon::Balanced => "\u{f0f85}",
             StaticIcon::Performance => "\u{f04c5}",
