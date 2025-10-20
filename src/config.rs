@@ -45,6 +45,8 @@ pub struct Config {
     #[serde(default)]
     pub clock: ClockModuleConfig,
     #[serde(default)]
+    pub tempo: TempoModuleConfig,
+    #[serde(default)]
     pub settings: SettingsModuleConfig,
     #[serde(default)]
     pub appearance: Appearance,
@@ -70,6 +72,7 @@ impl Default for Config {
             window_title: WindowTitleConfig::default(),
             system_info: SystemInfoModuleConfig::default(),
             clock: ClockModuleConfig::default(),
+            tempo: TempoModuleConfig::default(),
             settings: SettingsModuleConfig::default(),
             appearance: Appearance::default(),
             media_player: MediaPlayerModuleConfig::default(),
@@ -296,6 +299,38 @@ impl Default for ClockModuleConfig {
     fn default() -> Self {
         Self {
             format: "%a %d %b %R".to_string(),
+        }
+    }
+}
+
+#[derive(Deserialize, Clone, Debug)]
+pub struct TempoModuleConfig {
+    #[serde(default = "default_clock_format")]
+    pub clock_format: String,
+    #[serde(default)]
+    pub weather_location: WeatherLocation,
+}
+
+#[derive(Deserialize, Default, Clone, Debug)]
+pub enum WeatherLocation {
+    #[default]
+    Current,
+    City(String),
+    Coordinates {
+        latitude: f32,
+        longitude: f32,
+    },
+}
+
+fn default_clock_format() -> String {
+    "%a %d %b %R".to_string()
+}
+
+impl Default for TempoModuleConfig {
+    fn default() -> Self {
+        Self {
+            clock_format: default_clock_format(),
+            weather_location: WeatherLocation::default(),
         }
     }
 }
@@ -678,6 +713,7 @@ pub enum ModuleName {
     KeyboardSubmap,
     Tray,
     Clock,
+    Tempo,
     Privacy,
     Settings,
     MediaPlayer,
@@ -710,6 +746,7 @@ impl<'de> Deserialize<'de> for ModuleName {
                     "KeyboardSubmap" => ModuleName::KeyboardSubmap,
                     "Tray" => ModuleName::Tray,
                     "Clock" => ModuleName::Clock,
+                    "Tempo" => ModuleName::Tempo,
                     "Privacy" => ModuleName::Privacy,
                     "Settings" => ModuleName::Settings,
                     "MediaPlayer" => ModuleName::MediaPlayer,
