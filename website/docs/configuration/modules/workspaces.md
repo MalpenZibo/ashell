@@ -36,6 +36,13 @@ will not be shown.
 You can also enable or disable filling the workspace  
 list with empty workspaces using the `enable_workspace_filling` option.
 
+:::warning
+
+`enable_workspace_filling` will not work if the `visibility_mode`
+is set to `MonitorSpecificExclusive`.
+
+:::
+
 If you want a specific number of empty workspaces always displayed,  
 you can use the `max_workspaces` option. This setting only works  
 if `enable_workspace_filling` is set to `true`.
