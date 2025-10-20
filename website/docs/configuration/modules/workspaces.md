@@ -21,7 +21,7 @@ monitors are shown using different colors.
 This mode displays only the workspaces associated with the monitor
 where `ashell` is displayed.
 If `ashell` is not displayed on a specific monitor, the monitor
-where `asehll` is displayed will contains also the workspaces
+where `ashell` is displayed will contain also the workspaces
 from the other monitor.
 
 ### MonitorSpecificExclusive
