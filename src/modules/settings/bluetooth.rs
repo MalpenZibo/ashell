@@ -9,8 +9,8 @@ use crate::{
 };
 use iced::{
     Element, Length, Subscription, Task, Theme,
-    alignment::Vertical,
-    widget::{Column, button, column, container, horizontal_rule, row, scrollable, text},
+    alignment::{Horizontal, Vertical},
+    widget::{Column, Row, button, column, container, horizontal_rule, row, scrollable, text},
     window::Id,
 };
 use zbus::zvariant::OwnedObjectPath;
@@ -199,6 +199,80 @@ impl BluetoothSettings {
         theme: &'a AshellTheme,
     ) -> Option<Element<'a, Message>> {
         if let Some(service) = &self.service {
+            let connected_devices = service.devices.iter().filter(|d| d.connected);
+            let paired_devices = service.devices.iter().filter(|d| d.paired && !d.connected);
+            let available_devices = service.devices.iter().filter(|d| !d.paired && !d.connected);
+
+            let known_devices: Element<'a, Message> = container(
+                scrollable(Column::with_children(
+                    connected_devices
+                        .map(|d| {
+                            button(
+                                Row::new()
+                                    .push(
+                                        text(d.name.clone())
+                                            .color(theme.get_theme().palette().success)
+                                            .width(Length::Fill),
+                                    )
+                                    .push_maybe(
+                                        d.battery
+                                            .map(|battery| Self::battery_level(theme, battery)),
+                                    )
+                                    .push(
+                                        button(
+                                            container(
+                                                icon(StaticIcon::Remove)
+                                                    .color(theme.get_theme().palette().danger),
+                                            )
+                                            .center(Length::Fixed(12.)),
+                                        )
+                                        .padding([theme.space.xs, theme.space.sm + 1])
+                                        .on_press(Message::RemoveDevice(d.path.clone()))
+                                        .style(theme.settings_button_style()),
+                                    )
+                                    .align_y(Vertical::Center)
+                                    .spacing(theme.space.xs)
+                                    .width(Length::Fill),
+                            )
+                            .style(theme.ghost_button_style())
+                            .padding([theme.space.xs, theme.space.xs])
+                            .on_press(Message::DisconnectDevice(d.path.clone()))
+                            .into()
+                        })
+                        .chain(paired_devices.map(|d| {
+                            button(
+                                row!(
+                                    text(d.name.clone()).width(Length::Fill),
+                                    button(
+                                        container(
+                                            icon(StaticIcon::Remove)
+                                                .line_height(1.0)
+                                                .color(theme.get_theme().palette().danger),
+                                        )
+                                        .align_y(Vertical::Center)
+                                        .align_x(Horizontal::Center)
+                                        .center(Length::Fixed(16.)),
+                                    )
+                                    // .padding([theme.space.xs, theme.space.sm + 1])
+                                    .padding(0)
+                                    .on_press(Message::RemoveDevice(d.path.clone()))
+                                    .style(theme.settings_button_style()),
+                                )
+                                .align_y(Vertical::Center)
+                                .spacing(theme.space.xs)
+                                .width(Length::Fill),
+                            )
+                            .style(theme.ghost_button_style())
+                            .padding([theme.space.xs, theme.space.xs])
+                            .on_press(Message::ConnectDevice(d.path.clone()))
+                            .into()
+                        })),
+                ))
+                .spacing(theme.space.xs),
+            )
+            .max_height(150)
+            .into();
+
             // Separate devices by their status
             let connected_devices: Vec<_> =
                 service.devices.iter().filter(|d| d.connected).collect();
@@ -229,7 +303,7 @@ impl BluetoothSettings {
                     } else {
                         StaticIcon::Refresh
                     }))
-                    .padding([theme.space.xxs, theme.space.sm])
+                    .padding([theme.space.xxs, theme.space.xs])
                     .style(theme.settings_button_style())
                     .on_press(if service.discovering {
                         Message::StopDiscovery
@@ -241,6 +315,7 @@ impl BluetoothSettings {
                 .spacing(theme.space.xs)
                 .width(Length::Fill),
                 horizontal_rule(1),
+                known_devices,
             ]
             .spacing(theme.space.xs);
 
