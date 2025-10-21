@@ -229,7 +229,7 @@ impl StaticIcon {
             | StaticIcon::HeadphoneBatteryMedium
             | StaticIcon::HeadphoneBatteryLow
             | StaticIcon::HeadphoneBatteryAlert
-            | StaticIcon::HeadphoneBatteryCharging => "Ashell Custom Font",
+            | StaticIcon::HeadphoneBatteryCharging => "Ashell Custom Icon",
             _ => "Symbols Nerd Font",
         }
     }
@@ -250,7 +250,7 @@ impl StaticIcon {
             | StaticIcon::HeadphoneBatteryMedium
             | StaticIcon::HeadphoneBatteryLow
             | StaticIcon::HeadphoneBatteryAlert
-            | StaticIcon::HeadphoneBatteryCharging => "Ashell Custom Font",
+            | StaticIcon::HeadphoneBatteryCharging => "Ashell Custom Icon",
             _ => "Symbols Nerd Font Mono",
         }
     }

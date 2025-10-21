@@ -26,7 +26,7 @@ mod utils;
 const NERD_FONT: &[u8] = include_bytes!("../target/generated/SymbolsNerdFont-Regular-Subset.ttf");
 const NERD_FONT_MONO: &[u8] =
     include_bytes!("../target/generated/SymbolsNerdFontMono-Regular-Subset.ttf");
-const CUSTOM_FONT: &[u8] = include_bytes!("../assets/custom_icon_font.ttf");
+const CUSTOM_FONT: &[u8] = include_bytes!("../assets/AshellCustomIcon-Regular.otf");
 const HEIGHT: f64 = 34.;
 
 #[derive(Parser, Debug)]
