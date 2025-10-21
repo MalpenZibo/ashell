@@ -1,6 +1,6 @@
 use super::{SubMenu, quick_setting_button};
 use crate::{
-    components::icons::{IconButtonSize, StaticIcon, icon, icon_button},
+    components::icons::{StaticIcon, icon, icon_button},
     services::{
         ReadOnlyService, Service, ServiceEvent,
         network::{
@@ -424,7 +424,7 @@ impl NetworkSettings {
                     ""
                 })
                 .size(theme.font_size.sm),
-                icon_button(theme,StaticIcon::Refresh, Message::ScanNearByWiFi, IconButtonSize::Medium)
+                icon_button(theme,StaticIcon::Refresh).on_press(Message::ScanNearByWiFi)
             )
             .spacing(theme.space.xs)
             .width(Length::Fill)

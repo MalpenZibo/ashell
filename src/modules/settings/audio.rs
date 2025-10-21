@@ -299,22 +299,23 @@ impl AudioSettings {
         with_submenu: Option<(Option<SubMenu>, Message)>,
     ) -> Element<'a, Message> {
         Row::new()
-            .push(icon_button(
-                theme,
-                if is_mute {
-                    match slider_type {
-                        SliderType::Sink => StaticIcon::Speaker0,
-                        SliderType::Source => StaticIcon::Mic0,
-                    }
-                } else {
-                    match slider_type {
-                        SliderType::Sink => StaticIcon::Speaker3,
-                        SliderType::Source => StaticIcon::Mic1,
-                    }
-                },
-                toggle_mute,
-                IconButtonSize::Medium,
-            ))
+            .push(
+                icon_button(
+                    theme,
+                    if is_mute {
+                        match slider_type {
+                            SliderType::Sink => StaticIcon::Speaker0,
+                            SliderType::Source => StaticIcon::Mic0,
+                        }
+                    } else {
+                        match slider_type {
+                            SliderType::Sink => StaticIcon::Speaker3,
+                            SliderType::Source => StaticIcon::Mic1,
+                        }
+                    },
+                )
+                .on_press(toggle_mute),
+            )
             .push(
                 slider(0..=100, volume, volume_changed)
                     .step(1)
@@ -328,9 +329,8 @@ impl AudioSettings {
                         | (SliderType::Source, Some(SubMenu::Sources)) => StaticIcon::Close,
                         _ => StaticIcon::RightArrow,
                     },
-                    msg,
-                    IconButtonSize::Medium,
                 )
+                .on_press(msg)
             }))
             .align_y(Alignment::Center)
             .spacing(theme.space.xs)

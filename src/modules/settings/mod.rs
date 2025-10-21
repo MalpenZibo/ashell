@@ -422,24 +422,22 @@ impl Settings {
                 .battery_menu_indicator(theme)
                 .map(|e| e.map(Message::Power));
             let right_buttons = Row::new()
-                .push_maybe(self.lock_cmd.as_ref().map(|_| {
+                .push_maybe(
+                    self.lock_cmd
+                        .as_ref()
+                        .map(|_| icon_button(theme, StaticIcon::Lock).on_press(Message::Lock)),
+                )
+                .push(
                     icon_button(
                         theme,
-                        StaticIcon::Lock,
-                        Message::Lock,
-                        IconButtonSize::Medium,
+                        if self.sub_menu == Some(SubMenu::Power) {
+                            StaticIcon::Close
+                        } else {
+                            StaticIcon::Power
+                        },
                     )
-                }))
-                .push(icon_button(
-                    theme,
-                    if self.sub_menu == Some(SubMenu::Power) {
-                        StaticIcon::Close
-                    } else {
-                        StaticIcon::Power
-                    },
-                    Message::ToggleSubMenu(SubMenu::Power),
-                    IconButtonSize::Medium,
-                ))
+                    .on_press(Message::ToggleSubMenu(SubMenu::Power)),
+                )
                 .spacing(theme.space.xs);
 
             let header = Row::new()
@@ -802,9 +800,9 @@ fn quick_setting_button<'a, Msg: Clone + 'static, I: Icon>(
                     } else {
                         StaticIcon::RightChevron
                     },
-                    msg,
-                    IconButtonSize::Small,
                 )
+                .on_press(msg)
+                .size(IconButtonSize::Small)
                 .style(theme.quick_settings_submenu_button_style(active))
             }))
             .spacing(theme.space.xxs)

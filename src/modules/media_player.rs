@@ -91,24 +91,15 @@ impl MediaPlayer {
                     };
 
                     let buttons = row![
-                        icon_button(
-                            theme,
-                            StaticIcon::SkipPrevious,
-                            Message::Prev(d.service.clone()),
-                            IconButtonSize::Large
-                        ),
-                        icon_button(
-                            theme,
-                            play_pause_icon,
-                            Message::PlayPause(d.service.clone()),
-                            IconButtonSize::Large
-                        ),
-                        icon_button(
-                            theme,
-                            StaticIcon::SkipNext,
-                            Message::Next(d.service.clone()),
-                            IconButtonSize::Large
-                        ),
+                        icon_button(theme, StaticIcon::SkipPrevious)
+                            .on_press(Message::Prev(d.service.clone()))
+                            .size(IconButtonSize::Large),
+                        icon_button(theme, play_pause_icon)
+                            .on_press(Message::PlayPause(d.service.clone()))
+                            .size(IconButtonSize::Large),
+                        icon_button(theme, StaticIcon::SkipNext)
+                            .on_press(Message::Next(d.service.clone()))
+                            .size(IconButtonSize::Large),
                     ]
                     .align_y(Vertical::Center)
                     .spacing(theme.space.xs);
