@@ -1,9 +1,9 @@
 use super::{SubMenu, quick_setting_button};
 use crate::{
-    components::icons::{StaticIcon, icon},
+    components::icons::{IconButtonSize, StaticIcon, icon, icon_button},
     services::{
         ReadOnlyService, Service, ServiceEvent,
-        bluetooth::{BluetoothCommand, BluetoothService, BluetoothState},
+        bluetooth::{BluetoothCommand, BluetoothDevice, BluetoothService, BluetoothState},
     },
     theme::AshellTheme,
 };
@@ -13,6 +13,7 @@ use iced::{
     widget::{Column, Row, button, column, container, horizontal_rule, row, scrollable, text},
     window::Id,
 };
+use itertools::Itertools;
 use zbus::zvariant::OwnedObjectPath;
 
 #[derive(Debug, Clone)]
@@ -198,262 +199,170 @@ impl BluetoothSettings {
         id: Id,
         theme: &'a AshellTheme,
     ) -> Option<Element<'a, Message>> {
-        if let Some(service) = &self.service {
-            let connected_devices = service.devices.iter().filter(|d| d.connected);
-            let paired_devices = service.devices.iter().filter(|d| d.paired && !d.connected);
-            let available_devices = service.devices.iter().filter(|d| !d.paired && !d.connected);
+        self.service.as_ref().map(|service| {
+            let connected_devices = service
+                .devices
+                .iter()
+                .filter(|d| d.connected)
+                .sorted_by_key(|d| &d.name);
+            let paired_devices = service
+                .devices
+                .iter()
+                .filter(|d| d.paired && !d.connected)
+                .sorted_by_key(|d| &d.name);
 
-            let known_devices: Element<'a, Message> = container(
-                scrollable(Column::with_children(
-                    connected_devices
-                        .map(|d| {
-                            button(
-                                Row::new()
-                                    .push(
-                                        text(d.name.clone())
-                                            .color(theme.get_theme().palette().success)
-                                            .width(Length::Fill),
-                                    )
-                                    .push_maybe(
-                                        d.battery
-                                            .map(|battery| Self::battery_level(theme, battery)),
-                                    )
-                                    .push(
-                                        button(
-                                            container(
-                                                icon(StaticIcon::Remove)
-                                                    .color(theme.get_theme().palette().danger),
-                                            )
-                                            .center(Length::Fixed(12.)),
-                                        )
-                                        .padding([theme.space.xs, theme.space.sm + 1])
-                                        .on_press(Message::RemoveDevice(d.path.clone()))
-                                        .style(theme.settings_button_style()),
-                                    )
-                                    .align_y(Vertical::Center)
-                                    .spacing(theme.space.xs)
-                                    .width(Length::Fill),
-                            )
-                            .style(theme.ghost_button_style())
-                            .padding([theme.space.xs, theme.space.xs])
-                            .on_press(Message::DisconnectDevice(d.path.clone()))
-                            .into()
+            let mut known_devices = connected_devices.chain(paired_devices).peekable();
+            let mut available_devices = service
+                .devices
+                .iter()
+                .filter(|d| !d.paired && !d.connected)
+                .peekable();
+
+            let some_known = known_devices.peek().is_some();
+            let some_available = available_devices.peek().is_some();
+
+            Column::new()
+                .push(
+                    row![
+                        text("Bluetooth Devices").width(Length::Fill),
+                        text(if service.discovering {
+                            "Scanning..."
+                        } else {
+                            ""
                         })
-                        .chain(paired_devices.map(|d| {
-                            button(
-                                row!(
-                                    text(d.name.clone()).width(Length::Fill),
-                                    button(
-                                        container(
-                                            icon(StaticIcon::Remove)
-                                                .line_height(1.0)
-                                                .color(theme.get_theme().palette().danger),
-                                        )
-                                        .align_y(Vertical::Center)
-                                        .align_x(Horizontal::Center)
-                                        .center(Length::Fixed(16.)),
-                                    )
-                                    // .padding([theme.space.xs, theme.space.sm + 1])
-                                    .padding(0)
-                                    .on_press(Message::RemoveDevice(d.path.clone()))
-                                    .style(theme.settings_button_style()),
+                        .size(theme.font_size.xs),
+                        icon_button(
+                            theme,
+                            if service.discovering {
+                                StaticIcon::Close
+                            } else {
+                                StaticIcon::Refresh
+                            }
+                        )
+                        .on_press(if service.discovering {
+                            Message::StopDiscovery
+                        } else {
+                            Message::StartDiscovery
+                        })
+                    ]
+                    .align_y(Vertical::Center)
+                    .spacing(theme.space.xs)
+                    .width(Length::Fill),
+                )
+                .push_maybe(if some_known {
+                    let known_device_entry = |d: &BluetoothDevice| {
+                        button(
+                            Row::new()
+                                .push(
+                                    text(d.name.clone())
+                                        .color_maybe(if d.connected {
+                                            Some(theme.get_theme().palette().success)
+                                        } else {
+                                            None
+                                        })
+                                        .width(Length::Fill),
+                                )
+                                .push_maybe(
+                                    d.battery.map(|battery| Self::battery_level(theme, battery)),
+                                )
+                                .push(
+                                    icon_button(theme, StaticIcon::Remove)
+                                        .on_press(Message::RemoveDevice(d.path.clone()))
+                                        .color(theme.get_theme().palette().danger)
+                                        .size(IconButtonSize::Small),
                                 )
                                 .align_y(Vertical::Center)
                                 .spacing(theme.space.xs)
                                 .width(Length::Fill),
-                            )
-                            .style(theme.ghost_button_style())
-                            .padding([theme.space.xs, theme.space.xs])
-                            .on_press(Message::ConnectDevice(d.path.clone()))
-                            .into()
-                        })),
-                ))
-                .spacing(theme.space.xs),
-            )
-            .max_height(150)
-            .into();
-
-            // Separate devices by their status
-            let connected_devices: Vec<_> =
-                service.devices.iter().filter(|d| d.connected).collect();
-
-            let paired_devices: Vec<_> = service
-                .devices
-                .iter()
-                .filter(|d| d.paired && !d.connected)
-                .collect();
-
-            let available_devices: Vec<_> = service
-                .devices
-                .iter()
-                .filter(|d| !d.paired && !d.connected)
-                .collect();
-
-            let mut main_column = column![
-                row![
-                    text("Bluetooth Devices").width(Length::Fill),
-                    text(if service.discovering {
-                        "Scanning..."
-                    } else {
-                        ""
-                    })
-                    .size(theme.font_size.xs),
-                    button(icon(if service.discovering {
-                        StaticIcon::Close
-                    } else {
-                        StaticIcon::Refresh
-                    }))
-                    .padding([theme.space.xxs, theme.space.xs])
-                    .style(theme.settings_button_style())
-                    .on_press(if service.discovering {
-                        Message::StopDiscovery
-                    } else {
-                        Message::StartDiscovery
-                    }),
-                ]
-                .align_y(Vertical::Center)
-                .spacing(theme.space.xs)
-                .width(Length::Fill),
-                horizontal_rule(1),
-                known_devices,
-            ]
-            .spacing(theme.space.xs);
-
-            // Connected devices section
-            if !connected_devices.is_empty() {
-                main_column = main_column.push(text("Connected").size(theme.font_size.xs));
-
-                let connected_list = Column::with_children(
-                    connected_devices
-                        .iter()
-                        .map(|d| {
-                            let mut device_row = row![text(d.name.clone()).width(Length::Fill)]
-                                .spacing(theme.space.xs);
-
-                            if let Some(battery) = d.battery {
-                                device_row = device_row.push(Self::battery_level(theme, battery));
-                            }
-
-                            button(container(device_row).style(move |theme: &Theme| {
-                                container::Style {
-                                    text_color: Some(theme.palette().success),
-                                    ..Default::default()
-                                }
-                            }))
-                            .style(theme.ghost_button_style())
-                            .padding([theme.space.xs, theme.space.xs])
-                            .on_press(Message::DisconnectDevice(d.path.clone()))
-                            .width(Length::Fill)
-                            .into()
-                        })
-                        .collect::<Vec<Element<'a, Message>>>(),
-                )
-                .spacing(theme.space.xxs);
-
-                main_column = main_column
-                    .push(container(scrollable(connected_list)).max_height(150))
-                    .push(horizontal_rule(1));
-            }
-
-            // Paired devices section
-            if !paired_devices.is_empty() {
-                main_column = main_column.push(text("Paired").size(theme.font_size.xs));
-
-                let paired_list = Column::with_children(
-                    paired_devices
-                        .iter()
-                        .map(|d| {
-                            let avail = available_devices.iter().any(|dev| dev.path == d.path);
-
-                            let mut device_row = row![text(d.name.clone()).width(Length::Fill)]
-                                .spacing(theme.space.xs)
-                                .align_y(Vertical::Center)
-                                .padding([theme.space.xs, theme.space.xs]);
-
-                            if avail {
-                                device_row = device_row.push(
-                                    button(text("Connect").size(theme.font_size.xs))
-                                        .style(theme.settings_button_style())
-                                        .padding([theme.space.xxs, theme.space.sm])
-                                        .on_press(Message::ConnectDevice(d.path.clone())),
-                                );
-                            }
-
-                            device_row = device_row.push(
-                                button(text("Remove").size(theme.font_size.xs))
-                                    .style(theme.settings_button_style())
-                                    .padding([theme.space.xxs, theme.space.sm])
-                                    .on_press(Message::RemoveDevice(d.path.clone())),
-                            );
-
-                            device_row.into()
-                        })
-                        .collect::<Vec<Element<'a, Message>>>(),
-                )
-                .spacing(theme.space.xxs);
-
-                main_column = main_column
-                    .push(container(scrollable(paired_list)).max_height(150))
-                    .push(horizontal_rule(1));
-            }
-
-            // Available devices section
-            if !available_devices.is_empty() {
-                main_column = main_column.push(text("Available").size(theme.font_size.xs));
-
-                let available_list = Column::with_children(
-                    available_devices
-                        .iter()
-                        .map(|d| {
-                            button(
-                                row![
-                                    text(d.name.clone()).width(Length::Fill),
-                                    text("Pair").size(theme.font_size.xs),
-                                ]
-                                .align_y(Vertical::Center)
-                                .spacing(theme.space.xs),
-                            )
-                            .style(theme.ghost_button_style())
-                            .padding([theme.space.xs, theme.space.xs])
-                            .on_press(Message::PairDevice(d.path.clone()))
-                            .width(Length::Fill)
-                            .into()
-                        })
-                        .collect::<Vec<Element<'a, Message>>>(),
-                )
-                .spacing(theme.space.xxs);
-
-                main_column = main_column
-                    .push(container(scrollable(available_list)).max_height(150))
-                    .push(horizontal_rule(1));
-            }
-
-            // No devices message
-            if connected_devices.is_empty()
-                && paired_devices.is_empty()
-                && available_devices.is_empty()
-            {
-                main_column = main_column.push(text("No devices found"));
-            }
-
-            if self.config.more_cmd.is_some() {
-                Some(
-                    main_column
-                        .push(
-                            button("More")
-                                .on_press(Message::More(id))
-                                .padding([theme.space.xxs, theme.space.sm])
-                                .width(Length::Fill)
-                                .style(theme.ghost_button_style()),
                         )
-                        .into(),
-                )
-            } else {
-                Some(main_column.into())
-            }
-        } else {
-            None
-        }
+                        .style(theme.ghost_button_style())
+                        .padding([theme.space.xs, theme.space.xs])
+                        .on_press(Message::DisconnectDevice(d.path.clone()))
+                        .into()
+                    };
+
+                    Some(
+                        column!(
+                            column!(
+                                container(
+                                    text("Known devices")
+                                        .size(theme.font_size.xs)
+                                        .width(Length::Fill)
+                                        .align_x(Horizontal::Right)
+                                )
+                                .padding([0, theme.space.sm]),
+                                horizontal_rule(1),
+                            ),
+                            container(scrollable(
+                                Column::with_children(known_devices.map(known_device_entry),)
+                                    .padding([0, theme.space.xs, 0, 0])
+                            ))
+                            .max_height(150),
+                        )
+                        .spacing(theme.space.xs),
+                    )
+                } else {
+                    None
+                })
+                .push_maybe(if some_available {
+                    Some(
+                        column!(
+                            column!(
+                                container(
+                                    text("Available")
+                                        .width(Length::Fill)
+                                        .align_x(Horizontal::Right)
+                                        .size(theme.font_size.xs),
+                                )
+                                .padding([0, theme.space.sm]),
+                                horizontal_rule(1),
+                            ),
+                            container(scrollable(
+                                Column::with_children(available_devices.map(|d| {
+                                    button(
+                                        row![
+                                            text(d.name.clone()).width(Length::Fill),
+                                            text("Pair").size(theme.font_size.xs),
+                                        ]
+                                        .align_y(Vertical::Center)
+                                        .spacing(theme.space.xs),
+                                    )
+                                    .style(theme.ghost_button_style())
+                                    .padding([theme.space.xs, theme.space.xs])
+                                    .on_press(Message::PairDevice(d.path.clone()))
+                                    .width(Length::Fill)
+                                    .into()
+                                }))
+                                .padding([
+                                    0,
+                                    theme.space.xs,
+                                    0,
+                                    0
+                                ])
+                            ))
+                            .max_height(150),
+                        )
+                        .spacing(theme.space.xs),
+                    )
+                } else {
+                    None
+                })
+                .push_maybe(if !some_known && !some_available {
+                    Some(text("No devices found"))
+                } else {
+                    None
+                })
+                .push_maybe(self.config.more_cmd.as_ref().map(|_| horizontal_rule(1)))
+                .push_maybe(self.config.more_cmd.as_ref().map(|_| {
+                    button("More")
+                        .on_press(Message::More(id))
+                        .padding([theme.space.xxs, theme.space.sm])
+                        .width(Length::Fill)
+                        .style(theme.ghost_button_style())
+                }))
+                .spacing(theme.space.sm)
+                .into()
+        })
     }
 
     fn battery_level<'a>(theme: &AshellTheme, battery: u8) -> Element<'a, Message> {
