@@ -54,4 +54,4 @@ inotify = "0.11.0"
 pin-project-lite = "0.2.16"
 
 [build-dependencies]
-allsorts = "0.15.1"
+allsorts = "0.15"
