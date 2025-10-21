@@ -304,7 +304,7 @@ pub fn icon_button<'a, Message: 'static + Clone>(
     let (container_size, font_size) = match size {
         IconButtonSize::Small => (24., theme.font_size.xxs),
         IconButtonSize::Medium => (32., theme.font_size.xs),
-        IconButtonSize::Large => (40., theme.font_size.sm),
+        IconButtonSize::Large => (38., theme.font_size.sm),
     };
 
     button(
