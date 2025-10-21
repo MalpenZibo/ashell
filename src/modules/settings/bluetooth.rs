@@ -277,7 +277,11 @@ impl BluetoothSettings {
                         )
                         .style(theme.ghost_button_style())
                         .padding([theme.space.xs, theme.space.xs])
-                        .on_press(Message::DisconnectDevice(d.path.clone()))
+                        .on_press(if d.connected {
+                            Message::DisconnectDevice(d.path.clone())
+                        } else {
+                            Message::ConnectDevice(d.path.clone())
+                        })
                         .into()
                     };
 
