@@ -1,6 +1,6 @@
 use super::SubMenu;
 use crate::{
-    components::icons::{IconButtonSize, StaticIcon, icon, icon_button},
+    components::icons::{StaticIcon, icon, icon_button},
     services::{
         ReadOnlyService, Service, ServiceEvent,
         audio::{AudioCommand, AudioService, DeviceType, Sinks},
