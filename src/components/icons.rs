@@ -1,10 +1,13 @@
+use crate::theme::AshellTheme;
 use iced::{
-    Font,
-    widget::{Text, text},
+    Font, Length,
+    widget::{Button, Text, button, container, text},
 };
 
 pub trait Icon {
     fn to_text<'a>(self) -> Text<'a>;
+
+    fn to_text_mono<'a>(self) -> Text<'a>;
 }
 
 // After adding a new icon here,
@@ -110,9 +113,9 @@ pub enum StaticIcon {
     GamepadBatteryCharging,
 }
 
-impl Icon for StaticIcon {
-    fn to_text<'a>(self) -> Text<'a> {
-        text(match self {
+impl StaticIcon {
+    fn get_str(&self) -> &'static str {
+        match self {
             StaticIcon::None => "",
             StaticIcon::AppLauncher => "\u{f003b}",
             StaticIcon::Clipboard => "\u{f014c}",
@@ -207,8 +210,59 @@ impl Icon for StaticIcon {
             StaticIcon::GamepadBatteryLow => "\u{f074e}",
             StaticIcon::GamepadBatteryAlert => "\u{f074b}",
             StaticIcon::GamepadBatteryCharging => "\u{f0a22}",
-        })
-        .font(Font::with_name("Ashell Nerd Font"))
+        }
+    }
+
+    fn get_font(&self) -> &'static str {
+        match self {
+            StaticIcon::KeyboardBatteryFull
+            | StaticIcon::KeyboardBatteryMedium
+            | StaticIcon::KeyboardBatteryLow
+            | StaticIcon::KeyboardBatteryAlert
+            | StaticIcon::KeyboardBatteryCharging
+            | StaticIcon::MouseBatteryFull
+            | StaticIcon::MouseBatteryMedium
+            | StaticIcon::MouseBatteryLow
+            | StaticIcon::MouseBatteryAlert
+            | StaticIcon::MouseBatteryCharging
+            | StaticIcon::HeadphoneBatteryFull
+            | StaticIcon::HeadphoneBatteryMedium
+            | StaticIcon::HeadphoneBatteryLow
+            | StaticIcon::HeadphoneBatteryAlert
+            | StaticIcon::HeadphoneBatteryCharging => "Ashell Custom Font",
+            _ => "Symbols Nerd Font",
+        }
+    }
+
+    fn get_font_mono(&self) -> &'static str {
+        match self {
+            StaticIcon::KeyboardBatteryFull
+            | StaticIcon::KeyboardBatteryMedium
+            | StaticIcon::KeyboardBatteryLow
+            | StaticIcon::KeyboardBatteryAlert
+            | StaticIcon::KeyboardBatteryCharging
+            | StaticIcon::MouseBatteryFull
+            | StaticIcon::MouseBatteryMedium
+            | StaticIcon::MouseBatteryLow
+            | StaticIcon::MouseBatteryAlert
+            | StaticIcon::MouseBatteryCharging
+            | StaticIcon::HeadphoneBatteryFull
+            | StaticIcon::HeadphoneBatteryMedium
+            | StaticIcon::HeadphoneBatteryLow
+            | StaticIcon::HeadphoneBatteryAlert
+            | StaticIcon::HeadphoneBatteryCharging => "Ashell Custom Font",
+            _ => "Symbols Nerd Font Mono",
+        }
+    }
+}
+
+impl Icon for StaticIcon {
+    fn to_text<'a>(self) -> Text<'a> {
+        text(self.get_str()).font(Font::with_name(self.get_font()))
+    }
+
+    fn to_text_mono<'a>(self) -> Text<'a> {
+        text(self.get_str()).font(Font::with_name(self.get_font_mono()))
     }
 }
 
@@ -219,8 +273,47 @@ impl Icon for DynamicIcon {
     fn to_text<'a>(self) -> Text<'a> {
         text(self.0).font(Font::with_name("Symbols Nerd Font"))
     }
+
+    fn to_text_mono<'a>(self) -> Text<'a> {
+        text(self.0)
+            .font(Font::with_name("Symbols Nerd Font Mono"))
+            .line_height(1.0)
+    }
 }
 
 pub fn icon<'a>(icon: impl Icon) -> Text<'a> {
     icon.to_text()
+}
+
+pub fn icon_mono<'a>(icon: impl Icon) -> Text<'a> {
+    icon.to_text_mono()
+}
+
+pub enum IconButtonSize {
+    Small,
+    Medium,
+    Large,
+}
+
+pub fn icon_button<'a, Message: 'static + Clone>(
+    theme: &'a AshellTheme,
+    icon: impl Icon,
+    msg: Message,
+    size: IconButtonSize,
+) -> Button<'a, Message> {
+    let (container_size, font_size) = match size {
+        IconButtonSize::Small => (24., theme.font_size.xxs),
+        IconButtonSize::Medium => (32., theme.font_size.xs),
+        IconButtonSize::Large => (40., theme.font_size.sm),
+    };
+
+    button(
+        container(icon_mono(icon).size(font_size))
+            .center_x(Length::Fixed(container_size))
+            .center_y(Length::Fixed(container_size))
+            .clip(true),
+    )
+    .padding(0)
+    .on_press(msg)
+    .style(theme.round_button_style())
 }

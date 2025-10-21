@@ -7,7 +7,7 @@ use tokio::process::Command;
 use tokio::time::timeout;
 
 use crate::{
-    components::icons::{DynamicIcon, Icon, StaticIcon, icon},
+    components::icons::{DynamicIcon, Icon, IconButtonSize, StaticIcon, icon, icon_button},
     config::{Position, SettingsCustomButton, SettingsIndicator, SettingsModuleConfig},
     modules::settings::{
         audio::{AudioSettings, AudioSettingsConfig},
@@ -22,7 +22,6 @@ use crate::{
 };
 use iced::{
     Alignment, Background, Border, Element, Length, Padding, Subscription, Task, Theme,
-    alignment::{Horizontal, Vertical},
     widget::{Column, Row, Space, button, column, container, horizontal_space, row, text},
     window::Id,
 };
@@ -424,21 +423,23 @@ impl Settings {
                 .map(|e| e.map(Message::Power));
             let right_buttons = Row::new()
                 .push_maybe(self.lock_cmd.as_ref().map(|_| {
-                    button(icon(StaticIcon::Lock))
-                        .padding([theme.space.xs, theme.space.sm + 1])
-                        .on_press(Message::Lock)
-                        .style(theme.settings_button_style())
+                    icon_button(
+                        theme,
+                        StaticIcon::Lock,
+                        Message::Lock,
+                        IconButtonSize::Medium,
+                    )
                 }))
-                .push(
-                    button(icon(if self.sub_menu == Some(SubMenu::Power) {
+                .push(icon_button(
+                    theme,
+                    if self.sub_menu == Some(SubMenu::Power) {
                         StaticIcon::Close
                     } else {
                         StaticIcon::Power
-                    }))
-                    .padding([theme.space.xs, theme.space.sm + 1])
-                    .on_press(Message::ToggleSubMenu(SubMenu::Power))
-                    .style(theme.settings_button_style()),
-                )
+                    },
+                    Message::ToggleSubMenu(SubMenu::Power),
+                    IconButtonSize::Medium,
+                ))
                 .spacing(theme.space.xs);
 
             let header = Row::new()
@@ -794,27 +795,17 @@ fn quick_setting_button<'a, Msg: Clone + 'static, I: Icon>(
         Row::new()
             .push(main_content)
             .push_maybe(with_submenu.map(|(menu_type, submenu, msg)| {
-                button(
-                    container(icon(if Some(menu_type) == submenu {
+                icon_button(
+                    theme,
+                    if Some(menu_type) == submenu {
                         StaticIcon::Close
                     } else {
                         StaticIcon::RightChevron
-                    }))
-                    .align_y(Vertical::Center)
-                    .align_x(Horizontal::Center),
-                )
-                .padding([
-                    theme.space.xxs,
-                    if Some(menu_type) == submenu {
-                        theme.space.xs + 1
-                    } else {
-                        theme.space.sm
                     },
-                ])
+                    msg,
+                    IconButtonSize::Small,
+                )
                 .style(theme.quick_settings_submenu_button_style(active))
-                .width(Length::Shrink)
-                .height(Length::Shrink)
-                .on_press(msg)
             }))
             .spacing(theme.space.xxs)
             .align_y(Alignment::Center)

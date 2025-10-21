@@ -1,5 +1,5 @@
 use crate::{
-    components::icons::{StaticIcon, icon},
+    components::icons::{IconButtonSize, StaticIcon, icon, icon_button},
     config::MediaPlayerModuleConfig,
     services::{
         ReadOnlyService, Service, ServiceEvent,
@@ -13,7 +13,7 @@ use crate::{
 use iced::{
     Background, Border, Element, Length, Subscription, Task, Theme,
     alignment::Vertical,
-    widget::{Column, button, column, container, horizontal_rule, row, slider, text},
+    widget::{Column, column, container, horizontal_rule, row, slider, text},
 };
 
 #[derive(Debug, Clone)]
@@ -91,18 +91,24 @@ impl MediaPlayer {
                     };
 
                     let buttons = row![
-                        button(icon(StaticIcon::SkipPrevious))
-                            .on_press(Message::Prev(d.service.clone()))
-                            .padding([theme.space.xs, theme.space.md])
-                            .style(theme.settings_button_style()),
-                        button(icon(play_pause_icon))
-                            .on_press(Message::PlayPause(d.service.clone()))
-                            .padding([theme.space.xs, theme.space.md])
-                            .style(theme.settings_button_style()),
-                        button(icon(StaticIcon::SkipNext))
-                            .on_press(Message::Next(d.service.clone()))
-                            .padding([theme.space.xs, theme.space.md])
-                            .style(theme.settings_button_style()),
+                        icon_button(
+                            theme,
+                            StaticIcon::SkipPrevious,
+                            Message::Prev(d.service.clone()),
+                            IconButtonSize::Large
+                        ),
+                        icon_button(
+                            theme,
+                            play_pause_icon,
+                            Message::PlayPause(d.service.clone()),
+                            IconButtonSize::Large
+                        ),
+                        icon_button(
+                            theme,
+                            StaticIcon::SkipNext,
+                            Message::Next(d.service.clone()),
+                            IconButtonSize::Large
+                        ),
                     ]
                     .align_y(Vertical::Center)
                     .spacing(theme.space.xs);
