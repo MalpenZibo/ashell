@@ -81,7 +81,6 @@ impl Outputs {
             namespace: "ashell-main-layer".to_string(),
             size: Some((None, Some(height as u32))),
             layer: Layer::Bottom,
-            pointer_interactivity: true,
             keyboard_interactivity: KeyboardInteractivity::None,
             exclusive_zone: height as i32,
             output: wl_output.clone().map_or(IcedOutput::Active, |wl_output| {
@@ -101,7 +100,6 @@ impl Outputs {
             namespace: "ashell-main-layer".to_string(),
             size: Some((None, None)),
             layer: Layer::Background,
-            pointer_interactivity: true,
             keyboard_interactivity: KeyboardInteractivity::None,
             output: wl_output.map_or(IcedOutput::Active, |wl_output| {
                 IcedOutput::Output(wl_output)

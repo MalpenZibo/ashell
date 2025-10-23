@@ -21,12 +21,12 @@ checksum = "366ffbaa4442f4684d91e2cd7c5ea7c4ed8add41959a31447066e279e432b618"
 [[package]]
 name = "accesskit"
 version = "0.16.0"
-source = "git+https://github.com/wash2/accesskit?tag=iced-xdg-surface-0.13#956955342dadab7e588e21be726817fca39510f3"
+source = "git+https://github.com/wash2/accesskit?tag=iced-xdg-surface-0.13-rc#c46afc041b1968a5af0186fa6aba3ea9cf24c8c3"
 
 [[package]]
 name = "accesskit_atspi_common"
 version = "0.9.0"
-source = "git+https://github.com/wash2/accesskit?tag=iced-xdg-surface-0.13#956955342dadab7e588e21be726817fca39510f3"
+source = "git+https://github.com/wash2/accesskit?tag=iced-xdg-surface-0.13-rc#c46afc041b1968a5af0186fa6aba3ea9cf24c8c3"
 dependencies = [
  "accesskit",
  "accesskit_consumer",
@@ -39,7 +39,7 @@ dependencies = [
 [[package]]
 name = "accesskit_consumer"
 version = "0.24.0"
-source = "git+https://github.com/wash2/accesskit?tag=iced-xdg-surface-0.13#956955342dadab7e588e21be726817fca39510f3"
+source = "git+https://github.com/wash2/accesskit?tag=iced-xdg-surface-0.13-rc#c46afc041b1968a5af0186fa6aba3ea9cf24c8c3"
 dependencies = [
  "accesskit",
  "immutable-chunkmap",
@@ -48,7 +48,7 @@ dependencies = [
 [[package]]
 name = "accesskit_macos"
 version = "0.17.0"
-source = "git+https://github.com/wash2/accesskit?tag=iced-xdg-surface-0.13#956955342dadab7e588e21be726817fca39510f3"
+source = "git+https://github.com/wash2/accesskit?tag=iced-xdg-surface-0.13-rc#c46afc041b1968a5af0186fa6aba3ea9cf24c8c3"
 dependencies = [
  "accesskit",
  "accesskit_consumer",
@@ -61,7 +61,7 @@ dependencies = [
 [[package]]
 name = "accesskit_unix"
 version = "0.12.0"
-source = "git+https://github.com/wash2/accesskit?tag=iced-xdg-surface-0.13#956955342dadab7e588e21be726817fca39510f3"
+source = "git+https://github.com/wash2/accesskit?tag=iced-xdg-surface-0.13-rc#c46afc041b1968a5af0186fa6aba3ea9cf24c8c3"
 dependencies = [
  "accesskit",
  "accesskit_atspi_common",
@@ -76,7 +76,7 @@ dependencies = [
 [[package]]
 name = "accesskit_windows"
 version = "0.22.0"
-source = "git+https://github.com/wash2/accesskit?tag=iced-xdg-surface-0.13#956955342dadab7e588e21be726817fca39510f3"
+source = "git+https://github.com/wash2/accesskit?tag=iced-xdg-surface-0.13-rc#c46afc041b1968a5af0186fa6aba3ea9cf24c8c3"
 dependencies = [
  "accesskit",
  "accesskit_consumer",
@@ -88,7 +88,7 @@ dependencies = [
 [[package]]
 name = "accesskit_winit"
 version = "0.22.0"
-source = "git+https://github.com/wash2/accesskit?tag=iced-xdg-surface-0.13#956955342dadab7e588e21be726817fca39510f3"
+source = "git+https://github.com/wash2/accesskit?tag=iced-xdg-surface-0.13-rc#c46afc041b1968a5af0186fa6aba3ea9cf24c8c3"
 dependencies = [
  "accesskit",
  "accesskit_macos",
@@ -682,7 +682,7 @@ dependencies = [
  "bitflags 2.9.4",
  "cexpr",
  "clang-sys",
- "itertools 0.12.1",
+ "itertools 0.10.5",
  "proc-macro2",
  "quote",
  "regex",
@@ -1239,7 +1239,7 @@ dependencies = [
 [[package]]
 name = "cosmic-client-toolkit"
 version = "0.1.0"
-source = "git+https://github.com/pop-os/cosmic-protocols?rev=6254f50#6254f50abc6dbfccadc6939f80e20081ab5f9d51"
+source = "git+https://github.com/pop-os/cosmic-protocols?rev=d0e95be#d0e95be25e423cfe523b11111a3666ed7aaf0dc4"
 dependencies = [
  "bitflags 2.9.4",
  "cosmic-protocols",
@@ -1252,7 +1252,7 @@ dependencies = [
 [[package]]
 name = "cosmic-protocols"
 version = "0.1.0"
-source = "git+https://github.com/pop-os/cosmic-protocols?rev=6254f50#6254f50abc6dbfccadc6939f80e20081ab5f9d51"
+source = "git+https://github.com/pop-os/cosmic-protocols?rev=d0e95be#d0e95be25e423cfe523b11111a3666ed7aaf0dc4"
 dependencies = [
  "bitflags 2.9.4",
  "wayland-backend",
@@ -1266,7 +1266,7 @@ dependencies = [
 [[package]]
 name = "cosmic-text"
 version = "0.14.2"
-source = "git+https://github.com/pop-os/cosmic-text.git#646e04389e1c2e03a85e61946ace06d8fada1fa1"
+source = "git+https://github.com/pop-os/cosmic-text.git#cffdea2b334e7830a5fd6f95bf5e1784014442a8"
 dependencies = [
  "bitflags 2.9.4",
  "fontdb 0.23.0",
@@ -1557,7 +1557,7 @@ checksum = "75b325c5dbd37f80359721ad39aca5a29fb04c89279657cffdda8736d0c0b9d2"
 [[package]]
 name = "dpi"
 version = "0.1.1"
-source = "git+https://github.com/pop-os/winit.git?tag=iced-xdg-surface-0.13#dbe91fcc363c101f1d6ed5301d49911b01a26f61"
+source = "git+https://github.com/pop-os/winit.git?tag=iced-xdg-surface-0.13-rc#8dfaba290f9a00d3e13be71f1e6f438889cf5546"
 
 [[package]]
 name = "drm"
@@ -2422,7 +2422,7 @@ dependencies = [
 [[package]]
 name = "iced"
 version = "0.14.0-dev"
-source = "git+https://github.com/MalpenZibo/iced#83580c088b61ea68d5b5f4f52675348cb78632ad"
+source = "git+https://github.com/MalpenZibo/iced?branch=master#3e0acc85e81881006544bd32b39993e9eacc1812"
 dependencies = [
  "dnd",
  "iced_accessibility",
@@ -2440,7 +2440,7 @@ dependencies = [
 [[package]]
 name = "iced_accessibility"
 version = "0.1.0"
-source = "git+https://github.com/MalpenZibo/iced#83580c088b61ea68d5b5f4f52675348cb78632ad"
+source = "git+https://github.com/MalpenZibo/iced?branch=master#3e0acc85e81881006544bd32b39993e9eacc1812"
 dependencies = [
  "accesskit",
  "accesskit_winit",
@@ -2449,7 +2449,7 @@ dependencies = [
 [[package]]
 name = "iced_core"
 version = "0.14.0-dev"
-source = "git+https://github.com/MalpenZibo/iced#83580c088b61ea68d5b5f4f52675348cb78632ad"
+source = "git+https://github.com/MalpenZibo/iced?branch=master#3e0acc85e81881006544bd32b39993e9eacc1812"
 dependencies = [
  "bitflags 2.9.4",
  "bytes",
@@ -2472,7 +2472,7 @@ dependencies = [
 [[package]]
 name = "iced_futures"
 version = "0.14.0-dev"
-source = "git+https://github.com/MalpenZibo/iced#83580c088b61ea68d5b5f4f52675348cb78632ad"
+source = "git+https://github.com/MalpenZibo/iced?branch=master#3e0acc85e81881006544bd32b39993e9eacc1812"
 dependencies = [
  "futures",
  "iced_core",
@@ -2498,7 +2498,7 @@ dependencies = [
 [[package]]
 name = "iced_graphics"
 version = "0.14.0-dev"
-source = "git+https://github.com/MalpenZibo/iced#83580c088b61ea68d5b5f4f52675348cb78632ad"
+source = "git+https://github.com/MalpenZibo/iced?branch=master#3e0acc85e81881006544bd32b39993e9eacc1812"
 dependencies = [
  "bitflags 2.9.4",
  "bytemuck",
@@ -2520,7 +2520,7 @@ dependencies = [
 [[package]]
 name = "iced_renderer"
 version = "0.14.0-dev"
-source = "git+https://github.com/MalpenZibo/iced#83580c088b61ea68d5b5f4f52675348cb78632ad"
+source = "git+https://github.com/MalpenZibo/iced?branch=master#3e0acc85e81881006544bd32b39993e9eacc1812"
 dependencies = [
  "iced_graphics",
  "iced_tiny_skia",
@@ -2532,7 +2532,7 @@ dependencies = [
 [[package]]
 name = "iced_runtime"
 version = "0.14.0-dev"
-source = "git+https://github.com/MalpenZibo/iced#83580c088b61ea68d5b5f4f52675348cb78632ad"
+source = "git+https://github.com/MalpenZibo/iced?branch=master#3e0acc85e81881006544bd32b39993e9eacc1812"
 dependencies = [
  "bytes",
  "cosmic-client-toolkit",
@@ -2547,7 +2547,7 @@ dependencies = [
 [[package]]
 name = "iced_tiny_skia"
 version = "0.14.0-dev"
-source = "git+https://github.com/MalpenZibo/iced#83580c088b61ea68d5b5f4f52675348cb78632ad"
+source = "git+https://github.com/MalpenZibo/iced?branch=master#3e0acc85e81881006544bd32b39993e9eacc1812"
 dependencies = [
  "bytemuck",
  "cosmic-text",
@@ -2563,7 +2563,7 @@ dependencies = [
 [[package]]
 name = "iced_wgpu"
 version = "0.14.0-dev"
-source = "git+https://github.com/MalpenZibo/iced#83580c088b61ea68d5b5f4f52675348cb78632ad"
+source = "git+https://github.com/MalpenZibo/iced?branch=master#3e0acc85e81881006544bd32b39993e9eacc1812"
 dependencies = [
  "as-raw-xcb-connection",
  "bitflags 2.9.4",
@@ -2594,7 +2594,7 @@ dependencies = [
 [[package]]
 name = "iced_widget"
 version = "0.14.0-dev"
-source = "git+https://github.com/MalpenZibo/iced#83580c088b61ea68d5b5f4f52675348cb78632ad"
+source = "git+https://github.com/MalpenZibo/iced?branch=master#3e0acc85e81881006544bd32b39993e9eacc1812"
 dependencies = [
  "cosmic-client-toolkit",
  "dnd",
@@ -2612,7 +2612,7 @@ dependencies = [
 [[package]]
 name = "iced_winit"
 version = "0.14.0-dev"
-source = "git+https://github.com/MalpenZibo/iced#83580c088b61ea68d5b5f4f52675348cb78632ad"
+source = "git+https://github.com/MalpenZibo/iced?branch=master#3e0acc85e81881006544bd32b39993e9eacc1812"
 dependencies = [
  "cosmic-client-toolkit",
  "dnd",
@@ -6745,7 +6745,7 @@ checksum = "d6bbff5f0aada427a1e5a6da5f1f98158182f26556f345ac9e04d36d0ebed650"
 [[package]]
 name = "winit"
 version = "0.30.5"
-source = "git+https://github.com/pop-os/winit.git?tag=iced-xdg-surface-0.13#dbe91fcc363c101f1d6ed5301d49911b01a26f61"
+source = "git+https://github.com/pop-os/winit.git?tag=iced-xdg-surface-0.13-rc#8dfaba290f9a00d3e13be71f1e6f438889cf5546"
 dependencies = [
  "ahash 0.8.12",
  "android-activity",
