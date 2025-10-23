@@ -1,0 +1,95 @@
+name: Update after release
+on:
+  release:
+    types: [published]
+permissions:
+  contents: write
+
+jobs:
+  update-changelog:
+    name: Update Changelog and freeze website docs version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - name: Setup Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Prepend release notes to CHANGELOG.md
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+          DATE=$(date -d "${{ github.event.release.published_at }}" +'%Y-%m-%d')
+          BODY="${{ github.event.release.body }}"
+
+          # Demote all headings in the release body (## -> ###, ### -> ####, etc.)
+          echo "$BODY" | sed -E '
+            s/^###### /####### /g;
+            s/^##### /###### /g;
+            s/^#### /##### /g;
+            s/^### /#### /g;
+            s/^## /### /g;
+            s/^# /## /g
+          ' >release.md
+
+          # Fix line endings to LF
+          sed -i 's/\r$//' release.md
+
+          # Convert @username to GitHub links and #123 to issue links
+          REPO="${{ github.repository }}"
+          # Convert @username to GitHub links
+          sed -i -E "s|@([a-zA-Z0-9_-]+)|[@\1](https://github.com/\1)|g" release.md
+
+          # Convert #123 to issue links
+          sed -i -E "s|#([0-9]+)|[#\1](https://github.com/$REPO/issues/\1)|g" release.md
+
+          {
+            head -n 1 CHANGELOG.md 
+            echo "" 
+            echo "## [${VERSION}] - ${DATE}"
+            echo ""
+            cat release.md
+            tail -n +3 CHANGELOG.md # rest of CHANGELOG.md
+          } >tmp.md
+
+          mv tmp.md CHANGELOG.md
+
+      - name: Git add updated changelog
+        run: |
+          git add CHANGELOG.md
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: ./website/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm i
+        working-directory: ./website
+
+      - name: Freeze website docs version
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+
+          pnpm run docusaurus docs:version ${VERSION}
+        working-directory: ./website
+
+      - name: Git add updated website
+        run: |
+          git add website/
+
+      - name: Git push changes
+        run: |
+          git commit -m "update changelog and freeze website docs version for ${{ github.event.release.tag_name }}" || echo "No changes to commit"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
