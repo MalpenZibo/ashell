@@ -23,7 +23,10 @@ mod services;
 mod theme;
 mod utils;
 
-const ICON_FONT: &[u8] = include_bytes!("../assets/ashell_icon.ttf");
+const NERD_FONT: &[u8] = include_bytes!("../target/generated/SymbolsNerdFont-Regular-Subset.ttf");
+const NERD_FONT_MONO: &[u8] =
+    include_bytes!("../target/generated/SymbolsNerdFontMono-Regular-Subset.ttf");
+const CUSTOM_FONT: &[u8] = include_bytes!("../assets/AshellCustomIcon-Regular.otf");
 const HEIGHT: f64 = 34.;
 
 #[derive(Parser, Debug)]
@@ -92,7 +95,9 @@ async fn main() -> iced::Result {
         .theme(App::theme)
         .style(App::style)
         .scale_factor(App::scale_factor)
-        .font(Cow::from(ICON_FONT))
+        .font(Cow::from(NERD_FONT))
+        .font(Cow::from(NERD_FONT_MONO))
+        .font(Cow::from(CUSTOM_FONT))
         .default_font(font)
         .run_with(App::new((logger, config, config_path)))
 }

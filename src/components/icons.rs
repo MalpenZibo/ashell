@@ -1,15 +1,19 @@
+use crate::theme::AshellTheme;
 use iced::{
-    Font,
-    widget::{Text, text},
+    Color, Element, Font, Length, Theme,
+    widget::{
+        Text, button as button_fn,
+        button::{Status, Style},
+        container, text,
+    },
 };
 
 pub trait Icon {
     fn to_text<'a>(self) -> Text<'a>;
+
+    fn to_text_mono<'a>(self) -> Text<'a>;
 }
 
-// After adding a new icon here,
-// dont forget to run the `generate_ashell_icon` script
-// to update the icon font. Check the assets folder for more info.
 #[derive(Copy, Clone, Default)]
 #[allow(dead_code)]
 pub enum StaticIcon {
@@ -108,11 +112,12 @@ pub enum StaticIcon {
     GamepadBatteryLow,
     GamepadBatteryAlert,
     GamepadBatteryCharging,
+    Remove,
 }
 
-impl Icon for StaticIcon {
-    fn to_text<'a>(self) -> Text<'a> {
-        text(match self {
+impl StaticIcon {
+    fn get_str(&self) -> &'static str {
+        match self {
             StaticIcon::None => "",
             StaticIcon::AppLauncher => "\u{f003b}",
             StaticIcon::Clipboard => "\u{f014c}",
@@ -207,8 +212,60 @@ impl Icon for StaticIcon {
             StaticIcon::GamepadBatteryLow => "\u{f074e}",
             StaticIcon::GamepadBatteryAlert => "\u{f074b}",
             StaticIcon::GamepadBatteryCharging => "\u{f0a22}",
-        })
-        .font(Font::with_name("Ashell Nerd Font"))
+            StaticIcon::Remove => "\u{f0377}",
+        }
+    }
+
+    fn get_font(&self) -> &'static str {
+        match self {
+            StaticIcon::KeyboardBatteryFull
+            | StaticIcon::KeyboardBatteryMedium
+            | StaticIcon::KeyboardBatteryLow
+            | StaticIcon::KeyboardBatteryAlert
+            | StaticIcon::KeyboardBatteryCharging
+            | StaticIcon::MouseBatteryFull
+            | StaticIcon::MouseBatteryMedium
+            | StaticIcon::MouseBatteryLow
+            | StaticIcon::MouseBatteryAlert
+            | StaticIcon::MouseBatteryCharging
+            | StaticIcon::HeadphoneBatteryFull
+            | StaticIcon::HeadphoneBatteryMedium
+            | StaticIcon::HeadphoneBatteryLow
+            | StaticIcon::HeadphoneBatteryAlert
+            | StaticIcon::HeadphoneBatteryCharging => "Ashell Custom Icon",
+            _ => "Symbols Nerd Font",
+        }
+    }
+
+    fn get_font_mono(&self) -> &'static str {
+        match self {
+            StaticIcon::KeyboardBatteryFull
+            | StaticIcon::KeyboardBatteryMedium
+            | StaticIcon::KeyboardBatteryLow
+            | StaticIcon::KeyboardBatteryAlert
+            | StaticIcon::KeyboardBatteryCharging
+            | StaticIcon::MouseBatteryFull
+            | StaticIcon::MouseBatteryMedium
+            | StaticIcon::MouseBatteryLow
+            | StaticIcon::MouseBatteryAlert
+            | StaticIcon::MouseBatteryCharging
+            | StaticIcon::HeadphoneBatteryFull
+            | StaticIcon::HeadphoneBatteryMedium
+            | StaticIcon::HeadphoneBatteryLow
+            | StaticIcon::HeadphoneBatteryAlert
+            | StaticIcon::HeadphoneBatteryCharging => "Ashell Custom Icon",
+            _ => "Symbols Nerd Font Mono",
+        }
+    }
+}
+
+impl Icon for StaticIcon {
+    fn to_text<'a>(self) -> Text<'a> {
+        text(self.get_str()).font(Font::with_name(self.get_font()))
+    }
+
+    fn to_text_mono<'a>(self) -> Text<'a> {
+        text(self.get_str()).font(Font::with_name(self.get_font_mono()))
     }
 }
 
@@ -219,8 +276,123 @@ impl Icon for DynamicIcon {
     fn to_text<'a>(self) -> Text<'a> {
         text(self.0).font(Font::with_name("Symbols Nerd Font"))
     }
+
+    fn to_text_mono<'a>(self) -> Text<'a> {
+        text(self.0)
+            .font(Font::with_name("Symbols Nerd Font Mono"))
+            .line_height(1.0)
+    }
 }
 
 pub fn icon<'a>(icon: impl Icon) -> Text<'a> {
     icon.to_text()
+}
+
+pub fn icon_mono<'a>(icon: impl Icon) -> Text<'a> {
+    icon.to_text_mono()
+}
+
+pub enum IconButtonSize {
+    Small,
+    Medium,
+    Large,
+}
+
+enum OnPress<'a, Message> {
+    Direct(Message),
+    Closure(Box<dyn Fn() -> Message + 'a>),
+}
+
+pub type StyleFn<'a, Theme> = Box<dyn for<'b> Fn(&'b Theme, Status) -> Style + 'a>;
+
+pub struct IconButton<'a, I: Icon, Message> {
+    theme: &'a AshellTheme,
+    icon: I,
+    on_press: Option<OnPress<'a, Message>>,
+    button_class: StyleFn<'a, Theme>,
+    color: Option<Color>,
+    size: IconButtonSize,
+}
+
+impl<'a, I: Icon, Message> IconButton<'a, I, Message> {
+    pub fn on_press(mut self, on_press: Message) -> Self {
+        self.on_press = Some(OnPress::Direct(on_press));
+        self
+    }
+
+    pub fn on_press_with(mut self, on_press: impl Fn() -> Message + 'a) -> Self {
+        self.on_press = Some(OnPress::Closure(Box::new(on_press)));
+        self
+    }
+
+    pub fn on_press_maybe(mut self, on_press: Option<Message>) -> Self {
+        self.on_press = on_press.map(OnPress::Direct);
+        self
+    }
+
+    pub fn style(mut self, style: impl for<'b> Fn(&'b Theme, Status) -> Style + 'a) -> Self {
+        self.button_class = Box::new(style) as StyleFn<'a, Theme>;
+        self
+    }
+
+    pub fn color(self, color: impl Into<Color>) -> Self {
+        self.color_maybe(Some(color))
+    }
+
+    pub fn color_maybe(mut self, color: Option<impl Into<Color>>) -> Self {
+        let color = color.map(Into::into);
+
+        self.color = color;
+
+        self
+    }
+
+    pub fn size(mut self, size: IconButtonSize) -> Self {
+        self.size = size;
+
+        self
+    }
+}
+
+impl<'a, I: Icon, Message: 'static + Clone> From<IconButton<'a, I, Message>>
+    for Element<'a, Message>
+{
+    fn from(value: IconButton<'a, I, Message>) -> Self {
+        let (container_size, font_size) = match value.size {
+            IconButtonSize::Small => (24., value.theme.font_size.xxs),
+            IconButtonSize::Medium => (32., value.theme.font_size.xs),
+            IconButtonSize::Large => (38., value.theme.font_size.sm),
+        };
+
+        let btn = button_fn(
+            container(icon_mono(value.icon).size(font_size))
+                .center_x(Length::Fixed(container_size))
+                .center_y(Length::Fixed(container_size))
+                .clip(true),
+        )
+        .padding(0)
+        .style(value.button_class);
+
+        let btn = match value.on_press {
+            Some(OnPress::Direct(message)) => btn.on_press(message),
+            Some(OnPress::Closure(closure)) => btn.on_press_with(closure),
+            None => btn,
+        };
+
+        btn.into()
+    }
+}
+
+pub fn icon_button<'a, Message: 'static + Clone>(
+    theme: &'a AshellTheme,
+    icon: impl Icon,
+) -> IconButton<'a, impl Icon, Message> {
+    IconButton {
+        theme,
+        icon,
+        on_press: None,
+        button_class: Box::new(theme.round_button_style()),
+        color: None,
+        size: IconButtonSize::Medium,
+    }
 }

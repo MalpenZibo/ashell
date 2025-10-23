@@ -286,6 +286,45 @@ impl AshellTheme {
         }
     }
 
+    pub fn round_button_style(&self) -> impl Fn(&Theme, Status) -> button::Style {
+        move |theme, status| {
+            let mut base = button::Style {
+                background: Some(
+                    theme
+                        .extended_palette()
+                        .background
+                        .weak
+                        .color
+                        .scale_alpha(self.opacity)
+                        .into(),
+                ),
+                border: Border {
+                    width: 0.0,
+                    radius: self.radius.xl.into(),
+                    color: Color::TRANSPARENT,
+                },
+                text_color: theme.palette().text,
+                ..button::Style::default()
+            };
+            match status {
+                Status::Active => base,
+                Status::Hovered => {
+                    base.background = Some(
+                        theme
+                            .extended_palette()
+                            .background
+                            .strong
+                            .color
+                            .scale_alpha(self.opacity)
+                            .into(),
+                    );
+                    base
+                }
+                _ => base,
+            }
+        }
+    }
+
     pub fn quick_settings_submenu_button_style(
         &self,
         is_active: bool,

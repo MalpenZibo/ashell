@@ -1,6 +1,6 @@
 use super::SubMenu;
 use crate::{
-    components::icons::{StaticIcon, icon},
+    components::icons::{StaticIcon, icon, icon_button},
     services::{
         ReadOnlyService, Service, ServiceEvent,
         audio::{AudioCommand, AudioService, DeviceType, Sinks},
@@ -300,27 +300,21 @@ impl AudioSettings {
     ) -> Element<'a, Message> {
         Row::new()
             .push(
-                button(icon(if is_mute {
-                    match slider_type {
-                        SliderType::Sink => StaticIcon::Speaker0,
-                        SliderType::Source => StaticIcon::Mic0,
-                    }
-                } else {
-                    match slider_type {
-                        SliderType::Sink => StaticIcon::Speaker3,
-                        SliderType::Source => StaticIcon::Mic1,
-                    }
-                }))
-                .padding([
-                    theme.space.xs,
-                    theme.space.sm
-                        + match slider_type {
-                            SliderType::Sink => 1,
-                            SliderType::Source => 2,
-                        },
-                ])
-                .on_press(toggle_mute)
-                .style(theme.settings_button_style()),
+                icon_button(
+                    theme,
+                    if is_mute {
+                        match slider_type {
+                            SliderType::Sink => StaticIcon::Speaker0,
+                            SliderType::Source => StaticIcon::Mic0,
+                        }
+                    } else {
+                        match slider_type {
+                            SliderType::Sink => StaticIcon::Speaker3,
+                            SliderType::Source => StaticIcon::Mic1,
+                        }
+                    },
+                )
+                .on_press(toggle_mute),
             )
             .push(
                 slider(0..=100, volume, volume_changed)
@@ -328,22 +322,15 @@ impl AudioSettings {
                     .width(Length::Fill),
             )
             .push_maybe(with_submenu.map(|(submenu, msg)| {
-                button(icon(match (slider_type, submenu) {
-                    (SliderType::Sink, Some(SubMenu::Sinks))
-                    | (SliderType::Source, Some(SubMenu::Sources)) => StaticIcon::Close,
-                    _ => StaticIcon::RightArrow,
-                }))
-                .padding([
-                    theme.space.xs,
-                    theme.space.sm
-                        + match (slider_type, submenu) {
-                            (SliderType::Sink, Some(SubMenu::Sinks))
-                            | (SliderType::Source, Some(SubMenu::Sources)) => 2,
-                            _ => 1,
-                        },
-                ])
+                icon_button(
+                    theme,
+                    match (slider_type, submenu) {
+                        (SliderType::Sink, Some(SubMenu::Sinks))
+                        | (SliderType::Source, Some(SubMenu::Sources)) => StaticIcon::Close,
+                        _ => StaticIcon::RightArrow,
+                    },
+                )
                 .on_press(msg)
-                .style(theme.settings_button_style())
             }))
             .align_y(Alignment::Center)
             .spacing(theme.space.xs)

@@ -1,6 +1,6 @@
 use super::{SubMenu, quick_setting_button};
 use crate::{
-    components::icons::{StaticIcon, icon},
+    components::icons::{StaticIcon, icon, icon_button},
     services::{
         ReadOnlyService, Service, ServiceEvent,
         network::{
@@ -423,13 +423,10 @@ impl NetworkSettings {
                 } else {
                     ""
                 })
-                .size(12),
-                button(icon(StaticIcon::Refresh))
-                    .padding([4, 10])
-                    .style(theme.settings_button_style())
-                    .on_press(Message::ScanNearByWiFi),
+                .size(theme.font_size.sm),
+                icon_button(theme, StaticIcon::Refresh).on_press(Message::ScanNearByWiFi)
             )
-            .spacing(8)
+            .spacing(theme.space.xs)
             .width(Length::Fill)
             .align_y(Alignment::Center),
             horizontal_rule(1),
@@ -491,11 +488,11 @@ impl NetworkSettings {
                         })
                         .collect::<Vec<Element<'a, Message>>>(),
                 )
-                .spacing(4)
+                .spacing(theme.space.xxs)
             ))
             .max_height(200),
         )
-        .spacing(8);
+        .spacing(theme.space.xs);
 
         if show_more_button {
             column!(
@@ -503,11 +500,11 @@ impl NetworkSettings {
                 horizontal_rule(1),
                 button("More")
                     .on_press(Message::WiFiMore(id))
-                    .padding([4, 12])
+                    .padding([theme.space.xxs, theme.space.sm])
                     .width(Length::Fill)
                     .style(theme.ghost_button_style())
             )
-            .spacing(12)
+            .spacing(theme.space.sm)
             .into()
         } else {
             main.into()
@@ -542,7 +539,7 @@ impl NetworkSettings {
                 })
                 .collect::<Vec<Element<'a, Message>>>(),
         )
-        .spacing(8);
+        .spacing(theme.space.xs);
 
         if show_more_button {
             column!(
@@ -550,11 +547,11 @@ impl NetworkSettings {
                 horizontal_rule(1),
                 button("More")
                     .on_press(Message::VpnMore(id))
-                    .padding([4, 12])
+                    .padding([theme.space.xxs, theme.space.sm])
                     .width(Length::Fill)
                     .style(theme.ghost_button_style())
             )
-            .spacing(12)
+            .spacing(theme.space.sm)
             .into()
         } else {
             main.into()
