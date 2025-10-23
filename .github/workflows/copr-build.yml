@@ -13,10 +13,11 @@ on:
 
 jobs:
   copr:
-    if: ${{ secrets.COPR_CONFIG != '' }}
     runs-on: ubuntu-latest
     container:
       image: fedora:42
+    env:
+      COPR_CONFIG: ${{ secrets.COPR_CONFIG }}
     steps:
       - uses: actions/checkout@v4
       - name: Install deps
@@ -24,8 +25,7 @@ jobs:
           dnf -y install git cargo rust rpm-build copr-cli gcc make pkgconf-pkg-config
           dnf -y clean all
       - name: Configure copr-cli
-        env:
-          COPR_CONFIG: ${{ secrets.COPR_CONFIG }}
+        if: env.COPR_CONFIG != ''
         run: |
           mkdir -p ~/.config
           printf "%s" "$COPR_CONFIG" > ~/.config/copr
@@ -41,6 +41,7 @@ jobs:
         id: srpm
         run: echo "path=$(ls -1 target/release/rpmbuild/SRPMS/*.src.rpm | head -n1)" >> $GITHUB_OUTPUT
       - name: Trigger Copr build
+        if: env.COPR_CONFIG != ''
         env:
           CHROOTS: ${{ github.event.inputs.chroots }}
         run: |
@@ -49,4 +50,5 @@ jobs:
           for c in $CHROOTS; do args+=( -r "$c" ); done
           copr-cli build "${args[@]}" killcrb/ashell "${{ steps.srpm.outputs.path }}"
       - name: List builds
+        if: env.COPR_CONFIG != ''
         run: copr-cli list-builds killcrb/ashell
