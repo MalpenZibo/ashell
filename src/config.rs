@@ -21,46 +21,33 @@ use tokio::time::sleep;
 pub const DEFAULT_CONFIG_FILE_PATH: &str = "~/.config/ashell/config.toml";
 
 #[derive(Deserialize, Clone, Debug)]
+#[serde(default)]
 pub struct Config {
-    #[serde(default = "default_log_level")]
     pub log_level: String,
-    #[serde(default)]
     pub position: Position,
-    #[serde(default)]
     pub outputs: Outputs,
-    #[serde(default)]
     pub modules: Modules,
     pub app_launcher_cmd: Option<String>,
-    #[serde(rename = "CustomModule", default)]
+    #[serde(rename = "CustomModule")]
     pub custom_modules: Vec<CustomModuleDef>,
     pub clipboard_cmd: Option<String>,
-    #[serde(default)]
     pub updates: Option<UpdatesModuleConfig>,
-    #[serde(default)]
     pub workspaces: WorkspacesModuleConfig,
-    #[serde(default)]
     pub window_title: WindowTitleConfig,
-    #[serde(default)]
     pub system_info: SystemInfoModuleConfig,
-    #[serde(default)]
     pub clock: ClockModuleConfig,
-    #[serde(default)]
     pub settings: SettingsModuleConfig,
-    #[serde(default)]
     pub appearance: Appearance,
-    #[serde(default)]
     pub media_player: MediaPlayerModuleConfig,
-    #[serde(default)]
     pub keyboard_layout: KeyboardLayoutModuleConfig,
-    #[serde(default)]
     pub enable_esc_key: bool,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
-            log_level: default_log_level(),
-            position: Position::Top,
+            log_level: "warn".to_owned(),
+            position: Position::default(),
             outputs: Outputs::default(),
             modules: Modules::default(),
             app_launcher_cmd: None,
@@ -95,13 +82,11 @@ pub enum WorkspaceVisibilityMode {
 }
 
 #[derive(Deserialize, Clone, Default, Debug)]
+#[serde(default)]
 pub struct WorkspacesModuleConfig {
-    #[serde(default)]
     pub visibility_mode: WorkspaceVisibilityMode,
-    #[serde(default)]
     pub enable_workspace_filling: bool,
     pub max_workspaces: Option<u32>,
-    #[serde(default)]
     pub workspace_names: Vec<String>,
 }
 
@@ -112,87 +97,92 @@ pub enum WindowTitleMode {
     Class,
 }
 
-#[derive(Deserialize, Copy, Clone, Default, Debug)]
+#[derive(Deserialize, Copy, Clone, Debug)]
+#[serde(default)]
 pub struct WindowTitleConfig {
-    #[serde(default)]
     pub mode: WindowTitleMode,
-    #[serde(default = "default_truncate_title_after_length")]
     pub truncate_title_after_length: u32,
 }
 
+impl Default for WindowTitleConfig {
+    fn default() -> Self {
+        Self {
+            mode: Default::default(),
+            truncate_title_after_length: 150,
+        }
+    }
+}
+
 #[derive(Deserialize, Clone, Default, Debug)]
+#[serde(default)]
 pub struct KeyboardLayoutModuleConfig {
-    #[serde(default)]
     pub labels: HashMap<String, String>,
 }
 
 #[derive(Deserialize, Clone, Debug)]
+#[serde(default)]
 pub struct SystemInfoCpu {
-    #[serde(default = "default_cpu_warn_threshold")]
+    #[serde(default)]
     pub warn_threshold: u32,
-    #[serde(default = "default_cpu_alert_threshold")]
+    #[serde(default)]
     pub alert_threshold: u32,
 }
 
 impl Default for SystemInfoCpu {
     fn default() -> Self {
         Self {
-            warn_threshold: default_cpu_warn_threshold(),
-            alert_threshold: default_cpu_alert_threshold(),
+            warn_threshold: 60,
+            alert_threshold: 80,
         }
     }
 }
 
 #[derive(Deserialize, Clone, Debug)]
+#[serde(default)]
 pub struct SystemInfoMemory {
-    #[serde(default = "default_mem_warn_threshold")]
     pub warn_threshold: u32,
-    #[serde(default = "default_mem_alert_threshold")]
     pub alert_threshold: u32,
 }
 
 impl Default for SystemInfoMemory {
     fn default() -> Self {
         Self {
-            warn_threshold: default_mem_warn_threshold(),
-            alert_threshold: default_mem_alert_threshold(),
+            warn_threshold: 70,
+            alert_threshold: 85,
         }
     }
 }
 
 #[derive(Deserialize, Clone, Debug)]
+#[serde(default)]
 pub struct SystemInfoTemperature {
-    #[serde(default = "default_temp_warn_threshold")]
     pub warn_threshold: i32,
-    #[serde(default = "default_temp_alert_threshold")]
     pub alert_threshold: i32,
-    #[serde(default = "default_temp_sensor")]
     pub sensor: String,
 }
 
 impl Default for SystemInfoTemperature {
     fn default() -> Self {
         Self {
-            warn_threshold: default_temp_warn_threshold(),
-            alert_threshold: default_temp_alert_threshold(),
-            sensor: default_temp_sensor(),
+            warn_threshold: 60,
+            alert_threshold: 80,
+            sensor: "acpitz temp1".to_string(),
         }
     }
 }
 
 #[derive(Deserialize, Clone, Debug)]
+#[serde(default)]
 pub struct SystemInfoDisk {
-    #[serde(default = "default_disk_warn_threshold")]
     pub warn_threshold: u32,
-    #[serde(default = "default_disk_alert_threshold")]
     pub alert_threshold: u32,
 }
 
 impl Default for SystemInfoDisk {
     fn default() -> Self {
         Self {
-            warn_threshold: default_disk_warn_threshold(),
-            alert_threshold: default_disk_alert_threshold(),
+            warn_threshold: 80,
+            alert_threshold: 90,
         }
     }
 }
@@ -210,75 +200,23 @@ pub enum SystemInfoIndicator {
 }
 
 #[derive(Deserialize, Clone, Debug)]
+#[serde(default)]
 pub struct SystemInfoModuleConfig {
-    #[serde(default = "default_system_indicators")]
     pub indicators: Vec<SystemInfoIndicator>,
-    #[serde(default)]
     pub cpu: SystemInfoCpu,
-    #[serde(default)]
     pub memory: SystemInfoMemory,
-    #[serde(default)]
     pub temperature: SystemInfoTemperature,
-    #[serde(default)]
     pub disk: SystemInfoDisk,
-}
-
-fn default_log_level() -> String {
-    "warn".to_owned()
-}
-
-fn default_truncate_title_after_length() -> u32 {
-    150
-}
-
-fn default_system_indicators() -> Vec<SystemInfoIndicator> {
-    vec![
-        SystemInfoIndicator::Cpu,
-        SystemInfoIndicator::Memory,
-        SystemInfoIndicator::Temperature,
-    ]
-}
-
-fn default_cpu_warn_threshold() -> u32 {
-    60
-}
-
-fn default_cpu_alert_threshold() -> u32 {
-    80
-}
-
-fn default_mem_warn_threshold() -> u32 {
-    70
-}
-
-fn default_mem_alert_threshold() -> u32 {
-    85
-}
-
-fn default_temp_warn_threshold() -> i32 {
-    60
-}
-
-fn default_temp_alert_threshold() -> i32 {
-    80
-}
-
-fn default_temp_sensor() -> String {
-    "acpitz temp1".to_string()
-}
-
-fn default_disk_warn_threshold() -> u32 {
-    80
-}
-
-fn default_disk_alert_threshold() -> u32 {
-    90
 }
 
 impl Default for SystemInfoModuleConfig {
     fn default() -> Self {
         Self {
-            indicators: default_system_indicators(),
+            indicators: vec![
+                SystemInfoIndicator::Cpu,
+                SystemInfoIndicator::Memory,
+                SystemInfoIndicator::Temperature,
+            ],
             cpu: SystemInfoCpu::default(),
             memory: SystemInfoMemory::default(),
             temperature: SystemInfoTemperature::default(),
@@ -300,26 +238,6 @@ impl Default for ClockModuleConfig {
     }
 }
 
-fn default_shutdown_cmd() -> String {
-    "shutdown now".to_string()
-}
-
-fn default_suspend_cmd() -> String {
-    "systemctl suspend".to_string()
-}
-
-fn default_hibernate_cmd() -> String {
-    "systemctl hibernate".to_string()
-}
-
-fn default_reboot_cmd() -> String {
-    "systemctl reboot".to_string()
-}
-
-fn default_logout_cmd() -> String {
-    "loginctl kill-user $(whoami)".to_string()
-}
-
 #[derive(Deserialize, Clone, Debug, PartialEq, Eq)]
 pub enum SettingsIndicator {
     IdleInhibitor,
@@ -330,22 +248,6 @@ pub enum SettingsIndicator {
     Bluetooth,
     Battery,
     PeripheralBattery,
-}
-
-fn default_settings_indicators() -> Vec<SettingsIndicator> {
-    vec![
-        SettingsIndicator::IdleInhibitor,
-        SettingsIndicator::PowerProfile,
-        SettingsIndicator::Audio,
-        SettingsIndicator::Bluetooth,
-        SettingsIndicator::Network,
-        SettingsIndicator::Vpn,
-        SettingsIndicator::Battery,
-    ]
-}
-
-fn default_peripheral_battery_format() -> BatteryFormat {
-    BatteryFormat::Icon
 }
 
 #[derive(Deserialize, Copy, Clone, Default, PartialEq, Eq, Debug)]
@@ -363,38 +265,61 @@ pub enum PeripheralIndicators {
     Specific(Vec<PeripheralDeviceKind>),
 }
 
-#[derive(Deserialize, Default, Clone, Debug)]
+#[derive(Deserialize, Clone, Debug)]
+#[serde(default)]
 pub struct SettingsModuleConfig {
     pub lock_cmd: Option<String>,
-    #[serde(default = "default_shutdown_cmd")]
     pub shutdown_cmd: String,
-    #[serde(default = "default_suspend_cmd")]
     pub suspend_cmd: String,
-    #[serde(default = "default_hibernate_cmd")]
     pub hibernate_cmd: String,
-    #[serde(default = "default_reboot_cmd")]
     pub reboot_cmd: String,
-    #[serde(default = "default_logout_cmd")]
     pub logout_cmd: String,
-    #[serde(default)]
     pub battery_format: BatteryFormat,
-    #[serde(default)]
     pub peripheral_indicators: PeripheralIndicators,
-    #[serde(default = "default_peripheral_battery_format")]
     pub peripheral_battery_format: BatteryFormat,
     pub audio_sinks_more_cmd: Option<String>,
     pub audio_sources_more_cmd: Option<String>,
     pub wifi_more_cmd: Option<String>,
     pub vpn_more_cmd: Option<String>,
     pub bluetooth_more_cmd: Option<String>,
-    #[serde(default)]
     pub remove_airplane_btn: bool,
-    #[serde(default)]
     pub remove_idle_btn: bool,
-    #[serde(default = "default_settings_indicators")]
     pub indicators: Vec<SettingsIndicator>,
-    #[serde(default, rename = "CustomButton")]
+    #[serde(rename = "CustomButton")]
     pub custom_buttons: Vec<SettingsCustomButton>,
+}
+
+impl Default for SettingsModuleConfig {
+    fn default() -> Self {
+        Self {
+            lock_cmd: Default::default(),
+            shutdown_cmd: "shutdown now".to_string(),
+            suspend_cmd: "systemctl suspend".to_string(),
+            hibernate_cmd: "systemctl hibernate".to_string(),
+            reboot_cmd: "systemctl reboot".to_string(),
+            logout_cmd: "loginctl kill-user $(whoami)".to_string(),
+            battery_format: Default::default(),
+            peripheral_indicators: Default::default(),
+            peripheral_battery_format: BatteryFormat::Icon,
+            audio_sinks_more_cmd: Default::default(),
+            audio_sources_more_cmd: Default::default(),
+            wifi_more_cmd: Default::default(),
+            vpn_more_cmd: Default::default(),
+            bluetooth_more_cmd: Default::default(),
+            remove_airplane_btn: Default::default(),
+            remove_idle_btn: Default::default(),
+            indicators: vec![
+                SettingsIndicator::IdleInhibitor,
+                SettingsIndicator::PowerProfile,
+                SettingsIndicator::Audio,
+                SettingsIndicator::Bluetooth,
+                SettingsIndicator::Network,
+                SettingsIndicator::Vpn,
+                SettingsIndicator::Battery,
+            ],
+            custom_buttons: Default::default(),
+        }
+    }
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -407,21 +332,17 @@ pub struct SettingsCustomButton {
 }
 
 #[derive(Deserialize, Clone, Debug)]
+#[serde(default)]
 pub struct MediaPlayerModuleConfig {
-    #[serde(default = "default_media_player_max_title_length")]
     pub max_title_length: u32,
 }
 
 impl Default for MediaPlayerModuleConfig {
     fn default() -> Self {
         MediaPlayerModuleConfig {
-            max_title_length: default_media_player_max_title_length(),
+            max_title_length: 100,
         }
     }
-}
-
-fn default_media_player_max_title_length() -> u32 {
-    100
 }
 
 #[derive(Deserialize, Clone, Copy, Debug)]
@@ -489,10 +410,10 @@ pub enum AppearanceStyle {
 }
 
 #[derive(Deserialize, Clone, Copy, Debug)]
+#[serde(default)]
 pub struct MenuAppearance {
-    #[serde(deserialize_with = "opacity_deserializer", default = "default_opacity")]
+    #[serde(deserialize_with = "opacity_deserializer")]
     pub opacity: f32,
-    #[serde(default)]
     pub backdrop: f32,
 }
 
@@ -506,33 +427,21 @@ impl Default for MenuAppearance {
 }
 
 #[derive(Deserialize, Clone, Debug)]
+#[serde(default)]
 pub struct Appearance {
-    #[serde(default)]
     pub font_name: Option<String>,
-    #[serde(
-        deserialize_with = "scale_factor_deserializer",
-        default = "default_scale_factor"
-    )]
+    #[serde(deserialize_with = "scale_factor_deserializer")]
     pub scale_factor: f64,
-    #[serde(default)]
     pub style: AppearanceStyle,
-    #[serde(deserialize_with = "opacity_deserializer", default = "default_opacity")]
+    #[serde(deserialize_with = "opacity_deserializer")]
     pub opacity: f32,
-    #[serde(default)]
     pub menu: MenuAppearance,
-    #[serde(default = "default_background_color")]
     pub background_color: AppearanceColor,
-    #[serde(default = "default_primary_color")]
     pub primary_color: AppearanceColor,
-    #[serde(default = "default_secondary_color")]
     pub secondary_color: AppearanceColor,
-    #[serde(default = "default_success_color")]
     pub success_color: AppearanceColor,
-    #[serde(default = "default_danger_color")]
     pub danger_color: AppearanceColor,
-    #[serde(default = "default_text_color")]
     pub text_color: AppearanceColor,
-    #[serde(default = "default_workspace_colors")]
     pub workspace_colors: Vec<AppearanceColor>,
     pub special_workspace_colors: Option<Vec<AppearanceColor>>,
 }
@@ -560,10 +469,6 @@ where
     Ok(v)
 }
 
-fn default_scale_factor() -> f64 {
-    1.0
-}
-
 fn opacity_deserializer<'de, D>(deserializer: D) -> Result<f32, D::Error>
 where
     D: serde::Deserializer<'de>,
@@ -587,58 +492,6 @@ fn default_opacity() -> f32 {
     1.0
 }
 
-fn default_background_color() -> AppearanceColor {
-    AppearanceColor::Complete {
-        base: HexColor::rgb(30, 30, 46),
-        strong: Some(HexColor::rgb(69, 71, 90)),
-        weak: Some(HexColor::rgb(49, 50, 68)),
-        text: None,
-    }
-}
-
-fn default_primary_color() -> AppearanceColor {
-    AppearanceColor::Complete {
-        base: PRIMARY,
-        strong: None,
-        weak: None,
-        text: Some(HexColor::rgb(30, 30, 46)),
-    }
-}
-
-fn default_secondary_color() -> AppearanceColor {
-    AppearanceColor::Complete {
-        base: HexColor::rgb(17, 17, 27),
-        strong: Some(HexColor::rgb(24, 24, 37)),
-        weak: None,
-        text: None,
-    }
-}
-
-fn default_success_color() -> AppearanceColor {
-    AppearanceColor::Simple(HexColor::rgb(166, 227, 161))
-}
-
-fn default_danger_color() -> AppearanceColor {
-    AppearanceColor::Complete {
-        base: HexColor::rgb(243, 139, 168),
-        weak: Some(HexColor::rgb(249, 226, 175)),
-        strong: None,
-        text: None,
-    }
-}
-
-fn default_text_color() -> AppearanceColor {
-    AppearanceColor::Simple(HexColor::rgb(205, 214, 244))
-}
-
-fn default_workspace_colors() -> Vec<AppearanceColor> {
-    vec![
-        AppearanceColor::Simple(PRIMARY),
-        AppearanceColor::Simple(HexColor::rgb(180, 190, 254)),
-        AppearanceColor::Simple(HexColor::rgb(203, 166, 247)),
-    ]
-}
-
 impl Default for Appearance {
     fn default() -> Self {
         Self {
@@ -647,13 +500,37 @@ impl Default for Appearance {
             style: AppearanceStyle::default(),
             opacity: default_opacity(),
             menu: MenuAppearance::default(),
-            background_color: default_background_color(),
-            primary_color: default_primary_color(),
-            secondary_color: default_secondary_color(),
-            success_color: default_success_color(),
-            danger_color: default_danger_color(),
-            text_color: default_text_color(),
-            workspace_colors: default_workspace_colors(),
+            background_color: AppearanceColor::Complete {
+                base: HexColor::rgb(30, 30, 46),
+                strong: Some(HexColor::rgb(69, 71, 90)),
+                weak: Some(HexColor::rgb(49, 50, 68)),
+                text: None,
+            },
+            primary_color: AppearanceColor::Complete {
+                base: PRIMARY,
+                strong: None,
+                weak: None,
+                text: Some(HexColor::rgb(30, 30, 46)),
+            },
+            secondary_color: AppearanceColor::Complete {
+                base: HexColor::rgb(17, 17, 27),
+                strong: Some(HexColor::rgb(24, 24, 37)),
+                weak: None,
+                text: None,
+            },
+            success_color: AppearanceColor::Simple(HexColor::rgb(166, 227, 161)),
+            danger_color: AppearanceColor::Complete {
+                base: HexColor::rgb(243, 139, 168),
+                weak: Some(HexColor::rgb(249, 226, 175)),
+                strong: None,
+                text: None,
+            },
+            text_color: AppearanceColor::Simple(HexColor::rgb(205, 214, 244)),
+            workspace_colors: vec![
+                AppearanceColor::Simple(PRIMARY),
+                AppearanceColor::Simple(HexColor::rgb(180, 190, 254)),
+                AppearanceColor::Simple(HexColor::rgb(203, 166, 247)),
+            ],
             special_workspace_colors: None,
         }
     }
