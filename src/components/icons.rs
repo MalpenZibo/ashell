@@ -14,9 +14,6 @@ pub trait Icon {
     fn to_text_mono<'a>(self) -> Text<'a>;
 }
 
-// After adding a new icon here,
-// dont forget to run the `generate_ashell_icon` script
-// to update the icon font. Check the assets folder for more info.
 #[derive(Copy, Clone, Default)]
 #[allow(dead_code)]
 pub enum StaticIcon {
