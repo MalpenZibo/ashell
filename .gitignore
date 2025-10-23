@@ -1,2 +1,9 @@
 /target
 vendor
+
+# Local Copr build artifacts
+/copr_build_*/
+
+# Ignore cargo-rpm workspace except tracked spec
+/.rpm/*
+!.rpm/ashell.spec

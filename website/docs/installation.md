@@ -10,10 +10,10 @@ You can install Ashell using the following methods:
 
 :::info
 
-I only maintain the Arch Linux package and the Nix configuration included
-in the repository.
+Officially maintained: Arch Linux package and the Nix configuration included in the repository.
 
-If a package is broken, try building from source first.
+Community packaging: Fedora via Copr (see below). If a package is broken,
+try building from source first.
 
 :::
 
@@ -76,6 +76,15 @@ And in your `configuration.nix`:
 
 This will build Ashell from source.  
 Alternatively, you can use `pkgs.ashell` from `nixpkgs`, which is cached.
+
+### Fedora (Copr)
+
+Unofficial Copr repository (maintained by @killcrb):
+
+```bash
+sudo dnf -y copr enable killcrb/ashell
+sudo dnf -y install ashell
+```
 
 ## Building from Source
 
