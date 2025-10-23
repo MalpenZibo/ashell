@@ -16,7 +16,6 @@ panic = "abort"
 # The profile that 'dist' will build with
 [profile.dist]
 inherits = "release"
-lto = "thin"
 
 [dependencies]
 iced = { git = "https://github.com/MalpenZibo/iced", features = [
