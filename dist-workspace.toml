@@ -11,3 +11,9 @@ ci = "github"
 installers = []
 # Target platforms to build apps for (Rust target-triple syntax)
 targets = ["aarch64-apple-darwin", "aarch64-unknown-linux-gnu", "x86_64-unknown-linux-gnu"]
+# Whether dist should create a Github Release or use an existing draft
+create-release = false
+# Global artifacts jobs to run in CI
+global-artifacts-jobs = ["./generate-installer"]
+# Publish jobs to run in CI
+publish-jobs = ["./update-arch-package"]

@@ -10,8 +10,8 @@
 # * uploads those artifacts to temporary workflow zip
 # * on success, uploads the artifacts to a GitHub Release
 #
-# Note that the GitHub Release will be created with a generated
-# title/body based on your changelogs.
+# Note that a GitHub Release with this tag is assumed to exist as a draft
+# with the appropriate title/body, and will be undrafted for you.
 
 name: Release
 permissions:
@@ -211,14 +211,24 @@ jobs:
           path: |
             ${{ steps.cargo-dist.outputs.paths }}
             ${{ env.BUILD_MANIFEST_NAME }}
+
+  custom-generate-installer:
+    needs:
+      - plan
+      - build-local-artifacts
+    uses: ./.github/workflows/generate-installer.yml
+    with:
+      plan: ${{ needs.plan.outputs.val }}
+    secrets: inherit
   # Determines if we should publish/announce
   host:
     needs:
       - plan
       - build-local-artifacts
       - build-global-artifacts
+      - custom-generate-installer
     # Only run if we're "publishing", and only if local and global didn't fail (skipped is fine)
-    if: ${{ always() && needs.plan.outputs.publishing == 'true' && (needs.build-global-artifacts.result == 'skipped' || needs.build-global-artifacts.result == 'success') && (needs.build-local-artifacts.result == 'skipped' || needs.build-local-artifacts.result == 'success') }}
+    if: ${{ always() && needs.plan.outputs.publishing == 'true' && (needs.build-global-artifacts.result == 'skipped' || needs.build-global-artifacts.result == 'success') && (needs.custom-generate-installer.result == 'skipped' || needs.custom-generate-installer.result == 'success') && (needs.build-local-artifacts.result == 'skipped' || needs.build-local-artifacts.result == 'success') }}
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     runs-on: "ubuntu-22.04"
@@ -269,23 +279,36 @@ jobs:
       - name: Create GitHub Release
         env:
           PRERELEASE_FLAG: "${{ fromJson(steps.host.outputs.manifest).announcement_is_prerelease && '--prerelease' || '' }}"
-          ANNOUNCEMENT_TITLE: "${{ fromJson(steps.host.outputs.manifest).announcement_title }}"
-          ANNOUNCEMENT_BODY: "${{ fromJson(steps.host.outputs.manifest).announcement_github_body }}"
           RELEASE_COMMIT: "${{ github.sha }}"
         run: |
-          # Write and read notes from a file to avoid quoting breaking things
-          echo "$ANNOUNCEMENT_BODY" > $RUNNER_TEMP/notes.txt
+          # If we're editing a release in place, we need to upload things ahead of time
+          gh release upload "${{ needs.plan.outputs.tag }}" artifacts/*
 
-          gh release create "${{ needs.plan.outputs.tag }}" --target "$RELEASE_COMMIT" $PRERELEASE_FLAG --title "$ANNOUNCEMENT_TITLE" --notes-file "$RUNNER_TEMP/notes.txt" artifacts/*
+          gh release edit "${{ needs.plan.outputs.tag }}" --target "$RELEASE_COMMIT" $PRERELEASE_FLAG --draft=false
+
+  custom-update-arch-package:
+    needs:
+      - plan
+      - host
+    if: ${{ !fromJson(needs.plan.outputs.val).announcement_is_prerelease || fromJson(needs.plan.outputs.val).publish_prereleases }}
+    uses: ./.github/workflows/update-arch-package.yml
+    with:
+      plan: ${{ needs.plan.outputs.val }}
+    secrets: inherit
+    # publish jobs get escalated permissions
+    permissions:
+      "id-token": "write"
+      "packages": "write"
 
   announce:
     needs:
       - plan
       - host
+      - custom-update-arch-package
     # use "always() && ..." to allow us to wait for all publish jobs while
     # still allowing individual publish jobs to skip themselves (for prereleases).
     # "host" however must run to completion, no skipping allowed!
-    if: ${{ always() && needs.host.result == 'success' }}
+    if: ${{ always() && needs.host.result == 'success' && (needs.custom-update-arch-package.result == 'skipped' || needs.custom-update-arch-package.result == 'success') }}
     runs-on: "ubuntu-22.04"
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
