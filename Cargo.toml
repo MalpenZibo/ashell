@@ -1,7 +1,8 @@
 [package]
 name = "ashell"
 description = "A ready to go Wayland status bar for Hyprland"
-homepage = "https://github.com/MalpenZibo/ashell"
+homepage = "https://malpenzibo.github.io/ashell/"
+repository = "https://github.com/MalpenZibo/ashell"
 license = "MIT"
 version = "0.6.0"
 edition = "2024"
@@ -12,6 +13,11 @@ lto = "thin"
 strip = true
 opt-level = 3 
 panic = "abort"
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
 
 [dependencies]
 iced = { git = "https://github.com/MalpenZibo/iced", branch = "master", features = [
