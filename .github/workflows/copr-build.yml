@@ -1,0 +1,52 @@
+name: Copr Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      chroots:
+        description: "Space-separated Copr chroots"
+        required: false
+        default: "fedora-42-x86_64"
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  copr:
+    if: ${{ secrets.COPR_CONFIG != '' }}
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:42
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deps
+        run: |
+          dnf -y install git cargo rust rpm-build copr-cli gcc make pkgconf-pkg-config
+          dnf -y clean all
+      - name: Configure copr-cli
+        env:
+          COPR_CONFIG: ${{ secrets.COPR_CONFIG }}
+        run: |
+          mkdir -p ~/.config
+          printf "%s" "$COPR_CONFIG" > ~/.config/copr
+          chmod 600 ~/.config/copr
+      - name: Ensure cargo-rpm
+        run: cargo install cargo-rpm --locked
+      - name: Prepare RPM packaging
+        run: |
+          if [ ! -d .rpm ]; then cargo rpm init; fi
+      - name: Build SRPM
+        run: cargo rpm build -v
+      - name: Locate SRPM
+        id: srpm
+        run: echo "path=$(ls -1 target/release/rpmbuild/SRPMS/*.src.rpm | head -n1)" >> $GITHUB_OUTPUT
+      - name: Trigger Copr build
+        env:
+          CHROOTS: ${{ github.event.inputs.chroots }}
+        run: |
+          CHROOTS="${CHROOTS:-fedora-42-x86_64}"
+          args=()
+          for c in $CHROOTS; do args+=( -r "$c" ); done
+          copr-cli build "${args[@]}" killcrb/ashell "${{ steps.srpm.outputs.path }}"
+      - name: List builds
+        run: copr-cli list-builds killcrb/ashell
