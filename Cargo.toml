@@ -2,6 +2,7 @@
 name = "ashell"
 description = "A ready to go Wayland status bar for Hyprland"
 homepage = "https://github.com/MalpenZibo/ashell"
+repository = "https://github.com/MalpenZibo/ashell"
 version = "0.6.0"
 edition = "2024"
 rust-version = "1.88"
@@ -11,6 +12,10 @@ lto = "thin"
 strip = true
 opt-level = 3 
 panic = "abort"
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
 
 [dependencies]
 iced = { git = "https://github.com/MalpenZibo/iced", branch = "master", features = [

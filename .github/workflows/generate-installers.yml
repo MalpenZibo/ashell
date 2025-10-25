@@ -1,0 +1,85 @@
+name: "Generate Installers"
+
+on:
+  workflow_call:
+    inputs:
+      # These are passed automatically by cargo-dist
+      plan:
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  generate-installers:
+    name: "Generate packages"
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse plan manifest
+        id: manifest
+        run: |
+          echo '${{ inputs.plan }}' > plan.json
+
+          # Extract artifact filenames and unique target triples
+          targets=$(jq -r '[.releases[].artifacts[] as $a | .artifacts[$a].target_triples[]] | unique | join(",")' plan.json)
+          echo "targets=$targets" >> "$GITHUB_OUTPUT"
+
+      - name: Download built tarballs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: artifacts-build-local-* # matches all uploaded tarballs
+          path: target/distrib
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ steps.manifest.outputs.targets }}
+
+      - name: Install cargo-nfpm
+        run: cargo install cargo-nfpm --locked
+
+      - name: Build .deb and .rpm packages
+        run: |
+          mkdir artifacts
+
+          # For each artifact filename listed in the plan
+          for archive in $(jq -r '.releases[].artifacts[] | select(endswith(".tar.xz"))' plan.json); do
+            # get the target triple for that artifact (first element)
+            target_triple=$(jq -r --arg a "$archive" '.artifacts[$a].target_triples[0]' plan.json)
+
+            # get the app_name for the release that contains this artifact
+            # (select the release whose artifacts array contains the archive)
+            app_name=$(jq -r --arg a "$archive" '.releases[] | select(.artifacts[] == $a) | .app_name' plan.json)
+
+            echo "Processing archive=$archive target=$target_triple app=$app_name"
+
+            # dest directory like target/x86_64-unknown-linux-gnu/release
+            dest_dir="target/${target_triple}/release"
+            mkdir -p "$dest_dir"
+          #
+            # extract into dest (strip top-level folder if present)
+            tar -xf "target/distrib/artifacts-build-local-$target_triple/$archive" -C "$dest_dir" --strip-components=1
+
+            # Confirm the binary is where expected (optional debug)
+            echo "Contents of $dest_dir:"
+            ls -la "$dest_dir" || true
+
+            # Run cargo-nfpm for this target triple (no-build because we have binaries)
+            cargo nfpm package --format deb --no-build --target "$target_triple" --output "artifacts/$app_name-$target_triple.deb" || {
+              echo "cargo-nfpm deb failed for $target_triple"
+            }
+            cargo nfpm package --format rpm --no-build --target "$target_triple" --output "artifacts/$app_name-$target_triple.rpm"|| {
+              echo "cargo-nfpm rpm failed for $target_triple"
+            }
+
+          done
+
+      - name: Upload generated installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifacts-installers
+          path: artifacts
