@@ -7,7 +7,7 @@ edition = "2024"
 rust-version = "1.88"
 
 [profile.release]
-lto = "fat"
+lto = "thin"
 strip = true
 opt-level = 3 
 panic = "abort"
