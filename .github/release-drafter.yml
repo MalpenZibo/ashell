@@ -31,6 +31,7 @@ exclude-contributors:
   - "MalpenZibo"
   - "dependabot"
   - "dependabot[bot]"
+  - "github-actions[bot]"
 no-contributors-template: "just me this time 😅"
 autolabeler:
   - label: "docs"
