@@ -1,18 +1,30 @@
-name: Update after release
+name: Pre-release step
+
 on:
   release:
     types: [published]
+
 permissions:
   contents: write
+  actions: write
 
 jobs:
-  update-changelog:
-    name: Update Changelog and freeze website docs version
+  update-after-publish-release:
+    name: Update Changelog, Cargo version and freeze website docs version
     runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.release.tag_name }}
+      REPO: ${{ github.repository }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
         with:
           ref: main
+
+      - name: Extract version (strip leading v)
+        run: |
+          VERSION="${TAG#v}"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
       - name: Setup Git
         run: |
@@ -21,7 +33,6 @@ jobs:
 
       - name: Prepend release notes to CHANGELOG.md
         run: |
-          VERSION="${{ github.event.release.tag_name }}"
           DATE=$(date -d "${{ github.event.release.published_at }}" +'%Y-%m-%d')
           BODY="${{ github.event.release.body }}"
 
@@ -38,13 +49,11 @@ jobs:
           # Fix line endings to LF
           sed -i 's/\r$//' release.md
 
-          # Convert @username to GitHub links and #123 to issue links
-          REPO="${{ github.repository }}"
           # Convert @username to GitHub links
           sed -i -E "s|@([a-zA-Z0-9_-]+)|[@\1](https://github.com/\1)|g" release.md
 
           # Convert #123 to issue links
-          sed -i -E "s|#([0-9]+)|[#\1](https://github.com/$REPO/issues/\1)|g" release.md
+          sed -i -E "s|#([0-9]+)|[#\1](https://github.com/${REPO}/issues/\1)|g" release.md
 
           {
             head -n 1 CHANGELOG.md 
@@ -61,12 +70,24 @@ jobs:
         run: |
           git add CHANGELOG.md
 
+      - name: Update Cargo version
+        run: |
+          # Install cargo-edit for `cargo set-version`
+          cargo install cargo-edit -f --no-default-features --features "set-version"
+
+          # Update the root package version
+          cargo set-version "${VERSION}"
+
+      - name: Git add updated cargo toml
+        run: |
+          git add Cargo.toml Cargo.lock
+
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 10
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v5
         with:
           node-version: 20
           cache: pnpm
@@ -78,8 +99,6 @@ jobs:
 
       - name: Freeze website docs version
         run: |
-          VERSION="${{ github.event.release.tag_name }}"
-
           pnpm run docusaurus docs:version ${VERSION}
         working-directory: ./website
 
@@ -89,7 +108,33 @@ jobs:
 
       - name: Git push changes
         run: |
-          git commit -m "update changelog and freeze website docs version for ${{ github.event.release.tag_name }}" || echo "No changes to commit"
+          git commit -m "update changelog and freeze website docs version for ${TAG}" || echo "No changes to commit"
           git push
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update release tag to latest commit
+        run: |
+          git tag -f "${TAG}"
+          git push -f origin "${TAG}"
+
+      - name: Update release to point to new commit
+        run: |
+          SHA=$(git rev-parse HEAD)
+
+          gh release edit $TAG --target $SHA
+
+  run-cargo-dist:
+    needs:
+      - update-after-publish-release
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.release.tag_name }}
+      REPO: ${{ github.repository }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Trigger Release workflow
+        run: |
+          echo "Triggering Release workflow for tag ${TAG}..."
+
+          gh workflow run release.yml -f tag=$TAG

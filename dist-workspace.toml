@@ -8,12 +8,24 @@ cargo-dist-version = "0.30.0"
 # CI backends to support
 ci = "github"
 # The installers to generate for each app
-installers = []
+installers = ["shell"]
+# Whether CI should trigger releases with dispatches instead of tag pushes
+dispatch-releases = true
+# Checksums to generate for each App
+checksum = "false"
+# Generate and dist a source tarball
+source-tarball = false
+# Which actions to run on pull requests
+pr-run-mode = "skip"
 # Target platforms to build apps for (Rust target-triple syntax)
-targets = ["aarch64-apple-darwin", "aarch64-unknown-linux-gnu", "x86_64-unknown-linux-gnu"]
+targets = ["x86_64-unknown-linux-gnu"]
 # Whether dist should create a Github Release or use an existing draft
 create-release = false
 # Global artifacts jobs to run in CI
-global-artifacts-jobs = ["./generate-installer"]
-# Publish jobs to run in CI
-publish-jobs = ["./update-arch-package"]
+global-artifacts-jobs = ["./generate-installers"]
+# Post-announce jobs to run in CI
+post-announce-jobs = ["./remove-manifest-assets", "./update-arch-package"]
+# Path that installers should place binaries in
+install-path = "CARGO_HOME"
+# Whether to install an updater program
+install-updater = false
