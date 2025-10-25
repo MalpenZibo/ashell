@@ -359,16 +359,20 @@ impl<'a, I: Icon, Message: 'static + Clone> From<IconButton<'a, I, Message>>
 {
     fn from(value: IconButton<'a, I, Message>) -> Self {
         let (container_size, font_size) = match value.size {
-            IconButtonSize::Small => (24., value.theme.font_size.xxs),
+            IconButtonSize::Small => (24., value.theme.font_size.xs),
             IconButtonSize::Medium => (32., value.theme.font_size.xs),
             IconButtonSize::Large => (38., value.theme.font_size.sm),
         };
 
         let btn = button_fn(
-            container(icon_mono(value.icon).size(font_size))
-                .center_x(Length::Fixed(container_size))
-                .center_y(Length::Fixed(container_size))
-                .clip(true),
+            container(
+                icon_mono(value.icon)
+                    .size(font_size)
+                    .color_maybe(value.color),
+            )
+            .center_x(Length::Fixed(container_size))
+            .center_y(Length::Fixed(container_size))
+            .clip(true),
         )
         .padding(0)
         .style(value.button_class);

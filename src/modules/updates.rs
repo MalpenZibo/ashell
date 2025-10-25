@@ -237,12 +237,7 @@ impl Updates {
                                     .collect::<Vec<Element<'_, _, _>>>(),
                             )
                             .spacing(theme.space.xs)
-                            .padding([
-                                0,
-                                theme.space.md,
-                                0,
-                                theme.space.xs,
-                            ]),
+                            .padding([0, theme.space.xs]),
                         ))
                         .max_height(300),
                     );

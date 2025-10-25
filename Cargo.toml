@@ -7,13 +7,13 @@ edition = "2024"
 rust-version = "1.88"
 
 [profile.release]
-lto = "fat"
+lto = "thin"
 strip = true
 opt-level = 3 
 panic = "abort"
 
 [dependencies]
-iced = { git = "https://github.com/MalpenZibo/iced", features = [
+iced = { git = "https://github.com/MalpenZibo/iced", branch = "master", features = [
   "tokio",
   "multi-window",
   "advanced",
