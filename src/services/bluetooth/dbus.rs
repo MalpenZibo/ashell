@@ -60,6 +60,27 @@ impl BluetoothDbus<'_> {
         }
     }
 
+    pub async fn start_discovery(&self) -> zbus::Result<()> {
+        if let Some(adapter) = &self.adapter {
+            adapter.start_discovery().await?;
+        }
+        Ok(())
+    }
+
+    pub async fn stop_discovery(&self) -> zbus::Result<()> {
+        if let Some(adapter) = &self.adapter {
+            adapter.stop_discovery().await?;
+        }
+        Ok(())
+    }
+
+    pub async fn discovering(&self) -> zbus::Result<bool> {
+        match &self.adapter {
+            Some(adapter) => adapter.discovering().await,
+            _ => Ok(false),
+        }
+    }
+
     pub async fn devices(&self) -> anyhow::Result<Vec<BluetoothDevice>> {
         let devices_proxy = self
             .bluez
@@ -84,28 +105,63 @@ impl BluetoothDbus<'_> {
 
             let name = device.alias().await?;
             let connected = device.connected().await?;
+            let paired = device.paired().await?;
 
-            if connected {
-                let battery = if has_battery {
-                    let battery_proxy = BatteryProxy::builder(self.bluez.inner().connection())
-                        .path(&device_path)?
-                        .build()
-                        .await?;
+            let battery = if connected && has_battery {
+                let battery_proxy = BatteryProxy::builder(self.bluez.inner().connection())
+                    .path(&device_path)?
+                    .build()
+                    .await?;
 
-                    Some(battery_proxy.percentage().await?)
-                } else {
-                    None
-                };
+                Some(battery_proxy.percentage().await?)
+            } else {
+                None
+            };
 
-                devices.push(BluetoothDevice {
-                    name,
-                    battery,
-                    path: device_path,
-                });
-            }
+            devices.push(BluetoothDevice {
+                name,
+                battery,
+                path: device_path,
+                connected,
+                paired,
+            });
         }
 
         Ok(devices)
+    }
+
+    pub async fn pair_device(&self, device_path: &OwnedObjectPath) -> zbus::Result<()> {
+        let device = DeviceProxy::builder(self.bluez.inner().connection())
+            .path(device_path)?
+            .build()
+            .await?;
+
+        device.pair().await
+    }
+
+    pub async fn connect_device(&self, device_path: &OwnedObjectPath) -> zbus::Result<()> {
+        let device = DeviceProxy::builder(self.bluez.inner().connection())
+            .path(device_path)?
+            .build()
+            .await?;
+
+        device.connect().await
+    }
+
+    pub async fn disconnect_device(&self, device_path: &OwnedObjectPath) -> zbus::Result<()> {
+        let device = DeviceProxy::builder(self.bluez.inner().connection())
+            .path(device_path)?
+            .build()
+            .await?;
+
+        device.disconnect().await
+    }
+
+    pub async fn remove_device(&self, device_path: &OwnedObjectPath) -> zbus::Result<()> {
+        if let Some(adapter) = &self.adapter {
+            adapter.remove_device(device_path.as_ref()).await?;
+        }
+        Ok(())
     }
 }
 
@@ -135,6 +191,15 @@ pub trait Adapter {
 
     #[zbus(property)]
     fn set_powered(&self, value: bool) -> zbus::Result<()>;
+
+    fn start_discovery(&self) -> zbus::Result<()>;
+
+    fn stop_discovery(&self) -> zbus::Result<()>;
+
+    #[zbus(property)]
+    fn discovering(&self) -> zbus::Result<bool>;
+
+    fn remove_device(&self, device: zbus::zvariant::ObjectPath<'_>) -> zbus::Result<()>;
 }
 
 #[proxy(default_service = "org.bluez", interface = "org.bluez.Device1")]
@@ -144,6 +209,15 @@ trait Device {
 
     #[zbus(property)]
     fn connected(&self) -> zbus::Result<bool>;
+
+    #[zbus(property)]
+    fn paired(&self) -> zbus::Result<bool>;
+
+    fn pair(&self) -> zbus::Result<()>;
+
+    fn connect(&self) -> zbus::Result<()>;
+
+    fn disconnect(&self) -> zbus::Result<()>;
 }
 
 #[proxy(default_service = "org.bluez", interface = "org.bluez.Battery1")]

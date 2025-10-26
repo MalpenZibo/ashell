@@ -1,77 +1,95 @@
-name: Release
+name: Update after release
+on:
+  release:
+    types: [published]
 permissions:
   contents: write
-  pull-requests: write
-
-on:
-  workflow_dispatch:
-    inputs:
-      level:
-        description: "Version Level major|minor|patch"
-        required: true
-        type: choice
-        options:
-          - patch
-          - minor
-          - major
-
-env:
-  CARGO_TERM_COLOR: always
 
 jobs:
-  prepare-release:
-    name: Release
-    runs-on: ubuntu-24.04
-
+  update-changelog:
+    name: Update Changelog and freeze website docs version
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Config Git
-        uses: oleksiyrudenko/gha-git-credentials@v2.1.2
+      - uses: actions/checkout@v5
         with:
-          token: "${{ secrets.GITHUB_TOKEN }}"
+          ref: main
 
-      - name: Install cargo binary dependencies
-        uses: baptiste0928/cargo-install@v3
-        with:
-          crate: cargo-release
-
-      - name: Release
-        run: cargo release ${PUBLISH_LEVEL} --execute --no-tag --no-confirm --no-publish --no-push
-        env:
-          PUBLISH_LEVEL: ${{ github.event.inputs.level }}
-
-      - name: Get New version
-        id: gettag
+      - name: Setup Git
         run: |
-          echo "TAG_NAME=$(cargo pkgid | cut -d# -f2 | cut -d@ -f2)" >> $GITHUB_OUTPUT
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Update Changelog
+      - name: Prepend release notes to CHANGELOG.md
         run: |
-          date=$(date '+%Y-%m-%d')
-          sed -i "s/\[Unreleased\]/&\n\n## [${{ steps.gettag.outputs.TAG_NAME }}] - $(date '+%Y-%m-%d')/g" ./CHANGELOG.md
+          VERSION="${{ github.event.release.tag_name }}"
+          DATE=$(date -d "${{ github.event.release.published_at }}" +'%Y-%m-%d')
+          BODY="${{ github.event.release.body }}"
+
+          # Demote all headings in the release body (## -> ###, ### -> ####, etc.)
+          echo "$BODY" | sed -E '
+            s/^###### /####### /g;
+            s/^##### /###### /g;
+            s/^#### /##### /g;
+            s/^### /#### /g;
+            s/^## /### /g;
+            s/^# /## /g
+          ' >release.md
+
+          # Fix line endings to LF
+          sed -i 's/\r$//' release.md
+
+          # Convert @username to GitHub links and #123 to issue links
+          REPO="${{ github.repository }}"
+          # Convert @username to GitHub links
+          sed -i -E "s|@([a-zA-Z0-9_-]+)|[@\1](https://github.com/\1)|g" release.md
+
+          # Convert #123 to issue links
+          sed -i -E "s|#([0-9]+)|[#\1](https://github.com/$REPO/issues/\1)|g" release.md
+
+          {
+            head -n 1 CHANGELOG.md 
+            echo "" 
+            echo "## [${VERSION}] - ${DATE}"
+            echo ""
+            cat release.md
+            tail -n +3 CHANGELOG.md # rest of CHANGELOG.md
+          } >tmp.md
+
+          mv tmp.md CHANGELOG.md
+
+      - name: Git add updated changelog
+        run: |
           git add CHANGELOG.md
-          git commit -m "update CHANGELOG.md"
 
-      - name: Get Changelog Entry
-        id: changelog_reader
-        uses: mindsers/changelog-reader-action@v2
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
         with:
-          validation_level: warn
-          version: ${{ steps.gettag.outputs.TAG_NAME }}
-          path: ./CHANGELOG.md
+          version: 10
 
-      - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v7
+      - uses: actions/setup-node@v6
         with:
-          title: Release ${{ steps.gettag.outputs.TAG_NAME }}
-          body: |
-            # New version ${{ steps.gettag.outputs.TAG_NAME }}
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: ./website/pnpm-lock.yaml
 
-            The new version will be published after merging this PR
+      - name: Install dependencies
+        run: pnpm i
+        working-directory: ./website
 
-            ## Changelog
-            ${{ steps.changelog_reader.outputs.changes }}
-          branch: release-${{ steps.gettag.outputs.TAG_NAME }}
-          delete-branch: true
-          draft: always-true
+      - name: Freeze website docs version
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+
+          pnpm run docusaurus docs:version ${VERSION}
+        working-directory: ./website
+
+      - name: Git add updated website
+        run: |
+          git add website/
+
+      - name: Git push changes
+        run: |
+          git commit -m "update changelog and freeze website docs version for ${{ github.event.release.tag_name }}" || echo "No changes to commit"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

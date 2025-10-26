@@ -1,5 +1,5 @@
 use super::{ReadOnlyService, Service, ServiceEvent};
-use crate::components::icons::Icons;
+use crate::components::icons::StaticIcon;
 use iced::{
     Subscription, Task,
     futures::{SinkExt, StreamExt, channel::mpsc::Sender, executor::block_on, stream::pending},
@@ -55,12 +55,12 @@ pub enum DeviceType {
 }
 
 impl DeviceType {
-    pub fn get_icon(&self) -> Icons {
+    pub fn get_icon(&self) -> StaticIcon {
         match self {
-            DeviceType::Speaker => Icons::Speaker3,
-            DeviceType::Headphones => Icons::Headphones1,
-            DeviceType::Headset => Icons::Headset,
-            DeviceType::Hdmi => Icons::MonitorSpeaker,
+            DeviceType::Speaker => StaticIcon::Speaker3,
+            DeviceType::Headphones => StaticIcon::Headphones1,
+            DeviceType::Headset => StaticIcon::Headset,
+            DeviceType::Hdmi => StaticIcon::MonitorSpeaker,
         }
     }
 }
@@ -91,11 +91,11 @@ impl Volume for ChannelVolumes {
 }
 
 pub trait Sinks {
-    fn get_icon(&self, default_sink: &str) -> Icons;
+    fn get_icon(&self, default_sink: &str) -> StaticIcon;
 }
 
 impl Sinks for Vec<Device> {
-    fn get_icon(&self, default_sink: &str) -> Icons {
+    fn get_icon(&self, default_sink: &str) -> StaticIcon {
         match self.iter().find_map(|s| {
             if s.ports.iter().any(|p| p.active) && s.name == default_sink {
                 Some((s.is_mute, s.volume.get_volume()))
@@ -103,19 +103,19 @@ impl Sinks for Vec<Device> {
                 None
             }
         }) {
-            Some((true, _)) => Icons::Speaker0,
+            Some((true, _)) => StaticIcon::Speaker0,
             Some((false, volume)) => {
                 if volume > 0.66 {
-                    Icons::Speaker3
+                    StaticIcon::Speaker3
                 } else if volume > 0.33 {
-                    Icons::Speaker2
+                    StaticIcon::Speaker2
                 } else if volume > 0.000001 {
-                    Icons::Speaker1
+                    StaticIcon::Speaker1
                 } else {
-                    Icons::Speaker0
+                    StaticIcon::Speaker0
                 }
             }
-            None => Icons::Speaker0,
+            None => StaticIcon::Speaker0,
         }
     }
 }
@@ -395,12 +395,11 @@ impl Service for AudioService {
                     .sinks
                     .iter_mut()
                     .find(|sink| sink.name == self.data.server_info.default_sink)
+                    && let Some(volume) = sink.volume.scale_volume(volume as f64 / 100.)
                 {
-                    if let Some(volume) = sink.volume.scale_volume(volume as f64 / 100.) {
-                        let _ = self
-                            .commander
-                            .send(PulseAudioCommand::SinkVolume(sink.name.clone(), *volume));
-                    }
+                    let _ = self
+                        .commander
+                        .send(PulseAudioCommand::SinkVolume(sink.name.clone(), *volume));
                 }
             }
             AudioCommand::SourceVolume(volume) => {
@@ -409,13 +408,12 @@ impl Service for AudioService {
                     .sources
                     .iter_mut()
                     .find(|source| source.name == self.data.server_info.default_source)
+                    && let Some(volume) = source.volume.scale_volume(volume as f64 / 100.)
                 {
-                    if let Some(volume) = source.volume.scale_volume(volume as f64 / 100.) {
-                        let _ = self.commander.send(PulseAudioCommand::SourceVolume(
-                            source.name.clone(),
-                            *volume,
-                        ));
-                    }
+                    let _ = self.commander.send(PulseAudioCommand::SourceVolume(
+                        source.name.clone(),
+                        *volume,
+                    ));
                 }
             }
             AudioCommand::DefaultSink(name, port) => {

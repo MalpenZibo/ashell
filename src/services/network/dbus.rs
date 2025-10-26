@@ -470,14 +470,8 @@ impl NetworkDbus<'_> {
 
                 match device.device_type().await.map(DeviceType::from).ok() {
                     Some(DeviceType::Ethernet) => {
-                        let wired_device = WiredDeviceProxy::builder(self.0.inner().connection())
-                            .path(device.0.path())?
-                            .build()
-                            .await?;
-
                         info.push(ActiveConnectionInfo::Wired {
                             name: connection.id().await?,
-                            speed: wired_device.speed().await?,
                         });
                     }
                     Some(DeviceType::Wifi) => {
@@ -495,7 +489,6 @@ impl NetworkDbus<'_> {
                                     .await?;
 
                             info.push(ActiveConnectionInfo::WiFi {
-                                id: connection.id().await?,
                                 name: String::from_utf8_lossy(&access_point.ssid().await?)
                                     .into_owned(),
                                 strength: access_point.strength().await.unwrap_or_default(),
@@ -621,13 +614,14 @@ impl NetworkDbus<'_> {
                     .path(&path)?
                     .build()
                     .await?;
-                wireless_device.request_scan(HashMap::new()).await?;
-                let mut scan_changed = wireless_device.receive_last_scan_changed().await;
-                if let Some(t) = scan_changed.next().await {
-                    if let Ok(-1) = t.get().await {
-                        return Ok(Default::default());
-                    }
-                }
+                // disable scan for now for performance reason
+                // wireless_device.request_scan(HashMap::new()).await?;
+                // let mut scan_changed = wireless_device.receive_last_scan_changed().await;
+                // if let Some(t) = scan_changed.next().await {
+                //     if let Ok(-1) = t.get().await {
+                //         return Ok(Default::default());
+                //     }
+                // }
                 let access_points = wireless_device.get_access_points().await?;
                 let state: DeviceState = device
                     .cached_state()
@@ -646,10 +640,10 @@ impl NetworkDbus<'_> {
                     let ssid = String::from_utf8_lossy(&ap.ssid().await?.clone()).into_owned();
                     let public = ap.flags().await.unwrap_or_default() == 0;
                     let strength = ap.strength().await?;
-                    if let Some(access_point) = aps.get(&ssid) {
-                        if access_point.strength > strength {
-                            continue;
-                        }
+                    if let Some(access_point) = aps.get(&ssid)
+                        && access_point.strength > strength
+                    {
+                        continue;
                     }
 
                     aps.insert(
@@ -766,6 +760,7 @@ impl From<u32> for DeviceType {
     }
 }
 
+#[allow(unused)]
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ActiveConnectionState {
     #[default]

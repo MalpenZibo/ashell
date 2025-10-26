@@ -1,9 +1,9 @@
 use crate::{
-    app::{self, App, Message},
+    app::{App, Message},
     config::{AppearanceStyle, ModuleDef, ModuleName},
     menu::MenuType,
     position_button::position_button,
-    style::module_button_style,
+    theme::AshellTheme,
 };
 use iced::{
     Alignment, Border, Color, Element, Length, Subscription,
@@ -26,49 +26,39 @@ pub mod updates;
 pub mod window_title;
 pub mod workspaces;
 
-use log::error;
-
 #[derive(Debug, Clone)]
 pub enum OnModulePress {
     Action(Box<Message>),
     ToggleMenu(MenuType),
 }
 
-pub trait Module {
-    type ViewData<'a>;
-    type SubscriptionData<'a>;
-
-    fn view(
-        &self,
-        data: Self::ViewData<'_>,
-    ) -> Option<(Element<app::Message>, Option<OnModulePress>)>;
-
-    fn subscription(&self, _: Self::SubscriptionData<'_>) -> Option<Subscription<app::Message>> {
-        None
-    }
-}
-
 impl App {
-    pub fn modules_section(
-        &self,
-        modules_def: &Vec<ModuleDef>,
+    pub fn modules_section<'a>(
+        &'a self,
         id: Id,
-        opacity: f32,
-    ) -> Element<Message> {
-        let mut row = row!()
-            .height(Length::Shrink)
-            .align_y(Alignment::Center)
-            .spacing(4);
+        theme: &'a AshellTheme,
+    ) -> [Element<'a, Message>; 3] {
+        [
+            &self.general_config.modules.left,
+            &self.general_config.modules.center,
+            &self.general_config.modules.right,
+        ]
+        .map(|modules_def| {
+            let mut row = row!()
+                .height(Length::Shrink)
+                .align_y(Alignment::Center)
+                .spacing(self.theme.space.xxs);
 
-        for module_def in modules_def {
-            row = row.push_maybe(match module_def {
-                // life parsing of string to module
-                ModuleDef::Single(module) => self.single_module_wrapper(module, id, opacity),
-                ModuleDef::Group(group) => self.group_module_wrapper(group, id, opacity),
-            });
-        }
+            for module_def in modules_def {
+                row = row.push_maybe(match module_def {
+                    // life parsing of string to module
+                    ModuleDef::Single(module) => self.single_module_wrapper(id, theme, module),
+                    ModuleDef::Group(group) => self.group_module_wrapper(id, theme, group),
+                });
+            }
 
-        row.into()
+            row.into()
+        })
     }
 
     pub fn modules_subscriptions(&self, modules_def: &[ModuleDef]) -> Vec<Subscription<Message>> {
@@ -87,28 +77,25 @@ impl App {
             .collect()
     }
 
-    fn single_module_wrapper(
-        &self,
-        module_name: &ModuleName,
+    fn single_module_wrapper<'a>(
+        &'a self,
         id: Id,
-        opacity: f32,
-    ) -> Option<Element<Message>> {
-        let module = self.get_module_view(module_name, id, opacity);
+        theme: &'a AshellTheme,
+        module_name: &'a ModuleName,
+    ) -> Option<Element<'a, Message>> {
+        let module = self.get_module_view(id, module_name);
 
         module.map(|(content, action)| match action {
             Some(action) => {
                 let button = position_button(
                     container(content)
                         .align_y(Alignment::Center)
-                        .height(Length::Fill),
+                        .height(Length::Fill)
+                        .clip(true),
                 )
-                .padding([2, 8])
+                .padding([2, self.theme.space.xs])
                 .height(Length::Fill)
-                .style(module_button_style(
-                    self.config.appearance.style,
-                    self.config.appearance.opacity,
-                    false,
-                ));
+                .style(theme.module_button_style(false));
 
                 match action {
                     OnModulePress::Action(action) => button.on_press(*action),
@@ -122,11 +109,12 @@ impl App {
             }
             _ => {
                 let container = container(content)
-                    .padding([2, 8])
+                    .padding([2, self.theme.space.xs])
                     .height(Length::Fill)
-                    .align_y(Alignment::Center);
+                    .align_y(Alignment::Center)
+                    .clip(true);
 
-                match self.config.appearance.style {
+                match self.theme.bar_style {
                     AppearanceStyle::Solid | AppearanceStyle::Gradient => container.into(),
                     AppearanceStyle::Islands => container
                         .style(|theme| container::Style {
@@ -134,12 +122,12 @@ impl App {
                                 theme
                                     .palette()
                                     .background
-                                    .scale_alpha(self.config.appearance.opacity)
+                                    .scale_alpha(self.theme.opacity)
                                     .into(),
                             ),
                             border: Border {
                                 width: 0.0,
-                                radius: 12.0.into(),
+                                radius: self.theme.radius.lg.into(),
                                 color: Color::TRANSPARENT,
                             },
                             ..container::Style::default()
@@ -150,15 +138,15 @@ impl App {
         })
     }
 
-    fn group_module_wrapper(
-        &self,
-        group: &[ModuleName],
+    fn group_module_wrapper<'a>(
+        &'a self,
         id: Id,
-        opacity: f32,
-    ) -> Option<Element<Message>> {
+        theme: &'a AshellTheme,
+        group: &'a [ModuleName],
+    ) -> Option<Element<'a, Message>> {
         let modules = group
             .iter()
-            .filter_map(|module| self.get_module_view(module, id, opacity))
+            .filter_map(|module| self.get_module_view(id, module))
             .collect::<Vec<_>>();
 
         if modules.is_empty() {
@@ -173,15 +161,12 @@ impl App {
                                 let button = position_button(
                                     container(content)
                                         .align_y(Alignment::Center)
-                                        .height(Length::Fill),
+                                        .height(Length::Fill)
+                                        .clip(true),
                                 )
-                                .padding([2, 8])
+                                .padding([2, self.theme.space.xs])
                                 .height(Length::Fill)
-                                .style(module_button_style(
-                                    self.config.appearance.style,
-                                    self.config.appearance.opacity,
-                                    true,
-                                ));
+                                .style(theme.module_button_style(true));
 
                                 match action {
                                     OnModulePress::Action(action) => button.on_press(*action),
@@ -197,15 +182,16 @@ impl App {
                                 .into()
                             }
                             _ => container(content)
-                                .padding([2, 8])
+                                .padding([2, self.theme.space.xs])
                                 .height(Length::Fill)
                                 .align_y(Alignment::Center)
+                                .clip(true)
                                 .into(),
                         })
                         .collect::<Vec<_>>(),
                 );
 
-                match self.config.appearance.style {
+                match self.theme.bar_style {
                     AppearanceStyle::Solid | AppearanceStyle::Gradient => group.into(),
                     AppearanceStyle::Islands => container(group)
                         .style(|theme| container::Style {
@@ -213,12 +199,12 @@ impl App {
                                 theme
                                     .palette()
                                     .background
-                                    .scale_alpha(self.config.appearance.opacity)
+                                    .scale_alpha(self.theme.opacity)
                                     .into(),
                             ),
                             border: Border {
                                 width: 0.0,
-                                radius: 12.0.into(),
+                                radius: self.theme.radius.lg.into(),
                                 color: Color::TRANSPARENT,
                             },
                             ..container::Style::default()
@@ -229,74 +215,134 @@ impl App {
         }
     }
 
-    fn get_module_view(
-        &self,
-        module_name: &ModuleName,
+    fn get_module_view<'a>(
+        &'a self,
         id: Id,
-        opacity: f32,
-    ) -> Option<(Element<Message>, Option<OnModulePress>)> {
+        module_name: &'a ModuleName,
+    ) -> Option<(Element<'a, Message>, Option<OnModulePress>)> {
         match module_name {
-            ModuleName::AppLauncher => self.app_launcher.view(&self.config.app_launcher_cmd),
-            ModuleName::Custom(name) => self
-                .config
-                .custom_modules
-                .iter()
-                .find(|m| &m.name == name)
-                .and_then(|mc| self.custom.get(name).map(|cm| cm.view(mc)))
-                .unwrap_or_else(|| {
-                    error!("Custom module `{name}` not found");
-                    None
-                }),
-            ModuleName::Updates => self.updates.view(&self.config.updates),
-            ModuleName::Clipboard => self.clipboard.view(&self.config.clipboard_cmd),
-            ModuleName::Workspaces => self.workspaces.view((
-                &self.outputs,
-                id,
-                &self.config.workspaces,
-                &self.config.appearance.workspace_colors,
-                self.config.appearance.special_workspace_colors.as_deref(),
+            ModuleName::AppLauncher => self.app_launcher.as_ref().map(|app_launcher| {
+                (
+                    app_launcher.view().map(Message::AppLauncher),
+                    Some(OnModulePress::Action(Box::new(Message::AppLauncher(
+                        app_launcher::Message::Launch,
+                    )))),
+                )
+            }),
+            ModuleName::Custom(name) => self.custom.get(name).map(|custom| {
+                (
+                    custom
+                        .view(&self.theme)
+                        .map(|msg| Message::Custom(name.clone(), msg)),
+                    Some(OnModulePress::Action(Box::new(Message::Custom(
+                        name.clone(),
+                        custom_module::Message::LaunchCommand,
+                    )))),
+                )
+            }),
+            ModuleName::Updates => self.updates.as_ref().map(|updates| {
+                (
+                    updates.view(&self.theme).map(Message::Updates),
+                    Some(OnModulePress::ToggleMenu(MenuType::Updates)),
+                )
+            }),
+            ModuleName::Clipboard => self.clipboard.as_ref().map(|clipboard| {
+                (
+                    clipboard.view().map(Message::Clipboard),
+                    Some(OnModulePress::Action(Box::new(Message::Clipboard(
+                        clipboard::Message::Launch,
+                    )))),
+                )
+            }),
+            ModuleName::Workspaces => Some((
+                self.workspaces
+                    .view(id, &self.theme, &self.outputs)
+                    .map(Message::Workspaces),
+                None,
             )),
-            ModuleName::WindowTitle => self.window_title.view(()),
-            ModuleName::SystemInfo => self.system_info.view(&self.config.system),
-            ModuleName::KeyboardLayout => self.keyboard_layout.view(&self.config.keyboard_layout),
-            ModuleName::KeyboardSubmap => self.keyboard_submap.view(()),
-            ModuleName::Tray => self.tray.view((id, opacity)),
-            ModuleName::Clock => self.clock.view(&self.config.clock.format),
-            ModuleName::Privacy => self.privacy.view(()),
-            ModuleName::Settings => self.settings.view(()),
-            ModuleName::MediaPlayer => self.media_player.view(&self.config.media_player),
+            ModuleName::WindowTitle => self.window_title.get_value().map(|title| {
+                (
+                    self.window_title
+                        .view(&self.theme, title)
+                        .map(Message::WindowTitle),
+                    None,
+                )
+            }),
+            ModuleName::SystemInfo => Some((
+                self.system_info.view(&self.theme).map(Message::SystemInfo),
+                Some(OnModulePress::ToggleMenu(MenuType::SystemInfo)),
+            )),
+            ModuleName::KeyboardLayout => self.keyboard_layout.view(&self.theme).map(|view| {
+                (
+                    view.map(Message::KeyboardLayout),
+                    Some(OnModulePress::Action(Box::new(Message::KeyboardLayout(
+                        keyboard_layout::Message::ChangeLayout,
+                    )))),
+                )
+            }),
+            ModuleName::KeyboardSubmap => self
+                .keyboard_submap
+                .view(&self.theme)
+                .map(|view| (view.map(Message::KeyboardSubmap), None)),
+            ModuleName::Tray => self
+                .tray
+                .view(id, &self.theme)
+                .map(|view| (view.map(Message::Tray), None)),
+            ModuleName::Clock => Some((self.clock.view(&self.theme).map(Message::Clock), None)),
+            ModuleName::Privacy => self
+                .privacy
+                .view(&self.theme)
+                .map(|view| (view.map(Message::Privacy), None)),
+            ModuleName::MediaPlayer => self.media_player.view(&self.theme).map(|view| {
+                (
+                    view.map(Message::MediaPlayer),
+                    Some(OnModulePress::ToggleMenu(MenuType::MediaPlayer)),
+                )
+            }),
+            ModuleName::Settings => Some((
+                self.settings.view(&self.theme).map(Message::Settings),
+                Some(OnModulePress::ToggleMenu(MenuType::Settings)),
+            )),
         }
     }
 
     fn get_module_subscription(&self, module_name: &ModuleName) -> Option<Subscription<Message>> {
         match module_name {
-            ModuleName::AppLauncher => self.app_launcher.subscription(()),
-            ModuleName::Custom(name) => self
-                .config
-                .custom_modules
-                .iter()
-                .find(|m| &m.name == name)
-                .and_then(|mc| self.custom.get(name).map(|cm| cm.subscription(mc)))
-                .unwrap_or_else(|| {
-                    error!("Custom module def `{name}` not found");
-                    None
-                }),
+            ModuleName::AppLauncher => None,
+            ModuleName::Custom(name) => self.custom.get(name).map(|custom| {
+                custom
+                    .subscription()
+                    .map(|(name, msg)| Message::Custom(name, msg))
+            }),
             ModuleName::Updates => self
-                .config
                 .updates
                 .as_ref()
-                .and_then(|updates_config| self.updates.subscription(updates_config)),
-            ModuleName::Clipboard => self.clipboard.subscription(()),
-            ModuleName::Workspaces => self.workspaces.subscription(&self.config.workspaces),
-            ModuleName::WindowTitle => self.window_title.subscription(()),
-            ModuleName::SystemInfo => self.system_info.subscription(()),
-            ModuleName::KeyboardLayout => self.keyboard_layout.subscription(()),
-            ModuleName::KeyboardSubmap => self.keyboard_submap.subscription(()),
-            ModuleName::Tray => self.tray.subscription(()),
-            ModuleName::Clock => self.clock.subscription(&self.config.clock.format),
-            ModuleName::Privacy => self.privacy.subscription(()),
-            ModuleName::Settings => self.settings.subscription(()),
-            ModuleName::MediaPlayer => self.media_player.subscription(()),
+                .map(|updates| updates.subscription().map(Message::Updates)),
+            ModuleName::Clipboard => None,
+            ModuleName::Workspaces => Some(self.workspaces.subscription().map(Message::Workspaces)),
+            ModuleName::WindowTitle => {
+                Some(self.window_title.subscription().map(Message::WindowTitle))
+            }
+            ModuleName::SystemInfo => {
+                Some(self.system_info.subscription().map(Message::SystemInfo))
+            }
+            ModuleName::KeyboardLayout => Some(
+                self.keyboard_layout
+                    .subscription()
+                    .map(Message::KeyboardLayout),
+            ),
+            ModuleName::KeyboardSubmap => Some(
+                self.keyboard_submap
+                    .subscription()
+                    .map(Message::KeyboardSubmap),
+            ),
+            ModuleName::Tray => Some(self.tray.subscription().map(Message::Tray)),
+            ModuleName::Clock => Some(self.clock.subscription().map(Message::Clock)),
+            ModuleName::Privacy => Some(self.privacy.subscription().map(Message::Privacy)),
+            ModuleName::MediaPlayer => {
+                Some(self.media_player.subscription().map(Message::MediaPlayer))
+            }
+            ModuleName::Settings => Some(self.settings.subscription().map(Message::Settings)),
         }
     }
 }

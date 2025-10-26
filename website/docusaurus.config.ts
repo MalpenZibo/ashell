@@ -77,7 +77,7 @@ const config: Config = {
         {
           to: "docs/intro",
           position: "left",
-          label: "Get Started",
+          label: "Getting Started",
         },
         {
           to: "docs/configuration",
@@ -88,6 +88,10 @@ const config: Config = {
           to: "gallery",
           label: "Gallery",
           position: "left",
+        },
+        {
+          type: "docsVersionDropdown",
+          position: "right",
         },
         {
           position: "right",

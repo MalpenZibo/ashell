@@ -1,89 +1,81 @@
-use self::{
-    audio::AudioMessage, bluetooth::BluetoothMessage, network::NetworkMessage, power::PowerMessage,
-};
-use super::{Module, OnModulePress};
+use std::collections::HashMap;
+use std::time::Duration;
+
+use iced::futures::future::join_all;
+use log::{debug, error};
+use tokio::process::Command;
+use tokio::time::timeout;
+
 use crate::{
-    app,
-    components::icons::{Icons, icon},
-    config::{Position, SettingsModuleConfig},
-    menu::MenuType,
-    modules::settings::power::power_menu,
-    outputs::Outputs,
+    components::icons::{DynamicIcon, Icon, IconButtonSize, StaticIcon, icon, icon_button},
+    config::{Position, SettingsCustomButton, SettingsIndicator, SettingsModuleConfig},
+    modules::settings::{
+        audio::{AudioSettings, AudioSettingsConfig},
+        bluetooth::{BluetoothSettings, BluetoothSettingsConfig},
+        brightness::BrightnessSettings,
+        network::{NetworkSettings, NetworkSettingsConfig},
+        power::{PowerSettings, PowerSettingsConfig},
+    },
     password_dialog,
-    position_button::ButtonUIRef,
-    services::{
-        ReadOnlyService, Service, ServiceEvent,
-        audio::{AudioCommand, AudioService},
-        bluetooth::{BluetoothCommand, BluetoothService, BluetoothState},
-        brightness::{BrightnessCommand, BrightnessService},
-        idle_inhibitor::IdleInhibitorManager,
-        network::{NetworkCommand, NetworkEvent, NetworkService},
-        upower::{PowerProfileCommand, UPowerService},
-    },
-    style::{
-        quick_settings_button_style, quick_settings_submenu_button_style, settings_button_style,
-    },
+    services::idle_inhibitor::IdleInhibitorManager,
+    theme::AshellTheme,
 };
-use brightness::BrightnessMessage;
 use iced::{
     Alignment, Background, Border, Element, Length, Padding, Subscription, Task, Theme,
-    alignment::{Horizontal, Vertical},
     widget::{Column, Row, Space, button, column, container, horizontal_space, row, text},
     window::Id,
 };
-use log::info;
-use upower::UPowerMessage;
 
-pub mod audio;
-pub mod bluetooth;
-pub mod brightness;
-pub mod network;
+mod audio;
+mod bluetooth;
+mod brightness;
+mod network;
 mod power;
-mod upower;
 
 pub struct Settings {
-    audio: Option<AudioService>,
-    pub brightness: Option<BrightnessService>,
-    network: Option<NetworkService>,
-    bluetooth: Option<BluetoothService>,
+    lock_cmd: Option<String>,
+    power: PowerSettings,
+    audio: AudioSettings,
+    brightness: BrightnessSettings,
+    network: NetworkSettings,
+    bluetooth: BluetoothSettings,
     idle_inhibitor: Option<IdleInhibitorManager>,
-    pub sub_menu: Option<SubMenu>,
-    upower: Option<UPowerService>,
-    pub password_dialog: Option<(String, String)>,
-}
-
-impl Default for Settings {
-    fn default() -> Self {
-        Settings {
-            audio: None,
-            brightness: None,
-            network: None,
-            bluetooth: None,
-            idle_inhibitor: IdleInhibitorManager::new(),
-            sub_menu: None,
-            upower: None,
-            password_dialog: None,
-        }
-    }
+    sub_menu: Option<SubMenu>,
+    password_dialog: Option<(String, String)>,
+    indicators: Vec<SettingsIndicator>,
+    custom_buttons: Vec<SettingsCustomButton>,
+    custom_buttons_status: HashMap<String, Option<bool>>,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    ToggleMenu(Id, ButtonUIRef),
-    UPower(UPowerMessage),
-    Network(NetworkMessage),
-    Bluetooth(BluetoothMessage),
-    Audio(AudioMessage),
-    Brightness(BrightnessMessage),
+    Network(network::Message),
+    Bluetooth(bluetooth::Message),
+    Audio(audio::Message),
+    Brightness(brightness::Message),
     ToggleInhibitIdle,
     Lock,
-    Power(PowerMessage),
+    Power(power::Message),
     ToggleSubMenu(SubMenu),
     PasswordDialog(password_dialog::Message),
+    CustomButton(String),
+    CustomButtonsStatus(Vec<(String, Option<bool>)>),
+    MenuOpened,
+    ConfigReloaded(SettingsModuleConfig),
+}
+
+pub enum Action {
+    None,
+    Command(Task<Message>),
+    CloseMenu(Id),
+    RequestKeyboard(Id),
+    ReleaseKeyboard(Id),
+    ReleaseKeyboardWithCommand(Id, Task<Message>),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum SubMenu {
+    PeripheralMenu,
     Power,
     Sinks,
     Sources,
@@ -93,313 +85,178 @@ pub enum SubMenu {
 }
 
 impl Settings {
-    pub fn update(
-        &mut self,
-        message: Message,
-        config: &SettingsModuleConfig,
-        outputs: &mut Outputs,
-    ) -> Task<crate::app::Message> {
+    pub fn new(config: SettingsModuleConfig) -> Self {
+        Settings {
+            lock_cmd: config.lock_cmd,
+            power: PowerSettings::new(PowerSettingsConfig::new(
+                config.suspend_cmd,
+                config.hibernate_cmd,
+                config.reboot_cmd,
+                config.shutdown_cmd,
+                config.logout_cmd,
+                config.battery_format,
+                config.peripheral_indicators,
+                config.peripheral_battery_format,
+            )),
+            audio: AudioSettings::new(AudioSettingsConfig::new(
+                config.audio_sinks_more_cmd,
+                config.audio_sources_more_cmd,
+            )),
+            brightness: BrightnessSettings::new(),
+            network: NetworkSettings::new(NetworkSettingsConfig::new(
+                config.wifi_more_cmd,
+                config.vpn_more_cmd,
+                config.remove_airplane_btn,
+            )),
+            bluetooth: BluetoothSettings::new(BluetoothSettingsConfig::new(
+                config.bluetooth_more_cmd,
+            )),
+            idle_inhibitor: if config.remove_idle_btn {
+                None
+            } else {
+                IdleInhibitorManager::new()
+            },
+            sub_menu: None,
+            password_dialog: None,
+            indicators: config.indicators,
+            custom_buttons: config.custom_buttons,
+            custom_buttons_status: HashMap::new(),
+        }
+    }
+
+    pub fn update(&mut self, message: Message) -> Action {
         match message {
-            Message::ToggleMenu(id, button_ui_ref) => {
-                self.sub_menu = None;
-                self.password_dialog = None;
-                outputs.toggle_menu(id, MenuType::Settings, button_ui_ref)
-            }
-            Message::Audio(msg) => match msg {
-                AudioMessage::Event(event) => match event {
-                    ServiceEvent::Init(service) => {
-                        self.audio = Some(service);
-                        Task::none()
-                    }
-                    ServiceEvent::Update(data) => {
-                        if let Some(audio) = self.audio.as_mut() {
-                            audio.update(data);
-
-                            if self.sub_menu == Some(SubMenu::Sinks) && audio.sinks.len() < 2 {
-                                self.sub_menu = None;
-                            }
-
-                            if self.sub_menu == Some(SubMenu::Sources) && audio.sources.len() < 2 {
-                                self.sub_menu = None;
-                            }
-                        }
-                        Task::none()
-                    }
-                    ServiceEvent::Error(_) => Task::none(),
-                },
-                AudioMessage::ToggleSinkMute => {
-                    if let Some(audio) = self.audio.as_mut() {
-                        let _ = audio.command(AudioCommand::ToggleSinkMute);
-                    }
-                    Task::none()
-                }
-                AudioMessage::SinkVolumeChanged(value) => {
-                    if let Some(audio) = self.audio.as_mut() {
-                        let _ = audio.command(AudioCommand::SinkVolume(value));
-                    }
-                    Task::none()
-                }
-                AudioMessage::DefaultSinkChanged(name, port) => {
-                    if let Some(audio) = self.audio.as_mut() {
-                        let _ = audio.command(AudioCommand::DefaultSink(name, port));
-                    }
-                    Task::none()
-                }
-                AudioMessage::ToggleSourceMute => {
-                    if let Some(audio) = self.audio.as_mut() {
-                        let _ = audio.command(AudioCommand::ToggleSourceMute);
-                    }
-                    Task::none()
-                }
-                AudioMessage::SourceVolumeChanged(value) => {
-                    if let Some(audio) = self.audio.as_mut() {
-                        let _ = audio.command(AudioCommand::SourceVolume(value));
-                    }
-                    Task::none()
-                }
-                AudioMessage::DefaultSourceChanged(name, port) => {
-                    if let Some(audio) = self.audio.as_mut() {
-                        let _ = audio.command(AudioCommand::DefaultSource(name, port));
-                    }
-                    Task::none()
-                }
-                AudioMessage::SinksMore(id) => {
-                    if let Some(cmd) = &config.audio_sinks_more_cmd {
-                        crate::utils::launcher::execute_command(cmd.to_string());
-                        outputs.close_menu(id)
+            Message::Power(msg) => match self.power.update(msg) {
+                power::Action::None => Action::None,
+                power::Action::TogglePeripheralMenu => {
+                    if self.sub_menu == Some(SubMenu::PeripheralMenu) {
+                        self.sub_menu.take();
                     } else {
-                        Task::none()
+                        self.sub_menu.replace(SubMenu::PeripheralMenu);
                     }
+                    Action::None
                 }
-                AudioMessage::SourcesMore(id) => {
-                    if let Some(cmd) = &config.audio_sources_more_cmd {
-                        crate::utils::launcher::execute_command(cmd.to_string());
-                        outputs.close_menu(id)
+                power::Action::Command(task) => Action::Command(task.map(Message::Power)),
+            },
+            Message::Audio(msg) => match self.audio.update(msg) {
+                audio::Action::None => Action::None,
+                audio::Action::ToggleSinksMenu => {
+                    if self.sub_menu == Some(SubMenu::Sinks) {
+                        self.sub_menu.take();
                     } else {
-                        Task::none()
+                        self.sub_menu.replace(SubMenu::Sinks);
                     }
+                    Action::None
                 }
+                audio::Action::ToggleSourcesMenu => {
+                    if self.sub_menu == Some(SubMenu::Sources) {
+                        self.sub_menu.take();
+                    } else {
+                        self.sub_menu.replace(SubMenu::Sources);
+                    }
+                    Action::None
+                }
+                audio::Action::CloseSubMenu => {
+                    if self.sub_menu == Some(SubMenu::Sinks)
+                        || self.sub_menu == Some(SubMenu::Sources)
+                    {
+                        self.sub_menu.take();
+                    }
+                    Action::None
+                }
+                audio::Action::CloseMenu(id) => Action::CloseMenu(id),
             },
-            Message::UPower(msg) => match msg {
-                UPowerMessage::Event(event) => match event {
-                    ServiceEvent::Init(service) => {
-                        self.upower = Some(service);
-                        Task::none()
-                    }
-                    ServiceEvent::Update(data) => {
-                        if let Some(upower) = self.upower.as_mut() {
-                            upower.update(data);
-                        }
-                        Task::none()
-                    }
-                    ServiceEvent::Error(_) => Task::none(),
-                },
-                UPowerMessage::TogglePowerProfile => match self.upower.as_mut() {
-                    Some(upower) => upower.command(PowerProfileCommand::Toggle).map(|event| {
-                        crate::app::Message::Settings(Message::UPower(UPowerMessage::Event(event)))
-                    }),
-                    _ => Task::none(),
-                },
-            },
-            Message::Network(msg) => match msg {
-                NetworkMessage::Event(event) => match event {
-                    ServiceEvent::Init(service) => {
-                        self.network = Some(service);
-                        Task::none()
-                    }
-                    ServiceEvent::Update(NetworkEvent::RequestPasswordForSSID(ssid)) => {
-                        self.password_dialog = Some((ssid, "".to_string()));
-                        Task::none()
-                    }
-                    ServiceEvent::Update(data) => {
-                        if let Some(network) = self.network.as_mut() {
-                            network.update(data);
-                        }
-                        Task::none()
-                    }
-                    _ => Task::none(),
-                },
-                NetworkMessage::ToggleAirplaneMode => match self.network.as_mut() {
-                    Some(network) => {
-                        if self.sub_menu == Some(SubMenu::Wifi) {
-                            self.sub_menu = None;
-                        }
-
-                        network
-                            .command(NetworkCommand::ToggleAirplaneMode)
-                            .map(|event| {
-                                crate::app::Message::Settings(Message::Network(
-                                    NetworkMessage::Event(event),
-                                ))
-                            })
-                    }
-                    _ => Task::none(),
-                },
-                NetworkMessage::ToggleWiFi => match self.network.as_mut() {
-                    Some(network) => {
-                        if self.sub_menu == Some(SubMenu::Wifi) {
-                            self.sub_menu = None;
-                        }
-                        network.command(NetworkCommand::ToggleWiFi).map(|event| {
-                            crate::app::Message::Settings(Message::Network(NetworkMessage::Event(
-                                event,
-                            )))
-                        })
-                    }
-                    _ => Task::none(),
-                },
-                NetworkMessage::SelectAccessPoint(ac) => match self.network.as_mut() {
-                    Some(network) => network
-                        .command(NetworkCommand::SelectAccessPoint((ac, None)))
-                        .map(|event| {
-                            crate::app::Message::Settings(Message::Network(NetworkMessage::Event(
-                                event,
-                            )))
-                        }),
-                    _ => Task::none(),
-                },
-                NetworkMessage::RequestWiFiPassword(id, ssid) => {
-                    info!("Requesting password for {ssid}");
+            Message::Network(msg) => match self.network.update(msg) {
+                network::Action::None => Action::None,
+                network::Action::RequestPasswordForSSID(ssid) => {
                     self.password_dialog = Some((ssid, "".to_string()));
-                    outputs.request_keyboard(id)
+                    Action::None
                 }
-                NetworkMessage::ScanNearByWiFi => match self.network.as_mut() {
-                    Some(network) => network
-                        .command(NetworkCommand::ScanNearByWiFi)
-                        .map(|event| {
-                            crate::app::Message::Settings(Message::Network(NetworkMessage::Event(
-                                event,
-                            )))
-                        }),
-                    _ => Task::none(),
-                },
-                NetworkMessage::WiFiMore(id) => {
-                    if let Some(cmd) = &config.wifi_more_cmd {
-                        crate::utils::launcher::execute_command(cmd.to_string());
-                        outputs.close_menu(id)
+                network::Action::RequestPassword(id, ssid) => {
+                    self.password_dialog = Some((ssid, "".to_string()));
+                    Action::RequestKeyboard(id)
+                }
+                network::Action::Command(task) => Action::Command(task.map(Message::Network)),
+                network::Action::ToggleWifiMenu => {
+                    if self.sub_menu == Some(SubMenu::Wifi) {
+                        self.sub_menu.take();
                     } else {
-                        Task::none()
+                        self.sub_menu.replace(SubMenu::Wifi);
                     }
+                    Action::None
                 }
-                NetworkMessage::VpnMore(id) => {
-                    if let Some(cmd) = &config.vpn_more_cmd {
-                        crate::utils::launcher::execute_command(cmd.to_string());
-                        outputs.close_menu(id)
+                network::Action::ToggleVpnMenu => {
+                    if self.sub_menu == Some(SubMenu::Vpn) {
+                        self.sub_menu.take();
                     } else {
-                        Task::none()
+                        self.sub_menu.replace(SubMenu::Vpn);
                     }
+                    Action::None
                 }
-                NetworkMessage::ToggleVpn(vpn) => match self.network.as_mut() {
-                    Some(network) => network
-                        .command(NetworkCommand::ToggleVpn(vpn))
-                        .map(|event| {
-                            crate::app::Message::Settings(Message::Network(NetworkMessage::Event(
-                                event,
-                            )))
-                        }),
-                    _ => Task::none(),
-                },
-            },
-            Message::Bluetooth(msg) => match msg {
-                BluetoothMessage::Event(event) => match event {
-                    ServiceEvent::Init(service) => {
-                        self.bluetooth = Some(service);
-                        Task::none()
+                network::Action::CloseSubMenu(task) => {
+                    if self.sub_menu == Some(SubMenu::Wifi) || self.sub_menu == Some(SubMenu::Vpn) {
+                        self.sub_menu.take();
                     }
-                    ServiceEvent::Update(data) => {
-                        if let Some(bluetooth) = self.bluetooth.as_mut() {
-                            bluetooth.update(data);
-                        }
-                        Task::none()
-                    }
-                    _ => Task::none(),
-                },
-                BluetoothMessage::Toggle => match self.bluetooth.as_mut() {
-                    Some(bluetooth) => {
-                        if self.sub_menu == Some(SubMenu::Bluetooth) {
-                            self.sub_menu = None;
-                        }
 
-                        bluetooth.command(BluetoothCommand::Toggle).map(|event| {
-                            crate::app::Message::Settings(Message::Bluetooth(
-                                BluetoothMessage::Event(event),
-                            ))
-                        })
-                    }
-                    _ => Task::none(),
-                },
-                BluetoothMessage::More(id) => {
-                    if let Some(cmd) = &config.bluetooth_more_cmd {
-                        crate::utils::launcher::execute_command(cmd.to_string());
-                        outputs.close_menu(id)
-                    } else {
-                        Task::none()
-                    }
+                    Action::Command(task.map(Message::Network))
                 }
+                network::Action::CloseMenu(id) => Action::CloseMenu(id),
             },
-            Message::Brightness(msg) => match msg {
-                BrightnessMessage::Event(event) => match event {
-                    ServiceEvent::Init(service) => {
-                        self.brightness = Some(service);
-                        Task::none()
+            Message::Bluetooth(msg) => match self.bluetooth.update(msg) {
+                bluetooth::Action::None => Action::None,
+                bluetooth::Action::ToggleBluetoothMenu => {
+                    if self.sub_menu == Some(SubMenu::Bluetooth) {
+                        self.sub_menu.take();
+                    } else {
+                        self.sub_menu.replace(SubMenu::Bluetooth);
                     }
-                    ServiceEvent::Update(data) => {
-                        if let Some(brightness) = self.brightness.as_mut() {
-                            brightness.update(data);
-                        }
-                        Task::none()
+                    Action::None
+                }
+                bluetooth::Action::CloseSubMenu(task) => {
+                    if self.sub_menu == Some(SubMenu::Bluetooth) {
+                        self.sub_menu.take();
                     }
-                    _ => Task::none(),
-                },
-                BrightnessMessage::Change(value) => match self.brightness.as_mut() {
-                    Some(brightness) => {
-                        brightness
-                            .command(BrightnessCommand::Set(value))
-                            .map(|event| {
-                                crate::app::Message::Settings(Message::Brightness(
-                                    BrightnessMessage::Event(event),
-                                ))
-                            })
-                    }
-                    _ => Task::none(),
-                },
+
+                    Action::Command(task.map(Message::Bluetooth))
+                }
+                bluetooth::Action::Command(task) => Action::Command(task.map(Message::Bluetooth)),
+                bluetooth::Action::CloseMenu(id) => Action::CloseMenu(id),
+            },
+            Message::Brightness(msg) => match self.brightness.update(msg) {
+                brightness::Action::None => Action::None,
+                brightness::Action::Command(task) => Action::Command(task.map(Message::Brightness)),
             },
             Message::ToggleSubMenu(menu_type) => {
                 if self.sub_menu == Some(menu_type) {
                     self.sub_menu.take();
+
+                    Action::None
                 } else {
                     self.sub_menu.replace(menu_type);
 
                     if menu_type == SubMenu::Wifi {
-                        if let Some(network) = self.network.as_mut() {
-                            return network
-                                .command(NetworkCommand::ScanNearByWiFi)
-                                .map(|event| {
-                                    crate::app::Message::Settings(Message::Network(
-                                        NetworkMessage::Event(event),
-                                    ))
-                                });
+                        match self.network.update(network::Message::WifiMenuOpened) {
+                            network::Action::Command(task) => {
+                                Action::Command(task.map(Message::Network))
+                            }
+                            _ => Action::None,
                         }
+                    } else {
+                        Action::None
                     }
                 }
-
-                Task::none()
             }
             Message::ToggleInhibitIdle => {
                 if let Some(idle_inhibitor) = &mut self.idle_inhibitor {
                     idle_inhibitor.toggle();
                 }
-                Task::none()
+                Action::None
             }
             Message::Lock => {
-                if let Some(lock_cmd) = &config.lock_cmd {
+                if let Some(lock_cmd) = &self.lock_cmd {
                     crate::utils::launcher::execute_command(lock_cmd.to_string());
                 }
-                Task::none()
-            }
-            Message::Power(msg) => {
-                msg.update();
-                Task::none()
+                Action::None
             }
             Message::PasswordDialog(msg) => match msg {
                 password_dialog::Message::PasswordChanged(password) => {
@@ -407,179 +264,299 @@ impl Settings {
                         *current_password = password;
                     }
 
-                    Task::none()
+                    Action::None
                 }
                 password_dialog::Message::DialogConfirmed(id) => {
                     if let Some((ssid, password)) = self.password_dialog.take() {
-                        let network_command = match self.network.as_mut() {
-                            Some(network) => {
-                                let ap = network
-                                    .wireless_access_points
-                                    .iter()
-                                    .find(|ap| ap.ssid == ssid)
-                                    .cloned();
-                                if let Some(ap) = ap {
-                                    network
-                                        .command(NetworkCommand::SelectAccessPoint((
-                                            ap,
-                                            Some(password),
-                                        )))
-                                        .map(|event| {
-                                            crate::app::Message::Settings(Message::Network(
-                                                NetworkMessage::Event(event),
-                                            ))
-                                        })
-                                } else {
-                                    Task::none()
-                                }
+                        match self
+                            .network
+                            .update(network::Message::PasswordDialogConfirmed(
+                                ssid.clone(),
+                                password.clone(),
+                            )) {
+                            network::Action::Command(task) => {
+                                Action::ReleaseKeyboardWithCommand(id, task.map(Message::Network))
                             }
-                            _ => Task::none(),
-                        };
-                        Task::batch(vec![network_command, outputs.release_keyboard(id)])
+                            _ => Action::ReleaseKeyboard(id),
+                        }
                     } else {
-                        outputs.release_keyboard(id)
+                        Action::ReleaseKeyboard(id)
                     }
                 }
                 password_dialog::Message::DialogCancelled(id) => {
                     self.password_dialog = None;
 
-                    outputs.release_keyboard(id)
+                    Action::ReleaseKeyboard(id)
                 }
             },
+            Message::CustomButton(name) => {
+                if let Some(button) = self.custom_buttons.iter().find(|b| b.name == name) {
+                    crate::utils::launcher::execute_command(button.command.clone());
+
+                    // Toggle button state immediately
+                    let current_status = self.custom_buttons_status.get(&name).and_then(|v| *v);
+                    self.custom_buttons_status
+                        .insert(name, current_status.map(|s| !s));
+                }
+                Action::None
+            }
+            Message::CustomButtonsStatus(statuses) => {
+                for (name, status) in statuses.into_iter() {
+                    self.custom_buttons_status.insert(name, status);
+                }
+                Action::None
+            }
+            Message::MenuOpened => {
+                self.sub_menu = None;
+
+                let buttons = self.custom_buttons.clone();
+
+                let custom_buttons_task = if buttons.is_empty() {
+                    Task::none()
+                } else {
+                    Task::perform(
+                        async move {
+                            let futures = buttons.into_iter().map(|button| async move {
+                                if let Some(cmd) = button.status_command {
+                                    let result = timeout(Duration::from_secs(1), async {
+                                        let output = Command::new("bash")
+                                            .arg("-c")
+                                            .arg(cmd)
+                                            .status()
+                                            .await?;
+                                        Ok::<_, std::io::Error>(output.success())
+                                    })
+                                    .await;
+                                    match result {
+                                        Ok(Ok(output)) => {
+                                            debug!(
+                                                "Custom button '{}' status_command executed with result: {}",
+                                                button.name, output
+                                            );
+                                            (button.name, Some(output))
+                                        }
+                                        Ok(Err(e)) => {
+                                            error!(
+                                                "Failed to spawn status_command for custom button '{}': {}",
+                                                button.name, e
+                                            );
+                                            (button.name, None)
+                                        }
+                                        Err(_) => {
+                                            error!(
+                                                "Custom button '{}' status_command timed out after 1000ms",
+                                                button.name
+                                            );
+                                            (button.name, None)
+                                        }
+                                    }
+                                } else {
+                                    (button.name, Some(false))
+                                }
+                            });
+                            join_all(futures).await
+                        },
+                        Message::CustomButtonsStatus,
+                    )
+                };
+
+                // Batch both tasks to run in parallel
+                let brightness_task = match self.brightness.update(brightness::Message::MenuOpened)
+                {
+                    brightness::Action::None => Task::none(),
+                    brightness::Action::Command(task) => task.map(Message::Brightness),
+                };
+
+                Action::Command(Task::batch([custom_buttons_task, brightness_task]))
+            }
+            Message::ConfigReloaded(config) => {
+                self.lock_cmd = config.lock_cmd;
+                self.power
+                    .update(power::Message::ConfigReloaded(PowerSettingsConfig::new(
+                        config.suspend_cmd,
+                        config.hibernate_cmd,
+                        config.reboot_cmd,
+                        config.shutdown_cmd,
+                        config.logout_cmd,
+                        config.battery_format,
+                        config.peripheral_indicators,
+                        config.peripheral_battery_format,
+                    )));
+                self.audio
+                    .update(audio::Message::ConfigReloaded(AudioSettingsConfig::new(
+                        config.audio_sinks_more_cmd,
+                        config.audio_sources_more_cmd,
+                    )));
+                self.network.update(network::Message::ConfigReloaded(
+                    NetworkSettingsConfig::new(
+                        config.wifi_more_cmd,
+                        config.vpn_more_cmd,
+                        config.remove_airplane_btn,
+                    ),
+                ));
+                self.bluetooth.update(bluetooth::Message::ConfigReloaded(
+                    BluetoothSettingsConfig::new(config.bluetooth_more_cmd),
+                ));
+                if config.remove_idle_btn {
+                    self.idle_inhibitor = None;
+                } else if self.idle_inhibitor.is_none() {
+                    self.idle_inhibitor = IdleInhibitorManager::new();
+                }
+                self.indicators = config.indicators;
+                Action::None
+            }
         }
     }
 
-    pub fn menu_view(
-        &self,
+    pub fn menu_view<'a>(
+        &'a self,
         id: Id,
-        config: &SettingsModuleConfig,
-        opacity: f32,
+        theme: &'a AshellTheme,
         position: Position,
-    ) -> Element<Message> {
+    ) -> Element<'a, Message> {
         if let Some((ssid, current_password)) = &self.password_dialog {
-            password_dialog::view(id, ssid, current_password, opacity).map(Message::PasswordDialog)
+            password_dialog::view(id, theme, ssid, current_password).map(Message::PasswordDialog)
         } else {
             let battery_data = self
-                .upower
-                .as_ref()
-                .and_then(|upower| upower.battery)
-                .map(|battery| battery.settings_indicator());
+                .power
+                .battery_menu_indicator(theme)
+                .map(|e| e.map(Message::Power));
             let right_buttons = Row::new()
-                .push_maybe(config.lock_cmd.as_ref().map(|_| {
-                    button(icon(Icons::Lock))
-                        .padding([8, 13])
-                        .on_press(Message::Lock)
-                        .style(settings_button_style(opacity))
-                }))
-                .push(
-                    button(icon(if self.sub_menu == Some(SubMenu::Power) {
-                        Icons::Close
-                    } else {
-                        Icons::Power
-                    }))
-                    .padding([8, 13])
-                    .on_press(Message::ToggleSubMenu(SubMenu::Power))
-                    .style(settings_button_style(opacity)),
+                .push_maybe(
+                    self.lock_cmd
+                        .as_ref()
+                        .map(|_| icon_button(theme, StaticIcon::Lock).on_press(Message::Lock)),
                 )
-                .spacing(8);
+                .push(
+                    icon_button(
+                        theme,
+                        if self.sub_menu == Some(SubMenu::Power) {
+                            StaticIcon::Close
+                        } else {
+                            StaticIcon::Power
+                        },
+                    )
+                    .on_press(Message::ToggleSubMenu(SubMenu::Power)),
+                )
+                .spacing(theme.space.xs);
 
             let header = Row::new()
                 .push_maybe(battery_data)
                 .push(Space::with_width(Length::Fill))
                 .push(right_buttons)
-                .spacing(8)
+                .spacing(theme.space.xs)
                 .width(Length::Fill);
 
-            let (sink_slider, source_slider) = self
-                .audio
-                .as_ref()
-                .map(|a| a.audio_sliders(self.sub_menu, opacity))
-                .unwrap_or((None, None));
+            let (sink_slider, source_slider) = self.audio.sliders(theme, self.sub_menu);
 
-            let wifi_setting_button = self.network.as_ref().and_then(|n| {
-                n.get_wifi_quick_setting_button(
-                    id,
-                    self.sub_menu,
-                    config.wifi_more_cmd.is_some(),
-                    opacity,
-                )
-            });
+            let wifi_setting_button = self
+                .network
+                .wifi_quick_setting_button(id, theme, self.sub_menu)
+                .map(|(button, submenu)| {
+                    (
+                        button.map(Message::Network),
+                        submenu.map(|e| e.map(Message::Network)),
+                    )
+                });
             let quick_settings = quick_settings_section(
+                theme,
                 vec![
                     wifi_setting_button,
                     self.bluetooth
-                        .as_ref()
-                        .filter(|b| b.state != BluetoothState::Unavailable)
-                        .and_then(|b| {
-                            b.get_quick_setting_button(
-                                id,
-                                self.sub_menu,
-                                config.bluetooth_more_cmd.is_some(),
-                                opacity,
+                        .quick_setting_button(id, theme, self.sub_menu)
+                        .map(|(button, submenu)| {
+                            (
+                                button.map(Message::Bluetooth),
+                                submenu.map(|e| e.map(Message::Bluetooth)),
                             )
                         }),
-                    self.network.as_ref().and_then(|n| {
-                        n.get_vpn_quick_setting_button(
-                            id,
-                            self.sub_menu,
-                            config.vpn_more_cmd.is_some(),
-                            opacity,
-                        )
-                    }),
-                    self.network.as_ref().and_then(|n| {
-                        if config.remove_airplane_btn {
-                            None
-                        } else {
-                            Some(n.get_airplane_mode_quick_setting_button(opacity))
-                        }
-                    }),
+                    self.network
+                        .vpn_quick_setting_button(id, theme, self.sub_menu)
+                        .map(|(button, submenu)| {
+                            (
+                                button.map(Message::Network),
+                                submenu.map(|e| e.map(Message::Network)),
+                            )
+                        }),
+                    self.network
+                        .airplane_mode_quick_setting_button(theme)
+                        .map(|(button, _)| (button.map(Message::Network), None)),
                     self.idle_inhibitor.as_ref().map(|idle_inhibitor| {
                         (
                             quick_setting_button(
+                                theme,
                                 if idle_inhibitor.is_inhibited() {
-                                    Icons::EyeOpened
+                                    StaticIcon::EyeOpened
                                 } else {
-                                    Icons::EyeClosed
+                                    StaticIcon::EyeClosed
                                 },
                                 "Idle Inhibitor".to_string(),
                                 None,
                                 idle_inhibitor.is_inhibited(),
                                 Message::ToggleInhibitIdle,
                                 None,
-                                opacity,
                             ),
                             None,
                         )
                     }),
-                    self.upower
-                        .as_ref()
-                        .and_then(|u| u.power_profile.get_quick_setting_button(opacity)),
+                    self.power
+                        .quick_setting_button(theme)
+                        .map(|(button, submenu)| {
+                            (
+                                button.map(Message::Power),
+                                submenu.map(|e| e.map(Message::Power)),
+                            )
+                        }),
                 ]
                 .into_iter()
                 .flatten()
+                .chain(self.custom_buttons.iter().map(|button| {
+                    let is_active = self
+                        .custom_buttons_status
+                        .get(&button.name)
+                        .and_then(|v| *v)
+                        .unwrap_or(false);
+                    (
+                        quick_setting_button(
+                            theme,
+                            DynamicIcon(button.icon.clone()),
+                            button.name.clone(),
+                            button.tooltip.clone(),
+                            is_active,
+                            Message::CustomButton(button.name.clone()),
+                            None,
+                        ),
+                        None,
+                    )
+                }))
                 .collect::<Vec<_>>(),
-                opacity,
             );
 
             let (top_sink_slider, bottom_sink_slider) = match position {
-                Position::Top => (sink_slider, None),
-                Position::Bottom => (None, sink_slider),
+                Position::Top => (sink_slider.map(|e| e.map(Message::Audio)), None),
+                Position::Bottom => (None, sink_slider.map(|e| e.map(Message::Audio))),
             };
             let (top_source_slider, bottom_source_slider) = match position {
-                Position::Top => (source_slider, None),
-                Position::Bottom => (None, source_slider),
+                Position::Top => (source_slider.map(|e| e.map(Message::Audio)), None),
+                Position::Bottom => (None, source_slider.map(|e| e.map(Message::Audio))),
             };
 
             Column::new()
                 .push(header)
                 .push_maybe(
                     self.sub_menu
+                        .filter(|menu_type| *menu_type == SubMenu::PeripheralMenu)
+                        .and_then(|_| {
+                            self.power
+                                .peripheral_menu(theme)
+                                .map(|e| sub_menu_wrapper(theme, e.map(Message::Power)))
+                        }),
+                )
+                .push_maybe(
+                    self.sub_menu
                         .filter(|menu_type| *menu_type == SubMenu::Power)
                         .map(|_| {
-                            sub_menu_wrapper(
-                                power_menu(opacity, config).map(Message::Power),
-                                opacity,
-                            )
+                            sub_menu_wrapper(theme, self.power.menu(theme).map(Message::Power))
                         }),
                 )
                 .push_maybe(top_sink_slider)
@@ -587,16 +564,9 @@ impl Settings {
                     self.sub_menu
                         .filter(|menu_type| *menu_type == SubMenu::Sinks)
                         .and_then(|_| {
-                            self.audio.as_ref().map(|a| {
-                                sub_menu_wrapper(
-                                    a.sinks_submenu(
-                                        id,
-                                        config.audio_sinks_more_cmd.is_some(),
-                                        opacity,
-                                    ),
-                                    opacity,
-                                )
-                            })
+                            self.audio
+                                .sinks_submenu(id, theme)
+                                .map(|submenu| sub_menu_wrapper(theme, submenu.map(Message::Audio)))
                         }),
                 )
                 .push_maybe(bottom_sink_slider)
@@ -605,115 +575,146 @@ impl Settings {
                     self.sub_menu
                         .filter(|menu_type| *menu_type == SubMenu::Sources)
                         .and_then(|_| {
-                            self.audio.as_ref().map(|a| {
-                                sub_menu_wrapper(
-                                    a.sources_submenu(
-                                        id,
-                                        config.audio_sources_more_cmd.is_some(),
-                                        opacity,
-                                    ),
-                                    opacity,
-                                )
-                            })
+                            self.audio
+                                .sources_submenu(id, theme)
+                                .map(|submenu| sub_menu_wrapper(theme, submenu.map(Message::Audio)))
                         }),
                 )
                 .push_maybe(bottom_source_slider)
-                .push_maybe(self.brightness.as_ref().map(|b| b.brightness_slider()))
+                .push_maybe(
+                    self.brightness
+                        .slider(theme)
+                        .map(|e| e.map(Message::Brightness)),
+                )
                 .push(quick_settings)
-                .spacing(16)
+                .spacing(theme.space.md)
                 .into()
         }
     }
-}
 
-impl Module for Settings {
-    type ViewData<'a> = ();
-    type SubscriptionData<'a> = ();
+    pub fn view<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
+        let mut row = Row::new();
 
-    fn view(
-        &self,
-        _: Self::ViewData<'_>,
-    ) -> Option<(Element<app::Message>, Option<OnModulePress>)> {
-        Some((
-            Row::new()
-                .push_maybe(
-                    self.idle_inhibitor
+        for indicator in &self.indicators {
+            match indicator {
+                SettingsIndicator::IdleInhibitor => {
+                    if let Some(element) = self
+                        .idle_inhibitor
                         .as_ref()
                         .filter(|i| i.is_inhibited())
                         .map(|_| {
-                            container(icon(Icons::EyeOpened)).style(|theme: &Theme| {
+                            container(icon(StaticIcon::EyeOpened)).style(|theme: &Theme| {
                                 container::Style {
                                     text_color: Some(theme.palette().danger),
                                     ..Default::default()
                                 }
                             })
-                        }),
-                )
-                .push_maybe(
-                    self.upower
-                        .as_ref()
-                        .and_then(|p| p.power_profile.indicator()),
-                )
-                .push_maybe(self.audio.as_ref().and_then(|a| a.sink_indicator()))
-                .push(
-                    Row::new()
-                        .push_maybe(
-                            self.network
-                                .as_ref()
-                                .and_then(|n| n.get_connection_indicator()),
-                        )
-                        .push_maybe(self.network.as_ref().and_then(|n| n.get_vpn_indicator()))
-                        .spacing(4),
-                )
-                .push_maybe(
-                    self.upower
-                        .as_ref()
-                        .and_then(|upower| upower.battery)
-                        .map(|battery| battery.indicator()),
-                )
-                .spacing(8)
-                .into(),
-            Some(OnModulePress::ToggleMenu(MenuType::Settings)),
-        ))
+                        })
+                    {
+                        row = row.push(element);
+                    }
+                }
+                SettingsIndicator::PowerProfile => {
+                    if let Some(element) = self
+                        .power
+                        .power_profile_indicator()
+                        .map(|e| e.map(Message::Power))
+                    {
+                        row = row.push(element);
+                    }
+                }
+                SettingsIndicator::Audio => {
+                    if let Some(element) =
+                        self.audio.sink_indicator().map(|e| e.map(Message::Audio))
+                    {
+                        row = row.push(element);
+                    }
+                }
+                SettingsIndicator::Network => {
+                    if let Some(element) = self
+                        .network
+                        .connection_indicator(theme)
+                        .map(|e| e.map(Message::Network))
+                    {
+                        row = row.push(element);
+                    }
+                }
+                SettingsIndicator::Vpn => {
+                    if let Some(element) = self
+                        .network
+                        .vpn_indicator(theme)
+                        .map(|e| e.map(Message::Network))
+                    {
+                        row = row.push(element);
+                    }
+                }
+                SettingsIndicator::Bluetooth => {
+                    if let Some(element) = self
+                        .bluetooth
+                        .bluetooth_indicator(theme)
+                        .map(|e| e.map(Message::Bluetooth))
+                    {
+                        row = row.push(element);
+                    }
+                }
+                SettingsIndicator::Battery => {
+                    if let Some(element) = self
+                        .power
+                        .battery_indicator(theme)
+                        .map(|e| e.map(Message::Power))
+                    {
+                        row = row.push(element);
+                    }
+                }
+                SettingsIndicator::PeripheralBattery => {
+                    if let Some(element) = self
+                        .power
+                        .peripheral_indicators(theme)
+                        .map(|e| e.map(Message::Power))
+                    {
+                        row = row.push(element);
+                    }
+                }
+            }
+        }
+
+        row.spacing(theme.space.xs).into()
     }
 
-    fn subscription(&self, _: Self::SubscriptionData<'_>) -> Option<Subscription<app::Message>> {
-        Some(
-            Subscription::batch(vec![
-                UPowerService::subscribe()
-                    .map(|event| Message::UPower(UPowerMessage::Event(event))),
-                AudioService::subscribe().map(|evenet| Message::Audio(AudioMessage::Event(evenet))),
-                BrightnessService::subscribe()
-                    .map(|event| Message::Brightness(BrightnessMessage::Event(event))),
-                NetworkService::subscribe()
-                    .map(|event| Message::Network(NetworkMessage::Event(event))),
-                BluetoothService::subscribe()
-                    .map(|event| Message::Bluetooth(BluetoothMessage::Event(event))),
-            ])
-            .map(app::Message::Settings),
-        )
+    pub fn subscription(&self) -> Subscription<Message> {
+        Subscription::batch(vec![
+            self.power.subscription().map(Message::Power),
+            self.audio.subscription().map(Message::Audio),
+            self.brightness.subscription().map(Message::Brightness),
+            self.network.subscription().map(Message::Network),
+            self.bluetooth.subscription().map(Message::Bluetooth),
+        ])
     }
 }
 
 fn quick_settings_section<'a>(
+    theme: &'a AshellTheme,
     buttons: Vec<(Element<'a, Message>, Option<Element<'a, Message>>)>,
-    opacity: f32,
 ) -> Element<'a, Message> {
-    let mut section = column!().spacing(8);
+    let mut section = column!().spacing(theme.space.xs);
 
     let mut before: Option<(Element<'a, Message>, Option<Element<'a, Message>>)> = None;
 
     for (button, menu) in buttons.into_iter() {
         match before.take() {
             Some((before_button, before_menu)) => {
-                section = section.push(row![before_button, button].width(Length::Fill).spacing(8));
+                section = section.push(
+                    row![before_button, button]
+                        .width(Length::Fill)
+                        .spacing(theme.space.xs),
+                );
 
                 if let Some(menu) = before_menu {
-                    section = section.push(sub_menu_wrapper(menu, opacity));
+                    section = section.push(sub_menu_wrapper(theme, menu));
                 }
 
                 if let Some(menu) = menu {
-                    section = section.push(sub_menu_wrapper(menu, opacity));
+                    section = section.push(sub_menu_wrapper(theme, menu));
                 }
             }
             _ => {
@@ -726,18 +727,21 @@ fn quick_settings_section<'a>(
         section = section.push(
             row![before_button, horizontal_space()]
                 .width(Length::Fill)
-                .spacing(8),
+                .spacing(theme.space.xs),
         );
 
         if let Some(menu) = before_menu {
-            section = section.push(sub_menu_wrapper(menu, opacity));
+            section = section.push(sub_menu_wrapper(theme, menu));
         }
     }
 
     section.into()
 }
 
-fn sub_menu_wrapper<Msg: 'static>(content: Element<Msg>, opacity: f32) -> Element<Msg> {
+fn sub_menu_wrapper<'a, Msg: 'static>(
+    ashell_theme: &'a AshellTheme,
+    content: Element<'a, Msg>,
+) -> Element<'a, Msg> {
     container(content)
         .style(move |theme: &Theme| container::Style {
             background: Background::Color(
@@ -746,35 +750,42 @@ fn sub_menu_wrapper<Msg: 'static>(content: Element<Msg>, opacity: f32) -> Elemen
                     .secondary
                     .strong
                     .color
-                    .scale_alpha(opacity),
+                    .scale_alpha(ashell_theme.opacity),
             )
             .into(),
-            border: Border::default().rounded(16),
+            border: Border::default().rounded(ashell_theme.radius.lg),
             ..container::Style::default()
         })
-        .padding(16)
+        .padding(ashell_theme.space.md)
         .width(Length::Fill)
         .into()
 }
 
-fn quick_setting_button<'a, Msg: Clone + 'static>(
-    icon_type: Icons,
+fn quick_setting_button<'a, Msg: Clone + 'static, I: Icon>(
+    theme: &'a AshellTheme,
+    icon_type: I,
     title: String,
     subtitle: Option<String>,
     active: bool,
     on_press: Msg,
     with_submenu: Option<(SubMenu, Option<SubMenu>, Msg)>,
-    opacity: f32,
 ) -> Element<'a, Msg> {
     let main_content = row!(
-        icon(icon_type).size(20),
-        Column::new()
-            .push(text(title).size(12))
-            .push_maybe(subtitle.map(|s| text(s).size(10)))
-            .spacing(4)
+        icon(icon_type).size(theme.font_size.lg),
+        container(
+            Column::new()
+                .push(text(title).size(theme.font_size.sm))
+                .push_maybe(subtitle.map(|s| {
+                    text(s)
+                        .wrapping(text::Wrapping::None)
+                        .size(theme.font_size.xs)
+                }))
+                .spacing(theme.space.xxs)
+        )
+        .clip(true)
     )
-    .spacing(8)
-    .padding(Padding::ZERO.left(4))
+    .spacing(theme.space.xs)
+    .padding(Padding::ZERO.left(theme.space.xxs))
     .width(Length::Fill)
     .align_y(Alignment::Center);
 
@@ -782,30 +793,27 @@ fn quick_setting_button<'a, Msg: Clone + 'static>(
         Row::new()
             .push(main_content)
             .push_maybe(with_submenu.map(|(menu_type, submenu, msg)| {
-                button(
-                    container(icon(if Some(menu_type) == submenu {
-                        Icons::Close
+                icon_button(
+                    theme,
+                    if Some(menu_type) == submenu {
+                        StaticIcon::Close
                     } else {
-                        Icons::RightChevron
-                    }))
-                    .align_y(Vertical::Center)
-                    .align_x(Horizontal::Center),
+                        StaticIcon::RightChevron
+                    },
                 )
-                .padding([4, if Some(menu_type) == submenu { 9 } else { 12 }])
-                .style(quick_settings_submenu_button_style(active, opacity))
-                .width(Length::Shrink)
-                .height(Length::Shrink)
                 .on_press(msg)
+                .size(IconButtonSize::Small)
+                .style(theme.quick_settings_submenu_button_style(active))
             }))
-            .spacing(4)
+            .spacing(theme.space.xxs)
             .align_y(Alignment::Center)
             .height(Length::Fill),
     )
-    .padding([4, 8])
+    .padding([theme.space.xxs, theme.space.xs])
     .on_press(on_press)
     .height(Length::Fill)
     .width(Length::Fill)
-    .style(quick_settings_button_style(active, opacity))
+    .style(theme.quick_settings_button_style(active))
     .width(Length::Fill)
     .height(Length::Fixed(50.))
     .into()

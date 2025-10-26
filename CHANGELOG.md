@@ -1,11 +1,13 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+## [0.6.0] - 2025-10-06
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+### WARNING BREAKING CHANGES
 
-## [Unreleased]
+The `truncate_title_after_length` configuration has been moved
+inside the `window_title` configuration section. [WindowTitle](https://malpenzibo.github.io/ashell/docs/configuration/modules/window_title)
+
+The `system` configuration section has been renamed into `system_info`. [SystemInfo](https://malpenzibo.github.io/ashell/docs/configuration/modules/system_info)
 
 ### Added
 
@@ -16,15 +18,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the path to the configuration file
 - Add `scale_factor` configuration to change the scaling factor of the status bar
 - Add custom commands for power menu actions
+- Add `enable_esc_key` configuration to close the menu with the ESC key
+- Support for custom workspace naming via the `workspace_names` config option.
+- Add `remove_idle_btn` to disable the idle inhibitor button from settings menu
 
 ### Changed
 
-- Move "truncate_title_after_length" to the window_title configuration
+- Move `truncate_title_after_length` to the window_title configuration
 
 ### Fixed
 
 - Bluetooth: use alias instead of name for device name
 - Airplane button fail when the `rfkill` returns an error or is not present
+- Reduced wifi rescan requests
+
+### Thanks
+
+A big thanks to @ineu, @tqwewe, @beeender, @Pebor, @CodedNil, @GabMus, @repomaa, @adamm-xyz, @sudo-Tiz
 
 ## [0.5.0] - 2025-05-20
 

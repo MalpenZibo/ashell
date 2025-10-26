@@ -5,7 +5,7 @@ use flexi_logger::{
     Age, Cleanup, Criterion, FileSpec, LogSpecBuilder, LogSpecification, Logger, Naming,
 };
 use iced::Font;
-use log::{debug, error};
+use log::{debug, error, warn};
 use std::panic;
 use std::path::PathBuf;
 use std::{backtrace::Backtrace, borrow::Cow};
@@ -20,10 +20,13 @@ mod outputs;
 mod password_dialog;
 mod position_button;
 mod services;
-mod style;
+mod theme;
 mod utils;
 
-const ICON_FONT: &[u8] = include_bytes!("../assets/SymbolsNerdFont-Regular.ttf");
+const NERD_FONT: &[u8] = include_bytes!("../target/generated/SymbolsNerdFont-Regular-Subset.ttf");
+const NERD_FONT_MONO: &[u8] =
+    include_bytes!("../target/generated/SymbolsNerdFontMono-Regular-Subset.ttf");
+const CUSTOM_FONT: &[u8] = include_bytes!("../assets/AshellCustomIcon-Regular.otf");
 const HEIGHT: f64 = 34.;
 
 #[derive(Parser, Debug)]
@@ -34,9 +37,16 @@ struct Args {
 }
 
 fn get_log_spec(log_level: &str) -> LogSpecification {
-    LogSpecification::env_or_parse(log_level).unwrap_or_else(|err| {
-        panic!("Failed to parse log level: {err}");
-    })
+    let new_spec = LogSpecification::env_or_parse(log_level);
+
+    match new_spec {
+        Ok(spec) => spec,
+        Err(err) => {
+            warn!("Failed to parse log level: {err}, use the default");
+
+            LogSpecification::default()
+        }
+    }
 }
 
 #[tokio::main]
@@ -85,7 +95,9 @@ async fn main() -> iced::Result {
         .theme(App::theme)
         .style(App::style)
         .scale_factor(App::scale_factor)
-        .font(Cow::from(ICON_FONT))
+        .font(Cow::from(NERD_FONT))
+        .font(Cow::from(NERD_FONT_MONO))
+        .font(Cow::from(CUSTOM_FONT))
         .default_font(font)
         .run_with(App::new((logger, config, config_path)))
 }

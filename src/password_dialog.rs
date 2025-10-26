@@ -1,13 +1,12 @@
+use crate::{
+    components::icons::{StaticIcon, icon},
+    theme::AshellTheme,
+};
 use iced::{
     Alignment, Element, Length,
     alignment::Vertical,
     widget::{button, column, horizontal_space, row, text, text_input},
     window::Id,
-};
-
-use crate::{
-    components::icons::{Icons, icon},
-    style::{confirm_button_style, outline_button_style, text_input_style},
 };
 
 #[derive(Debug, Clone)]
@@ -19,43 +18,43 @@ pub enum Message {
 
 pub fn view<'a>(
     id: Id,
+    theme: &'a AshellTheme,
     wifi_ssid: &str,
     current_password: &str,
-    opacity: f32,
 ) -> Element<'a, Message> {
     column!(
         row!(
-            icon(Icons::WifiLock4).size(32),
-            text("Authentication required").size(22),
+            icon(StaticIcon::WifiLock4).size(theme.font_size.xxl),
+            text("Authentication required").size(theme.font_size.xl),
         )
-        .spacing(16)
+        .spacing(theme.space.md)
         .align_y(Alignment::Center),
         text(format!("Insert password to connect to: {wifi_ssid}")),
         text_input("", current_password)
             .secure(true)
-            .size(16)
-            .padding([8, 16])
-            .style(text_input_style)
+            .size(theme.font_size.md)
+            .padding([theme.space.xs, theme.space.md])
+            .style(theme.text_input_style())
             .on_input(Message::PasswordChanged)
             .on_submit(Message::DialogConfirmed(id)),
         row!(
             horizontal_space(),
             button(text("Cancel").align_y(Vertical::Center))
-                .padding([4, 32])
-                .style(outline_button_style(opacity))
+                .padding([theme.space.xxs, theme.space.xl])
+                .style(theme.outline_button_style())
                 .height(Length::Fixed(50.))
                 .on_press(Message::DialogCancelled(id)),
             button(text("Confirm").align_y(Vertical::Center))
-                .padding([4, 32])
+                .padding([theme.space.xxs, theme.space.xl])
                 .height(Length::Fixed(50.))
-                .style(confirm_button_style(opacity))
+                .style(theme.confirm_button_style())
                 .on_press(Message::DialogConfirmed(id))
         )
-        .spacing(8)
+        .spacing(theme.space.xs)
         .width(Length::Fill)
     )
-    .spacing(16)
-    .padding(16)
+    .spacing(theme.space.md)
+    .padding(theme.space.md)
     .max_width(350.)
     .into()
 }
