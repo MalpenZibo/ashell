@@ -88,6 +88,7 @@ pub struct WorkspacesModuleConfig {
     pub enable_workspace_filling: bool,
     pub max_workspaces: Option<u32>,
     pub workspace_names: Vec<String>,
+    pub enable_virtual_desktops: bool,
 }
 
 #[derive(Deserialize, Copy, Clone, Default, PartialEq, Eq, Debug)]
