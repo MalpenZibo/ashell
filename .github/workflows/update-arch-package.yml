@@ -1,0 +1,16 @@
+name: Update Arch Package
+
+on:
+  workflow_call:
+    inputs:
+      plan:
+        required: true
+        type: string
+
+jobs:
+  update-arch-package:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: WIP
+        run: echo "Automatic update of the arch package will come in the future"
