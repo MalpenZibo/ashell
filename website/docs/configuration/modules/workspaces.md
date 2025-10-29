@@ -81,7 +81,21 @@ For example you can use [Nerd Fonts](https://www.nerdfonts.com/)
 ```toml
 [workspaces]
 workspace_names = ["一","二","三","四","五","六","七","八","九","十",]
+```
 
+## Virtual Desktop Plugin Support
+
+If you are using the Hyprland plugin [hyprland-virtual-desktops](https://github.com/levnikmyskin/hyprland-virtual-desktops)
+you probably want the workspaces to be grouped together instead
+of showing up individually. Use the configuration option
+`enable_virtual_desktops` to handle a virtual desktop as a single
+workspace. Custom workspace colors and names will be applied to
+the virtual desktop number instead of the workspace when this is
+enabled.
+
+```toml
+[workspaces]
+enable_virtual_desktops = true
 ```
 
 ## Default Configuration

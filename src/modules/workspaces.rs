@@ -18,6 +18,7 @@ use itertools::Itertools;
 use log::{debug, error};
 use std::{
     any::TypeId,
+    collections::HashMap,
     sync::{Arc, RwLock},
 };
 
@@ -27,6 +28,12 @@ pub struct Workspace {
     pub name: String,
     pub monitor_id: Option<i128>,
     pub monitor: String,
+    pub active: bool,
+    pub windows: u16,
+}
+
+#[derive(Debug, Clone)]
+pub struct VirtualDesktop {
     pub active: bool,
     pub windows: u16,
 }
@@ -64,26 +71,69 @@ fn get_workspaces(config: &WorkspacesModuleConfig) -> Vec<Workspace> {
         });
     }
 
-    // map normal workspaces
-    for w in normal.iter() {
-        let display_name = if w.id > 0 {
-            let idx = (w.id - 1) as usize;
-            config
+    if config.enable_virtual_desktops {
+        let monitor_count = monitors.len();
+        let mut virtual_desktops: HashMap<i32, VirtualDesktop> = HashMap::new();
+
+        // map normal workspaces
+        for w in normal.iter() {
+            // Calculate the virtual desktop ID based on the workspace ID and the number of workspaces per virtual desktop
+            let vdesk_id = ((w.id - 1) / monitor_count as i32) + 1;
+
+            if let Some(vdesk) = virtual_desktops.get_mut(&vdesk_id) {
+                vdesk.windows += w.windows;
+                vdesk.active = vdesk.active || Some(w.id) == active.as_ref().map(|a| a.id);
+            } else {
+                virtual_desktops.insert(
+                    vdesk_id,
+                    VirtualDesktop {
+                        active: Some(w.id) == active.as_ref().map(|a| a.id),
+                        windows: w.windows,
+                    },
+                );
+            }
+        }
+
+        // Add virtual desktops to the result as workspaces
+        virtual_desktops.into_iter().for_each(|(id, vdesk)| {
+            // Try to get a name from the config, default to ID
+            let idx = (id - 1) as usize;
+            let display_name = config
                 .workspace_names
                 .get(idx)
                 .cloned()
-                .unwrap_or_else(|| w.id.to_string())
-        } else {
-            w.name.clone()
-        };
-        result.push(Workspace {
-            id: w.id,
-            name: display_name,
-            monitor_id: w.monitor_id,
-            monitor: w.monitor.clone(),
-            active: Some(w.id) == active.as_ref().map(|a| a.id),
-            windows: w.windows,
+                .unwrap_or_else(|| id.to_string());
+            result.push(Workspace {
+                id,
+                name: display_name,
+                monitor_id: None,
+                monitor: "".to_string(),
+                active: vdesk.active,
+                windows: vdesk.windows,
+            });
         });
+    } else {
+        // map normal workspaces
+        for w in normal.iter() {
+            let display_name = if w.id > 0 {
+                let idx = (w.id - 1) as usize;
+                config
+                    .workspace_names
+                    .get(idx)
+                    .cloned()
+                    .unwrap_or_else(|| w.id.to_string())
+            } else {
+                w.name.clone()
+            };
+            result.push(Workspace {
+                id: w.id,
+                name: display_name,
+                monitor_id: w.monitor_id,
+                monitor: w.monitor.clone(),
+                active: Some(w.id) == active.as_ref().map(|a| a.id),
+                windows: w.windows,
+            });
+        }
     }
 
     if !config.enable_workspace_filling || normal.is_empty() {
@@ -93,8 +143,12 @@ fn get_workspaces(config: &WorkspacesModuleConfig) -> Vec<Workspace> {
     };
 
     // To show workspaces that don't exist in Hyprland we need to create fake ones
-    let existing_ids = normal.iter().map(|w| w.id).collect_vec();
-    let mut max_id = *existing_ids.iter().max().unwrap_or(&0);
+    let existing_ids = result.iter().map(|w| w.id).collect_vec();
+    let mut max_id = *existing_ids
+        .iter()
+        .filter(|&&id| id > 0) // filter out special workspaces
+        .max()
+        .unwrap_or(&0);
     if let Some(max_workspaces) = config.max_workspaces
         && max_workspaces > max_id as u32
     {
@@ -164,11 +218,18 @@ impl Workspaces {
 
                     if !already_active {
                         debug!("changing workspace to: {id}");
-                        let res = hyprland::dispatch::Dispatch::call(
-                            hyprland::dispatch::DispatchType::Workspace(
-                                hyprland::dispatch::WorkspaceIdentifierWithSpecial::Id(id),
-                            ),
-                        );
+                        let res = if self.config.enable_virtual_desktops {
+                            let id_str = id.to_string();
+                            hyprland::dispatch::Dispatch::call(
+                                hyprland::dispatch::DispatchType::Custom("vdesk", &id_str),
+                            )
+                        } else {
+                            hyprland::dispatch::Dispatch::call(
+                                hyprland::dispatch::DispatchType::Workspace(
+                                    hyprland::dispatch::WorkspaceIdentifierWithSpecial::Id(id),
+                                ),
+                            )
+                        };
 
                         if let Err(e) = res {
                             error!("failed to dispatch workspace change: {e:?}");
@@ -225,17 +286,23 @@ impl Workspaces {
                         };
                         if show {
                             let empty = w.windows == 0;
-                            let monitor = w.monitor_id;
 
-                            let color = monitor.map(|m| {
+                            let color_index = if self.config.enable_virtual_desktops {
+                                // For virtual desktops, we use the workspace ID as the index
+                                Some(w.id as i128)
+                            } else {
+                                // For normal workspaces, we use the monitor ID as the index
+                                w.monitor_id
+                            };
+                            let color = color_index.map(|i| {
                                 if w.id > 0 {
-                                    theme.workspace_colors.get(m as usize).copied()
+                                    theme.workspace_colors.get(i as usize).copied()
                                 } else {
                                     theme
                                         .special_workspace_colors
                                         .as_ref()
                                         .unwrap_or(&theme.workspace_colors)
-                                        .get(m as usize)
+                                        .get(i as usize)
                                         .copied()
                                 }
                             });
