@@ -52,6 +52,15 @@ page on website
 Refer to the [Installation](https://malpenzibo.github.io/ashell/docs/installation)
 page for more details.
 
+### Fedora (Copr)
+
+Unofficial Copr repository (maintained by @killcrb):
+
+```bash
+sudo dnf -y copr enable killcrb/ashell
+sudo dnf -y install ashell
+```
+
 ## ⚙️ Configuration
 
 ashell comes with a default configuration that should work out of the box.

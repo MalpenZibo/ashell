@@ -2,6 +2,7 @@
 name = "ashell"
 description = "A ready to go Wayland status bar for Hyprland"
 homepage = "https://github.com/MalpenZibo/ashell"
+license = "MIT"
 version = "0.6.0"
 edition = "2024"
 rust-version = "1.88"
@@ -55,3 +56,12 @@ pin-project-lite = "0.2.16"
 
 [build-dependencies]
 allsorts = "0.15"
+
+[package.metadata.rpm]
+package = "ashell"
+
+[package.metadata.rpm.cargo]
+buildflags = ["--release"]
+
+[package.metadata.rpm.targets]
+ashell = { path = "/usr/bin/ashell" }
