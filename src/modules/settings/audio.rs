@@ -9,7 +9,9 @@ use crate::{
 };
 use iced::{
     Alignment, Element, Length, Subscription, Theme,
-    widget::{Column, Row, button, column, container, horizontal_rule, row, slider, text},
+    widget::{
+        Column, MouseArea, Row, button, column, container, horizontal_rule, row, slider, text,
+    },
     window::Id,
 };
 
@@ -191,7 +193,7 @@ impl AudioSettings {
                     s.is_mute,
                     Message::ToggleSinkMute,
                     service.cur_sink_volume,
-                    Message::SinkVolumeChanged,
+                    &Message::SinkVolumeChanged,
                     if service.sinks.iter().map(|s| s.ports.len()).sum::<usize>() > 1 {
                         Some((sub_menu, Message::ToggleSinksMenu))
                     } else {
@@ -213,7 +215,7 @@ impl AudioSettings {
                         s.is_mute,
                         Message::ToggleSourceMute,
                         service.cur_source_volume,
-                        Message::SourceVolumeChanged,
+                        &Message::SourceVolumeChanged,
                         if service.sources.iter().map(|s| s.ports.len()).sum::<usize>() > 1 {
                             Some((sub_menu, Message::ToggleSourcesMenu))
                         } else {
@@ -295,7 +297,7 @@ impl AudioSettings {
         is_mute: bool,
         toggle_mute: Message,
         volume: i32,
-        volume_changed: impl Fn(i32) -> Message + 'a,
+        volume_changed: &'a dyn Fn(i32) -> Message,
         with_submenu: Option<(Option<SubMenu>, Message)>,
     ) -> Element<'a, Message> {
         Row::new()
@@ -317,9 +319,24 @@ impl AudioSettings {
                 .on_press(toggle_mute),
             )
             .push(
-                slider(0..=100, volume, volume_changed)
-                    .step(1)
-                    .width(Length::Fill),
+                MouseArea::new(
+                    slider(0..=100, volume, volume_changed)
+                        .step(1)
+                        .width(Length::Fill),
+                )
+                .on_scroll(move |delta| {
+                    let delta = match delta {
+                        iced::mouse::ScrollDelta::Lines { y, .. } => y,
+                        iced::mouse::ScrollDelta::Pixels { y, .. } => y,
+                    };
+                    // volume is always changed by one less than expected
+                    let new_volume = if delta > 0.0 {
+                        (volume + 5 + 1).min(100)
+                    } else {
+                        (volume - 5 + 1).max(0)
+                    };
+                    volume_changed(new_volume)
+                }),
             )
             .push_maybe(with_submenu.map(|(submenu, msg)| {
                 icon_button(
