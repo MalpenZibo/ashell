@@ -171,7 +171,22 @@ impl AudioSettings {
             .filter(|service| !service.sinks.is_empty())
             .map(|service| {
                 let icon_type = service.sinks.get_icon(&service.server_info.default_sink);
-                icon(icon_type).into()
+                let icon = icon(icon_type);
+                MouseArea::new(icon)
+                    .on_scroll(|delta| {
+                        let cur_vol = service.cur_sink_volume;
+                        let delta = match delta {
+                            iced::mouse::ScrollDelta::Lines { y, .. } => y,
+                            iced::mouse::ScrollDelta::Pixels { y, .. } => y,
+                        };
+                        let new_volume = if delta > 0.0 {
+                            (cur_vol + 5).min(100)
+                        } else {
+                            (cur_vol - 5).max(0)
+                        };
+                        Message::SinkVolumeChanged(new_volume)
+                    })
+                    .into()
             })
     }
 
