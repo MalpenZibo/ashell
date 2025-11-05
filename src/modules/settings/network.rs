@@ -351,6 +351,26 @@ impl NetworkSettings {
         sub_menu: Option<SubMenu>,
     ) -> Option<(Element<'a, Message>, Option<Element<'a, Message>>)> {
         self.service.as_ref().and_then(|service| {
+            let activeconnection = service.active_connections.iter().find_map(|c| match c {
+                ActiveConnectionInfo::Vpn { name, object_path } => Some((name, object_path)),
+                _ => None,
+            });
+            let vpnconn = service
+                .known_connections
+                .iter()
+                .filter_map(|c| match c {
+                    KnownConnection::Vpn(c) => Some(c),
+                    _ => None,
+                })
+                .into_iter()
+                .filter_map(|conn| {
+                    if activeconnection.is_some_and(|(name, _)| *name == conn.name) {
+                        Some(conn)
+                    } else {
+                        None
+                    }
+                })
+                .next();
             service
                 .known_connections
                 .iter()
@@ -361,13 +381,21 @@ impl NetworkSettings {
                             theme,
                             StaticIcon::Vpn,
                             "Vpn".to_string(),
-                            None,
+                            activeconnection.map(|(name, _)| name.clone()),
                             service
                                 .active_connections
                                 .iter()
                                 .any(|c| matches!(c, ActiveConnectionInfo::Vpn { .. })),
-                            Message::ToggleVPNMenu,
-                            None,
+                            if vpnconn.is_some() {
+                                Message::ToggleVpn(vpnconn.unwrap().clone())
+                            } else {
+                                Message::ToggleVPNMenu
+                            },
+                            if vpnconn.is_some() {
+                                Some((SubMenu::Vpn, sub_menu, Message::ToggleVPNMenu))
+                            } else {
+                                None
+                            },
                         ),
                         sub_menu
                             .filter(|menu_type| *menu_type == SubMenu::Vpn)
