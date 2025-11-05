@@ -11,7 +11,7 @@ use hyprland::{
 use iced::{
     Element, Length, Subscription, alignment,
     stream::channel,
-    widget::{Row, button, container, text},
+    widget::{MouseArea, Row, button, container, text},
     window::Id,
 };
 use itertools::Itertools;
@@ -192,6 +192,7 @@ pub enum Message {
     WorkspacesChanged,
     ChangeWorkspace(i32),
     ToggleSpecialWorkspace(i32),
+    Scroll(i32),
 }
 
 pub struct Workspaces {
@@ -237,6 +238,7 @@ impl Workspaces {
                     }
                 }
             }
+
             Message::ToggleSpecialWorkspace(id) => {
                 if let Some(special) = self.workspaces.iter().find(|w| w.id == id && w.id < 0) {
                     debug!("toggle special workspace: {id}");
@@ -258,6 +260,28 @@ impl Workspaces {
                     }
                 }
             }
+            Message::Scroll(direction) => {
+                let current_workspace = self.workspaces.iter().find(|w| w.active);
+                let Some(current_id) = current_workspace.map(|w| w.id) else {
+                    return;
+                };
+
+                let next_workspace = if direction > 0 {
+                    self.workspaces
+                        .iter()
+                        .filter(|w| w.id > current_id)
+                        .min_by_key(|w| w.id)
+                } else {
+                    self.workspaces
+                        .iter()
+                        .filter(|w| w.id < current_id)
+                        .max_by_key(|w| w.id)
+                };
+                let Some(next_workspace) = next_workspace else {
+                    return;
+                };
+                Self::update(self, Message::ChangeWorkspace(next_workspace.id));
+            }
         }
     }
 
@@ -270,81 +294,96 @@ impl Workspaces {
         let monitor_name = outputs.get_monitor_name(id);
 
         Into::<Element<Message>>::into(
-            Row::with_children(
-                self.workspaces
-                    .iter()
-                    .filter_map(|w| {
-                        let show = match self.config.visibility_mode {
-                            WorkspaceVisibilityMode::All => true,
-                            WorkspaceVisibilityMode::MonitorSpecific => {
-                                w.monitor == monitor_name.unwrap_or_else(|| &w.monitor)
-                                    || !outputs.has_name(&w.monitor)
-                            }
-                            WorkspaceVisibilityMode::MonitorSpecificExclusive => {
-                                w.monitor == monitor_name.unwrap_or_else(|| &w.monitor)
-                            }
-                        };
-                        if show {
-                            let empty = w.windows == 0;
-
-                            let color_index = if self.config.enable_virtual_desktops {
-                                // For virtual desktops, we use the workspace ID as the index
-                                Some(w.id as i128)
-                            } else {
-                                // For normal workspaces, we use the monitor ID as the index
-                                w.monitor_id
-                            };
-                            let color = color_index.map(|i| {
-                                if w.id > 0 {
-                                    theme.workspace_colors.get(i as usize).copied()
-                                } else {
-                                    theme
-                                        .special_workspace_colors
-                                        .as_ref()
-                                        .unwrap_or(&theme.workspace_colors)
-                                        .get(i as usize)
-                                        .copied()
+            MouseArea::new(
+                Row::with_children(
+                    self.workspaces
+                        .iter()
+                        .filter_map(|w| {
+                            let show = match self.config.visibility_mode {
+                                WorkspaceVisibilityMode::All => true,
+                                WorkspaceVisibilityMode::MonitorSpecific => {
+                                    w.monitor == monitor_name.unwrap_or_else(|| &w.monitor)
+                                        || !outputs.has_name(&w.monitor)
                                 }
-                            });
+                                WorkspaceVisibilityMode::MonitorSpecificExclusive => {
+                                    w.monitor == monitor_name.unwrap_or_else(|| &w.monitor)
+                                }
+                            };
+                            if show {
+                                let empty = w.windows == 0;
 
-                            Some(
-                                button(
-                                    container(text(w.name.as_str()).size(theme.font_size.xs))
-                                        .align_x(alignment::Horizontal::Center)
-                                        .align_y(alignment::Vertical::Center),
-                                )
-                                .style(theme.workspace_button_style(empty, color))
-                                .padding(if w.id < 0 {
-                                    if w.active {
-                                        [0, theme.space.md]
+                                let color_index = if self.config.enable_virtual_desktops {
+                                    // For virtual desktops, we use the workspace ID as the index
+                                    Some(w.id as i128)
+                                } else {
+                                    // For normal workspaces, we use the monitor ID as the index
+                                    w.monitor_id
+                                };
+                                let color = color_index.map(|i| {
+                                    if w.id > 0 {
+                                        theme.workspace_colors.get(i as usize).copied()
                                     } else {
-                                        [0, theme.space.xs]
+                                        theme
+                                            .special_workspace_colors
+                                            .as_ref()
+                                            .unwrap_or(&theme.workspace_colors)
+                                            .get(i as usize)
+                                            .copied()
                                     }
-                                } else {
-                                    [0, 0]
-                                })
-                                .on_press(if w.id > 0 {
-                                    Message::ChangeWorkspace(w.id)
-                                } else {
-                                    Message::ToggleSpecialWorkspace(w.id)
-                                })
-                                .width(if w.id < 0 {
-                                    Length::Shrink
-                                } else if w.active {
-                                    Length::Fixed(theme.space.xl as f32)
-                                } else {
-                                    Length::Fixed(theme.space.md as f32)
-                                })
-                                .height(theme.space.md)
-                                .into(),
-                            )
-                        } else {
-                            None
-                        }
-                    })
-                    .collect::<Vec<Element<'_, _, _>>>(),
+                                });
+
+                                Some(
+                                    button(
+                                        container(text(w.name.as_str()).size(theme.font_size.xs))
+                                            .align_x(alignment::Horizontal::Center)
+                                            .align_y(alignment::Vertical::Center),
+                                    )
+                                    .style(theme.workspace_button_style(empty, color))
+                                    .padding(if w.id < 0 {
+                                        if w.active {
+                                            [0, theme.space.md]
+                                        } else {
+                                            [0, theme.space.xs]
+                                        }
+                                    } else {
+                                        [0, 0]
+                                    })
+                                    .on_press(if w.id > 0 {
+                                        Message::ChangeWorkspace(w.id)
+                                    } else {
+                                        Message::ToggleSpecialWorkspace(w.id)
+                                    })
+                                    .width(if w.id < 0 {
+                                        Length::Shrink
+                                    } else if w.active {
+                                        Length::Fixed(theme.space.xl as f32)
+                                    } else {
+                                        Length::Fixed(theme.space.md as f32)
+                                    })
+                                    .height(theme.space.md)
+                                    .into(),
+                                )
+                            } else {
+                                None
+                            }
+                        })
+                        .collect::<Vec<Element<'_, _, _>>>(),
+                )
+                .spacing(theme.space.xxs),
             )
-            .spacing(theme.space.xxs),
+            .on_scroll(move |direction| {
+                let delta = match direction {
+                    iced::mouse::ScrollDelta::Lines { y, .. } => y,
+                    iced::mouse::ScrollDelta::Pixels { y, .. } => y,
+                };
+
+                // Scrolling down should increase workspace ID
+                if delta < 0.0 {
+                    Message::Scroll(1)
+                } else {
+                    Message::Scroll(-1)
+                }
+            }),
         )
     }
 
