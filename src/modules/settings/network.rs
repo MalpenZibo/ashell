@@ -351,47 +351,47 @@ impl NetworkSettings {
         sub_menu: Option<SubMenu>,
     ) -> Option<(Element<'a, Message>, Option<Element<'a, Message>>)> {
         self.service.as_ref().and_then(|service| {
-            let activeconnection = service.active_connections.iter().find_map(|c| match c {
-                ActiveConnectionInfo::Vpn { name, object_path } => Some((name, object_path)),
-                _ => None,
-            });
-            let vpnconn = service
-                .known_connections
-                .iter()
-                .filter_map(|c| match c {
-                    KnownConnection::Vpn(c) => Some(c),
-                    _ => None,
-                })
-                .into_iter()
-                .filter_map(|conn| {
-                    if activeconnection.is_some_and(|(name, _)| *name == conn.name) {
-                        Some(conn)
-                    } else {
-                        None
-                    }
-                })
-                .next();
             service
                 .known_connections
                 .iter()
                 .any(|c| matches!(c, KnownConnection::Vpn { .. }))
                 .then(|| {
+                    let mut known_vpn = service.known_connections.iter().filter_map(|c| match c {
+                        KnownConnection::Vpn(c) => Some(c),
+                        _ => None,
+                    });
+                    let actives = service
+                        .active_connections
+                        .iter()
+                        .filter_map(|c| match c {
+                            ActiveConnectionInfo::Vpn { name, .. } => {
+                                known_vpn.find(|v| v.name == *name)
+                            }
+                            _ => None,
+                        })
+                        .collect::<Vec<_>>();
+
+                    let subtitle = if actives.len() > 1 {
+                        Some(format!("{} VPNs Connected", actives.len()))
+                    } else {
+                        actives.first().map(|c| c.name.clone())
+                    };
+
                     (
                         quick_setting_button(
                             theme,
                             StaticIcon::Vpn,
                             "Vpn".to_string(),
-                            activeconnection.map(|(name, _)| name.clone()),
-                            service
-                                .active_connections
-                                .iter()
-                                .any(|c| matches!(c, ActiveConnectionInfo::Vpn { .. })),
-                            if vpnconn.is_some() {
-                                Message::ToggleVpn(vpnconn.unwrap().clone())
+                            subtitle,
+                            !actives.is_empty(),
+                            if actives.len() >= 1
+                                && let Some(first) = actives.first()
+                            {
+                                Message::ToggleVpn((*first).clone())
                             } else {
                                 Message::ToggleVPNMenu
                             },
-                            if vpnconn.is_some() {
+                            if !actives.is_empty() {
                                 Some((SubMenu::Vpn, sub_menu, Message::ToggleVPNMenu))
                             } else {
                                 None
