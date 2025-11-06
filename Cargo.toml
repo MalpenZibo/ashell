@@ -18,6 +18,26 @@ panic = "abort"
 [profile.dist]
 inherits = "release"
 
+[package.metadata.nfpm]
+provides = ["ashell"]
+depends = [
+  "libxkbcommon",
+  "dbus",
+]
+
+[package.metadata.nfpm.deb]
+depends = [
+  "libwayland-client0",
+  "libpipewire-0.3-0t64",
+  "libpulse0",
+]
+[package.metadata.nfpm.rpm]
+depends = [
+  "libwayland-client",
+  "pipewire-libs",
+  "pulseaudio-libs",
+]
+
 [dependencies]
 iced = { git = "https://github.com/MalpenZibo/iced", branch = "master", features = [
   "tokio",
