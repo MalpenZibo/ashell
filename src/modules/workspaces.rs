@@ -22,13 +22,20 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+#[derive(PartialEq, Eq, Debug, Clone)]
+pub enum Displayed {
+    Active,
+    Visible,
+    Hidden,
+}
+
 #[derive(Debug, Clone)]
 pub struct Workspace {
     pub id: i32,
     pub name: String,
     pub monitor_id: Option<i128>,
     pub monitor: String,
-    pub active: bool,
+    pub displayed: Displayed,
     pub windows: u16,
 }
 
@@ -57,6 +64,9 @@ fn get_workspaces(config: &WorkspacesModuleConfig) -> Vec<Workspace> {
 
     // map special workspaces
     for w in special.iter() {
+        // Special workspaces are active if they are assigned to any monitor.
+        // Currently a special and normal workspace can be active at the same time on the same monitor.
+        let active = monitors.iter().any(|m| m.special_workspace.id == w.id);
         result.push(Workspace {
             id: w.id,
             name: w
@@ -66,7 +76,11 @@ fn get_workspaces(config: &WorkspacesModuleConfig) -> Vec<Workspace> {
                 .map_or_else(|| "".to_string(), |s| s.to_owned()),
             monitor_id: w.monitor_id,
             monitor: w.monitor.clone(),
-            active: monitors.iter().any(|m| m.special_workspace.id == w.id),
+            displayed: if active {
+                Displayed::Active
+            } else {
+                Displayed::Hidden
+            },
             windows: w.windows,
         });
     }
@@ -103,12 +117,17 @@ fn get_workspaces(config: &WorkspacesModuleConfig) -> Vec<Workspace> {
                 .get(idx)
                 .cloned()
                 .unwrap_or_else(|| id.to_string());
+            let active = if vdesk.active {
+                Displayed::Active
+            } else {
+                Displayed::Hidden
+            };
             result.push(Workspace {
                 id,
                 name: display_name,
                 monitor_id: None,
                 monitor: "".to_string(),
-                active: vdesk.active,
+                displayed: active,
                 windows: vdesk.windows,
             });
         });
@@ -125,12 +144,18 @@ fn get_workspaces(config: &WorkspacesModuleConfig) -> Vec<Workspace> {
             } else {
                 w.name.clone()
             };
+            let active = active.as_ref().is_some_and(|a| a.id == w.id);
+            let visible = monitors.iter().any(|m| m.active_workspace.id == w.id);
             result.push(Workspace {
                 id: w.id,
                 name: display_name,
                 monitor_id: w.monitor_id,
                 monitor: w.monitor.clone(),
-                active: Some(w.id) == active.as_ref().map(|a| a.id),
+                displayed: match (active, visible) {
+                    (true, _) => Displayed::Active,
+                    (false, true) => Displayed::Visible,
+                    (false, false) => Displayed::Hidden,
+                },
                 windows: w.windows,
             });
         }
@@ -177,7 +202,7 @@ fn get_workspaces(config: &WorkspacesModuleConfig) -> Vec<Workspace> {
             name: display_name,
             monitor_id: None,
             monitor: "".to_string(),
-            active: false,
+            displayed: Displayed::Hidden,
             windows: 0,
         });
     }
@@ -214,7 +239,10 @@ impl Workspaces {
             }
             Message::ChangeWorkspace(id) => {
                 if id > 0 {
-                    let already_active = self.workspaces.iter().any(|w| w.active && w.id == id);
+                    let already_active = self
+                        .workspaces
+                        .iter()
+                        .any(|w| w.displayed == Displayed::Active && w.id == id);
 
                     if !already_active {
                         debug!("changing workspace to: {id}");
@@ -315,10 +343,10 @@ impl Workspaces {
                                 )
                                 .style(theme.workspace_button_style(empty, color))
                                 .padding(if w.id < 0 {
-                                    if w.active {
-                                        [0, theme.space.md]
-                                    } else {
-                                        [0, theme.space.xs]
+                                    match w.displayed {
+                                        Displayed::Active => [0, theme.space.md],
+                                        Displayed::Visible => [0, theme.space.sm],
+                                        Displayed::Hidden => [0, theme.space.xs],
                                     }
                                 } else {
                                     [0, 0]
@@ -328,12 +356,11 @@ impl Workspaces {
                                 } else {
                                     Message::ToggleSpecialWorkspace(w.id)
                                 })
-                                .width(if w.id < 0 {
-                                    Length::Shrink
-                                } else if w.active {
-                                    Length::Fixed(theme.space.xl as f32)
-                                } else {
-                                    Length::Fixed(theme.space.md as f32)
+                                .width(match (w.id < 0, &w.displayed) {
+                                    (true, _) => Length::Shrink,
+                                    (_, Displayed::Active) => Length::Fixed(theme.space.xl as f32),
+                                    (_, Displayed::Visible) => Length::Fixed(theme.space.lg as f32),
+                                    (_, Displayed::Hidden) => Length::Fixed(theme.space.md as f32),
                                 })
                                 .height(theme.space.md)
                                 .into(),
