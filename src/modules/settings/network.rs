@@ -384,7 +384,7 @@ impl NetworkSettings {
                             "Vpn".to_string(),
                             subtitle,
                             !actives.is_empty(),
-                            if actives.len() >= 1
+                            if !actives.is_empty()
                                 && let Some(first) = actives.first()
                             {
                                 Message::ToggleVpn((*first).clone())
