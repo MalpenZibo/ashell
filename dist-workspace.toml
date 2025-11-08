@@ -1,0 +1,53 @@
+[workspace]
+members = ["cargo:."]
+
+# Config for 'dist'
+[dist]
+# The preferred dist version to use in CI (Cargo.toml SemVer syntax)
+cargo-dist-version = "0.30.0"
+# CI backends to support
+ci = "github"
+# The installers to generate for each app
+installers = ["shell"]
+# Whether CI should trigger releases with dispatches instead of tag pushes
+dispatch-releases = true
+# Checksums to generate for each App
+checksum = "false"
+# Generate and dist a source tarball
+source-tarball = false
+# Which actions to run on pull requests
+pr-run-mode = "skip"
+# Target platforms to build apps for (Rust target-triple syntax)
+targets = ["x86_64-unknown-linux-gnu"]
+# Whether dist should create a Github Release or use an existing draft
+create-release = false
+# Global artifacts jobs to run in CI
+global-artifacts-jobs = ["./generate-installers"]
+# Post-announce jobs to run in CI
+post-announce-jobs = ["./remove-manifest-assets", "./update-arch-package"]
+# Path that installers should place binaries in
+install-path = "CARGO_HOME"
+# Whether to install an updater program
+install-updater = false
+
+[dist.github-custom-runners]
+global = "ubuntu-24.04"
+x86_64-unknown-linux-gnu = "ubuntu-24.04"
+
+[dist.dependencies.apt]
+pkg-config = { stage = ["build"] }
+llvm-dev = { stage = ["build"] }
+libclang-dev = { stage = ["build"] }
+clang = { stage = ["build"] }
+libxkbcommon-dev = { stage = ["build"] }
+libwayland-dev = { stage = ["build"] }
+"libpipewire-0.3-dev" = { stage = ["build"] }
+libpulse-dev = { stage = ["build"] }
+libudev-dev = { stage = ["build"] }
+dbus = { stage = ["build", "run"] }
+
+libxkbcommon0 = { stage = ["run"] }
+wayland-protocols = { stage = ["run"] }
+pipewire = { stage = ["run"] }
+pulseaudio = { stage = ["run"] }
+
