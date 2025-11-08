@@ -60,7 +60,7 @@ jobs:
             # dest directory like target/x86_64-unknown-linux-gnu/release
             dest_dir="target/${target_triple}/release"
             mkdir -p "$dest_dir"
-          #
+
             # extract into dest (strip top-level folder if present)
             tar -xf "target/distrib/artifacts-build-local-$target_triple/$archive" -C "$dest_dir" --strip-components=1
 
@@ -71,9 +71,11 @@ jobs:
             # Run cargo-nfpm for this target triple (no-build because we have binaries)
             cargo nfpm package --format deb --no-build --target "$target_triple" --output "artifacts/$app_name-$target_triple.deb" || {
               echo "cargo-nfpm deb failed for $target_triple"
+              exit 1
             }
             cargo nfpm package --format rpm --no-build --target "$target_triple" --output "artifacts/$app_name-$target_triple.rpm"|| {
               echo "cargo-nfpm rpm failed for $target_triple"
+              exit 1
             }
 
           done
