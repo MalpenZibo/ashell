@@ -1,0 +1,28 @@
+name: Remove manifest asset
+
+on:
+  workflow_call:
+    inputs:
+      plan:
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  remove-manifest-asset:
+    runs-on: ubuntu-latest
+    env:
+      REPO: ${{ github.repository }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Remove manifest
+        run: |
+          tag=$(echo '${{ inputs.plan }}' | jq -r '.announcement_tag')
+          echo "Deleting asset from release: $tag"
+
+          gh release delete-asset "$tag" "dist-manifest.json" --yes
