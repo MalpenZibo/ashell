@@ -7,3 +7,4 @@ vendor
 # Ignore cargo-rpm workspace except tracked spec
 /.rpm/*
 !.rpm/ashell.spec
+.github/workflows/target/rust-analyzer/flycheck0

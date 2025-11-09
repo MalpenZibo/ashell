@@ -116,6 +116,7 @@ pub enum MenuSize {
     Small,
     Medium,
     Large,
+    XLarge,
 }
 
 impl MenuSize {
@@ -124,6 +125,7 @@ impl MenuSize {
             MenuSize::Small => 250.,
             MenuSize::Medium => 350.,
             MenuSize::Large => 450.,
+            MenuSize::XLarge => 650.,
         }
     }
 }

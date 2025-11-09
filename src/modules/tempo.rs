@@ -3,16 +3,14 @@ use crate::{
     config::{TempoModuleConfig, WeatherLocation},
     theme::AshellTheme,
 };
-use chrono::{
-    Date, DateTime, Datelike, Days, Local, Months, NaiveDate, NaiveDateTime, Utc, Weekday,
-};
+use chrono::{DateTime, Datelike, Days, Local, Months, NaiveDate, NaiveDateTime, Weekday};
 use iced::{
-    Element, Length, Subscription,
+    Background, Border, Element, Length, Subscription, Theme,
     alignment::{Horizontal, Vertical},
     futures::SinkExt,
     stream::channel,
     time::every,
-    widget::{Column, Row, button, column, row, text},
+    widget::{Column, Row, button, column, container, row, text},
 };
 use log::{debug, warn};
 use serde::{Deserialize, Deserializer};
@@ -233,11 +231,55 @@ impl Tempo {
         .into()
     }
 
-    fn weather<'a>(&'a self, _: &'a AshellTheme) -> Option<Element<'a, Message>> {
+    fn weather<'a>(&'a self, theme: &'a AshellTheme) -> Option<Element<'a, Message>> {
         self.weather_data.as_ref().map(|data| {
-            column!(text(weather_icon(data.current.weather_code)))
-                .width(Length::Fill)
-                .into()
+            container(
+                row!(
+                    text(weather_icon(data.current.weather_code)).size(theme.font_size.xxl),
+                    column!(
+                        text(weather_description(data.current.weather_code)),
+                        row!(
+                            text(format!("{} °C", data.current.temperature_2m)),
+                            text(format!(
+                                "Feels like {}°C",
+                                data.current.apparent_temperature
+                            ))
+                            .size(theme.font_size.sm)
+                        )
+                        .align_y(Vertical::Bottom)
+                        .spacing(theme.space.sm),
+                        row!(
+                            text(format!("Humidity: {}%", data.current.relative_humidity_2m))
+                                .size(theme.font_size.sm),
+                            text(format!(
+                                "Wind: {} {} Km/h",
+                                data.current.wind_direction_10m, data.current.wind_speed_10m
+                            ))
+                            .size(theme.font_size.sm),
+                        )
+                        .spacing(theme.space.sm),
+                    )
+                    .spacing(theme.space.xs),
+                )
+                .spacing(theme.space.lg)
+                .align_y(Vertical::Center)
+                .width(Length::Fill),
+            )
+            .padding(theme.space.md)
+            .style(move |app_theme: &Theme| container::Style {
+                background: Background::Color(
+                    app_theme
+                        .extended_palette()
+                        .secondary
+                        .strong
+                        .color
+                        .scale_alpha(theme.opacity),
+                )
+                .into(),
+                border: Border::default().rounded(theme.radius.lg),
+                ..container::Style::default()
+            })
+            .into()
         })
     }
 
@@ -497,7 +539,7 @@ pub const fn weather_icon(code: u32) -> &'static str {
     }
 }
 
-pub const fn weather_description(code: i32) -> &'static str {
+pub const fn weather_description(code: u32) -> &'static str {
     match code {
         0 => "Clear sky",
         1 => "Mainly clear",
