@@ -27,7 +27,7 @@ struct ShellInfo {
 }
 
 #[derive(Debug, Clone)]
-pub struct Outputs(Vec<(Option<String>, Option<ShellInfo>, Option<WlOutput>)>);
+pub struct Outputs(Vec<(String, Option<ShellInfo>, Option<WlOutput>)>);
 
 pub enum HasOutput<'a> {
     Main,
@@ -44,7 +44,7 @@ impl Outputs {
 
         (
             Self(vec![(
-                None,
+                "Fallback".to_string(),
                 Some(ShellInfo {
                     id,
                     menu: Menu::new(menu_id),
@@ -111,19 +111,19 @@ impl Outputs {
         (id, menu_id, Task::batch(vec![task, menu_task]))
     }
 
-    fn name_in_config(name: Option<&str>, outputs: &config::Outputs) -> bool {
+    fn name_in_config(name: &str, outputs: &config::Outputs) -> bool {
         match outputs {
             config::Outputs::All => true,
             config::Outputs::Active => false,
-            config::Outputs::Targets(request_outputs) => request_outputs
-                .iter()
-                .any(|output| Some(output.as_str()) == name),
+            config::Outputs::Targets(request_outputs) => {
+                request_outputs.iter().any(|output| name.contains(output))
+            }
         }
     }
 
     pub fn has(&'_ self, id: Id) -> Option<HasOutput<'_>> {
         self.0.iter().find_map(|(_, info, _)| {
-            if let Some(info) = info {
+            info.as_ref().and_then(|info| {
                 if info.id == id {
                     Some(HasOutput::Main)
                 } else if info.menu.id == id {
@@ -131,30 +131,26 @@ impl Outputs {
                 } else {
                     None
                 }
-            } else {
-                None
-            }
+            })
         })
     }
 
     pub fn get_monitor_name(&self, id: Id) -> Option<&str> {
         self.0.iter().find_map(|(name, info, _)| {
-            if let Some(info) = info {
+            info.as_ref().and_then(|info| {
                 if info.id == id {
-                    name.as_ref().map(|n| n.as_str())
+                    Some(name.as_str())
                 } else {
                     None
                 }
-            } else {
-                None
-            }
+            })
         })
     }
 
     pub fn has_name(&self, name: &str) -> bool {
         self.0
             .iter()
-            .any(|(n, info, _)| info.is_some() && n.as_ref().map(|n| n.as_str()) == Some(name))
+            .any(|(n, info, _)| info.is_some() && n.as_str() == name)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -167,7 +163,7 @@ impl Outputs {
         wl_output: WlOutput,
         scale_factor: f64,
     ) -> Task<Message> {
-        let target = Self::name_in_config(Some(name), request_outputs);
+        let target = Self::name_in_config(name, request_outputs);
 
         if target {
             debug!("Found target output, creating a new layer surface");
@@ -175,11 +171,7 @@ impl Outputs {
             let (id, menu_id, task) =
                 Self::create_output_layers(style, Some(wl_output.clone()), position, scale_factor);
 
-            let destroy_task = match self
-                .0
-                .iter()
-                .position(|(key, _, _)| key.as_ref().map(|k| k.as_str()) == Some(name))
-            {
+            let destroy_task = match self.0.iter().position(|(key, _, _)| key.as_str() == name) {
                 Some(index) => {
                     let old_output = self.0.swap_remove(index);
 
@@ -197,7 +189,7 @@ impl Outputs {
             };
 
             self.0.push((
-                Some(name.to_owned()),
+                name.to_owned(),
                 Some(ShellInfo {
                     id,
                     menu: Menu::new(menu_id),
@@ -209,30 +201,32 @@ impl Outputs {
             ));
 
             // remove fallback layer surface
-            let destroy_fallback_task = match self.0.iter().position(|(key, _, _)| key.is_none()) {
-                Some(index) => {
-                    let old_output = self.0.swap_remove(index);
+            let destroy_fallback_task =
+                match self.0.iter().position(|(_, _, output)| output.is_none()) {
+                    Some(index) => {
+                        let old_output = self.0.swap_remove(index);
 
-                    match old_output.1 {
-                        Some(shell_info) => {
-                            let destroy_fallback_main_task = destroy_layer_surface(shell_info.id);
-                            let destroy_fallback_menu_task =
-                                destroy_layer_surface(shell_info.menu.id);
+                        match old_output.1 {
+                            Some(shell_info) => {
+                                let destroy_fallback_main_task =
+                                    destroy_layer_surface(shell_info.id);
+                                let destroy_fallback_menu_task =
+                                    destroy_layer_surface(shell_info.menu.id);
 
-                            Task::batch(vec![
-                                destroy_fallback_main_task,
-                                destroy_fallback_menu_task,
-                            ])
+                                Task::batch(vec![
+                                    destroy_fallback_main_task,
+                                    destroy_fallback_menu_task,
+                                ])
+                            }
+                            _ => Task::none(),
                         }
-                        _ => Task::none(),
                     }
-                }
-                _ => Task::none(),
-            };
+                    _ => Task::none(),
+                };
 
             Task::batch(vec![destroy_task, destroy_fallback_task, task])
         } else {
-            self.0.push((Some(name.to_owned()), None, Some(wl_output)));
+            self.0.push((name.to_owned(), None, Some(wl_output)));
 
             Task::none()
         }
@@ -248,8 +242,7 @@ impl Outputs {
         match self.0.iter().position(|(_, _, assigned_wl_output)| {
             assigned_wl_output
                 .as_ref()
-                .map(|assigned_wl_output| *assigned_wl_output == wl_output)
-                .unwrap_or_default()
+                .is_some_and(|assigned_wl_output| *assigned_wl_output == wl_output)
         }) {
             Some(index_to_remove) => {
                 debug!("Removing layer surface for output");
@@ -265,16 +258,18 @@ impl Outputs {
                     Task::none()
                 };
 
-                self.0.push((name.to_owned(), None, wl_output));
+                self.0.push((name, None, wl_output));
 
-                if !self.0.iter().any(|(_, shell_info, _)| shell_info.is_some()) {
+                if self.0.iter().any(|(_, shell_info, _)| shell_info.is_some()) {
+                    Task::batch(vec![destroy_task])
+                } else {
                     debug!("No outputs left, creating a fallback layer surface");
 
                     let (id, menu_id, task) =
                         Self::create_output_layers(style, None, position, scale_factor);
 
                     self.0.push((
-                        None,
+                        "Fallback".to_string(),
                         Some(ShellInfo {
                             id,
                             menu: Menu::new(menu_id),
@@ -286,8 +281,6 @@ impl Outputs {
                     ));
 
                     Task::batch(vec![destroy_task, task])
-                } else {
-                    Task::batch(vec![destroy_task])
                 }
             }
             _ => Task::none(),
@@ -307,9 +300,7 @@ impl Outputs {
             .0
             .iter()
             .filter_map(|(name, shell_info, wl_output)| {
-                if !Self::name_in_config(name.as_ref().map(|n| n.as_str()), request_outputs)
-                    && shell_info.is_some()
-                {
+                if !Self::name_in_config(name, request_outputs) && shell_info.is_some() {
                     Some(wl_output.clone())
                 } else {
                     None
@@ -323,9 +314,7 @@ impl Outputs {
             .0
             .iter()
             .filter_map(|(name, shell_info, wl_output)| {
-                if Self::name_in_config(name.as_ref().map(|n| n.as_str()), request_outputs)
-                    && shell_info.is_none()
-                {
+                if Self::name_in_config(name, request_outputs) && shell_info.is_none() {
                     Some((name.clone(), wl_output.clone()))
                 } else {
                     None
@@ -337,9 +326,7 @@ impl Outputs {
         let mut tasks = Vec::new();
 
         for (name, wl_output) in to_add {
-            if let Some(wl_output) = wl_output
-                && let Some(name) = name
-            {
+            if let Some(wl_output) = wl_output {
                 tasks.push(self.add(
                     style,
                     request_outputs,
@@ -538,11 +525,9 @@ impl Outputs {
                 .0
                 .iter()
                 .map(|(_, shell_info, _)| {
-                    if let Some(shell_info) = shell_info {
+                    shell_info.as_ref().map_or_else(Task::none, |shell_info| {
                         set_keyboard_interactivity(shell_info.id, KeyboardInteractivity::None)
-                    } else {
-                        Task::none()
-                    }
+                    })
                 })
                 .collect::<Vec<_>>();
             Task::batch(vec![task, Task::batch(keyboard_tasks)])
@@ -574,11 +559,9 @@ impl Outputs {
                 .0
                 .iter()
                 .map(|(_, shell_info, _)| {
-                    if let Some(shell_info) = shell_info {
+                    shell_info.as_ref().map_or_else(Task::none, |shell_info| {
                         set_keyboard_interactivity(shell_info.id, KeyboardInteractivity::None)
-                    } else {
-                        Task::none()
-                    }
+                    })
                 })
                 .collect::<Vec<_>>();
             Task::batch(vec![task, Task::batch(keyboard_tasks)])
