@@ -552,7 +552,7 @@ impl NetworkDbus<'_> {
                 if let Some(cur_ssid) = ssid {
                     known_ssid.push(cur_ssid);
                 }
-            } else if s.contains_key("vpn") {
+            } else if s.contains_key("vpn") || s.contains_key("wireguard") {
                 let id = s
                     .get("connection")
                     .and_then(|c| c.get("id"))

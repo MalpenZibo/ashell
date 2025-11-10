@@ -356,18 +356,46 @@ impl NetworkSettings {
                 .iter()
                 .any(|c| matches!(c, KnownConnection::Vpn { .. }))
                 .then(|| {
+                    let mut known_vpn = service.known_connections.iter().filter_map(|c| match c {
+                        KnownConnection::Vpn(c) => Some(c),
+                        _ => None,
+                    });
+                    let actives = service
+                        .active_connections
+                        .iter()
+                        .filter_map(|c| match c {
+                            ActiveConnectionInfo::Vpn { name, .. } => {
+                                known_vpn.find(|v| v.name == *name)
+                            }
+                            _ => None,
+                        })
+                        .collect::<Vec<_>>();
+
+                    let subtitle = if actives.len() > 1 {
+                        Some(format!("{} VPNs Connected", actives.len()))
+                    } else {
+                        actives.first().map(|c| c.name.clone())
+                    };
+
                     (
                         quick_setting_button(
                             theme,
                             StaticIcon::Vpn,
                             "Vpn".to_string(),
-                            None,
-                            service
-                                .active_connections
-                                .iter()
-                                .any(|c| matches!(c, ActiveConnectionInfo::Vpn { .. })),
-                            Message::ToggleVPNMenu,
-                            None,
+                            subtitle,
+                            !actives.is_empty(),
+                            if !actives.is_empty()
+                                && let Some(first) = actives.first()
+                            {
+                                Message::ToggleVpn((*first).clone())
+                            } else {
+                                Message::ToggleVPNMenu
+                            },
+                            if !actives.is_empty() {
+                                Some((SubMenu::Vpn, sub_menu, Message::ToggleVPNMenu))
+                            } else {
+                                None
+                            },
                         ),
                         sub_menu
                             .filter(|menu_type| *menu_type == SubMenu::Vpn)
