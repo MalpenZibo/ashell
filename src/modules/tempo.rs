@@ -5,12 +5,15 @@ use crate::{
 };
 use chrono::{DateTime, Datelike, Days, Local, Months, NaiveDate, NaiveDateTime, Weekday};
 use iced::{
-    Background, Border, Element, Length, Subscription, Theme,
+    Background, Border, Degrees, Element,
+    Length::{self, FillPortion},
+    Radians, Rotation, Subscription, Theme,
     alignment::{Horizontal, Vertical},
+    core::svg::Handle,
     futures::SinkExt,
     stream::channel,
     time::every,
-    widget::{Column, Row, button, column, container, row, text},
+    widget::{Column, Row, Svg, button, column, container, row, svg, text},
 };
 use log::{debug, warn};
 use serde::{Deserialize, Deserializer};
@@ -77,9 +80,12 @@ impl Tempo {
     pub fn weather_indicator(&'_ self, theme: &AshellTheme) -> Option<Element<'_, Message>> {
         self.weather_data.as_ref().map(|data| {
             row!(
-                text(weather_icon(data.current.weather_code).to_string()),
+                weather_icon(data.current.weather_code, data.current.is_day > 0)
+                    .width(Length::Shrink)
+                    .height(theme.font_size.md),
                 text(format!("{}°C", data.current.temperature_2m))
             )
+            .align_y(Vertical::Center)
             .spacing(theme.space.xxs)
             .into()
         })
@@ -235,7 +241,9 @@ impl Tempo {
         self.weather_data.as_ref().map(|data| {
             container(
                 row!(
-                    text(weather_icon(data.current.weather_code)).size(theme.font_size.xxl),
+                    weather_icon(data.current.weather_code, data.current.is_day > 0)
+                        .height(theme.font_size.xxl)
+                        .width(Length::Shrink),
                     column!(
                         text(weather_description(data.current.weather_code)),
                         row!(
@@ -248,17 +256,55 @@ impl Tempo {
                         )
                         .align_y(Vertical::Bottom)
                         .spacing(theme.space.sm),
+                    )
+                    .width(FillPortion(2))
+                    .spacing(theme.space.xs),
+                    column!(
                         row!(
-                            text(format!("Humidity: {}%", data.current.relative_humidity_2m))
-                                .size(theme.font_size.sm),
-                            text(format!(
-                                "Wind: {} {} Km/h",
-                                data.current.wind_direction_10m, data.current.wind_speed_10m
-                            ))
-                            .size(theme.font_size.sm),
+                            svg(Handle::from_memory(include_bytes!(
+                                "../../assets/weather_icon/drop.svg"
+                            )))
+                            .width(Length::Shrink)
+                            .height(theme.font_size.lg),
+                            column!(
+                                text("Humidity")
+                                    .size(theme.font_size.xs)
+                                    .align_x(Horizontal::Right)
+                                    .width(Length::Fill),
+                                text(format!("{}%", data.current.relative_humidity_2m))
+                                    .align_x(Horizontal::Right)
+                                    .size(theme.font_size.xs)
+                                    .width(Length::Fill),
+                            )
+                            .spacing(theme.space.xxs)
                         )
+                        .align_y(Vertical::Center)
+                        .spacing(theme.space.sm),
+                        row!(
+                            svg(Handle::from_memory(include_bytes!(
+                                "../../assets/weather_icon/wind.svg"
+                            )))
+                            .height(theme.font_size.lg)
+                            .width(Length::Shrink)
+                            .rotation(Rotation::Floating(
+                                Degrees(data.current.wind_direction_10m as f32 + 90.).into()
+                            )),
+                            column!(
+                                text("Wind")
+                                    .size(theme.font_size.xs)
+                                    .align_x(Horizontal::Right)
+                                    .width(Length::Fill),
+                                text(format!("{} Km/h", data.current.wind_speed_10m))
+                                    .align_x(Horizontal::Right)
+                                    .size(theme.font_size.xs)
+                                    .width(Length::Fill),
+                            )
+                            .spacing(theme.space.xxs)
+                        )
+                        .align_y(Vertical::Center)
                         .spacing(theme.space.sm),
                     )
+                    .width(Length::Fill)
                     .spacing(theme.space.xs),
                 )
                 .spacing(theme.space.lg)
@@ -505,37 +551,80 @@ mod offsetdatetime_no_seconds {
     }
 }
 
-pub const fn weather_icon(code: u32) -> &'static str {
-    match code {
-        0 => "☀️",
-        1 => "🌤️",
-        2 => "⛅",
-        3 => "☁️",
-        45 => "🌫️",
-        48 => "🌫️",
-        51 => "🌦️",
-        53 => "🌦️",
-        55 => "🌦️",
-        56 => "🌦️",
-        57 => "🌦️",
-        61 => "🌧️",
-        63 => "🌧️",
-        65 => "🌧️",
-        66 => "🌧️",
-        67 => "🌧️",
-        71 => "🌨️",
-        73 => "🌨️",
-        75 => "🌨️",
-        77 => "🌨️",
-        80 => "🌧️",
-        81 => "🌧️",
-        82 => "🌧️",
-        85 => "🌨️",
-        86 => "🌨️",
-        95 => "🌩️",
-        96 => "🌩️",
-        99 => "🌩️",
-        _ => "❓",
+pub fn weather_icon<'a>(code: u32, is_day: bool) -> Svg<'a> {
+    match (code, is_day) {
+        (0, true) => svg(Handle::from_memory(include_bytes!(
+            "../../assets/weather_icon/clear-day.svg"
+        ))),
+        (0, false) => svg(Handle::from_memory(include_bytes!(
+            "../../assets/weather_icon/clear-night.svg"
+        ))),
+        (1, true) => svg(Handle::from_memory(include_bytes!(
+            "../../assets/weather_icon/cloudy-1-day.svg"
+        ))),
+        (1, false) => svg(Handle::from_memory(include_bytes!(
+            "../../assets/weather_icon/cloudy-1-night.svg"
+        ))),
+        (2, true) => svg(Handle::from_memory(include_bytes!(
+            "../../assets/weather_icon/cloudy-3-day.svg"
+        ))),
+        (2, false) => svg(Handle::from_memory(include_bytes!(
+            "../../assets/weather_icon/cloudy-3-night.svg"
+        ))),
+        (3, _) => svg(Handle::from_memory(include_bytes!(
+            "../../assets/weather_icon/cloudy.svg"
+        ))),
+        (45, _) | (48, _) => svg(Handle::from_memory(include_bytes!(
+            "../../assets/weather_icon/fog.svg"
+        ))),
+        (51, true) => svg(Handle::from_memory(include_bytes!(
+            "../../assets/weather_icon/rainy-1-day.svg"
+        ))),
+        (51, false) => svg(Handle::from_memory(include_bytes!(
+            "../../assets/weather_icon/rainy-1-night.svg"
+        ))),
+        (53, true) | (56, true) => svg(Handle::from_memory(include_bytes!(
+            "../../assets/weather_icon/rainy-2-day.svg"
+        ))),
+        (53, false) | (56, false) => svg(Handle::from_memory(include_bytes!(
+            "../../assets/weather_icon/rainy-2-night.svg"
+        ))),
+        (55, true) | (57, true) => svg(Handle::from_memory(include_bytes!(
+            "../../assets/weather_icon/rainy-3-day.svg"
+        ))),
+        (55, false) | (57, false) => svg(Handle::from_memory(include_bytes!(
+            "../../assets/weather_icon/rainy-3-night.svg"
+        ))),
+        (61, _) => svg(Handle::from_memory(include_bytes!(
+            "../../assets/weather_icon/rainy-1.svg"
+        ))),
+        (63, _) | (66, _) => svg(Handle::from_memory(include_bytes!(
+            "../../assets/weather_icon/rainy-2.svg"
+        ))),
+        (65, _) | (67, _) => svg(Handle::from_memory(include_bytes!(
+            "../../assets/weather_icon/rainy-3.svg"
+        ))),
+        (71, _) => svg(Handle::from_memory(include_bytes!(
+            "../../assets/weather_icon/snowy-1.svg"
+        ))),
+        (73, _) => svg(Handle::from_memory(include_bytes!(
+            "../../assets/weather_icon/snowy-2.svg"
+        ))),
+        (75, _) => svg(Handle::from_memory(include_bytes!(
+            "../../assets/weather_icon/snowy-3.svg"
+        ))),
+        // 77 => "🌨️",
+        // 80 => "🌧️",
+        // 81 => "🌧️",
+        // 82 => "🌧️",
+        // 85 => "🌨️",
+        // 86 => "🌨️",
+        // 95 => "🌩️",
+        // 96 => "🌩️",
+        // 99 => "🌩️",
+        _ => svg(Handle::from_memory(include_bytes!(
+            "../../assets/weather_icon/clear-day.svg"
+        ))),
     }
 }
 
