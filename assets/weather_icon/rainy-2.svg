@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- (c) ammap.com | SVG weather icons -->
+
+<svg
+   width="52"
+   height="52"
+   version="1.1"
+   id="svg4"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs2">
+    <filter
+       id="blur"
+       x="-0.16761949"
+       y="-0.15896134"
+       width="1.335239"
+       height="1.3782243">
+      <feGaussianBlur
+         in="SourceAlpha"
+         stdDeviation="3"
+         id="feGaussianBlur1" />
+      <feOffset
+         dx="0"
+         dy="4"
+         result="offsetblur"
+         id="feOffset1" />
+      <feComponentTransfer
+         id="feComponentTransfer1">
+        <feFuncA
+           slope="0.05"
+           type="linear"
+           id="feFuncA1" />
+      </feComponentTransfer>
+      <feMerge
+         id="feMerge2">
+        <feMergeNode
+           id="feMergeNode1" />
+        <feMergeNode
+           in="SourceGraphic"
+           id="feMergeNode2" />
+      </feMerge>
+    </filter>
+  </defs>
+  <g
+     transform="translate(16,-2)"
+     filter="url(#blur)"
+     id="g4">
+    <g
+       class="am-weather-cloud-3"
+       id="g2"
+       transform="matrix(1.5329665,0,0,1.5329665,-8.2423014,-13.176368)">
+      <path
+         transform="translate(-20,-11)"
+         d="m 47.7,35.4 c 0,-4.6 -3.7,-8.2 -8.2,-8.2 -1,0 -1.9,0.2 -2.8,0.5 -0.3,-3.4 -3.1,-6.2 -6.6,-6.2 -3.7,0 -6.7,3 -6.7,6.7 0,0.8 0.2,1.6 0.4,2.3 -0.3,-0.1 -0.7,-0.1 -1,-0.1 -3.7,0 -6.7,3 -6.7,6.7 0,3.6 2.9,6.6 6.5,6.7 h 17.2 c 4.4,-0.5 7.9,-4 7.9,-8.4 z"
+         fill="#57a0ee"
+         stroke="#ffffff"
+         stroke-linejoin="round"
+         stroke-width="1.2"
+         id="path2" />
+    </g>
+    <g
+       class="am-weather-rainy-2"
+       transform="matrix(1.5096773,0.26619684,-0.26619684,1.5096773,13.21902,42.010085)"
+       fill="none"
+       stroke="#91c0f8"
+       stroke-dasharray="4, 7"
+       stroke-linecap="round"
+       stroke-width="2"
+       id="g3">
+      <line
+         class="am-weather-rain-1"
+         transform="translate(-6,1)"
+         y2="8"
+         id="line2"
+         x1="0"
+         y1="0"
+         x2="0" />
+      <line
+         class="am-weather-rain-2"
+         transform="translate(0,-1)"
+         y2="8"
+         id="line3"
+         x1="0"
+         y1="0"
+         x2="0" />
+    </g>
+  </g>
+</svg>
