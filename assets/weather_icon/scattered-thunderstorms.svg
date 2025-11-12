@@ -1,29 +1,76 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!-- (c) ammap.com | SVG weather icons -->
+
 <!-- Scattered Thunderstorms | Contributed by hsoJ95 on GitHub: https://github.com/hsoj95 -->
-<svg width="56" height="48" version="1.1" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <filter id="blur" x="-.20655" y="-.1975" width="1.403" height="1.4766">
-      <feGaussianBlur in="SourceAlpha" stdDeviation="3" />
-      <feOffset dx="0" dy="4" result="offsetblur" />
-      <feComponentTransfer>
-        <feFuncA slope="0.05" type="linear" />
+
+<svg
+   width="52"
+   height="52"
+   version="1.1"
+   id="svg4"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs2">
+    <filter
+       id="blur"
+       x="-0.17677103"
+       y="-0.15950784"
+       width="1.3535421"
+       height="1.3921089">
+      <feGaussianBlur
+         in="SourceAlpha"
+         stdDeviation="3"
+         id="feGaussianBlur1" />
+      <feOffset
+         dx="0"
+         dy="4"
+         result="offsetblur"
+         id="feOffset1" />
+      <feComponentTransfer
+         id="feComponentTransfer1">
+        <feFuncA
+           slope="0.05"
+           type="linear"
+           id="feFuncA1" />
       </feComponentTransfer>
-      <feMerge>
-        <feMergeNode />
-        <feMergeNode in="SourceGraphic" />
+      <feMerge
+         id="feMerge2">
+        <feMergeNode
+           id="feMergeNode1" />
+        <feMergeNode
+           in="SourceGraphic"
+           id="feMergeNode2" />
       </feMerge>
     </filter>
   </defs>
-  <g transform="translate(16,-2)" filter="url(#blur)">
-    <g class="am-weather-cloud-3">
-      <path transform="translate(-20,-11)"
-        d="m47.7 35.4c0-4.6-3.7-8.2-8.2-8.2-1 0-1.9 0.2-2.8 0.5-0.3-3.4-3.1-6.2-6.6-6.2-3.7 0-6.7 3-6.7 6.7 0 0.8 0.2 1.6 0.4 2.3-0.3-0.1-0.7-0.1-1-0.1-3.7 0-6.7 3-6.7 6.7 0 3.6 2.9 6.6 6.5 6.7h17.2c4.4-0.5 7.9-4 7.9-8.4z"
-        fill="#57a0ee" stroke="#fff" stroke-linejoin="round" stroke-width="1.2" />
+  <g
+     transform="translate(16,-2)"
+     filter="url(#blur)"
+     id="g4">
+    <g
+       class="am-weather-cloud-3"
+       id="g2"
+       transform="matrix(1.4440536,0,0,1.4440536,-7.1842378,-12.296131)">
+      <path
+         transform="translate(-20,-11)"
+         d="m 47.7,35.4 c 0,-4.6 -3.7,-8.2 -8.2,-8.2 -1,0 -1.9,0.2 -2.8,0.5 -0.3,-3.4 -3.1,-6.2 -6.6,-6.2 -3.7,0 -6.7,3 -6.7,6.7 0,0.8 0.2,1.6 0.4,2.3 -0.3,-0.1 -0.7,-0.1 -1,-0.1 -3.7,0 -6.7,3 -6.7,6.7 0,3.6 2.9,6.6 6.5,6.7 h 17.2 c 4.4,-0.5 7.9,-4 7.9,-8.4 z"
+         fill="#57a0ee"
+         stroke="#ffffff"
+         stroke-linejoin="round"
+         stroke-width="1.2"
+         id="path2" />
     </g>
-      <g class="am-weather-lightning" transform="matrix(1.2,0,0,1.2,-4,28)">
-        <polygon class="am-weather-stroke" points="11.1 6.9 14.3 -2.9 20.5 -2.9 16.4 4.3 20.3 4.3 11.5 14.6 14.9 6.9"
-          fill="#ffa500" stroke="#fff" />
-      </g>
+    <g
+       class="am-weather-lightning"
+       transform="matrix(1.7328643,0,0,1.7328643,-12.960452,28.137369)"
+       id="g3">
+      <polygon
+         class="am-weather-stroke"
+         points="20.5,-2.9 16.4,4.3 20.3,4.3 11.5,14.6 14.9,6.9 11.1,6.9 14.3,-2.9 "
+         fill="#ffa500"
+         stroke="#ffffff"
+         id="polygon2" />
+    </g>
   </g>
 </svg>
