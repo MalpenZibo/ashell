@@ -69,7 +69,7 @@ And in your `configuration.nix`:
 { pkgs, inputs, ... }:
 
 {
-  environment.systemPackages = [inputs.ashell.defaultPackage.${pkgs.system}];
+  environment.systemPackages = [inputs.ashell.packages.${pkgs.system}.default];
   # or home.packages = ...
 }
 ```
