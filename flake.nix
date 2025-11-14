@@ -65,6 +65,7 @@
             postInstall = ''
               wrapProgram "$out/bin/ashell" --prefix LD_LIBRARY_PATH : "${ldLibraryPath}"
             '';
+            meta.mainProgram = "ashell";
           };
 
           # `nix develop`
