@@ -13,75 +13,81 @@
     };
   };
 
-  outputs = { crane, nixpkgs, flake-utils, rust-overlay, ... }:
-    flake-utils.lib.eachDefaultSystem
-      (system:
-        let
-          overlays = [ (import rust-overlay) ];
-          pkgs = import nixpkgs {
-            inherit system overlays;
-          };
-          
-          craneLib = crane.mkLib pkgs;
-          rustToolchain = pkgs.rust-bin.stable.latest;
+  outputs =
+    {
+      crane,
+      nixpkgs,
+      flake-utils,
+      rust-overlay,
+      ...
+    }:
+    flake-utils.lib.eachDefaultSystem (
+      system:
+      let
+        overlays = [ (import rust-overlay) ];
+        pkgs = import nixpkgs {
+          inherit system overlays;
+        };
 
-          buildInputs = with pkgs; [
-            rustToolchain.default
-            rustPlatform.bindgenHook
+        craneLib = crane.mkLib pkgs;
+        rustToolchain = pkgs.rust-bin.stable.latest;
+
+        buildInputs = with pkgs; [
+          rustToolchain.default
+          rustPlatform.bindgenHook
+          pkg-config
+          libxkbcommon
+          libGL
+          pipewire
+          libpulseaudio
+          wayland
+          vulkan-loader
+          udev
+        ];
+
+        runtimeDependencies = with pkgs; [
+          libpulseaudio
+          wayland
+          mesa
+          vulkan-loader
+          libGL
+          libglvnd
+        ];
+
+        ldLibraryPath = pkgs.lib.makeLibraryPath runtimeDependencies;
+      in
+      {
+        # `nix build` and `nix run`
+        defaultPackage = craneLib.buildPackage {
+          src = ./.;
+
+          nativeBuildInputs = with pkgs; [
+            makeWrapper
             pkg-config
-            libxkbcommon
-            libGL
-            pipewire
-            libpulseaudio
-            wayland
-            vulkan-loader
-            udev
+            autoPatchelfHook # Add runtimeDependencies to rpath
           ];
 
-          runtimeDependencies = with pkgs; [
-            libpulseaudio
-            wayland
-            mesa
-            vulkan-loader
-            libGL
-            libglvnd
+          inherit buildInputs runtimeDependencies ldLibraryPath;
+
+          postInstall = ''
+            wrapProgram "$out/bin/ashell" --prefix LD_LIBRARY_PATH : "${ldLibraryPath}"
+          '';
+          meta.mainProgram = "ashell";
+        };
+
+        # `nix develop`
+        devShells.default = pkgs.mkShell {
+          inherit ldLibraryPath;
+          buildInputs = buildInputs ++ [
+            pkgs.rust-analyzer-unwrapped
+            pkgs.nixfmt-rfc-style
           ];
-            
-          ldLibraryPath = pkgs.lib.makeLibraryPath runtimeDependencies;
-        in
-        {
-          # `nix build` and `nix run`
-          defaultPackage = craneLib.buildPackage {
-            src = ./.;
 
-            nativeBuildInputs = with pkgs; [
-              makeWrapper
-              pkg-config
-              autoPatchelfHook # Add runtimeDependencies to rpath
-            ];
+          RUST_SRC_PATH = "${rustToolchain.rust-src}/lib/rustlib/src/rust/library";
+          LD_LIBRARY_PATH = ldLibraryPath;
+        };
 
-            inherit buildInputs runtimeDependencies ldLibraryPath;
-
-            postInstall = ''
-              wrapProgram "$out/bin/ashell" --prefix LD_LIBRARY_PATH : "${ldLibraryPath}"
-            '';
-            meta.mainProgram = "ashell";
-          };
-
-          # `nix develop`
-          devShells.default = pkgs.mkShell {
-            inherit ldLibraryPath;
-            buildInputs = buildInputs ++ [
-              pkgs.rust-analyzer-unwrapped
-              pkgs.nixfmt-rfc-style
-            ];
-
-            RUST_SRC_PATH = "${rustToolchain.rust-src}/lib/rustlib/src/rust/library";
-            LD_LIBRARY_PATH = ldLibraryPath;
-          };
-
-          formatter = pkgs.nixfmt-rfc-style;
-        }
-      );
+        formatter = pkgs.nixfmt-rfc-style;
+      }
+    );
 }
-
