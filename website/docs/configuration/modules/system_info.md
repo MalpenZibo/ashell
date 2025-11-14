@@ -65,6 +65,18 @@ The IpAddress indicator displays the current IP address of the system.
 
 To enable this indicator, add `IpAddress` to the `indicators` configuration.
 
+If specified, this indicator will use the interface in the `system_info.interface_name` setting.
+
+#### Example
+
+To show the IP address of the `eth0` interface, you can add the following to your configuration:
+
+```toml
+[system_info]
+interface_name = "eth0"
+indicators = [ "IpAddress" ]
+```
+
 ### DownloadSpeed
 
 The DownloadSpeed indicator displays the current download speed  
@@ -72,12 +84,16 @@ of the system's network connection.
 
 To enable this indicator, add `DownloadSpeed` to the `indicators` configuration.
 
+If specified, this indicator will use the interface in the `system_info.interface_name` setting.
+
 ### UploadSpeed
 
 The UploadSpeed indicator displays the current upload speed  
 of the system's network connection.
 
 To enable this indicator, add `UploadSpeed` to the `indicators` configuration.
+
+If specified, this indicator will use the interface in the `system_info.interface_name` setting.
 
 ### Temperature
 

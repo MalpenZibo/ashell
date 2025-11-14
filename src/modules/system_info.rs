@@ -9,6 +9,7 @@ use iced::{
     widget::{Column, Row, column, container, horizontal_rule, row, text},
 };
 use itertools::Itertools;
+use log::warn;
 use std::time::{Duration, Instant};
 use sysinfo::{Components, Disks, Networks, System};
 
@@ -33,6 +34,7 @@ fn get_system_info(
     components: &mut Components,
     disks: &mut Disks,
     (networks, last_check): (&mut Networks, Option<Instant>),
+    interface_name: &Option<&String>,
     temperature_sensor: &str,
 ) -> SystemInfoData {
     system.refresh_memory();
@@ -71,27 +73,36 @@ fn get_system_info(
 
     let elapsed = last_check.map(|v| v.elapsed().as_secs());
 
-    let network = networks.iter().fold(
-        (None, 0, 0),
-        |(first_ip, total_received, total_transmitted), (_, data)| {
-            let ip = first_ip.or_else(|| {
-                data.ip_networks()
-                    .iter()
-                    .sorted_by(|a, b| a.addr.cmp(&b.addr))
-                    .next()
-                    .map(|ip| ip.addr)
-            });
+    let network = networks
+        .iter()
+        .filter(|(ifname, _)| interface_name.is_some_and(|wanted| ifname == &wanted))
+        .fold(
+            (None, 0, 0),
+            |(first_ip, total_received, total_transmitted), (_, data)| {
+                let ip = first_ip.or_else(|| {
+                    data.ip_networks()
+                        .iter()
+                        .sorted_by(|a, b| a.addr.cmp(&b.addr))
+                        .next()
+                        .map(|ip| ip.addr)
+                });
 
-            let received = data.received();
-            let transmitted = data.transmitted();
+                let received = data.received();
+                let transmitted = data.transmitted();
 
-            (
-                first_ip.or(ip),
-                total_received + received,
-                total_transmitted + transmitted,
-            )
-        },
-    );
+                (
+                    first_ip.or(ip),
+                    total_received + received,
+                    total_transmitted + transmitted,
+                )
+            },
+        );
+
+    if let Some(ifname) = interface_name
+        && network.0 == None
+    {
+        warn!("Interface was passed ({}) but no address was found", ifname);
+    }
 
     let network_speed = |value: u64| {
         match elapsed {
@@ -140,6 +151,7 @@ impl SystemInfo {
             &mut components,
             &mut disks,
             (&mut networks, None),
+            &config.interface_name.as_ref(),
             &config.temperature.sensor,
         );
 
@@ -164,6 +176,7 @@ impl SystemInfo {
                         &mut self.networks,
                         self.data.network.as_ref().map(|n| n.last_check),
                     ),
+                    &self.config.interface_name.as_ref(),
                     &self.config.temperature.sensor,
                 );
             }

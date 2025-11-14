@@ -203,6 +203,7 @@ pub enum SystemInfoIndicator {
 #[derive(Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct SystemInfoModuleConfig {
+    pub interface_name: Option<String>,
     pub indicators: Vec<SystemInfoIndicator>,
     pub cpu: SystemInfoCpu,
     pub memory: SystemInfoMemory,
@@ -213,6 +214,7 @@ pub struct SystemInfoModuleConfig {
 impl Default for SystemInfoModuleConfig {
     fn default() -> Self {
         Self {
+            interface_name: None,
             indicators: vec![
                 SystemInfoIndicator::Cpu,
                 SystemInfoIndicator::Memory,
