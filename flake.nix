@@ -23,9 +23,10 @@
           };
           
           craneLib = crane.mkLib pkgs;
+          rustToolchain = pkgs.rust-bin.stable.latest;
 
           buildInputs = with pkgs; [
-            rust-bin.stable.latest.default
+            rustToolchain.default
             rustPlatform.bindgenHook
             pkg-config
             libxkbcommon
@@ -68,8 +69,12 @@
 
           # `nix develop`
           devShells.default = pkgs.mkShell {
-            inherit buildInputs ldLibraryPath;
+            inherit ldLibraryPath;
+            buildInputs = buildInputs ++ [
+              pkgs.rust-analyzer-unwrapped
+            ];
 
+            RUST_SRC_PATH = "${rustToolchain.rust-src}/lib/rustlib/src/rust/library";
             LD_LIBRARY_PATH = ldLibraryPath;
           };
         }
