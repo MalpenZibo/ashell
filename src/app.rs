@@ -362,7 +362,7 @@ impl App {
                     info!("Output created: {info:?}");
                     let name = info
                         .as_ref()
-                        .and_then(|info| info.name.as_deref())
+                        .and_then(|info| info.description.as_deref())
                         .unwrap_or("");
 
                     self.outputs.add(
