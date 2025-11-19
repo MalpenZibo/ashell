@@ -87,7 +87,10 @@ impl Tempo {
                 weather_icon(data.current.weather_code, data.current.is_day > 0)
                     .width(Length::Shrink)
                     .height(theme.font_size.md),
-                text(format!("{}°C", data.current.temperature_2m))
+                container(
+                    text(format!("{}°C", data.current.temperature_2m)).size(theme.font_size.sm)
+                )
+                .padding([theme.space.xxs, 0, 0, 0])
             )
             .align_y(Vertical::Center)
             .spacing(theme.space.xxs)
