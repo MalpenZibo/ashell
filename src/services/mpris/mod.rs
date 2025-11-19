@@ -47,6 +47,8 @@ pub struct MprisPlayerData {
 pub struct MprisPlayerMetadata {
     pub artists: Option<Vec<String>>,
     pub title: Option<String>,
+    pub album: Option<String>,
+    pub art_url: Option<String>,
 }
 
 impl Display for MprisPlayerMetadata {
@@ -71,8 +73,21 @@ impl From<HashMap<String, OwnedValue>> for MprisPlayerMetadata {
             Some(v) => v.clone().try_into().ok(),
             None => None,
         };
+        let album = match value.get("xesam:album") {
+            Some(v) => v.clone().try_into().ok(),
+            None => None,
+        };
+        let art_url = match value.get("mpris:artUrl") {
+            Some(v) => v.clone().try_into().ok(),
+            None => None,
+        };
 
-        Self { artists, title }
+        Self {
+            artists,
+            title,
+            album,
+            art_url,
+        }
     }
 }
 

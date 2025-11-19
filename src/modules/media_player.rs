@@ -1,3 +1,5 @@
+use std::collections::{HashMap, HashSet};
+
 use crate::{
     components::icons::{IconButtonSize, StaticIcon, icon, icon_button},
     config::MediaPlayerModuleConfig,
@@ -13,8 +15,12 @@ use crate::{
 use iced::{
     Background, Border, Element, Length, Subscription, Task, Theme,
     alignment::Vertical,
-    widget::{Column, column, container, horizontal_rule, row, slider, text},
+    core::image::Bytes,
+    widget::{Column, column, container, horizontal_rule, image, row, slider, text},
 };
+use itertools::Itertools;
+
+type CoverData = Bytes;
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -24,6 +30,8 @@ pub enum Message {
     SetVolume(String, f64),
     Event(ServiceEvent<MprisPlayerService>),
     ConfigReloaded(MediaPlayerModuleConfig),
+    CoverLoaded(String, CoverData),
+    CoverLoadFailed(String, String),
 }
 
 pub enum Action {
@@ -34,6 +42,7 @@ pub enum Action {
 pub struct MediaPlayer {
     config: MediaPlayerModuleConfig,
     service: Option<MprisPlayerService>,
+    covers: HashMap<String, image::Handle>,
 }
 
 impl MediaPlayer {
@@ -41,6 +50,7 @@ impl MediaPlayer {
         Self {
             config,
             service: None,
+            covers: HashMap::new(),
         }
     }
 
@@ -61,14 +71,23 @@ impl MediaPlayer {
                 }
                 ServiceEvent::Update(d) => {
                     if let Some(service) = self.service.as_mut() {
-                        service.update(d);
+                        service.update(d.clone());
                     }
-                    Action::None
+                    self.check_cover_update(&d)
                 }
                 ServiceEvent::Error(_) => Action::None,
             },
             Message::ConfigReloaded(c) => {
                 self.config = c;
+                Action::None
+            }
+            Message::CoverLoaded(url, data) => {
+                log::debug!("Loaded cover from {}", url);
+                self.covers.insert(url, image::Handle::from_bytes(data));
+                Action::None
+            }
+            Message::CoverLoadFailed(url, err) => {
+                log::error!("Failed to load cover from {}: {}", url, err);
                 Action::None
             }
         }
@@ -104,6 +123,33 @@ impl MediaPlayer {
                     .align_y(Vertical::Center)
                     .spacing(theme.space.xs);
 
+                    let cover: Option<Element<_, _>> = d
+                        .metadata
+                        .as_ref()
+                        .and_then(|m| m.art_url.as_ref())
+                        .map(|url| {
+                            // TODO: width is copied from impl From<IconButton> for Element
+                            // (3 buttons of IconButtonSize::Large, with xs spacing inbetween)
+                            // It doesn't look like it's possible to limit cover to the width of
+                            // buttons without hardcoding the width, but we should at least use a
+                            // common constant for the button size.
+                            let width = 38 * 3 + theme.space.xs * 2;
+                            let img = self.covers.get(url);
+                            img.map(|img| {
+                                image(img)
+                                    .filter_method(image::FilterMethod::Linear)
+                                    .width(width)
+                                    .into()
+                            })
+                            .unwrap_or_else(|| {
+                                text("Loading cover...").width(width).height(width).into()
+                            })
+                        });
+                    let right = match cover {
+                        Some(cover) => column![cover, buttons].spacing(theme.space.xs),
+                        None => column![buttons],
+                    };
+
                     let volume_slider = d.volume.map(|v| {
                         slider(0.0..=100.0, v, move |v| {
                             Message::SetVolume(d.service.clone(), v)
@@ -113,7 +159,7 @@ impl MediaPlayer {
                     container(
                         Column::new()
                             .push(
-                                row!(title, buttons)
+                                row!(title, right)
                                     .spacing(theme.space.xs)
                                     .align_y(Vertical::Center),
                             )
@@ -154,6 +200,48 @@ impl MediaPlayer {
                 .map(Message::Event),
             _ => Task::none(),
         }
+    }
+
+    fn check_cover_update(&mut self, data: &Vec<MprisPlayerData>) -> Action {
+        let urls: HashSet<_> = data
+            .iter()
+            .filter_map(|player| player.metadata.as_ref().and_then(|m| m.art_url.clone()))
+            .collect();
+
+        let unused_covers = self
+            .covers
+            .keys()
+            .filter(|url| !urls.contains(url.as_str()))
+            .cloned()
+            .collect_vec();
+        for url in unused_covers {
+            self.covers.remove(url.as_str());
+            log::debug!("Removed unused cover for {}", url);
+        }
+
+        let tasks = urls
+            .iter()
+            .filter(|url| !self.covers.contains_key(url.as_str()))
+            .map(|url| {
+                let url = url.clone();
+                Task::perform(Self::fetch_cover(url.clone()), move |result| match result {
+                    Ok(data) => Message::CoverLoaded(url.clone(), data),
+                    Err(e) => Message::CoverLoadFailed(url.clone(), e.to_string()),
+                })
+            })
+            .collect_vec();
+
+        if tasks.is_empty() {
+            Action::None
+        } else {
+            Action::Command(Task::batch(tasks))
+        }
+    }
+
+    // TODO: handle non-HTTP URLs (e.g. file://)?
+    async fn fetch_cover(url: String) -> Result<CoverData, reqwest::Error> {
+        let response = reqwest::get(url).await?;
+        response.bytes().await
     }
 
     fn get_title(&self, d: &MprisPlayerData) -> String {
