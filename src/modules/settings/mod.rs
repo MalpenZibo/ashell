@@ -9,6 +9,7 @@ use tokio::time::timeout;
 use crate::{
     components::icons::{DynamicIcon, Icon, IconButtonSize, StaticIcon, icon, icon_button},
     config::{Position, SettingsCustomButton, SettingsIndicator, SettingsModuleConfig},
+    menu::MenuSize,
     modules::settings::{
         audio::{AudioSettings, AudioSettingsConfig},
         bluetooth::{BluetoothSettings, BluetoothSettingsConfig},
@@ -606,6 +607,7 @@ impl Settings {
                 )
                 .push(quick_settings)
                 .spacing(theme.space.md)
+                .width(MenuSize::Medium)
                 .into()
         }
     }

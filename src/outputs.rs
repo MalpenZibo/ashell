@@ -14,7 +14,7 @@ use crate::{
     HEIGHT,
     config::{self, AppearanceStyle, Position},
     menu::{Menu, MenuType},
-    position_button::ButtonUIRef,
+    widgets::ButtonUIRef,
 };
 
 #[derive(Debug, Clone)]

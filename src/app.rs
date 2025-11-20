@@ -1,5 +1,5 @@
 use crate::{
-    HEIGHT, centerbox,
+    HEIGHT,
     config::{self, AppearanceStyle, Config, Modules, Position},
     get_log_spec,
     menu::{MenuSize, MenuType},
@@ -19,9 +19,9 @@ use crate::{
         workspaces::Workspaces,
     },
     outputs::{HasOutput, Outputs},
-    position_button::ButtonUIRef,
     services::ReadOnlyService,
     theme::{AshellTheme, backdrop_color, darken_color},
+    widgets::{ButtonUIRef, Centerbox},
 };
 use flexi_logger::LoggerHandle;
 use iced::{
@@ -418,7 +418,7 @@ impl App {
             Some(HasOutput::Main) => {
                 let [left, center, right] = self.modules_section(id, &self.theme);
 
-                let centerbox = centerbox::Centerbox::new([left, center, right])
+                let centerbox = Centerbox::new([left, center, right])
                     .spacing(self.theme.space.xxs)
                     .width(Length::Fill)
                     .align_items(Alignment::Center)
