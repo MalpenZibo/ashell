@@ -11,17 +11,16 @@ use std::path::PathBuf;
 use std::{backtrace::Backtrace, borrow::Cow};
 
 mod app;
-mod centerbox;
 mod components;
 mod config;
 mod menu;
 mod modules;
 mod outputs;
 mod password_dialog;
-mod position_button;
 mod services;
 mod theme;
 mod utils;
+mod widgets;
 
 const NERD_FONT: &[u8] = include_bytes!("../target/generated/SymbolsNerdFont-Regular-Subset.ttf");
 const NERD_FONT_MONO: &[u8] =
