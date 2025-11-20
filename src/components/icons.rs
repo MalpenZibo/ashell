@@ -1,4 +1,4 @@
-use crate::theme::AshellTheme;
+use crate::theme::{AshellTheme, FontSize};
 use iced::{
     Color, Element, Font, Length, Theme,
     widget::{
@@ -298,6 +298,24 @@ pub enum IconButtonSize {
     Large,
 }
 
+impl IconButtonSize {
+    pub fn container_size(&self) -> f32 {
+        match self {
+            IconButtonSize::Small => 24.,
+            IconButtonSize::Medium => 32.,
+            IconButtonSize::Large => 38.,
+        }
+    }
+
+    pub fn font_size(&self, font_sizes: &FontSize) -> u16 {
+        match self {
+            IconButtonSize::Small => font_sizes.xs,
+            IconButtonSize::Medium => font_sizes.xs,
+            IconButtonSize::Large => font_sizes.sm,
+        }
+    }
+}
+
 enum OnPress<'a, Message> {
     Direct(Message),
     Closure(Box<dyn Fn() -> Message + 'a>),
@@ -358,11 +376,8 @@ impl<'a, I: Icon, Message: 'static + Clone> From<IconButton<'a, I, Message>>
     for Element<'a, Message>
 {
     fn from(value: IconButton<'a, I, Message>) -> Self {
-        let (container_size, font_size) = match value.size {
-            IconButtonSize::Small => (24., value.theme.font_size.xs),
-            IconButtonSize::Medium => (32., value.theme.font_size.xs),
-            IconButtonSize::Large => (38., value.theme.font_size.sm),
-        };
+        let container_size = value.size.container_size();
+        let font_size = value.size.font_size(&value.theme.font_size);
 
         let btn = button_fn(
             container(
