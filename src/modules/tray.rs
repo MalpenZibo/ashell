@@ -1,6 +1,5 @@
 use crate::{
     components::icons::{StaticIcon, icon},
-    position_button::{ButtonUIRef, position_button},
     services::{
         ReadOnlyService, Service, ServiceEvent,
         tray::{
@@ -9,6 +8,7 @@ use crate::{
         },
     },
     theme::AshellTheme,
+    widgets::{ButtonUIRef, position_button},
 };
 use iced::{
     Alignment, Element, Length, Subscription, Task,

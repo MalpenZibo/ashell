@@ -537,10 +537,10 @@ impl Tempo {
                                             "Weather data fetched successfully: {:?}",
                                             weather_data
                                         );
-                                        output
-                                            .send(Message::UpdateWeather(Box::new(weather_data)))
-                                            .await
-                                            .ok();
+                                        // output
+                                        //     .send(Message::UpdateWeather(Box::new(weather_data)))
+                                        //     .await
+                                        //     .ok();
                                     }
                                     Err(e) => {
                                         warn!("Failed to fetch weather data: {:?}", e);
