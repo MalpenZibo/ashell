@@ -122,28 +122,29 @@ impl MediaPlayer {
                     ]
                     .align_y(Vertical::Center)
                     .spacing(theme.space.xs);
+                    // Is it possible to dynamically size the cover to match the buttons?
+                    let buttons_width =
+                        IconButtonSize::Large.container_size() * 3. + theme.space.xs as f32 * 2.;
 
                     let cover: Option<Element<_, _>> = d
                         .metadata
                         .as_ref()
                         .and_then(|m| m.art_url.as_ref())
                         .map(|url| {
-                            // TODO: width is copied from impl From<IconButton> for Element
-                            // (3 buttons of IconButtonSize::Large, with xs spacing inbetween)
-                            // It doesn't look like it's possible to limit cover to the width of
-                            // buttons without hardcoding the width, but we should at least use a
-                            // common constant for the button size.
-                            let width = 38 * 3 + theme.space.xs * 2;
-                            let img = self.covers.get(url);
-                            img.map(|img| {
-                                image(img)
-                                    .filter_method(image::FilterMethod::Linear)
-                                    .width(width)
-                                    .into()
-                            })
-                            .unwrap_or_else(|| {
-                                text("Loading cover...").width(width).height(width).into()
-                            })
+                            self.covers
+                                .get(url)
+                                .map(|img| {
+                                    image(img)
+                                        .filter_method(image::FilterMethod::Linear)
+                                        .width(buttons_width)
+                                        .into()
+                                })
+                                .unwrap_or_else(|| {
+                                    text("Loading cover...")
+                                        .width(buttons_width)
+                                        .height(buttons_width)
+                                        .into()
+                                })
                         });
                     let right = match cover {
                         Some(cover) => column![cover, buttons].spacing(theme.space.xs),
