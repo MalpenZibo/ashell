@@ -100,8 +100,30 @@ impl MediaPlayer {
                 text("Players").size(theme.font_size.lg),
                 horizontal_rule(1),
                 column(s.iter().map(|d| {
-                    let title = text(self.get_title(d))
+                    let m = d.metadata.as_ref();
+                    let title = m
+                        .and_then(|m| m.title.clone())
+                        .unwrap_or("No Title".to_string());
+                    let artists = m
+                        .and_then(|m| m.artists.clone())
+                        .map(|a| a.join(", "))
+                        .unwrap_or("Unknown Artist".to_string());
+                    let album = m
+                        .and_then(|m| m.album.clone())
+                        .unwrap_or("Unknown Album".to_string());
+                    let title = text(truncate_text(&title, self.config.max_title_length))
                         .wrapping(text::Wrapping::WordOrGlyph)
+                        .width(Length::Fill);
+                    let artists = text(truncate_text(&artists, self.config.max_title_length))
+                        .wrapping(text::Wrapping::WordOrGlyph)
+                        .size(theme.font_size.sm)
+                        .width(Length::Fill);
+                    let album = text(truncate_text(&album, self.config.max_title_length))
+                        .wrapping(text::Wrapping::WordOrGlyph)
+                        .size(theme.font_size.sm)
+                        .width(Length::Fill);
+                    let left = column![title, artists, album]
+                        .spacing(theme.space.xxs)
                         .width(Length::Fill);
 
                     let play_pause_icon = match d.state {
@@ -160,7 +182,7 @@ impl MediaPlayer {
                     container(
                         Column::new()
                             .push(
-                                row!(title, right)
+                                row!(left, right)
                                     .spacing(theme.space.xs)
                                     .align_y(Vertical::Center),
                             )
