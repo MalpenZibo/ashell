@@ -10,7 +10,7 @@ use iced::widget::container::Style;
 use iced::widget::mouse_area;
 use iced::window::Id;
 use iced::{self, Element, Task, Theme, widget::container};
-use iced::{Border, Length, Padding};
+use iced::{Border, Color, Length, Padding};
 
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub enum MenuType {
@@ -19,6 +19,7 @@ pub enum MenuType {
     Tray(String),
     MediaPlayer,
     SystemInfo,
+    Tempo,
 }
 
 #[derive(Clone, Debug)]
@@ -115,6 +116,7 @@ pub enum MenuSize {
     Small,
     Medium,
     Large,
+    XLarge,
 }
 
 impl MenuSize {
@@ -123,6 +125,7 @@ impl MenuSize {
             MenuSize::Small => 250.,
             MenuSize::Medium => 350.,
             MenuSize::Large => 450.,
+            MenuSize::XLarge => 650.,
         }
     }
 }
@@ -138,34 +141,39 @@ impl App {
     ) -> Element<'a, app::Message> {
         mouse_area(
             container(
-                mouse_area(
-                    container(content)
-                        .height(Length::Shrink)
-                        .width(Length::Shrink)
-                        .max_width(menu_size.size())
-                        .padding(self.theme.space.md)
-                        .style(move |theme: &Theme| Style {
-                            background: Some(
-                                theme
-                                    .palette()
-                                    .background
-                                    .scale_alpha(self.theme.menu.opacity)
-                                    .into(),
-                            ),
-                            border: Border {
-                                color: theme
-                                    .extended_palette()
-                                    .secondary
-                                    .base
-                                    .color
-                                    .scale_alpha(self.theme.menu.opacity),
-                                width: 1.,
-                                radius: self.theme.radius.lg.into(),
-                            },
-                            ..Default::default()
-                        }),
+                container(
+                    mouse_area(
+                        container(content)
+                            .height(Length::Shrink)
+                            .width(Length::Shrink)
+                            .max_width(menu_size.size())
+                            .padding(self.theme.space.md)
+                            .style(move |theme: &Theme| Style {
+                                background: Some(
+                                    theme
+                                        .palette()
+                                        .background
+                                        .scale_alpha(self.theme.menu.opacity)
+                                        .into(),
+                                ),
+                                border: Border {
+                                    color: theme
+                                        .extended_palette()
+                                        .secondary
+                                        .base
+                                        .color
+                                        .scale_alpha(self.theme.menu.opacity),
+                                    width: 1.,
+                                    radius: self.theme.radius.lg.into(),
+                                },
+                                ..Default::default()
+                            }),
+                    )
+                    .on_release(app::Message::None),
                 )
-                .on_release(app::Message::None),
+                .align_x(Horizontal::Center)
+                .height(Length::Shrink)
+                .width(Length::Fixed(menu_size.size())),
             )
             .align_y(match self.theme.bar_position {
                 Position::Top => Vertical::Top,
@@ -192,7 +200,7 @@ impl App {
                         0
                     })
                     .left(f32::min(
-                        f32::max(button_ui_ref.position.x - size / 2., 8.),
+                        f32::max(button_ui_ref.position.x - size / 2.0, 8.),
                         button_ui_ref.viewport.0 - size - 8.,
                     ))
             })
