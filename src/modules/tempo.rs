@@ -28,6 +28,7 @@ pub enum Message {
     Update,
     ChangeSelectDate(Option<NaiveDate>),
     UpdateWeather(Box<WeatherData>),
+    UpdateLocation(Location),
 }
 
 pub enum Action {
@@ -39,6 +40,7 @@ pub struct Tempo {
     date: DateTime<Local>,
     selected_date: Option<NaiveDate>,
     weather_data: Option<WeatherData>,
+    location: Option<Location>,
 }
 
 impl Tempo {
@@ -48,6 +50,7 @@ impl Tempo {
             date: Local::now(),
             selected_date: None,
             weather_data: None,
+            location: None,
         }
     }
 
@@ -65,6 +68,11 @@ impl Tempo {
             }
             Message::UpdateWeather(data) => {
                 self.weather_data = Some(*data);
+
+                Action::None
+            }
+            Message::UpdateLocation(location) => {
+                self.location = Some(location);
 
                 Action::None
             }
@@ -245,252 +253,261 @@ impl Tempo {
     }
 
     fn weather<'a>(&'a self, theme: &'a AshellTheme) -> Option<Element<'a, Message>> {
-        self.weather_data.as_ref().map(|data| {
-            column!(
-                container(
-                    row!(
-                        weather_icon(data.current.weather_code, data.current.is_day > 0)
-                            .height(theme.font_size.xxl)
-                            .width(Length::Shrink),
-                        column!(
-                            text(weather_description(data.current.weather_code)),
-                            row!(
-                                text(format!("{} °C", data.current.temperature_2m)),
+        self.weather_data
+            .as_ref()
+            .zip(self.location.as_ref())
+            .map(|(data, location)| {
+                column!(
+                    container(
+                        row!(
+                            weather_icon(data.current.weather_code, data.current.is_day > 0)
+                                .height(theme.font_size.xxl)
+                                .width(Length::Shrink),
+                            column!(
                                 text(format!(
-                                    "Feels like {}°C",
-                                    data.current.apparent_temperature
+                                    "{}, {} - {}",
+                                    location.city,
+                                    location.region_name,
+                                    data.current.time.format("%R")
                                 ))
-                                .size(theme.font_size.sm)
-                            )
-                            .align_y(Vertical::Bottom)
-                            .spacing(theme.space.sm),
-                        )
-                        .width(FillPortion(2))
-                        .spacing(theme.space.xs),
-                        column!(
-                            row!(
-                                svg(Handle::from_memory(include_bytes!(
-                                    "../../assets/weather_icon/drop.svg"
-                                )))
-                                .width(Length::Shrink)
-                                .height(theme.font_size.lg),
-                                column!(
-                                    text("Humidity")
-                                        .size(theme.font_size.xs)
-                                        .align_x(Horizontal::Right)
-                                        .width(Length::Fill),
-                                    text(format!("{}%", data.current.relative_humidity_2m))
-                                        .align_x(Horizontal::Right)
-                                        .size(theme.font_size.xs)
-                                        .width(Length::Fill),
-                                )
-                                .spacing(theme.space.xxs)
-                            )
-                            .align_y(Vertical::Center)
-                            .spacing(theme.space.sm),
-                            row!(
-                                svg(Handle::from_memory(include_bytes!(
-                                    "../../assets/weather_icon/wind.svg"
-                                )))
-                                .height(theme.font_size.lg)
-                                .width(Length::Shrink)
-                                .rotation(Rotation::Floating(
-                                    Degrees(data.current.wind_direction_10m as f32 + 90.).into()
-                                )),
-                                column!(
-                                    text("Wind")
-                                        .size(theme.font_size.xs)
-                                        .align_x(Horizontal::Right)
-                                        .width(Length::Fill),
-                                    text(format!("{} Km/h", data.current.wind_speed_10m))
-                                        .align_x(Horizontal::Right)
-                                        .size(theme.font_size.xs)
-                                        .width(Length::Fill),
-                                )
-                                .spacing(theme.space.xxs)
-                            )
-                            .align_y(Vertical::Center)
-                            .spacing(theme.space.sm),
-                        )
-                        .width(Length::Fill)
-                        .spacing(theme.space.xs),
-                    )
-                    .spacing(theme.space.lg)
-                    .align_y(Vertical::Center)
-                    .width(Length::Fill),
-                )
-                .padding(theme.space.md)
-                .style(move |app_theme: &Theme| container::Style {
-                    background: Background::Color(
-                        app_theme
-                            .extended_palette()
-                            .secondary
-                            .strong
-                            .color
-                            .scale_alpha(theme.opacity),
-                    )
-                    .into(),
-                    border: Border::default().rounded(theme.radius.lg),
-                    ..container::Style::default()
-                }),
-                container(
-                    scrollable(
-                        Row::with_children({
-                            let mut time = data
-                                .hourly
-                                .time
-                                .iter()
-                                .enumerate()
-                                .filter(|(_, t)| **t > self.date.naive_local())
-                                .take(23)
-                                .peekable();
-                            let start_index = time.peek().map(|(index, _)| *index).unwrap_or(0);
-
-                            izip!(
-                                time.map(|(_, v)| v),
-                                data.hourly
-                                    .weather_code
-                                    .iter()
-                                    .enumerate()
-                                    .filter_map(|(i, v)| if i >= start_index {
-                                        Some(v)
-                                    } else {
-                                        None
-                                    }),
-                                data.hourly.temperature_2m.iter().enumerate().filter_map(
-                                    |(i, v)| if i >= start_index { Some(v) } else { None }
-                                ),
-                                data.hourly.is_day.iter().enumerate().filter_map(|(i, v)| {
-                                    if i >= start_index { Some(v) } else { None }
-                                }),
-                            )
-                            .map(|(time, weather_code, temp, is_day)| {
-                                column!(
-                                    text(format!("{}°", temp.round())),
-                                    weather_icon(*weather_code, *is_day > 0)
-                                        .height(theme.font_size.md)
-                                        .width(Length::Shrink),
-                                    text(time.format("%H:%M").to_string()).size(theme.font_size.sm)
-                                )
-                                .spacing(theme.space.xs)
-                                .align_x(Horizontal::Center)
-                                .into()
-                            })
-                            .collect::<Vec<_>>()
-                        })
-                        .padding([0, 0, theme.space.md, 0,])
-                        .spacing(theme.space.sm)
-                    )
-                    .direction(scrollable::Direction::Horizontal(Scrollbar::new()))
-                )
-                .padding(theme.space.sm)
-                .style(move |app_theme: &Theme| container::Style {
-                    background: Background::Color(
-                        app_theme
-                            .extended_palette()
-                            .secondary
-                            .strong
-                            .color
-                            .scale_alpha(theme.opacity),
-                    )
-                    .into(),
-                    border: Border::default().rounded(theme.radius.lg),
-                    ..container::Style::default()
-                }),
-                Column::with_children(
-                    izip!(
-                        &data.daily.time,
-                        &data.daily.weather_code,
-                        &data.daily.temperature_2m_min,
-                        &data.daily.temperature_2m_max,
-                        &data.daily.wind_direction_10m_dominant,
-                        &data.daily.wind_speed_10m_max,
-                    )
-                    .skip(1)
-                    .enumerate()
-                    .map(
-                        |(
-                            index,
-                            (time, weather_code, temp_min, temp_max, wind_dir, wind_speed),
-                        )| {
-                            container(
+                                .size(theme.font_size.sm),
+                                text(weather_description(data.current.weather_code)),
                                 row!(
-                                    text(time.format("%a, %d %b").to_string()).width(Length::Fill),
-                                    weather_icon(*weather_code, true)
-                                        .height(theme.font_size.md)
-                                        .width(Length::Shrink),
-                                    container(
-                                        row!(
-                                            text(format!(
-                                                "{}°/{}°",
-                                                temp_min.round(),
-                                                temp_max.round()
-                                            ))
-                                            .width(Length::Shrink),
-                                            row!(
-                                                svg(Handle::from_memory(include_bytes!(
-                                                    "../../assets/weather_icon/wind.svg"
-                                                )))
-                                                .height(theme.font_size.md)
-                                                .width(Length::Shrink)
-                                                .rotation(Rotation::Floating(
-                                                    Degrees(*wind_dir as f32 + 90.).into()
-                                                )),
-                                                text(format!("{} Km/h", wind_speed))
-                                            )
-                                            .spacing(theme.space.xxs)
-                                        )
-                                        .spacing(theme.space.sm)
-                                    )
-                                    .width(Length::FillPortion(2))
-                                    .align_x(Horizontal::Right)
+                                    text(format!("{} °C", data.current.temperature_2m)),
+                                    text(format!(
+                                        "Feels like {}°C",
+                                        data.current.apparent_temperature
+                                    ))
+                                    .size(theme.font_size.sm)
                                 )
+                                .align_y(Vertical::Bottom)
                                 .spacing(theme.space.sm),
                             )
-                            .padding(theme.space.sm)
-                            .style(move |app_theme: &Theme| container::Style {
-                                background: Background::Color(
-                                    app_theme
-                                        .extended_palette()
-                                        .secondary
-                                        .strong
-                                        .color
-                                        .scale_alpha(theme.opacity),
+                            .width(FillPortion(2))
+                            .spacing(theme.space.xs),
+                            column!(
+                                row!(
+                                    svg(Handle::from_memory(include_bytes!(
+                                        "../../assets/weather_icon/drop.svg"
+                                    )))
+                                    .width(Length::Shrink)
+                                    .height(theme.font_size.lg),
+                                    column!(
+                                        text("Humidity")
+                                            .size(theme.font_size.xs)
+                                            .align_x(Horizontal::Right)
+                                            .width(Length::Fill),
+                                        text(format!("{}%", data.current.relative_humidity_2m))
+                                            .align_x(Horizontal::Right)
+                                            .size(theme.font_size.xs)
+                                            .width(Length::Fill),
+                                    )
+                                    .spacing(theme.space.xxs)
                                 )
-                                .into(),
-                                border: Border::default().rounded([
-                                    if index == 0 {
-                                        theme.radius.lg
-                                    } else {
-                                        theme.radius.sm
-                                    },
-                                    if index == 0 {
-                                        theme.radius.lg
-                                    } else {
-                                        theme.radius.sm
-                                    },
-                                    if index == data.daily.time.len() - 2 {
-                                        theme.radius.lg
-                                    } else {
-                                        theme.radius.sm
-                                    },
-                                    if index == data.daily.time.len() - 2 {
-                                        theme.radius.lg
-                                    } else {
-                                        theme.radius.sm
-                                    },
-                                ]),
-                                ..container::Style::default()
-                            })
-                            .into()
-                        }
+                                .align_y(Vertical::Center)
+                                .spacing(theme.space.sm),
+                                row!(
+                                    svg(Handle::from_memory(include_bytes!(
+                                        "../../assets/weather_icon/wind.svg"
+                                    )))
+                                    .height(theme.font_size.lg)
+                                    .width(Length::Shrink)
+                                    .rotation(
+                                        Rotation::Floating(
+                                            Degrees(data.current.wind_direction_10m as f32 + 90.)
+                                                .into()
+                                        )
+                                    ),
+                                    column!(
+                                        text("Wind")
+                                            .size(theme.font_size.xs)
+                                            .align_x(Horizontal::Right)
+                                            .width(Length::Fill),
+                                        text(format!("{} Km/h", data.current.wind_speed_10m))
+                                            .align_x(Horizontal::Right)
+                                            .size(theme.font_size.xs)
+                                            .width(Length::Fill),
+                                    )
+                                    .spacing(theme.space.xxs)
+                                )
+                                .align_y(Vertical::Center)
+                                .spacing(theme.space.sm),
+                            )
+                            .width(Length::Fill)
+                            .spacing(theme.space.xs),
+                        )
+                        .spacing(theme.space.lg)
+                        .align_y(Vertical::Center)
+                        .width(Length::Fill),
                     )
+                    .padding(theme.space.md)
+                    .style(move |app_theme: &Theme| container::Style {
+                        background: Background::Color(
+                            app_theme
+                                .extended_palette()
+                                .secondary
+                                .strong
+                                .color
+                                .scale_alpha(theme.opacity),
+                        )
+                        .into(),
+                        border: Border::default().rounded(theme.radius.lg),
+                        ..container::Style::default()
+                    }),
+                    container(
+                        scrollable(
+                            Row::with_children({
+                                let mut time = data
+                                    .hourly
+                                    .time
+                                    .iter()
+                                    .enumerate()
+                                    .filter(|(_, t)| **t > self.date.naive_local())
+                                    .take(23)
+                                    .peekable();
+                                let start_index = time.peek().map(|(index, _)| *index).unwrap_or(0);
+
+                                izip!(
+                                    time.map(|(_, v)| v),
+                                    data.hourly.weather_code.iter().enumerate().filter_map(
+                                        |(i, v)| if i >= start_index { Some(v) } else { None }
+                                    ),
+                                    data.hourly.temperature_2m.iter().enumerate().filter_map(
+                                        |(i, v)| if i >= start_index { Some(v) } else { None }
+                                    ),
+                                    data.hourly.is_day.iter().enumerate().filter_map(|(i, v)| {
+                                        if i >= start_index { Some(v) } else { None }
+                                    }),
+                                )
+                                .map(|(time, weather_code, temp, is_day)| {
+                                    column!(
+                                        text(format!("{}°", temp.round())),
+                                        weather_icon(*weather_code, *is_day > 0)
+                                            .height(theme.font_size.md)
+                                            .width(Length::Shrink),
+                                        text(time.format("%H:%M").to_string())
+                                            .size(theme.font_size.sm)
+                                    )
+                                    .spacing(theme.space.xs)
+                                    .align_x(Horizontal::Center)
+                                    .into()
+                                })
+                                .collect::<Vec<_>>()
+                            })
+                            .padding([0, 0, theme.space.md, 0,])
+                            .spacing(theme.space.sm)
+                        )
+                        .direction(scrollable::Direction::Horizontal(Scrollbar::new()))
+                    )
+                    .padding(theme.space.sm)
+                    .style(move |app_theme: &Theme| container::Style {
+                        background: Background::Color(
+                            app_theme
+                                .extended_palette()
+                                .secondary
+                                .strong
+                                .color
+                                .scale_alpha(theme.opacity),
+                        )
+                        .into(),
+                        border: Border::default().rounded(theme.radius.lg),
+                        ..container::Style::default()
+                    }),
+                    Column::with_children(
+                        izip!(
+                            &data.daily.time,
+                            &data.daily.weather_code,
+                            &data.daily.temperature_2m_min,
+                            &data.daily.temperature_2m_max,
+                            &data.daily.wind_direction_10m_dominant,
+                            &data.daily.wind_speed_10m_max,
+                        )
+                        .skip(1)
+                        .enumerate()
+                        .map(
+                            |(
+                                index,
+                                (time, weather_code, temp_min, temp_max, wind_dir, wind_speed),
+                            )| {
+                                container(
+                                    row!(
+                                        text(time.format("%a, %d %b").to_string())
+                                            .width(Length::Fill),
+                                        weather_icon(*weather_code, true)
+                                            .height(theme.font_size.md)
+                                            .width(Length::Shrink),
+                                        container(
+                                            row!(
+                                                text(format!(
+                                                    "{}°/{}°",
+                                                    temp_min.round(),
+                                                    temp_max.round()
+                                                ))
+                                                .width(Length::Shrink),
+                                                row!(
+                                                    svg(Handle::from_memory(include_bytes!(
+                                                        "../../assets/weather_icon/wind.svg"
+                                                    )))
+                                                    .height(theme.font_size.md)
+                                                    .width(Length::Shrink)
+                                                    .rotation(Rotation::Floating(
+                                                        Degrees(*wind_dir as f32 + 90.).into()
+                                                    )),
+                                                    text(format!("{} Km/h", wind_speed))
+                                                )
+                                                .spacing(theme.space.xxs)
+                                            )
+                                            .spacing(theme.space.sm)
+                                        )
+                                        .width(Length::FillPortion(2))
+                                        .align_x(Horizontal::Right)
+                                    )
+                                    .spacing(theme.space.sm),
+                                )
+                                .padding(theme.space.sm)
+                                .style(move |app_theme: &Theme| container::Style {
+                                    background: Background::Color(
+                                        app_theme
+                                            .extended_palette()
+                                            .secondary
+                                            .strong
+                                            .color
+                                            .scale_alpha(theme.opacity),
+                                    )
+                                    .into(),
+                                    border: Border::default().rounded([
+                                        if index == 0 {
+                                            theme.radius.lg
+                                        } else {
+                                            theme.radius.sm
+                                        },
+                                        if index == 0 {
+                                            theme.radius.lg
+                                        } else {
+                                            theme.radius.sm
+                                        },
+                                        if index == data.daily.time.len() - 2 {
+                                            theme.radius.lg
+                                        } else {
+                                            theme.radius.sm
+                                        },
+                                        if index == data.daily.time.len() - 2 {
+                                            theme.radius.lg
+                                        } else {
+                                            theme.radius.sm
+                                        },
+                                    ]),
+                                    ..container::Style::default()
+                                })
+                                .into()
+                            }
+                        )
+                    )
+                    .spacing(theme.space.xxs)
                 )
-                .spacing(theme.space.xxs)
-            )
-            .spacing(theme.space.sm)
-            .into()
-        })
+                .spacing(theme.space.sm)
+                .into()
+            })
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
@@ -528,8 +545,11 @@ impl Tempo {
                         Ok(loc) => {
                             debug!("Location fetched successfully: {:?}", loc);
 
+                            let (lat, lon) = (loc.lat, loc.lon);
+                            output.send(Message::UpdateLocation(loc)).await.ok();
+
                             loop {
-                                let data = fetch_weather_data(&loc).await;
+                                let data = fetch_weather_data(lat, lon).await;
 
                                 match data {
                                     Ok(weather_data) => {
@@ -583,20 +603,10 @@ async fn fetch_location(location: WeatherLocation) -> anyhow::Result<Location> {
             let response = reqwest::get(find_location).await?;
             let raw_data = response.text().await?;
 
-            let data: IpApiResponse = serde_json::from_str(&raw_data)?;
+            let data: Location = serde_json::from_str(&raw_data)?;
 
-            Ok(Location {
-                latitude: data.lat,
-                longitude: data.lon,
-            })
+            Ok(data)
         }
-        WeatherLocation::Coordinates {
-            latitude,
-            longitude,
-        } => Ok(Location {
-            latitude,
-            longitude,
-        }),
     }
 }
 
@@ -605,27 +615,24 @@ struct Locations {
     results: Vec<Location>,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize)]
-struct Location {
-    latitude: f32,
-    longitude: f32,
-}
-
-#[derive(Clone, Copy, Debug, Deserialize)]
-struct IpApiResponse {
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Location {
     lat: f32,
     lon: f32,
+    city: String,
+    region_name: String,
 }
 
-async fn fetch_weather_data(location: &Location) -> anyhow::Result<WeatherData> {
+async fn fetch_weather_data(lat: f32, lon: f32) -> anyhow::Result<WeatherData> {
     let response = reqwest::get(format!(
         "https://api.open-meteo.com/v1/forecast?\
         latitude={}&longitude={}\
         &current=weather_code,apparent_temperature,relative_humidity_2m,temperature_2m,is_day,wind_speed_10m,wind_direction_10m\
         &hourly=weather_code,temperature_2m,is_day\
-        &daily=weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,wind_speed_10m_max,wind_direction_10m_dominant\
+        &daily=weather_code,temperature_2m_max,temperature_2m_min,wind_speed_10m_max,wind_direction_10m_dominant\
         &forecast_days=7", 
-        location.latitude, location.longitude
+        lat, lon
     )).await?;
     let raw_data = response.text().await?;
 
@@ -670,8 +677,6 @@ pub struct DailyWeatherData {
     weather_code: Vec<u32>,
     temperature_2m_max: Vec<f32>,
     temperature_2m_min: Vec<f32>,
-    apparent_temperature_max: Vec<f32>,
-    apparent_temperature_min: Vec<f32>,
     wind_speed_10m_max: Vec<f32>,
     wind_direction_10m_dominant: Vec<u32>,
 }
