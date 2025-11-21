@@ -2,7 +2,7 @@ use crate::{
     HEIGHT,
     config::{self, AppearanceStyle, Config, Modules, Position},
     get_log_spec,
-    menu::{MenuSize, MenuType},
+    menu::MenuType,
     modules::{
         self,
         app_launcher::{self, AppLauncher},
@@ -73,7 +73,6 @@ pub struct App {
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    None,
     ConfigChanged(Box<Config>),
     ToggleMenu(MenuType, Id, ButtonUIRef),
     CloseMenu(Id),
@@ -200,7 +199,6 @@ impl App {
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::None => Task::none(),
             Message::ConfigChanged(config) => {
                 info!("New config: {config:?}");
                 let mut tasks = Vec::new();
@@ -499,7 +497,6 @@ impl App {
                         self.menu_wrapper(
                             id,
                             updates.menu_view(id, &self.theme).map(Message::Updates),
-                            MenuSize::Small,
                             *button_ui_ref,
                         )
                     } else {
@@ -509,7 +506,6 @@ impl App {
                 Some((MenuType::Tray(name), button_ui_ref)) => self.menu_wrapper(
                     id,
                     self.tray.menu_view(&self.theme, name).map(Message::Tray),
-                    MenuSize::Medium,
                     *button_ui_ref,
                 ),
                 Some((MenuType::Settings, button_ui_ref)) => self.menu_wrapper(
@@ -517,7 +513,6 @@ impl App {
                     self.settings
                         .menu_view(id, &self.theme, self.theme.bar_position)
                         .map(Message::Settings),
-                    MenuSize::Medium,
                     *button_ui_ref,
                 ),
                 Some((MenuType::MediaPlayer, button_ui_ref)) => self.menu_wrapper(
@@ -525,7 +520,6 @@ impl App {
                     self.media_player
                         .menu_view(&self.theme)
                         .map(Message::MediaPlayer),
-                    MenuSize::Large,
                     *button_ui_ref,
                 ),
                 Some((MenuType::SystemInfo, button_ui_ref)) => self.menu_wrapper(
@@ -533,14 +527,12 @@ impl App {
                     self.system_info
                         .menu_view(&self.theme)
                         .map(Message::SystemInfo),
-                    MenuSize::Medium,
                     *button_ui_ref,
                 ),
 
                 Some((MenuType::Tempo, button_ui_ref)) => self.menu_wrapper(
                     id,
                     self.tempo.menu_view(&self.theme).map(Message::Tempo),
-                    MenuSize::XLarge,
                     *button_ui_ref,
                 ),
                 None => Row::new().into(),

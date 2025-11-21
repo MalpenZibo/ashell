@@ -1,6 +1,7 @@
 use crate::{
     components::icons::{StaticIcon, icon},
     config::{TempoModuleConfig, WeatherLocation},
+    menu::MenuSize,
     theme::AshellTheme,
 };
 use chrono::{DateTime, Datelike, Days, Local, Months, NaiveDate, NaiveDateTime, Weekday};
@@ -99,11 +100,14 @@ impl Tempo {
     }
 
     pub fn menu_view<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
-        Row::new()
-            .push(self.calendar(theme))
-            .push_maybe(self.weather(theme))
-            .spacing(theme.space.lg)
-            .into()
+        container(
+            Row::new()
+                .push(self.calendar(theme))
+                .push_maybe(self.weather(theme))
+                .spacing(theme.space.lg),
+        )
+        .max_width(MenuSize::XLarge)
+        .into()
     }
 
     fn calendar<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
@@ -537,10 +541,10 @@ impl Tempo {
                                             "Weather data fetched successfully: {:?}",
                                             weather_data
                                         );
-                                        // output
-                                        //     .send(Message::UpdateWeather(Box::new(weather_data)))
-                                        //     .await
-                                        //     .ok();
+                                        output
+                                            .send(Message::UpdateWeather(Box::new(weather_data)))
+                                            .await
+                                            .ok();
                                     }
                                     Err(e) => {
                                         warn!("Failed to fetch weather data: {:?}", e);

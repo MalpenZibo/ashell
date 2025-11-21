@@ -1,22 +1,23 @@
-//! Distribute content horizontally.
-use iced::advanced::layout::{self, Layout, Limits, Node};
-use iced::advanced::overlay;
+use iced::advanced::layout::{self, Layout};
 use iced::advanced::renderer;
 use iced::advanced::widget::{Operation, Tree};
 use iced::advanced::{Clipboard, Shell, Widget, mouse};
-use iced::core::clipboard::DndDestinationRectangles;
 use iced::core::widget::tree;
 use iced::id::Id;
 use iced::{
-    Alignment, Background, Border, Color, Element, Event, Length, Padding, Pixels, Point,
-    Rectangle, Shadow, Size, Vector, event,
+    Background, Border, Color, Element, Event, Length, Padding, Point, Rectangle, Shadow, Size,
+    Vector, alignment, event, overlay, touch,
 };
 
-/// A container that distributes its contents horizontally.
 #[allow(missing_debug_implementations)]
 pub struct MenuWrapper<'a, Message, Theme = iced::Theme, Renderer = iced::Renderer> {
+    id: Id,
     x: f32,
     content: Element<'a, Message, Theme, Renderer>,
+    on_click_outside: Option<Message>,
+    padding: Padding,
+    vertical_alignment: alignment::Vertical,
+    backdrop: Option<Color>,
 }
 
 impl<'a, Message, Theme, Renderer> MenuWrapper<'a, Message, Theme, Renderer>
@@ -24,29 +25,58 @@ where
     Renderer: iced::advanced::Renderer,
 {
     pub fn new(x: f32, content: Element<'a, Message, Theme, Renderer>) -> Self {
-        MenuWrapper { x, content }
+        MenuWrapper {
+            id: Id::unique(),
+            x,
+            content,
+            on_click_outside: None,
+            vertical_alignment: alignment::Vertical::Top,
+            padding: Padding::ZERO,
+            backdrop: None,
+        }
+    }
+
+    pub fn padding<P: Into<Padding>>(mut self, padding: P) -> Self {
+        self.padding = padding.into();
+        self
+    }
+
+    pub fn align_y(mut self, alignment: impl Into<alignment::Vertical>) -> Self {
+        self.vertical_alignment = alignment.into();
+        self
+    }
+
+    pub fn on_click_outside(mut self, message: Message) -> Self {
+        self.on_click_outside = Some(message);
+        self
+    }
+
+    pub fn backdrop(mut self, color: Color) -> Self {
+        self.backdrop = Some(color);
+        self
     }
 }
 
 impl<'a, Message, Theme, Renderer> Widget<Message, Theme, Renderer>
     for MenuWrapper<'a, Message, Theme, Renderer>
 where
+    Message: Clone,
     Renderer: iced::advanced::Renderer,
 {
     fn tag(&self) -> tree::Tag {
-        self.content.as_widget().tag()
+        tree::Tag::of::<()>()
     }
 
     fn state(&self) -> tree::State {
-        self.content.as_widget().state()
+        tree::State::new(())
     }
 
     fn children(&self) -> Vec<Tree> {
-        self.content.as_widget().children()
+        vec![Tree::new(&self.content)]
     }
 
     fn diff(&mut self, tree: &mut Tree) {
-        self.content.as_widget_mut().diff(tree);
+        tree.diff_children(std::slice::from_mut(&mut self.content));
     }
 
     fn size(&self) -> Size<Length> {
@@ -62,23 +92,31 @@ where
         renderer: &Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
-        let mut layout = self.content.as_widget().layout(tree, renderer, limits);
-        let size = layout.size();
-
-        let viewport_width = limits.max().width;
-
-        let x = f32::min(
-            f32::max(self.x - size.width / 2.0, 8.),
-            viewport_width - size.width - 8.,
-        );
-        println!(
-            "size {size:?}, viewport_width {viewport_width}, x {}, x position {x}",
-            self.x
-        );
-
-        layout.move_to_mut(Point::new(x, 0.));
-
-        Node::with_children(size, vec![layout])
+        layout::positioned(
+            limits,
+            Length::Fill,
+            Length::Fill,
+            self.padding,
+            |limits| {
+                self.content
+                    .as_widget()
+                    .layout(&mut tree.children[0], renderer, limits)
+            },
+            |node, size| {
+                let content_size = node.size();
+                let x = f32::min(
+                    f32::max(self.x - content_size.width / 2.0, 8.),
+                    size.width - content_size.width - 8.,
+                );
+                let node = node.align(
+                    iced::Alignment::Center,
+                    self.vertical_alignment.into(),
+                    size,
+                );
+                let y = node.bounds().y;
+                node.move_to(Point::new(x, y))
+            },
+        )
     }
 
     fn operate(
@@ -88,22 +126,14 @@ where
         renderer: &Renderer,
         operation: &mut dyn Operation,
     ) {
-        operation.container(
-            self.content.as_widget().id().as_ref(),
-            layout.bounds(),
-            &mut |operation| {
-                self.content.as_widget().operate(
-                    tree,
-                    layout
-                        .children()
-                        .next()
-                        .unwrap()
-                        .with_virtual_offset(layout.virtual_offset()),
-                    renderer,
-                    operation,
-                );
-            },
-        );
+        operation.container(None, layout.bounds(), &mut |operation| {
+            self.content.as_widget().operate(
+                &mut tree.children[0],
+                layout.children().next().unwrap(),
+                renderer,
+                operation,
+            );
+        });
     }
 
     fn on_event(
@@ -120,39 +150,41 @@ where
         if let event::Status::Captured = self.content.as_widget_mut().on_event(
             &mut tree.children[0],
             event.clone(),
-            layout,
+            layout.children().next().unwrap(),
             cursor,
             renderer,
             clipboard,
             shell,
             viewport,
         ) {
-            println!("click inside");
             return event::Status::Captured;
         }
-        println!("click outside");
-        return event::Status::Captured;
+
+        if let Some(on_click_outside) = &self.on_click_outside
+            && let Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left))
+            | Event::Touch(touch::Event::FingerLifted { .. }) = event
+        {
+            let bounds = layout.children().next().unwrap().bounds();
+            let cursor_over_scrollable = cursor.is_over(bounds);
+            if !cursor_over_scrollable {
+                shell.publish(on_click_outside.clone());
+
+                return event::Status::Captured;
+            }
+        }
+
+        event::Status::Ignored
     }
 
     fn mouse_interaction(
         &self,
-        tree: &Tree,
-        layout: Layout<'_>,
-        cursor: mouse::Cursor,
-        viewport: &Rectangle,
-        renderer: &Renderer,
+        _: &Tree,
+        _: Layout<'_>,
+        _: mouse::Cursor,
+        _: &Rectangle,
+        _: &Renderer,
     ) -> mouse::Interaction {
-        self.content.as_widget().mouse_interaction(
-            tree,
-            layout
-                .children()
-                .next()
-                .unwrap()
-                .with_virtual_offset(layout.virtual_offset()),
-            cursor,
-            viewport,
-            renderer,
-        )
+        mouse::Interaction::default()
     }
 
     fn draw(
@@ -165,29 +197,24 @@ where
         cursor: mouse::Cursor,
         viewport: &Rectangle,
     ) {
-        renderer.fill_quad(
-            renderer::Quad {
-                bounds: layout.bounds(),
-                border: Border::default(),
-                shadow: Shadow::default(),
-            },
-            Background::Color(Color::from_rgb(0., 1., 0.)),
-        );
+        if let Some(backdrop) = self.backdrop {
+            renderer.fill_quad(
+                renderer::Quad {
+                    bounds: layout.bounds(),
+                    border: Border::default(),
+                    shadow: Shadow::default(),
+                },
+                Background::Color(backdrop),
+            );
+        }
 
+        let content_layout = layout.children().next().unwrap();
         self.content.as_widget().draw(
-            tree,
+            &tree.children[0],
             renderer,
             theme,
-            &renderer::Style {
-                icon_color: renderer_style.icon_color,
-                text_color: renderer_style.text_color,
-                scale_factor: renderer_style.scale_factor,
-            },
-            layout
-                .children()
-                .next()
-                .unwrap()
-                .with_virtual_offset(layout.virtual_offset()),
+            renderer_style,
+            content_layout,
             cursor,
             viewport,
         );
@@ -201,64 +228,26 @@ where
         translation: Vector,
     ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
         self.content.as_widget_mut().overlay(
-            tree,
-            layout
-                .children()
-                .next()
-                .unwrap()
-                .with_virtual_offset(layout.virtual_offset()),
+            &mut tree.children[0],
+            layout.children().next().unwrap(),
             renderer,
             translation,
         )
     }
 
-    #[cfg(feature = "a11y")]
-    /// get the a11y nodes for the widget
-    fn a11y_nodes(
-        &self,
-        layout: Layout<'_>,
-        state: &Tree,
-        cursor: mouse::Cursor,
-    ) -> iced_accessibility::A11yTree {
-        let c_layout = layout.children().next().unwrap();
-
-        self.content.as_widget().a11y_nodes(
-            c_layout.with_virtual_offset(layout.virtual_offset()),
-            state,
-            cursor,
-        )
-    }
-
-    fn drag_destinations(
-        &self,
-        state: &Tree,
-        layout: Layout<'_>,
-        renderer: &Renderer,
-        dnd_rectangles: &mut DndDestinationRectangles,
-    ) {
-        if let Some(l) = layout.children().next() {
-            self.content.as_widget().drag_destinations(
-                state,
-                l.with_virtual_offset(layout.virtual_offset()),
-                renderer,
-                dnd_rectangles,
-            );
-        }
-    }
-
     fn id(&self) -> Option<Id> {
-        self.content.as_widget().id().clone()
+        Some(self.id.clone())
     }
 
     fn set_id(&mut self, id: Id) {
-        self.content.as_widget_mut().set_id(id);
+        self.id = id;
     }
 }
 
 impl<'a, Message, Theme, Renderer> From<MenuWrapper<'a, Message, Theme, Renderer>>
     for Element<'a, Message, Theme, Renderer>
 where
-    Message: 'a,
+    Message: 'a + Clone,
     Theme: 'a,
     Renderer: iced::advanced::Renderer + 'a,
 {
