@@ -71,27 +71,54 @@ fn get_system_info(
 
     let elapsed = last_check.map(|v| v.elapsed().as_secs());
 
-    let network = networks.iter().fold(
-        (None, 0, 0),
-        |(first_ip, total_received, total_transmitted), (_, data)| {
-            let ip = first_ip.or_else(|| {
-                data.ip_networks()
-                    .iter()
-                    .sorted_by(|a, b| a.addr.cmp(&b.addr))
-                    .next()
-                    .map(|ip| ip.addr)
-            });
+    let network = networks
+        .iter()
+        .filter(|(name, _)| {
+            name.contains("en")
+                || name.contains("eth")
+                || name.contains("wl")
+                || name.contains("wlan")
+        })
+        .sorted_by_key(|(name, _)| {
+            if name.contains("en") {
+                return 0;
+            }
 
-            let received = data.received();
-            let transmitted = data.transmitted();
+            if name.contains("eth") {
+                return 1;
+            }
 
-            (
-                first_ip.or(ip),
-                total_received + received,
-                total_transmitted + transmitted,
-            )
-        },
-    );
+            if name.contains("wl") {
+                return 2;
+            }
+
+            if name.contains("wlan") {
+                return 3;
+            }
+
+            99
+        })
+        .fold(
+            (None, 0, 0),
+            |(first_ip, total_received, total_transmitted), (_, data)| {
+                let ip = first_ip.or_else(|| {
+                    data.ip_networks()
+                        .iter()
+                        .sorted_by(|a, b| a.addr.cmp(&b.addr))
+                        .next()
+                        .map(|ip| ip.addr)
+                });
+
+                let received = data.received();
+                let transmitted = data.transmitted();
+
+                (
+                    first_ip.or(ip),
+                    total_received + received,
+                    total_transmitted + transmitted,
+                )
+            },
+        );
 
     let network_speed = |value: u64| {
         match elapsed {
