@@ -553,6 +553,11 @@ impl AshellTheme {
                     );
                     base
                 }
+                Status::Disabled => {
+                    base.border.width = 0.;
+
+                    base
+                }
                 _ => base,
             }
         }

@@ -235,17 +235,18 @@ impl Tempo {
         column!(
             button(
                 column!(
-                    text(self.date.format("%A").to_string()).size(theme.font_size.md),
-                    text(self.date.format("%d %B %Y").to_string()).size(theme.font_size.lg),
+                    text(self.date.format("%A").to_string()).size(theme.font_size.sm),
+                    text(self.date.format("%d %B %Y").to_string()).size(theme.font_size.md),
                 )
                 .spacing(theme.space.xs)
             )
+            .padding([theme.space.sm, theme.space.lg])
             .on_press_maybe(if self.selected_date.is_some() {
                 Some(Message::ChangeSelectDate(None))
             } else {
                 None
             })
-            .style(theme.ghost_button_style()),
+            .style(theme.outline_button_style()),
             calendar
         )
         .spacing(theme.space.lg)
