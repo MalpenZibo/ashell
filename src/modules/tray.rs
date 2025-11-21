@@ -1,5 +1,6 @@
 use crate::{
     components::icons::{StaticIcon, icon},
+    menu::MenuSize,
     services::{
         ReadOnlyService, Service, ServiceEvent,
         tray::{
@@ -223,8 +224,9 @@ impl TrayModule {
                     .map(|menu| self.menu_voice(theme, name, menu)),
             )
             .spacing(theme.space.xs)
+            .width(MenuSize::Medium)
             .into(),
-            _ => Row::new().into(),
+            _ => Row::new().width(MenuSize::Medium).into(),
         }
     }
 
