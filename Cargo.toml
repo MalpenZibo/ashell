@@ -79,6 +79,7 @@ shellexpand = { version = "3", features = ["path"] }
 inotify = "0.11.0"
 pin-project-lite = "0.2.16"
 reqwest = "0.12.24"
+url = "2.5.7"
 
 [build-dependencies]
 allsorts = "0.15"

@@ -12,6 +12,7 @@ use crate::{
     theme::AshellTheme,
     utils::truncate_text,
 };
+use anyhow::{anyhow, bail};
 use iced::{
     Background, Border, Element, Length, Subscription, Task, Theme,
     alignment::Vertical,
@@ -19,6 +20,7 @@ use iced::{
     widget::{Column, column, container, horizontal_rule, image, row, slider, text},
 };
 use itertools::Itertools;
+use url::Url;
 
 type CoverData = Bytes;
 
@@ -261,10 +263,21 @@ impl MediaPlayer {
         }
     }
 
-    // TODO: handle non-HTTP URLs (e.g. file://)?
-    async fn fetch_cover(url: String) -> Result<CoverData, reqwest::Error> {
-        let response = reqwest::get(url).await?;
-        response.bytes().await
+    async fn fetch_cover(url: String) -> anyhow::Result<CoverData> {
+        let url = Url::parse(&url)?;
+        match url.scheme() {
+            "http" | "https" => {
+                let response = reqwest::get(url).await?;
+                Ok(response.bytes().await?)
+            }
+            "file" => {
+                let path = url
+                    .to_file_path()
+                    .map_err(|_| anyhow!("Invalid file URL {}", url))?;
+                Ok(tokio::fs::read(path).await?.into())
+            }
+            _ => bail!("Unsupported URL scheme: {}", url.scheme()),
+        }
     }
 
     fn get_title(&self, d: &MprisPlayerData) -> String {
