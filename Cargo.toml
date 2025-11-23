@@ -80,7 +80,7 @@ inotify = "0.11.0"
 pin-project-lite = "0.2.16"
 niri-ipc = "25.11.0"
 parking_lot = "0.12.5"
-reqwest = "0.12.24"
+reqwest = { version = "0.12.24", default-features = false, features = ["rustls-tls"] }
 url = "2.5.7"
 
 [build-dependencies]
