@@ -228,7 +228,7 @@ impl MediaPlayer {
         }
     }
 
-    fn check_cover_update(&mut self, data: &Vec<MprisPlayerData>) -> Action {
+    fn check_cover_update(&mut self, data: &[MprisPlayerData]) -> Action {
         let urls: HashSet<_> = data
             .iter()
             .filter_map(|player| player.metadata.as_ref().and_then(|m| m.art_url.clone()))
