@@ -17,7 +17,7 @@ use iced::{
     Background, Border, Element, Length, Subscription, Task, Theme,
     alignment::Vertical,
     core::image::Bytes,
-    widget::{Column, column, container, horizontal_rule, image, row, slider, text},
+    widget::{Row, column, container, horizontal_rule, horizontal_space, image, row, slider, text},
 };
 use itertools::Itertools;
 use url::Url;
@@ -124,7 +124,7 @@ impl MediaPlayer {
                         .wrapping(text::Wrapping::WordOrGlyph)
                         .size(theme.font_size.sm)
                         .width(Length::Fill);
-                    let left = column![title, artists, album]
+                    let description = column![title, artists, album]
                         .spacing(theme.space.xxs)
                         .width(Length::Fill);
 
@@ -146,6 +146,20 @@ impl MediaPlayer {
                     ]
                     .align_y(Vertical::Center)
                     .spacing(theme.space.xs);
+                    let volume_slider: Element<'_, _> = match d.volume {
+                        Some(v) => slider(0.0..=100.0, v, move |v| {
+                            Message::SetVolume(d.service.clone(), v)
+                        })
+                        .width(Length::Fill)
+                        .into(),
+                        None => horizontal_space().into(),
+                    };
+                    let controls = Row::new()
+                        .push(volume_slider)
+                        .push(buttons)
+                        .spacing(theme.space.md)
+                        .align_y(Vertical::Center);
+
                     // Is it possible to dynamically size the cover to match the buttons?
                     let buttons_width =
                         IconButtonSize::Large.container_size() * 3. + theme.space.xs as f32 * 2.;
@@ -170,26 +184,13 @@ impl MediaPlayer {
                                         .into()
                                 })
                         });
-                    let right = match cover {
-                        Some(cover) => column![cover, buttons].spacing(theme.space.xs),
-                        None => column![buttons],
-                    };
-
-                    let volume_slider = d.volume.map(|v| {
-                        slider(0.0..=100.0, v, move |v| {
-                            Message::SetVolume(d.service.clone(), v)
-                        })
-                    });
+                    let metadata = row![description]
+                        .push_maybe(cover)
+                        .spacing(theme.space.md)
+                        .align_y(Vertical::Center);
 
                     container(
-                        Column::new()
-                            .push(
-                                row!(left, right)
-                                    .spacing(theme.space.xs)
-                                    .align_y(Vertical::Center),
-                            )
-                            .push_maybe(volume_slider)
-                            .spacing(theme.space.xs),
+                        column![metadata, controls].spacing(theme.space.xs), // .align_y(Vertical::Center),
                     )
                     .style(move |app_theme: &Theme| container::Style {
                         background: Background::Color(
