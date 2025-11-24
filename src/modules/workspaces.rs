@@ -105,19 +105,19 @@ impl Workspaces {
                 iced::Task::none()
             }
             Message::ToggleSpecialWorkspace(id) => {
-                if let Some(service) = &mut self.service {
-                    if let Some(special) = service.workspaces.iter().find(|w| w.id == id) {
-                        return service
-                            .command(CompositorCommand::ToggleSpecialWorkspace(
-                                special
-                                    .name
-                                    .split(":")
-                                    .last()
-                                    .map(|s| s.to_string())
-                                    .unwrap_or(special.name.clone()),
-                            ))
-                            .map(Message::ServiceEvent);
-                    }
+                if let Some(service) = &mut self.service
+                    && let Some(special) = service.workspaces.iter().find(|w| w.id == id)
+                {
+                    return service
+                        .command(CompositorCommand::ToggleSpecialWorkspace(
+                            special
+                                .name
+                                .split(":")
+                                .last()
+                                .map(|s| s.to_string())
+                                .unwrap_or(special.name.clone()),
+                        ))
+                        .map(Message::ServiceEvent);
                 }
                 iced::Task::none()
             }
@@ -153,8 +153,7 @@ impl Workspaces {
 
     fn recalculate_ui_workspaces(&mut self) {
         if let Some(service) = &self.service {
-            // Deref service to get &CompositorState
-            self.ui_workspaces = calculate_ui_workspaces(&self.config, &*service);
+            self.ui_workspaces = calculate_ui_workspaces(&self.config, service);
         }
     }
 

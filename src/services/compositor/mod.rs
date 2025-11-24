@@ -68,7 +68,7 @@ impl Service for CompositorService {
     fn command(&mut self, command: Self::Command) -> Task<ServiceEvent<Self>> {
         Task::perform(
             async move {
-                hyprland::execute_command(command)
+                niri::execute_command(command)
                     .await
                     .map_err(|e| e.to_string())
             },
