@@ -10,6 +10,7 @@ pub mod privacy;
 mod throttle;
 pub mod tray;
 pub mod upower;
+pub mod compositor;
 
 #[allow(unused)]
 #[derive(Debug, Clone)]

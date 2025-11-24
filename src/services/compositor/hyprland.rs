@@ -1,0 +1,156 @@
+use super::types::{
+    ActiveWindow, CompositorCommand, CompositorEvent, CompositorMonitor, CompositorState,
+    CompositorWorkspace,
+};
+use crate::services::{compositor::CompositorService, ServiceEvent};
+use anyhow::Result;
+use hyprland::{
+    data::{Client, Devices, Monitors, Workspace, Workspaces},
+    dispatch::{Dispatch, DispatchType, MonitorIdentifier, WorkspaceIdentifierWithSpecial},
+    event_listener::AsyncEventListener,
+    prelude::*,
+};
+use iced::futures::channel::mpsc::Sender;
+use std::sync::{Arc, RwLock};
+
+pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
+    match cmd {
+        CompositorCommand::FocusWorkspace(id) => {
+            Dispatch::call(DispatchType::Workspace(WorkspaceIdentifierWithSpecial::Id(
+                id,
+            )))?;
+        }
+        CompositorCommand::FocusSpecialWorkspace(name) => {
+            Dispatch::call(DispatchType::Workspace(
+                WorkspaceIdentifierWithSpecial::Special(Some(name.as_str())),
+            ))?;
+        }
+        CompositorCommand::ToggleSpecialWorkspace(name) => {
+            Dispatch::call(DispatchType::ToggleSpecialWorkspace(Some(name)))?;
+        }
+        CompositorCommand::FocusMonitor(id) => {
+            Dispatch::call(DispatchType::FocusMonitor(MonitorIdentifier::Id(id)))?;
+        }
+        CompositorCommand::ScrollWorkspace(dir) => {
+            let d = if dir > 0 { "+1" } else { "-1" };
+            Dispatch::call(DispatchType::Workspace(
+                WorkspaceIdentifierWithSpecial::Relative(d.to_string().parse()?),
+            ))?;
+        }
+        CompositorCommand::NextLayout => {
+            hyprland::ctl::switch_xkb_layout::call(
+                "all",
+                hyprland::ctl::switch_xkb_layout::SwitchXKBLayoutCmdTypes::Next,
+            )?;
+        }
+        CompositorCommand::CustomDispatch(dispatcher, args) => {
+            Dispatch::call(DispatchType::Custom(&dispatcher, &args))?;
+        }
+    }
+    Ok(())
+}
+
+pub async fn run_listener(
+    output: Arc<RwLock<Sender<ServiceEvent<CompositorService>>>>,
+) -> Result<()> {
+    // Initial fetch
+    if let Ok(state) = fetch_full_state() {
+        if let Ok(mut o) = output.write() {
+            let _ = o.try_send(ServiceEvent::Init(CompositorService { state }));
+        }
+    } else {
+        log::error!("Failed to fetch initial compositor state");
+    }
+
+    let mut listener = AsyncEventListener::new();
+
+    macro_rules! add_refresh_handler {
+        ($listener:expr, $method:ident, $output:expr) => {
+            $listener.$method({
+                let output = $output.clone();
+                move |_| {
+                    let output = output.clone();
+                    Box::pin(async move {
+                        if let Ok(state) = fetch_full_state() {
+                            if let Ok(mut o) = output.write() {
+                                let _ = o.try_send(ServiceEvent::Update(
+                                    CompositorEvent::StateChanged(state),
+                                ));
+                            }
+                        }
+                    })
+                }
+            });
+        };
+    }
+
+    add_refresh_handler!(listener, add_workspace_added_handler, output);
+    add_refresh_handler!(listener, add_workspace_changed_handler, output);
+    add_refresh_handler!(listener, add_workspace_deleted_handler, output);
+    add_refresh_handler!(listener, add_workspace_moved_handler, output);
+    add_refresh_handler!(listener, add_changed_special_handler, output);
+    add_refresh_handler!(listener, add_special_removed_handler, output);
+    add_refresh_handler!(listener, add_active_monitor_changed_handler, output);
+
+    add_refresh_handler!(listener, add_window_closed_handler, output);
+    add_refresh_handler!(listener, add_window_opened_handler, output);
+    add_refresh_handler!(listener, add_window_moved_handler, output);
+    // Fixed method name here (changed -> change)
+    add_refresh_handler!(listener, add_active_window_changed_handler, output);
+
+    add_refresh_handler!(listener, add_layout_changed_handler, output);
+
+    // Map the HyprError to anyhow::Error
+    listener.start_listener_async().await.map_err(|e| anyhow::anyhow!(e))
+}
+
+fn fetch_full_state() -> Result<CompositorState> {
+    let workspaces = Workspaces::get()?
+        .into_iter()
+        .map(|w| CompositorWorkspace {
+            id: w.id,
+            name: w.name,
+            monitor: w.monitor,
+            monitor_id: w.monitor_id,
+            windows: w.windows,
+            is_special: w.id < 0,
+        })
+        .collect();
+
+    let monitors = Monitors::get()?
+        .into_iter()
+        .map(|m| CompositorMonitor {
+            id: m.id,
+            name: m.name,
+            active_workspace_id: m.active_workspace.id,
+            special_workspace_id: m.special_workspace.id,
+        })
+        .collect();
+
+    let active_workspace_id = Workspace::get_active().ok().map(|w| w.id);
+
+    let active_window = Client::get_active().ok().flatten().map(|w| ActiveWindow {
+        title: w.title,
+        class: w.class,
+        address: w.address.to_string(),
+    });
+
+    let keyboard_layout = Devices::get()
+        .ok()
+        .and_then(|d| {
+            d.keyboards
+                .into_iter()
+                .find(|k| k.main)
+                .map(|k| k.active_keymap)
+        })
+        .unwrap_or_else(|| "Unknown".to_string());
+
+    Ok(CompositorState {
+        workspaces,
+        monitors,
+        active_workspace_id,
+        active_window,
+        keyboard_layout,
+        submap: None,
+    })
+}
