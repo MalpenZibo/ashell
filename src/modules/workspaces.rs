@@ -53,6 +53,161 @@ pub struct Workspaces {
     ui_workspaces: Vec<UiWorkspace>,
 }
 
+fn calculate_ui_workspaces(
+    config: &WorkspacesModuleConfig,
+    state: &CompositorState,
+) -> Vec<UiWorkspace> {
+    let active_id = state.active_workspace_id;
+    let monitors = &state.monitors;
+    let workspaces = state
+        .workspaces
+        .clone()
+        .into_iter()
+        .unique_by(|w| w.id)
+        .collect_vec();
+
+    let mut result: Vec<UiWorkspace> = Vec::with_capacity(workspaces.len());
+    let (special, normal): (Vec<_>, Vec<_>) = workspaces.into_iter().partition(|w| w.id < 0);
+
+    for w in special.iter() {
+        let active = monitors.iter().any(|m| m.special_workspace_id == w.id);
+        result.push(UiWorkspace {
+            id: w.id,
+            name: w
+                .name
+                .split(":")
+                .last()
+                .map_or_else(|| "".to_string(), |s| s.to_owned()),
+            monitor_id: w.monitor_id,
+            monitor: w.monitor.clone(),
+            displayed: if active {
+                Displayed::Active
+            } else {
+                Displayed::Hidden
+            },
+            windows: w.windows,
+        });
+    }
+
+    if config.enable_virtual_desktops {
+        let monitor_count = monitors.len().max(1);
+        let mut virtual_desktops: HashMap<i32, VirtualDesktop> = HashMap::new();
+
+        for w in normal.iter() {
+            let vdesk_id = ((w.id - 1) / monitor_count as i32) + 1;
+            let is_active = Some(w.id) == active_id;
+
+            if let Some(vdesk) = virtual_desktops.get_mut(&vdesk_id) {
+                vdesk.windows += w.windows;
+                vdesk.active = vdesk.active || is_active;
+            } else {
+                virtual_desktops.insert(
+                    vdesk_id,
+                    VirtualDesktop {
+                        active: is_active,
+                        windows: w.windows,
+                    },
+                );
+            }
+        }
+
+        virtual_desktops.into_iter().for_each(|(id, vdesk)| {
+            let idx = (id - 1) as usize;
+            let display_name = config
+                .workspace_names
+                .get(idx)
+                .cloned()
+                .unwrap_or_else(|| id.to_string());
+
+            result.push(UiWorkspace {
+                id,
+                name: display_name,
+                monitor_id: None,
+                monitor: "".to_string(),
+                displayed: if vdesk.active {
+                    Displayed::Active
+                } else {
+                    Displayed::Hidden
+                },
+                windows: vdesk.windows,
+            });
+        });
+    } else {
+        for w in normal.iter() {
+            let display_name = if w.id > 0 {
+                let idx = (w.id - 1) as usize;
+                config
+                    .workspace_names
+                    .get(idx)
+                    .cloned()
+                    .unwrap_or_else(|| w.id.to_string())
+            } else {
+                w.name.clone()
+            };
+
+            let is_active = active_id == Some(w.id);
+            let is_visible = monitors.iter().any(|m| m.active_workspace_id == w.id);
+
+            result.push(UiWorkspace {
+                id: w.id,
+                name: display_name,
+                monitor_id: w.monitor_id,
+                monitor: w.monitor.clone(),
+                displayed: match (is_active, is_visible) {
+                    (true, _) => Displayed::Active,
+                    (false, true) => Displayed::Visible,
+                    (false, false) => Displayed::Hidden,
+                },
+                windows: w.windows,
+            });
+        }
+    }
+
+    if config.enable_workspace_filling && !result.is_empty() {
+        let existing_ids = result.iter().map(|w| w.id).collect_vec();
+        let mut max_id = *existing_ids
+            .iter()
+            .filter(|&&id| id > 0)
+            .max()
+            .unwrap_or(&0);
+
+        if let Some(max_cfg) = config.max_workspaces
+            && max_cfg > max_id as u32
+        {
+            max_id = max_cfg as i32;
+        }
+
+        let missing_ids: Vec<i32> = (1..=max_id)
+            .filter(|id| !existing_ids.contains(id))
+            .collect();
+
+        for id in missing_ids {
+            let display_name = if id > 0 {
+                let idx = (id - 1) as usize;
+                config
+                    .workspace_names
+                    .get(idx)
+                    .cloned()
+                    .unwrap_or_else(|| id.to_string())
+            } else {
+                id.to_string()
+            };
+
+            result.push(UiWorkspace {
+                id,
+                name: display_name,
+                monitor_id: None,
+                monitor: "".to_string(),
+                displayed: Displayed::Hidden,
+                windows: 0,
+            });
+        }
+    }
+
+    result.sort_by_key(|w| w.id);
+    result
+}
+
 impl Workspaces {
     pub fn new(config: WorkspacesModuleConfig) -> Self {
         Self {
@@ -264,159 +419,4 @@ impl Workspaces {
     pub fn subscription(&self) -> Subscription<Message> {
         CompositorService::subscribe().map(Message::ServiceEvent)
     }
-}
-
-fn calculate_ui_workspaces(
-    config: &WorkspacesModuleConfig,
-    state: &CompositorState,
-) -> Vec<UiWorkspace> {
-    let active_id = state.active_workspace_id;
-    let monitors = &state.monitors;
-    let workspaces = state
-        .workspaces
-        .clone()
-        .into_iter()
-        .unique_by(|w| w.id)
-        .collect_vec();
-
-    let mut result: Vec<UiWorkspace> = Vec::with_capacity(workspaces.len());
-    let (special, normal): (Vec<_>, Vec<_>) = workspaces.into_iter().partition(|w| w.id < 0);
-
-    for w in special.iter() {
-        let active = monitors.iter().any(|m| m.special_workspace_id == w.id);
-        result.push(UiWorkspace {
-            id: w.id,
-            name: w
-                .name
-                .split(":")
-                .last()
-                .map_or_else(|| "".to_string(), |s| s.to_owned()),
-            monitor_id: w.monitor_id,
-            monitor: w.monitor.clone(),
-            displayed: if active {
-                Displayed::Active
-            } else {
-                Displayed::Hidden
-            },
-            windows: w.windows,
-        });
-    }
-
-    if config.enable_virtual_desktops {
-        let monitor_count = monitors.len().max(1);
-        let mut virtual_desktops: HashMap<i32, VirtualDesktop> = HashMap::new();
-
-        for w in normal.iter() {
-            let vdesk_id = ((w.id - 1) / monitor_count as i32) + 1;
-            let is_active = Some(w.id) == active_id;
-
-            if let Some(vdesk) = virtual_desktops.get_mut(&vdesk_id) {
-                vdesk.windows += w.windows;
-                vdesk.active = vdesk.active || is_active;
-            } else {
-                virtual_desktops.insert(
-                    vdesk_id,
-                    VirtualDesktop {
-                        active: is_active,
-                        windows: w.windows,
-                    },
-                );
-            }
-        }
-
-        virtual_desktops.into_iter().for_each(|(id, vdesk)| {
-            let idx = (id - 1) as usize;
-            let display_name = config
-                .workspace_names
-                .get(idx)
-                .cloned()
-                .unwrap_or_else(|| id.to_string());
-
-            result.push(UiWorkspace {
-                id,
-                name: display_name,
-                monitor_id: None,
-                monitor: "".to_string(),
-                displayed: if vdesk.active {
-                    Displayed::Active
-                } else {
-                    Displayed::Hidden
-                },
-                windows: vdesk.windows,
-            });
-        });
-    } else {
-        for w in normal.iter() {
-            let display_name = if w.id > 0 {
-                let idx = (w.id - 1) as usize;
-                config
-                    .workspace_names
-                    .get(idx)
-                    .cloned()
-                    .unwrap_or_else(|| w.id.to_string())
-            } else {
-                w.name.clone()
-            };
-
-            let is_active = active_id == Some(w.id);
-            let is_visible = monitors.iter().any(|m| m.active_workspace_id == w.id);
-
-            result.push(UiWorkspace {
-                id: w.id,
-                name: display_name,
-                monitor_id: w.monitor_id,
-                monitor: w.monitor.clone(),
-                displayed: match (is_active, is_visible) {
-                    (true, _) => Displayed::Active,
-                    (false, true) => Displayed::Visible,
-                    (false, false) => Displayed::Hidden,
-                },
-                windows: w.windows,
-            });
-        }
-    }
-
-    if config.enable_workspace_filling && !result.is_empty() {
-        let existing_ids = result.iter().map(|w| w.id).collect_vec();
-        let mut max_id = *existing_ids
-            .iter()
-            .filter(|&&id| id > 0)
-            .max()
-            .unwrap_or(&0);
-
-        if let Some(max_cfg) = config.max_workspaces {
-            if max_cfg > max_id as u32 {
-                max_id = max_cfg as i32;
-            }
-        }
-
-        let missing_ids: Vec<i32> = (1..=max_id)
-            .filter(|id| !existing_ids.contains(id))
-            .collect();
-
-        for id in missing_ids {
-            let display_name = if id > 0 {
-                let idx = (id - 1) as usize;
-                config
-                    .workspace_names
-                    .get(idx)
-                    .cloned()
-                    .unwrap_or_else(|| id.to_string())
-            } else {
-                id.to_string()
-            };
-
-            result.push(UiWorkspace {
-                id,
-                name: display_name,
-                monitor_id: None,
-                monitor: "".to_string(),
-                displayed: Displayed::Hidden,
-                windows: 0,
-            });
-        }
-    }
-
-    result.sort_by_key(|w| w.id);
-    result
 }

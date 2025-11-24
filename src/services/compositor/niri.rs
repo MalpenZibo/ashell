@@ -1,6 +1,6 @@
 use super::types::{
-    ActiveWindow, CompositorCommand, CompositorEvent, CompositorMonitor, CompositorService,
-    CompositorState, CompositorWorkspace, CompositorChoice,
+    ActiveWindow, CompositorChoice, CompositorCommand, CompositorEvent, CompositorMonitor,
+    CompositorService, CompositorState, CompositorWorkspace,
 };
 use crate::services::ServiceEvent;
 use anyhow::{Context, Result, anyhow};

@@ -1,6 +1,6 @@
 use super::types::{
-    ActiveWindow, CompositorCommand, CompositorEvent, CompositorMonitor, CompositorState,
-    CompositorWorkspace, CompositorChoice,
+    ActiveWindow, CompositorChoice, CompositorCommand, CompositorEvent, CompositorMonitor,
+    CompositorState, CompositorWorkspace,
 };
 use crate::services::{ServiceEvent, compositor::CompositorService};
 use anyhow::Result;
@@ -59,7 +59,6 @@ pub async fn run_listener(
             let _ = o.try_send(ServiceEvent::Init(CompositorService {
                 state,
                 backend: CompositorChoice::Hyprland,
-
             }));
         }
     } else {
