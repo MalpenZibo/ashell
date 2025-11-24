@@ -1,6 +1,6 @@
 pub mod hyprland;
-pub mod types;
 pub mod niri;
+pub mod types;
 
 // Re-export types publicly so modules can use crate::services::compositor::CompositorState
 pub use self::types::{
@@ -9,8 +9,12 @@ pub use self::types::{
 };
 
 use crate::services::{ReadOnlyService, Service, ServiceEvent};
-use iced::{futures::channel::mpsc::Sender, stream::channel, Subscription, Task};
-use std::{any::TypeId, ops::Deref, sync::{Arc, RwLock}};
+use iced::{Subscription, Task, futures::channel::mpsc::Sender, stream::channel};
+use std::{
+    any::TypeId,
+    ops::Deref,
+    sync::{Arc, RwLock},
+};
 
 impl Deref for CompositorService {
     type Target = CompositorState;
@@ -51,7 +55,6 @@ impl ReadOnlyService for CompositorService {
                             let _ = o.try_send(ServiceEvent::Error(e.to_string()));
                         }
                     }
-
                 }
 
                 std::future::pending().await
@@ -75,7 +78,7 @@ impl Service for CompositorService {
                 Ok(_) => ServiceEvent::Update(CompositorEvent::StateChanged(
                     // Ideally we wouldn't send empty state here, but the listener will trigger real updates.
                     // Using Default is safe if we just want to wake up, but better to let the listener handle it.
-                    CompositorState::default() 
+                    CompositorState::default(),
                 )),
                 Err(e) => ServiceEvent::Error(e),
             },

@@ -5,14 +5,13 @@ use super::types::{
 use crate::services::ServiceEvent;
 use anyhow::{Context, Result, anyhow};
 use iced::futures::channel::mpsc::Sender;
+use itertools::Itertools;
 use niri_ipc::{
     Action, Event, Reply, Request, WorkspaceReferenceArg,
     state::{EventStreamState, EventStreamStatePart},
 };
 use std::{
-    collections::hash_map::DefaultHasher,
     env,
-    hash::{Hash, Hasher},
     os::unix::net::UnixStream as StdUnixStream,
     sync::{Arc, RwLock},
 };
@@ -27,11 +26,18 @@ pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
     let mut stream = connect().await?;
 
     let action = match cmd {
+        // NOTE: Niri restricts workspace indices to u8 (0-255). CompositorCommand::FocusWorkspace accepts i32,
+        // but only values in 0..=255 are valid. This limitation is enforced here.
         CompositorCommand::FocusWorkspace(id) => match u8::try_from(id) {
             Ok(idx) => Action::FocusWorkspace {
                 reference: WorkspaceReferenceArg::Index(idx),
             },
-            Err(_) => return Err(anyhow!("Invalid workspace index for Niri (must be u8)")),
+            Err(_) => {
+                return Err(anyhow!(
+                    "Invalid workspace index for Niri: {} (must be in 0..=255, as Niri only supports u8 workspace indices)",
+                    id
+                ));
+            }
         },
         CompositorCommand::FocusSpecialWorkspace(_) => {
             return Err(anyhow!("Special workspaces not supported in Niri backend"));
@@ -134,7 +140,7 @@ pub async fn run_listener(
 async fn connect() -> Result<UnixStream> {
     let socket_path = env::var_os("NIRI_SOCKET")
         .or_else(|| env::var_os("NIRI_SOCKET_PATH"))
-        .ok_or_else(|| anyhow!("NIRI_SOCKET environment variable not set"))?;
+        .ok_or_else(|| anyhow!("NIRI_SOCKET or NIRI_SOCKET_PATH environment variable not set"))?;
 
     let std_stream = StdUnixStream::connect(socket_path)?;
     std_stream.set_nonblocking(true)?;
@@ -156,6 +162,26 @@ async fn send_command_request(stream: &mut UnixStream, request: Request) -> Resu
 }
 
 fn map_state(niri: &EventStreamState) -> CompositorState {
+    let output_to_active_ws: std::collections::HashMap<_, _> = niri
+        .workspaces
+        .workspaces
+        .values()
+        .filter_map(|ws| {
+            if let Some(out) = &ws.output
+                && ws.is_active
+            {
+                Some((out.clone(), ws.idx as i32))
+            } else {
+                None
+            }
+        })
+        .collect();
+    // INFO: this is how niri sorts the outpus internally (niri msg outputs - in client.rs)
+    let outputs = output_to_active_ws
+        .keys()
+        .sorted_unstable()
+        .collect::<Vec<_>>();
+
     let mut workspaces: Vec<CompositorWorkspace> = niri
         .workspaces
         .workspaces
@@ -165,7 +191,14 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
                 id: w.idx as i32, // Visual index as ID
                 name: w.name.clone().unwrap_or_else(|| w.idx.to_string()),
                 monitor: w.output.clone().unwrap_or_default(),
-                monitor_id: w.output.as_ref().map(|n| hash_string(n)),
+                // niri does not have an output index
+                monitor_id: w.output.as_ref().map(|wo| {
+                    outputs
+                        .iter()
+                        .position(|o| *o == wo)
+                        .map(|i| i as i32)
+                        .unwrap_or(-1) as i128
+                }),
                 windows: 0,
                 is_special: false,
             }
@@ -176,10 +209,10 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
     for win in niri.windows.windows.values() {
         if let Some(ws_id) = win.workspace_id {
             // Resolve Niri Workspace ID (u64) -> Visual Index (u8) -> Generic ID (i32)
-            if let Some(ws) = niri.workspaces.workspaces.get(&ws_id) {
-                if let Some(generic_ws) = workspaces.iter_mut().find(|w| w.id == ws.idx as i32) {
-                    generic_ws.windows += 1;
-                }
+            if let Some(ws) = niri.workspaces.workspaces.get(&ws_id)
+                && let Some(generic_ws) = workspaces.iter_mut().find(|w| w.id == ws.idx as i32)
+            {
+                generic_ws.windows += 1;
             }
         }
     }
@@ -187,20 +220,15 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
     workspaces.sort_by_key(|w| w.id);
 
     let mut monitors = Vec::new();
-    let mut output_to_active_ws = std::collections::HashMap::new();
-    for ws in niri.workspaces.workspaces.values() {
-        if let Some(out) = &ws.output {
-            if ws.is_active {
-                output_to_active_ws.insert(out.clone(), ws.idx as i32);
-            }
-        }
-    }
-
-    for (name, active_ws_id) in output_to_active_ws {
+    for (name, active_ws_id) in &output_to_active_ws {
         monitors.push(CompositorMonitor {
-            id: hash_string(&name),
+            id: outputs
+                .iter()
+                .position(|o| *o == name)
+                .map(|i| i as i128)
+                .unwrap_or(-1),
             name: name.clone(),
-            active_workspace_id: active_ws_id,
+            active_workspace_id: *active_ws_id,
             special_workspace_id: -1,
         });
     }
@@ -243,10 +271,4 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
         keyboard_layout,
         submap: None,
     }
-}
-
-fn hash_string(s: &str) -> i128 {
-    let mut hasher = DefaultHasher::new();
-    s.hash(&mut hasher);
-    hasher.finish() as i128
 }

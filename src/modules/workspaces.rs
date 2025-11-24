@@ -3,17 +3,14 @@ use crate::{
     outputs::Outputs,
     // Import traits!
     services::{
-        compositor::{
-            CompositorCommand, CompositorService, CompositorState,
-        },
-        Service, ServiceEvent, ReadOnlyService,
+        ReadOnlyService, Service, ServiceEvent,
+        compositor::{CompositorCommand, CompositorService, CompositorState},
     },
     theme::AshellTheme,
 };
 use iced::{
-    alignment,
-    widget::{button, container, text, MouseArea, Row},
-    Element, Length, Subscription,
+    Element, Length, Subscription, alignment,
+    widget::{MouseArea, Row, button, container, text},
     window::Id,
 };
 use itertools::Itertools;
@@ -112,7 +109,8 @@ impl Workspaces {
                     if let Some(special) = service.workspaces.iter().find(|w| w.id == id) {
                         return service
                             .command(CompositorCommand::ToggleSpecialWorkspace(
-                                special.name
+                                special
+                                    .name
                                     .split(":")
                                     .last()
                                     .map(|s| s.to_string())
@@ -128,9 +126,9 @@ impl Workspaces {
                     .ui_workspaces
                     .iter()
                     .find(|w| w.displayed == Displayed::Active);
-                
+
                 let Some(current_id) = current_workspace.map(|w| w.id) else {
-                     return iced::Task::none();
+                    return iced::Task::none();
                 };
 
                 let next_workspace = if direction > 0 {
@@ -268,7 +266,12 @@ fn calculate_ui_workspaces(
 ) -> Vec<UiWorkspace> {
     let active_id = state.active_workspace_id;
     let monitors = &state.monitors;
-    let workspaces = state.workspaces.clone().into_iter().unique_by(|w| w.id).collect_vec();
+    let workspaces = state
+        .workspaces
+        .clone()
+        .into_iter()
+        .unique_by(|w| w.id)
+        .collect_vec();
 
     let mut result: Vec<UiWorkspace> = Vec::with_capacity(workspaces.len());
     let (special, normal): (Vec<_>, Vec<_>) = workspaces.into_iter().partition(|w| w.id < 0);
@@ -322,7 +325,7 @@ fn calculate_ui_workspaces(
                 .get(idx)
                 .cloned()
                 .unwrap_or_else(|| id.to_string());
-            
+
             result.push(UiWorkspace {
                 id,
                 name: display_name,
@@ -348,10 +351,10 @@ fn calculate_ui_workspaces(
             } else {
                 w.name.clone()
             };
-            
+
             let is_active = active_id == Some(w.id);
             let is_visible = monitors.iter().any(|m| m.active_workspace_id == w.id);
-            
+
             result.push(UiWorkspace {
                 id: w.id,
                 name: display_name,
@@ -374,7 +377,7 @@ fn calculate_ui_workspaces(
             .filter(|&&id| id > 0)
             .max()
             .unwrap_or(&0);
-        
+
         if let Some(max_cfg) = config.max_workspaces {
             if max_cfg > max_id as u32 {
                 max_id = max_cfg as i32;
@@ -388,14 +391,15 @@ fn calculate_ui_workspaces(
         for id in missing_ids {
             let display_name = if id > 0 {
                 let idx = (id - 1) as usize;
-                config.workspace_names
+                config
+                    .workspace_names
                     .get(idx)
                     .cloned()
                     .unwrap_or_else(|| id.to_string())
             } else {
                 id.to_string()
             };
-            
+
             result.push(UiWorkspace {
                 id,
                 name: display_name,

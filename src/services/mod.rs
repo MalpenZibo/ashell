@@ -3,6 +3,7 @@ use iced::{Subscription, Task};
 pub mod audio;
 pub mod bluetooth;
 pub mod brightness;
+pub mod compositor;
 pub mod idle_inhibitor;
 pub mod mpris;
 pub mod network;
@@ -10,7 +11,6 @@ pub mod privacy;
 mod throttle;
 pub mod tray;
 pub mod upower;
-pub mod compositor;
 
 #[allow(unused)]
 #[derive(Debug, Clone)]

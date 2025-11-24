@@ -1,10 +1,6 @@
 use crate::{
     config::{WindowTitleConfig, WindowTitleMode},
-    services::{
-        ReadOnlyService,
-        ServiceEvent,
-        compositor::CompositorService,
-    },
+    services::{ReadOnlyService, ServiceEvent, compositor::CompositorService},
     theme::AshellTheme,
     utils::truncate_text,
 };
@@ -35,21 +31,19 @@ impl WindowTitle {
 
     pub fn update(&mut self, message: Message) {
         match message {
-            Message::ServiceEvent(event) => {
-                match event {
-                    ServiceEvent::Init(service) => {
-                        self.service = Some(service);
+            Message::ServiceEvent(event) => match event {
+                ServiceEvent::Init(service) => {
+                    self.service = Some(service);
+                    self.recalculate_value();
+                }
+                ServiceEvent::Update(event) => {
+                    if let Some(service) = &mut self.service {
+                        service.update(event);
                         self.recalculate_value();
                     }
-                    ServiceEvent::Update(event) => {
-                        if let Some(service) = &mut self.service {
-                            service.update(event);
-                            self.recalculate_value();
-                        }
-                    }
-                    _ => {}
                 }
-            }
+                _ => {}
+            },
         }
     }
 

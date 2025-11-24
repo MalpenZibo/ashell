@@ -2,7 +2,7 @@ use super::types::{
     ActiveWindow, CompositorCommand, CompositorEvent, CompositorMonitor, CompositorState,
     CompositorWorkspace,
 };
-use crate::services::{compositor::CompositorService, ServiceEvent};
+use crate::services::{ServiceEvent, compositor::CompositorService};
 use anyhow::Result;
 use hyprland::{
     data::{Client, Devices, Monitors, Workspace, Workspaces},
@@ -101,7 +101,10 @@ pub async fn run_listener(
     add_refresh_handler!(listener, add_layout_changed_handler, output);
 
     // Map the HyprError to anyhow::Error
-    listener.start_listener_async().await.map_err(|e| anyhow::anyhow!(e))
+    listener
+        .start_listener_async()
+        .await
+        .map_err(|e| anyhow::anyhow!(e))
 }
 
 fn fetch_full_state() -> Result<CompositorState> {
