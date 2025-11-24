@@ -1,79 +1,49 @@
-use hyprland::event_listener::AsyncEventListener;
-use iced::{Element, Subscription, stream::channel, widget::text};
-use log::{debug, error};
-use std::{
-    any::TypeId,
-    sync::{Arc, RwLock},
+use crate::{
+    services::{ReadOnlyService, Service, ServiceEvent, compositor::CompositorService},
+    theme::AshellTheme,
 };
-
-use crate::theme::AshellTheme;
+use iced::{Element, Subscription, widget::text};
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    SubmapChanged(String),
+    ServiceEvent(ServiceEvent<CompositorService>),
 }
 
+#[derive(Debug, Clone)]
 pub struct KeyboardSubmap {
-    submap: String,
-}
-
-impl Default for KeyboardSubmap {
-    fn default() -> Self {
-        Self {
-            submap: "".to_string(),
-        }
-    }
+    service: Option<CompositorService>,
 }
 
 impl KeyboardSubmap {
+    pub fn default() -> Self {
+        Self { service: None }
+    }
+
     pub fn update(&mut self, message: Message) {
         match message {
-            Message::SubmapChanged(submap) => {
-                self.submap = submap;
-            }
+            Message::ServiceEvent(event) => match event {
+                ServiceEvent::Init(s) => self.service = Some(s),
+                ServiceEvent::Update(e) => {
+                    if let Some(service) = &mut self.service {
+                        service.update(e);
+                    }
+                }
+                _ => {}
+            },
         }
     }
 
-    pub fn view(&'_ self, _: &AshellTheme) -> Option<Element<'_, Message>> {
-        if !self.submap.is_empty() {
-            Some(text(&self.submap).into())
+    pub fn view(&self, _: &AshellTheme) -> Option<Element<Message>> {
+        let submap = self.service.as_ref()?.submap.as_ref()?;
+
+        if !submap.is_empty() {
+            Some(text(submap).into())
         } else {
             None
         }
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        let id = TypeId::of::<Self>();
-
-        Subscription::run_with_id(
-            id,
-            channel(10, async |output| {
-                let output = Arc::new(RwLock::new(output));
-                loop {
-                    let mut event_listener = AsyncEventListener::new();
-
-                    event_listener.add_sub_map_changed_handler({
-                        let output = output.clone();
-                        move |new_submap| {
-                            debug!("submap changed: {new_submap:?}");
-                            let output = output.clone();
-                            Box::pin(async move {
-                                if let Ok(mut output) = output.write() {
-                                    output
-                                        .try_send(Message::SubmapChanged(new_submap))
-                                        .expect("error getting submap: submap changed event");
-                                }
-                            })
-                        }
-                    });
-
-                    let res = event_listener.start_listener_async().await;
-
-                    if let Err(e) = res {
-                        error!("restarting submap listener due to error: {e:?}");
-                    }
-                }
-            }),
-        )
+        CompositorService::subscribe().map(Message::ServiceEvent)
     }
 }
