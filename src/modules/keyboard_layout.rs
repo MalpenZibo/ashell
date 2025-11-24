@@ -52,7 +52,7 @@ impl KeyboardLayout {
         }
     }
 
-    pub fn view(&self, _: &AshellTheme) -> Option<Element<Message>> {
+    pub fn view(&self, _: &AshellTheme) -> Option<Element<'_, Message>> {
         let service = self.service.as_ref()?;
         let active_layout = &service.keyboard_layout;
 

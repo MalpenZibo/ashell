@@ -1,5 +1,5 @@
 use crate::{
-    services::{ReadOnlyService, Service, ServiceEvent, compositor::CompositorService},
+    services::{ReadOnlyService, ServiceEvent, compositor::CompositorService},
     theme::AshellTheme,
 };
 use iced::{Element, Subscription, widget::text};
@@ -33,7 +33,7 @@ impl KeyboardSubmap {
         }
     }
 
-    pub fn view(&self, _: &AshellTheme) -> Option<Element<Message>> {
+    pub fn view(&self, _: &AshellTheme) -> Option<Element<'_, Message>> {
         let submap = self.service.as_ref()?.submap.as_ref()?;
 
         if !submap.is_empty() {

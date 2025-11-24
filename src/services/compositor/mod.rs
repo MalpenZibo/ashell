@@ -4,12 +4,11 @@ pub mod types;
 
 // Re-export types publicly so modules can use crate::services::compositor::CompositorState
 pub use self::types::{
-    CompositorCommand, CompositorEvent, CompositorMonitor, CompositorService, CompositorState,
-    CompositorWorkspace,
+    CompositorCommand, CompositorEvent, CompositorService, CompositorState,
 };
 
 use crate::services::{ReadOnlyService, Service, ServiceEvent};
-use iced::{Subscription, Task, futures::channel::mpsc::Sender, stream::channel};
+use iced::{Subscription, Task, stream::channel};
 use std::{
     any::TypeId,
     ops::Deref,
