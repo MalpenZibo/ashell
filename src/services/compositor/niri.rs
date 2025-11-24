@@ -1,6 +1,6 @@
 use super::types::{
     ActiveWindow, CompositorCommand, CompositorEvent, CompositorMonitor, CompositorService,
-    CompositorState, CompositorWorkspace,
+    CompositorState, CompositorWorkspace, CompositorChoice,
 };
 use crate::services::ServiceEvent;
 use anyhow::{Context, Result, anyhow};
@@ -50,9 +50,9 @@ pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
         }
         CompositorCommand::ScrollWorkspace(dir) => {
             if dir > 0 {
-                Action::FocusWorkspaceDown {}
-            } else {
                 Action::FocusWorkspaceUp {}
+            } else {
+                Action::FocusWorkspaceDown {}
             }
         }
         CompositorCommand::NextLayout => Action::SwitchLayout {
@@ -81,6 +81,7 @@ pub async fn run_listener(
     if let Ok(mut o) = output.write() {
         let _ = o.try_send(ServiceEvent::Init(CompositorService {
             state: CompositorState::default(),
+            backend: CompositorChoice::Niri,
         }));
     }
 

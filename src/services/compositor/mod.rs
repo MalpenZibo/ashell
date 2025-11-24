@@ -4,7 +4,7 @@ pub mod types;
 
 // Re-export types publicly so modules can use crate::services::compositor::CompositorState
 pub use self::types::{
-    CompositorCommand, CompositorEvent, CompositorService, CompositorState,
+    CompositorChoice, CompositorCommand, CompositorEvent, CompositorService, CompositorState,
 };
 
 use crate::services::{ReadOnlyService, Service, ServiceEvent};
@@ -30,6 +30,9 @@ impl ReadOnlyService for CompositorService {
         match event {
             CompositorEvent::StateChanged(new_state) => {
                 self.state = new_state;
+            }
+            CompositorEvent::ActionPerformed => {
+                // No state change, just an action was performed
             }
         }
     }
@@ -66,19 +69,26 @@ impl Service for CompositorService {
     type Command = CompositorCommand;
 
     fn command(&mut self, command: Self::Command) -> Task<ServiceEvent<Self>> {
+        let choice = self.backend;
         Task::perform(
             async move {
-                niri::execute_command(command)
-                    .await
-                    .map_err(|e| e.to_string())
+                match choice {
+                    CompositorChoice::Hyprland => hyprland::execute_command(command)
+                        .await
+                        .map_err(|e| e.to_string()),
+                    CompositorChoice::Niri => niri::execute_command(command)
+                        .await
+                        .map_err(|e| e.to_string()),
+                }
             },
             |res| match res {
                 // We don't necessarily need to trigger a refresh here as Hyprland will emit an event
-                Ok(_) => ServiceEvent::Update(CompositorEvent::StateChanged(
+                Ok(_) => ServiceEvent::Update(CompositorEvent::ActionPerformed),
+                    /*StateChanged(
                     // Ideally we wouldn't send empty state here, but the listener will trigger real updates.
                     // Using Default is safe if we just want to wake up, but better to let the listener handle it.
                     CompositorState::default(),
-                )),
+                )),*/
                 Err(e) => ServiceEvent::Error(e),
             },
         )

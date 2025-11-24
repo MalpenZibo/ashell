@@ -122,6 +122,13 @@ impl Workspaces {
                 iced::Task::none()
             }
             Message::Scroll(direction) => {
+                /* TODO: should we use the native service implementation instead?
+                if let Some(service) = &mut self.service {
+                    return service
+                        .command(CompositorCommand::ScrollWorkspace(direction))
+                        .map(Message::ServiceEvent);
+                }
+                return iced::Task::none();*/
                 let current_workspace = self
                     .ui_workspaces
                     .iter()
@@ -134,13 +141,13 @@ impl Workspaces {
                 let next_workspace = if direction > 0 {
                     self.ui_workspaces
                         .iter()
-                        .filter(|w| w.id > current_id)
-                        .min_by_key(|w| w.id)
+                        .filter(|w| w.id < current_id)
+                        .max_by_key(|w| w.id)
                 } else {
                     self.ui_workspaces
                         .iter()
-                        .filter(|w| w.id < current_id)
-                        .max_by_key(|w| w.id)
+                        .filter(|w| w.id > current_id)
+                        .min_by_key(|w| w.id)
                 };
 
                 if let Some(next) = next_workspace {

@@ -33,13 +33,21 @@ pub struct CompositorState {
     pub submap: Option<String>,
 }
 
+#[derive(Debug, Copy, Clone)]
+pub enum CompositorChoice {
+    Hyprland,
+    Niri,
+}
+
 #[derive(Debug, Clone)]
 pub struct CompositorService {
     pub state: CompositorState,
+    pub backend: CompositorChoice,
 }
 
 #[derive(Debug, Clone)]
 pub enum CompositorEvent {
+    ActionPerformed, // for now a noop to respond to commands
     StateChanged(CompositorState),
     // We can add specific events if needed, but a full state sync is safer for workspaces
 }
