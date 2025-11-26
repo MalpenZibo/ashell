@@ -82,13 +82,9 @@ impl Service for CompositorService {
                 }
             },
             |res| match res {
-                // We don't necessarily need to trigger a refresh here as Hyprland will emit an event
+                // Right now this informs the compositor something happend - this internally is a
+                // noop. In the future this can be extended to trigger specialized updates.
                 Ok(_) => ServiceEvent::Update(CompositorEvent::ActionPerformed),
-                /*StateChanged(
-                    // Ideally we wouldn't send empty state here, but the listener will trigger real updates.
-                    // Using Default is safe if we just want to wake up, but better to let the listener handle it.
-                    CompositorState::default(),
-                )),*/
                 Err(e) => ServiceEvent::Error(e),
             },
         )

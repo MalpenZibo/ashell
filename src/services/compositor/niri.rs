@@ -20,14 +20,10 @@ use tokio::{
     net::UnixStream,
 };
 
-// --- Public Interface ---
-
 pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
     let mut stream = connect().await?;
 
     let action = match cmd {
-        // NOTE: Niri restricts workspace indices to u8 (0-255). CompositorCommand::FocusWorkspace accepts i32,
-        // but only values in 0..=255 are valid. This limitation is enforced here.
         CompositorCommand::FocusWorkspace(id) => match u8::try_from(id) {
             Ok(idx) => Action::FocusWorkspace {
                 reference: WorkspaceReferenceArg::Index(idx),
@@ -136,8 +132,6 @@ pub async fn run_listener(
     Ok(())
 }
 
-// --- Internal Helpers ---
-
 async fn connect() -> Result<UnixStream> {
     let socket_path = env::var_os("NIRI_SOCKET")
         .or_else(|| env::var_os("NIRI_SOCKET_PATH"))
@@ -177,6 +171,7 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
             }
         })
         .collect();
+
     // INFO: this is how niri sorts the outpus internally (niri msg outputs - in client.rs)
     let outputs = output_to_active_ws
         .keys()

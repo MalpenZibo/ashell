@@ -50,19 +50,32 @@ pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
     Ok(())
 }
 
+#[derive(Debug, Clone, Default)]
+struct HyprInternalState {
+    submap: String,
+}
+
 pub async fn run_listener(
     output: Arc<RwLock<Sender<ServiceEvent<CompositorService>>>>,
 ) -> Result<()> {
+    // copying this strategy from how niri's IPC works
+    let internal_state = Arc::new(RwLock::new(HyprInternalState::default()));
+
     // Initial fetch
-    if let Ok(state) = fetch_full_state() {
-        if let Ok(mut o) = output.write() {
-            let _ = o.try_send(ServiceEvent::Init(CompositorService {
-                state,
-                backend: CompositorChoice::Hyprland,
-            }));
+    {
+        let state_guard = internal_state
+            .read()
+            .map_err(|e| anyhow::anyhow!(e.to_string()))?;
+        if let Ok(state) = fetch_full_state(&state_guard) {
+            if let Ok(mut o) = output.write() {
+                let _ = o.try_send(ServiceEvent::Init(CompositorService {
+                    state,
+                    backend: CompositorChoice::Hyprland,
+                }));
+            }
+        } else {
+            log::error!("Failed to fetch initial compositor state");
         }
-    } else {
-        log::error!("Failed to fetch initial compositor state");
     }
 
     let mut listener = AsyncEventListener::new();
@@ -71,15 +84,18 @@ pub async fn run_listener(
         ($listener:expr, $method:ident, $output:expr) => {
             $listener.$method({
                 let output = $output.clone();
+                let internal_state = internal_state.clone();
                 move |_| {
                     let output = output.clone();
+                    let internal_state = internal_state.clone();
                     Box::pin(async move {
-                        if let Ok(state) = fetch_full_state() {
-                            if let Ok(mut o) = output.write() {
-                                let _ = o.try_send(ServiceEvent::Update(
-                                    CompositorEvent::StateChanged(state),
-                                ));
-                            }
+                        if let Ok(state_guard) = internal_state.read()
+                            && let Ok(state) = fetch_full_state(&*state_guard)
+                            && let Ok(mut o) = output.write()
+                        {
+                            let _ = o.try_send(ServiceEvent::Update(
+                                CompositorEvent::StateChanged(state),
+                            ));
                         }
                     })
                 }
@@ -101,23 +117,20 @@ pub async fn run_listener(
     add_refresh_handler!(listener, add_active_window_changed_handler, output);
 
     // custom refresh handler that takes the changed value as the submap
-    // TODO: potentially this state should be persisted or any other update from hyprland will
-    // refetch the whole state. Could also be resolved by introducing a new SubmapChanged Message,
-    // decoupling it from CompositorState
     listener.add_sub_map_changed_handler({
         let output = output.clone();
         move |new_submap| {
             let output = output.clone();
+            let is = internal_state.clone();
             Box::pin(async move {
-                if let Ok(mut o) = output.write()
-                    && let Ok(mut state) = fetch_full_state()
-                {
-                    state.submap = if new_submap.is_empty() {
-                        None
-                    } else {
-                        Some(new_submap)
-                    };
-                    let _ = o.try_send(ServiceEvent::Update(CompositorEvent::StateChanged(state)));
+                if let Ok(mut state_guard) = is.write() {
+                    state_guard.submap = new_submap;
+                    if let Ok(state) = fetch_full_state(&state_guard)
+                        && let Ok(mut o) = output.write()
+                    {
+                        let _ =
+                            o.try_send(ServiceEvent::Update(CompositorEvent::StateChanged(state)));
+                    }
                 }
             })
         }
@@ -130,7 +143,7 @@ pub async fn run_listener(
         .map_err(|e| anyhow::anyhow!(e))
 }
 
-fn fetch_full_state() -> Result<CompositorState> {
+fn fetch_full_state(internal_state: &HyprInternalState) -> Result<CompositorState> {
     let workspaces = Workspaces::get()?
         .into_iter()
         .map(|w| CompositorWorkspace {
@@ -177,6 +190,10 @@ fn fetch_full_state() -> Result<CompositorState> {
         active_workspace_id,
         active_window,
         keyboard_layout,
-        submap: None,
+        submap: if internal_state.submap.is_empty() {
+            None
+        } else {
+            Some(internal_state.submap.clone())
+        },
     })
 }
