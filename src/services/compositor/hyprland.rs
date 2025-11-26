@@ -98,10 +98,30 @@ pub async fn run_listener(
     add_refresh_handler!(listener, add_window_closed_handler, output);
     add_refresh_handler!(listener, add_window_opened_handler, output);
     add_refresh_handler!(listener, add_window_moved_handler, output);
-    // Fixed method name here (changed -> change)
     add_refresh_handler!(listener, add_active_window_changed_handler, output);
 
-    add_refresh_handler!(listener, add_layout_changed_handler, output);
+    // custom refresh handler that takes the changed value as the submap
+    // TODO: potentially this state should be persisted or any other update from hyprland will
+    // refetch the whole state. Could also be resolved by introducing a new SubmapChanged Message,
+    // decoupling it from CompositorState
+    listener.add_sub_map_changed_handler({
+        let output = output.clone();
+        move |new_submap| {
+            let output = output.clone();
+            Box::pin(async move {
+                if let Ok(mut o) = output.write()
+                    && let Ok(mut state) = fetch_full_state()
+                {
+                    state.submap = if new_submap.is_empty() {
+                        None
+                    } else {
+                        Some(new_submap)
+                    };
+                    let _ = o.try_send(ServiceEvent::Update(CompositorEvent::StateChanged(state)));
+                }
+            })
+        }
+    });
 
     // Map the HyprError to anyhow::Error
     listener
