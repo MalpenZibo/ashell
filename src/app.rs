@@ -299,10 +299,7 @@ impl App {
 
                 Task::none()
             }
-            Message::Workspaces(msg) => {
-                self.workspaces.update(msg);
-                Task::none()
-            }
+            Message::Workspaces(msg) => self.workspaces.update(msg).map(Message::Workspaces),
             Message::WindowTitle(msg) => {
                 self.window_title.update(msg);
                 Task::none()
@@ -311,10 +308,10 @@ impl App {
                 self.system_info.update(msg);
                 Task::none()
             }
-            Message::KeyboardLayout(message) => {
-                self.keyboard_layout.update(message);
-                Task::none()
-            }
+            Message::KeyboardLayout(message) => self
+                .keyboard_layout
+                .update(message)
+                .map(Message::KeyboardLayout),
             Message::KeyboardSubmap(message) => {
                 self.keyboard_submap.update(message);
                 Task::none()

@@ -78,6 +78,7 @@ clap = { version = "4.5", features = ["derive"] }
 shellexpand = { version = "3", features = ["path"] }
 inotify = "0.11.0"
 pin-project-lite = "0.2.16"
+niri-ipc = "25.8.0"
 
 [build-dependencies]
 allsorts = "0.15"
