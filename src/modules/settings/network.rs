@@ -381,7 +381,7 @@ impl NetworkSettings {
                         quick_setting_button(
                             theme,
                             StaticIcon::Vpn,
-                            "Vpn".to_string(),
+                            "VPN".to_string(),
                             subtitle,
                             !actives.is_empty(),
                             if !actives.is_empty()
