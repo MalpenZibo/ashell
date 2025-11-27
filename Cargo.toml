@@ -11,7 +11,7 @@ rust-version = "1.88"
 [profile.release]
 lto = "thin"
 strip = true
-opt-level = 3 
+opt-level = 3
 panic = "abort"
 
 # The profile that 'dist' will build with
@@ -78,6 +78,8 @@ clap = { version = "4.5", features = ["derive"] }
 shellexpand = { version = "3", features = ["path"] }
 inotify = "0.11.0"
 pin-project-lite = "0.2.16"
+reqwest = { version = "0.12.24", default-features = false, features = ["rustls-tls"] }
+url = "2.5.7"
 
 [build-dependencies]
 allsorts = "0.15"
