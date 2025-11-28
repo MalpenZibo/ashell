@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- (c) ammap.com | SVG weather icons -->
+
+<svg
+   width="52"
+   height="52"
+   version="1.1"
+   id="svg6"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs2">
+    <filter
+       id="blur"
+       x="-0.16960601"
+       y="-0.46358975"
+       width="1.339212"
+       height="2.1476923">
+      <feGaussianBlur
+         in="SourceAlpha"
+         stdDeviation="3"
+         id="feGaussianBlur1" />
+      <feOffset
+         dx="0"
+         dy="4"
+         result="offsetblur"
+         id="feOffset1" />
+      <feComponentTransfer
+         id="feComponentTransfer1">
+        <feFuncA
+           slope="0.05"
+           type="linear"
+           id="feFuncA1" />
+      </feComponentTransfer>
+      <feMerge
+         id="feMerge2">
+        <feMergeNode
+           id="feMergeNode1" />
+        <feMergeNode
+           in="SourceGraphic"
+           id="feMergeNode2" />
+      </feMerge>
+    </filter>
+  </defs>
+  <g
+     transform="translate(16,-2)"
+     filter="url(#blur)"
+     id="g6">
+    <g
+       class="am-weather-fog"
+       transform="matrix(1.2093023,0,0,1.2093023,-15.999999,18.930233)"
+       fill="none"
+       stroke="#c6deff"
+       stroke-linecap="round"
+       stroke-width="2"
+       id="g5">
+      <line
+         class="am-weather-fog-1"
+         y1="0"
+         y2="0"
+         x1="1"
+         x2="37"
+         stroke-dasharray="3, 5, 17, 5, 7"
+         id="line2" />
+      <line
+         class="am-weather-fog-2"
+         y1="5"
+         y2="5"
+         x1="9"
+         x2="33"
+         stroke-dasharray="11, 7, 15"
+         id="line3" />
+      <line
+         class="am-weather-fog-3"
+         y1="10"
+         y2="10"
+         x1="5"
+         x2="40"
+         stroke-dasharray="11, 7, 3, 5, 9"
+         id="line4" />
+      <line
+         class="am-weather-fog-4"
+         y1="15"
+         y2="15"
+         x1="7"
+         x2="42"
+         stroke-dasharray="13, 5, 9, 5, 3"
+         id="line5" />
+    </g>
+  </g>
+</svg>
