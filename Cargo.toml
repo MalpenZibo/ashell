@@ -39,7 +39,7 @@ depends = [
 ]
 
 [dependencies]
-iced = { git = "https://github.com/MalpenZibo/iced", branch = "master", features = [
+iced = { git = "https://github.com/MalpenZibo/iced", branch = "release", features = [
   "tokio",
   "multi-window",
   "advanced",
