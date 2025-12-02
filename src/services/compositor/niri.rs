@@ -113,7 +113,22 @@ pub async fn run_listener(
             break; // EOF
         }
 
-        let event: Event = serde_json::from_str(&line).context("Failed to parse Niri event")?;
+        let event: Event = match serde_json::from_str(&line) {
+            Ok(ev) => ev,
+            Err(e) => {
+                // This can happen a lot if the installed niri version and the IPC are out of sync
+                // From niri's wiki:
+                // The JSON output should remain stable, as in:
+                // - existing fields and enum variants should not be renamed
+                // - non-optional existing fields should not be removed
+                // However, new fields and enum variants will be added, so you should handle unknown fields or variants gracefully where reasonable.
+                log::debug!(
+                    "Failed to parse Niri event (this is caused by niri's IPC not being version bound) -> {:?}",
+                    e
+                );
+                continue;
+            }
+        };
 
         // Apply to internal Niri state tracker
         internal_state.apply(event);
