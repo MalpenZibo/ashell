@@ -335,12 +335,14 @@ impl Workspaces {
                         let show = match self.config.visibility_mode {
                             WorkspaceVisibilityMode::All => true,
                             WorkspaceVisibilityMode::MonitorSpecific => {
-                                w.monitor == monitor_name.unwrap_or_else(|| &w.monitor)
+                                monitor_name
+                                    .unwrap_or_else(|| &w.monitor)
+                                    .contains(&w.monitor)
                                     || !outputs.has_name(&w.monitor)
                             }
-                            WorkspaceVisibilityMode::MonitorSpecificExclusive => {
-                                w.monitor == monitor_name.unwrap_or_else(|| &w.monitor)
-                            }
+                            WorkspaceVisibilityMode::MonitorSpecificExclusive => monitor_name
+                                .unwrap_or_else(|| &w.monitor)
+                                .contains(&w.monitor),
                         };
 
                         if show {
