@@ -87,7 +87,7 @@ pub struct WorkspacesModuleConfig {
     pub visibility_mode: WorkspaceVisibilityMode,
     pub enable_workspace_filling: bool,
     #[serde(default)]
-    pub enable_special_workspaces: bool,
+    pub disable_special_workspaces: bool,
     pub max_workspaces: Option<u32>,
     pub workspace_names: Vec<String>,
     pub enable_virtual_desktops: bool,

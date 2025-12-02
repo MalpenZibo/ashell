@@ -33,8 +33,8 @@ will not be shown.
 
 ## Showing special workspaces
 
-If you would like to make the special workspaces visible, set the `enable_special_workspaces` to `true`.
-By default special workspaces will be hidden.
+If you would like to make the special workspaces invisible, set the `disable_special_workspaces` to `true`.
+By default special workspaces will be visible.
 
 ## Workspace Filling And Maximum Workspaces
 

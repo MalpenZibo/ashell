@@ -63,7 +63,7 @@ fn get_workspaces(config: &WorkspacesModuleConfig) -> Vec<Workspace> {
     let (special, normal): (Vec<_>, Vec<_>) = workspaces.into_iter().partition(|w| w.id < 0);
 
     // map special workspaces
-    if config.enable_special_workspaces {
+    if config.disable_special_workspaces {
         for w in special.iter() {
             // Special workspaces are active if they are assigned to any monitor.
             // Currently a special and normal workspace can be active at the same time on the same monitor.
