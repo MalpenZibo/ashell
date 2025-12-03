@@ -150,7 +150,7 @@ impl Outputs {
     pub fn has_name(&self, name: &str) -> bool {
         self.0
             .iter()
-            .any(|(n, info, _)| info.is_some() && n.as_str() == name)
+            .any(|(n, info, _)| info.is_some() && n.as_str().contains(name))
     }
 
     #[allow(clippy::too_many_arguments)]
