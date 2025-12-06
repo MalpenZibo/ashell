@@ -69,6 +69,12 @@ pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
     Ok(())
 }
 
+pub fn is_available() -> bool {
+    env::var_os("NIRI_SOCKET")
+        .or_else(|| env::var_os("NIRI_SOCKET_PATH"))
+        .is_some()
+}
+
 pub async fn run_listener(
     output: Arc<RwLock<Sender<ServiceEvent<CompositorService>>>>,
 ) -> Result<()> {

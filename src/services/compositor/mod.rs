@@ -45,17 +45,23 @@ impl ReadOnlyService for CompositorService {
             channel(10, async |output| {
                 let output = Arc::new(RwLock::new(output));
 
-                if let Err(e) = hyprland::run_listener(output.clone()).await {
-                    log::warn!("Failed to listen to hyprland: {}", e);
-                    log::warn!("Listening for niri instead");
+                let res = if hyprland::is_available() {
+                    log::info!("Using Hyprland compositor backend");
+                    hyprland::run_listener(output.clone()).await
+                } else if niri::is_available() {
+                    log::info!("Using Niri compositor backend");
+                    niri::run_listener(output.clone()).await
+                } else {
+                    log::warn!("No supported compositor backend found (Hyprland or Niri)");
+                    Err(anyhow::anyhow!(
+                        "No supported compositor backend found (Hyprland or Niri)".to_string(),
+                    ))
+                };
 
-                    let l = niri::run_listener(output.clone()).await;
-                    if let Err(e) = l {
-                        log::error!("Failed to listen to niri: {}", e);
-
-                        if let Ok(mut o) = output.write() {
-                            let _ = o.try_send(ServiceEvent::Error(e.to_string()));
-                        }
+                if let Err(e) = res {
+                    log::error!("Failed to listen to compositor: {}", e);
+                    if let Ok(mut o) = output.write() {
+                        let _ = o.try_send(ServiceEvent::Error(e.to_string()));
                     }
                 }
 

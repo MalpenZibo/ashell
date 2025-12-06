@@ -55,6 +55,12 @@ struct HyprInternalState {
     submap: String,
 }
 
+
+pub fn is_available() -> bool {
+    const IPC_ENV_VAR: &str = "HYPRLAND_INSTANCE_SIGNATURE";
+    std::env::var_os(IPC_ENV_VAR).is_some()
+}
+
 pub async fn run_listener(
     output: Arc<RwLock<Sender<ServiceEvent<CompositorService>>>>,
 ) -> Result<()> {
