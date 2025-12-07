@@ -8,12 +8,14 @@ pub use self::types::{
 };
 
 use crate::services::{ReadOnlyService, Service, ServiceEvent};
+use iced::futures::{SinkExt, StreamExt};
 use iced::{Subscription, Task, stream::channel};
 use std::{
     any::TypeId,
     ops::Deref,
     sync::{Arc, RwLock},
 };
+use tokio::sync::broadcast::{self, Sender};
 
 impl Deref for CompositorService {
     type Target = CompositorState;
@@ -21,6 +23,9 @@ impl Deref for CompositorService {
         &self.state
     }
 }
+
+static STATE: parking_lot::Mutex<Option<Sender<ServiceEvent<CompositorService>>>> =
+    parking_lot::const_mutex(None);
 
 impl ReadOnlyService for CompositorService {
     type UpdateEvent = CompositorEvent;
@@ -42,30 +47,75 @@ impl ReadOnlyService for CompositorService {
 
         Subscription::run_with_id(
             id,
-            channel(10, async |output| {
-                let output = Arc::new(RwLock::new(output));
+            channel(10, |mut output| async move {
+                let mut rx = {
+                    let mut state = STATE.lock();
 
-                let res = if hyprland::is_available() {
-                    log::info!("Using Hyprland compositor backend");
-                    hyprland::run_listener(output.clone()).await
-                } else if niri::is_available() {
-                    log::info!("Using Niri compositor backend");
-                    niri::run_listener(output.clone()).await
-                } else {
-                    log::warn!("No supported compositor backend found (Hyprland or Niri)");
-                    Err(anyhow::anyhow!(
-                        "No supported compositor backend found (Hyprland or Niri)".to_string(),
-                    ))
+                    if state.is_none() {
+                        let (tx, _) = broadcast::channel(100);
+                        *state = Some(tx.clone());
+
+                        let tx_clone = tx.clone();
+
+                        // Spawn compositor listener that broadcasts events
+                        tokio::spawn(async move {
+                            log::info!("Starting compositor listener (shared)");
+
+                            // Create a channel to receive from hyprland/niri
+                            let (internal_tx, mut internal_rx) =
+                                iced::futures::channel::mpsc::channel(10);
+
+                            // Spawn the actual listener
+                            tokio::spawn(async move {
+                                // Wrap internal_tx to send through it
+                                let wrapped_output = Arc::new(RwLock::new(internal_tx));
+                                let res = if hyprland::is_available() {
+                                    log::info!("Using Hyprland compositor backend");
+                                    hyprland::run_listener(wrapped_output.clone()).await
+                                } else if niri::is_available() {
+                                    log::info!("Using Niri compositor backend");
+                                    niri::run_listener(wrapped_output.clone()).await
+                                } else {
+                                    log::error!("No supported compositor backend found");
+                                    Err(anyhow::anyhow!("No supported compositor backend found"))
+                                };
+
+                                if let Err(e) = res {
+                                    log::error!("Failed to start compositor listener: {}", e);
+                                    if let Ok(mut o) = wrapped_output.clone().write() {
+                                        let _ = o.try_send(ServiceEvent::Error(e.to_string()));
+                                    }
+                                }
+                            });
+
+                            // Forward from internal channel to broadcast
+                            while let Some(event) = internal_rx.next().await {
+                                let _ = tx_clone.send(event);
+                            }
+
+                            log::error!("Compositor listener ended");
+                        });
+                    }
+
+                    state.as_ref().unwrap().subscribe()
                 };
 
-                if let Err(e) = res {
-                    log::error!("Failed to listen to compositor: {}", e);
-                    if let Ok(mut o) = output.write() {
-                        let _ = o.try_send(ServiceEvent::Error(e.to_string()));
+                loop {
+                    match rx.recv().await {
+                        Ok(event) => {
+                            if output.send(event).await.is_err() {
+                                log::error!("Compositor subscriber output closed");
+                                break;
+                            }
+                        }
+                        Err(broadcast::error::RecvError::Lagged(n)) => {
+                            log::warn!("Subscriber lagged by {} messages", n);
+                        }
+                        Err(broadcast::error::RecvError::Closed) => {
+                            break;
+                        }
                     }
                 }
-
-                std::future::pending().await
             }),
         )
     }

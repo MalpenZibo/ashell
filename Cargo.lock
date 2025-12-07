@@ -383,6 +383,7 @@ dependencies = [
  "linicon-theme",
  "log",
  "niri-ipc",
+ "parking_lot 0.12.5",
  "pin-project-lite",
  "pipewire",
  "regex",
