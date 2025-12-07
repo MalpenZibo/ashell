@@ -10,8 +10,8 @@ use hyprland::{
     event_listener::AsyncEventListener,
     prelude::*,
 };
-use iced::futures::channel::mpsc::Sender;
 use std::sync::{Arc, RwLock};
+use tokio::sync::broadcast;
 
 pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
     match cmd {
@@ -55,15 +55,12 @@ struct HyprInternalState {
     submap: String,
 }
 
-
 pub fn is_available() -> bool {
     const IPC_ENV_VAR: &str = "HYPRLAND_INSTANCE_SIGNATURE";
     std::env::var_os(IPC_ENV_VAR).is_some()
 }
 
-pub async fn run_listener(
-    output: Arc<RwLock<Sender<ServiceEvent<CompositorService>>>>,
-) -> Result<()> {
+pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>>) -> Result<()> {
     // copying this strategy from how niri's IPC works
     let internal_state = Arc::new(RwLock::new(HyprInternalState::default()));
 
@@ -72,36 +69,36 @@ pub async fn run_listener(
         let state_guard = internal_state
             .read()
             .map_err(|e| anyhow::anyhow!(e.to_string()))?;
-        if let Ok(state) = fetch_full_state(&state_guard) {
-            if let Ok(mut o) = output.write() {
-                let _ = o.try_send(ServiceEvent::Init(CompositorService {
+
+        match fetch_full_state(&state_guard) {
+            Ok(state) => {
+                let _ = tx.send(ServiceEvent::Init(CompositorService {
                     state,
                     backend: CompositorChoice::Hyprland,
                 }));
             }
-        } else {
-            log::error!("Failed to fetch initial compositor state");
+            Err(e) => {
+                log::error!("Failed to fetch initial compositor state: {}", e);
+            }
         }
     }
 
     let mut listener = AsyncEventListener::new();
 
     macro_rules! add_refresh_handler {
-        ($listener:expr, $method:ident, $output:expr) => {
-            $listener.$method({
-                let output = $output.clone();
-                let internal_state = internal_state.clone();
+        ($method:ident) => {
+            listener.$method({
+                let tx = tx.clone();
+                let internal_state = Arc::clone(&internal_state);
                 move |_| {
-                    let output = output.clone();
-                    let internal_state = internal_state.clone();
+                    let tx = tx.clone();
+                    let internal_state = Arc::clone(&internal_state);
                     Box::pin(async move {
                         if let Ok(state_guard) = internal_state.read()
                             && let Ok(state) = fetch_full_state(&*state_guard)
-                            && let Ok(mut o) = output.write()
                         {
-                            let _ = o.try_send(ServiceEvent::Update(
-                                CompositorEvent::StateChanged(state),
-                            ));
+                            let _ =
+                                tx.send(ServiceEvent::Update(CompositorEvent::StateChanged(state)));
                         }
                     })
                 }
@@ -109,40 +106,36 @@ pub async fn run_listener(
         };
     }
 
-    add_refresh_handler!(listener, add_workspace_added_handler, output);
-    add_refresh_handler!(listener, add_workspace_changed_handler, output);
-    add_refresh_handler!(listener, add_workspace_deleted_handler, output);
-    add_refresh_handler!(listener, add_workspace_moved_handler, output);
-    add_refresh_handler!(listener, add_changed_special_handler, output);
-    add_refresh_handler!(listener, add_special_removed_handler, output);
-    add_refresh_handler!(listener, add_active_monitor_changed_handler, output);
+    add_refresh_handler!(add_workspace_added_handler);
+    add_refresh_handler!(add_workspace_changed_handler);
+    add_refresh_handler!(add_workspace_deleted_handler);
+    add_refresh_handler!(add_workspace_moved_handler);
+    add_refresh_handler!(add_changed_special_handler);
+    add_refresh_handler!(add_special_removed_handler);
+    add_refresh_handler!(add_active_monitor_changed_handler);
 
-    add_refresh_handler!(listener, add_window_closed_handler, output);
-    add_refresh_handler!(listener, add_window_opened_handler, output);
-    add_refresh_handler!(listener, add_window_moved_handler, output);
-    add_refresh_handler!(listener, add_active_window_changed_handler, output);
+    add_refresh_handler!(add_window_closed_handler);
+    add_refresh_handler!(add_window_opened_handler);
+    add_refresh_handler!(add_window_moved_handler);
+    add_refresh_handler!(add_active_window_changed_handler);
 
     // custom refresh handler that takes the changed value as the submap
     listener.add_sub_map_changed_handler({
-        let output = output.clone();
+        let tx = tx.clone();
         move |new_submap| {
-            let output = output.clone();
-            let is = internal_state.clone();
+            let tx = tx.clone();
+            let internal_state = Arc::clone(&internal_state);
             Box::pin(async move {
-                if let Ok(mut state_guard) = is.write() {
+                if let Ok(mut state_guard) = internal_state.write() {
                     state_guard.submap = new_submap;
-                    if let Ok(state) = fetch_full_state(&state_guard)
-                        && let Ok(mut o) = output.write()
-                    {
-                        let _ =
-                            o.try_send(ServiceEvent::Update(CompositorEvent::StateChanged(state)));
+                    if let Ok(state) = fetch_full_state(&state_guard) {
+                        let _ = tx.send(ServiceEvent::Update(CompositorEvent::StateChanged(state)));
                     }
                 }
             })
         }
     });
 
-    // Map the HyprError to anyhow::Error
     listener
         .start_listener_async()
         .await

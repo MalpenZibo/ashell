@@ -4,20 +4,16 @@ use super::types::{
 };
 use crate::services::ServiceEvent;
 use anyhow::{Context, Result, anyhow};
-use iced::futures::channel::mpsc::Sender;
 use itertools::Itertools;
 use niri_ipc::{
     Action, Event, Reply, Request, WorkspaceReferenceArg,
     state::{EventStreamState, EventStreamStatePart},
 };
-use std::{
-    env,
-    os::unix::net::UnixStream as StdUnixStream,
-    sync::{Arc, RwLock},
-};
+use std::{env, os::unix::net::UnixStream as StdUnixStream};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::UnixStream,
+    sync::broadcast,
 };
 
 pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
@@ -75,17 +71,13 @@ pub fn is_available() -> bool {
         .is_some()
 }
 
-pub async fn run_listener(
-    output: Arc<RwLock<Sender<ServiceEvent<CompositorService>>>>,
-) -> Result<()> {
+pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>>) -> Result<()> {
     // 1. Send Initial "Empty" State
     // This is critical: Modules wait for Init before processing Updates.
-    if let Ok(mut o) = output.write() {
-        let _ = o.try_send(ServiceEvent::Init(CompositorService {
-            state: CompositorState::default(),
-            backend: CompositorChoice::Niri,
-        }));
-    }
+    let _ = tx.send(ServiceEvent::Init(CompositorService {
+        state: CompositorState::default(),
+        backend: CompositorChoice::Niri,
+    }));
 
     let mut stream = connect().await?;
 
@@ -143,11 +135,7 @@ pub async fn run_listener(
         let state = map_state(&internal_state);
 
         // Emit Update
-        if let Ok(mut o) = output.write() {
-            let _ = o.try_send(ServiceEvent::Update(CompositorEvent::StateChanged(state)));
-        } else {
-            log::error!("Failed to acquire output lock in Niri listener");
-        }
+        let _ = tx.send(ServiceEvent::Update(CompositorEvent::StateChanged(state)));
     }
 
     Ok(())
