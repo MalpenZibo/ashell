@@ -1,6 +1,6 @@
 use super::types::{
-    ActiveWindow, CompositorChoice, CompositorCommand, CompositorEvent, CompositorMonitor,
-    CompositorService, CompositorState, CompositorWorkspace,
+    ActiveWindow, CompositorCommand, CompositorEvent, CompositorMonitor, CompositorService,
+    CompositorState, CompositorWorkspace,
 };
 use crate::services::ServiceEvent;
 use anyhow::{Context, Result, anyhow};
@@ -72,13 +72,7 @@ pub fn is_available() -> bool {
 }
 
 pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>>) -> Result<()> {
-    // 1. Send Initial "Empty" State
-    // This is critical: Modules wait for Init before processing Updates.
-    let _ = tx.send(ServiceEvent::Init(CompositorService {
-        state: CompositorState::default(),
-        backend: CompositorChoice::Niri,
-    }));
-
+    // 1. Init
     let mut stream = connect().await?;
 
     // 2. Send the EventStream request

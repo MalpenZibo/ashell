@@ -87,6 +87,19 @@ impl ReadOnlyService for CompositorService {
             channel(10, async move |mut output| {
                 let mut rx = broadcaster_subscribe().await;
 
+                // Send an empty Init with the correct backend to new subscribers
+                // - assumes detect_backend is cheap
+                if let Some(backend) = detect_backend() {
+                    let empty_init = CompositorService {
+                        state: CompositorState::default(),
+                        backend,
+                    };
+                    if output.send(ServiceEvent::Init(empty_init)).await.is_err() {
+                        log::debug!("Compositor subscriber disconnected before receiving Init");
+                        return;
+                    }
+                }
+
                 loop {
                     match rx.recv().await {
                         Ok(event) => {

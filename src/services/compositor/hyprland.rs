@@ -1,6 +1,6 @@
 use super::types::{
-    ActiveWindow, CompositorChoice, CompositorCommand, CompositorEvent, CompositorMonitor,
-    CompositorState, CompositorWorkspace,
+    ActiveWindow, CompositorCommand, CompositorEvent, CompositorMonitor, CompositorState,
+    CompositorWorkspace,
 };
 use crate::services::{ServiceEvent, compositor::CompositorService};
 use anyhow::Result;
@@ -72,10 +72,7 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
 
         match fetch_full_state(&state_guard) {
             Ok(state) => {
-                let _ = tx.send(ServiceEvent::Init(CompositorService {
-                    state,
-                    backend: CompositorChoice::Hyprland,
-                }));
+                let _ = tx.send(ServiceEvent::Update(CompositorEvent::StateChanged(state)));
             }
             Err(e) => {
                 log::error!("Failed to fetch initial compositor state: {}", e);
