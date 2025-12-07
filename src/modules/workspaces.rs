@@ -69,24 +69,29 @@ fn calculate_ui_workspaces(
     let mut result: Vec<UiWorkspace> = Vec::with_capacity(workspaces.len());
     let (special, normal): (Vec<_>, Vec<_>) = workspaces.into_iter().partition(|w| w.id < 0);
 
-    for w in special.iter() {
-        let active = monitors.iter().any(|m| m.special_workspace_id == w.id);
-        result.push(UiWorkspace {
-            id: w.id,
-            name: w
-                .name
-                .split(":")
-                .last()
-                .map_or_else(|| "".to_string(), |s| s.to_owned()),
-            monitor_id: w.monitor_id,
-            monitor: w.monitor.clone(),
-            displayed: if active {
-                Displayed::Active
-            } else {
-                Displayed::Hidden
-            },
-            windows: w.windows,
-        });
+    // map special workspaces
+    if !config.disable_special_workspaces {
+        for w in special.iter() {
+            // Special workspaces are active if they are assigned to any monitor.
+            // Currently a special and normal workspace can be active at the same time on the same monitor.
+            let active = monitors.iter().any(|m| m.special_workspace_id == w.id);
+            result.push(UiWorkspace {
+                id: w.id,
+                name: w
+                    .name
+                    .split(":")
+                    .last()
+                    .map_or_else(|| "".to_string(), |s| s.to_owned()),
+                monitor_id: w.monitor_id,
+                monitor: w.monitor.clone(),
+                displayed: if active {
+                    Displayed::Active
+                } else {
+                    Displayed::Hidden
+                },
+                windows: w.windows,
+            });
+        }
     }
 
     if config.enable_virtual_desktops {

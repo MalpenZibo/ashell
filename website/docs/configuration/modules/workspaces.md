@@ -31,6 +31,11 @@ where `ashell` is displayed.
 If `ashell` is not displayed on a specific monitor the workspaces for that monitor
 will not be shown.
 
+## Showing special workspaces
+
+If you would like to make the special workspaces invisible, set the `disable_special_workspaces` to `true`.
+By default special workspaces will be visible.
+
 ## Workspace Filling And Maximum Workspaces
 
 You can also enable or disable filling the workspace  
