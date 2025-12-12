@@ -12,6 +12,7 @@ use iced::{
 #[derive(Debug, Clone)]
 pub enum Message {
     ServiceEvent(ServiceEvent<CompositorService>),
+    ConfigReloaded(WindowTitleConfig),
 }
 
 pub struct WindowTitle {
@@ -44,6 +45,10 @@ impl WindowTitle {
                 }
                 _ => {}
             },
+            Message::ConfigReloaded(cfg) => {
+                self.config = cfg;
+                self.recalculate_value();
+            }
         }
     }
 

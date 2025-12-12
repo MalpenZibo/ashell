@@ -159,10 +159,29 @@ impl App {
         self.custom = custom;
         self.updates = config.updates.map(Updates::new);
         self.clipboard = config.clipboard_cmd.map(Clipboard::new);
-        self.workspaces = Workspaces::new(config.workspaces);
-        self.window_title = WindowTitle::new(config.window_title);
+
+        // ignore task, since config change should not generate any
+        let _ = self
+            .workspaces
+            .update(modules::workspaces::Message::ConfigReloaded(
+                config.workspaces,
+            ))
+            .map(Message::Workspaces);
+
+        self.window_title
+            .update(modules::window_title::Message::ConfigReloaded(
+                config.window_title,
+            ));
+
         self.system_info = SystemInfo::new(config.system_info);
-        self.keyboard_layout = KeyboardLayout::new(config.keyboard_layout);
+
+        let _ = self
+            .keyboard_layout
+            .update(modules::keyboard_layout::Message::ConfigReloaded(
+                config.keyboard_layout,
+            ))
+            .map(Message::KeyboardLayout);
+
         self.keyboard_submap = KeyboardSubmap::default();
         self.clock = Clock::new(config.clock);
         self.settings

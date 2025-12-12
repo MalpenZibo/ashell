@@ -45,6 +45,7 @@ pub enum Message {
     ChangeWorkspace(i32),
     ToggleSpecialWorkspace(i32),
     Scroll(i32),
+    ConfigReloaded(WorkspacesModuleConfig),
 }
 
 pub struct Workspaces {
@@ -313,6 +314,11 @@ impl Workspaces {
                 if let Some(next) = next_workspace {
                     return self.update(Message::ChangeWorkspace(next.id));
                 }
+                iced::Task::none()
+            }
+            Message::ConfigReloaded(cfg) => {
+                self.config = cfg;
+                self.recalculate_ui_workspaces();
                 iced::Task::none()
             }
         }

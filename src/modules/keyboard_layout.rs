@@ -12,6 +12,7 @@ use iced::{Element, Subscription, Task, widget::text};
 pub enum Message {
     ServiceEvent(ServiceEvent<CompositorService>),
     ChangeLayout,
+    ConfigReloaded(KeyboardLayoutModuleConfig),
 }
 
 pub struct KeyboardLayout {
@@ -47,6 +48,10 @@ impl KeyboardLayout {
                         .command(CompositorCommand::NextLayout)
                         .map(Message::ServiceEvent);
                 }
+                Task::none()
+            }
+            Message::ConfigReloaded(new_config) => {
+                self.config = new_config;
                 Task::none()
             }
         }
