@@ -216,7 +216,6 @@ impl PrivacyService {
                             }
                             None => {
                                 error!("Pipewire listener exited");
-                                panic!();
                             }
                         }
                     },
