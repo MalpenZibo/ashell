@@ -70,11 +70,11 @@ impl Deref for PrivacyService {
     }
 }
 macro_rules! unwrap_or_send_err {
-    ($constructor:expr, $tx:ident) => {
+    ($constructor:expr, $tx:expr) => {
         match $constructor {
             Ok(val) => val,
             Err(e) => {
-                $tx.send(Err(anyhow::Error::new(e))).unwrap();
+                let _ = $tx.send(Err(anyhow::Error::from(e)));
                 return;
             }
         }
@@ -129,10 +129,12 @@ impl PrivacyService {
             warn!("Pipewire mainloop exited");
         });
 
-        if let Err(e) = boot_rx.await.unwrap() {
-            Err(e)
-        } else {
-            Ok(rx)
+        match boot_rx.await {
+            Ok(Ok(())) => Ok(rx),
+            Ok(Err(e)) => Err(e),
+            Err(recv_err) => Err(anyhow::anyhow!(
+                "pipewire thread exited before boot could finish: {recv_err}"
+            )),
         }
     }
 
