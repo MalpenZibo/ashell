@@ -4,27 +4,27 @@ sidebar_position: 1
 
 # 🚀 Getting Started
 
-Ashell is a status bar for Hyprland, written in Rust using the `iced` library.
+Ashell is a status bar for Hyprland and Niri, written in Rust using the `iced` library.
 
-## Does it only work on Hyprland?
+## Does it only work on Hyprland and Niri?
 
-While it’s currently tailored for Hyprland, it could potentially
-work with other compositors.
+This project originally supported only Hyprland, primarily because
+it is the compositor I use to test ashell.
 
-However, it currently relies on [hyprland-rs](https://github.com/hyprland-community/hyprland-rs)
-to gather information about the active window and workspaces.  
-I haven’t implemented any feature flags to disable these functionalities or  
-provide alternative methods to obtain this data.
+Thanks to community support, ashell now supports Niri as well.
+
+In the future, we plan to expand this functionality to other
+Wayland compositors.
 
 ## Features
 
 - App Launcher button
 - Clipboard button
 - OS Updates indicator
-- Hyprland Active Window
-- Hyprland Workspaces
+- Hyprland/Niri Active Window
+- Hyprland/Niri Workspaces
 - System Information (CPU, RAM, Temperature)
-- Hyprland Keyboard Layout
+- Hyprland/Niri Keyboard Layout
 - Hyprland Keyboard Submap
 - Tray
 - Date and Time

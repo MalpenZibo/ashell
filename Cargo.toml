@@ -1,6 +1,6 @@
 [package]
 name = "ashell"
-description = "A ready to go Wayland status bar for Hyprland"
+description = "A ready to go Wayland status bar for Hyprland and Niri"
 homepage = "https://malpenzibo.github.io/ashell/"
 repository = "https://github.com/MalpenZibo/ashell"
 license = "MIT"

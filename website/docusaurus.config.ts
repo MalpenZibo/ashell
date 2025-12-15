@@ -6,7 +6,7 @@ import type * as Preset from "@docusaurus/preset-classic";
 
 const config: Config = {
   title: "Ashell",
-  tagline: "A ready to go Wayland status bar for Hyprland",
+  tagline: "A ready to go Wayland status bar for Hyprland and Niri",
   favicon: "img/favicon.svg",
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
