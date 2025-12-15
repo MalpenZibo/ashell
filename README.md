@@ -81,8 +81,8 @@ could be different
 
 <img src="https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/opacity.png"></img>
 
-| ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/updates-panel.png) | ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/settings-panel.png)  |
-| ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/power-menu.png)    | ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/sinks-selection.png) |
-| ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/network-menu.png)  | ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/bluetooth-menu.png)  |
-| ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/vpn-menu.png)      | ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/airplane-mode.png)   |
+| ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/updates-panel.png)   | ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/system-menu.png)  |
+| ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/tray-menu.png)       | ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/power-menu.png)   |
+| ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/sinks-selection.png) | ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/network-menu.png) |
+| ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/bluetooth-menu.png)  | ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/vpn-menu.png)     |
