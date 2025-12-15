@@ -69,16 +69,28 @@ impl Deref for PrivacyService {
         &self.data
     }
 }
+macro_rules! unwrap_or_send_err {
+    ($constructor:expr, $tx:expr) => {
+        match $constructor {
+            Ok(val) => val,
+            Err(e) => {
+                let _ = $tx.send(Err(anyhow::Error::from(e)));
+                return;
+            }
+        }
+    };
+}
 
 impl PrivacyService {
     async fn create_pipewire_listener() -> anyhow::Result<UnboundedReceiver<PrivacyEvent>> {
         let (tx, rx) = unbounded_channel::<PrivacyEvent>();
+        let (boot_tx, boot_rx) = tokio::sync::oneshot::channel::<Result<(), anyhow::Error>>();
 
         thread::spawn(move || {
-            let mainloop = MainLoopBox::new(None).unwrap();
-            let context = ContextBox::new(mainloop.loop_(), None).unwrap();
-            let core = context.connect(None).unwrap();
-            let registry = core.get_registry().unwrap();
+            let mainloop = unwrap_or_send_err!(MainLoopBox::new(None), boot_tx);
+            let context = unwrap_or_send_err!(ContextBox::new(mainloop.loop_(), None), boot_tx);
+            let core = unwrap_or_send_err!(context.connect(None), boot_tx);
+            let registry = unwrap_or_send_err!(core.get_registry(), boot_tx);
 
             let _listener = registry
                 .add_listener_local()
@@ -111,12 +123,19 @@ impl PrivacyService {
                 })
                 .register();
 
+            boot_tx.send(Ok(())).unwrap();
             mainloop.run();
 
             warn!("Pipewire mainloop exited");
         });
 
-        Ok(rx)
+        match boot_rx.await {
+            Ok(Ok(())) => Ok(rx),
+            Ok(Err(e)) => Err(e),
+            Err(recv_err) => Err(anyhow::anyhow!(
+                "pipewire thread exited before boot could finish: {recv_err}"
+            )),
+        }
     }
 
     async fn webcam_listener() -> anyhow::Result<Box<dyn Stream<Item = PrivacyEvent> + Unpin + Send>>
