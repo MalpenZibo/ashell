@@ -345,7 +345,11 @@ impl App {
                         self.general_config.enable_esc_key,
                     )
                 }
-                modules::tray::Action::TrayMenuCommand(task) => task.map(Message::Tray),
+                modules::tray::Action::TrayMenuCommand(task) => Task::batch(vec![
+                    self.outputs
+                        .close_all_menus(self.general_config.enable_esc_key),
+                    task.map(Message::Tray),
+                ]),
                 modules::tray::Action::CloseTrayMenu(name) => self
                     .outputs
                     .close_all_menu_if(MenuType::Tray(name), self.general_config.enable_esc_key),
