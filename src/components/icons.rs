@@ -113,6 +113,8 @@ pub enum StaticIcon {
     GamepadBatteryAlert,
     GamepadBatteryCharging,
     Remove,
+    Tailscale,
+    TailscaleOff,
 }
 
 impl StaticIcon {
@@ -213,6 +215,8 @@ impl StaticIcon {
             StaticIcon::GamepadBatteryAlert => "\u{f074b}",
             StaticIcon::GamepadBatteryCharging => "\u{f0a22}",
             StaticIcon::Remove => "\u{f0377}",
+            StaticIcon::Tailscale => "\u{f0582}",  // Using VPN shield icon
+            StaticIcon::TailscaleOff => "\u{f0783}", // VPN off icon
         }
     }
 
