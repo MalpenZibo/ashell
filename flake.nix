@@ -1,5 +1,5 @@
 {
-  description = "A ready to go Wayland status bar for Hyprland";
+  description = "A ready to go Wayland status bar for Hyprland and Niri";
 
   inputs = {
     crane.url = "github:ipetkov/crane";

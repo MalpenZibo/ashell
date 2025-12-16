@@ -10,7 +10,8 @@ You can install Ashell using the following methods:
 
 :::info
 
-Officially maintained: Arch Linux package and the Nix configuration included in the repository.
+Officially maintained: Arch Linux package and the Nix configuration
+included in the repository.
 
 Community packaging: Fedora via Copr (see below). If a package is broken,
 try building from source first.
