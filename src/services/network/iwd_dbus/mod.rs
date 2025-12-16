@@ -103,6 +103,7 @@ impl super::NetworkBackend for IwdDbus<'_> {
             wireless_access_points,
             known_connections,
             scanning_nearby_wifi: is_scanning,
+            tailscale: crate::services::network::TailscaleBackend::get_state().await.unwrap_or_default(),
         })
     }
 

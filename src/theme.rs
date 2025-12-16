@@ -411,6 +411,50 @@ impl AshellTheme {
         }
     }
 
+    /// Style for pill slider tabs (like iOS segmented control)
+    pub fn pill_slider_tab_style(
+        &self,
+        is_active: bool,
+    ) -> impl Fn(&Theme, Status) -> button::Style {
+        move |theme: &Theme, status: Status| {
+            let mut base = button::Style {
+                background: Some(
+                    if is_active {
+                        // Active tab gets a white/light pill background
+                        theme.extended_palette().background.base.color
+                    } else {
+                        // Inactive tabs are transparent
+                        Color::TRANSPARENT
+                    }
+                    .into(),
+                ),
+                border: Border {
+                    width: 0.0,
+                    radius: self.radius.xl.into(),
+                    color: Color::TRANSPARENT,
+                },
+                text_color: if is_active {
+                    theme.palette().text
+                } else {
+                    theme.extended_palette().secondary.weak.color
+                },
+                ..button::Style::default()
+            };
+            match status {
+                Status::Active => base,
+                Status::Hovered if !is_active => {
+                    base.background = Some(
+                        theme.extended_palette().background.weak.color
+                            .scale_alpha(0.3)
+                            .into()
+                    );
+                    base
+                }
+                _ => base,
+            }
+        }
+    }
+
     pub fn workspace_button_style(
         &self,
         is_empty: bool,
