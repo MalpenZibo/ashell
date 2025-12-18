@@ -1,6 +1,6 @@
 use crate::config::get_config;
 use app::App;
-use clap::{Parser, command};
+use clap::Parser;
 use flexi_logger::{
     Age, Cleanup, Criterion, FileSpec, LogSpecBuilder, LogSpecification, Logger, Naming,
 };
