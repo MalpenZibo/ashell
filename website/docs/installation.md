@@ -106,5 +106,5 @@ Then, from the root of the repository, run:
 cargo build --release
 
 # To install it system-wide
-sudo cp target/release/ashell /usr/bin
+sudo cp target/release/ashell /usr/local/bin/ashell
 ```
