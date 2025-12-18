@@ -24,20 +24,28 @@ pub mod dbus;
 fn get_icon_from_name(icon_name: &str) -> Option<TrayIcon> {
     debug!("get icon from name {icon_name}");
 
-    let lookup = lookup(icon_name).with_cache();
+    let base_lookup = lookup(icon_name).with_cache();
 
     let icon_path = match get_icon_theme() {
         Some(theme) => {
             debug!("icon theme found {theme}");
-            lookup.with_theme(&theme).find()
+            base_lookup.with_theme(&theme).find().or_else(|| {
+                let fallback_lookup = lookup(icon_name).with_cache();
+
+                fallback_lookup.find()
+            })
         }
-        None => lookup.find(),
+        None => base_lookup.find(),
     };
 
     icon_path.map(|path| {
         if path.extension().is_some_and(|ext| ext == "svg") {
+            debug!("svg icon found. Path: {path:?}");
+
             TrayIcon::Svg(svg::Handle::from_path(path))
         } else {
+            debug!("raster icon found. Path: {path:?}");
+
             TrayIcon::Image(image::Handle::from_path(path))
         }
     })
@@ -87,7 +95,6 @@ impl StatusNotifierItem {
 
         let icon = match icon_pixmap {
             Ok(icons) => {
-                debug!("icon_pixmap {icons:?}");
                 icons
                     .into_iter()
                     .max_by_key(|i| {
@@ -175,8 +182,6 @@ impl TrayService {
             let item = StatusNotifierItem::new(conn, item).await?;
             status_items.push(item);
         }
-
-        debug!("created items: {status_items:?}");
 
         Ok(TrayData(status_items))
     }
