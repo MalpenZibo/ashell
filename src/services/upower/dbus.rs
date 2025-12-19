@@ -51,6 +51,11 @@ impl SystemBattery {
         let mut count = 0;
 
         for device in &self.0 {
+            let e = device.energy_full().await.unwrap_or(0.0);
+            if e == 0.0 {
+                continue;
+            }
+
             if let Ok(p) = device.percentage().await {
                 percentage += p;
                 count += 1;
@@ -320,6 +325,9 @@ pub trait Device {
 
     #[zbus(property)]
     fn percentage(&self) -> zbus::Result<f64>;
+
+    #[zbus(property)]
+    fn energy_full(&self) -> zbus::Result<f64>;
 
     #[zbus(property)]
     fn state(&self) -> zbus::Result<u32>;
