@@ -47,17 +47,15 @@ impl SystemBattery {
     }
 
     pub async fn percentage(&self) -> f64 {
-        let mut percentage = 0.0;
-        let mut count = 0;
+        let mut energy = 0.0;
+        let mut energy_full = 0.0;
 
         for device in &self.0 {
-            if let Ok(p) = device.percentage().await {
-                percentage += p;
-                count += 1;
-            }
+            energy += device.energy().await.unwrap_or(0.0);
+            energy_full += device.energy_full().await.unwrap_or(0.0);
         }
 
-        percentage / count as f64
+        energy / energy_full * 100.0
     }
 
     pub async fn time_to_empty(&self) -> i64 {
@@ -320,6 +318,12 @@ pub trait Device {
 
     #[zbus(property)]
     fn percentage(&self) -> zbus::Result<f64>;
+
+    #[zbus(property)]
+    fn energy(&self) -> zbus::Result<f64>;
+
+    #[zbus(property)]
+    fn energy_full(&self) -> zbus::Result<f64>;
 
     #[zbus(property)]
     fn state(&self) -> zbus::Result<u32>;
