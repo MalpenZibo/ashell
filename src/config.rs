@@ -226,12 +226,15 @@ impl Default for SystemInfoModuleConfig {
 #[derive(Deserialize, Clone, Debug)]
 pub struct ClockModuleConfig {
     pub format: String,
+    #[serde(default)]
+    pub formats: Vec<String>,
 }
 
 impl Default for ClockModuleConfig {
     fn default() -> Self {
         Self {
             format: "%a %d %b %R".to_string(),
+            formats: vec![],
         }
     }
 }
