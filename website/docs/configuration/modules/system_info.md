@@ -81,20 +81,33 @@ To enable this indicator, add `UploadSpeed` to the `indicators` configuration.
 
 ### Temperature
 
-The Temperature indicator displays the current temperature of the system's CPU.
+The Temperature indicator displays the current temperature from the configured sensor.
 
 To enable this indicator, add `Temperature` to the `indicators` configuration.
 
 By default, the temperature sensor used is `acpitz temp1` (ACPI thermal zone).
-You can configure which sensor to use with the `sensor` option in the `[system.temperature]` section.
+You can configure which sensor to use with the `sensor` option in the `[system_info.temperature]` section.
 
 To see available sensors on your system, you can check the output of `sensors` command or
 look at the component labels returned by the sysinfo library.
 
+For NVMe SSDs, you'll need to find the model number first:
+
+```bash
+# Get NVMe model number
+lsblk -d -o name,model
+# Output example:
+# NAME    MODEL
+# nvme0n1 CT1000T705SSD3
+```
+
 Common sensor labels include:
+
 - `acpitz temp1` - ACPI thermal zone
-- `coretemp Package id 0` - Average CPU temperature
+- `coretemp Package id 0` - Intel CPU temperature
 - `k10temp Tctl` - AMD Ryzen CPU temperature
+- `amdgpu edge` - AMD GPU temperature
+- `nvme Composite MODEL_NAME` - NVMe SSD temperature (use model from `lsblk` output)
 
 ## Warning and Alert Thresholds
 
@@ -142,5 +155,5 @@ alert_threshold = 90
 [system_info.temperature]
 warn_threshold = 60
 alert_threshold = 80
-sensor = "coretemp Package id 0"
+sensor = "acpitz temp1"
 ```
