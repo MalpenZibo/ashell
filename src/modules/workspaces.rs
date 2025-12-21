@@ -1,7 +1,6 @@
 use crate::{
     config::{WorkspaceVisibilityMode, WorkspacesModuleConfig},
     outputs::Outputs,
-    // Import traits!
     services::{
         ReadOnlyService, Service, ServiceEvent,
         compositor::{CompositorCommand, CompositorService, CompositorState},
@@ -46,12 +45,14 @@ pub enum Message {
     ToggleSpecialWorkspace(i32),
     Scroll(i32),
     ConfigReloaded(WorkspacesModuleConfig),
+    ScrollAccumulator(f32),
 }
 
 pub struct Workspaces {
     config: WorkspacesModuleConfig,
     service: Option<CompositorService>,
     ui_workspaces: Vec<UiWorkspace>,
+    scroll_accumulator: f32,
 }
 
 fn calculate_ui_workspaces(
@@ -220,6 +221,7 @@ impl Workspaces {
             config,
             service: None,
             ui_workspaces: Vec::new(),
+            scroll_accumulator: 0.,
         }
     }
 
@@ -283,6 +285,8 @@ impl Workspaces {
                 iced::Task::none()
             }
             Message::Scroll(direction) => {
+                self.scroll_accumulator = 0.;
+
                 /* TODO: should we use the native service implementation instead?
                 if let Some(service) = &mut self.service {
                     return service
@@ -319,6 +323,15 @@ impl Workspaces {
             Message::ConfigReloaded(cfg) => {
                 self.config = cfg;
                 self.recalculate_ui_workspaces();
+                iced::Task::none()
+            }
+            Message::ScrollAccumulator(value) => {
+                if value == 0. {
+                    self.scroll_accumulator = 0.;
+                } else {
+                    self.scroll_accumulator += value;
+                }
+
                 iced::Task::none()
             }
         }
@@ -415,15 +428,24 @@ impl Workspaces {
             )
             .spacing(theme.space.xxs),
         )
-        .on_scroll(move |direction| {
-            let delta = match direction {
-                iced::mouse::ScrollDelta::Lines { y, .. } => y,
-                iced::mouse::ScrollDelta::Pixels { y, .. } => y,
-            };
-            if delta < 0.0 {
-                Message::Scroll(1)
-            } else {
-                Message::Scroll(-1)
+        .on_scroll(move |direction| match direction {
+            iced::mouse::ScrollDelta::Lines { y, .. } => {
+                if y < 0. {
+                    Message::Scroll(-1)
+                } else {
+                    Message::Scroll(1)
+                }
+            }
+            iced::mouse::ScrollDelta::Pixels { y, .. } => {
+                let sensibility = 3.;
+
+                if self.scroll_accumulator.abs() < sensibility {
+                    Message::ScrollAccumulator(y)
+                } else if self.scroll_accumulator.is_sign_positive() {
+                    Message::Scroll(-1)
+                } else {
+                    Message::Scroll(1)
+                }
             }
         })
         .into()
