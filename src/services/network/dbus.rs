@@ -44,6 +44,9 @@ impl super::NetworkBackend for NetworkDbus<'_> {
             .await?;
         debug!("Known connections: {known_connections:?}");
 
+        // Fetch initial Tailscale state
+        let tailscale = super::TailscaleBackend::get_state().await.unwrap_or_default();
+
         Ok(NetworkData {
             wifi_present,
             active_connections,
@@ -53,6 +56,7 @@ impl super::NetworkBackend for NetworkDbus<'_> {
             wireless_access_points,
             known_connections,
             scanning_nearby_wifi: false,
+            tailscale,
         })
     }
 
