@@ -1,5 +1,94 @@
 # Changelog
 
+## [0.7.0] - 2025-12-22
+
+It’s been a long time coming, but a new release is finally here! 
+
+Hopefully, the CI has correctly included everyone who contributed. 
+
+Thanks to everyone for the support!
+
+### 💥 Breaking changes
+
+- Icons refactor. Include only a Nerdfont subset instead of the entire font [@MalpenZibo](https://github.com/MalpenZibo) ([#269](https://github.com/MalpenZibo/ashell/issues/269))
+
+### 🚀 Features
+
+- niri-support [@clotodex](https://github.com/clotodex) ([#328](https://github.com/MalpenZibo/ashell/issues/328))
+- Allow hiding special workspaces [@fdev31](https://github.com/fdev31) ([#332](https://github.com/MalpenZibo/ashell/issues/332))
+- Improve vpn button [@matuck](https://github.com/matuck) ([#307](https://github.com/MalpenZibo/ashell/issues/307))
+- Feature: Mouse Scrolling [@EdgesFTW](https://github.com/EdgesFTW) ([#308](https://github.com/MalpenZibo/ashell/issues/308))
+- Feature: multi-monitor visible indicator [@EdgesFTW](https://github.com/EdgesFTW) ([#306](https://github.com/MalpenZibo/ashell/issues/306))
+- Add support for virtual desktops [@emarforio](https://github.com/emarforio) ([#214](https://github.com/MalpenZibo/ashell/issues/214))
+- feat(bluetooth): change indicator icon on connected status [@sudo-Tiz](https://github.com/sudo-Tiz) ([#288](https://github.com/MalpenZibo/ashell/issues/288))
+- Feat: Add MonitorSpecificExclusive visibility mode [@MalpenZibo](https://github.com/MalpenZibo) ([#287](https://github.com/MalpenZibo/ashell/issues/287))
+- Feat: add custom button to settings panel [@sudo-Tiz](https://github.com/sudo-Tiz) ([#233](https://github.com/MalpenZibo/ashell/issues/233))
+- Feat: Support bluetooth device management [@sudo-Tiz](https://github.com/sudo-Tiz) ([#277](https://github.com/MalpenZibo/ashell/issues/277))
+- Feature peripheral battery levels [@MalpenZibo](https://github.com/MalpenZibo) ([#266](https://github.com/MalpenZibo/ashell/issues/266))
+- Feat: bluetooth indicator and indicators order [@sudo-Tiz](https://github.com/sudo-Tiz) ([#276](https://github.com/MalpenZibo/ashell/issues/276))
+- feat: add hibernate option to power settings [@sudo-Tiz](https://github.com/sudo-Tiz) ([#278](https://github.com/MalpenZibo/ashell/issues/278))
+- feat: add temperature sensor configuration option [@sudo-Tiz](https://github.com/sudo-Tiz) ([#254](https://github.com/MalpenZibo/ashell/issues/254))
+- Fuzzy search output names from config [@CodedNil](https://github.com/CodedNil) ([#312](https://github.com/MalpenZibo/ashell/issues/312))
+
+### 🐞 Bug fixes
+
+- Fix the reported SystemBattery percentage. [@kiryl](https://github.com/kiryl) ([#364](https://github.com/MalpenZibo/ashell/issues/364))
+- Fix scroll direction + scroll touchpad sensibility [@MalpenZibo](https://github.com/MalpenZibo) ([#366](https://github.com/MalpenZibo/ashell/issues/366))
+- chore: fix clippy [@MalpenZibo](https://github.com/MalpenZibo) ([#357](https://github.com/MalpenZibo/ashell/issues/357))
+- Fix: Tray missing icons + Tray svg icon size [@MalpenZibo](https://github.com/MalpenZibo) ([#353](https://github.com/MalpenZibo/ashell/issues/353))
+- Fix the logic of the previous PR [@fdev31](https://github.com/fdev31) ([#344](https://github.com/MalpenZibo/ashell/issues/344))
+- Fix scale factor lag [@MalpenZibo](https://github.com/MalpenZibo) ([#340](https://github.com/MalpenZibo/ashell/issues/340))
+- Fix: Use a fixed rev in iced dep + fix lag issue [@MalpenZibo](https://github.com/MalpenZibo) ([#337](https://github.com/MalpenZibo/ashell/issues/337))
+- Fix regression [#312](https://github.com/MalpenZibo/ashell/issues/312), WorkspaceVisibilityMode doesn't work anymore [@MalpenZibo](https://github.com/MalpenZibo) ([#331](https://github.com/MalpenZibo/ashell/issues/331))
+- Fix: Update menu scroll padding [@MalpenZibo](https://github.com/MalpenZibo) ([#309](https://github.com/MalpenZibo/ashell/issues/309))
+- Chore: Minor bluetooth submenu UI fixes  [@MalpenZibo](https://github.com/MalpenZibo) ([#293](https://github.com/MalpenZibo/ashell/issues/293))
+- fix(config) Make Default and Deserialize more in sync [@Siprj](https://github.com/Siprj) ([#294](https://github.com/MalpenZibo/ashell/issues/294))
+- Fix: typo on Makefile [@sudo-Tiz](https://github.com/sudo-Tiz) ([#275](https://github.com/MalpenZibo/ashell/issues/275))
+- Pipewire boot check [@chazfg](https://github.com/chazfg) ([#349](https://github.com/MalpenZibo/ashell/issues/349))
+- Make system\_info network selection deterministic [@kylesferrazza](https://github.com/kylesferrazza) ([#315](https://github.com/MalpenZibo/ashell/issues/315))
+
+### 📚 Documentation
+
+- docs: improve temperature sensor configuration documentation [@romanstingler](https://github.com/romanstingler) ([#363](https://github.com/MalpenZibo/ashell/issues/363))
+- Update Docs to add Niri support [@MalpenZibo](https://github.com/MalpenZibo) ([#352](https://github.com/MalpenZibo/ashell/issues/352))
+- docs(appearance): font configuration cannot be hot-reloaded [@tank-bohr](https://github.com/tank-bohr) ([#290](https://github.com/MalpenZibo/ashell/issues/290))
+- feat: add hibernate option to power settings [@sudo-Tiz](https://github.com/sudo-Tiz) ([#278](https://github.com/MalpenZibo/ashell/issues/278))
+
+### 🧰 Maintenance
+
+- chore: fix clippy [@MalpenZibo](https://github.com/MalpenZibo) ([#357](https://github.com/MalpenZibo/ashell/issues/357))
+- Chore: Update website deps [@MalpenZibo](https://github.com/MalpenZibo) ([#336](https://github.com/MalpenZibo/ashell/issues/336))
+- Fix VPN button capitalization [@jazzpi](https://github.com/jazzpi) ([#330](https://github.com/MalpenZibo/ashell/issues/330))
+- Chore: Improvement on release workflow. Add binary, deb and rpm assets  [@MalpenZibo](https://github.com/MalpenZibo) ([#300](https://github.com/MalpenZibo/ashell/issues/300))
+- CI: Copr automation + Nix build fix + Wayland compatibility [@dacrab](https://github.com/dacrab) ([#297](https://github.com/MalpenZibo/ashell/issues/297))
+- Chore: Minor bluetooth submenu UI fixes  [@MalpenZibo](https://github.com/MalpenZibo) ([#293](https://github.com/MalpenZibo/ashell/issues/293))
+- Chore: Icon font improvement [@MalpenZibo](https://github.com/MalpenZibo) ([#292](https://github.com/MalpenZibo/ashell/issues/292))
+- Chore: Upd depbot interval + autolabel fixes [@MalpenZibo](https://github.com/MalpenZibo) ([#281](https://github.com/MalpenZibo/ashell/issues/281))
+- Chore: upd rust min version + remove codegen-units = 1 [@MalpenZibo](https://github.com/MalpenZibo) ([#280](https://github.com/MalpenZibo/ashell/issues/280))
+- chore: Optimize binary size [@MalpenZibo](https://github.com/MalpenZibo) ([#270](https://github.com/MalpenZibo/ashell/issues/270))
+- New release system [@MalpenZibo](https://github.com/MalpenZibo) ([#261](https://github.com/MalpenZibo/ashell/issues/261))
+- Suggest installation path as /usr/local/bin [@jennydaman](https://github.com/jennydaman) ([#355](https://github.com/MalpenZibo/ashell/issues/355))
+- nix fmt flake.nix [@kylesferrazza](https://github.com/kylesferrazza) ([#320](https://github.com/MalpenZibo/ashell/issues/320))
+- Remove flake-utils [@kylesferrazza](https://github.com/kylesferrazza) ([#316](https://github.com/MalpenZibo/ashell/issues/316))
+- add rust-analyzer to devshell [@kylesferrazza](https://github.com/kylesferrazza) ([#314](https://github.com/MalpenZibo/ashell/issues/314))
+
+### 🔧 Dependency updates
+
+- Bump mdast-util-to-hast from 13.2.0 to 13.2.1 in /website in the npm\_and\_yarn group across 1 directory @[dependabot[bot]](https://github.com/apps/dependabot) ([#339](https://github.com/MalpenZibo/ashell/issues/339))
+- Bump the npm\_and\_yarn group across 1 directory with 3 updates @[dependabot[bot]](https://github.com/apps/dependabot) ([#338](https://github.com/MalpenZibo/ashell/issues/338))
+- Bump clap from 4.5.48 to 4.5.49 @[dependabot[bot]](https://github.com/apps/dependabot) ([#271](https://github.com/MalpenZibo/ashell/issues/271))
+- Bump zbus from 5.11.0 to 5.12.0 @[dependabot[bot]](https://github.com/apps/dependabot) ([#285](https://github.com/MalpenZibo/ashell/issues/285))
+- Bump sysinfo from 0.36.1 to 0.37.2 @[dependabot[bot]](https://github.com/apps/dependabot) ([#284](https://github.com/MalpenZibo/ashell/issues/284))
+- Bump actions/checkout from 4 to 5 @[dependabot[bot]](https://github.com/apps/dependabot) ([#282](https://github.com/MalpenZibo/ashell/issues/282))
+- Bump actions/setup-node from 5 to 6 @[dependabot[bot]](https://github.com/apps/dependabot) ([#283](https://github.com/MalpenZibo/ashell/issues/283))
+- Bump regex from 1.11.3 to 1.12.2 @[dependabot[bot]](https://github.com/apps/dependabot) ([#272](https://github.com/MalpenZibo/ashell/issues/272))
+- Bump actions/checkout from 4 to 5 @[dependabot[bot]](https://github.com/apps/dependabot) ([#264](https://github.com/MalpenZibo/ashell/issues/264))
+- Update pipewire crate [@MalpenZibo](https://github.com/MalpenZibo) ([#286](https://github.com/MalpenZibo/ashell/issues/286))
+
+### Contributors
+
+❤️ A big thanks to [@CodedNil](https://github.com/CodedNil), [@EdgesFTW](https://github.com/EdgesFTW), [@Siprj](https://github.com/Siprj), [@chazfg](https://github.com/chazfg), [@clotodex](https://github.com/clotodex), [@dacrab](https://github.com/dacrab), [@emarforio](https://github.com/emarforio), [@fdev31](https://github.com/fdev31), [@jazzpi](https://github.com/jazzpi), [@jennydaman](https://github.com/jennydaman), [@kiryl](https://github.com/kiryl), [@kylesferrazza](https://github.com/kylesferrazza), [@matuck](https://github.com/matuck), [@romanstingler](https://github.com/romanstingler), [@sudo-Tiz](https://github.com/sudo-Tiz), [@tank-bohr](https://github.com/tank-bohr) and sudo-Tiz
+
 ## [0.6.0] - 2025-10-06
 
 ### WARNING BREAKING CHANGES
