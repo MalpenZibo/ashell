@@ -87,7 +87,7 @@ Thanks to everyone for the support!
 
 ### Contributors
 
-❤️ A big thanks to [@CodedNil](https://github.com/CodedNil), [@EdgesFTW](https://github.com/EdgesFTW), [@Siprj](https://github.com/Siprj), [@chazfg](https://github.com/chazfg), [@clotodex](https://github.com/clotodex), [@dacrab](https://github.com/dacrab), [@emarforio](https://github.com/emarforio), [@fdev31](https://github.com/fdev31), [@jazzpi](https://github.com/jazzpi), [@jennydaman](https://github.com/jennydaman), [@kiryl](https://github.com/kiryl), [@kylesferrazza](https://github.com/kylesferrazza), [@matuck](https://github.com/matuck), [@romanstingler](https://github.com/romanstingler), [@sudo-Tiz](https://github.com/sudo-Tiz), [@tank-bohr](https://github.com/tank-bohr) and sudo-Tiz
+❤️ A big thanks to [@CodedNil](https://github.com/CodedNil), [@EdgesFTW](https://github.com/EdgesFTW), [@Siprj](https://github.com/Siprj), [@chazfg](https://github.com/chazfg), [@clotodex](https://github.com/clotodex), [@dacrab](https://github.com/dacrab), [@emarforio](https://github.com/emarforio), [@fdev31](https://github.com/fdev31), [@jazzpi](https://github.com/jazzpi), [@jennydaman](https://github.com/jennydaman), [@kiryl](https://github.com/kiryl), [@kylesferrazza](https://github.com/kylesferrazza), [@matuck](https://github.com/matuck), [@romanstingler](https://github.com/romanstingler), [@sudo-Tiz](https://github.com/sudo-Tiz) and [@tank-bohr](https://github.com/tank-bohr)
 
 ## [0.6.0] - 2025-10-06
 
