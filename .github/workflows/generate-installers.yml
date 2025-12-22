@@ -21,8 +21,10 @@ jobs:
 
       - name: Parse plan manifest
         id: manifest
+        env:
+          PLAN: ${{ inputs.plan }}
         run: |
-          echo '${{ inputs.plan }}' > plan.json
+          echo "$PLAN" > plan.json
 
           # Extract artifact filenames and unique target triples
           targets=$(jq -r '[.releases[].artifacts[] as $a | .artifacts[$a].target_triples[]] | unique | join(",")' plan.json)
