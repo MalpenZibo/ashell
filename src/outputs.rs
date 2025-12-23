@@ -21,6 +21,7 @@ use crate::{
 struct ShellInfo {
     id: Id,
     position: Position,
+    layer: config::Layer,
     style: AppearanceStyle,
     menu: Menu,
     scale_factor: f64,
@@ -38,9 +39,11 @@ impl Outputs {
     pub fn new<Message: 'static>(
         style: AppearanceStyle,
         position: Position,
+        layer: config::Layer,
         scale_factor: f64,
     ) -> (Self, Task<Message>) {
-        let (id, menu_id, task) = Self::create_output_layers(style, None, position, scale_factor);
+        let (id, menu_id, task) =
+            Self::create_output_layers(style, None, position, layer, scale_factor);
 
         (
             Self(vec![(
@@ -49,6 +52,7 @@ impl Outputs {
                     id,
                     menu: Menu::new(menu_id),
                     position,
+                    layer,
                     style,
                     scale_factor,
                 }),
@@ -71,16 +75,22 @@ impl Outputs {
         style: AppearanceStyle,
         wl_output: Option<WlOutput>,
         position: Position,
+        layer: config::Layer,
         scale_factor: f64,
     ) -> (Id, Id, Task<Message>) {
         let id = Id::unique();
         let height = Self::get_height(style, scale_factor);
 
+        let iced_layer = match layer {
+            config::Layer::Bottom => Layer::Bottom,
+            config::Layer::Overlay => Layer::Overlay,
+        };
+
         let task = get_layer_surface(SctkLayerSurfaceSettings {
             id,
             namespace: "ashell-main-layer".to_string(),
             size: Some((None, Some(height as u32))),
-            layer: Layer::Bottom,
+            layer: iced_layer,
             keyboard_interactivity: KeyboardInteractivity::None,
             exclusive_zone: height as i32,
             output: wl_output.clone().map_or(IcedOutput::Active, |wl_output| {
@@ -159,6 +169,7 @@ impl Outputs {
         style: AppearanceStyle,
         request_outputs: &config::Outputs,
         position: Position,
+        layer: config::Layer,
         name: &str,
         wl_output: WlOutput,
         scale_factor: f64,
@@ -168,8 +179,13 @@ impl Outputs {
         if target {
             debug!("Found target output, creating a new layer surface");
 
-            let (id, menu_id, task) =
-                Self::create_output_layers(style, Some(wl_output.clone()), position, scale_factor);
+            let (id, menu_id, task) = Self::create_output_layers(
+                style,
+                Some(wl_output.clone()),
+                position,
+                layer,
+                scale_factor,
+            );
 
             let destroy_task = match self.0.iter().position(|(key, _, _)| key.as_str() == name) {
                 Some(index) => {
@@ -194,6 +210,7 @@ impl Outputs {
                     id,
                     menu: Menu::new(menu_id),
                     position,
+                    layer,
                     style,
                     scale_factor,
                 }),
@@ -236,6 +253,7 @@ impl Outputs {
         &mut self,
         style: AppearanceStyle,
         position: Position,
+        layer: config::Layer,
         wl_output: WlOutput,
         scale_factor: f64,
     ) -> Task<Message> {
@@ -266,7 +284,7 @@ impl Outputs {
                     debug!("No outputs left, creating a fallback layer surface");
 
                     let (id, menu_id, task) =
-                        Self::create_output_layers(style, None, position, scale_factor);
+                        Self::create_output_layers(style, None, position, layer, scale_factor);
 
                     self.0.push((
                         "Fallback".to_string(),
@@ -274,6 +292,7 @@ impl Outputs {
                             id,
                             menu: Menu::new(menu_id),
                             position,
+                            layer,
                             style,
                             scale_factor,
                         }),
@@ -292,6 +311,7 @@ impl Outputs {
         style: AppearanceStyle,
         request_outputs: &config::Outputs,
         position: Position,
+        layer: config::Layer,
         scale_factor: f64,
     ) -> Task<Message> {
         debug!("Syncing outputs: {self:?}, request_outputs: {request_outputs:?}");
@@ -331,6 +351,7 @@ impl Outputs {
                     style,
                     request_outputs,
                     position,
+                    layer,
                     name.as_str(),
                     wl_output,
                     scale_factor,
@@ -339,7 +360,7 @@ impl Outputs {
         }
 
         for wl_output in to_remove {
-            tasks.push(self.remove(style, position, wl_output, scale_factor));
+            tasks.push(self.remove(style, position, layer, wl_output, scale_factor));
         }
 
         for shell_info in self.0.iter_mut().filter_map(|(_, shell_info, _)| {
@@ -364,6 +385,37 @@ impl Outputs {
                 } | Anchor::LEFT
                     | Anchor::RIGHT,
             ));
+        }
+
+        // Handle layer changes - only recreate surfaces when layer actually changes
+        for (_name, shell_info, wl_output) in &mut self.0 {
+            if let Some(shell_info) = shell_info
+                && shell_info.layer != layer
+            {
+                let destroy_main_task = destroy_layer_surface(shell_info.id);
+                let destroy_menu_task = destroy_layer_surface(shell_info.menu.id);
+
+                let (id, menu_id, task) = Self::create_output_layers(
+                    style,
+                    wl_output.clone(),
+                    position,
+                    layer,
+                    scale_factor,
+                );
+
+                shell_info.id = id;
+                shell_info.menu = Menu::new(menu_id);
+                shell_info.position = position;
+                shell_info.layer = layer;
+                shell_info.style = style;
+                shell_info.scale_factor = scale_factor;
+
+                tasks.push(Task::batch(vec![
+                    destroy_main_task,
+                    destroy_menu_task,
+                    task,
+                ]));
+            }
         }
 
         for shell_info in self.0.iter_mut().filter_map(|(_, shell_info, _)| {
