@@ -116,6 +116,8 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
     add_refresh_handler!(add_window_moved_handler);
     add_refresh_handler!(add_active_window_changed_handler);
 
+    add_refresh_handler!(add_layout_changed_handler);
+
     // custom refresh handler that takes the changed value as the submap
     listener.add_sub_map_changed_handler({
         let tx = tx.clone();
