@@ -545,7 +545,7 @@ impl NetworkSettings {
         theme: &'a AshellTheme,
         show_more_button: bool,
     ) -> Element<'a, Message> {
-        let main = Column::with_children(
+        let vpn_list = Column::with_children(
             service.known_connections
                 .iter()
                 .filter_map(|c| match c {
@@ -568,6 +568,11 @@ impl NetworkSettings {
                 .collect::<Vec<Element<'a, Message>>>(),
         )
         .spacing(theme.space.xs);
+
+        let main = container(
+            scrollable(vpn_list))
+            .height(Length::Shrink)
+            .max_height(500.0);
 
         if show_more_button {
             column!(
