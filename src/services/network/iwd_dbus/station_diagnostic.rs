@@ -23,7 +23,7 @@ use zbus::proxy;
     assume_defaults = true
 )]
 pub trait StationDiagnostic {
-    /// GetDiagnostics method
+    /// `GetDiagnostics` method
     fn get_diagnostics(
         &self,
     ) -> zbus::Result<std::collections::HashMap<String, zbus::zvariant::OwnedValue>>;

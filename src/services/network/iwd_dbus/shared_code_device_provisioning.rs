@@ -23,16 +23,16 @@ use zbus::proxy;
     assume_defaults = true
 )]
 pub trait SharedCodeDeviceProvisioning {
-    /// ConfigureEnrollee method
+    /// `ConfigureEnrollee` method
     fn configure_enrollee(
         &self,
         args: std::collections::HashMap<&str, &zbus::zvariant::Value<'_>>,
     ) -> zbus::Result<()>;
 
-    /// StartConfigurator method
+    /// `StartConfigurator` method
     fn start_configurator(&self, path: &zbus::zvariant::ObjectPath<'_>) -> zbus::Result<()>;
 
-    /// StartEnrollee method
+    /// `StartEnrollee` method
     fn start_enrollee(
         &self,
         args: std::collections::HashMap<&str, &zbus::zvariant::Value<'_>>,

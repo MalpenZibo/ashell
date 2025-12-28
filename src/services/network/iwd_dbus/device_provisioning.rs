@@ -23,13 +23,13 @@ use zbus::proxy;
     assume_defaults = true
 )]
 pub trait DeviceProvisioning {
-    /// ConfigureEnrollee method
+    /// `ConfigureEnrollee` method
     fn configure_enrollee(&self, uri: &str) -> zbus::Result<()>;
 
-    /// StartConfigurator method
+    /// `StartConfigurator` method
     fn start_configurator(&self) -> zbus::Result<String>;
 
-    /// StartEnrollee method
+    /// `StartEnrollee` method
     fn start_enrollee(&self) -> zbus::Result<String>;
 
     /// Stop method
