@@ -1,3 +1,5 @@
+use std::collections::{HashMap, HashSet};
+
 use crate::{
     components::icons::{IconButtonSize, StaticIcon, icon, icon_button},
     config::MediaPlayerModuleConfig,
@@ -10,11 +12,17 @@ use crate::{
     theme::AshellTheme,
     utils::truncate_text,
 };
+use anyhow::{anyhow, bail};
 use iced::{
     Background, Border, Element, Length, Subscription, Task, Theme,
     alignment::Vertical,
-    widget::{Column, column, container, horizontal_rule, row, slider, text},
+    core::image::Bytes,
+    widget::{Row, column, container, horizontal_rule, horizontal_space, image, row, slider, text},
 };
+use itertools::Itertools;
+use url::Url;
+
+type CoverData = Bytes;
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -24,6 +32,8 @@ pub enum Message {
     SetVolume(String, f64),
     Event(ServiceEvent<MprisPlayerService>),
     ConfigReloaded(MediaPlayerModuleConfig),
+    CoverLoaded(String, CoverData),
+    CoverLoadFailed(String, String),
 }
 
 pub enum Action {
@@ -34,6 +44,7 @@ pub enum Action {
 pub struct MediaPlayer {
     config: MediaPlayerModuleConfig,
     service: Option<MprisPlayerService>,
+    covers: HashMap<String, image::Handle>,
 }
 
 impl MediaPlayer {
@@ -41,6 +52,7 @@ impl MediaPlayer {
         Self {
             config,
             service: None,
+            covers: HashMap::new(),
         }
     }
 
@@ -61,14 +73,23 @@ impl MediaPlayer {
                 }
                 ServiceEvent::Update(d) => {
                     if let Some(service) = self.service.as_mut() {
-                        service.update(d);
+                        service.update(d.clone());
                     }
-                    Action::None
+                    self.check_cover_update(&d)
                 }
                 ServiceEvent::Error(_) => Action::None,
             },
             Message::ConfigReloaded(c) => {
                 self.config = c;
+                Action::None
+            }
+            Message::CoverLoaded(url, data) => {
+                log::debug!("Loaded cover from {}", url);
+                self.covers.insert(url, image::Handle::from_bytes(data));
+                Action::None
+            }
+            Message::CoverLoadFailed(url, err) => {
+                log::error!("Failed to load cover from {}: {}", url, err);
                 Action::None
             }
         }
@@ -81,8 +102,30 @@ impl MediaPlayer {
                 text("Players").size(theme.font_size.lg),
                 horizontal_rule(1),
                 column(s.iter().map(|d| {
-                    let title = text(self.get_title(d))
+                    let m = d.metadata.as_ref();
+                    let title = m
+                        .and_then(|m| m.title.clone())
+                        .unwrap_or("No Title".to_string());
+                    let artists = m
+                        .and_then(|m| m.artists.clone())
+                        .map(|a| a.join(", "))
+                        .unwrap_or("Unknown Artist".to_string());
+                    let album = m
+                        .and_then(|m| m.album.clone())
+                        .unwrap_or("Unknown Album".to_string());
+                    let title = text(truncate_text(&title, self.config.max_title_length))
                         .wrapping(text::Wrapping::WordOrGlyph)
+                        .width(Length::Fill);
+                    let artists = text(truncate_text(&artists, self.config.max_title_length))
+                        .wrapping(text::Wrapping::WordOrGlyph)
+                        .size(theme.font_size.sm)
+                        .width(Length::Fill);
+                    let album = text(truncate_text(&album, self.config.max_title_length))
+                        .wrapping(text::Wrapping::WordOrGlyph)
+                        .size(theme.font_size.sm)
+                        .width(Length::Fill);
+                    let description = column![title, artists, album]
+                        .spacing(theme.space.xxs)
                         .width(Length::Fill);
 
                     let play_pause_icon = match d.state {
@@ -103,22 +146,51 @@ impl MediaPlayer {
                     ]
                     .align_y(Vertical::Center)
                     .spacing(theme.space.xs);
-
-                    let volume_slider = d.volume.map(|v| {
-                        slider(0.0..=100.0, v, move |v| {
+                    let volume_slider: Element<'_, _> = match d.volume {
+                        Some(v) => slider(0.0..=100.0, v, move |v| {
                             Message::SetVolume(d.service.clone(), v)
                         })
-                    });
+                        .width(Length::Fill)
+                        .into(),
+                        None => horizontal_space().into(),
+                    };
+                    let controls = Row::new()
+                        .push(volume_slider)
+                        .push(buttons)
+                        .spacing(theme.space.md)
+                        .align_y(Vertical::Center);
+
+                    // Is it possible to dynamically size the cover to match the buttons?
+                    let buttons_width =
+                        IconButtonSize::Large.container_size() * 3. + theme.space.xs as f32 * 2.;
+
+                    let cover: Option<Element<_, _>> = d
+                        .metadata
+                        .as_ref()
+                        .and_then(|m| m.art_url.as_ref())
+                        .map(|url| {
+                            self.covers
+                                .get(url)
+                                .map(|img| {
+                                    image(img)
+                                        .filter_method(image::FilterMethod::Linear)
+                                        .width(buttons_width)
+                                        .into()
+                                })
+                                .unwrap_or_else(|| {
+                                    text("Loading cover...")
+                                        .width(buttons_width)
+                                        .height(buttons_width)
+                                        .into()
+                                })
+                        });
+                    let metadata = row![description]
+                        .push_maybe(cover)
+                        .spacing(theme.space.md)
+                        .align_y(Vertical::Center);
 
                     container(
-                        Column::new()
-                            .push(
-                                row!(title, buttons)
-                                    .spacing(theme.space.xs)
-                                    .align_y(Vertical::Center),
-                            )
-                            .push_maybe(volume_slider)
-                            .spacing(theme.space.xs),
+                        column![metadata, controls].spacing(theme.space.xs), // .align_y(Vertical::Center),
                     )
                     .style(move |app_theme: &Theme| container::Style {
                         background: Background::Color(
@@ -153,6 +225,59 @@ impl MediaPlayer {
                 })
                 .map(Message::Event),
             _ => Task::none(),
+        }
+    }
+
+    fn check_cover_update(&mut self, data: &[MprisPlayerData]) -> Action {
+        let urls: HashSet<_> = data
+            .iter()
+            .filter_map(|player| player.metadata.as_ref().and_then(|m| m.art_url.clone()))
+            .collect();
+
+        let unused_covers = self
+            .covers
+            .keys()
+            .filter(|url| !urls.contains(url.as_str()))
+            .cloned()
+            .collect_vec();
+        for url in unused_covers {
+            self.covers.remove(url.as_str());
+            log::debug!("Removed unused cover for {}", url);
+        }
+
+        let tasks = urls
+            .iter()
+            .filter(|url| !self.covers.contains_key(url.as_str()))
+            .map(|url| {
+                let url = url.clone();
+                Task::perform(Self::fetch_cover(url.clone()), move |result| match result {
+                    Ok(data) => Message::CoverLoaded(url.clone(), data),
+                    Err(e) => Message::CoverLoadFailed(url.clone(), e.to_string()),
+                })
+            })
+            .collect_vec();
+
+        if tasks.is_empty() {
+            Action::None
+        } else {
+            Action::Command(Task::batch(tasks))
+        }
+    }
+
+    async fn fetch_cover(url: String) -> anyhow::Result<CoverData> {
+        let url = Url::parse(&url)?;
+        match url.scheme() {
+            "http" | "https" => {
+                let response = reqwest::get(url).await?;
+                Ok(response.bytes().await?)
+            }
+            "file" => {
+                let path = url
+                    .to_file_path()
+                    .map_err(|_| anyhow!("Invalid file URL {}", url))?;
+                Ok(tokio::fs::read(path).await?.into())
+            }
+            _ => bail!("Unsupported URL scheme: {}", url.scheme()),
         }
     }
 
