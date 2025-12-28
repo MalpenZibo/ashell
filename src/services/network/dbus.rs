@@ -626,8 +626,7 @@ impl NetworkDbus<'_> {
                 let state: DeviceState = device
                     .cached_state()
                     .unwrap_or_default()
-                    .map(DeviceState::from)
-                    .unwrap_or_else(|| DeviceState::Unknown);
+                    .map_or_else(|| DeviceState::Unknown, DeviceState::from);
 
                 // Sort by strength and remove duplicates
                 let mut aps = HashMap::<String, AccessPoint>::new();
@@ -835,6 +834,7 @@ impl From<Vec<ConnectivityState>> for ConnectivityState {
 }
 
 impl From<ConnectivityState> for u32 {
+    #[inline]
     fn from(val: ConnectivityState) -> Self {
         match val {
             ConnectivityState::None => 1,

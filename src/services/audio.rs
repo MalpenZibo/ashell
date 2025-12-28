@@ -832,11 +832,11 @@ impl From<&SinkInfo<'_>> for Device {
             name: value
                 .name
                 .as_ref()
-                .map_or(String::default(), |n| n.to_string()),
+                .map_or_else(String::default, |n| n.to_string()),
             description: value
                 .proplist
                 .get_str("device.description")
-                .map_or(String::default(), |d| d.to_string()),
+                .map_or_else(String::default, |d| d.to_string()),
             volume: value.volume,
             is_mute: value.mute,
             in_use: value.state == SinkState::Running,
@@ -849,7 +849,7 @@ impl From<&SinkInfo<'_>> for Device {
                             name: port
                                 .name
                                 .as_ref()
-                                .map_or(String::default(), |n| n.to_string()),
+                                .map_or_else(String::default, |n| n.to_string()),
                             description: port.description.as_ref().unwrap().to_string(),
                             device_type: match port.r#type {
                                 DevicePortType::Headphones => DeviceType::Headphones,
@@ -876,11 +876,11 @@ impl From<&SourceInfo<'_>> for Device {
             name: value
                 .name
                 .as_ref()
-                .map_or(String::default(), |n| n.to_string()),
+                .map_or_else(String::default, |n| n.to_string()),
             description: value
                 .proplist
                 .get_str("device.description")
-                .map_or(String::default(), |d| d.to_string()),
+                .map_or_else(String::default, |d| d.to_string()),
             volume: value.volume,
             is_mute: value.mute,
             in_use: value.state == SourceState::Running,
@@ -893,7 +893,7 @@ impl From<&SourceInfo<'_>> for Device {
                             name: port
                                 .name
                                 .as_ref()
-                                .map_or(String::default(), |n| n.to_string()),
+                                .map_or_else(String::default, |n| n.to_string()),
                             description: port.description.as_ref().unwrap().to_string(),
                             device_type: match port.r#type {
                                 DevicePortType::Headphones => DeviceType::Headphones,

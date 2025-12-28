@@ -190,6 +190,7 @@ impl std::fmt::Display for UpDeviceKind {
 }
 
 impl From<UpDeviceKind> for u32 {
+    #[inline]
     fn from(kind: UpDeviceKind) -> Self {
         kind.to_u32()
     }
