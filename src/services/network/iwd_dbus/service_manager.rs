@@ -23,12 +23,12 @@ use zbus::proxy;
     assume_defaults = true
 )]
 pub trait ServiceManager {
-    /// RegisterDisplayService method
+    /// `RegisterDisplayService` method
     fn register_display_service(
         &self,
         properties: std::collections::HashMap<&str, &zbus::zvariant::Value<'_>>,
     ) -> zbus::Result<()>;
 
-    /// UnregisterDisplayService method
+    /// `UnregisterDisplayService` method
     fn unregister_display_service(&self) -> zbus::Result<()>;
 }

@@ -975,15 +975,15 @@ trait WiredDevice {
     #[zbus(property)]
     fn carrier(&self) -> zbus::Result<bool>;
 
-    /// HwAddress property
+    /// `HwAddress` property
     #[zbus(property)]
     fn hw_address(&self) -> zbus::Result<String>;
 
-    /// PermHwAddress property
+    /// `PermHwAddress` property
     #[zbus(property)]
     fn perm_hw_address(&self) -> zbus::Result<String>;
 
-    /// S390Subchannels property
+    /// `S390Subchannels` property
     #[zbus(property)]
     fn s390subchannels(&self) -> zbus::Result<Vec<String>>;
 
@@ -998,7 +998,7 @@ trait WiredDevice {
     interface = "org.freedesktop.NetworkManager.Device.Wireless"
 )]
 pub trait WirelessDevice {
-    /// GetAccessPoints method
+    /// `GetAccessPoints` method
     fn get_access_points(&self) -> zbus::Result<Vec<zbus::zvariant::OwnedObjectPath>>;
 
     #[zbus(property)]
