@@ -403,6 +403,7 @@ where
     Theme: Catalog + 'a,
     Renderer: iced::core::Renderer + 'a,
 {
+    #[inline]
     fn from(button: PositionButton<'a, Message, Theme, Renderer>) -> Self {
         Self::new(button)
     }

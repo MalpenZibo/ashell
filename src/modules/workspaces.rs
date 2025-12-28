@@ -277,8 +277,7 @@ impl Workspaces {
                                 .name
                                 .split(":")
                                 .last()
-                                .map(|s| s.to_string())
-                                .unwrap_or(special.name.clone()),
+                                .map_or_else(|| special.name.clone(), |s| s.to_string()),
                         ))
                         .map(Message::ServiceEvent);
                 }
