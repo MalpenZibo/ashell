@@ -381,7 +381,7 @@ where
     ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
         self.content.as_widget_mut().overlay(
             &mut tree.children[0],
-            layout.children().next().unwrap(),
+            layout.children().next()?,
             renderer,
             translation,
         )
