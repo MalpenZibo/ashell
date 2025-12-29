@@ -539,7 +539,7 @@ impl NetworkSettings {
         }
     }
 
-fn vpn_menu<'a>(
+    fn vpn_menu<'a>(
         service: &'a NetworkService,
         id: Id,
         theme: &'a AshellTheme,
