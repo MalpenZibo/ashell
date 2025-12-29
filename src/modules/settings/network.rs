@@ -539,19 +539,27 @@ impl NetworkSettings {
         }
     }
 
-    fn vpn_menu<'a>(
+fn vpn_menu<'a>(
         service: &'a NetworkService,
         id: Id,
         theme: &'a AshellTheme,
         show_more_button: bool,
     ) -> Element<'a, Message> {
+        // 1. Collect and sort the VPNs first
+        let mut vpns: Vec<_> = service.known_connections
+            .iter()
+            .filter_map(|c| match c {
+                KnownConnection::Vpn(vpn) => Some(vpn),
+                _ => None,
+            })
+            .collect();
+
+        // Sort alphabetically by name (case-insensitive)
+        vpns.sort_by_key(|vpn| vpn.name.to_lowercase());
+
+        // 2. Map the sorted list to UI elements
         let vpn_list = Column::with_children(
-            service.known_connections
-                .iter()
-                .filter_map(|c| match c {
-                    KnownConnection::Vpn(vpn) => Some(vpn),
-                    _ => None,
-                })
+            vpns.into_iter()
                 .map(|vpn| {
                     let is_active = service.active_connections.iter().any(
                         |c| matches!(c, ActiveConnectionInfo::Vpn { name, .. } if name == &vpn.name),
