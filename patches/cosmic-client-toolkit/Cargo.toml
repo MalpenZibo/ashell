@@ -1,0 +1,17 @@
+[package]
+name = "cosmic-client-toolkit"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+cosmic-protocols = { git = "https://github.com/pop-os/cosmic-protocols", rev = "d0e95be", features = [
+    "client",
+] }
+sctk = { package = "smithay-client-toolkit", version = "0.20.0" }
+wayland-client = { version = "0.31.11" }
+libc = "0.2.175"
+wayland-protocols = { version = "0.32.9", features = ["client", "staging"] }
+bitflags = "2.9.3"
