@@ -259,7 +259,8 @@ impl NetworkSettings {
                             || icon(StaticIcon::Wifi0).into(),
                             |a| {
                                 let icon_type = a.get_icon();
-                                let state = (service.connectivity, a.get_indicator_state());
+                                let indicator_state = a.get_indicator_state();
+                                let state = (service.connectivity, indicator_state);
 
                                 container(icon(icon_type))
                                     .style(move |theme: &Theme| container::Style {
@@ -268,7 +269,25 @@ impl NetworkSettings {
                                                 Some(theme.extended_palette().danger.weak.color)
                                             }
                                             (ConnectivityState::Full, _) => None,
-                                            _ => Some(theme.palette().danger),
+                                            // Be more forgiving - if we have an active connection but connectivity check fails,
+                                            // show normal color instead of red (unless signal is very weak)
+                                            (
+                                                ConnectivityState::Loss
+                                                | ConnectivityState::Portal
+                                                | ConnectivityState::Unknown,
+                                                IndicatorState::Warning,
+                                            ) => Some(theme.extended_palette().danger.weak.color),
+                                            (
+                                                ConnectivityState::Loss
+                                                | ConnectivityState::Portal
+                                                | ConnectivityState::Unknown,
+                                                _,
+                                            ) => {
+                                                None // Show normal color instead of red
+                                            }
+                                            (ConnectivityState::None, _) => {
+                                                Some(theme.palette().danger) // No connectivity - show red
+                                            }
                                         },
                                         ..Default::default()
                                     })
