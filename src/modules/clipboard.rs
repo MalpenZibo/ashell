@@ -9,6 +9,7 @@ pub enum Message {
     Launch,
 }
 
+#[deprecated]
 #[derive(Debug, Clone)]
 pub struct Clipboard {
     command: String,
