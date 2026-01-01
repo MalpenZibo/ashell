@@ -35,13 +35,51 @@ static WIFI_LOCK_SIGNAL_ICONS: [StaticIcon; 5] = [
     StaticIcon::WifiLock5,
 ];
 
+fn get_connectivity_color(
+    connectivity: ConnectivityState,
+    indicator_state: IndicatorState,
+    theme: &Theme,
+) -> Option<iced::Color> {
+    match (connectivity, indicator_state) {
+        (ConnectivityState::Full, IndicatorState::Warning) => {
+            Some(theme.extended_palette().danger.weak.color)
+        }
+        (ConnectivityState::Full, _) => None,
+        // Be more forgiving - if we have an active connection but connectivity check fails,
+        // show normal color instead of red (unless signal is very weak)
+        (
+            ConnectivityState::Loss | ConnectivityState::Portal | ConnectivityState::Unknown,
+            IndicatorState::Warning,
+        ) => Some(theme.extended_palette().danger.weak.color),
+        (ConnectivityState::Loss | ConnectivityState::Portal | ConnectivityState::Unknown, _) => {
+            None
+        } // Show normal color instead of red
+        (ConnectivityState::None, _) => Some(theme.palette().danger), // No connectivity - show red
+    }
+}
+
+fn create_styled_icon<'a>(
+    icon_type: StaticIcon,
+    connectivity: ConnectivityState,
+    indicator_state: IndicatorState,
+) -> Element<'a, Message> {
+    container(icon(icon_type))
+        .style(move |theme: &Theme| container::Style {
+            text_color: get_connectivity_color(connectivity, indicator_state, theme),
+            ..Default::default()
+        })
+        .into()
+}
+
 impl ActiveConnectionInfo {
     pub fn get_wifi_icon(signal: u8) -> StaticIcon {
-        WIFI_SIGNAL_ICONS[1 + f32::round(signal as f32 / 100. * 4.) as usize]
+        let clamped_signal = signal.min(100);
+        WIFI_SIGNAL_ICONS[1 + f32::round(clamped_signal as f32 / 100. * 4.) as usize]
     }
 
     pub fn get_wifi_lock_icon(signal: u8) -> StaticIcon {
-        WIFI_LOCK_SIGNAL_ICONS[f32::round(signal as f32 / 100. * 4.) as usize]
+        let clamped_signal = signal.min(100);
+        WIFI_LOCK_SIGNAL_ICONS[f32::round(clamped_signal as f32 / 100. * 4.) as usize]
     }
 
     pub fn get_icon(&self) -> StaticIcon {
@@ -260,38 +298,8 @@ impl NetworkSettings {
                             |a| {
                                 let icon_type = a.get_icon();
                                 let indicator_state = a.get_indicator_state();
-                                let state = (service.connectivity, indicator_state);
 
-                                container(icon(icon_type))
-                                    .style(move |theme: &Theme| container::Style {
-                                        text_color: match state {
-                                            (ConnectivityState::Full, IndicatorState::Warning) => {
-                                                Some(theme.extended_palette().danger.weak.color)
-                                            }
-                                            (ConnectivityState::Full, _) => None,
-                                            // Be more forgiving - if we have an active connection but connectivity check fails,
-                                            // show normal color instead of red (unless signal is very weak)
-                                            (
-                                                ConnectivityState::Loss
-                                                | ConnectivityState::Portal
-                                                | ConnectivityState::Unknown,
-                                                IndicatorState::Warning,
-                                            ) => Some(theme.extended_palette().danger.weak.color),
-                                            (
-                                                ConnectivityState::Loss
-                                                | ConnectivityState::Portal
-                                                | ConnectivityState::Unknown,
-                                                _,
-                                            ) => {
-                                                None // Show normal color instead of red
-                                            }
-                                            (ConnectivityState::None, _) => {
-                                                Some(theme.palette().danger) // No connectivity - show red
-                                            }
-                                        },
-                                        ..Default::default()
-                                    })
-                                    .into()
+                                create_styled_icon(icon_type, service.connectivity, indicator_state)
                             },
                         ),
                 )
@@ -352,7 +360,7 @@ impl NetworkSettings {
                                 id,
                                 theme,
                                 active_connection
-                                    .map(|(name, strengh, _)| (name.as_str(), *strengh)),
+                                    .map(|(name, strength, _)| (name.as_str(), *strength)),
                                 self.config.wifi_more_cmd.is_some(),
                             )
                         }),
@@ -384,7 +392,7 @@ impl NetworkSettings {
                             _ => None,
                         })
                         .collect();
-                    
+
                     // Find active VPNs using O(1) lookup
                     let actives: Vec<&Vpn> = service
                         .active_connections
@@ -490,7 +498,7 @@ impl NetworkSettings {
                         .wireless_access_points
                         .iter()
                         .partition(|ac| active_connection.is_some_and(|(ssid, _)| ssid == ac.ssid));
-                    
+
                     active_networks
                         .into_iter()
                         .map(|ac| (ac, true))
@@ -584,7 +592,8 @@ impl NetworkSettings {
             .collect();
 
         let main = Column::with_children(
-            service.known_connections
+            service
+                .known_connections
                 .iter()
                 .filter_map(|c| match c {
                     KnownConnection::Vpn(vpn) => Some(vpn),

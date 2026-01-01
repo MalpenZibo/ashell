@@ -2,6 +2,7 @@ use std::time::Duration;
 
 pub mod launcher;
 
+#[derive(Debug, Clone, Copy)]
 pub enum IndicatorState {
     Normal,
     Success,
