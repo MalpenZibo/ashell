@@ -60,7 +60,7 @@ libpulse-binding = { version = "2.28", features = ["pa_v15"] }
 log = { version = "0.4", features = [] }
 flexi_logger = "0.31"
 pipewire = "0.9"
-wayland-client = "0.31.5"
+wayland-client = "0.31.12"
 wayland-protocols = { version = "0.32.3", features = ["client", "unstable"] }
 itertools = "0.14"
 hex_color = { version = "3", features = ["serde"] }
