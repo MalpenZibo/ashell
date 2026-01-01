@@ -264,6 +264,8 @@ pub enum BatteryFormat {
     Percentage,
     #[default]
     IconAndPercentage,
+    Time,
+    IconAndTime,
 }
 
 #[derive(Deserialize, Clone, Default, PartialEq, Eq, Debug)]
