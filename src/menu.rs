@@ -21,6 +21,7 @@ pub enum MenuType {
     SystemInfo,
 }
 
+
 #[derive(Clone, Debug)]
 pub struct Menu {
     pub id: Id,

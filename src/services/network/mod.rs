@@ -16,6 +16,9 @@ use zbus::zvariant::OwnedObjectPath;
 
 pub mod dbus;
 pub mod iwd_dbus;
+pub mod tailscale;
+
+pub use tailscale::{ExitNode, TailscaleBackend, TailscaleState};
 
 /// Trait defining the interface for a network backend.
 /// This allows abstracting the specific D-Bus implementation (like IWD or NetworkManager).
@@ -71,6 +74,8 @@ pub enum NetworkEvent {
     Strength((String, u8)),
     RequestPasswordForSSID(String),
     ScanningNearbyWifi,
+    // Tailscale events
+    TailscaleUpdate(TailscaleState),
 }
 
 #[derive(Debug, Clone)]
@@ -80,6 +85,12 @@ pub enum NetworkCommand {
     ToggleAirplaneMode,
     SelectAccessPoint((AccessPoint, Option<String>)),
     ToggleVpn(Vpn),
+    // Tailscale commands
+    TailscaleConnect,
+    TailscaleDisconnect,
+    TailscaleSwitchProfile(String),
+    TailscaleSetExitNode(Option<String>),
+    TailscaleSetAllowLan(bool),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -93,7 +104,7 @@ pub struct AccessPoint {
     pub device_path: OwnedObjectPath,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Vpn {
     pub name: String,
     pub path: OwnedObjectPath,
@@ -140,6 +151,8 @@ pub struct NetworkData {
     pub airplane_mode: bool,
     pub connectivity: ConnectivityState,
     pub scanning_nearby_wifi: bool,
+    // Tailscale state
+    pub tailscale: TailscaleState,
 }
 
 #[derive(Debug, Clone)]
@@ -219,6 +232,9 @@ impl ReadOnlyService for NetworkService {
                 self.data.wireless_access_points = wireless_access_points;
             }
             NetworkEvent::RequestPasswordForSSID(_) => {}
+            NetworkEvent::TailscaleUpdate(state) => {
+                self.data.tailscale = state;
+            }
         }
     }
 
@@ -440,16 +456,56 @@ impl NetworkService {
 
                         match nm.subscribe_events().await {
                             Ok(mut events) => {
-                                while let Some(event) = events.next().await {
-                                    let mut exit_loop = false;
-                                    // TODO: why do we do this?
-                                    if let NetworkEvent::WirelessDevice { .. } = event {
-                                        exit_loop = true;
+                                // Create a channel for Tailscale state updates
+                                let (ts_sender, mut ts_receiver) = tokio::sync::mpsc::channel::<TailscaleState>(10);
+                                
+                                // Spawn Tailscale watcher task
+                                let ts_sender_clone = ts_sender.clone();
+                                tokio::spawn(async move {
+                                    loop {
+                                        // Try to connect to Tailscale watch-ipn-bus
+                                        match TailscaleBackend::watch_state(ts_sender_clone.clone()).await {
+                                            Ok(()) => {
+                                                debug!("Tailscale watch stream ended normally");
+                                            }
+                                            Err(e) => {
+                                                debug!("Tailscale watch stream error: {}", e);
+                                            }
+                                        }
+                                        // Send unavailable state when stream ends
+                                        let _ = ts_sender_clone.send(TailscaleState::default()).await;
+                                        
+                                        // Wait before reconnecting
+                                        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                                     }
-                                    let _ = output.send(ServiceEvent::Update(event)).await;
+                                });
 
-                                    if exit_loop {
-                                        break;
+                                loop {
+                                    tokio::select! {
+                                        event = events.next() => {
+                                            match event {
+                                                Some(event) => {
+                                                    let mut exit_loop = false;
+                                                    // TODO: why do we do this?
+                                                    if let NetworkEvent::WirelessDevice { .. } = event {
+                                                        exit_loop = true;
+                                                    }
+                                                    let _ = output.send(ServiceEvent::Update(event)).await;
+
+                                                    if exit_loop {
+                                                        break;
+                                                    }
+                                                }
+                                                None => break,
+                                            }
+                                        }
+                                        ts_state = ts_receiver.recv() => {
+                                            if let Some(state) = ts_state {
+                                                let _ = output.send(ServiceEvent::Update(
+                                                    NetworkEvent::TailscaleUpdate(state)
+                                                )).await;
+                                            }
+                                        }
                                     }
                                 }
 
@@ -474,12 +530,52 @@ impl NetworkService {
                         };
                         match iwd.subscribe_events().await {
                             Ok(mut event_s) => {
-                                while let Some(events) = event_s.next().await {
-                                    for event in events {
-                                        // TODO: network manager leaves with device - we can also
-                                        // do that, but would need a different way to disable
-                                        // scanning
-                                        let _ = output.send(ServiceEvent::Update(event)).await;
+                                // Create a channel for Tailscale state updates
+                                let (ts_sender, mut ts_receiver) = tokio::sync::mpsc::channel::<TailscaleState>(10);
+                                
+                                // Spawn Tailscale watcher task
+                                let ts_sender_clone = ts_sender.clone();
+                                tokio::spawn(async move {
+                                    loop {
+                                        // Try to connect to Tailscale watch-ipn-bus
+                                        match TailscaleBackend::watch_state(ts_sender_clone.clone()).await {
+                                            Ok(()) => {
+                                                debug!("Tailscale watch stream ended normally");
+                                            }
+                                            Err(e) => {
+                                                debug!("Tailscale watch stream error: {}", e);
+                                            }
+                                        }
+                                        // Send unavailable state when stream ends
+                                        let _ = ts_sender_clone.send(TailscaleState::default()).await;
+                                        
+                                        // Wait before reconnecting
+                                        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                                    }
+                                });
+
+                                loop {
+                                    tokio::select! {
+                                        events = event_s.next() => {
+                                            match events {
+                                                Some(events) => {
+                                                    for event in events {
+                                                        // TODO: network manager leaves with device - we can also
+                                                        // do that, but would need a different way to disable
+                                                        // scanning
+                                                        let _ = output.send(ServiceEvent::Update(event)).await;
+                                                    }
+                                                }
+                                                None => break,
+                                            }
+                                        }
+                                        ts_state = ts_receiver.recv() => {
+                                            if let Some(state) = ts_state {
+                                                let _ = output.send(ServiceEvent::Update(
+                                                    NetworkEvent::TailscaleUpdate(state)
+                                                )).await;
+                                            }
+                                        }
                                     }
                                 }
 
@@ -590,6 +686,56 @@ impl Service for NetworkService {
                     },
                 )
             }
+            // Tailscale commands
+            NetworkCommand::TailscaleConnect => Task::perform(
+                async move {
+                    if let Err(e) = TailscaleBackend::connect().await {
+                        error!("Failed to connect Tailscale: {}", e);
+                    }
+                    TailscaleBackend::get_state().await.unwrap_or_default()
+                },
+                |state| ServiceEvent::Update(NetworkEvent::TailscaleUpdate(state)),
+            ),
+            NetworkCommand::TailscaleDisconnect => Task::perform(
+                async move {
+                    if let Err(e) = TailscaleBackend::disconnect().await {
+                        error!("Failed to disconnect Tailscale: {}", e);
+                    }
+                    TailscaleBackend::get_state().await.unwrap_or_default()
+                },
+                |state| ServiceEvent::Update(NetworkEvent::TailscaleUpdate(state)),
+            ),
+            NetworkCommand::TailscaleSwitchProfile(profile_id) => Task::perform(
+                async move {
+                    if let Err(e) = TailscaleBackend::switch_profile(&profile_id).await {
+                        error!("Failed to switch Tailscale profile: {}", e);
+                    }
+                    // Auto-connect after switching profile
+                    if let Err(e) = TailscaleBackend::connect().await {
+                        error!("Failed to auto-connect Tailscale after profile switch: {}", e);
+                    }
+                    TailscaleBackend::get_state().await.unwrap_or_default()
+                },
+                |state| ServiceEvent::Update(NetworkEvent::TailscaleUpdate(state)),
+            ),
+            NetworkCommand::TailscaleSetExitNode(node_id) => Task::perform(
+                async move {
+                    if let Err(e) = TailscaleBackend::set_exit_node(node_id.as_deref()).await {
+                        error!("Failed to set Tailscale exit node: {}", e);
+                    }
+                    TailscaleBackend::get_state().await.unwrap_or_default()
+                },
+                |state| ServiceEvent::Update(NetworkEvent::TailscaleUpdate(state)),
+            ),
+            NetworkCommand::TailscaleSetAllowLan(allow) => Task::perform(
+                async move {
+                    if let Err(e) = TailscaleBackend::set_allow_lan(allow).await {
+                        error!("Failed to set Tailscale allow LAN: {}", e);
+                    }
+                    TailscaleBackend::get_state().await.unwrap_or_default()
+                },
+                |state| ServiceEvent::Update(NetworkEvent::TailscaleUpdate(state)),
+            ),
         }
     }
 }
