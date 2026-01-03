@@ -147,6 +147,7 @@ fn calculate_ui_workspaces(
                     .workspace_names
                     .get(idx)
                     .cloned()
+                    .or_else(|| Some(w.name.clone()))
                     .unwrap_or_else(|| w.id.to_string())
             } else {
                 w.name.clone()
@@ -211,7 +212,6 @@ fn calculate_ui_workspaces(
         }
     }
 
-    result.sort_by_key(|w| w.id);
     result
 }
 
