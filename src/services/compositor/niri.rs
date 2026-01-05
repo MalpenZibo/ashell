@@ -185,7 +185,7 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
         .workspaces
         .workspaces
         .values()
-        .sorted_by_key(|w| w.idx)
+        .sorted_by_key(|w| (w.output.clone().unwrap_or_default(), w.idx))
         .map(|w| {
             CompositorWorkspace {
                 id: w.id as i32,
