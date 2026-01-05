@@ -212,6 +212,10 @@ fn calculate_ui_workspaces(
         }
     }
 
+    if config.group_by_monitor {
+        result.sort_by_key(|w| w.monitor.clone());
+    }
+
     result
 }
 
