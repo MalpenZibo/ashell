@@ -12,7 +12,7 @@ use libpulse_binding::{
         introspect::{Introspector, SinkInfo, SourceInfo},
         subscribe::InterestMaskSet,
     },
-    def::{DevicePortType, PortAvailable, SinkState, SourceState},
+    def::{DevicePortType, PortAvailable},
     mainloop::standard::{IterateResult, Mainloop},
     operation::{self, Operation},
     proplist::{Proplist, properties::APPLICATION_NAME},
@@ -34,7 +34,6 @@ pub struct Device {
     pub description: String,
     pub volume: ChannelVolumes,
     pub is_mute: bool,
-    pub in_use: bool,
     pub ports: Vec<Port>,
 }
 
@@ -116,6 +115,25 @@ impl Sinks for Vec<Device> {
                 }
             }
             None => StaticIcon::Speaker0,
+        }
+    }
+}
+
+pub trait Sources {
+    fn get_icon(&self, default_source: &str) -> StaticIcon;
+}
+
+impl Sources for Vec<Device> {
+    fn get_icon(&self, default_source: &str) -> StaticIcon {
+        match self.iter().find_map(|s| {
+            if s.ports.iter().any(|p| p.active) && s.name == default_source {
+                Some(s.is_mute)
+            } else {
+                None
+            }
+        }) {
+            Some(false) => StaticIcon::Mic1,
+            _ => StaticIcon::Mic0,
         }
     }
 }
@@ -839,7 +857,6 @@ impl From<&SinkInfo<'_>> for Device {
                 .map_or(String::default(), |d| d.to_string()),
             volume: value.volume,
             is_mute: value.mute,
-            in_use: value.state == SinkState::Running,
             ports: value
                 .ports
                 .iter()
@@ -883,7 +900,6 @@ impl From<&SourceInfo<'_>> for Device {
                 .map_or(String::default(), |d| d.to_string()),
             volume: value.volume,
             is_mute: value.mute,
-            in_use: value.state == SourceState::Running,
             ports: value
                 .ports
                 .iter()
