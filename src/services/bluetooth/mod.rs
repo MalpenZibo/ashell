@@ -1,18 +1,13 @@
 use super::{ReadOnlyService, Service, ServiceEvent};
-use dbus::{BatteryProxy, BluetoothDbus};
+use dbus::{BatteryProxy, BluetoothDbus, DeviceProxy};
 use iced::{
     Subscription, Task,
-    futures::{
-        SinkExt, Stream, StreamExt,
-        channel::mpsc::Sender,
-        stream::{pending, select_all},
-        stream_select,
-    },
+    futures::{SinkExt, Stream, StreamExt, channel::mpsc::Sender, stream::pending, stream_select},
     stream::channel,
 };
 use inotify::{Inotify, WatchMask};
 use log::{debug, error, info};
-use std::{any::TypeId, ops::Deref};
+use std::{any::TypeId, ops::Deref, pin::Pin};
 use tokio::process::Command;
 use zbus::zvariant::OwnedObjectPath;
 
@@ -97,6 +92,8 @@ impl BluetoothService {
     async fn events(conn: &zbus::Connection) -> anyhow::Result<impl Stream<Item = ()> + use<>> {
         let bluetooth = BluetoothDbus::new(conn).await?;
 
+        type EventStream = Pin<Box<dyn Stream<Item = ()> + Send>>;
+
         let interface_changed = stream_select!(
             bluetooth
                 .bluez
@@ -118,23 +115,55 @@ impl BluetoothService {
                 let rfkill = BluetoothService::listen_rfkill_soft_block_changes().await?;
                 let devices = bluetooth.devices().await?;
 
-                let mut batteries = Vec::with_capacity(devices.len());
+                let mut batteries: Vec<EventStream> = Vec::with_capacity(devices.len());
+                let mut device_properties: Vec<EventStream> = Vec::with_capacity(devices.len());
                 for device in devices {
-                    let battery = BatteryProxy::builder(bluetooth.bluez.inner().connection())
+                    let conn = bluetooth.bluez.inner().connection();
+
+                    let battery = BatteryProxy::builder(conn)
+                        .path(device.path.clone())?
+                        .build()
+                        .await?;
+                    batteries.push(
+                        battery
+                            .receive_percentage_changed()
+                            .await
+                            .map(|_| {})
+                            .boxed(),
+                    );
+
+                    let device_proxy = DeviceProxy::builder(conn)
                         .path(device.path)?
                         .build()
                         .await?;
-                    batteries.push(battery.receive_percentage_changed().await.map(|_| {}));
+                    let connected_changed: EventStream = device_proxy
+                        .receive_connected_changed()
+                        .await
+                        .map(|_| {})
+                        .boxed();
+                    device_properties.push(connected_changed);
                 }
 
-                stream_select!(
+                let battery_events = if batteries.is_empty() {
+                    iced::futures::stream::pending().boxed()
+                } else {
+                    iced::futures::stream::select_all(batteries).boxed()
+                };
+
+                let device_property_events = if device_properties.is_empty() {
+                    iced::futures::stream::pending().boxed()
+                } else {
+                    iced::futures::stream::select_all(device_properties).boxed()
+                };
+
+                Box::pin(stream_select!(
                     interface_changed,
                     powered,
                     discovering,
                     rfkill,
-                    select_all(batteries)
-                )
-                .boxed()
+                    battery_events,
+                    device_property_events,
+                ))
             }
             _ => interface_changed,
         };
