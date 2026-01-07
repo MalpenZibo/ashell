@@ -1,6 +1,7 @@
 use super::SubMenu;
 use crate::{
     components::icons::{StaticIcon, icon, icon_button},
+    config::SettingsFormat,
     services::{
         ReadOnlyService, Service, ServiceEvent,
         audio::{AudioCommand, AudioService, DeviceType, Sinks},
@@ -43,13 +44,19 @@ pub enum Action {
 pub struct AudioSettingsConfig {
     pub sinks_more_cmd: Option<String>,
     pub sources_more_cmd: Option<String>,
+    pub indicator_format: SettingsFormat,
 }
 
 impl AudioSettingsConfig {
-    pub fn new(sinks_more_cmd: Option<String>, sources_more_cmd: Option<String>) -> Self {
+    pub fn new(
+        sinks_more_cmd: Option<String>,
+        sources_more_cmd: Option<String>,
+        indicator_format: SettingsFormat,
+    ) -> Self {
         Self {
             sinks_more_cmd,
             sources_more_cmd,
+            indicator_format,
         }
     }
 }
@@ -171,22 +178,41 @@ impl AudioSettings {
             .filter(|service| !service.sinks.is_empty())
             .map(|service| {
                 let icon_type = service.sinks.get_icon(&service.server_info.default_sink);
-                let icon = icon(icon_type);
-                MouseArea::new(icon)
-                    .on_scroll(|delta| {
-                        let cur_vol = service.cur_sink_volume;
-                        let delta = match delta {
-                            iced::mouse::ScrollDelta::Lines { y, .. } => y,
-                            iced::mouse::ScrollDelta::Pixels { y, .. } => y,
-                        };
-                        let new_volume = if delta > 0.0 {
-                            (cur_vol + 5).min(100)
-                        } else {
-                            (cur_vol - 5).max(0)
-                        };
-                        Message::SinkVolumeChanged(new_volume)
-                    })
-                    .into()
+                let volume = service.cur_sink_volume;
+
+                let scroll_handler = move |delta| {
+                    let cur_vol = volume;
+                    let delta = match delta {
+                        iced::mouse::ScrollDelta::Lines { y, .. } => y,
+                        iced::mouse::ScrollDelta::Pixels { y, .. } => y,
+                    };
+                    let new_volume = if delta > 0.0 {
+                        (cur_vol + 5).min(100)
+                    } else {
+                        (cur_vol - 5).max(0)
+                    };
+                    Message::SinkVolumeChanged(new_volume)
+                };
+
+                match self.config.indicator_format {
+                    SettingsFormat::Icon => {
+                        let icon = icon(icon_type);
+                        MouseArea::new(icon).on_scroll(scroll_handler).into()
+                    }
+                    SettingsFormat::Percentage => MouseArea::new(text(format!("{}%", volume)))
+                        .on_scroll(scroll_handler)
+                        .into(),
+                    SettingsFormat::IconAndPercentage => {
+                        let icon = icon(icon_type);
+                        MouseArea::new(
+                            row!(icon, text(format!("{}%", volume)))
+                                .spacing(4)
+                                .align_y(Alignment::Center),
+                        )
+                        .on_scroll(scroll_handler)
+                        .into()
+                    }
+                }
             })
     }
 

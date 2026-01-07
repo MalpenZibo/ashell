@@ -1,6 +1,7 @@
 use super::{SubMenu, quick_setting_button};
 use crate::{
     components::icons::{StaticIcon, icon, icon_button},
+    config::SettingsFormat,
     services::{
         ReadOnlyService, Service, ServiceEvent,
         network::{
@@ -96,6 +97,7 @@ pub struct NetworkSettingsConfig {
     pub wifi_more_cmd: Option<String>,
     pub vpn_more_cmd: Option<String>,
     pub remove_airplane_btn: bool,
+    pub indicator_format: SettingsFormat,
 }
 
 impl NetworkSettingsConfig {
@@ -103,11 +105,13 @@ impl NetworkSettingsConfig {
         wifi_more_cmd: Option<String>,
         vpn_more_cmd: Option<String>,
         remove_airplane_btn: bool,
+        indicator_format: SettingsFormat,
     ) -> Self {
         Self {
             wifi_more_cmd,
             vpn_more_cmd,
             remove_airplane_btn,
+            indicator_format,
         }
     }
 }
@@ -256,23 +260,56 @@ impl NetworkSettings {
                                 || matches!(c, ActiveConnectionInfo::Wired { .. })
                         })
                         .map_or_else(
-                            || icon(StaticIcon::Wifi0).into(),
+                            || match self.config.indicator_format {
+                                SettingsFormat::Icon => icon(StaticIcon::Wifi0).into(),
+                                SettingsFormat::Percentage => text("0%").into(),
+                                SettingsFormat::IconAndPercentage => {
+                                    row!(icon(StaticIcon::Wifi0), text("0%"))
+                                        .spacing(4)
+                                        .align_y(Alignment::Center)
+                                        .into()
+                                }
+                            },
                             |a| {
                                 let icon_type = a.get_icon();
                                 let state = (service.connectivity, a.get_indicator_state());
+                                let strength = match a {
+                                    ActiveConnectionInfo::WiFi { strength, .. } => Some(*strength),
+                                    _ => None,
+                                };
 
-                                container(icon(icon_type))
-                                    .style(move |theme: &Theme| container::Style {
-                                        text_color: match state {
-                                            (ConnectivityState::Full, IndicatorState::Warning) => {
-                                                Some(theme.extended_palette().danger.weak.color)
-                                            }
-                                            (ConnectivityState::Full, _) => None,
-                                            _ => Some(theme.palette().danger),
-                                        },
-                                        ..Default::default()
-                                    })
-                                    .into()
+                                let style_fn = move |theme: &Theme| container::Style {
+                                    text_color: match state {
+                                        (ConnectivityState::Full, IndicatorState::Warning) => {
+                                            Some(theme.extended_palette().danger.weak.color)
+                                        }
+                                        (ConnectivityState::Full, _) => None,
+                                        _ => Some(theme.palette().danger),
+                                    },
+                                    ..Default::default()
+                                };
+
+                                match self.config.indicator_format {
+                                    SettingsFormat::Icon => {
+                                        container(icon(icon_type)).style(style_fn).into()
+                                    }
+                                    SettingsFormat::Percentage => {
+                                        let strength_text = strength
+                                            .map_or("100%".to_string(), |s| format!("{}%", s));
+                                        container(text(strength_text)).style(style_fn).into()
+                                    }
+                                    SettingsFormat::IconAndPercentage => {
+                                        let strength_text = strength
+                                            .map_or("100%".to_string(), |s| format!("{}%", s));
+                                        container(
+                                            row!(icon(icon_type), text(strength_text))
+                                                .spacing(4)
+                                                .align_y(Alignment::Center),
+                                        )
+                                        .style(style_fn)
+                                        .into()
+                                    }
+                                }
                             },
                         ),
                 )

@@ -2,7 +2,7 @@ use std::convert;
 
 use crate::{
     components::icons::{StaticIcon, icon},
-    config::{BatteryFormat, PeripheralIndicators},
+    config::{PeripheralIndicators, SettingsFormat},
     modules::settings::quick_setting_button,
     services::{
         ReadOnlyService, Service, ServiceEvent,
@@ -46,9 +46,9 @@ pub struct PowerSettingsConfig {
     pub reboot_cmd: String,
     pub shutdown_cmd: String,
     pub logout_cmd: String,
-    pub battery_format: BatteryFormat,
+    pub battery_format: SettingsFormat,
     pub peripheral_indicators: PeripheralIndicators,
-    pub peripheral_battery_format: BatteryFormat,
+    pub peripheral_battery_format: SettingsFormat,
 }
 
 impl PowerSettingsConfig {
@@ -59,9 +59,9 @@ impl PowerSettingsConfig {
         reboot_cmd: String,
         shutdown_cmd: String,
         logout_cmd: String,
-        battery_format: BatteryFormat,
+        battery_format: SettingsFormat,
         peripheral_indicators: PeripheralIndicators,
-        peripheral_battery_format: BatteryFormat,
+        peripheral_battery_format: SettingsFormat,
     ) -> Self {
         Self {
             suspend_cmd,
@@ -225,19 +225,19 @@ impl PowerSettings {
 
                                 Some(
                                     container(match self.config.peripheral_battery_format {
-                                        BatteryFormat::Icon => {
+                                        SettingsFormat::Icon => {
                                             convert::Into::<Element<'a, Message>>::into(icon(
                                                 p.get_icon_state(),
                                             ))
                                         }
-                                        BatteryFormat::Percentage => row!(
+                                        SettingsFormat::Percentage => row!(
                                             icon(p.kind.get_icon()),
                                             text(format!("{}%", p.data.capacity))
                                         )
                                         .spacing(ashell_theme.space.xxs)
                                         .align_y(Alignment::Center)
                                         .into(),
-                                        BatteryFormat::IconAndPercentage => row!(
+                                        SettingsFormat::IconAndPercentage => row!(
                                             icon(p.get_icon_state()),
                                             text(format!("{}%", p.data.capacity))
                                         )
@@ -282,11 +282,11 @@ impl PowerSettings {
                 let state = battery.get_indicator_state();
 
                 container(match self.config.battery_format {
-                    BatteryFormat::Icon => icon(battery.get_icon()).into(),
-                    BatteryFormat::Percentage => convert::Into::<Element<'a, Message>>::into(text(
-                        format!("{}%", battery.capacity),
-                    )),
-                    BatteryFormat::IconAndPercentage => row!(
+                    SettingsFormat::Icon => icon(battery.get_icon()).into(),
+                    SettingsFormat::Percentage => convert::Into::<Element<'a, Message>>::into(
+                        text(format!("{}%", battery.capacity)),
+                    ),
+                    SettingsFormat::IconAndPercentage => row!(
                         icon(battery.get_icon()),
                         text(format!("{}%", battery.capacity))
                     )
