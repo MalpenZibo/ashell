@@ -101,15 +101,18 @@ impl Settings {
             audio: AudioSettings::new(AudioSettingsConfig::new(
                 config.audio_sinks_more_cmd,
                 config.audio_sources_more_cmd,
+                config.audio_indicator_format,
             )),
             brightness: BrightnessSettings::new(),
             network: NetworkSettings::new(NetworkSettingsConfig::new(
                 config.wifi_more_cmd,
                 config.vpn_more_cmd,
                 config.remove_airplane_btn,
+                config.network_indicator_format,
             )),
             bluetooth: BluetoothSettings::new(BluetoothSettingsConfig::new(
                 config.bluetooth_more_cmd,
+                config.bluetooth_indicator_format,
             )),
             idle_inhibitor: if config.remove_idle_btn {
                 None
@@ -386,16 +389,21 @@ impl Settings {
                     .update(audio::Message::ConfigReloaded(AudioSettingsConfig::new(
                         config.audio_sinks_more_cmd,
                         config.audio_sources_more_cmd,
+                        config.audio_indicator_format,
                     )));
                 self.network.update(network::Message::ConfigReloaded(
                     NetworkSettingsConfig::new(
                         config.wifi_more_cmd,
                         config.vpn_more_cmd,
                         config.remove_airplane_btn,
+                        config.network_indicator_format,
                     ),
                 ));
                 self.bluetooth.update(bluetooth::Message::ConfigReloaded(
-                    BluetoothSettingsConfig::new(config.bluetooth_more_cmd),
+                    BluetoothSettingsConfig::new(
+                        config.bluetooth_more_cmd,
+                        config.bluetooth_indicator_format,
+                    ),
                 ));
                 if config.remove_idle_btn {
                     self.idle_inhibitor = None;

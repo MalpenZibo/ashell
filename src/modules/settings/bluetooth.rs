@@ -1,6 +1,7 @@
 use super::{SubMenu, quick_setting_button};
 use crate::{
     components::icons::{IconButtonSize, StaticIcon, icon, icon_button},
+    config::SettingsFormat,
     services::{
         ReadOnlyService, Service, ServiceEvent,
         bluetooth::{BluetoothCommand, BluetoothDevice, BluetoothService, BluetoothState},
@@ -9,7 +10,7 @@ use crate::{
 };
 use iced::{
     Element, Length, Subscription, Task, Theme,
-    alignment::{Horizontal, Vertical},
+    alignment::{Alignment, Horizontal, Vertical},
     widget::{Column, Row, button, column, container, horizontal_rule, row, scrollable, text},
     window::Id,
 };
@@ -42,11 +43,15 @@ pub enum Action {
 #[derive(Debug, Clone)]
 pub struct BluetoothSettingsConfig {
     pub more_cmd: Option<String>,
+    pub indicator_format: SettingsFormat,
 }
 
 impl BluetoothSettingsConfig {
-    pub fn new(more_cmd: Option<String>) -> Self {
-        Self { more_cmd }
+    pub fn new(more_cmd: Option<String>, indicator_format: SettingsFormat) -> Self {
+        Self {
+            more_cmd,
+            indicator_format,
+        }
     }
 }
 
@@ -403,13 +408,40 @@ impl BluetoothSettings {
             && service.state == BluetoothState::Active
         {
             let connected_count = service.devices.iter().filter(|d| d.connected).count();
-            if connected_count > 0 {
-                return Some(icon(StaticIcon::BluetoothConnected).into());
-            } else {
-                return Some(icon(StaticIcon::Bluetooth).into());
+            match self.config.indicator_format {
+                SettingsFormat::Icon => {
+                    if connected_count > 0 {
+                        Some(icon(StaticIcon::BluetoothConnected).into())
+                    } else {
+                        Some(icon(StaticIcon::Bluetooth).into())
+                    }
+                }
+                SettingsFormat::Percentage => {
+                    if connected_count > 0 {
+                        Some(text(format!("{}", connected_count)).into())
+                    } else {
+                        Some(icon(StaticIcon::Bluetooth).into())
+                    }
+                }
+                SettingsFormat::IconAndPercentage => {
+                    if connected_count > 0 {
+                        Some(
+                            row!(
+                                icon(StaticIcon::BluetoothConnected),
+                                text(format!("{}", connected_count))
+                            )
+                            .spacing(4)
+                            .align_y(Alignment::Center)
+                            .into(),
+                        )
+                    } else {
+                        Some(icon(StaticIcon::Bluetooth).into())
+                    }
+                }
             }
+        } else {
+            None
         }
-        None
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
