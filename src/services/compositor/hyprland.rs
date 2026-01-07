@@ -10,6 +10,7 @@ use hyprland::{
     event_listener::AsyncEventListener,
     prelude::*,
 };
+use itertools::Itertools;
 use std::sync::{Arc, RwLock};
 use tokio::sync::broadcast;
 
@@ -142,6 +143,7 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
 fn fetch_full_state(internal_state: &HyprInternalState) -> Result<CompositorState> {
     let workspaces = Workspaces::get()?
         .into_iter()
+        .sorted_by_key(|w| w.id)
         .map(|w| CompositorWorkspace {
             id: w.id,
             name: w.name,
