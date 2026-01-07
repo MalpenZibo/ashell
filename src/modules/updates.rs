@@ -13,7 +13,7 @@ use iced::{
 use log::error;
 use serde::Deserialize;
 use std::{any::TypeId, convert, process::Stdio, time::Duration};
-use tokio::{process, spawn, time::sleep};
+use tokio::{process, time::sleep};
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct Update {
@@ -117,10 +117,13 @@ impl Updates {
                 Action::None
             }
             Message::UpdateFinished => {
-                self.updates.clear();
-                self.state = State::Ready;
+                // Re-check updates to verify they were actually applied
+                let check_command = self.config.check_cmd.clone();
 
-                Action::None
+                Action::CheckForUpdates(Task::perform(
+                    async move { check_update_now(&check_command).await },
+                    Message::UpdatesCheckCompleted,
+                ))
             }
             Message::MenuOpened => {
                 self.is_updates_list_open = false;
@@ -148,12 +151,7 @@ impl Updates {
                     id,
                     Task::perform(
                         async move {
-                            spawn({
-                                async move {
-                                    update(&update_command).await;
-                                }
-                            })
-                            .await
+                            update(&update_command).await; // Wait for real completion
                         },
                         move |_| Message::UpdateFinished,
                     ),
