@@ -6,11 +6,13 @@ use std::time::Duration;
 #[derive(Debug, Clone)]
 pub enum Message {
     Update,
+    CycleFormat,
 }
 
 pub struct Clock {
     config: ClockModuleConfig,
     date: DateTime<Local>,
+    current_format_index: usize,
 }
 
 impl Clock {
@@ -18,6 +20,7 @@ impl Clock {
         Self {
             config,
             date: Local::now(),
+            current_format_index: 0,
         }
     }
 
@@ -26,11 +29,22 @@ impl Clock {
             Message::Update => {
                 self.date = Local::now();
             }
+            Message::CycleFormat => {
+                if !self.config.formats.is_empty() {
+                    self.current_format_index =
+                        (self.current_format_index + 1) % self.config.formats.len();
+                }
+            }
         }
     }
 
     pub fn view(&'_ self, _: &AshellTheme) -> Element<'_, Message> {
-        text(self.date.format(&self.config.format).to_string()).into()
+        let format = if !self.config.formats.is_empty() {
+            &self.config.formats[self.current_format_index]
+        } else {
+            &self.config.format
+        };
+        text(self.date.format(format).to_string()).into()
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
@@ -42,9 +56,16 @@ impl Clock {
             "%:z", // UTC offset with seconds
             "%s",  // Unix timestamp (seconds since epoch)
         ];
+
+        let current_format = if !self.config.formats.is_empty() {
+            &self.config.formats[self.current_format_index]
+        } else {
+            &self.config.format
+        };
+
         let interval = if second_specifiers
             .iter()
-            .any(|&spec| self.config.format.contains(spec))
+            .any(|&spec| current_format.contains(spec))
         {
             Duration::from_secs(1)
         } else {
