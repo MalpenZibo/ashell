@@ -13,9 +13,7 @@ use serde_with::DisplayFromStr;
 use serde_with::serde_as;
 use std::path::PathBuf;
 use std::time::Duration;
-use std::{
-    any::TypeId, collections::HashMap, error::Error, fs::File, io::Read, ops::Deref, path::Path,
-};
+use std::{any::TypeId, collections::HashMap, error::Error, ops::Deref, path::Path};
 use tokio::time::sleep;
 
 pub const DEFAULT_CONFIG_FILE_PATH: &str = "~/.config/ashell/config.toml";
@@ -739,29 +737,20 @@ fn expand_path(path: PathBuf) -> Result<PathBuf, Box<dyn Error + Send>> {
 }
 
 fn read_config(path: &Path) -> Result<Config, Box<dyn Error + Send>> {
-    let mut content = String::new();
-    let read_result = File::open(path).and_then(|mut file| file.read_to_string(&mut content));
+    let content =
+        std::fs::read_to_string(path).map_err(|e| Box::new(e) as Box<dyn Error + Send>)?;
 
-    match read_result {
-        Ok(_) => {
-            info!("Decoding config file {path:?}");
+    info!("Decoding config file {path:?}");
 
-            let res = toml::from_str(&content);
+    let res = toml::from_str(&content);
 
-            match res {
-                Ok(config) => {
-                    info!("Config file loaded successfully");
-                    Ok(config)
-                }
-                Err(e) => {
-                    warn!("Failed to parse config file: {e}");
-                    Err(Box::new(e))
-                }
-            }
+    match res {
+        Ok(config) => {
+            info!("Config file loaded successfully");
+            Ok(config)
         }
         Err(e) => {
-            warn!("Failed to read config file: {e}");
-
+            warn!("Failed to parse config file: {e}");
             Err(Box::new(e))
         }
     }
