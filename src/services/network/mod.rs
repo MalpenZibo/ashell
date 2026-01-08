@@ -18,7 +18,7 @@ pub mod dbus;
 pub mod iwd_dbus;
 
 /// Trait defining the interface for a network backend.
-/// This allows abstracting the specific D-Bus implementation (like IWD or NetworkManager).
+/// This allows abstracting the specific D-Bus implementation (like IWD or `NetworkManager`).
 pub trait NetworkBackend: Send + Sync {
     /// Initializes the backend and fetches the initial network data.
     async fn initialize_data(&self) -> anyhow::Result<NetworkData>;

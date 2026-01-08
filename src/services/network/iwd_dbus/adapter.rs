@@ -34,7 +34,7 @@ pub trait Adapter {
     #[zbus(property)]
     fn set_powered(&self, value: bool) -> zbus::Result<()>;
 
-    /// SupportedModes property
+    /// `SupportedModes` property
     #[zbus(property)]
     fn supported_modes(&self) -> zbus::Result<Vec<String>>;
 

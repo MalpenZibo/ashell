@@ -20,19 +20,19 @@
 use zbus::proxy;
 #[proxy(interface = "net.connman.iwd.AgentManager", assume_defaults = true)]
 pub trait AgentManager {
-    /// RegisterAgent method
+    /// `RegisterAgent` method
     fn register_agent(&self, path: &zbus::zvariant::ObjectPath<'_>) -> zbus::Result<()>;
 
-    /// RegisterNetworkConfigurationAgent method
+    /// `RegisterNetworkConfigurationAgent` method
     fn register_network_configuration_agent(
         &self,
         path: &zbus::zvariant::ObjectPath<'_>,
     ) -> zbus::Result<()>;
 
-    /// UnregisterAgent method
+    /// `UnregisterAgent` method
     fn unregister_agent(&self, path: &zbus::zvariant::ObjectPath<'_>) -> zbus::Result<()>;
 
-    /// UnregisterNetworkConfigurationAgent method
+    /// `UnregisterNetworkConfigurationAgent` method
     fn unregister_network_configuration_agent(
         &self,
         path: &zbus::zvariant::ObjectPath<'_>,
