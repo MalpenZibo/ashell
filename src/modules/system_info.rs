@@ -385,9 +385,9 @@ impl SystemInfo {
                     None,
                 )
             }),
-            SystemInfoIndicator::Disk(mount) => {
+            SystemInfoIndicator::Disk(config) => {
                 self.data.disks.iter().find_map(|(disk_mount, disk)| {
-                    if disk_mount == mount {
+                    if disk_mount == &config.path {
                         Some(Self::indicator_info_element(
                             theme,
                             StaticIcon::Drive,
@@ -397,7 +397,7 @@ impl SystemInfo {
                                 self.config.disk.warn_threshold,
                                 self.config.disk.alert_threshold,
                             )),
-                            Some(disk_mount),
+                            Some(config.name.as_deref().unwrap_or(disk_mount)),
                         ))
                     } else {
                         None
