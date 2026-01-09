@@ -128,6 +128,17 @@ The default value is `Icon`.
 bluetooth_indicator_format = "IconAndValue"
 ```
 
+### Brightness Format
+
+With the `brightness_indicator_format` option you can customize the brightness indicator format.
+
+The default value is `Icon`.
+
+```toml
+[settings]
+brightness_indicator_format = "IconAndPercentage"
+```
+
 ## Peripheral Indicators
 
 With the `peripheral_indicators` you can decide which peripheral battery indicators
@@ -151,6 +162,7 @@ peripheral_indicators = { Specific = ["Gamepad", "Keyboard"] }
 audio_indicator_format = "Icon"
 network_indicator_format = "Icon"
 bluetooth_indicator_format = "Icon"
+brightness_indicator_format = "Icon"
 ```
 
 ## Status Bar Indicators
@@ -168,6 +180,7 @@ Available indicators are:
 - `Bluetooth` - Shows a Bluetooth icon when connected to at least one device
 - `Battery` - Shows the battery level and charging status
 - `PeripheralBattery` - Shows the peripheral battery status
+- `Brightness` - Shows the current brightness level
 
 ```toml
 [settings]
@@ -175,7 +188,7 @@ Available indicators are:
 indicators = ["Battery", "Bluetooth", "Network", "Audio"]
 
 # The default value is the following, the items are shown in this order:
-indicators = ["IdleInhibitor", "PowerProfile", "Audio", "Bluetooth", "Network", "Vpn", "Battery"]
+indicators = ["IdleInhibitor", "PowerProfile", "Audio", "Bluetooth", "Network", "Vpn", "Battery", "Brightness"]
 ```
 
 ## Custom Buttons
@@ -266,7 +279,7 @@ vpn_more_cmd = "nm-connection-editor"
 bluetooth_more_cmd = "blueman-manager"
 remove_airplane_btn = true
 remove_idle_btn = true
-indicators = ["Battery", "Bluetooth", "Network", "Audio"]
+indicators = ["Battery", "Bluetooth", "Network", "Audio", "Brightness"]
 
 [[settings.CustomButton]]
 name = "Virtual Keyboard"

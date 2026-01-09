@@ -103,7 +103,7 @@ impl Settings {
                 config.audio_sources_more_cmd,
                 config.audio_indicator_format,
             )),
-            brightness: BrightnessSettings::new(),
+            brightness: BrightnessSettings::new(config.brightness_indicator_format),
             network: NetworkSettings::new(NetworkSettingsConfig::new(
                 config.wifi_more_cmd,
                 config.vpn_more_cmd,
@@ -679,6 +679,15 @@ impl Settings {
                         .power
                         .peripheral_indicators(theme)
                         .map(|e| e.map(Message::Power))
+                    {
+                        row = row.push(element);
+                    }
+                }
+                SettingsIndicator::Brightness => {
+                    if let Some(element) = self
+                        .brightness
+                        .brightness_indicator()
+                        .map(|e| e.map(Message::Brightness))
                     {
                         row = row.push(element);
                     }
