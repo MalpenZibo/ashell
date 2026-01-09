@@ -293,13 +293,11 @@ impl NetworkDbus<'_> {
             })
             .boxed();
 
-        // When devices list change I need to update the wireless device state changes
-        let wireless_ac = nm.wireless_access_points().await?;
-
-        let mut device_state_changes = Vec::with_capacity(wireless_ac.len());
-        for ac in wireless_ac.iter() {
-            let dp = DeviceProxy::builder(conn)
-                .path(ac.device_path.clone())?
+        // Set up access point change listeners on wireless devices
+        let mut ac_changes = Vec::with_capacity(devices.len());
+        for device_path in devices.iter() {
+            let dp = WirelessDeviceProxy::builder(conn)
+                .path(device_path.clone())?
                 .build()
                 .await?;
 
