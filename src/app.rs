@@ -22,6 +22,7 @@ use crate::{
     },
     outputs::{HasOutput, Outputs},
     position_button::ButtonUIRef,
+    services::ReadOnlyService,
     theme::{AshellTheme, backdrop_color, darken_color},
 };
 use flexi_logger::LoggerHandle;
@@ -91,6 +92,7 @@ pub enum Message {
     MediaPlayer(modules::media_player::Message),
     OutputEvent((OutputEvent, WlOutput)),
     CloseAllMenus,
+    ResumeFromSleep,
 }
 
 impl App {
@@ -417,6 +419,12 @@ impl App {
                     Task::none()
                 }
             }
+            Message::ResumeFromSleep => self.outputs.sync(
+                self.theme.bar_style,
+                &self.general_config.outputs,
+                self.theme.bar_position,
+                self.theme.scale_factor,
+            ),
         }
     }
 
@@ -560,6 +568,10 @@ impl App {
             Subscription::batch(self.modules_subscriptions(&self.general_config.modules.center)),
             Subscription::batch(self.modules_subscriptions(&self.general_config.modules.right)),
             config::subscription(&self.config_path),
+            crate::services::logind::LogindService::subscribe().map(|event| match event {
+                crate::services::ServiceEvent::Update(_) => Message::ResumeFromSleep,
+                _ => Message::None,
+            }),
             listen_with(move |evt, _, _| match evt {
                 iced::Event::PlatformSpecific(iced::event::PlatformSpecific::Wayland(
                     WaylandEvent::Output(event, wl_output),
