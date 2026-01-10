@@ -305,6 +305,7 @@ where
     Theme: 'a,
     Renderer: iced::advanced::Renderer + 'a,
 {
+    #[inline]
     fn from(row: Centerbox<'a, Message, Theme, Renderer>) -> Self {
         Self::new(row)
     }
