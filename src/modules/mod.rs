@@ -260,14 +260,12 @@ impl App {
                     .map(Message::Workspaces),
                 None,
             )),
-            ModuleName::WindowTitle => self.window_title.get_value().map(|title| {
-                (
-                    self.window_title
-                        .view(&self.theme, title)
-                        .map(Message::WindowTitle),
-                    None,
-                )
-            }),
+            ModuleName::WindowTitle => Some((
+                self.window_title
+                    .view(&self.theme)
+                    .map(Message::WindowTitle),
+                None,
+            )),
             ModuleName::SystemInfo => Some((
                 self.system_info.view(&self.theme).map(Message::SystemInfo),
                 Some(OnModulePress::ToggleMenu(MenuType::SystemInfo)),

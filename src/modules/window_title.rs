@@ -69,11 +69,8 @@ impl WindowTitle {
         }
     }
 
-    pub fn get_value(&self) -> Option<String> {
-        self.value.clone()
-    }
-
-    pub fn view(&'_ self, theme: &AshellTheme, title: String) -> Element<'_, Message> {
+    pub fn view(&'_ self, theme: &AshellTheme) -> Element<'_, Message> {
+        let title = self.value.as_deref().unwrap_or("...");
         container(
             text(title)
                 .size(theme.font_size.sm)
