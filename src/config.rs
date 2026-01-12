@@ -25,6 +25,7 @@ pub const DEFAULT_CONFIG_FILE_PATH: &str = "~/.config/ashell/config.toml";
 pub struct Config {
     pub log_level: String,
     pub position: Position,
+    pub layer: Layer,
     pub outputs: Outputs,
     pub modules: Modules,
     pub app_launcher_cmd: Option<String>,
@@ -48,6 +49,7 @@ impl Default for Config {
         Self {
             log_level: "warn".to_owned(),
             position: Position::default(),
+            layer: Layer::default(),
             outputs: Outputs::default(),
             modules: Modules::default(),
             app_launcher_cmd: None,
@@ -543,6 +545,13 @@ pub enum Position {
     #[default]
     Top,
     Bottom,
+}
+
+#[derive(Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Layer {
+    #[default]
+    Bottom,
+    Overlay,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -44,6 +44,7 @@ use wayland_client::protocol::wl_output::WlOutput;
 pub struct GeneralConfig {
     outputs: config::Outputs,
     pub modules: Modules,
+    pub layer: config::Layer,
     enable_esc_key: bool,
 }
 
@@ -101,6 +102,7 @@ impl App {
             let (outputs, task) = Outputs::new(
                 config.appearance.style,
                 config.position,
+                config.layer,
                 config.appearance.scale_factor,
             );
 
@@ -119,6 +121,7 @@ impl App {
                     general_config: GeneralConfig {
                         outputs: config.outputs,
                         modules: config.modules,
+                        layer: config.layer,
                         enable_esc_key: config.enable_esc_key,
                     },
                     outputs,
@@ -146,6 +149,7 @@ impl App {
         self.general_config = GeneralConfig {
             outputs: config.outputs,
             modules: config.modules,
+            layer: config.layer,
             enable_esc_key: config.enable_esc_key,
         };
         self.theme = AshellTheme::new(config.position, &config.appearance);
@@ -226,12 +230,14 @@ impl App {
                     || self.theme.bar_position != config.position
                     || self.theme.bar_style != config.appearance.style
                     || self.theme.scale_factor != config.appearance.scale_factor
+                    || self.general_config.layer != config.layer
                 {
                     warn!("Outputs changed, syncing");
                     tasks.push(self.outputs.sync(
                         config.appearance.style,
                         &config.outputs,
                         config.position,
+                        config.layer,
                         config.appearance.scale_factor,
                     ));
                 }
@@ -389,6 +395,7 @@ impl App {
                         self.theme.bar_style,
                         &self.general_config.outputs,
                         self.theme.bar_position,
+                        self.general_config.layer,
                         name,
                         wl_output,
                         self.theme.scale_factor,
@@ -399,6 +406,7 @@ impl App {
                     self.outputs.remove(
                         self.theme.bar_style,
                         self.theme.bar_position,
+                        self.general_config.layer,
                         wl_output,
                         self.theme.scale_factor,
                     )
