@@ -407,6 +407,7 @@ impl App {
                 self.theme.bar_style,
                 &self.general_config.outputs,
                 self.theme.bar_position,
+                self.general_config.layer,
                 self.theme.scale_factor,
             ),
         }
