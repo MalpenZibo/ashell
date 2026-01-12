@@ -420,27 +420,32 @@ impl AshellTheme {
         colors: Option<Option<AppearanceColor>>,
     ) -> impl Fn(&Theme, Status) -> button::Style {
         move |theme: &Theme, status: Status| {
-            let (bg_color, fg_color) = colors
-                .map(|c| {
-                    c.map_or(
-                        (
-                            theme.extended_palette().primary.base.color,
-                            theme.extended_palette().primary.base.text,
-                        ),
+            let (bg_color, fg_color) = colors.map_or_else(
+                || {
+                    (
+                        theme.extended_palette().background.weak.color,
+                        theme.palette().text,
+                    )
+                },
+                |c| {
+                    c.map_or_else(
+                        || {
+                            (
+                                theme.extended_palette().primary.base.color,
+                                theme.extended_palette().primary.base.text,
+                            )
+                        },
                         |c| {
                             let color = palette::Primary::generate(
                                 c.get_base(),
                                 theme.palette().background,
-                                c.get_text().unwrap_or(theme.palette().text),
+                                c.get_text().unwrap_or_else(|| theme.palette().text),
                             );
                             (color.base.color, color.base.text)
                         },
                     )
-                })
-                .unwrap_or((
-                    theme.extended_palette().background.weak.color,
-                    theme.palette().text,
-                ));
+                },
+            );
             let mut base = button::Style {
                 background: Some(Background::Color(if is_empty {
                     theme.extended_palette().background.weak.color
@@ -462,27 +467,32 @@ impl AshellTheme {
             match status {
                 Status::Active => base,
                 Status::Hovered => {
-                    let (bg_color, fg_color) = colors
-                        .map(|c| {
-                            c.map_or(
-                                (
-                                    theme.extended_palette().primary.strong.color,
-                                    theme.extended_palette().primary.strong.text,
-                                ),
+                    let (bg_color, fg_color) = colors.map_or_else(
+                        || {
+                            (
+                                theme.extended_palette().background.strong.color,
+                                theme.palette().text,
+                            )
+                        },
+                        |c| {
+                            c.map_or_else(
+                                || {
+                                    (
+                                        theme.extended_palette().primary.strong.color,
+                                        theme.extended_palette().primary.strong.text,
+                                    )
+                                },
                                 |c| {
                                     let color = palette::Primary::generate(
                                         c.get_base(),
                                         theme.palette().background,
-                                        c.get_text().unwrap_or(theme.palette().text),
+                                        c.get_text().unwrap_or_else(|| theme.palette().text),
                                     );
                                     (color.strong.color, color.strong.text)
                                 },
                             )
-                        })
-                        .unwrap_or((
-                            theme.extended_palette().background.strong.color,
-                            theme.palette().text,
-                        ));
+                        },
+                    );
 
                     base.background = Some(Background::Color(if is_empty {
                         theme.extended_palette().background.strong.color

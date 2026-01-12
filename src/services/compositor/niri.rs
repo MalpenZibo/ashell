@@ -195,8 +195,7 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
                     outputs
                         .iter()
                         .position(|o| *o == wo)
-                        .map(|i| i as i32)
-                        .unwrap_or(-1) as i128
+                        .map_or(-1, |i| i as i32) as i128
                 }),
                 windows: 0,
                 is_special: false,
@@ -224,8 +223,7 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
             id: outputs
                 .iter()
                 .position(|o| *o == name)
-                .map(|i| i as i128)
-                .unwrap_or(-1),
+                .map_or(-1, |i| i as i128),
             name: name.clone(),
             active_workspace_id: *active_ws_id,
             special_workspace_id: -1,
@@ -250,17 +248,15 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
             address: w.id.to_string(),
         });
 
-    let keyboard_layout = niri
-        .keyboard_layouts
-        .keyboard_layouts
-        .as_ref()
-        .map(|k| {
+    let keyboard_layout = niri.keyboard_layouts.keyboard_layouts.as_ref().map_or_else(
+        || "Unknown".to_string(),
+        |k| {
             k.names
                 .get(k.current_idx as usize)
                 .cloned()
                 .unwrap_or_else(|| "Unknown".to_string())
-        })
-        .unwrap_or_else(|| "Unknown".to_string());
+        },
+    );
 
     CompositorState {
         workspaces,

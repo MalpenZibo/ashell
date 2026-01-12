@@ -357,6 +357,7 @@ impl<'a, I: Icon, Message> IconButton<'a, I, Message> {
 impl<'a, I: Icon, Message: 'static + Clone> From<IconButton<'a, I, Message>>
     for Element<'a, Message>
 {
+    #[inline]
     fn from(value: IconButton<'a, I, Message>) -> Self {
         let (container_size, font_size) = match value.size {
             IconButtonSize::Small => (24., value.theme.font_size.xs),
