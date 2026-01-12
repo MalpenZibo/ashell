@@ -43,7 +43,7 @@ use known_network::KnownNetworkProxy;
 use network::NetworkProxy;
 use station::StationProxy;
 
-/// Wrapper around the IWD D-Bus ObjectManager
+/// Wrapper around the IWD D-Bus `ObjectManager`.
 pub struct IwdDbus<'a> {
     _inner: ObjectManagerProxy<'a>,
 }
@@ -106,7 +106,7 @@ impl super::NetworkBackend for IwdDbus<'_> {
         })
     }
 
-    /// List known (provisioned) SSIDs
+    /// List known (provisioned) SSIDs.
     async fn known_connections(&self) -> anyhow::Result<Vec<KnownConnection>> {
         let nets = self.reachable_networks().await?;
         let mut networks = Vec::new();
@@ -298,7 +298,7 @@ impl PWAgent {
 
 #[allow(dead_code, unused_variables)]
 impl IwdDbus<'_> {
-    /// Connect to the system bus and the IWD service
+    /// Connect to the system bus and the IWD service.
     pub async fn new(conn: &zbus::Connection) -> anyhow::Result<Self> {
         let manager = ObjectManagerProxy::builder(conn)
             .destination("net.connman.iwd")?
@@ -592,7 +592,7 @@ impl IwdDbus<'_> {
         Ok(events)
     }
 
-    /// Get the state of all station interfaces
+    /// Get the state of all station interfaces.
     pub async fn connectivity(&self) -> anyhow::Result<Vec<String>> {
         let mut states = Vec::new();
         for s in self.stations().await? {
@@ -602,7 +602,7 @@ impl IwdDbus<'_> {
         Ok(states)
     }
 
-    /// Return true if any device in station mode is present
+    /// Return true if any device in station mode is present.
     pub async fn wifi_device_present(&self) -> anyhow::Result<bool> {
         let devices = self.wireless_devices().await?;
 
@@ -614,7 +614,7 @@ impl IwdDbus<'_> {
         Ok(false)
     }
 
-    /// List all networks currently connected (Connected = true)
+    /// List all networks currently connected (Connected = true).
     pub async fn active_connections(&'_ self) -> anyhow::Result<Vec<(NetworkProxy<'_>, i16)>> {
         let mut networks = Vec::new();
         for (net, strength) in self.reachable_networks().await? {
@@ -625,7 +625,7 @@ impl IwdDbus<'_> {
         Ok(networks)
     }
 
-    /// Detailed info on active connections
+    /// Detailed info on active connections.
     pub async fn active_connections_info(&self) -> anyhow::Result<Vec<ActiveConnectionInfo>> {
         // INFO: probably way cleaner with a custom dbus object - SignalLevelAgent
 
@@ -642,7 +642,7 @@ impl IwdDbus<'_> {
         Ok(info)
     }
 
-    /// List all wireless (station-mode) devices
+    /// List all wireless (station-mode) devices.
     pub async fn wireless_devices(&'_ self) -> anyhow::Result<Vec<DeviceProxy<'_>>> {
         let devices = self.devices().await?;
         let mut devs = Vec::new();
@@ -654,7 +654,7 @@ impl IwdDbus<'_> {
         Ok(devs)
     }
 
-    /// Scan and list available access points
+    /// Scan and list available access points.
     pub async fn wireless_access_points(&self) -> anyhow::Result<Vec<AccessPoint>> {
         let mut aps = Vec::new();
         {

@@ -115,7 +115,7 @@ pub enum UpDeviceKind {
 }
 
 impl UpDeviceKind {
-    /// Convert from u32 to UpDeviceKind
+    /// Convert from u32 to `UpDeviceKind`.
     pub fn from_u32(value: u32) -> Option<Self> {
         match value {
             0 => Some(Self::Unknown),
@@ -140,12 +140,12 @@ impl UpDeviceKind {
         }
     }
 
-    /// Convert to u32
+    /// Convert to u32.
     pub fn to_u32(self) -> u32 {
         self as u32
     }
 
-    /// Check if this device type is a peripheral input device
+    /// Check if this device type is a peripheral input device.
     pub fn is_peripheral(&self) -> bool {
         matches!(
             self,
@@ -153,12 +153,12 @@ impl UpDeviceKind {
         )
     }
 
-    /// Check if this device type is a system power source
+    /// Check if this device type is a system power source.
     pub fn is_power_source(&self) -> bool {
         matches!(self, Self::Battery)
     }
 
-    /// Get a human-readable description
+    /// Get a human-readable description.
     pub fn description(&self) -> &'static str {
         match self {
             Self::Unknown => "Unknown",

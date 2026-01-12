@@ -26,12 +26,12 @@ pub trait SimpleConfiguration {
     /// Cancel method
     fn cancel(&self) -> zbus::Result<()>;
 
-    /// GeneratePin method
+    /// `GeneratePin` method
     fn generate_pin(&self) -> zbus::Result<String>;
 
-    /// PushButton method
+    /// `PushButton` method
     fn push_button(&self) -> zbus::Result<()>;
 
-    /// StartPin method
+    /// `StartPin` method
     fn start_pin(&self, pin: &str) -> zbus::Result<()>;
 }

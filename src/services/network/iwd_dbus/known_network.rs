@@ -23,7 +23,7 @@ pub trait KnownNetwork {
     /// Forget method
     fn forget(&self) -> zbus::Result<()>;
 
-    /// AutoConnect property
+    /// `AutoConnect` property
     #[zbus(property)]
     fn auto_connect(&self) -> zbus::Result<bool>;
     #[zbus(property)]
@@ -33,7 +33,7 @@ pub trait KnownNetwork {
     #[zbus(property)]
     fn hidden(&self) -> zbus::Result<bool>;
 
-    /// LastConnectedTime property
+    /// `LastConnectedTime` property
     #[zbus(property)]
     fn last_connected_time(&self) -> zbus::Result<String>;
 
