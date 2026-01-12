@@ -441,11 +441,10 @@ impl NetworkService {
                         match nm.subscribe_events().await {
                             Ok(mut events) => {
                                 while let Some(event) = events.next().await {
-                                    let mut exit_loop = false;
-                                    // TODO: why do we do this?
-                                    if let NetworkEvent::WirelessDevice { .. } = event {
-                                        exit_loop = true;
-                                    }
+                                    let exit_loop =
+                                        matches!(event, NetworkEvent::WirelessDevice { .. });
+                                    // Send the event to UI before exiting - UI needs the WirelessDevice data
+                                    // (wifi_present and access_points) to populate the network menu
                                     let _ = output.send(ServiceEvent::Update(event)).await;
 
                                     if exit_loop {

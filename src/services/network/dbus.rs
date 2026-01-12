@@ -713,9 +713,7 @@ impl NetworkSettingsDbus<'_> {
                 .await?;
 
             let s = connection.get_settings().await?;
-            let id = s
-                .get("connection")
-                .unwrap()
+            let id = s["connection"]
                 .get("id")
                 .map(|v| match v.deref() {
                     Value::Str(v) => v.to_string(),
