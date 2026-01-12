@@ -444,6 +444,7 @@ impl PowerSettings {
                         true,
                         Message::TogglePowerProfile,
                         None,
+                        None,
                     ),
                     None,
                 ))

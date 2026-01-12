@@ -26,6 +26,7 @@ pub enum Message {
     SourceVolumeChanged(i32),
     SinksMore(Id),
     SourcesMore(Id),
+    OpenMore,
     ToggleSinksMenu,
     ToggleSourcesMenu,
     ConfigReloaded(AudioSettingsConfig),
@@ -140,6 +141,12 @@ impl AudioSettings {
                 }
                 Action::None
             }
+            Message::OpenMore => {
+                if let Some(cmd) = &self.config.sinks_more_cmd {
+                    crate::utils::launcher::execute_command(cmd.to_string());
+                }
+                Action::None
+            }
             Message::SinksMore(id) => {
                 if let Some(cmd) = &self.config.sinks_more_cmd {
                     crate::utils::launcher::execute_command(cmd.to_string());
@@ -173,6 +180,7 @@ impl AudioSettings {
                 let icon_type = service.sinks.get_icon(&service.server_info.default_sink);
                 let icon = icon(icon_type);
                 MouseArea::new(icon)
+                    .on_right_press(Message::OpenMore)
                     .on_scroll(|delta| {
                         let cur_vol = service.cur_sink_volume;
                         let delta = match delta {
@@ -317,21 +325,24 @@ impl AudioSettings {
     ) -> Element<'a, Message> {
         Row::new()
             .push(
-                icon_button(
-                    theme,
-                    if is_mute {
-                        match slider_type {
-                            SliderType::Sink => StaticIcon::Speaker0,
-                            SliderType::Source => StaticIcon::Mic0,
-                        }
-                    } else {
-                        match slider_type {
-                            SliderType::Sink => StaticIcon::Speaker3,
-                            SliderType::Source => StaticIcon::Mic1,
-                        }
-                    },
+                MouseArea::new(
+                    icon_button(
+                        theme,
+                        if is_mute {
+                            match slider_type {
+                                SliderType::Sink => StaticIcon::Speaker0,
+                                SliderType::Source => StaticIcon::Mic0,
+                            }
+                        } else {
+                            match slider_type {
+                                SliderType::Sink => StaticIcon::Speaker3,
+                                SliderType::Source => StaticIcon::Mic1,
+                            }
+                        },
+                    )
+                    .on_press(toggle_mute),
                 )
-                .on_press(toggle_mute),
+                .on_right_press(Message::OpenMore),
             )
             .push(
                 MouseArea::new(
