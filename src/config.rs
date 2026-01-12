@@ -26,10 +26,8 @@ pub struct Config {
     pub layer: Layer,
     pub outputs: Outputs,
     pub modules: Modules,
-    pub app_launcher_cmd: Option<String>,
     #[serde(rename = "CustomModule")]
     pub custom_modules: Vec<CustomModuleDef>,
-    pub clipboard_cmd: Option<String>,
     pub updates: Option<UpdatesModuleConfig>,
     pub workspaces: WorkspacesModuleConfig,
     pub window_title: WindowTitleConfig,
@@ -50,8 +48,6 @@ impl Default for Config {
             layer: Layer::default(),
             outputs: Outputs::default(),
             modules: Modules::default(),
-            app_launcher_cmd: None,
-            clipboard_cmd: None,
             updates: None,
             workspaces: WorkspacesModuleConfig::default(),
             window_title: WindowTitleConfig::default(),
@@ -554,9 +550,7 @@ pub enum Layer {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ModuleName {
-    AppLauncher,
     Updates,
-    Clipboard,
     Workspaces,
     WindowTitle,
     SystemInfo,
@@ -586,9 +580,7 @@ impl<'de> Deserialize<'de> for ModuleName {
                 E: serde::de::Error,
             {
                 Ok(match value {
-                    "AppLauncher" => ModuleName::AppLauncher,
                     "Updates" => ModuleName::Updates,
-                    "Clipboard" => ModuleName::Clipboard,
                     "Workspaces" => ModuleName::Workspaces,
                     "WindowTitle" => ModuleName::WindowTitle,
                     "SystemInfo" => ModuleName::SystemInfo,

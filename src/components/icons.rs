@@ -19,8 +19,6 @@ pub trait Icon {
 pub enum StaticIcon {
     #[default]
     None,
-    AppLauncher,
-    Clipboard,
     Refresh,
     NoUpdatesAvailable,
     UpdatesAvailable,
@@ -119,8 +117,6 @@ impl StaticIcon {
     fn get_str(&self) -> &'static str {
         match self {
             StaticIcon::None => "",
-            StaticIcon::AppLauncher => "\u{f003b}",
-            StaticIcon::Clipboard => "\u{f014c}",
             StaticIcon::Refresh => "\u{f0453}",
             StaticIcon::NoUpdatesAvailable => "\u{f05e0}",
             StaticIcon::UpdatesAvailable => "\u{f0cdb}",

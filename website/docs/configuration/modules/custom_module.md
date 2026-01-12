@@ -107,3 +107,58 @@ name = "AppLauncher"
 icon = "󱗼"
 command = "walker"
 ```
+
+### Clipboard (with cliphist)
+
+```toml
+[[CustomModule]]
+name = "Clipboard"
+icon = "📋"
+command = "cliphist-rofi-img | wl-copy"
+```
+
+## Migration from Deprecated Modules
+
+The `AppLauncher` and `Clipboard` modules have been deprecated in favor of custom modules.
+To migrate from the deprecated modules:
+
+### Previous App Launcher Configuration
+
+```toml
+# Old deprecated way
+app_launcher_cmd = "walker"
+```
+
+### New Custom Module Configuration
+
+```toml
+# New recommended way
+[[CustomModule]]
+name = "AppLauncher"
+icon = "�"
+command = "walker"
+```
+
+### Previous Clipboard Configuration
+
+```toml
+# Old deprecated way
+clipboard_cmd = "cliphist-rofi-img | wl-copy"
+```
+
+### New Custom Module Configuration
+
+```toml
+# New recommended way
+[[CustomModule]]
+name = "Clipboard"
+icon = "󰅏"
+command = "cliphist-rofi-img | wl-copy"
+```
+
+Then add the custom modules to your modules configuration:
+
+```toml
+[modules]
+right = [ [ "Clock", "Privacy", "Settings", "AppLauncher", "Clipboard" ] ]
+```
