@@ -10,6 +10,7 @@ battery, power profile and idle inhibitor.
 It displays in the status bar indicators about:
 
 - Audio volume
+- Microphone volume
 - Network status
 - Bluetooth connection status
 - Battery status
@@ -130,6 +131,7 @@ Available indicators are:
 - `IdleInhibitor` - Shows an icon when idle inhibitor is active
 - `PowerProfile` - Shows the current power profile icon
 - `Audio` - Shows the audio volume level icon
+- `Microphone` - Shows the microphone volume level and mute status
 - `Network` - Shows the network connection status icon
 - `Vpn` - Shows the VPN connection status icon
 - `Bluetooth` - Shows a Bluetooth icon when connected to at least one device
@@ -139,10 +141,10 @@ Available indicators are:
 ```toml
 [settings]
 # Customize which indicators to show and their order
-indicators = ["Battery", "Bluetooth", "Network", "Audio"]
+indicators = ["Battery", "Bluetooth", "Network", "Audio", "Microphone"]
 
 # Default indicators (shown in this order):
-# ["IdleInhibitor", "PowerProfile", "Audio", "Bluetooth", "Network", "Vpn", "Battery"]
+indicators = ["IdleInhibitor", "PowerProfile", "Audio", "Microphone", "Bluetooth", "Network", "Vpn", "Battery"]
 ```
 
 ## Custom Buttons
@@ -233,7 +235,7 @@ vpn_more_cmd = "nm-connection-editor"
 bluetooth_more_cmd = "blueman-manager"
 remove_airplane_btn = true
 remove_idle_btn = true
-indicators = ["Battery", "Bluetooth", "Network", "Audio"]
+indicators = ["Battery", "Bluetooth", "Network", "Audio", "Microphone"]
 
 battery_format = "IconAndTime"
 peripheral_battery_format = "Time"

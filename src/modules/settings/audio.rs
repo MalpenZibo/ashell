@@ -3,7 +3,7 @@ use crate::{
     components::icons::{StaticIcon, icon, icon_button},
     services::{
         ReadOnlyService, Service, ServiceEvent,
-        audio::{AudioCommand, AudioService, DeviceType, Sinks},
+        audio::{AudioCommand, AudioService, DeviceType, Sinks, Sources},
     },
     theme::AshellTheme,
 };
@@ -177,7 +177,7 @@ impl AudioSettings {
             .as_ref()
             .filter(|service| !service.sinks.is_empty())
             .map(|service| {
-                let icon_type = service.sinks.get_icon(&service.server_info.default_sink);
+                let icon_type = Sinks::get_icon(&service.sinks, &service.server_info.default_sink);
                 let icon = icon(icon_type);
                 MouseArea::new(icon)
                     .on_right_press(Message::OpenMore)
@@ -193,6 +193,32 @@ impl AudioSettings {
                             (cur_vol - 5).max(0)
                         };
                         Message::SinkVolumeChanged(new_volume)
+                    })
+                    .into()
+            })
+    }
+
+    pub fn source_indicator(&'_ self) -> Option<Element<'_, Message>> {
+        self.service
+            .as_ref()
+            .filter(|service| !service.sources.is_empty())
+            .map(|service| {
+                let icon_type =
+                    Sources::get_icon(&service.sources, &service.server_info.default_source);
+                let icon = icon(icon_type);
+                MouseArea::new(icon)
+                    .on_scroll(|delta| {
+                        let cur_vol = service.cur_source_volume;
+                        let delta = match delta {
+                            iced::mouse::ScrollDelta::Lines { y, .. } => y,
+                            iced::mouse::ScrollDelta::Pixels { y, .. } => y,
+                        };
+                        let new_volume = if delta > 0.0 {
+                            (cur_vol + 5).min(100)
+                        } else {
+                            (cur_vol - 5).max(0)
+                        };
+                        Message::SourceVolumeChanged(new_volume)
                     })
                     .into()
             })
@@ -225,7 +251,7 @@ impl AudioSettings {
                 )
             });
 
-            if service.sources.iter().any(|source| source.in_use) {
+            if !service.sources.is_empty() {
                 let active_source = service
                     .sources
                     .iter()
