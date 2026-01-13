@@ -692,11 +692,19 @@ impl Deref for RegexCfg {
     }
 }
 
+#[derive(Deserialize, Copy, Clone, Default, PartialEq, Eq, Debug)]
+pub enum CustomModuleType {
+    #[default]
+    Button,
+    Text,
+}
+
 #[serde_as]
 #[derive(Deserialize, Clone, Debug)]
 pub struct CustomModuleDef {
     pub name: String,
-    pub command: String,
+    #[serde(default)]
+    pub command: Option<String>,
     #[serde(default)]
     pub icon: Option<String>,
 
@@ -706,6 +714,9 @@ pub struct CustomModuleDef {
     pub icons: Option<HashMap<RegexCfg, String>>,
     /// regex to show alert
     pub alert: Option<RegexCfg>,
+    /// Display type: Button (clickable) or Text (display only)
+    #[serde(default)]
+    pub r#type: CustomModuleType,
     // .. appearance etc
 }
 

@@ -78,10 +78,16 @@ impl Custom {
         }
     }
 
+    pub fn module_type(&self) -> crate::config::CustomModuleType {
+        self.config.r#type
+    }
+
     pub fn update(&mut self, msg: Message) {
         match msg {
             Message::LaunchCommand => {
-                execute_command(self.config.command.clone());
+                if let Some(cmd) = &self.config.command {
+                    execute_command(cmd.clone());
+                }
             }
             Message::Update(data) => {
                 self.data = data;
@@ -90,65 +96,81 @@ impl Custom {
     }
 
     pub fn view(&'_ self, theme: &AshellTheme) -> Element<'_, Message> {
-        let mut icon_element = self.config.icon.as_ref().map_or_else(
-            || icon(StaticIcon::None),
-            |text| icon(DynamicIcon(text.clone())),
-        );
+        match self.config.r#type {
+            crate::config::CustomModuleType::Text => self
+                .data
+                .text
+                .as_ref()
+                .and_then(|text_content| {
+                    if !text_content.is_empty() {
+                        Some(text(text_content.clone()).into())
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or_else(|| text("").into()),
+            crate::config::CustomModuleType::Button => {
+                let mut icon_element = self.config.icon.as_ref().map_or_else(
+                    || icon(StaticIcon::None),
+                    |text| icon(DynamicIcon(text.clone())),
+                );
 
-        if let Some(icons_map) = &self.config.icons {
-            for (re, icon_str) in icons_map {
-                if re.is_match(&self.data.alt) {
-                    icon_element = icon(DynamicIcon(icon_str.clone()));
-                    break; // Use the first match
+                if let Some(icons_map) = &self.config.icons {
+                    for (re, icon_str) in icons_map {
+                        if re.is_match(&self.data.alt) {
+                            icon_element = icon(DynamicIcon(icon_str.clone()));
+                            break; // Use the first match
+                        }
+                    }
+                }
+
+                // Wrap the icon in a container to apply padding
+                let padded_icon_container = container(icon_element).padding([0, 1]);
+
+                let show_alert = if let Some(re) = &self.config.alert
+                    && re.is_match(&self.data.alt)
+                {
+                    true
+                } else {
+                    false
+                };
+
+                let icon_with_alert = if show_alert {
+                    let alert_canvas = canvas(AlertIndicator)
+                        .width(Length::Fixed(theme.space.xs as f32)) // Size of the dot
+                        .height(Length::Fixed(theme.space.xs as f32));
+
+                    // Container to position the dot at the top-right
+                    let alert_indicator_container = container(alert_canvas)
+                        .width(Length::Fill) // Take full width of the stack item
+                        .height(Length::Fill) // Take full height
+                        .align_x(iced::alignment::Horizontal::Right)
+                        .align_y(iced::alignment::Vertical::Top);
+
+                    Stack::new()
+                        .push(padded_icon_container) // Padded icon is the base layer
+                        .push(alert_indicator_container) // Dot container on top
+                        .into()
+                } else {
+                    padded_icon_container.into() // No alert, just the padded icon
+                };
+
+                let maybe_text_element = self.data.text.as_ref().and_then(|text_content| {
+                    if !text_content.is_empty() {
+                        Some(text(text_content.clone()))
+                    } else {
+                        None
+                    }
+                });
+
+                if let Some(text_element) = maybe_text_element {
+                    row![icon_with_alert, text_element]
+                        .spacing(theme.space.xs)
+                        .into()
+                } else {
+                    icon_with_alert
                 }
             }
-        }
-
-        // Wrap the icon in a container to apply padding
-        let padded_icon_container = container(icon_element).padding([0, 1]);
-
-        let show_alert = if let Some(re) = &self.config.alert
-            && re.is_match(&self.data.alt)
-        {
-            true
-        } else {
-            false
-        };
-
-        let icon_with_alert = if show_alert {
-            let alert_canvas = canvas(AlertIndicator)
-                .width(Length::Fixed(theme.space.xs as f32)) // Size of the dot
-                .height(Length::Fixed(theme.space.xs as f32));
-
-            // Container to position the dot at the top-right
-            let alert_indicator_container = container(alert_canvas)
-                .width(Length::Fill) // Take full width of the stack item
-                .height(Length::Fill) // Take full height
-                .align_x(iced::alignment::Horizontal::Right)
-                .align_y(iced::alignment::Vertical::Top);
-
-            Stack::new()
-                .push(padded_icon_container) // Padded icon is the base layer
-                .push(alert_indicator_container) // Dot container on top
-                .into()
-        } else {
-            padded_icon_container.into() // No alert, just the padded icon
-        };
-
-        let maybe_text_element = self.data.text.as_ref().and_then(|text_content| {
-            if !text_content.is_empty() {
-                Some(text(text_content.clone()))
-            } else {
-                None
-            }
-        });
-
-        if let Some(text_element) = maybe_text_element {
-            row![icon_with_alert, text_element]
-                .spacing(theme.space.xs)
-                .into()
-        } else {
-            icon_with_alert
         }
     }
 

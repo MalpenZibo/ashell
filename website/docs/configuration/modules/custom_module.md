@@ -30,15 +30,13 @@ For example you can use [Nerd Fonts](https://www.nerdfonts.com/)
 To define a custom module, use the following fields:
 
 - `name`: Name of the module. Use this to refer to it in the [modules definitions](./index.md).
-- `icon`: Icon displayed in the status bar.
-- `command`: Command to execute when the module is clicked.
-- `listen_cmd` _(optional)_: Command to run in the background once on startup.
-  The command should continuously output JSON to update the module's display.
-  The most recent output is used to update the module's display.
-- `icons` _(optional)_: Regex-to-icon mapping to change the icon based on
-  the `listen_cmd` output.
+- `type` _(optional)_: Display type. Can be `Button` (clickable, default) or `Text` (display only).
+- `icon`: Icon displayed in the status bar (for `button` type).
+- `command`: Command to execute when the module is clicked (for `button` type).
+- `listen_cmd` _(optional)_: Command to run in the background to update the module’s display.
+- `icons` _(optional)_: Regex-to-icon mapping to change the icon based on the `listen_cmd` output (for `button` type).
 - `alert` _(optional)_: Regex to trigger a red alert dot on the icon when
-  matched in the `listen_cmd` output.
+  matched in the `listen_cmd` output (for `button` type).
 
 ---
 
@@ -106,7 +104,72 @@ alert = ".*notification"
 
 ## Examples
 
-### Notifications (with swaync-client)
+### Text-only Module (e.g., Custom Clock)
+
+Text modules display only the text output from `listen_cmd` without any click action:
+
+```toml
+[[CustomModule]]
+name = "MyClock"
+type = "Text"
+listen_cmd = "echo '{\"text\": \"$(date +'%H:%M')\", \"alt\": \"\"}'"
+```
+
+**Note for Fish Shell Users**: If you use Fish shell, wrap the command in `sh -c` for POSIX compatibility:
+
+```toml
+listen_cmd = "sh -c 'while true; do echo \"{\\\"text\\\": \\\"$(date +\"%H:%M\")\\\", \\\"alt\\\": \\\"\\\"}\"; sleep 1; done'"
+```
+
+### Button Module with Icon (Interactive)
+
+Button modules display an icon and/or text with a click action:
+
+```toml
+[[CustomModule]]
+name = "CustomNotifications"
+type = "Button"
+icon = ""
+command = "swaync-client -t -sw"
+listen_cmd = "swaync-client -swb"
+icons.'dnd.*' = ""
+alert = ".*notification"
+```
+
+### Button Module with Icon Only
+
+```toml
+[[CustomModule]]
+name = "AppLauncher"
+type = "Button"
+icon = "󱗼"
+command = "walker"
+```
+
+### Button Module with Text Output
+
+Button modules can also display text output from `listen_cmd` with a click action:
+
+```toml
+[[CustomModule]]
+name = "Clipboard"
+type = "Button"
+command = "cliphist-rofi-img | wl-copy"
+listen_cmd = "echo '{\"text\": \"📋\", \"alt\": \"\"}'"
+```
+
+### Notifications (with wired)
+
+```toml
+[[CustomModule]]
+name = "CustomNotifications"
+type = "Button"
+icon = ""
+command = "wired --show 5"
+listen_cmd = "wired count"
+icons.'dnd.*' = ""
+alert = ".*notification"
+```
 
 ```toml
 [[CustomModule]]
@@ -135,46 +198,6 @@ name = "Clipboard"
 icon = "📋"
 command = "cliphist-rofi-img | wl-copy"
 ```
-
-## Best Practices
-
-### Writing Effective `listen_cmd` Scripts
-
-#### Use Event-Driven Approaches
-
-Instead of polling, prefer event-driven approaches:
-
-```bash
-# Bad: Polling every second
-while true; do
-    check_updates
-    sleep 1
-done
-
-# Good: Event-driven
-inotifywait -m /path/to/monitor | while read; do
-    check_updates
-done
-```
-
-#### Output Valid JSON
-
-Always ensure your output is valid JSON:
-
-```bash
-# Good: Proper JSON escaping
-echo "{\"text\": \"$message\", \"alt\": \"$status\"}"
-
-# Bad: Unescaped quotes
-echo '{"text": "Hello "world", "alt": "normal"}'
-```
-
-### Performance Considerations
-
-- **Avoid frequent updates**: Only output when something actually changes
-- **Use efficient tools**: Prefer lightweight tools over heavy applications
-- **Minimize dependencies**: Use system tools when possible
-- **Handle errors gracefully**: Ensure your script doesn't crash the module
 
 ## Migration from Deprecated Modules
 
