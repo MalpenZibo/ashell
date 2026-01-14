@@ -391,17 +391,9 @@ impl Workspaces {
 
                             Some(
                                 button(
-                                    container(
-                                        container(text(w.name.as_str()).size(theme.font_size.xs))
-                                            .style(|theme: &iced::Theme| {
-                                                iced::widget::container::Style {
-                                                    text_color: Some(theme.palette().text),
-                                                    ..Default::default()
-                                                }
-                                            }),
-                                    )
-                                    .align_x(alignment::Horizontal::Center)
-                                    .align_y(alignment::Vertical::Center),
+                                    container(text(w.name.as_str()).size(theme.font_size.xs))
+                                        .align_x(alignment::Horizontal::Center)
+                                        .align_y(alignment::Vertical::Center),
                                 )
                                 .style(theme.workspace_button_style(empty, color))
                                 .padding(if w.id < 0 {
