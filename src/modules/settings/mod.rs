@@ -771,32 +771,14 @@ fn quick_setting_button<'a, Msg: Clone + 'static, I: Icon>(
     with_submenu: Option<(SubMenu, Option<SubMenu>, Msg)>,
 ) -> Element<'a, Msg> {
     let main_content = row!(
-        container(icon(icon_type).size(theme.font_size.lg)).style(|theme: &Theme| {
-            container::Style {
-                text_color: Some(theme.palette().text),
-                ..Default::default()
-            }
-        }),
+        icon(icon_type).size(theme.font_size.lg),
         container(
             Column::new()
-                .push(
-                    container(text(title).size(theme.font_size.sm)).style(|theme: &Theme| {
-                        container::Style {
-                            text_color: Some(theme.palette().text),
-                            ..Default::default()
-                        }
-                    })
-                )
+                .push(text(title).size(theme.font_size.sm))
                 .push_maybe(subtitle.map(|s| {
-                    container(
-                        text(s)
-                            .wrapping(text::Wrapping::None)
-                            .size(theme.font_size.xs),
-                    )
-                    .style(|theme: &Theme| container::Style {
-                        text_color: Some(theme.palette().text),
-                        ..Default::default()
-                    })
+                    text(s)
+                        .wrapping(text::Wrapping::None)
+                        .size(theme.font_size.xs)
                 }))
                 .spacing(theme.space.xxs)
         )
@@ -822,7 +804,6 @@ fn quick_setting_button<'a, Msg: Clone + 'static, I: Icon>(
                 .on_press(msg)
                 .size(IconButtonSize::Small)
                 .style(theme.quick_settings_submenu_button_style(active))
-                .color(theme.get_theme().palette().text)
             }))
             .spacing(theme.space.xxs)
             .align_y(Alignment::Center)
