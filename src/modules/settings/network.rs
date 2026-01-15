@@ -545,7 +545,7 @@ impl NetworkSettings {
         theme: &'a AshellTheme,
         show_more_button: bool,
     ) -> Element<'a, Message> {
-        // 1. Collect and sort the VPNs first
+        // Collect and sort the VPNs
         let mut vpns: Vec<_> = service.known_connections
             .iter()
             .filter_map(|c| match c {
@@ -557,7 +557,7 @@ impl NetworkSettings {
         // Sort alphabetically by name (case-insensitive)
         vpns.sort_by_key(|vpn| vpn.name.to_lowercase());
 
-        // 2. Map the sorted list to UI elements
+        // Map the sorted list to UI elements
         let vpn_list = Column::with_children(
             vpns.into_iter()
                 .map(|vpn| {
