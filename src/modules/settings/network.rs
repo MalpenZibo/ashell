@@ -575,12 +575,18 @@ impl NetworkSettings {
                 })
                 .collect::<Vec<Element<'a, Message>>>(),
         )
-        .spacing(theme.space.xs);
+        .spacing(theme.space.xs)
+        .padding([
+            0,
+            theme.space.md,
+            0,
+            theme.space.xs,
+        ]);
 
         let main = container(
             scrollable(vpn_list))
             .height(Length::Shrink)
-            .max_height(500.0);
+            .max_height(300);
 
         if show_more_button {
             column!(
