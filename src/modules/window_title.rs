@@ -56,14 +56,28 @@ impl WindowTitle {
         if let Some(service) = &self.service {
             self.value = service.active_window.as_ref().map(|w| {
                 let raw_title = match self.config.mode {
-                    WindowTitleMode::Title => &w.title,
-                    WindowTitleMode::Class => &w.class,
+                    WindowTitleMode::Title => w.title(),
+                    WindowTitleMode::Class => w.class(),
+                    WindowTitleMode::InitialTitle => match w.initial_title() {
+                        Ok(v) => v,
+                        Err(e) => {
+                            log::warn!("{}", e);
+                            ""
+                        }
+                    },
+                    WindowTitleMode::InitialClass => match w.initial_class() {
+                        Ok(v) => v,
+                        Err(e) => {
+                            log::warn!("{}", e);
+                            ""
+                        }
+                    },
                 };
 
                 if self.config.truncate_title_after_length > 0 {
                     truncate_text(raw_title, self.config.truncate_title_after_length)
                 } else {
-                    raw_title.clone()
+                    raw_title.to_string()
                 }
             });
         }
