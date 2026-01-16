@@ -1,5 +1,6 @@
 use crate::{
     components::icons::{StaticIcon, icon_mono},
+    config::SettingsFormat,
     services::{
         ReadOnlyService, Service, ServiceEvent,
         brightness::{BrightnessCommand, BrightnessService},
@@ -9,7 +10,7 @@ use crate::{
 use iced::{
     Alignment, Element, Length, Subscription, Task,
     futures::stream,
-    widget::{MouseArea, container, row, slider},
+    widget::{MouseArea, container, row, slider, text},
 };
 
 #[derive(Debug, Clone)]
@@ -26,6 +27,7 @@ pub enum Action {
 }
 
 pub struct BrightnessSettings {
+    config: SettingsFormat,
     service: Option<BrightnessService>,
     ui_percentage: u32,
     is_user_adjusting: bool,
@@ -33,13 +35,33 @@ pub struct BrightnessSettings {
 }
 
 impl BrightnessSettings {
-    pub fn new() -> Self {
+    pub fn new(config: SettingsFormat) -> Self {
         Self {
+            config,
             service: None,
             ui_percentage: 50,
             is_user_adjusting: false,
             reset_timer_active: false,
         }
+    }
+
+    fn calculate_scroll_brightness(
+        current_percentage: u32,
+        max_value: u32,
+        delta: iced::mouse::ScrollDelta,
+    ) -> Message {
+        let delta = match delta {
+            iced::mouse::ScrollDelta::Lines { y, .. } => y,
+            iced::mouse::ScrollDelta::Pixels { y, .. } => y,
+        };
+        // brightness is always changed by one less than expected
+        let new_percentage = if delta > 0.0 {
+            (current_percentage + 5 + 1).min(100)
+        } else {
+            current_percentage.saturating_sub(5 + 1)
+        };
+        let new_brightness = new_percentage * max_value / 100;
+        Message::Change(new_brightness)
     }
 
     pub fn update(&mut self, message: Message) -> Action {
@@ -118,24 +140,45 @@ impl BrightnessSettings {
                     .step(1_u32)
                     .width(Length::Fill),
                 )
-                .on_scroll(move |delta| {
-                    let delta = match delta {
-                        iced::mouse::ScrollDelta::Lines { y, .. } => y,
-                        iced::mouse::ScrollDelta::Pixels { y, .. } => y,
-                    };
-                    // brightness is always changed by one less than expected
-                    let new_percentage = if delta > 0.0 {
-                        (current_percentage + 5 + 1).min(100)
-                    } else {
-                        current_percentage.saturating_sub(5 + 1)
-                    };
-                    let new_brightness_value = new_percentage * max / 100;
-                    Message::Change(new_brightness_value)
-                }),
+                .on_scroll(move |delta| Self::calculate_scroll_brightness(
+                    current_percentage,
+                    max,
+                    delta
+                )),
             )
             .align_y(Alignment::Center)
             .spacing(theme.space.xs)
             .into()
+        })
+    }
+
+    pub fn brightness_indicator<'a>(&'a self) -> Option<Element<'a, Message>> {
+        self.service.as_ref().map(|service| {
+            let percentage = self.ui_percentage;
+            let max_value = service.max;
+
+            let scroll_handler =
+                move |delta| Self::calculate_scroll_brightness(percentage, max_value, delta);
+
+            match self.config {
+                SettingsFormat::Icon => {
+                    let icon = icon_mono(StaticIcon::Brightness);
+                    MouseArea::new(icon).on_scroll(scroll_handler).into()
+                }
+                SettingsFormat::Percentage => MouseArea::new(text(format!("{}%", percentage)))
+                    .on_scroll(scroll_handler)
+                    .into(),
+                SettingsFormat::IconAndPercentage => {
+                    let icon = icon_mono(StaticIcon::Brightness);
+                    MouseArea::new(
+                        row!(icon, text(format!("{}%", percentage)))
+                            .spacing(4)
+                            .align_y(Alignment::Center),
+                    )
+                    .on_scroll(scroll_handler)
+                    .into()
+                }
+            }
         })
     }
 

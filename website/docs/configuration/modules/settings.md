@@ -60,18 +60,86 @@ With the `remove_airplane_btn` option you can remove the airplane mode button.
 
 With the `remove_idle_btn` option you can remove the idle inhibitor button.
 
+## Indicator Format Options
+
+With the format options you can customize how different indicators are displayed in the status bar.
+
+All format options support the same values:
+
+- `Icon` - Show only the icon
+- `Percentage` (or `Value`) - Show only the numeric value (percentage, count, or strength)
+- `IconAndPercentage` (or `IconAndValue`) - Show both the icon and the numeric value (default)
+
+### Battery Format
+
 With the `battery_format` option you can customize the battery indicator format.
 
-The possible values are:
+The default value is `IconAndPercentage`.
 
-- `Icon` - Show only the battery icon
-- `Percentage` - Show only the battery percentage
-- `IconAndPercentage` - Show both the battery icon and percentage (default)
+```toml
+[settings]
+battery_format = "IconAndPercentage"
+```
+
+### Peripheral Battery Format
 
 In the same way it's possible to customize the peripheral battery indicator format.
 The possible values are the same as above, but you need to use
 the `peripheral_battery_format` option.
 The default value is `Icon`.
+
+```toml
+[settings]
+peripheral_battery_format = "Icon"
+```
+
+### Audio Format
+
+With the `audio_indicator_format` option you can customize the audio volume indicator format.
+
+The default value is `Icon`.
+
+```toml
+[settings]
+audio_indicator_format = "IconAndPercentage"
+```
+
+### Network Format
+
+With the `network_indicator_format` option you can customize the network connection indicator format.
+For WiFi connections, this shows the signal strength as a percentage.
+
+The default value is `Icon`.
+
+```toml
+[settings]
+network_indicator_format = "IconAndPercentage"
+```
+
+### Bluetooth Format
+
+With the `bluetooth_indicator_format` option you can customize the bluetooth indicator format.
+When devices are connected, this shows the number of connected devices.
+
+The default value is `Icon`.
+
+```toml
+[settings]
+bluetooth_indicator_format = "IconAndValue"
+```
+
+### Brightness Format
+
+With the `brightness_indicator_format` option you can customize the brightness indicator format.
+
+The default value is `Icon`.
+
+```toml
+[settings]
+brightness_indicator_format = "IconAndPercentage"
+```
+
+## Peripheral Indicators
 
 With the `peripheral_indicators` you can decide which peripheral battery indicators
 are shown in the status bar.
@@ -91,6 +159,10 @@ The possible values are:
 battery_format = "IconAndPercentage"
 peripheral_battery_format = "Icon"
 peripheral_indicators = { Specific = ["Gamepad", "Keyboard"] }
+audio_indicator_format = "Icon"
+network_indicator_format = "Icon"
+bluetooth_indicator_format = "Icon"
+brightness_indicator_format = "Icon"
 ```
 
 ## Status Bar Indicators
@@ -108,6 +180,7 @@ Available indicators are:
 - `Bluetooth` - Shows a Bluetooth icon when connected to at least one device
 - `Battery` - Shows the battery level and charging status
 - `PeripheralBattery` - Shows the peripheral battery status
+- `Brightness` - Shows the current brightness level
 
 ```toml
 [settings]
@@ -115,7 +188,7 @@ Available indicators are:
 indicators = ["Battery", "Bluetooth", "Network", "Audio"]
 
 # The default value is the following, the items are shown in this order:
-indicators = ["IdleInhibitor", "PowerProfile", "Audio", "Bluetooth", "Network", "Vpn", "Battery"]
+indicators = ["IdleInhibitor", "PowerProfile", "Audio", "Bluetooth", "Network", "Vpn", "Battery", "Brightness"]
 ```
 
 ## Custom Buttons
@@ -206,7 +279,7 @@ vpn_more_cmd = "nm-connection-editor"
 bluetooth_more_cmd = "blueman-manager"
 remove_airplane_btn = true
 remove_idle_btn = true
-indicators = ["Battery", "Bluetooth", "Network", "Audio"]
+indicators = ["Battery", "Bluetooth", "Network", "Audio", "Brightness"]
 
 [[settings.CustomButton]]
 name = "Virtual Keyboard"
