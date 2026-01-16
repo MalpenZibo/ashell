@@ -177,8 +177,12 @@ impl TrayService {
 
         let mut status_items = Vec::with_capacity(items.len());
         for item in items {
-            let item = StatusNotifierItem::new(conn, item).await?;
-            status_items.push(item);
+            match StatusNotifierItem::new(conn, item.clone()).await {
+                Ok(item) => status_items.push(item),
+                Err(err) => {
+                    error!("Failed to initialize tray item '{item}': {err}");
+                }
+            }
         }
 
         Ok(TrayData(status_items))

@@ -112,10 +112,7 @@ impl AshellTheme {
                 "local".to_string(),
                 Palette {
                     background: appearance.background_color.get_base(),
-                    text: appearance
-                        .text_color
-                        .get_text()
-                        .unwrap_or(appearance.text_color.get_base()),
+                    text: appearance.text_color.get_base(),
                     primary: appearance.primary_color.get_base(),
                     success: appearance.success_color.get_base(),
                     danger: appearance.danger_color.get_base(),
