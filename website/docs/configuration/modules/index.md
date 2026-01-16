@@ -66,6 +66,11 @@ Displays the current keyboard layout and allows switching between layouts.
 
 Displays the current keyboard submap.
 
+### CustomModule
+
+Allows creating custom modules with user-defined functionality.
+See the [custom module documentation](./custom_module.md) for details.
+
 ### Tray
 
 Displays system tray icons and menus for applications.

@@ -6,7 +6,7 @@ sidebar_position: 3
 
 This module provides information about available updates for the system.
 
-To configure this module, you need to specify a command that  
+To configure this module, you need to specify a command that
 will check for new system updates and a command that will launch the system updates.
 
 :::info
@@ -15,7 +15,9 @@ Without this configuration, the module will not appear in the status bar.
 
 :::
 
-The check command should return a list of updates,  
+The module automatically checks for updates every hour. You can also manually check for updates using the "Check now" button in the menu.
+
+The check command should return a list of updates,
 one package per line in the following format:
 
 `package_name version_from -> version_to`

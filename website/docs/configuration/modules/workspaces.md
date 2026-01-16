@@ -111,6 +111,7 @@ The default configuration is:
 [workspaces]
 visibility_mode = "All"
 enable_workspace_filling = true
+disable_special_workspaces = false
 ```
 
 ## Examples
