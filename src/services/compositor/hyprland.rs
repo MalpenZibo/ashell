@@ -5,12 +5,13 @@ use super::types::{
 use crate::services::{ServiceEvent, compositor::CompositorService};
 use anyhow::Result;
 use hyprland::{
-    data::{Client, Devices, Monitors, Workspace, Workspaces},
+    data::{Client, Clients, Devices, Monitors, Workspace, Workspaces},
     dispatch::{Dispatch, DispatchType, MonitorIdentifier, WorkspaceIdentifierWithSpecial},
     event_listener::AsyncEventListener,
     prelude::*,
 };
 use itertools::Itertools;
+use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use tokio::sync::broadcast;
 
@@ -148,17 +149,37 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
 }
 
 fn fetch_full_state(internal_state: &HyprInternalState) -> Result<CompositorState> {
+    let collect_classes = super::should_collect_window_classes();
+
+    let mut workspace_classes: HashMap<i32, Vec<String>> = HashMap::new();
+    if collect_classes {
+        for client in Clients::get()? {
+            workspace_classes
+                .entry(client.workspace.id)
+                .or_default()
+                .push(client.class);
+        }
+    }
+
     let workspaces = Workspaces::get()?
         .into_iter()
         .sorted_by_key(|w| w.id)
-        .map(|w| CompositorWorkspace {
-            id: w.id,
-            index: w.id,
-            name: w.name,
-            monitor: w.monitor,
-            monitor_id: w.monitor_id,
-            windows: w.windows,
-            is_special: w.id < 0,
+        .map(|w| {
+            let window_classes = if collect_classes {
+                workspace_classes.remove(&w.id).unwrap_or_default()
+            } else {
+                Vec::new()
+            };
+            CompositorWorkspace {
+                id: w.id,
+                index: w.id,
+                name: w.name,
+                monitor: w.monitor,
+                monitor_id: w.monitor_id,
+                windows: w.windows,
+                is_special: w.id < 0,
+                window_classes,
+            }
         })
         .collect();
 

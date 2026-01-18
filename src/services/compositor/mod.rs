@@ -9,6 +9,7 @@ pub use self::types::{
 use crate::services::{ReadOnlyService, Service, ServiceEvent};
 use iced::futures::SinkExt;
 use iced::{Subscription, Task, stream::channel};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::{any::TypeId, ops::Deref};
 use tokio::sync::{OnceCell, broadcast};
 
@@ -16,6 +17,16 @@ const BROADCAST_CAPACITY: usize = 64;
 
 static BROADCASTER: OnceCell<broadcast::Sender<ServiceEvent<CompositorService>>> =
     OnceCell::const_new();
+
+static COLLECT_WINDOW_CLASSES: AtomicBool = AtomicBool::new(false);
+
+pub fn set_collect_window_classes(enabled: bool) {
+    COLLECT_WINDOW_CLASSES.store(enabled, Ordering::Relaxed);
+}
+
+pub fn should_collect_window_classes() -> bool {
+    COLLECT_WINDOW_CLASSES.load(Ordering::Relaxed)
+}
 
 /// Subscribe to compositor events.  Initializes the broadcaster on first call.
 async fn broadcaster_subscribe() -> broadcast::Receiver<ServiceEvent<CompositorService>> {
