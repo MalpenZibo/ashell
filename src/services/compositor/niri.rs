@@ -9,7 +9,7 @@ use niri_ipc::{
     Action, Event, Reply, Request, WorkspaceReferenceArg,
     state::{EventStreamState, EventStreamStatePart},
 };
-use std::{env, os::unix::net::UnixStream as StdUnixStream};
+use std::{collections::HashMap, env, os::unix::net::UnixStream as StdUnixStream};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::UnixStream,
@@ -162,7 +162,7 @@ async fn send_command_request(stream: &mut UnixStream, request: Request) -> Resu
 }
 
 fn map_state(niri: &EventStreamState) -> CompositorState {
-    let output_to_active_ws: std::collections::HashMap<_, _> = niri
+    let output_to_active_ws: HashMap<_, _> = niri
         .workspaces
         .workspaces
         .values()
@@ -183,15 +183,34 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
         .sorted_unstable()
         .collect::<Vec<_>>();
 
+    let collect_classes = super::should_collect_window_classes();
+
+    // Collect window classes per workspace (by visual index)
+    let mut workspace_classes: HashMap<i32, Vec<String>> = HashMap::new();
+    if collect_classes {
+        for win in niri.windows.windows.values() {
+            if let Some(ws_id) = win.workspace_id
+                && let Some(ws) = niri.workspaces.workspaces.get(&ws_id)
+                && let Some(app_id) = &win.app_id
+            {
+                workspace_classes
+                    .entry(ws.idx as i32)
+                    .or_default()
+                    .push(app_id.clone());
+            }
+        }
+    }
+
     let mut workspaces: Vec<CompositorWorkspace> = niri
         .workspaces
         .workspaces
         .values()
         .sorted_by_key(|w| w.idx)
         .map(|w| {
+            let idx = w.idx as i32;
             CompositorWorkspace {
                 id: w.id as i32,
-                index: w.idx as i32,
+                index: idx,
                 name: w.name.clone().unwrap_or_else(|| w.idx.to_string()),
                 monitor: w.output.clone().unwrap_or_default(),
                 // niri does not have an output index
@@ -203,6 +222,11 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
                 }),
                 windows: 0,
                 is_special: false,
+                window_classes: if collect_classes {
+                    workspace_classes.remove(&idx).unwrap_or_default()
+                } else {
+                    Vec::new()
+                },
             }
         })
         .collect();
