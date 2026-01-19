@@ -49,6 +49,8 @@ reboot_cmd = "systemctl reboot"
 logout_cmd = "loginctl kill-user $(whoami)"
 ```
 
+The `lock_cmd` parameter is optional. If not set, the lock button will not appear.
+
 With the `audio_sinks_more_cmd` and `audio_sources_more_cmd`  
 options you can set commands to open the audio settings  
 for sinks and sources, if not set the related buttons will not appear.
@@ -114,8 +116,8 @@ Available indicators are:
 # Customize which indicators to show and their order
 indicators = ["Battery", "Bluetooth", "Network", "Audio"]
 
-# The default value is the following, the items are shown in this order:
-indicators = ["IdleInhibitor", "PowerProfile", "Audio", "Bluetooth", "Network", "Vpn", "Battery"]
+# Default indicators (shown in this order):
+# ["IdleInhibitor", "PowerProfile", "Audio", "Bluetooth", "Network", "Vpn", "Battery"]
 ```
 
 ## Custom Buttons

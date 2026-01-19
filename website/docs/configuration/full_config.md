@@ -6,14 +6,14 @@ sidebar_position: 4
 
 ```toml
 log_level = "warn"
-outputs = { Targets = ["eDP-1"] }
+#outputs = { Targets = ["eDP-1"] }
 position = "Top"
 app_launcher_cmd = "walker"
 
 [modules]
 left = [ [ "appLauncher", "Updates", "Workspaces" ] ]
 center = [ "WindowTitle" ]
-right = [ "SystemInfo", [  "Tray", "Clock", "Privacy", "Settings" ] ]
+right = [ "SystemInfo", "MediaPlayer", [ "Tray", "Clock", "Privacy", "Settings" ] ]
 
 [updates]
 check_cmd = "checkupdates; paru -Qua"
@@ -29,6 +29,26 @@ command = "walker"
 
 [window_title]
 truncate_title_after_length = 100
+
+[system_info]
+indicators = [ "Cpu", "Memory", "Temperature" ]
+
+[system_info.cpu]
+warn_threshold = 60
+alert_threshold = 80
+
+[system_info.memory]
+warn_threshold = 70
+alert_threshold = 85
+
+[system_info.temperature]
+warn_threshold = 60
+alert_threshold = 80
+sensor = "acpitz temp1"
+
+[clock]
+format = "%H:%M"
+date_format = "%Y-%m-%d"
 
 [settings]
 lock_cmd = "playerctl --all-players pause; nixGL hyprlock &"
