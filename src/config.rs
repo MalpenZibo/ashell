@@ -185,16 +185,25 @@ impl Default for SystemInfoDisk {
     }
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct SystemInfoDiskIndicatorConfig {
+    #[serde(rename = "Disk")]
+    pub path: String,
+    #[serde(rename = "Name")]
+    pub name: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
 pub enum SystemInfoIndicator {
     Cpu,
     Memory,
     MemorySwap,
     Temperature,
-    Disk(String),
     IpAddress,
     DownloadSpeed,
     UploadSpeed,
+    #[serde(untagged)]
+    Disk(SystemInfoDiskIndicatorConfig),
 }
 
 #[derive(Deserialize, Clone, Debug)]
