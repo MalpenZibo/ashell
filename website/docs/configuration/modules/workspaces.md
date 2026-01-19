@@ -31,6 +31,20 @@ where `ashell` is displayed.
 If `ashell` is not displayed on a specific monitor the workspaces for that monitor
 will not be shown.
 
+## Grouping Workspaces by Monitor
+
+You can configure whether workspaces should be grouped by monitor using the `group_by_monitor` option.
+
+When enabled, workspaces are sorted by monitor first, then by their index within each monitor.
+This is particularly useful in multi-monitor setups where you want to keep workspaces from the same monitor together.
+
+By default, `group_by_monitor` is `false`, which means workspaces are displayed in their natural order.
+
+```toml
+[workspaces]
+group_by_monitor = true
+```
+
 ## Showing special workspaces
 
 If you would like to make the special workspaces invisible, set the `disable_special_workspaces` to `true`.
