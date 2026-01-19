@@ -35,13 +35,51 @@ static WIFI_LOCK_SIGNAL_ICONS: [StaticIcon; 5] = [
     StaticIcon::WifiLock5,
 ];
 
+fn get_connectivity_color(
+    connectivity: ConnectivityState,
+    indicator_state: IndicatorState,
+    theme: &Theme,
+) -> Option<iced::Color> {
+    match (connectivity, indicator_state) {
+        (ConnectivityState::Full, IndicatorState::Warning) => {
+            Some(theme.extended_palette().danger.weak.color)
+        }
+        (ConnectivityState::Full, _) => None,
+        // Be more forgiving - if we have an active connection but connectivity check fails,
+        // show normal color instead of red (unless signal is very weak)
+        (
+            ConnectivityState::Loss | ConnectivityState::Portal | ConnectivityState::Unknown,
+            IndicatorState::Warning,
+        ) => Some(theme.extended_palette().danger.weak.color),
+        (ConnectivityState::Loss | ConnectivityState::Portal | ConnectivityState::Unknown, _) => {
+            None
+        } // Show normal color instead of red
+        (ConnectivityState::None, _) => Some(theme.palette().danger), // No connectivity - show red
+    }
+}
+
+fn create_styled_icon<'a>(
+    icon_type: StaticIcon,
+    connectivity: ConnectivityState,
+    indicator_state: IndicatorState,
+) -> Element<'a, Message> {
+    container(icon(icon_type))
+        .style(move |theme: &Theme| container::Style {
+            text_color: get_connectivity_color(connectivity, indicator_state, theme),
+            ..Default::default()
+        })
+        .into()
+}
+
 impl ActiveConnectionInfo {
     pub fn get_wifi_icon(signal: u8) -> StaticIcon {
-        WIFI_SIGNAL_ICONS[1 + f32::round(signal as f32 / 100. * 4.) as usize]
+        let clamped_signal = signal.min(100);
+        WIFI_SIGNAL_ICONS[1 + f32::round(clamped_signal as f32 / 100. * 4.) as usize]
     }
 
     pub fn get_wifi_lock_icon(signal: u8) -> StaticIcon {
-        WIFI_LOCK_SIGNAL_ICONS[f32::round(signal as f32 / 100. * 4.) as usize]
+        let clamped_signal = signal.min(100);
+        WIFI_LOCK_SIGNAL_ICONS[f32::round(clamped_signal as f32 / 100. * 4.) as usize]
     }
 
     pub fn get_icon(&self) -> StaticIcon {
@@ -259,20 +297,9 @@ impl NetworkSettings {
                             || icon(StaticIcon::Wifi0).into(),
                             |a| {
                                 let icon_type = a.get_icon();
-                                let state = (service.connectivity, a.get_indicator_state());
+                                let indicator_state = a.get_indicator_state();
 
-                                container(icon(icon_type))
-                                    .style(move |theme: &Theme| container::Style {
-                                        text_color: match state {
-                                            (ConnectivityState::Full, IndicatorState::Warning) => {
-                                                Some(theme.extended_palette().danger.weak.color)
-                                            }
-                                            (ConnectivityState::Full, _) => None,
-                                            _ => Some(theme.palette().danger),
-                                        },
-                                        ..Default::default()
-                                    })
-                                    .into()
+                                create_styled_icon(icon_type, service.connectivity, indicator_state)
                             },
                         ),
                 )
@@ -319,7 +346,7 @@ impl NetworkSettings {
                         theme,
                         active_connection.map_or_else(|| StaticIcon::Wifi0, |(_, _, icon)| icon),
                         "Wi-Fi".to_string(),
-                        active_connection.map(|(name, _, _)| name.clone()),
+                        active_connection.map(|(name, _, _)| name.to_string()),
                         service.wifi_enabled,
                         Message::ToggleWiFi,
                         Some((SubMenu::Wifi, sub_menu, Message::ToggleWifiMenu))
@@ -333,7 +360,7 @@ impl NetworkSettings {
                                 id,
                                 theme,
                                 active_connection
-                                    .map(|(name, strengh, _)| (name.as_str(), *strengh)),
+                                    .map(|(name, strength, _)| (name.as_str(), *strength)),
                                 self.config.wifi_more_cmd.is_some(),
                             )
                         }),
@@ -356,25 +383,32 @@ impl NetworkSettings {
                 .iter()
                 .any(|c| matches!(c, KnownConnection::Vpn { .. }))
                 .then(|| {
-                    let mut known_vpn = service.known_connections.iter().filter_map(|c| match c {
-                        KnownConnection::Vpn(c) => Some(c),
-                        _ => None,
-                    });
-                    let actives = service
+                    // Create HashMap for O(1) lookup of known VPNs
+                    let known_vpn_map: std::collections::HashMap<&str, &Vpn> = service
+                        .known_connections
+                        .iter()
+                        .filter_map(|c| match c {
+                            KnownConnection::Vpn(vpn) => Some((vpn.name.as_str(), vpn)),
+                            _ => None,
+                        })
+                        .collect();
+
+                    // Find active VPNs using O(1) lookup
+                    let actives: Vec<&Vpn> = service
                         .active_connections
                         .iter()
                         .filter_map(|c| match c {
                             ActiveConnectionInfo::Vpn { name, .. } => {
-                                known_vpn.find(|v| v.name == *name)
+                                known_vpn_map.get(name.as_str()).copied()
                             }
                             _ => None,
                         })
-                        .collect::<Vec<_>>();
+                        .collect();
 
                     let subtitle = if actives.len() > 1 {
                         Some(format!("{} VPNs Connected", actives.len()))
                     } else {
-                        actives.first().map(|c| c.name.clone())
+                        actives.first().map(|c| c.name.to_string())
                     };
 
                     (
@@ -459,14 +493,16 @@ impl NetworkSettings {
             .align_y(Alignment::Center),
             horizontal_rule(1),
             container(scrollable(
-                Column::with_children(
-                    service.wireless_access_points
-                    .iter()
-                    .filter_map(|ac| if active_connection.is_some_and(|(ssid, _)| ssid == ac.ssid) {Some((ac, true))} else {None })
-                    .chain(service.wireless_access_points
+                Column::with_children({
+                    let (active_networks, inactive_networks): (Vec<_>, Vec<_>) = service
+                        .wireless_access_points
                         .iter()
-                        .filter_map(|ac| if active_connection.is_some_and(|(ssid, _)| ssid == ac.ssid) {None} else {Some((ac, false))})
-                    )
+                        .partition(|ac| active_connection.is_some_and(|(ssid, _)| ssid == ac.ssid));
+
+                    active_networks
+                        .into_iter()
+                        .map(|ac| (ac, true))
+                        .chain(inactive_networks.into_iter().map(|ac| (ac, false)))
                         .map(|(ac, is_active)| {
                             let is_known = service.known_connections.iter().any(|c| {
                                 matches!(
@@ -484,7 +520,7 @@ impl NetworkSettings {
                                             ActiveConnectionInfo::get_wifi_lock_icon(ac.strength)
                                         })
                                         .width(Length::Shrink),
-                                        text(ac.ssid.clone()).width(Length::Fill),
+                                        text(ac.ssid.as_str()).width(Length::Fill),
                                     )
                                     .align_y(Alignment::Center)
                                     .spacing(8),
@@ -506,7 +542,7 @@ impl NetworkSettings {
                                 Some(if is_known {
                                     Message::SelectAccessPoint(ac.clone())
                                 } else {
-                                    Message::RequestWiFiPassword(id, ac.ssid.clone())
+                                    Message::RequestWiFiPassword(id, ac.ssid.to_string())
                                 })
                             } else {
                                 None
@@ -514,8 +550,8 @@ impl NetworkSettings {
                             .width(Length::Fill)
                             .into()
                         })
-                        .collect::<Vec<Element<'a, Message>>>(),
-                )
+                        .collect::<Vec<Element<'a, Message>>>()
+                })
                 .spacing(theme.space.xxs)
             ))
             .max_height(200),
@@ -545,6 +581,16 @@ impl NetworkSettings {
         theme: &'a AshellTheme,
         show_more_button: bool,
     ) -> Element<'a, Message> {
+        // Create HashSet of active VPN names for O(1) lookup
+        let active_vpn_names: std::collections::HashSet<&str> = service
+            .active_connections
+            .iter()
+            .filter_map(|c| match c {
+                ActiveConnectionInfo::Vpn { name, .. } => Some(name.as_str()),
+                _ => None,
+            })
+            .collect();
+
         // Collect and sort the VPNs
         let mut vpns: Vec<_> = service
             .known_connections
@@ -555,16 +601,13 @@ impl NetworkSettings {
             })
             .collect();
 
-        // Sort alphabetically by name (case-insensitive)
-        vpns.sort_by_key(|vpn| vpn.name.to_lowercase());
+        vpns.sort_by_key(|a| a.name.clone());
 
-        // Map the sorted list to UI elements
         let vpn_list = Column::with_children(
             vpns.into_iter()
                 .map(|vpn| {
-                    let is_active = service.active_connections.iter().any(
-                        |c| matches!(c, ActiveConnectionInfo::Vpn { name, .. } if name == &vpn.name),
-                    );
+                    // O(1) lookup instead of O(n) .any() call
+                    let is_active = active_vpn_names.contains(vpn.name.as_str());
 
                     row!(
                         text(vpn.name.to_string()).width(Length::Fill),
@@ -577,12 +620,7 @@ impl NetworkSettings {
                 .collect::<Vec<Element<'a, Message>>>(),
         )
         .spacing(theme.space.xs)
-        .padding([
-            0,
-            theme.space.md,
-            0,
-            theme.space.xs,
-        ]);
+        .padding([0, theme.space.md, 0, theme.space.xs]);
 
         let main = container(scrollable(vpn_list))
             .height(Length::Shrink)
