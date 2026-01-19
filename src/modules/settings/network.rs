@@ -546,7 +546,8 @@ impl NetworkSettings {
         show_more_button: bool,
     ) -> Element<'a, Message> {
         // Collect and sort the VPNs
-        let mut vpns: Vec<_> = service.known_connections
+        let mut vpns: Vec<_> = service
+            .known_connections
             .iter()
             .filter_map(|c| match c {
                 KnownConnection::Vpn(vpn) => Some(vpn),
@@ -583,8 +584,7 @@ impl NetworkSettings {
             theme.space.xs,
         ]);
 
-        let main = container(
-            scrollable(vpn_list))
+        let main = container(scrollable(vpn_list))
             .height(Length::Shrink)
             .max_height(300);
 
