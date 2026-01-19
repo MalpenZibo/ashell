@@ -398,7 +398,6 @@ dependencies = [
  "toml",
  "udev",
  "uuid",
- "walkdir",
  "wayland-client",
  "wayland-protocols",
  "zbus 5.12.0",

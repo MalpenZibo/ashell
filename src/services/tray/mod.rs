@@ -18,8 +18,13 @@ use iced::{
 use linicon_theme::get_icon_theme;
 use log::{debug, error, info, trace};
 use once_cell::sync::Lazy;
-use std::{any::TypeId, collections::BTreeSet, env, ops::Deref, path::PathBuf};
-use walkdir::WalkDir;
+use std::{
+    any::TypeId,
+    collections::BTreeSet,
+    env, fs,
+    ops::Deref,
+    path::{Path, PathBuf},
+};
 
 pub mod dbus;
 
@@ -149,18 +154,27 @@ fn load_system_icon_names() -> BTreeSet<String> {
             continue;
         }
 
-        for entry in WalkDir::new(dir).into_iter().filter_map(Result::ok) {
-            if !entry.file_type().is_file() {
-                continue;
-            }
-
-            if let Some(stem) = entry.path().file_stem().and_then(|s| s.to_str()) {
-                names.insert(stem.to_string());
-            }
-        }
+        collect_icon_names_recursive(&dir, &mut names);
     }
 
     names
+}
+
+fn collect_icon_names_recursive(dir: &Path, names: &mut BTreeSet<String>) {
+    if let Ok(entries) = fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if let Ok(file_type) = entry.file_type() {
+                if file_type.is_dir() {
+                    collect_icon_names_recursive(&path, names);
+                } else if file_type.is_file()
+                    && let Some(stem) = path.file_stem().and_then(|s| s.to_str())
+                {
+                    names.insert(stem.to_string());
+                }
+            }
+        }
+    }
 }
 
 fn icon_directories() -> Vec<PathBuf> {
