@@ -77,9 +77,11 @@ pub struct StatusNotifierItem {
 
 impl StatusNotifierItem {
     pub async fn new(conn: &zbus::Connection, name: String) -> anyhow::Result<Self> {
-        let (dest, path) = name
-            .split_once('/')
-            .unwrap_or((name.as_ref(), "/StatusNotifierItem"));
+        let (dest, path) = if let Some(idx) = name.find('/') {
+            (&name[..idx], &name[idx..])
+        } else {
+            (name.as_ref(), "/StatusNotifierItem")
+        };
 
         let item_proxy = StatusNotifierItemProxy::builder(conn)
             .destination(dest.to_owned())?
