@@ -249,10 +249,12 @@ pub enum SettingsIndicator {
 }
 
 #[derive(Deserialize, Copy, Clone, Default, PartialEq, Eq, Debug)]
-pub enum BatteryFormat {
+pub enum SettingsFormat {
     Icon,
+    #[serde(alias = "Value")]
     Percentage,
     #[default]
+    #[serde(alias = "IconAndValue")]
     IconAndPercentage,
 }
 
@@ -272,9 +274,12 @@ pub struct SettingsModuleConfig {
     pub hibernate_cmd: String,
     pub reboot_cmd: String,
     pub logout_cmd: String,
-    pub battery_format: BatteryFormat,
+    pub battery_format: SettingsFormat,
     pub peripheral_indicators: PeripheralIndicators,
-    pub peripheral_battery_format: BatteryFormat,
+    pub peripheral_battery_format: SettingsFormat,
+    pub audio_indicator_format: SettingsFormat,
+    pub network_indicator_format: SettingsFormat,
+    pub bluetooth_indicator_format: SettingsFormat,
     pub audio_sinks_more_cmd: Option<String>,
     pub audio_sources_more_cmd: Option<String>,
     pub wifi_more_cmd: Option<String>,
@@ -296,9 +301,12 @@ impl Default for SettingsModuleConfig {
             hibernate_cmd: "systemctl hibernate".to_string(),
             reboot_cmd: "systemctl reboot".to_string(),
             logout_cmd: "loginctl kill-user $(whoami)".to_string(),
-            battery_format: Default::default(),
+            battery_format: SettingsFormat::IconAndPercentage,
             peripheral_indicators: Default::default(),
-            peripheral_battery_format: BatteryFormat::Icon,
+            peripheral_battery_format: SettingsFormat::Icon,
+            audio_indicator_format: SettingsFormat::Icon,
+            network_indicator_format: SettingsFormat::Icon,
+            bluetooth_indicator_format: SettingsFormat::Icon,
             audio_sinks_more_cmd: Default::default(),
             audio_sources_more_cmd: Default::default(),
             wifi_more_cmd: Default::default(),

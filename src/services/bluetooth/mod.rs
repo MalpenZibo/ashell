@@ -2,12 +2,7 @@ use super::{ReadOnlyService, Service, ServiceEvent};
 use dbus::{BatteryProxy, BluetoothDbus};
 use iced::{
     Subscription, Task,
-    futures::{
-        SinkExt, Stream, StreamExt,
-        channel::mpsc::Sender,
-        stream::{pending, select_all},
-        stream_select,
-    },
+    futures::{SinkExt, Stream, StreamExt, channel::mpsc::Sender, stream::pending, stream_select},
     stream::channel,
 };
 use inotify::{Inotify, WatchMask};
@@ -127,14 +122,27 @@ impl BluetoothService {
                     batteries.push(battery.receive_percentage_changed().await.map(|_| {}));
                 }
 
-                stream_select!(
+                // Add a periodic timer to refresh device data (every 5 seconds)
+                let refresh_timer = iced::futures::stream::unfold((), |state| async move {
+                    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                    Some((state, ()))
+                })
+                .boxed();
+
+                let battery_events = if batteries.is_empty() {
+                    iced::futures::stream::pending().boxed()
+                } else {
+                    iced::futures::stream::select_all(batteries).boxed()
+                };
+
+                Box::pin(stream_select!(
                     interface_changed,
                     powered,
                     discovering,
                     rfkill,
-                    select_all(batteries)
-                )
-                .boxed()
+                    battery_events,
+                    refresh_timer
+                ))
             }
             _ => interface_changed,
         };
