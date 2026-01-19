@@ -30,7 +30,10 @@ const CUSTOM_FONT: &[u8] = include_bytes!("../assets/AshellCustomIcon-Regular.ot
 const HEIGHT: f64 = 34.;
 
 #[derive(Parser, Debug)]
-#[command(version, about, long_about = None)]
+#[command(
+    version = concat!(env!("CARGO_PKG_VERSION"), " (", env!("GIT_HASH"), ")"),
+    about = env!("CARGO_PKG_DESCRIPTION")
+)]
 struct Args {
     #[arg(short, long, value_parser = clap::value_parser!(PathBuf))]
     config_path: Option<PathBuf>,
