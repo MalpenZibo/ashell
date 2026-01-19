@@ -601,10 +601,8 @@ impl NetworkSettings {
             })
             .collect();
 
-        // Sort naturally using natord crate
-        vpns.sort_by(|a, b| natord::compare(&a.name, &b.name));
+        vpns.sort_by_key(|a| a.name.clone());
 
-        // Map the sorted list to UI elements
         let vpn_list = Column::with_children(
             vpns.into_iter()
                 .map(|vpn| {
