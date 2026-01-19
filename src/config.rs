@@ -81,6 +81,7 @@ pub enum WorkspaceVisibilityMode {
 #[serde(default)]
 pub struct WorkspacesModuleConfig {
     pub visibility_mode: WorkspaceVisibilityMode,
+    pub group_by_monitor: bool,
     pub enable_workspace_filling: bool,
     pub disable_special_workspaces: bool,
     pub max_workspaces: Option<u32>,

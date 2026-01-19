@@ -20,13 +20,13 @@ pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
     let mut stream = connect().await?;
 
     let action = match cmd {
-        CompositorCommand::FocusWorkspace(id) => match u8::try_from(id) {
-            Ok(idx) => Action::FocusWorkspace {
-                reference: WorkspaceReferenceArg::Index(idx),
+        CompositorCommand::FocusWorkspace(id) => match u64::try_from(id) {
+            Ok(id) => Action::FocusWorkspace {
+                reference: WorkspaceReferenceArg::Id(id),
             },
             Err(_) => {
                 return Err(anyhow!(
-                    "Invalid workspace index for Niri: {} (must be in 0..=255, as Niri only supports u8 workspace indices)",
+                    "Workspace ID {} is out of range for Niri backend",
                     id
                 ));
             }
@@ -168,7 +168,7 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
             if let Some(out) = &ws.output
                 && ws.is_active
             {
-                Some((out.clone(), ws.idx as i32))
+                Some((out.clone(), ws.id as i32))
             } else {
                 None
             }
@@ -185,9 +185,10 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
         .workspaces
         .workspaces
         .values()
+        .sorted_by_key(|w| w.idx)
         .map(|w| {
             CompositorWorkspace {
-                id: w.idx as i32, // Visual index as ID
+                id: w.id as i32,
                 name: w.name.clone().unwrap_or_else(|| w.idx.to_string()),
                 monitor: w.output.clone().unwrap_or_default(),
                 // niri does not have an output index
@@ -208,14 +209,12 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
         if let Some(ws_id) = win.workspace_id {
             // Resolve Niri Workspace ID (u64) -> Visual Index (u8) -> Generic ID (i32)
             if let Some(ws) = niri.workspaces.workspaces.get(&ws_id)
-                && let Some(generic_ws) = workspaces.iter_mut().find(|w| w.id == ws.idx as i32)
+                && let Some(generic_ws) = workspaces.iter_mut().find(|w| w.id == ws.id as i32)
             {
                 generic_ws.windows += 1;
             }
         }
     }
-
-    workspaces.sort_by_key(|w| w.id);
 
     let mut monitors = Vec::new();
     for (name, active_ws_id) in &output_to_active_ws {
@@ -235,7 +234,7 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
         .workspaces
         .values()
         .find(|w| w.is_focused)
-        .map(|w| w.idx as i32);
+        .map(|w| w.id as i32);
 
     let active_window = niri
         .windows
