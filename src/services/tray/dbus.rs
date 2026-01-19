@@ -1,5 +1,6 @@
 use iced::futures::StreamExt;
 use log::{info, warn};
+use std::time::Duration;
 use zbus::{
     Connection, Result,
     fdo::{DBusProxy, RequestNameFlags, RequestNameReply},
@@ -23,17 +24,15 @@ pub struct StatusNotifierWatcher {
 impl StatusNotifierWatcher {
     pub async fn start_server() -> anyhow::Result<Connection> {
         let connection = zbus::connection::Connection::session().await?;
-        connection
-            .object_server()
-            .at(OBJECT_PATH, StatusNotifierWatcher::default())
-            .await?;
+        let watcher = StatusNotifierWatcher::default();
+        connection.object_server().at(OBJECT_PATH, watcher).await?;
         let interface = connection
             .object_server()
             .interface::<_, StatusNotifierWatcher>(OBJECT_PATH)
             .await?;
 
         let dbus_proxy = DBusProxy::new(&connection).await?;
-        let mut name_owner_changed_stream = dbus_proxy.receive_name_owner_changed().await?;
+        let name_owner_changed_stream = dbus_proxy.receive_name_owner_changed().await?;
 
         let flags = RequestNameFlags::AllowReplacement.into();
         if dbus_proxy.request_name(NAME, flags).await? == RequestNameReply::InQueue {
@@ -41,45 +40,123 @@ impl StatusNotifierWatcher {
         }
 
         let internal_connection = connection.clone();
+        let internal_interface = interface.clone();
         tokio::spawn(async move {
             let mut have_bus_name = false;
             let unique_name = internal_connection.unique_name().map(|x| x.as_ref());
-            while let Some(evt) = name_owner_changed_stream.next().await {
-                let args = match evt.args() {
-                    Ok(args) => args,
-                    Err(_) => {
-                        continue;
+
+            let mut name_owner_changed_stream = name_owner_changed_stream.fuse();
+            let mut interval = tokio::time::interval(Duration::from_secs(30));
+
+            loop {
+                tokio::select! {
+                    Some(evt) = name_owner_changed_stream.next() => {
+                        let args = match evt.args() {
+                            Ok(args) => args,
+                            Err(_) => continue,
+                        };
+                        if args.name.as_ref() == NAME {
+                            if args.new_owner.as_ref() == unique_name.as_ref() {
+                                info!("Acquired bus name: {NAME}");
+                                have_bus_name = true;
+                            } else if have_bus_name {
+                                info!("Lost bus name: {NAME}");
+                                have_bus_name = false;
+                            }
+                        } else if let BusName::Unique(name) = &args.name {
+                            let mut interface = internal_interface.get_mut().await;
+                            if let Some(idx) = interface
+                                .items
+                                .iter()
+                                .position(|(unique_name, _)| unique_name == name)
+                            {
+                                let emitter =
+                                    SignalEmitter::new(&internal_connection, OBJECT_PATH).unwrap();
+                                let service = interface.items.remove(idx).1;
+                                StatusNotifierWatcher::status_notifier_item_unregistered(
+                                    &emitter, &service,
+                                )
+                                .await
+                                .unwrap();
+                            }
+                        }
                     }
-                };
-                if args.name.as_ref() == NAME {
-                    if args.new_owner.as_ref() == unique_name.as_ref() {
-                        info!("Acquired bus name: {NAME}");
-                        have_bus_name = true;
-                    } else if have_bus_name {
-                        info!("Lost bus name: {NAME}");
-                        have_bus_name = false;
-                    }
-                } else if let BusName::Unique(name) = &args.name {
-                    let mut interface = interface.get_mut().await;
-                    if let Some(idx) = interface
-                        .items
-                        .iter()
-                        .position(|(unique_name, _)| unique_name == name)
-                    {
-                        let emitter =
-                            SignalEmitter::new(&internal_connection, OBJECT_PATH).unwrap();
-                        let service = interface.items.remove(idx).1;
-                        StatusNotifierWatcher::status_notifier_item_unregistered(
-                            &emitter, &service,
-                        )
-                        .await
-                        .unwrap();
+                    _ = interval.tick() => {
+                        if let Err(e) = Self::discover_items(&internal_connection, &internal_interface).await {
+                            info!("Failed to discover tray items: {e}");
+                        }
                     }
                 }
             }
         });
 
+        // Initial discovery
+        if let Err(e) = Self::discover_items(&connection, &interface).await {
+            info!("Failed initial tray item discovery: {e}");
+        }
+
         Ok(connection)
+    }
+
+    async fn discover_items(
+        conn: &Connection,
+        interface: &zbus::object_server::InterfaceRef<StatusNotifierWatcher>,
+    ) -> anyhow::Result<()> {
+        let dbus_proxy = DBusProxy::new(conn).await?;
+        let names = dbus_proxy.list_names().await?;
+
+        for name in names {
+            let name_str = name.as_str();
+            if name_str.starts_with(':')
+                || name_str == NAME.as_str()
+                || name_str == "org.freedesktop.DBus"
+            {
+                continue;
+            }
+
+            if name_str.contains("StatusNotifierItem") {
+                let sender = match dbus_proxy.get_name_owner(BusName::from(name.clone())).await {
+                    Ok(owner) => owner,
+                    Err(_) => continue,
+                };
+
+                let mut watcher = interface.get_mut().await;
+                let emitter = SignalEmitter::new(conn, OBJECT_PATH).unwrap();
+                watcher
+                    .register_status_notifier_item_manual(
+                        "/StatusNotifierItem",
+                        sender.into_inner(),
+                        &emitter,
+                    )
+                    .await;
+            }
+        }
+        Ok(())
+    }
+}
+
+impl StatusNotifierWatcher {
+    async fn register_status_notifier_item_manual(
+        &mut self,
+        service: &str,
+        sender: UniqueName<'static>,
+        emitter: &SignalEmitter<'_>,
+    ) {
+        let service = if service.starts_with('/') {
+            format!("{sender}{service}")
+        } else {
+            service.to_string()
+        };
+
+        if self.items.iter().any(|(_, s)| s == &service) {
+            return;
+        }
+
+        Self::status_notifier_item_registered(emitter, &service)
+            .await
+            .unwrap();
+
+        self.items.push((sender, service));
     }
 }
 
@@ -98,17 +175,9 @@ impl StatusNotifierWatcher {
         #[zbus(header)] header: Header<'_>,
         #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
     ) {
-        let sender = header.sender().unwrap();
-        let service = if service.starts_with('/') {
-            format!("{sender}{service}")
-        } else {
-            service.to_string()
-        };
-        Self::status_notifier_item_registered(&emitter, &service)
-            .await
-            .unwrap();
-
-        self.items.push((sender.to_owned(), service));
+        let sender = header.sender().unwrap().to_owned();
+        self.register_status_notifier_item_manual(service, sender, &emitter)
+            .await;
     }
 
     fn register_status_notifier_host(&mut self, _service: &str) {}
