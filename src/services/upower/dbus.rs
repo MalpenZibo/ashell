@@ -19,34 +19,51 @@ impl<'a> Deref for UPowerDbus<'a> {
 pub struct SystemBattery(Vec<DeviceProxy<'static>>);
 
 impl SystemBattery {
-    pub async fn state(&self) -> i32 {
+    pub async fn state(&self) -> DeviceState {
         let mut charging = false;
         let mut discharging = false;
+        let mut fully_charged_count = 0;
+        let mut total_devices = 0;
 
         for device in &self.0 {
-            if let Ok(state) = device.state().await {
+            // Skip batteries with zero capacity (non-functional/placeholder batteries)
+            if let Ok(energy_full) = device.energy_full().await
+                && energy_full == 0.0
+            {
+                continue;
+            }
+
+            if let Ok(state_raw) = device.state().await
+                && let Ok(state) = DeviceState::try_from(state_raw)
+            {
+                total_devices += 1;
                 match state {
-                    1 => {
-                        charging = true;
-                    }
-                    2 => {
-                        discharging = true;
-                    }
+                    DeviceState::Charging => charging = true,
+                    DeviceState::Discharging => discharging = true,
+                    DeviceState::FullyCharged => fully_charged_count += 1,
                     _ => {}
                 }
             }
         }
 
-        if charging {
-            1
+        // If no real batteries found, return Unknown
+        if total_devices == 0 {
+            return DeviceState::Unknown;
+        }
+
+        // Only report FullyCharged if ALL real batteries are fully charged
+        if fully_charged_count == total_devices {
+            DeviceState::FullyCharged
+        } else if charging {
+            DeviceState::Charging
         } else if discharging {
-            2
+            DeviceState::Discharging
         } else {
-            4
+            DeviceState::Unknown
         }
     }
 
-    pub async fn percentage(&self) -> f64 {
+    pub async fn percentage(&self) -> anyhow::Result<f64> {
         let mut energy = 0.0;
         let mut energy_full = 0.0;
 
@@ -55,7 +72,11 @@ impl SystemBattery {
             energy_full += device.energy_full().await.unwrap_or(0.0);
         }
 
-        energy / energy_full * 100.0
+        if energy_full == 0.0 {
+            anyhow::bail!("No battery capacity data available");
+        }
+
+        Ok(energy / energy_full * 100.0)
     }
 
     pub async fn time_to_empty(&self) -> i64 {
@@ -87,6 +108,41 @@ impl SystemBattery {
             .into_iter()
             .map(|device| device.inner().path().to_owned())
             .collect()
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(u32)]
+pub enum DeviceState {
+    #[default]
+    Unknown = 0,
+    Charging = 1,
+    Discharging = 2,
+    Empty = 3,
+    FullyCharged = 4,
+    PendingCharge = 5,
+    PendingDischarge = 6,
+}
+
+impl TryFrom<u32> for DeviceState {
+    type Error = ();
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Self::Unknown),
+            1 => Ok(Self::Charging),
+            2 => Ok(Self::Discharging),
+            3 => Ok(Self::Empty),
+            4 => Ok(Self::FullyCharged),
+            5 => Ok(Self::PendingCharge),
+            6 => Ok(Self::PendingDischarge),
+            _ => Err(()),
+        }
+    }
+}
+
+impl From<DeviceState> for u32 {
+    fn from(state: DeviceState) -> Self {
+        state as u32
     }
 }
 

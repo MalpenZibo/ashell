@@ -20,6 +20,48 @@ use zbus::zvariant::ObjectPath;
 
 mod dbus;
 
+const KEYBOARD_BATTERY_ICONS: [StaticIcon; 5] = [
+    StaticIcon::KeyboardBatteryCharging,
+    StaticIcon::KeyboardBatteryFull,
+    StaticIcon::KeyboardBatteryMedium,
+    StaticIcon::KeyboardBatteryLow,
+    StaticIcon::KeyboardBatteryAlert,
+];
+
+const MOUSE_BATTERY_ICONS: [StaticIcon; 5] = [
+    StaticIcon::MouseBatteryCharging,
+    StaticIcon::MouseBatteryFull,
+    StaticIcon::MouseBatteryMedium,
+    StaticIcon::MouseBatteryLow,
+    StaticIcon::MouseBatteryAlert,
+];
+
+const HEADPHONE_BATTERY_ICONS: [StaticIcon; 5] = [
+    StaticIcon::HeadphoneBatteryCharging,
+    StaticIcon::HeadphoneBatteryFull,
+    StaticIcon::HeadphoneBatteryMedium,
+    StaticIcon::HeadphoneBatteryLow,
+    StaticIcon::HeadphoneBatteryAlert,
+];
+
+const GAMEPAD_BATTERY_ICONS: [StaticIcon; 5] = [
+    StaticIcon::GamepadBatteryCharging,
+    StaticIcon::GamepadBatteryFull,
+    StaticIcon::GamepadBatteryMedium,
+    StaticIcon::GamepadBatteryLow,
+    StaticIcon::GamepadBatteryAlert,
+];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(usize)]
+enum BatLevel {
+    Charging = 0,
+    Full = 1,
+    Medium = 2,
+    Low = 3,
+    Alert = 4,
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct BatteryData {
     pub capacity: i64,
@@ -78,60 +120,8 @@ pub struct Peripheral {
 
 impl Peripheral {
     pub fn get_icon_state(&self) -> StaticIcon {
-        enum BatLevel {
-            Charging,
-            Full,
-            Medium,
-            Low,
-            Alert,
-        }
-
-        let get_type_icon = |bat_level: BatLevel| -> StaticIcon {
-            match (self.kind, bat_level) {
-                (PeripheralDeviceKind::Keyboard, BatLevel::Charging) => {
-                    StaticIcon::KeyboardBatteryCharging
-                }
-                (PeripheralDeviceKind::Keyboard, BatLevel::Full) => StaticIcon::KeyboardBatteryFull,
-                (PeripheralDeviceKind::Keyboard, BatLevel::Medium) => {
-                    StaticIcon::KeyboardBatteryMedium
-                }
-                (PeripheralDeviceKind::Keyboard, BatLevel::Low) => StaticIcon::KeyboardBatteryLow,
-                (PeripheralDeviceKind::Keyboard, BatLevel::Alert) => {
-                    StaticIcon::KeyboardBatteryAlert
-                }
-                (PeripheralDeviceKind::Mouse, BatLevel::Charging) => {
-                    StaticIcon::MouseBatteryCharging
-                }
-                (PeripheralDeviceKind::Mouse, BatLevel::Full) => StaticIcon::MouseBatteryFull,
-                (PeripheralDeviceKind::Mouse, BatLevel::Medium) => StaticIcon::MouseBatteryMedium,
-                (PeripheralDeviceKind::Mouse, BatLevel::Low) => StaticIcon::MouseBatteryLow,
-                (PeripheralDeviceKind::Mouse, BatLevel::Alert) => StaticIcon::MouseBatteryAlert,
-                (PeripheralDeviceKind::Headphones, BatLevel::Charging) => {
-                    StaticIcon::HeadphoneBatteryCharging
-                }
-                (PeripheralDeviceKind::Headphones, BatLevel::Full) => {
-                    StaticIcon::HeadphoneBatteryFull
-                }
-                (PeripheralDeviceKind::Headphones, BatLevel::Medium) => {
-                    StaticIcon::HeadphoneBatteryMedium
-                }
-                (PeripheralDeviceKind::Headphones, BatLevel::Low) => {
-                    StaticIcon::HeadphoneBatteryLow
-                }
-                (PeripheralDeviceKind::Headphones, BatLevel::Alert) => {
-                    StaticIcon::HeadphoneBatteryAlert
-                }
-                (PeripheralDeviceKind::Gamepad, BatLevel::Charging) => {
-                    StaticIcon::GamepadBatteryCharging
-                }
-                (PeripheralDeviceKind::Gamepad, BatLevel::Full) => StaticIcon::GamepadBatteryFull,
-                (PeripheralDeviceKind::Gamepad, BatLevel::Medium) => {
-                    StaticIcon::GamepadBatteryMedium
-                }
-                (PeripheralDeviceKind::Gamepad, BatLevel::Low) => StaticIcon::GamepadBatteryLow,
-                (PeripheralDeviceKind::Gamepad, BatLevel::Alert) => StaticIcon::GamepadBatteryAlert,
-            }
-        };
+        let get_type_icon =
+            |bat_level: BatLevel| -> StaticIcon { self.kind.get_battery_icon(bat_level) };
 
         match self.data {
             BatteryData {
@@ -189,6 +179,16 @@ impl PeripheralDeviceKind {
             PeripheralDeviceKind::Headphones => StaticIcon::Headphones1,
             PeripheralDeviceKind::Gamepad => StaticIcon::Gamepad,
         }
+    }
+
+    fn get_battery_icon(&self, level: BatLevel) -> StaticIcon {
+        let icons = match self {
+            PeripheralDeviceKind::Keyboard => &KEYBOARD_BATTERY_ICONS,
+            PeripheralDeviceKind::Mouse => &MOUSE_BATTERY_ICONS,
+            PeripheralDeviceKind::Headphones => &HEADPHONE_BATTERY_ICONS,
+            PeripheralDeviceKind::Gamepad => &GAMEPAD_BATTERY_ICONS,
+        };
+        icons[level as usize]
     }
 }
 
@@ -353,16 +353,22 @@ impl UPowerService {
             Some(battery) => {
                 let state = battery.state().await;
                 let state = match state {
-                    1 => BatteryStatus::Charging(Duration::from_secs(
+                    dbus::DeviceState::Charging => BatteryStatus::Charging(Duration::from_secs(
                         battery.time_to_full().await as u64,
                     )),
-                    2 => BatteryStatus::Discharging(Duration::from_secs(
-                        battery.time_to_empty().await as u64,
-                    )),
-                    4 => BatteryStatus::Full,
+                    dbus::DeviceState::Discharging => BatteryStatus::Discharging(
+                        Duration::from_secs(battery.time_to_empty().await as u64),
+                    ),
+                    dbus::DeviceState::FullyCharged => BatteryStatus::Full,
                     _ => BatteryStatus::Discharging(Duration::from_secs(0)),
                 };
-                let percentage = battery.percentage().await as i64;
+                let percentage = match battery.percentage().await {
+                    Ok(pct) => pct as i64,
+                    Err(_) => {
+                        // If we can't get percentage data, don't show battery at all
+                        return Ok(None);
+                    }
+                };
 
                 Ok(Some((
                     BatteryData {
