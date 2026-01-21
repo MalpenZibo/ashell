@@ -34,7 +34,7 @@ To define a custom module, use the following fields:
 - `icon`: Icon displayed in the status bar (for `button` type).
 - `command`: Command to execute when the module is clicked (for `button` type).
 - `listen_cmd` _(optional)_: Command to run in the background to update the module’s display.
-- `icons` _(optional)_: Regex-to-icon mapping to change the icon based on the `listen_cmd` output (for `button` type).
+- `icons` _(optional)_: Regex-to-icon mapping to change the icon based on the `listen_cmd` output (for `button` type`). The first matching regex wins; since the mappings are stored as a map, the evaluation order is not guaranteed. Prefer mutually exclusive regexes or keep patterns precise to avoid ambiguous matches.
 - `alert` _(optional)_: Regex to trigger a red alert dot on the icon when
   matched in the `listen_cmd` output (for `button` type).
 

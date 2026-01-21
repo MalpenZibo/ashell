@@ -48,25 +48,25 @@ pub enum Message {
 struct AlertIndicator;
 
 impl<Message> Program<Message> for AlertIndicator {
-    type State = ();
+    type State = Cache;
 
     fn draw(
         &self,
-        _state: &Self::State,
+        cache: &Self::State,
         renderer: &iced::Renderer,
         theme: &Theme,
         bounds: iced::Rectangle,
         _cursor: Cursor,
     ) -> Vec<Geometry> {
-        let cache = Cache::new(); // Use a local cache for simplicity here
-
-        vec![cache.draw(renderer, bounds.size(), |frame| {
+        let geometry = cache.draw(renderer, bounds.size(), |frame| {
             let center = frame.center();
             // Use a smaller radius so the circle doesn't touch the canvas edges
             let radius = 2.0; // Creates a 4px diameter circle
             let circle = Path::circle(center, radius);
             frame.fill(&circle, theme.palette().danger);
-        })]
+        });
+
+        vec![geometry]
     }
 }
 
@@ -205,11 +205,19 @@ impl Custom {
 
                                 while let Some(line) = reader.next_line().await.ok().flatten() {
                                     match serde_json::from_str(&line) {
-                                        Ok(event) => output
-                                            .try_send((name.clone(), Message::Update(event)))
-                                            .unwrap(),
+                                        Ok(event) => {
+                                            if let Err(e) = output
+                                                .try_send((name.clone(), Message::Update(event)))
+                                            {
+                                                error!(
+                                                    "Failed to send update for custom module '{name}': {e}"
+                                                );
+                                            }
+                                        }
                                         Err(e) => {
-                                            error!("Failed to parse JSON: {e} for line {line}");
+                                            error!(
+                                                "Failed to parse JSON for custom module '{name}': {e} (payload: {line})"
+                                            );
                                         }
                                     }
                                 }
