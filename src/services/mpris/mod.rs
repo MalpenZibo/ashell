@@ -138,10 +138,6 @@ impl ReadOnlyService for MprisPlayerService {
                 self.data = data;
             }
             Event::CoverFetched(url, bytes) => {
-                debug!(
-                    "Updating MPRIS player cover for {url}, {} bytes",
-                    bytes.len()
-                );
                 self.covers.insert(url, bytes);
             }
         }
@@ -387,36 +383,31 @@ impl MprisPlayerService {
 
                                     Self::check_cover_update(&data, &fetched_covers, &mut in_flight, &mut pending_downloads);
 
-                                    let s = output.send(ServiceEvent::Update(Event::MetadataChanged(data))).await;
-                                    debug!("tx: MetadataUpdate: {:?}", s);
+                                    let _ = output.send(ServiceEvent::Update(Event::MetadataChanged(data))).await;
                                 }
                                 Err(err) => {
                                     error!("Failed to fetch MPRIS player data: {err}");
                                 }
                             }
                         }
-                        result = pending_downloads.next().fuse() => {
+                        result = pending_downloads.select_next_some() => {
                             match result {
-                                Some(Err(_)) => {
+                                Err(_) => {
                                     // Aborted fetch, ignore
-                                    continue;
                                 }
-                                Some(Ok((url, res))) => {
-                                    in_flight.remove(&url);
+                                Ok((url, res)) => {
+                                    in_flight.remove::<String>(&url);
 
                                     match res {
                                         Ok(bytes) => {
-                                            debug!("Fetched cover art from {url}");
                                             fetched_covers.insert(url.clone());
-                                            let s = output.send(ServiceEvent::Update(Event::CoverFetched(url.clone(), bytes.clone()))).await;
-                                            debug!("tx: CoverFetched({}): {:?}", url, s);
+                                            let _ = output.send(ServiceEvent::Update(Event::CoverFetched(url.clone(), bytes))).await;
                                         }
                                         Err(err) => {
                                             error!("Failed to fetch cover art from {url}: {err}");
                                         }
                                     }
                                 }
-                                None => ()
                             }
                         }
                     }

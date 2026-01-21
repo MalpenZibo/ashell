@@ -60,14 +60,6 @@ impl MediaPlayer {
                     Action::None
                 }
                 ServiceEvent::Update(d) => {
-                    match d {
-                        crate::services::mpris::Event::MetadataChanged(_) => {
-                            log::debug!("rx: MetadataChanged");
-                        }
-                        crate::services::mpris::Event::CoverFetched(ref url, _) => {
-                            log::debug!("rx: CoverFetched({}, _)", url);
-                        }
-                    }
                     if let Some(service) = self.service.as_mut() {
                         service.update(d);
                     }
@@ -247,24 +239,6 @@ impl MediaPlayer {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        MprisPlayerService::subscribe()
-            .map(Message::Event)
-            .map(|e| {
-                match e {
-                    Message::Event(ref e) => match e {
-                        ServiceEvent::Update(e) => match e {
-                            crate::services::mpris::Event::MetadataChanged(_) => {
-                                log::debug!("sub: MetadataChanged")
-                            }
-                            crate::services::mpris::Event::CoverFetched(url, _) => {
-                                log::debug!("sub: CoverFetched({url}, _)")
-                            }
-                        },
-                        _ => (),
-                    },
-                    _ => (),
-                };
-                e
-            })
+        MprisPlayerService::subscribe().map(Message::Event)
     }
 }
