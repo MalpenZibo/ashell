@@ -59,6 +59,7 @@ async fn main() -> iced::Result {
             .default(log::LevelFilter::Info)
             .build(),
     )
+    .format(flexi_logger::colored_detailed_format)
     .log_to_file(FileSpec::default().directory("/tmp/ashell"))
     .duplicate_to_stdout(flexi_logger::Duplicate::All)
     .rotate(

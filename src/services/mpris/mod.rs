@@ -8,7 +8,7 @@ use iced::{
         channel::mpsc::Sender,
         future::{BoxFuture, join_all},
         select,
-        stream::{AbortHandle, FuturesUnordered, SelectAll, pending},
+        stream::{AbortHandle, Abortable, Aborted, FuturesUnordered, SelectAll, pending},
     },
     stream::channel,
 };
@@ -103,7 +103,7 @@ impl From<HashMap<String, OwnedValue>> for MprisPlayerMetadata {
 pub struct MprisPlayerService {
     data: Vec<MprisPlayerData>,
     conn: zbus::Connection,
-    covers: HashMap<String, Bytes>,
+    pub covers: HashMap<String, Bytes>,
 }
 
 impl MprisPlayerService {
@@ -142,6 +142,7 @@ impl ReadOnlyService for MprisPlayerService {
                     "Updating MPRIS player cover for {url}, {} bytes",
                     bytes.len()
                 );
+                self.covers.insert(url, bytes);
             }
         }
     }
@@ -366,7 +367,7 @@ impl MprisPlayerService {
     async fn active(
         conn: zbus::Connection,
         output: &mut Sender<ServiceEvent<Self>>,
-        fetched_covers: HashSet<String>,
+        mut fetched_covers: HashSet<String>,
     ) -> State {
         match Self::dbus_events(&conn).await {
             Ok(dbus_events) => {
@@ -386,7 +387,8 @@ impl MprisPlayerService {
 
                                     Self::check_cover_update(&data, &fetched_covers, &mut in_flight, &mut pending_downloads);
 
-                                    let _ = output.send(ServiceEvent::Update(Event::MetadataChanged(data))).await;
+                                    let s = output.send(ServiceEvent::Update(Event::MetadataChanged(data))).await;
+                                    debug!("tx: MetadataUpdate: {:?}", s);
                                 }
                                 Err(err) => {
                                     error!("Failed to fetch MPRIS player data: {err}");
@@ -394,23 +396,32 @@ impl MprisPlayerService {
                             }
                         }
                         result = pending_downloads.next().fuse() => {
-                            if let Some((url, res)) = result {
-                                in_flight.remove(&url);
+                            match result {
+                                Some(Err(_)) => {
+                                    // Aborted fetch, ignore
+                                    continue;
+                                }
+                                Some(Ok((url, res))) => {
+                                    in_flight.remove(&url);
 
-                                match res {
-                                    Ok(bytes) => {
-                                        debug!("Fetched cover art from {url}");
-
-                                        let _ = output.send(ServiceEvent::Update(Event::CoverFetched(url, bytes))).await;
-                                    }
-                                    Err(err) => {
-                                        error!("Failed to fetch cover art from {url}: {err}");
+                                    match res {
+                                        Ok(bytes) => {
+                                            debug!("Fetched cover art from {url}");
+                                            fetched_covers.insert(url.clone());
+                                            let s = output.send(ServiceEvent::Update(Event::CoverFetched(url.clone(), bytes.clone()))).await;
+                                            debug!("tx: CoverFetched({}): {:?}", url, s);
+                                        }
+                                        Err(err) => {
+                                            error!("Failed to fetch cover art from {url}: {err}");
+                                        }
                                     }
                                 }
+                                None => ()
                             }
                         }
                     }
                 }
+                log::warn!("Exited event loop?");
 
                 State::Active(conn, fetched_covers)
             }
@@ -427,7 +438,7 @@ impl MprisPlayerService {
         already_fetched: &HashSet<String>,
         in_flight: &mut HashMap<String, AbortHandle>,
         pending_downloads: &mut FuturesUnordered<
-            BoxFuture<'static, (String, anyhow::Result<Bytes>)>,
+            BoxFuture<'static, Result<(String, anyhow::Result<Bytes>), Aborted>>,
         >,
     ) {
         let desired_urls: HashSet<String> = data
@@ -440,15 +451,21 @@ impl MprisPlayerService {
             handle.abort();
         }
 
+        let in_flight_urls = in_flight.keys().cloned().collect::<HashSet<_>>();
         for url in desired_urls
             .iter()
-            .filter(|&url| !in_flight.contains_key(url))
+            .filter(|&url| !in_flight_urls.contains(url))
         {
             let url = url.clone();
-            pending_downloads.push(Box::pin(async move {
-                let res = Self::fetch_cover(&url).await;
-                (url, res)
-            }))
+            let (handle, reg) = AbortHandle::new_pair();
+            in_flight.insert(url.clone(), handle);
+            pending_downloads.push(Box::pin(Abortable::new(
+                async move {
+                    let res = Self::fetch_cover(&url).await;
+                    (url, res)
+                },
+                reg,
+            )));
         }
     }
 
