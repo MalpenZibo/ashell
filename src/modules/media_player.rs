@@ -1,5 +1,3 @@
-use std::collections::{HashMap, HashSet};
-
 use crate::{
     components::icons::{IconButtonSize, StaticIcon, icon, icon_button},
     config::MediaPlayerModuleConfig,
@@ -12,17 +10,11 @@ use crate::{
     theme::AshellTheme,
     utils::truncate_text,
 };
-use anyhow::{anyhow, bail};
 use iced::{
     Background, Border, Element, Length, Subscription, Task, Theme,
     alignment::Vertical,
-    core::image::Bytes,
     widget::{Row, column, container, horizontal_rule, horizontal_space, image, row, slider, text},
 };
-use itertools::Itertools;
-use url::Url;
-
-type CoverData = Bytes;
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -32,8 +24,6 @@ pub enum Message {
     SetVolume(String, f64),
     Event(ServiceEvent<MprisPlayerService>),
     ConfigReloaded(MediaPlayerModuleConfig),
-    CoverLoaded(String, CoverData),
-    CoverLoadFailed(String, String),
 }
 
 pub enum Action {
@@ -44,7 +34,6 @@ pub enum Action {
 pub struct MediaPlayer {
     config: MediaPlayerModuleConfig,
     service: Option<MprisPlayerService>,
-    covers: HashMap<String, image::Handle>,
 }
 
 impl MediaPlayer {
@@ -52,7 +41,6 @@ impl MediaPlayer {
         Self {
             config,
             service: None,
-            covers: HashMap::new(),
         }
     }
 
@@ -73,23 +61,14 @@ impl MediaPlayer {
                 }
                 ServiceEvent::Update(d) => {
                     if let Some(service) = self.service.as_mut() {
-                        service.update(d.clone());
+                        service.update(d);
                     }
-                    self.check_cover_update(&d)
+                    Action::None
                 }
                 ServiceEvent::Error(_) => Action::None,
             },
             Message::ConfigReloaded(c) => {
                 self.config = c;
-                Action::None
-            }
-            Message::CoverLoaded(url, data) => {
-                log::debug!("Loaded cover from {}", url);
-                self.covers.insert(url, image::Handle::from_bytes(data));
-                Action::None
-            }
-            Message::CoverLoadFailed(url, err) => {
-                log::error!("Failed to load cover from {}: {}", url, err);
                 Action::None
             }
         }
@@ -98,10 +77,10 @@ impl MediaPlayer {
     pub fn menu_view<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
         match &self.service {
             None => text("Not connected to MPRIS service").into(),
-            Some(s) => column!(
+            Some(service) => column!(
                 text("Players").size(theme.font_size.lg),
                 horizontal_rule(1),
-                column(s.iter().map(|d| {
+                column(service.players().iter().map(|d| {
                     let m = d.metadata.as_ref();
                     let title = m
                         .and_then(|m| m.title.clone())
@@ -169,10 +148,11 @@ impl MediaPlayer {
                         .as_ref()
                         .and_then(|m| m.art_url.as_ref())
                         .map(|url| {
-                            self.covers
-                                .get(url)
+                            service
+                                .get_cover(url)
                                 .map(|img| {
-                                    image(img)
+                                    // TODO: store image::Handle in the service to avoid cloning
+                                    image(image::Handle::from_bytes(img.clone()))
                                         .filter_method(image::FilterMethod::Linear)
                                         .width(buttons_width)
                                         .into()
@@ -228,59 +208,6 @@ impl MediaPlayer {
         }
     }
 
-    fn check_cover_update(&mut self, data: &[MprisPlayerData]) -> Action {
-        let urls: HashSet<_> = data
-            .iter()
-            .filter_map(|player| player.metadata.as_ref().and_then(|m| m.art_url.clone()))
-            .collect();
-
-        let unused_covers = self
-            .covers
-            .keys()
-            .filter(|url| !urls.contains(url.as_str()))
-            .cloned()
-            .collect_vec();
-        for url in unused_covers {
-            self.covers.remove(url.as_str());
-            log::debug!("Removed unused cover for {}", url);
-        }
-
-        let tasks = urls
-            .iter()
-            .filter(|url| !self.covers.contains_key(url.as_str()))
-            .map(|url| {
-                let url = url.clone();
-                Task::perform(Self::fetch_cover(url.clone()), move |result| match result {
-                    Ok(data) => Message::CoverLoaded(url.clone(), data),
-                    Err(e) => Message::CoverLoadFailed(url.clone(), e.to_string()),
-                })
-            })
-            .collect_vec();
-
-        if tasks.is_empty() {
-            Action::None
-        } else {
-            Action::Command(Task::batch(tasks))
-        }
-    }
-
-    async fn fetch_cover(url: String) -> anyhow::Result<CoverData> {
-        let url = Url::parse(&url)?;
-        match url.scheme() {
-            "http" | "https" => {
-                let response = reqwest::get(url).await?;
-                Ok(response.bytes().await?)
-            }
-            "file" => {
-                let path = url
-                    .to_file_path()
-                    .map_err(|_| anyhow!("Invalid file URL {}", url))?;
-                Ok(tokio::fs::read(path).await?.into())
-            }
-            _ => bail!("Unsupported URL scheme: {}", url.scheme()),
-        }
-    }
-
     fn get_title(&self, d: &MprisPlayerData) -> String {
         match &d.metadata {
             Some(m) => truncate_text(&m.to_string(), self.config.max_title_length),
@@ -289,22 +216,25 @@ impl MediaPlayer {
     }
 
     pub fn view(&'_ self, theme: &AshellTheme) -> Option<Element<'_, Message>> {
-        self.service.as_ref().and_then(|s| match s.len() {
-            0 => None,
-            _ => Some(
-                row![
-                    icon(StaticIcon::MusicNote),
-                    container(
-                        text(self.get_title(&s[0]))
-                            .wrapping(text::Wrapping::None)
-                            .size(theme.font_size.sm)
-                    )
-                    .clip(true)
-                ]
-                .align_y(Vertical::Center)
-                .spacing(theme.space.xs)
-                .into(),
-            ),
+        self.service.as_ref().and_then(|s| {
+            let players = s.players();
+            match players.len() {
+                0 => None,
+                _ => Some(
+                    row![
+                        icon(StaticIcon::MusicNote),
+                        container(
+                            text(self.get_title(&players[0]))
+                                .wrapping(text::Wrapping::None)
+                                .size(theme.font_size.sm)
+                        )
+                        .clip(true)
+                    ]
+                    .align_y(Vertical::Center)
+                    .spacing(theme.space.xs)
+                    .into(),
+                ),
+            }
         })
     }
 

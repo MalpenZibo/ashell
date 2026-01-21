@@ -2,16 +2,24 @@ use super::{ReadOnlyService, Service, ServiceEvent};
 use dbus::MprisPlayerProxy;
 use iced::{
     Subscription,
+    core::image::Bytes,
     futures::{
-        SinkExt, Stream, StreamExt,
+        FutureExt, SinkExt, Stream, StreamExt,
         channel::mpsc::Sender,
-        future::join_all,
-        stream::{SelectAll, pending},
+        future::{BoxFuture, join_all},
+        select,
+        stream::{AbortHandle, FuturesUnordered, SelectAll, pending},
     },
     stream::channel,
 };
 use log::{debug, error, info};
-use std::{any::TypeId, collections::HashMap, fmt::Display, ops::Deref, sync::Arc};
+use std::{
+    any::TypeId,
+    collections::{HashMap, HashSet},
+    fmt::Display,
+    sync::Arc,
+};
+use url::Url;
 use zbus::{fdo::DBusProxy, zvariant::OwnedValue};
 
 mod dbus;
@@ -95,28 +103,47 @@ impl From<HashMap<String, OwnedValue>> for MprisPlayerMetadata {
 pub struct MprisPlayerService {
     data: Vec<MprisPlayerData>,
     conn: zbus::Connection,
+    covers: HashMap<String, Bytes>,
 }
 
-impl Deref for MprisPlayerService {
-    type Target = Vec<MprisPlayerData>;
-
-    fn deref(&self) -> &Self::Target {
+impl MprisPlayerService {
+    pub fn players(&self) -> &Vec<MprisPlayerData> {
         &self.data
+    }
+
+    pub fn get_cover(&self, url: &str) -> Option<&Bytes> {
+        self.covers.get(url)
     }
 }
 
 enum State {
     Init,
-    Active(zbus::Connection),
+    Active(zbus::Connection, HashSet<String>),
     Error,
 }
 
+#[derive(Debug, Clone)]
+pub enum Event {
+    MetadataChanged(Vec<MprisPlayerData>),
+    CoverFetched(String, Bytes),
+}
+
 impl ReadOnlyService for MprisPlayerService {
-    type UpdateEvent = Vec<MprisPlayerData>;
+    type UpdateEvent = Event;
     type Error = ();
 
     fn update(&mut self, event: Self::UpdateEvent) {
-        self.data = event;
+        match event {
+            Event::MetadataChanged(data) => {
+                self.data = data;
+            }
+            Event::CoverFetched(url, bytes) => {
+                debug!(
+                    "Updating MPRIS player cover for {url}, {} bytes",
+                    bytes.len()
+                );
+            }
+        }
     }
 
     fn subscribe() -> Subscription<ServiceEvent<Self>> {
@@ -194,7 +221,9 @@ impl MprisPlayerService {
         .collect()
     }
 
-    async fn events(conn: &zbus::Connection) -> anyhow::Result<impl Stream<Item = ()> + use<>> {
+    async fn dbus_events(
+        conn: &zbus::Connection,
+    ) -> anyhow::Result<impl Stream<Item = ()> + use<>> {
         let dbus = DBusProxy::new(conn).await?;
         let data = Self::initialize_data(conn).await?;
 
@@ -292,66 +321,151 @@ impl MprisPlayerService {
 
     async fn start_listening(state: State, output: &mut Sender<ServiceEvent<Self>>) -> State {
         match state {
-            State::Init => match zbus::Connection::session().await {
-                Ok(conn) => {
-                    let data = Self::initialize_data(&conn).await;
-                    match data {
-                        Ok(data) => {
-                            info!("MPRIS player service initialized");
-
-                            let _ = output
-                                .send(ServiceEvent::Init(MprisPlayerService {
-                                    data,
-                                    conn: conn.clone(),
-                                }))
-                                .await;
-
-                            State::Active(conn)
-                        }
-                        Err(err) => {
-                            error!("Failed to initialize MPRIS player service: {err}");
-
-                            State::Error
-                        }
-                    }
-                }
-                Err(err) => {
-                    error!("Failed to connect to system bus for MPRIS player: {err}");
-                    State::Error
-                }
-            },
-            State::Active(conn) => match Self::events(&conn).await {
-                Ok(events) => {
-                    let mut chunks = events.ready_chunks(10);
-
-                    while let Some(chunk) = chunks.next().await {
-                        debug!("MPRIS player service receive events: {chunk:?}");
-
-                        match Self::initialize_data(&conn).await {
-                            Ok(data) => {
-                                debug!("Refreshing MPRIS player data");
-
-                                let _ = output.send(ServiceEvent::Update(data)).await;
-                            }
-                            Err(err) => {
-                                error!("Failed to fetch MPRIS player data: {err}");
-                            }
-                        }
-                    }
-
-                    State::Active(conn)
-                }
-                Err(err) => {
-                    error!("Failed to listen for MPRIS player events: {err}");
-
-                    State::Error
-                }
-            },
+            State::Init => Self::init(output).await,
+            State::Active(conn, fetched_covers) => Self::active(conn, output, fetched_covers).await,
             State::Error => {
                 let _ = pending::<u8>().next().await;
 
                 State::Error
             }
+        }
+    }
+
+    async fn init(output: &mut Sender<ServiceEvent<Self>>) -> State {
+        match zbus::Connection::session().await {
+            Ok(conn) => {
+                let data = Self::initialize_data(&conn).await;
+                match data {
+                    Ok(data) => {
+                        info!("MPRIS player service initialized");
+
+                        let _ = output
+                            .send(ServiceEvent::Init(MprisPlayerService {
+                                data,
+                                conn: conn.clone(),
+                                covers: HashMap::new(),
+                            }))
+                            .await;
+
+                        State::Active(conn, HashSet::new())
+                    }
+                    Err(err) => {
+                        error!("Failed to initialize MPRIS player service: {err}");
+
+                        State::Error
+                    }
+                }
+            }
+            Err(err) => {
+                error!("Failed to connect to system bus for MPRIS player: {err}");
+                State::Error
+            }
+        }
+    }
+
+    async fn active(
+        conn: zbus::Connection,
+        output: &mut Sender<ServiceEvent<Self>>,
+        fetched_covers: HashSet<String>,
+    ) -> State {
+        match Self::dbus_events(&conn).await {
+            Ok(dbus_events) => {
+                let mut chunks = dbus_events.ready_chunks(10);
+
+                let mut pending_downloads = FuturesUnordered::new();
+                let mut in_flight: HashMap<String, AbortHandle> = HashMap::new();
+
+                loop {
+                    select! {
+                        chunk = chunks.next().fuse() => {
+                            let Some(chunk) = chunk else { break; };
+                            debug!("MPRIS player service receive events: {chunk:?}");
+                            match Self::initialize_data(&conn).await {
+                                Ok(data) => {
+                                    debug!("Refreshing MPRIS player data");
+
+                                    Self::check_cover_update(&data, &fetched_covers, &mut in_flight, &mut pending_downloads);
+
+                                    let _ = output.send(ServiceEvent::Update(Event::MetadataChanged(data))).await;
+                                }
+                                Err(err) => {
+                                    error!("Failed to fetch MPRIS player data: {err}");
+                                }
+                            }
+                        }
+                        result = pending_downloads.next().fuse() => {
+                            if let Some((url, res)) = result {
+                                in_flight.remove(&url);
+
+                                match res {
+                                    Ok(bytes) => {
+                                        debug!("Fetched cover art from {url}");
+
+                                        let _ = output.send(ServiceEvent::Update(Event::CoverFetched(url, bytes))).await;
+                                    }
+                                    Err(err) => {
+                                        error!("Failed to fetch cover art from {url}: {err}");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                State::Active(conn, fetched_covers)
+            }
+            Err(err) => {
+                error!("Failed to listen for MPRIS player events: {err}");
+
+                State::Error
+            }
+        }
+    }
+
+    fn check_cover_update(
+        data: &Vec<MprisPlayerData>,
+        already_fetched: &HashSet<String>,
+        in_flight: &mut HashMap<String, AbortHandle>,
+        pending_downloads: &mut FuturesUnordered<
+            BoxFuture<'static, (String, anyhow::Result<Bytes>)>,
+        >,
+    ) {
+        let desired_urls: HashSet<String> = data
+            .iter()
+            .filter_map(|p| p.metadata.as_ref()?.art_url.clone())
+            .filter(|url| !already_fetched.contains(url))
+            .collect();
+
+        for (_, handle) in in_flight.extract_if(|url, _| !desired_urls.contains(url)) {
+            handle.abort();
+        }
+
+        for url in desired_urls
+            .iter()
+            .filter(|&url| !in_flight.contains_key(url))
+        {
+            let url = url.clone();
+            pending_downloads.push(Box::pin(async move {
+                let res = Self::fetch_cover(&url).await;
+                (url, res)
+            }))
+        }
+    }
+
+    async fn fetch_cover(url: &str) -> anyhow::Result<Bytes> {
+        let url = Url::parse(url)?;
+        match url.scheme() {
+            "http" | "https" => {
+                let response = reqwest::get(url).await?;
+                Ok(response.bytes().await?)
+            }
+            "file" => {
+                let path = url
+                    .to_file_path()
+                    .map_err(|_| anyhow::anyhow!("Invalid file URL {}", url))?;
+                Ok(tokio::fs::read(path).await?.into())
+            }
+            _ => anyhow::bail!("Unsupported URL scheme: {}", url.scheme()),
         }
     }
 }
@@ -409,7 +523,7 @@ impl Service for MprisPlayerService {
                                     .inspect_err(|e| error!("Set volume command error: {e}"));
                             }
                         }
-                        Self::get_mpris_player_data(&conn, &names).await
+                        Event::MetadataChanged(Self::get_mpris_player_data(&conn, &names).await)
                     },
                     ServiceEvent::Update,
                 )
