@@ -15,7 +15,15 @@ Without this configuration, the module will not appear in the status bar.
 
 :::
 
-The module automatically checks for updates every hour. You can also manually check for updates using the "Check now" button in the menu.
+The module automatically checks for updates on a configurable interval (defaults to once per hour). You can also manually check for updates using the "Check now" button in the menu.
+
+### Configuration
+
+| Field        | Description                                                      |
+| ------------ | ---------------------------------------------------------------- |
+| `check_cmd`  | Command that outputs pending updates (one per line).             |
+| `update_cmd` | Command that launches your system updates workflow.              |
+| `interval`   | Optional polling interval in seconds (minimum 60, default 3600). |
 
 The check command should return a list of updates,
 one package per line in the following format:
@@ -39,4 +47,5 @@ AUR package manager and `alacritty` as a terminal emulator.
 [updates]
 check_cmd = "checkupdates; paru -Qua"
 update_cmd = 'alacritty -e bash -c "paru; echo Done - Press enter to exit; read" &'
+interval = 3600
 ```
