@@ -67,6 +67,14 @@ impl Default for Config {
 pub struct UpdatesModuleConfig {
     pub check_cmd: String,
     pub update_cmd: String,
+    #[serde(default = "UpdatesModuleConfig::default_interval")]
+    pub interval: u64,
+}
+
+impl UpdatesModuleConfig {
+    const fn default_interval() -> u64 {
+        3600
+    }
 }
 
 #[derive(Deserialize, Copy, Clone, Default, PartialEq, Eq, Debug)]

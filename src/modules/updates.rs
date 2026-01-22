@@ -275,6 +275,7 @@ impl Updates {
 
     pub fn subscription(&self) -> Subscription<Message> {
         let check_cmd = self.config.check_cmd.clone();
+        let interval = Duration::from_secs(self.config.interval.max(60));
         let id = TypeId::of::<Self>();
 
         Subscription::run_with_id(
@@ -285,7 +286,7 @@ impl Updates {
 
                     let _ = output.try_send(Message::UpdatesCheckCompleted(updates));
 
-                    sleep(Duration::from_secs(3600)).await;
+                    sleep(interval).await;
                 }
             }),
         )
