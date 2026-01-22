@@ -1,6 +1,7 @@
 #[derive(Debug, Clone, PartialEq)]
 pub struct CompositorWorkspace {
     pub id: i32,
+    pub index: i32,
     pub name: String,
     pub monitor: String,
     pub monitor_id: Option<i128>,

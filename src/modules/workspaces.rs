@@ -25,6 +25,7 @@ pub enum Displayed {
 #[derive(Debug, Clone)]
 pub struct UiWorkspace {
     pub id: i32,
+    pub index: i32,
     pub name: String,
     pub monitor_id: Option<i128>,
     pub monitor: String,
@@ -61,6 +62,12 @@ fn calculate_ui_workspaces(
 ) -> Vec<UiWorkspace> {
     let active_id = state.active_workspace_id;
     let monitors = &state.monitors;
+    let monitor_order = monitors
+        .iter()
+        .enumerate()
+        .map(|(idx, monitor)| (monitor.name.clone(), idx))
+        .collect::<HashMap<_, _>>();
+
     let workspaces = state
         .workspaces
         .clone()
@@ -79,6 +86,7 @@ fn calculate_ui_workspaces(
             let active = monitors.iter().any(|m| m.special_workspace_id == w.id);
             result.push(UiWorkspace {
                 id: w.id,
+                index: w.index,
                 name: w
                     .name
                     .split(":")
@@ -128,6 +136,7 @@ fn calculate_ui_workspaces(
 
             result.push(UiWorkspace {
                 id,
+                index: id,
                 name: display_name,
                 monitor_id: None,
                 monitor: "".to_string(),
@@ -158,6 +167,7 @@ fn calculate_ui_workspaces(
 
             result.push(UiWorkspace {
                 id: w.id,
+                index: w.index,
                 name: display_name,
                 monitor_id: w.monitor_id,
                 monitor: w.monitor.clone(),
@@ -203,6 +213,7 @@ fn calculate_ui_workspaces(
 
             result.push(UiWorkspace {
                 id,
+                index: id,
                 name: display_name,
                 monitor_id: None,
                 monitor: "".to_string(),
@@ -213,7 +224,17 @@ fn calculate_ui_workspaces(
     }
 
     if config.group_by_monitor {
-        result.sort_by_key(|w| w.monitor.clone());
+        result.sort_by(|a, b| {
+            let a_order = monitor_order.get(&a.monitor).copied().unwrap_or(usize::MAX);
+            let b_order = monitor_order.get(&b.monitor).copied().unwrap_or(usize::MAX);
+
+            a_order
+                .cmp(&b_order)
+                .then(a.index.cmp(&b.index))
+                .then(a.id.cmp(&b.id))
+        });
+    } else {
+        result.sort_by(|a, b| a.index.cmp(&b.index).then(a.id.cmp(&b.id)));
     }
 
     result

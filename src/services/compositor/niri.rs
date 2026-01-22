@@ -189,6 +189,7 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
         .map(|w| {
             CompositorWorkspace {
                 id: w.id as i32,
+                index: w.idx as i32,
                 name: w.name.clone().unwrap_or_else(|| w.idx.to_string()),
                 monitor: w.output.clone().unwrap_or_default(),
                 // niri does not have an output index

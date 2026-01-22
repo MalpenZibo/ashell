@@ -148,6 +148,7 @@ fn fetch_full_state(internal_state: &HyprInternalState) -> Result<CompositorStat
         .sorted_by_key(|w| w.id)
         .map(|w| CompositorWorkspace {
             id: w.id,
+            index: w.id,
             name: w.name,
             monitor: w.monitor,
             monitor_id: w.monitor_id,
