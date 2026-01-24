@@ -5,6 +5,7 @@ use iced::{
     futures::{SinkExt, StreamExt, channel::mpsc::Sender, executor::block_on, stream::pending},
     stream::channel,
 };
+use itertools::Either;
 use libpulse_binding::{
     callbacks::ListResult,
     context::{
@@ -22,6 +23,7 @@ use log::{debug, error, trace};
 use std::{
     any::TypeId,
     cell::RefCell,
+    fmt,
     ops::{Deref, DerefMut},
     rc::Rc,
     thread::{self, JoinHandle},
@@ -34,6 +36,7 @@ pub struct Device {
     pub description: String,
     pub volume: ChannelVolumes,
     pub is_mute: bool,
+    pub is_filter: bool,
     pub ports: Vec<Port>,
 }
 
@@ -43,6 +46,27 @@ pub struct Port {
     pub description: String,
     pub device_type: DeviceType,
     pub active: bool,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct Route<'a> {
+    pub device: &'a Device,
+    pub port: Option<&'a Port>,
+}
+
+impl Route<'_> {
+    pub fn is_active(&self) -> bool {
+        self.device.is_filter || self.port.map(|p| p.active).unwrap_or(false)
+    }
+}
+
+impl<'a> fmt::Display for Route<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.port {
+            Some(port) => write!(f, "{}: {}", port.description, self.device.description),
+            None => write!(f, "{}", self.device.description),
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -73,7 +97,7 @@ pub struct ServerInfo {
 pub trait Volume {
     fn get_volume(&self) -> f64;
 
-    fn scale_volume(&mut self, max: f64) -> Option<&mut ChannelVolumes>;
+    fn scaled(&self, max: f64) -> Option<ChannelVolumes>;
 }
 
 impl Volume for ChannelVolumes {
@@ -81,57 +105,19 @@ impl Volume for ChannelVolumes {
         self.avg().0 as f64 / libpulse_binding::volume::Volume::NORMAL.0 as f64
     }
 
-    fn scale_volume(&mut self, max: f64) -> Option<&mut ChannelVolumes> {
+    fn scaled(&self, max: f64) -> Option<ChannelVolumes> {
         let max = max.clamp(0.0, 1.0);
-        self.scale(libpulse_binding::volume::Volume(
-            (libpulse_binding::volume::Volume::NORMAL.0 as f64 * max) as u32,
-        ))
-    }
-}
-
-pub trait Sinks {
-    fn get_icon(&self, default_sink: &str) -> StaticIcon;
-}
-
-impl Sinks for Vec<Device> {
-    fn get_icon(&self, default_sink: &str) -> StaticIcon {
-        match self.iter().find_map(|s| {
-            if s.ports.iter().any(|p| p.active) && s.name == default_sink {
-                Some((s.is_mute, s.volume.get_volume()))
-            } else {
-                None
-            }
-        }) {
-            Some((true, _)) => StaticIcon::Speaker0,
-            Some((false, volume)) => {
-                if volume > 0.66 {
-                    StaticIcon::Speaker3
-                } else if volume > 0.33 {
-                    StaticIcon::Speaker2
-                } else {
-                    StaticIcon::Speaker1
-                }
-            }
-            None => StaticIcon::Speaker0,
-        }
-    }
-}
-
-pub trait Sources {
-    fn get_icon(&self, default_source: &str) -> StaticIcon;
-}
-
-impl Sources for Vec<Device> {
-    fn get_icon(&self, default_source: &str) -> StaticIcon {
-        match self.iter().find_map(|s| {
-            if s.ports.iter().any(|p| p.active) && s.name == default_source {
-                Some(s.is_mute)
-            } else {
-                None
-            }
-        }) {
-            Some(false) => StaticIcon::Mic1,
-            _ => StaticIcon::Mic0,
+        let mut cv = *self; // Implicit copy
+        if cv
+            .scale(libpulse_binding::volume::Volume(
+                (libpulse_binding::volume::Volume::NORMAL.0 as f64 * max) as u32,
+            ))
+            .is_some()
+        {
+            Some(cv)
+        } else {
+            error!("Failed scaling volume: {cv}");
+            None
         }
     }
 }
@@ -139,8 +125,8 @@ impl Sources for Vec<Device> {
 #[derive(Debug, Clone)]
 pub struct AudioData {
     pub server_info: ServerInfo,
-    pub sinks: Vec<Device>,
-    pub sources: Vec<Device>,
+    sinks: Vec<Device>,
+    sources: Vec<Device>,
     pub cur_sink_volume: i32,
     pub cur_source_volume: i32,
 }
@@ -236,6 +222,80 @@ impl AudioService {
             }
         }
     }
+
+    pub fn update_source_volume(&mut self) {
+        self.cur_source_volume = self
+            .active_source()
+            .map(|source| {
+                if source.is_mute {
+                    0
+                } else {
+                    (source.volume.get_volume() * 100.) as i32
+                }
+            })
+            .unwrap_or_default();
+    }
+
+    pub fn update_sink_volume(&mut self) {
+        self.cur_sink_volume = self
+            .active_sink()
+            .map(|sink| {
+                if sink.is_mute {
+                    0
+                } else {
+                    (sink.volume.get_volume() * 100.) as i32
+                }
+            })
+            .unwrap_or_default();
+    }
+
+    pub fn active_sink(&self) -> Option<&Device> {
+        self.sink_iter()
+            .find(|route| route.is_active() && route.device.name == self.server_info.default_sink)
+            .map(|route| route.device)
+    }
+
+    pub fn active_source(&self) -> Option<&Device> {
+        self.source_iter()
+            .find(|route| route.is_active() && route.device.name == self.server_info.default_source)
+            .map(|route| route.device)
+    }
+
+    pub fn has_multiple_sources(&self) -> bool {
+        Self::route_iter(&self.sources).nth(1).is_some()
+    }
+
+    pub fn has_multiple_sinks(&self) -> bool {
+        Self::route_iter(&self.sinks).nth(1).is_some()
+    }
+
+    pub fn source_iter(&self) -> impl Iterator<Item = Route<'_>> {
+        Self::route_iter(&self.sources)
+    }
+
+    pub fn sink_iter(&self) -> impl Iterator<Item = Route<'_>> {
+        Self::route_iter(&self.sinks)
+    }
+
+    /// Iterates over all audio routes which user should be able to select
+    /// This includes devices with multiple available hardware ports as well as
+    /// [smart-filters](https://pipewire.pages.freedesktop.org/wireplumber/policies/smart_filters.html)
+    fn route_iter(devices: &[Device]) -> impl Iterator<Item = Route<'_>> {
+        devices.iter().flat_map(|device| {
+            if device.is_filter {
+                if device.ports.len() > 1 {
+                    let device_name = device.name.as_str();
+                    error!("Unexpected multiple ports in a filter node: {device_name}")
+                }
+                Either::Left(std::iter::once(Route { device, port: None }))
+            } else {
+                Either::Right(device.ports.iter().map(move |port| Route {
+                    device,
+                    port: Some(port),
+                }))
+            }
+        })
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -259,92 +319,16 @@ impl ReadOnlyService for AudioService {
         match event {
             AudioEvent::Sinks(sinks) => {
                 self.data.sinks = sinks;
-                self.data.cur_sink_volume = (self
-                    .sinks
-                    .iter()
-                    .find_map(|sink| {
-                        if sink
-                            .ports
-                            .iter()
-                            .any(|p| p.active && sink.name == self.server_info.default_sink)
-                        {
-                            Some(if sink.is_mute {
-                                0.
-                            } else {
-                                sink.volume.get_volume()
-                            })
-                        } else {
-                            None
-                        }
-                    })
-                    .unwrap_or_default()
-                    * 100.) as i32;
+                self.update_sink_volume();
             }
             AudioEvent::Sources(sources) => {
                 self.data.sources = sources;
-                self.data.cur_source_volume = (self
-                    .sources
-                    .iter()
-                    .find_map(|source| {
-                        if source
-                            .ports
-                            .iter()
-                            .any(|p| p.active && source.name == self.server_info.default_source)
-                        {
-                            Some(if source.is_mute {
-                                0.
-                            } else {
-                                source.volume.get_volume()
-                            })
-                        } else {
-                            None
-                        }
-                    })
-                    .unwrap_or_default()
-                    * 100.) as i32;
+                self.update_source_volume();
             }
             AudioEvent::ServerInfo(info) => {
                 self.data.server_info = info;
-                self.data.cur_sink_volume = (self
-                    .sinks
-                    .iter()
-                    .find_map(|sink| {
-                        if sink
-                            .ports
-                            .iter()
-                            .any(|p| p.active && sink.name == self.server_info.default_sink)
-                        {
-                            Some(if sink.is_mute {
-                                0.
-                            } else {
-                                sink.volume.get_volume()
-                            })
-                        } else {
-                            None
-                        }
-                    })
-                    .unwrap_or_default()
-                    * 100.) as i32;
-                self.data.cur_source_volume = (self
-                    .sources
-                    .iter()
-                    .find_map(|source| {
-                        if source
-                            .ports
-                            .iter()
-                            .any(|p| p.active && source.name == self.server_info.default_source)
-                        {
-                            Some(if source.is_mute {
-                                0.
-                            } else {
-                                source.volume.get_volume()
-                            })
-                        } else {
-                            None
-                        }
-                    })
-                    .unwrap_or_default()
-                    * 100.) as i32;
+                self.update_sink_volume();
+                self.update_source_volume();
             }
         }
     }
@@ -370,8 +354,8 @@ pub enum AudioCommand {
     ToggleSourceMute,
     SinkVolume(i32),
     SourceVolume(i32),
-    DefaultSink(String, String),
-    DefaultSource(String, String),
+    DefaultSink(String, Option<String>),
+    DefaultSource(String, Option<String>),
 }
 
 impl Service for AudioService {
@@ -380,12 +364,7 @@ impl Service for AudioService {
     fn command(&mut self, command: Self::Command) -> Task<ServiceEvent<Self>> {
         match command {
             AudioCommand::ToggleSinkMute => {
-                if let Some(sink) = self
-                    .data
-                    .sinks
-                    .iter()
-                    .find(|sink| sink.name == self.data.server_info.default_sink)
-                {
+                if let Some(sink) = self.active_sink() {
                     let _ = self.commander.send(PulseAudioCommand::SinkMute(
                         sink.name.clone(),
                         !sink.is_mute,
@@ -393,12 +372,7 @@ impl Service for AudioService {
                 }
             }
             AudioCommand::ToggleSourceMute => {
-                if let Some(source) = self
-                    .data
-                    .sources
-                    .iter()
-                    .find(|source| source.name == self.data.server_info.default_source)
-                {
+                if let Some(source) = self.active_source() {
                     let _ = self.commander.send(PulseAudioCommand::SourceMute(
                         source.name.clone(),
                         !source.is_mute,
@@ -406,30 +380,21 @@ impl Service for AudioService {
                 }
             }
             AudioCommand::SinkVolume(volume) => {
-                if let Some(sink) = self
-                    .data
-                    .sinks
-                    .iter_mut()
-                    .find(|sink| sink.name == self.data.server_info.default_sink)
-                    && let Some(volume) = sink.volume.scale_volume(volume as f64 / 100.)
+                if let Some(sink) = self.active_sink()
+                    && let Some(volume) = sink.volume.scaled(volume as f64 / 100.)
                 {
                     let _ = self
                         .commander
-                        .send(PulseAudioCommand::SinkVolume(sink.name.clone(), *volume));
+                        .send(PulseAudioCommand::SinkVolume(sink.name.clone(), volume));
                 }
             }
             AudioCommand::SourceVolume(volume) => {
-                if let Some(source) = self
-                    .data
-                    .sources
-                    .iter_mut()
-                    .find(|source| source.name == self.data.server_info.default_source)
-                    && let Some(volume) = source.volume.scale_volume(volume as f64 / 100.)
+                if let Some(source) = self.active_source()
+                    && let Some(volume) = source.volume.scaled(volume as f64 / 100.)
                 {
-                    let _ = self.commander.send(PulseAudioCommand::SourceVolume(
-                        source.name.clone(),
-                        *volume,
-                    ));
+                    let _ = self
+                        .commander
+                        .send(PulseAudioCommand::SourceVolume(source.name.clone(), volume));
                 }
             }
             AudioCommand::DefaultSink(name, port) => {
@@ -460,8 +425,8 @@ enum PulseAudioCommand {
     SourceMute(String, bool),
     SinkVolume(String, ChannelVolumes),
     SourceVolume(String, ChannelVolumes),
-    DefaultSink(String, String),
-    DefaultSource(String, String),
+    DefaultSink(String, Option<String>),
+    DefaultSource(String, Option<String>),
 }
 
 struct PulseAudioServer {
@@ -679,10 +644,10 @@ impl PulseAudioServer {
                                     let _ = server.set_source_volume(&name, &volume);
                                 }
                                 Some(PulseAudioCommand::DefaultSink(name, port)) => {
-                                    let _ = server.set_default_sink(&name, &port);
+                                    let _ = server.set_default_sink(&name, port.as_deref());
                                 }
                                 Some(PulseAudioCommand::DefaultSource(name, port)) => {
-                                    let _ = server.set_default_source(&name, &port);
+                                    let _ = server.set_default_source(&name, port.as_deref());
                                 }
                                 None => {}
                             }
@@ -740,6 +705,7 @@ impl PulseAudioServer {
                     .ports
                     .iter()
                     .any(|port| port.available != PortAvailable::No)
+                    || data.proplist.get_str("node.link-group").is_some()
                 {
                     debug!("Adding sink data: {data:?}");
                     sinks.push(data.into());
@@ -810,20 +776,28 @@ impl PulseAudioServer {
         self.wait_for_response(op)
     }
 
-    fn set_default_sink(&mut self, name: &str, port: &str) -> anyhow::Result<()> {
+    fn set_default_sink(&mut self, name: &str, port: Option<&str>) -> anyhow::Result<()> {
         let op = self.context.set_default_sink(name, |_| {});
         self.wait_for_response(op)?;
 
-        let op = self.introspector.set_sink_port_by_name(name, port, None);
-        self.wait_for_response(op)
+        if let Some(port) = port {
+            let op = self.introspector.set_sink_port_by_name(name, port, None);
+            self.wait_for_response(op)
+        } else {
+            Ok(())
+        }
     }
 
-    fn set_default_source(&mut self, name: &str, port: &str) -> anyhow::Result<()> {
+    fn set_default_source(&mut self, name: &str, port: Option<&str>) -> anyhow::Result<()> {
         let op = self.context.set_default_source(name, |_| {});
         self.wait_for_response(op)?;
 
-        let op = self.introspector.set_source_port_by_name(name, port, None);
-        self.wait_for_response(op)
+        if let Some(port) = port {
+            let op = self.introspector.set_source_port_by_name(name, port, None);
+            self.wait_for_response(op)
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -855,6 +829,7 @@ impl From<&SinkInfo<'_>> for Device {
                 .map_or_else(String::default, |d| d.to_string()),
             volume: value.volume,
             is_mute: value.mute,
+            is_filter: value.proplist.get_str("node.link-group").is_some(),
             ports: value
                 .ports
                 .iter()
@@ -898,6 +873,7 @@ impl From<&SourceInfo<'_>> for Device {
                 .map_or_else(String::default, |d| d.to_string()),
             volume: value.volume,
             is_mute: value.mute,
+            is_filter: value.proplist.get_str("node.link-group").is_some(),
             ports: value
                 .ports
                 .iter()
