@@ -238,12 +238,7 @@ impl AudioSettings {
         sub_menu: Option<SubMenu>,
     ) -> (Option<Element<'a, Message>>, Option<Element<'a, Message>>) {
         if let Some(service) = &self.service {
-            let active_sink = service
-                .sinks
-                .iter()
-                .find(|sink| sink.name == service.server_info.default_sink);
-
-            let sink_slider = active_sink.map(|s| {
+            let sink_slider = service.active_sink().map(|s| {
                 Self::slider(
                     theme,
                     SliderType::Sink,
@@ -259,32 +254,23 @@ impl AudioSettings {
                 )
             });
 
-            if !service.sources.is_empty() {
-                let active_source = service
-                    .sources
-                    .iter()
-                    .find(|source| source.name == service.server_info.default_source);
+            let source_slider = service.active_source().map(|s| {
+                Self::slider(
+                    theme,
+                    SliderType::Source,
+                    s.is_mute,
+                    Message::ToggleSourceMute,
+                    service.cur_source_volume,
+                    &Message::SourceVolumeChanged,
+                    if service.has_multiple_sources() {
+                        Some((sub_menu, Message::ToggleSourcesMenu))
+                    } else {
+                        None
+                    },
+                )
+            });
 
-                let source_slider = active_source.map(|s| {
-                    Self::slider(
-                        theme,
-                        SliderType::Source,
-                        s.is_mute,
-                        Message::ToggleSourceMute,
-                        service.cur_source_volume,
-                        &Message::SourceVolumeChanged,
-                        if service.has_multiple_sources() {
-                            Some((sub_menu, Message::ToggleSourcesMenu))
-                        } else {
-                            None
-                        },
-                    )
-                });
-
-                (sink_slider, source_slider)
-            } else {
-                (sink_slider, None)
-            }
+            (sink_slider, source_slider)
         } else {
             (None, None)
         }
