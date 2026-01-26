@@ -1,6 +1,6 @@
 use crate::{
     components::icons::{IconButtonSize, StaticIcon, icon, icon_button},
-    config::MediaPlayerModuleConfig,
+    config::{MediaPlayerFormat, MediaPlayerModuleConfig},
     services::{
         ReadOnlyService, Service, ServiceEvent,
         mpris::{
@@ -164,22 +164,24 @@ impl MediaPlayer {
     }
 
     pub fn view(&'_ self, theme: &AshellTheme) -> Option<Element<'_, Message>> {
-        self.service.as_ref().and_then(|s| match s.len() {
-            0 => None,
-            _ => Some(
-                row![
-                    icon(StaticIcon::MusicNote),
-                    container(
-                        text(self.get_title(&s[0]))
-                            .wrapping(text::Wrapping::None)
-                            .size(theme.font_size.sm)
-                    )
-                    .clip(true)
-                ]
-                .align_y(Vertical::Center)
-                .spacing(theme.space.xs)
-                .into(),
-            ),
+        self.service.as_ref().and_then(|s| {
+            s.first().map(|player| {
+                let title =
+                    (self.config.indicator_format == MediaPlayerFormat::IconAndTitle).then(|| {
+                        container(
+                            text(self.get_title(player))
+                                .wrapping(text::Wrapping::None)
+                                .size(theme.font_size.sm),
+                        )
+                        .clip(true)
+                    });
+
+                row![icon(StaticIcon::MusicNote)]
+                    .push_maybe(title)
+                    .align_y(Vertical::Center)
+                    .spacing(theme.space.xs)
+                    .into()
+            })
         })
     }
 
