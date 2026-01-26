@@ -203,12 +203,7 @@ impl AudioSettings {
         sub_menu: Option<SubMenu>,
     ) -> (Option<Element<'a, Message>>, Option<Element<'a, Message>>) {
         if let Some(service) = &self.service {
-            let active_sink = service
-                .sinks
-                .iter()
-                .find(|sink| sink.name == service.server_info.default_sink);
-
-            let sink_slider = active_sink.map(|s| {
+            let sink_slider = service.active_sink().map(|s| {
                 Self::slider(
                     theme,
                     SliderType::Sink,
@@ -224,13 +219,8 @@ impl AudioSettings {
                 )
             });
 
-            if service.sources.iter().any(|source| source.in_use) {
-                let active_source = service
-                    .sources
-                    .iter()
-                    .find(|source| source.name == service.server_info.default_source);
-
-                let source_slider = active_source.map(|s| {
+            if service.source_iter().any(|route| route.device.in_use) {
+                let source_slider = service.active_source().map(|s| {
                     Self::slider(
                         theme,
                         SliderType::Source,

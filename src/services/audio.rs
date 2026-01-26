@@ -119,8 +119,8 @@ impl Volume for ChannelVolumes {
 #[derive(Debug, Clone)]
 pub struct AudioData {
     pub server_info: ServerInfo,
-    pub sinks: Vec<Device>,
-    pub sources: Vec<Device>,
+    sinks: Vec<Device>,
+    sources: Vec<Device>,
     pub cur_sink_volume: i32,
     pub cur_source_volume: i32,
 }
@@ -271,12 +271,15 @@ impl AudioService {
         Self::route_iter(&self.sinks)
     }
 
+    /// Iterates over all audio routes which user should be able to select
+    /// This includes devices with multiple available hardware ports as well as
+    /// [smart-filters](https://pipewire.pages.freedesktop.org/wireplumber/policies/smart_filters.html)
     fn route_iter(devices: &Vec<Device>) -> impl Iterator<Item = Route<'_>> {
         devices.iter().flat_map(|device| {
             if device.is_filter {
-                if !device.ports.is_empty() {
+                if device.ports.iter().count() > 1 {
                     let device_name = device.name.as_str();
-                    error!("Unexpected hardware port in a filter node {device_name}")
+                    error!("Unexpected multiple ports in a filter node {device_name}")
                 }
                 Either::Left(std::iter::once(Route { device, port: None }))
             } else {
