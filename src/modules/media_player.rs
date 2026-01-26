@@ -166,8 +166,8 @@ impl MediaPlayer {
     pub fn view(&'_ self, theme: &AshellTheme) -> Option<Element<'_, Message>> {
         self.service.as_ref().and_then(|s| {
             s.first().map(|player| {
-                let title = (self.config.indicator_format == MediaPlayerFormat::IconAndTitle)
-                    .then(|| {
+                let title =
+                    (self.config.indicator_format == MediaPlayerFormat::IconAndTitle).then(|| {
                         container(
                             text(self.get_title(player))
                                 .wrapping(text::Wrapping::None)
