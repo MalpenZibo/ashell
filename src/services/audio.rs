@@ -97,7 +97,7 @@ pub struct ServerInfo {
 pub trait Volume {
     fn get_volume(&self) -> f64;
 
-    fn scaled(&self, max: f64) -> ChannelVolumes;
+    fn scaled(&self, max: f64) -> Option<ChannelVolumes>;
 }
 
 impl Volume for ChannelVolumes {
@@ -105,13 +105,20 @@ impl Volume for ChannelVolumes {
         self.avg().0 as f64 / libpulse_binding::volume::Volume::NORMAL.0 as f64
     }
 
-    fn scaled(&self, max: f64) -> ChannelVolumes {
+    fn scaled(&self, max: f64) -> Option<ChannelVolumes> {
         let max = max.clamp(0.0, 1.0);
-        let mut cv = self.clone();
-        cv.scale(libpulse_binding::volume::Volume(
-            (libpulse_binding::volume::Volume::NORMAL.0 as f64 * max) as u32,
-        ));
-        cv
+        let mut cv = *self; // Implicit copy
+        if cv
+            .scale(libpulse_binding::volume::Volume(
+                (libpulse_binding::volume::Volume::NORMAL.0 as f64 * max) as u32,
+            ))
+            .is_some()
+        {
+            Some(cv)
+        } else {
+            error!("Failed scaling volume: {cv}");
+            None
+        }
     }
 }
 
@@ -273,12 +280,12 @@ impl AudioService {
     /// Iterates over all audio routes which user should be able to select
     /// This includes devices with multiple available hardware ports as well as
     /// [smart-filters](https://pipewire.pages.freedesktop.org/wireplumber/policies/smart_filters.html)
-    fn route_iter(devices: &Vec<Device>) -> impl Iterator<Item = Route<'_>> {
+    fn route_iter(devices: &[Device]) -> impl Iterator<Item = Route<'_>> {
         devices.iter().flat_map(|device| {
             if device.is_filter {
-                if device.ports.iter().count() > 1 {
+                if device.ports.len() > 1 {
                     let device_name = device.name.as_str();
-                    error!("Unexpected multiple ports in a filter node {device_name}")
+                    error!("Unexpected multiple ports in a filter node: {device_name}")
                 }
                 Either::Left(std::iter::once(Route { device, port: None }))
             } else {
@@ -373,19 +380,21 @@ impl Service for AudioService {
                 }
             }
             AudioCommand::SinkVolume(volume) => {
-                if let Some(sink) = self.active_sink() {
-                    let _ = self.commander.send(PulseAudioCommand::SinkVolume(
-                        sink.name.clone(),
-                        sink.volume.scaled(volume as f64 / 100.),
-                    ));
+                if let Some(sink) = self.active_sink()
+                    && let Some(volume) = sink.volume.scaled(volume as f64 / 100.)
+                {
+                    let _ = self
+                        .commander
+                        .send(PulseAudioCommand::SinkVolume(sink.name.clone(), volume));
                 }
             }
             AudioCommand::SourceVolume(volume) => {
-                if let Some(source) = self.active_source() {
-                    let _ = self.commander.send(PulseAudioCommand::SourceVolume(
-                        source.name.clone(),
-                        source.volume.scaled(volume as f64 / 100.),
-                    ));
+                if let Some(source) = self.active_source()
+                    && let Some(volume) = source.volume.scaled(volume as f64 / 100.)
+                {
+                    let _ = self
+                        .commander
+                        .send(PulseAudioCommand::SourceVolume(source.name.clone(), volume));
                 }
             }
             AudioCommand::DefaultSink(name, port) => {
