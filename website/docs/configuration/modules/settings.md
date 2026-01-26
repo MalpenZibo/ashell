@@ -69,11 +69,36 @@ The possible values are:
 - `Icon` - Show only the battery icon
 - `Percentage` - Show only the battery percentage
 - `IconAndPercentage` - Show both the battery icon and percentage (default)
+- `Time` - Show smart time display (time to full when charging, time to empty when discharging, "100%" when full)
+- `IconAndTime` - Show battery icon with smart time display
 
 In the same way it's possible to customize the peripheral battery indicator format.
 The possible values are the same as above, but you need to use
 the `peripheral_battery_format` option.
 The default value is `Icon`.
+
+### Battery Time Display Behavior
+
+The `Time` and `IconAndTime` formats provide intelligent time display:
+
+- **When charging**: Shows time until full (e.g., "45m", "2h 15m")
+- **When discharging**: Shows time until empty (e.g., "1h 30m", "3h 45m")
+- **When at 100%**: Shows "100%"
+- **When calculating**: Shows "Calculating..." for system battery, empty for peripherals
+
+```toml
+[settings]
+# Show time only for system battery
+battery_format = "Time"
+
+# Show icon + time for peripheral batteries
+peripheral_battery_format = "IconAndTime"
+
+# Example outputs:
+# Charging: "45m" or "🔋 45m"
+# Discharging: "2h 15m" or "🔋 2h 15m"
+# Full: "100%" or "🔋 100%"
+```
 
 With the `peripheral_indicators` you can decide which peripheral battery indicators
 are shown in the status bar.
@@ -209,6 +234,10 @@ bluetooth_more_cmd = "blueman-manager"
 remove_airplane_btn = true
 remove_idle_btn = true
 indicators = ["Battery", "Bluetooth", "Network", "Audio"]
+
+battery_format = "IconAndTime"
+peripheral_battery_format = "Time"
+peripheral_indicators = "All"
 
 [[settings.CustomButton]]
 name = "Virtual Keyboard"
