@@ -22,7 +22,9 @@ use crate::{
 };
 use iced::{
     Alignment, Background, Border, Element, Length, Padding, Subscription, Task, Theme,
-    widget::{Column, Row, Space, button, column, container, horizontal_space, row, text},
+    widget::{
+        Column, MouseArea, Row, Space, button, column, container, horizontal_space, row, text,
+    },
     window::Id,
 };
 
@@ -495,6 +497,7 @@ impl Settings {
                                 idle_inhibitor.is_inhibited(),
                                 Message::ToggleInhibitIdle,
                                 None,
+                                None,
                             ),
                             None,
                         )
@@ -524,6 +527,7 @@ impl Settings {
                             button.tooltip.clone(),
                             is_active,
                             Message::CustomButton(button.name.clone()),
+                            None,
                             None,
                         ),
                         None,
@@ -761,6 +765,7 @@ fn sub_menu_wrapper<'a, Msg: 'static>(
         .into()
 }
 
+#[allow(clippy::too_many_arguments)]
 fn quick_setting_button<'a, Msg: Clone + 'static, I: Icon>(
     theme: &'a AshellTheme,
     icon_type: I,
@@ -768,6 +773,7 @@ fn quick_setting_button<'a, Msg: Clone + 'static, I: Icon>(
     subtitle: Option<String>,
     active: bool,
     on_press: Msg,
+    on_right_press: Option<Msg>,
     with_submenu: Option<(SubMenu, Option<SubMenu>, Msg)>,
 ) -> Element<'a, Msg> {
     let main_content = row!(
@@ -789,7 +795,7 @@ fn quick_setting_button<'a, Msg: Clone + 'static, I: Icon>(
     .width(Length::Fill)
     .align_y(Alignment::Center);
 
-    button(
+    let btn = button(
         Row::new()
             .push(main_content)
             .push_maybe(with_submenu.map(|(menu_type, submenu, msg)| {
@@ -815,6 +821,11 @@ fn quick_setting_button<'a, Msg: Clone + 'static, I: Icon>(
     .width(Length::Fill)
     .style(theme.quick_settings_button_style(active))
     .width(Length::Fill)
-    .height(Length::Fixed(50.))
-    .into()
+    .height(Length::Fixed(50.));
+
+    if let Some(on_right_press) = on_right_press {
+        MouseArea::new(btn).on_right_press(on_right_press).into()
+    } else {
+        btn.into()
+    }
 }

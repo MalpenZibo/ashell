@@ -13,7 +13,10 @@ use crate::{
 };
 use iced::{
     Alignment, Element, Length, Subscription, Task, Theme,
-    widget::{Column, button, column, container, horizontal_rule, row, scrollable, text, toggler},
+    widget::{
+        Column, MouseArea, button, column, container, horizontal_rule, row, scrollable, text,
+        toggler,
+    },
     window::Id,
 };
 use log::info;
@@ -111,6 +114,7 @@ pub enum Message {
     RequestWiFiPassword(Id, String),
     ToggleVpn(Vpn),
     ToggleAirplaneMode,
+    OpenMore,
     ToggleWifiMenu,
     ToggleVPNMenu,
     WifiMenuOpened,
@@ -241,6 +245,12 @@ impl NetworkSettings {
                 ),
                 _ => Action::None,
             },
+            Message::OpenMore => {
+                if let Some(cmd) = &self.config.wifi_more_cmd {
+                    crate::utils::launcher::execute_command(cmd.to_string());
+                }
+                Action::None
+            }
             Message::ToggleWifiMenu => Action::ToggleWifiMenu,
             Message::ToggleVPNMenu => Action::ToggleVpnMenu,
             Message::WifiMenuOpened => {
@@ -285,23 +295,27 @@ impl NetworkSettings {
             if service.airplane_mode || !service.wifi_present {
                 None
             } else {
-                Some(
-                    service
-                        .active_connections
-                        .iter()
-                        .find(|c| {
-                            matches!(c, ActiveConnectionInfo::WiFi { .. })
-                                || matches!(c, ActiveConnectionInfo::Wired { .. })
-                        })
-                        .map_or_else(
-                            || icon(StaticIcon::Wifi0).into(),
-                            |a| {
-                                let icon_type = a.get_icon();
-                                let indicator_state = a.get_indicator_state();
+                let content: Element<'a, Message> = service
+                    .active_connections
+                    .iter()
+                    .find(|c| {
+                        matches!(c, ActiveConnectionInfo::WiFi { .. })
+                            || matches!(c, ActiveConnectionInfo::Wired { .. })
+                    })
+                    .map_or_else(
+                        || icon(StaticIcon::Wifi0).into(),
+                        |a| {
+                            let icon_type = a.get_icon();
+                            let indicator_state = a.get_indicator_state();
 
-                                create_styled_icon(icon_type, service.connectivity, indicator_state)
-                            },
-                        ),
+                            create_styled_icon(icon_type, service.connectivity, indicator_state)
+                        },
+                    );
+
+                Some(
+                    MouseArea::new(content)
+                        .on_right_press(Message::OpenMore)
+                        .into(),
                 )
             }
         })
@@ -349,6 +363,7 @@ impl NetworkSettings {
                         active_connection.map(|(name, _, _)| name.to_string()),
                         service.wifi_enabled,
                         Message::ToggleWiFi,
+                        Some(Message::OpenMore),
                         Some((SubMenu::Wifi, sub_menu, Message::ToggleWifiMenu))
                             .filter(|_| service.wifi_enabled),
                     ),
@@ -425,6 +440,7 @@ impl NetworkSettings {
                             } else {
                                 Message::ToggleVPNMenu
                             },
+                            Some(Message::OpenMore),
                             if !actives.is_empty() {
                                 Some((SubMenu::Vpn, sub_menu, Message::ToggleVPNMenu))
                             } else {
@@ -462,6 +478,7 @@ impl NetworkSettings {
                         None,
                         service.airplane_mode,
                         Message::ToggleAirplaneMode,
+                        Some(Message::OpenMore),
                         None,
                     ),
                     None,
