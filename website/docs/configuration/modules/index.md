@@ -79,6 +79,10 @@ Displays system tray icons and menus for applications.
 
 Displays the current time and date.
 
+### Tempo
+
+Pairs a customizable clock with compact weather info in the bar, plus a menu that shows forecasts, hourly breakdowns, and a calendar. See the [Tempo docs](./tempo.md) for full configuration details.
+
 ### Privacy
 
 Provides privacy-related features, such as toggling microphone and camera access.
