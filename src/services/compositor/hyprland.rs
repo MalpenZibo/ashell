@@ -1,6 +1,6 @@
 use super::types::{
-    ActiveWindow, CompositorCommand, CompositorEvent, CompositorMonitor, CompositorState,
-    CompositorWorkspace,
+    ActiveWindow, ActiveWindowHyprland, CompositorCommand, CompositorEvent, CompositorMonitor,
+    CompositorState, CompositorWorkspace,
 };
 use crate::services::{ServiceEvent, compositor::CompositorService};
 use anyhow::Result;
@@ -169,10 +169,14 @@ fn fetch_full_state(internal_state: &HyprInternalState) -> Result<CompositorStat
 
     let active_workspace_id = Workspace::get_active().ok().map(|w| w.id);
 
-    let active_window = Client::get_active().ok().flatten().map(|w| ActiveWindow {
-        title: w.title,
-        class: w.class,
-        address: w.address.to_string(),
+    let active_window = Client::get_active().ok().flatten().map(|w| {
+        ActiveWindow::Hyprland(ActiveWindowHyprland {
+            title: w.title,
+            class: w.class,
+            address: w.address.to_string(),
+            initial_title: w.initial_title,
+            initial_class: w.initial_class,
+        })
     });
 
     let keyboard_layout = Devices::get()

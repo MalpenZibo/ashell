@@ -18,10 +18,55 @@ pub struct CompositorMonitor {
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
-pub struct ActiveWindow {
+pub struct ActiveWindowHyprland {
     pub title: String,
     pub class: String,
     pub address: String,
+    pub initial_title: String,
+    pub initial_class: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct ActiveWindowNiri {
+    pub title: String,
+    pub class: String,
+    pub address: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ActiveWindow {
+    Hyprland(ActiveWindowHyprland),
+    Niri(ActiveWindowNiri),
+}
+
+impl ActiveWindow {
+    pub fn title(&self) -> &str {
+        match self {
+            ActiveWindow::Hyprland(w) => &w.title,
+            ActiveWindow::Niri(w) => &w.title,
+        }
+    }
+
+    pub fn class(&self) -> &str {
+        match self {
+            ActiveWindow::Hyprland(w) => &w.class,
+            ActiveWindow::Niri(w) => &w.class,
+        }
+    }
+
+    pub fn initial_title(&self) -> Result<&str, &str> {
+        match self {
+            ActiveWindow::Hyprland(w) => Ok(&w.initial_title),
+            ActiveWindow::Niri(_) => Err("InitialTitle isn't supported on Niri"),
+        }
+    }
+
+    pub fn initial_class(&self) -> Result<&str, &str> {
+        match self {
+            ActiveWindow::Hyprland(w) => Ok(&w.initial_class),
+            ActiveWindow::Niri(_) => Err("InitialClass isn't supported on Niri"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default)]
