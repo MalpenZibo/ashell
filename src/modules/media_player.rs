@@ -15,6 +15,7 @@ use iced::{
     alignment::Vertical,
     widget::{Row, column, container, horizontal_rule, horizontal_space, image, row, slider, text},
 };
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -34,6 +35,7 @@ pub enum Action {
 pub struct MediaPlayer {
     config: MediaPlayerModuleConfig,
     service: Option<MprisPlayerService>,
+    covers: HashMap<String, image::Handle>,
 }
 
 impl MediaPlayer {
@@ -41,6 +43,7 @@ impl MediaPlayer {
         Self {
             config,
             service: None,
+            covers: HashMap::new(),
         }
     }
 
@@ -63,6 +66,7 @@ impl MediaPlayer {
                     if let Some(service) = self.service.as_mut() {
                         service.update(d);
                     }
+                    self.sync_cover_handles();
                     Action::None
                 }
                 ServiceEvent::Error(_) => Action::None,
@@ -148,11 +152,10 @@ impl MediaPlayer {
                         .as_ref()
                         .and_then(|m| m.art_url.as_ref())
                         .map(|url| {
-                            service
-                                .get_cover(url)
-                                .map(|img| {
-                                    // TODO: store image::Handle in the service to avoid cloning
-                                    image(image::Handle::from_bytes(img.clone()))
+                            self.covers
+                                .get(url)
+                                .map(|handle| {
+                                    image(handle)
                                         .filter_method(image::FilterMethod::Linear)
                                         .width(buttons_width)
                                         .into()
@@ -240,5 +243,30 @@ impl MediaPlayer {
 
     pub fn subscription(&self) -> Subscription<Message> {
         MprisPlayerService::subscribe().map(Message::Event)
+    }
+
+    fn sync_cover_handles(&mut self) {
+        let Some(service) = &self.service else {
+            return;
+        };
+
+        let desired_urls: HashSet<String> = service
+            .players()
+            .iter()
+            .filter_map(|player| player.metadata.as_ref()?.art_url.clone())
+            .collect();
+        self.covers.retain(|url, _| desired_urls.contains(url));
+        let unloaded_urls: HashSet<String> = desired_urls
+            .difference(&self.covers.keys().cloned().collect())
+            .cloned()
+            .collect();
+
+        for url in unloaded_urls {
+            let Some(cover) = service.get_cover(&url) else {
+                continue;
+            };
+            self.covers
+                .insert(url.clone(), image::Handle::from_bytes(cover.clone()));
+        }
     }
 }
