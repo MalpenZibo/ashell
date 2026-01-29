@@ -161,6 +161,8 @@ impl ReadOnlyService for MprisPlayerService {
 
 const MPRIS_PLAYER_SERVICE_PREFIX: &str = "org.mpris.MediaPlayer2.";
 
+type CoverDownloadFuture = BoxFuture<'static, Result<(String, anyhow::Result<Bytes>), Aborted>>;
+
 impl MprisPlayerService {
     async fn initialize_data(conn: &zbus::Connection) -> anyhow::Result<Vec<MprisPlayerData>> {
         let dbus = DBusProxy::new(conn).await?;
@@ -425,12 +427,10 @@ impl MprisPlayerService {
     }
 
     fn check_cover_update(
-        data: &Vec<MprisPlayerData>,
+        data: &[MprisPlayerData],
         already_fetched: &HashSet<String>,
         in_flight: &mut HashMap<String, AbortHandle>,
-        pending_downloads: &mut FuturesUnordered<
-            BoxFuture<'static, Result<(String, anyhow::Result<Bytes>), Aborted>>,
-        >,
+        pending_downloads: &mut FuturesUnordered<CoverDownloadFuture>,
     ) {
         let desired_urls: HashSet<String> = data
             .iter()
