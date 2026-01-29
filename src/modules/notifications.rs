@@ -41,28 +41,25 @@ impl Notifications {
             }
             Message::NotificationClicked(id) => {
                 // Get the notification to check for actions
-                if let Some(notifications) = NOTIFICATIONS.get() {
-                    if let Ok(mut notifications_map) = notifications.lock() {
-                        if let Some(notification) = notifications_map.get(&id) {
-                            if !notification.actions.is_empty() {
+                if let Some(notifications) = NOTIFICATIONS.get()
+                    && let Ok(mut notifications_map) = notifications.lock() {
+                        if let Some(notification) = notifications_map.get(&id)
+                            && !notification.actions.is_empty() {
                                 // Invoke the default action (first action)
                                 let action_key = notification.actions[0].clone();
                                 tokio::spawn(async move {
                                     NotificationDaemon::invoke_action(id, action_key).await.ok();
                                 });
                             }
-                        }
                         // Remove the notification from the global map
                         notifications_map.remove(&id);
                     }
-                }
             }
             Message::ClearMessage => {
-                if let Some(notifications) = NOTIFICATIONS.get() {
-                    if let Ok(mut notifications_map) = notifications.lock() {
+                if let Some(notifications) = NOTIFICATIONS.get()
+                    && let Ok(mut notifications_map) = notifications.lock() {
                         notifications_map.clear();
                     }
-                }
             }
         }
     }
