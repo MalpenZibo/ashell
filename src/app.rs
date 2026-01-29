@@ -10,6 +10,7 @@ use crate::{
         keyboard_layout::KeyboardLayout,
         keyboard_submap::KeyboardSubmap,
         media_player::MediaPlayer,
+        notifications::Notifications,
         privacy::Privacy,
         settings::Settings,
         system_info::SystemInfo,
@@ -65,6 +66,8 @@ pub struct App {
     pub privacy: Privacy,
     pub settings: Settings,
     pub media_player: MediaPlayer,
+    pub notifications: Notifications,
+    pub notifications_service: Option<crate::services::notifications::NotificationsService>,
 }
 
 #[derive(Debug, Clone)]
@@ -85,9 +88,13 @@ pub enum Message {
     Privacy(modules::privacy::Message),
     Settings(modules::settings::Message),
     MediaPlayer(modules::media_player::Message),
+    Notifications(modules::notifications::Message),
+    NotificationsServiceInit,
+    NotificationsServiceUpdate,
     OutputEvent((OutputEvent, WlOutput)),
     CloseAllMenus,
     ResumeFromSleep,
+    UpdateNotifications,
 }
 
 impl App {
@@ -108,6 +115,8 @@ impl App {
                 .into_iter()
                 .map(|o| (o.name.clone(), Custom::new(o)))
                 .collect();
+
+            let notifications = Notifications::new(config.notifications);
 
             (
                 App {
@@ -132,9 +141,24 @@ impl App {
                     clock: Clock::new(config.clock),
                     privacy: Privacy::default(),
                     settings: Settings::new(config.settings),
+                    notifications,
+                    notifications_service: None,
                     media_player: MediaPlayer::new(config.media_player),
                 },
-                task,
+                Task::batch(vec![
+                    task,
+                    Task::perform(
+                        async {
+                            let mut service =
+                                crate::services::notifications::NotificationsService::new();
+                            if let Err(e) = service.start().await {
+                                warn!("Failed to start notifications service: {:?}", e);
+                            }
+                            service
+                        },
+                        |_| Message::NotificationsServiceInit,
+                    ),
+                ]),
             )
         }
     }
@@ -185,6 +209,10 @@ impl App {
         self.media_player
             .update(modules::media_player::Message::ConfigReloaded(
                 config.media_player,
+            ));
+        self.notifications
+            .update(modules::notifications::Message::ConfigReloaded(
+                config.notifications,
             ));
     }
 
@@ -410,6 +438,28 @@ impl App {
                 self.general_config.layer,
                 self.theme.scale_factor,
             ),
+            Message::UpdateNotifications => {
+                if let Some(service) = &self.notifications_service {
+                    self.notifications
+                        .update_notifications(service.get_notifications());
+                }
+                Task::none()
+            }
+            Message::NotificationsServiceUpdate => {
+                if let Some(service) = &self.notifications_service {
+                    self.notifications
+                        .update_notifications(service.get_notifications());
+                }
+                Task::none()
+            }
+            Message::Notifications(message) => {
+                self.notifications.update(message);
+                Task::none()
+            }
+            Message::NotificationsServiceInit => {
+                // Service is started, but we don't store it since it's running in background
+                Task::none()
+            }
         }
     }
 
@@ -517,6 +567,14 @@ impl App {
                     MenuSize::Medium,
                     *button_ui_ref,
                 ),
+                Some((MenuType::Notifications, button_ui_ref)) => self.menu_wrapper(
+                    id,
+                    self.notifications
+                        .menu_view(id, &self.theme)
+                        .map(Message::Notifications),
+                    MenuSize::Medium,
+                    *button_ui_ref,
+                ),
                 Some((MenuType::Settings, button_ui_ref)) => self.menu_wrapper(
                     id,
                     self.settings
@@ -557,6 +615,11 @@ impl App {
                 crate::services::ServiceEvent::Update(_) => Message::ResumeFromSleep,
                 _ => Message::None,
             }),
+            crate::services::notifications::NotificationsService::subscribe().map(|event| match event {
+                crate::services::ServiceEvent::Init(_) => Message::NotificationsServiceInit,
+                crate::services::ServiceEvent::Update(_) => Message::NotificationsServiceUpdate,
+                crate::services::ServiceEvent::Error(_) => Message::None,
+            }),
             listen_with(move |evt, _, _| match evt {
                 iced::Event::PlatformSpecific(iced::event::PlatformSpecific::Wayland(
                     WaylandEvent::Output(event, wl_output),
@@ -572,7 +635,7 @@ impl App {
                     } else {
                         None
                     }
-                }
+                },
                 _ => None,
             }),
         ])

@@ -16,6 +16,7 @@ use iced::{Border, Length, Padding};
 pub enum MenuType {
     Updates,
     Settings,
+    Notifications,
     Tray(String),
     MediaPlayer,
     SystemInfo,
