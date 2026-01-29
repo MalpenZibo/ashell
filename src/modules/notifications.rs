@@ -18,7 +18,7 @@ pub static NOTIFICATIONS: std::sync::OnceLock<std::sync::Mutex<HashMap<u32, Noti
 pub enum Message {
     ConfigReloaded(config::NotificationsModuleConfig),
     NotificationClicked(u32),
-    ClearMessage,
+    ClearNotifications,
 }
 
 pub struct Notifications {
@@ -55,7 +55,7 @@ impl Notifications {
                         notifications_map.remove(&id);
                     }
             }
-            Message::ClearMessage => {
+            Message::ClearNotifications => {
                 if let Some(notifications) = NOTIFICATIONS.get()
                     && let Ok(mut notifications_map) = notifications.lock() {
                         notifications_map.clear();
@@ -230,7 +230,7 @@ impl Notifications {
                             border: Border::default().rounded(theme.radius.md),
                             ..button::Style::default()
                         })
-                        .on_press(Message::ClearMessage)
+                        .on_press(Message::ClearNotifications)
                 )
                 .width(Length::Fill)
                 .align_x(Alignment::End)
