@@ -661,6 +661,13 @@ impl Settings {
                         row = row.push(element);
                     }
                 }
+                SettingsIndicator::Microphone => {
+                    if let Some(element) =
+                        self.audio.source_indicator().map(|e| e.map(Message::Audio))
+                    {
+                        row = row.push(element);
+                    }
+                }
                 SettingsIndicator::Battery => {
                     if let Some(element) = self
                         .power
