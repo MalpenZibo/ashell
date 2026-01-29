@@ -108,10 +108,8 @@ impl Sinks for Vec<Device> {
                     StaticIcon::Speaker3
                 } else if volume > 0.33 {
                     StaticIcon::Speaker2
-                } else if volume > 0.000001 {
-                    StaticIcon::Speaker1
                 } else {
-                    StaticIcon::Speaker0
+                    StaticIcon::Speaker1
                 }
             }
             None => StaticIcon::Speaker0,
