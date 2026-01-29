@@ -256,13 +256,20 @@ impl Default for ClockModuleConfig {
     }
 }
 #[derive(Deserialize, Clone, Debug)]
+#[serde(default)]
 pub struct NotificationsModuleConfig {
     pub format: String,
+    pub show_timestamps: bool,
+    pub max_notifications: Option<usize>,
+    pub show_bodies: bool,
 }
 impl Default for NotificationsModuleConfig {
     fn default() -> Self {
         Self {
-            format: "%Y-%m-%d %H:%M:%S".to_string(),
+            format: "%H:%M".to_string(),
+            show_timestamps: true,
+            max_notifications: None,
+            show_bodies: true,
         }
     }
 }

@@ -4,6 +4,7 @@ use crate::{
     services::notifications::{Notification, dbus::NotificationDaemon},
     theme::AshellTheme,
 };
+use chrono::{DateTime, Local};
 use iced::{
     Alignment, Background, Border, Element, Length, Subscription, Theme,
     widget::{button, column, container, horizontal_rule, row, scrollable, text},
@@ -68,21 +69,9 @@ impl Notifications {
         self.notifications = notifications.clone();
     }
 
-    fn time_ago(&self, timestamp: std::time::SystemTime) -> String {
-        let now = std::time::SystemTime::now();
-        let duration = now
-            .duration_since(timestamp)
-            .unwrap_or(std::time::Duration::from_secs(0));
-        let secs = duration.as_secs();
-        if secs < 60 {
-            format!("{}s", secs)
-        } else if secs < 3600 {
-            format!("{}m", secs / 60)
-        } else if secs < 86400 {
-            format!("{}h", secs / 3600)
-        } else {
-            format!("{}d", secs / 86400)
-        }
+    fn format_timestamp(&self, timestamp: std::time::SystemTime) -> String {
+        let datetime: DateTime<Local> = timestamp.into();
+        datetime.format(&self.config.format).to_string()
     }
 
     pub fn view(&'_ self, _: &AshellTheme) -> Element<'_, Message> {
@@ -109,8 +98,14 @@ impl Notifications {
             .get_or_init(|| std::sync::Mutex::new(HashMap::new()))
             .lock()
             .unwrap();
-        let notifications_data: Vec<_> = notifications.values().cloned().collect();
+        let mut notifications_data: Vec<_> = notifications.values().cloned().collect();
         drop(notifications);
+
+        // Sort by timestamp (newest first) and limit
+        notifications_data.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+        if let Some(max) = self.config.max_notifications {
+            notifications_data.truncate(max);
+        }
 
         let mut content = column!().spacing(theme.space.sm);
         if notifications_data.is_empty() {
@@ -145,11 +140,15 @@ impl Notifications {
                                     color: Some(theme.palette().text),
                                 }
                             ),
-                            text(format!("{} ago", self.time_ago(notification.timestamp)))
-                                .size(theme.font_size.sm)
-                                .style(|theme: &Theme| text::Style {
-                                    color: Some(theme.extended_palette().secondary.weak.text),
-                                })
+                            if self.config.show_timestamps {
+                                text(self.format_timestamp(notification.timestamp))
+                                    .size(theme.font_size.sm)
+                                    .style(|theme: &Theme| text::Style {
+                                        color: Some(theme.extended_palette().secondary.weak.text),
+                                    })
+                            } else {
+                                text("")
+                            }
                         )
                         .spacing(theme.space.xs)
                         .align_y(Alignment::Center),
@@ -158,12 +157,16 @@ impl Notifications {
                                 color: Some(theme.extended_palette().secondary.strong.text),
                             }
                         ),
-                        text(notification.body)
-                            .size(theme.font_size.sm)
-                            .wrapping(text::Wrapping::WordOrGlyph)
-                            .style(|theme: &Theme| text::Style {
-                                color: Some(theme.extended_palette().secondary.strong.text),
-                            })
+                        if self.config.show_bodies && !notification.body.is_empty() {
+                            text(notification.body)
+                                .size(theme.font_size.sm)
+                                .wrapping(text::Wrapping::WordOrGlyph)
+                                .style(|theme: &Theme| text::Style {
+                                    color: Some(theme.extended_palette().secondary.strong.text),
+                                })
+                        } else {
+                            text("")
+                        }
                     )
                     .spacing(theme.space.xxs),
                 )

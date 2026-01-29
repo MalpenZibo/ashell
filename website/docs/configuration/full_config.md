@@ -50,6 +50,12 @@ sensor = "acpitz temp1"
 format = "%H:%M"
 date_format = "%Y-%m-%d"
 
+[notifications]
+format = "%H:%M"
+show_timestamps = true
+max_notifications = 10
+show_bodies = true
+
 [settings]
 lock_cmd = "playerctl --all-players pause; nixGL hyprlock &"
 audio_sinks_more_cmd = "pavucontrol -t 3"
