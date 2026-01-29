@@ -62,6 +62,16 @@ The default value is `1.0`.
 It's also possible to define the opacity of status bar menus and whether they should
 include a backdrop effect.
 
+The `backdrop` effect adds a blur/transparent background to menus, making them appear
+semi-transparent over the content behind them. The value should be a float between `0.0`
+and `1.0`, where `0.0` disables the effect and `1.0` applies maximum blur.
+
+**Default values:**
+
+- `opacity`: `1.0` (fully opaque)
+- `menu.opacity`: `1.0` (fully opaque)
+- `menu.backdrop`: `0.0` (disabled)
+
 ## Examples
 
 Setting the opacity of the status bar components:

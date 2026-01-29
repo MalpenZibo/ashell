@@ -13,9 +13,7 @@ use serde_with::DisplayFromStr;
 use serde_with::serde_as;
 use std::path::PathBuf;
 use std::time::Duration;
-use std::{
-    any::TypeId, collections::HashMap, error::Error, fs::File, io::Read, ops::Deref, path::Path,
-};
+use std::{any::TypeId, collections::HashMap, error::Error, ops::Deref, path::Path};
 use tokio::time::sleep;
 
 pub const DEFAULT_CONFIG_FILE_PATH: &str = "~/.config/ashell/config.toml";
@@ -25,12 +23,11 @@ pub const DEFAULT_CONFIG_FILE_PATH: &str = "~/.config/ashell/config.toml";
 pub struct Config {
     pub log_level: String,
     pub position: Position,
+    pub layer: Layer,
     pub outputs: Outputs,
     pub modules: Modules,
-    pub app_launcher_cmd: Option<String>,
     #[serde(rename = "CustomModule")]
     pub custom_modules: Vec<CustomModuleDef>,
-    pub clipboard_cmd: Option<String>,
     pub updates: Option<UpdatesModuleConfig>,
     pub workspaces: WorkspacesModuleConfig,
     pub window_title: WindowTitleConfig,
@@ -48,10 +45,9 @@ impl Default for Config {
         Self {
             log_level: "warn".to_owned(),
             position: Position::default(),
+            layer: Layer::default(),
             outputs: Outputs::default(),
             modules: Modules::default(),
-            app_launcher_cmd: None,
-            clipboard_cmd: None,
             updates: None,
             workspaces: WorkspacesModuleConfig::default(),
             window_title: WindowTitleConfig::default(),
@@ -71,6 +67,14 @@ impl Default for Config {
 pub struct UpdatesModuleConfig {
     pub check_cmd: String,
     pub update_cmd: String,
+    #[serde(default = "UpdatesModuleConfig::default_interval")]
+    pub interval: u64,
+}
+
+impl UpdatesModuleConfig {
+    const fn default_interval() -> u64 {
+        3600
+    }
 }
 
 #[derive(Deserialize, Copy, Clone, Default, PartialEq, Eq, Debug)]
@@ -85,6 +89,7 @@ pub enum WorkspaceVisibilityMode {
 #[serde(default)]
 pub struct WorkspacesModuleConfig {
     pub visibility_mode: WorkspaceVisibilityMode,
+    pub group_by_monitor: bool,
     pub enable_workspace_filling: bool,
     pub disable_special_workspaces: bool,
     pub max_workspaces: Option<u32>,
@@ -189,16 +194,25 @@ impl Default for SystemInfoDisk {
     }
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct SystemInfoDiskIndicatorConfig {
+    #[serde(rename = "Disk")]
+    pub path: String,
+    #[serde(rename = "Name")]
+    pub name: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
 pub enum SystemInfoIndicator {
     Cpu,
     Memory,
     MemorySwap,
     Temperature,
-    Disk(String),
     IpAddress,
     DownloadSpeed,
     UploadSpeed,
+    #[serde(untagged)]
+    Disk(SystemInfoDiskIndicatorConfig),
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -245,6 +259,7 @@ pub enum SettingsIndicator {
     IdleInhibitor,
     PowerProfile,
     Audio,
+    Microphone,
     Network,
     Vpn,
     Bluetooth,
@@ -258,6 +273,8 @@ pub enum BatteryFormat {
     Percentage,
     #[default]
     IconAndPercentage,
+    Time,
+    IconAndTime,
 }
 
 #[derive(Deserialize, Clone, Default, PartialEq, Eq, Debug)]
@@ -314,6 +331,7 @@ impl Default for SettingsModuleConfig {
                 SettingsIndicator::IdleInhibitor,
                 SettingsIndicator::PowerProfile,
                 SettingsIndicator::Audio,
+                SettingsIndicator::Microphone,
                 SettingsIndicator::Bluetooth,
                 SettingsIndicator::Network,
                 SettingsIndicator::Vpn,
@@ -333,16 +351,25 @@ pub struct SettingsCustomButton {
     pub tooltip: Option<String>,
 }
 
+#[derive(Deserialize, Copy, Clone, Default, PartialEq, Eq, Debug)]
+pub enum MediaPlayerFormat {
+    Icon,
+    #[default]
+    IconAndTitle,
+}
+
 #[derive(Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct MediaPlayerModuleConfig {
     pub max_title_length: u32,
+    pub indicator_format: MediaPlayerFormat,
 }
 
 impl Default for MediaPlayerModuleConfig {
     fn default() -> Self {
         MediaPlayerModuleConfig {
             max_title_length: 100,
+            indicator_format: MediaPlayerFormat::default(),
         }
     }
 }
@@ -545,11 +572,16 @@ pub enum Position {
     Bottom,
 }
 
+#[derive(Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Layer {
+    #[default]
+    Bottom,
+    Overlay,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ModuleName {
-    AppLauncher,
     Updates,
-    Clipboard,
     Workspaces,
     WindowTitle,
     SystemInfo,
@@ -579,9 +611,7 @@ impl<'de> Deserialize<'de> for ModuleName {
                 E: serde::de::Error,
             {
                 Ok(match value {
-                    "AppLauncher" => ModuleName::AppLauncher,
                     "Updates" => ModuleName::Updates,
-                    "Clipboard" => ModuleName::Clipboard,
                     "Workspaces" => ModuleName::Workspaces,
                     "WindowTitle" => ModuleName::WindowTitle,
                     "SystemInfo" => ModuleName::SystemInfo,
@@ -683,11 +713,19 @@ impl Deref for RegexCfg {
     }
 }
 
+#[derive(Deserialize, Copy, Clone, Default, PartialEq, Eq, Debug)]
+pub enum CustomModuleType {
+    #[default]
+    Button,
+    Text,
+}
+
 #[serde_as]
 #[derive(Deserialize, Clone, Debug)]
 pub struct CustomModuleDef {
     pub name: String,
-    pub command: String,
+    #[serde(default)]
+    pub command: Option<String>,
     #[serde(default)]
     pub icon: Option<String>,
 
@@ -697,6 +735,9 @@ pub struct CustomModuleDef {
     pub icons: Option<HashMap<RegexCfg, String>>,
     /// regex to show alert
     pub alert: Option<RegexCfg>,
+    /// Display type: Button (clickable) or Text (display only)
+    #[serde(default)]
+    pub r#type: CustomModuleType,
     // .. appearance etc
 }
 
@@ -739,29 +780,20 @@ fn expand_path(path: PathBuf) -> Result<PathBuf, Box<dyn Error + Send>> {
 }
 
 fn read_config(path: &Path) -> Result<Config, Box<dyn Error + Send>> {
-    let mut content = String::new();
-    let read_result = File::open(path).and_then(|mut file| file.read_to_string(&mut content));
+    let content =
+        std::fs::read_to_string(path).map_err(|e| Box::new(e) as Box<dyn Error + Send>)?;
 
-    match read_result {
-        Ok(_) => {
-            info!("Decoding config file {path:?}");
+    info!("Decoding config file {path:?}");
 
-            let res = toml::from_str(&content);
+    let res = toml::from_str(&content);
 
-            match res {
-                Ok(config) => {
-                    info!("Config file loaded successfully");
-                    Ok(config)
-                }
-                Err(e) => {
-                    warn!("Failed to parse config file: {e}");
-                    Err(Box::new(e))
-                }
-            }
+    match res {
+        Ok(config) => {
+            info!("Config file loaded successfully");
+            Ok(config)
         }
         Err(e) => {
-            warn!("Failed to read config file: {e}");
-
+            warn!("Failed to parse config file: {e}");
             Err(Box::new(e))
         }
     }

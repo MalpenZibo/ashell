@@ -325,11 +325,11 @@ impl NetworkDbus<'_> {
             );
         }
 
-        // When devices list change I need to update the access points changes
-        let mut ac_changes = Vec::with_capacity(wireless_ac.len());
-        for ac in wireless_ac.iter() {
+        // Set up access point change listeners on wireless devices
+        let mut ac_changes = Vec::with_capacity(devices.len());
+        for device_path in devices.iter() {
             let dp = WirelessDeviceProxy::builder(conn)
-                .path(ac.device_path.clone())?
+                .path(device_path.clone())?
                 .build()
                 .await?;
 
@@ -626,8 +626,7 @@ impl NetworkDbus<'_> {
                 let state: DeviceState = device
                     .cached_state()
                     .unwrap_or_default()
-                    .map(DeviceState::from)
-                    .unwrap_or_else(|| DeviceState::Unknown);
+                    .map_or_else(|| DeviceState::Unknown, DeviceState::from);
 
                 // Sort by strength and remove duplicates
                 let mut aps = HashMap::<String, AccessPoint>::new();
@@ -714,9 +713,7 @@ impl NetworkSettingsDbus<'_> {
                 .await?;
 
             let s = connection.get_settings().await?;
-            let id = s
-                .get("connection")
-                .unwrap()
+            let id = s["connection"]
                 .get("id")
                 .map(|v| match v.deref() {
                     Value::Str(v) => v.to_string(),
@@ -835,6 +832,7 @@ impl From<Vec<ConnectivityState>> for ConnectivityState {
 }
 
 impl From<ConnectivityState> for u32 {
+    #[inline]
     fn from(val: ConnectivityState) -> Self {
         match val {
             ConnectivityState::None => 1,
@@ -975,15 +973,15 @@ trait WiredDevice {
     #[zbus(property)]
     fn carrier(&self) -> zbus::Result<bool>;
 
-    /// HwAddress property
+    /// `HwAddress` property
     #[zbus(property)]
     fn hw_address(&self) -> zbus::Result<String>;
 
-    /// PermHwAddress property
+    /// `PermHwAddress` property
     #[zbus(property)]
     fn perm_hw_address(&self) -> zbus::Result<String>;
 
-    /// S390Subchannels property
+    /// `S390Subchannels` property
     #[zbus(property)]
     fn s390subchannels(&self) -> zbus::Result<Vec<String>>;
 
@@ -998,7 +996,7 @@ trait WiredDevice {
     interface = "org.freedesktop.NetworkManager.Device.Wireless"
 )]
 pub trait WirelessDevice {
-    /// GetAccessPoints method
+    /// `GetAccessPoints` method
     fn get_access_points(&self) -> zbus::Result<Vec<zbus::zvariant::OwnedObjectPath>>;
 
     #[zbus(property)]

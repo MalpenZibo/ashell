@@ -19,8 +19,6 @@ pub trait Icon {
 pub enum StaticIcon {
     #[default]
     None,
-    AppLauncher,
-    Clipboard,
     Refresh,
     NoUpdatesAvailable,
     UpdatesAvailable,
@@ -119,8 +117,6 @@ impl StaticIcon {
     fn get_str(&self) -> &'static str {
         match self {
             StaticIcon::None => "",
-            StaticIcon::AppLauncher => "\u{f003b}",
-            StaticIcon::Clipboard => "\u{f014c}",
             StaticIcon::Refresh => "\u{f0453}",
             StaticIcon::NoUpdatesAvailable => "\u{f05e0}",
             StaticIcon::UpdatesAvailable => "\u{f0cdb}",
@@ -375,6 +371,7 @@ impl<'a, I: Icon, Message> IconButton<'a, I, Message> {
 impl<'a, I: Icon, Message: 'static + Clone> From<IconButton<'a, I, Message>>
     for Element<'a, Message>
 {
+    #[inline]
     fn from(value: IconButton<'a, I, Message>) -> Self {
         let container_size = value.size.container_size();
         let font_size = value.size.font_size(&value.theme.font_size);

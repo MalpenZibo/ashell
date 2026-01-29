@@ -11,8 +11,6 @@ use iced::{
     window::Id,
 };
 
-pub mod app_launcher;
-pub mod clipboard;
 pub mod clock;
 pub mod custom_module;
 pub mod keyboard_layout;
@@ -221,37 +219,27 @@ impl App {
         module_name: &'a ModuleName,
     ) -> Option<(Element<'a, Message>, Option<OnModulePress>)> {
         match module_name {
-            ModuleName::AppLauncher => self.app_launcher.as_ref().map(|app_launcher| {
-                (
-                    app_launcher.view().map(Message::AppLauncher),
-                    Some(OnModulePress::Action(Box::new(Message::AppLauncher(
-                        app_launcher::Message::Launch,
-                    )))),
-                )
-            }),
             ModuleName::Custom(name) => self.custom.get(name).map(|custom| {
+                let action = match custom.module_type() {
+                    crate::config::CustomModuleType::Text => None,
+                    crate::config::CustomModuleType::Button => {
+                        Some(OnModulePress::Action(Box::new(Message::Custom(
+                            name.clone(),
+                            custom_module::Message::LaunchCommand,
+                        ))))
+                    }
+                };
                 (
                     custom
                         .view(&self.theme)
                         .map(|msg| Message::Custom(name.clone(), msg)),
-                    Some(OnModulePress::Action(Box::new(Message::Custom(
-                        name.clone(),
-                        custom_module::Message::LaunchCommand,
-                    )))),
+                    action,
                 )
             }),
             ModuleName::Updates => self.updates.as_ref().map(|updates| {
                 (
                     updates.view(&self.theme).map(Message::Updates),
                     Some(OnModulePress::ToggleMenu(MenuType::Updates)),
-                )
-            }),
-            ModuleName::Clipboard => self.clipboard.as_ref().map(|clipboard| {
-                (
-                    clipboard.view().map(Message::Clipboard),
-                    Some(OnModulePress::Action(Box::new(Message::Clipboard(
-                        clipboard::Message::Launch,
-                    )))),
                 )
             }),
             ModuleName::Workspaces => Some((
@@ -308,7 +296,6 @@ impl App {
 
     fn get_module_subscription(&self, module_name: &ModuleName) -> Option<Subscription<Message>> {
         match module_name {
-            ModuleName::AppLauncher => None,
             ModuleName::Custom(name) => self.custom.get(name).map(|custom| {
                 custom
                     .subscription()
@@ -318,7 +305,6 @@ impl App {
                 .updates
                 .as_ref()
                 .map(|updates| updates.subscription().map(Message::Updates)),
-            ModuleName::Clipboard => None,
             ModuleName::Workspaces => Some(self.workspaces.subscription().map(Message::Workspaces)),
             ModuleName::WindowTitle => {
                 Some(self.window_title.subscription().map(Message::WindowTitle))

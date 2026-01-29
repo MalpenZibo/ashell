@@ -20,6 +20,28 @@ use iced::{
     widget::{Column, Row, button, column, container, horizontal_rule, row, text},
 };
 
+fn format_time_for_battery(battery: &BatteryData) -> String {
+    match battery.status {
+        BatteryStatus::Charging(duration) => {
+            if battery.capacity >= 100 || duration.is_zero() {
+                "100%".to_string()
+            } else {
+                format_duration(&duration)
+            }
+        }
+        BatteryStatus::Discharging(duration) => {
+            if battery.capacity >= 100 {
+                "100%".to_string()
+            } else if duration.is_zero() {
+                "Calculating...".to_string()
+            } else {
+                format_duration(&duration)
+            }
+        }
+        BatteryStatus::Full => "100%".to_string(),
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Message {
     Event(ServiceEvent<UPowerService>),
@@ -244,6 +266,16 @@ impl PowerSettings {
                                         .spacing(ashell_theme.space.xxs)
                                         .align_y(Alignment::Center)
                                         .into(),
+                                        BatteryFormat::Time => {
+                                            text(format_time_for_battery(&p.data)).into()
+                                        }
+                                        BatteryFormat::IconAndTime => row!(
+                                            icon(p.get_icon_state()),
+                                            text(format_time_for_battery(&p.data))
+                                        )
+                                        .spacing(ashell_theme.space.xxs)
+                                        .align_y(Alignment::Center)
+                                        .into(),
                                     })
                                     .style(
                                         move |theme: &Theme| container::Style {
@@ -289,6 +321,14 @@ impl PowerSettings {
                     BatteryFormat::IconAndPercentage => row!(
                         icon(battery.get_icon()),
                         text(format!("{}%", battery.capacity))
+                    )
+                    .spacing(ashell_theme.space.xxs)
+                    .align_y(Alignment::Center)
+                    .into(),
+                    BatteryFormat::Time => text(format_time_for_battery(&battery)).into(),
+                    BatteryFormat::IconAndTime => row!(
+                        icon(battery.get_icon()),
+                        text(format_time_for_battery(&battery))
                     )
                     .spacing(ashell_theme.space.xxs)
                     .align_y(Alignment::Center)
@@ -443,6 +483,7 @@ impl PowerSettings {
                         None,
                         true,
                         Message::TogglePowerProfile,
+                        None,
                         None,
                     ),
                     None,

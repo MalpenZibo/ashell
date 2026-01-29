@@ -10,6 +10,7 @@ use hyprland::{
     event_listener::AsyncEventListener,
     prelude::*,
 };
+use itertools::Itertools;
 use std::sync::{Arc, RwLock};
 use tokio::sync::broadcast;
 
@@ -116,6 +117,8 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
     add_refresh_handler!(add_window_moved_handler);
     add_refresh_handler!(add_active_window_changed_handler);
 
+    add_refresh_handler!(add_layout_changed_handler);
+
     // custom refresh handler that takes the changed value as the submap
     listener.add_sub_map_changed_handler({
         let tx = tx.clone();
@@ -142,8 +145,10 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
 fn fetch_full_state(internal_state: &HyprInternalState) -> Result<CompositorState> {
     let workspaces = Workspaces::get()?
         .into_iter()
+        .sorted_by_key(|w| w.id)
         .map(|w| CompositorWorkspace {
             id: w.id,
+            index: w.id,
             name: w.name,
             monitor: w.monitor,
             monitor_id: w.monitor_id,

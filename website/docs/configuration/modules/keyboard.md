@@ -38,5 +38,5 @@ the "Italian" layout to the 🇮🇹 flag.
 
 ## Keyboard Submap
 
-This module displays the current keyboard submap in use. You can find more information
+This module displays the current keyboard submap in use. It only appears when a submap is active. You can find more information
 about submap in the [Hyprland documentation](https://wiki.hypr.land/Configuring/Binds/#submaps).

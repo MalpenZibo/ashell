@@ -5,8 +5,6 @@ use crate::{
     menu::{MenuSize, MenuType},
     modules::{
         self,
-        app_launcher::{self, AppLauncher},
-        clipboard::{self, Clipboard},
         clock::Clock,
         custom_module::{self, Custom},
         keyboard_layout::KeyboardLayout,
@@ -22,6 +20,7 @@ use crate::{
     },
     outputs::{HasOutput, Outputs},
     position_button::ButtonUIRef,
+    services::ReadOnlyService,
     theme::{AshellTheme, backdrop_color, darken_color},
 };
 use flexi_logger::LoggerHandle;
@@ -44,6 +43,7 @@ use wayland_client::protocol::wl_output::WlOutput;
 pub struct GeneralConfig {
     outputs: config::Outputs,
     pub modules: Modules,
+    pub layer: config::Layer,
     enable_esc_key: bool,
 }
 
@@ -53,10 +53,8 @@ pub struct App {
     logger: LoggerHandle,
     pub general_config: GeneralConfig,
     pub outputs: Outputs,
-    pub app_launcher: Option<AppLauncher>,
     pub custom: HashMap<String, Custom>,
     pub updates: Option<Updates>,
-    pub clipboard: Option<Clipboard>,
     pub workspaces: Workspaces,
     pub window_title: WindowTitle,
     pub system_info: SystemInfo,
@@ -75,8 +73,6 @@ pub enum Message {
     ConfigChanged(Box<Config>),
     ToggleMenu(MenuType, Id, ButtonUIRef),
     CloseMenu(Id),
-    Clipboard(clipboard::Message),
-    AppLauncher(app_launcher::Message),
     Custom(String, custom_module::Message),
     Updates(modules::updates::Message),
     Workspaces(modules::workspaces::Message),
@@ -91,6 +87,7 @@ pub enum Message {
     MediaPlayer(modules::media_player::Message),
     OutputEvent((OutputEvent, WlOutput)),
     CloseAllMenus,
+    ResumeFromSleep,
 }
 
 impl App {
@@ -101,6 +98,7 @@ impl App {
             let (outputs, task) = Outputs::new(
                 config.appearance.style,
                 config.position,
+                config.layer,
                 config.appearance.scale_factor,
             );
 
@@ -119,13 +117,12 @@ impl App {
                     general_config: GeneralConfig {
                         outputs: config.outputs,
                         modules: config.modules,
+                        layer: config.layer,
                         enable_esc_key: config.enable_esc_key,
                     },
                     outputs,
-                    app_launcher: config.app_launcher_cmd.map(AppLauncher::new),
                     custom,
                     updates: config.updates.map(Updates::new),
-                    clipboard: config.clipboard_cmd.map(Clipboard::new),
                     workspaces: Workspaces::new(config.workspaces),
                     window_title: WindowTitle::new(config.window_title),
                     system_info: SystemInfo::new(config.system_info),
@@ -146,6 +143,7 @@ impl App {
         self.general_config = GeneralConfig {
             outputs: config.outputs,
             modules: config.modules,
+            layer: config.layer,
             enable_esc_key: config.enable_esc_key,
         };
         self.theme = AshellTheme::new(config.position, &config.appearance);
@@ -155,10 +153,8 @@ impl App {
             .map(|o| (o.name.clone(), Custom::new(o)))
             .collect();
 
-        self.app_launcher = config.app_launcher_cmd.map(AppLauncher::new);
         self.custom = custom;
         self.updates = config.updates.map(Updates::new);
-        self.clipboard = config.clipboard_cmd.map(Clipboard::new);
 
         // ignore task, since config change should not generate any
         let _ = self
@@ -226,12 +222,14 @@ impl App {
                     || self.theme.bar_position != config.position
                     || self.theme.bar_style != config.appearance.style
                     || self.theme.scale_factor != config.appearance.scale_factor
+                    || self.general_config.layer != config.layer
                 {
                     warn!("Outputs changed, syncing");
                     tasks.push(self.outputs.sync(
                         config.appearance.style,
                         &config.outputs,
                         config.position,
+                        config.layer,
                         config.appearance.scale_factor,
                     ));
                 }
@@ -277,13 +275,6 @@ impl App {
             Message::CloseMenu(id) => self
                 .outputs
                 .close_menu(id, self.general_config.enable_esc_key),
-            Message::AppLauncher(msg) => {
-                if let Some(app_launcher) = self.app_launcher.as_mut() {
-                    app_launcher.update(msg);
-                }
-
-                Task::none()
-            }
             Message::Custom(name, msg) => {
                 if let Some(custom) = self.custom.get_mut(&name) {
                     custom.update(msg);
@@ -310,13 +301,6 @@ impl App {
                 } else {
                     Task::none()
                 }
-            }
-            Message::Clipboard(msg) => {
-                if let Some(clipboard) = self.clipboard.as_mut() {
-                    clipboard.update(msg);
-                }
-
-                Task::none()
             }
             Message::Workspaces(msg) => self.workspaces.update(msg).map(Message::Workspaces),
             Message::WindowTitle(msg) => {
@@ -389,6 +373,7 @@ impl App {
                         self.theme.bar_style,
                         &self.general_config.outputs,
                         self.theme.bar_position,
+                        self.general_config.layer,
                         name,
                         wl_output,
                         self.theme.scale_factor,
@@ -399,6 +384,7 @@ impl App {
                     self.outputs.remove(
                         self.theme.bar_style,
                         self.theme.bar_position,
+                        self.general_config.layer,
                         wl_output,
                         self.theme.scale_factor,
                     )
@@ -417,6 +403,13 @@ impl App {
                     Task::none()
                 }
             }
+            Message::ResumeFromSleep => self.outputs.sync(
+                self.theme.bar_style,
+                &self.general_config.outputs,
+                self.theme.bar_position,
+                self.general_config.layer,
+                self.theme.scale_factor,
+            ),
         }
     }
 
@@ -560,6 +553,10 @@ impl App {
             Subscription::batch(self.modules_subscriptions(&self.general_config.modules.center)),
             Subscription::batch(self.modules_subscriptions(&self.general_config.modules.right)),
             config::subscription(&self.config_path),
+            crate::services::logind::LogindService::subscribe().map(|event| match event {
+                crate::services::ServiceEvent::Update(_) => Message::ResumeFromSleep,
+                _ => Message::None,
+            }),
             listen_with(move |evt, _, _| match evt {
                 iced::Event::PlatformSpecific(iced::event::PlatformSpecific::Wayland(
                     WaylandEvent::Output(event, wl_output),

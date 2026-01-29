@@ -2,6 +2,7 @@ use std::error::Error;
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::Path;
+use std::process::Command;
 use std::str;
 
 use allsorts::binary::read::ReadScope;
@@ -17,6 +18,20 @@ use allsorts::unicode::VariationSelector;
 use allsorts::{subset, tag};
 
 pub fn main() -> Result<(), Box<dyn Error>> {
+    let output = Command::new("git")
+        .args(["rev-parse", "--short", "HEAD"])
+        .output();
+
+    match output {
+        Ok(output) if output.status.success() => {
+            let git_hash = String::from_utf8(output.stdout)?;
+            println!("cargo:rustc-env=GIT_HASH={}", git_hash.trim());
+        }
+        _ => {
+            println!("cargo:rustc-env=GIT_HASH=unknown");
+        }
+    }
+
     let source = "src/components/icons.rs";
     let input = "assets/SymbolsNerdFont-Regular.ttf";
     let input_mono = "assets/SymbolsNerdFontMono-Regular.ttf";

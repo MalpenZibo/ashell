@@ -47,8 +47,8 @@ To enable this indicator, add `MemorySwap` to the `indicators` configuration.
 
 The Disk indicator displays the disk space usage for a specific path.
 
-To enable this indicator, add `{ Disk = "path" }` to the `indicators` configuration,
-where `path` is the path to the disk you want to monitor.
+To enable this indicator, add `{ Disk = "path" }` or `{ Disk = "path", Name = "label" }` to the `indicators` configuration,
+where `path` is the path to the disk you want to monitor and `label` is an optional name to display for the disk.
 
 #### Example
 
@@ -57,6 +57,13 @@ To monitor the home directory disk space, you can add the following to your conf
 ```toml
 [system_info]
 indicators = [ { Disk = "/home" } ]
+```
+
+Or if you want to display the directory disk space with an optional name, for example `bob` instead of its full path:
+
+```toml
+[system_info]
+indicators = [ { Disk = "/my/long/path/to/mount/called/bob", Name = "bob" } ]
 ```
 
 ### IpAddress

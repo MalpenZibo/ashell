@@ -10,7 +10,9 @@ use crate::{
 use iced::{
     Element, Length, Subscription, Task, Theme,
     alignment::{Horizontal, Vertical},
-    widget::{Column, Row, button, column, container, horizontal_rule, row, scrollable, text},
+    widget::{
+        Column, MouseArea, Row, button, column, container, horizontal_rule, row, scrollable, text,
+    },
     window::Id,
 };
 use itertools::Itertools;
@@ -27,6 +29,7 @@ pub enum Message {
     ConnectDevice(OwnedObjectPath),
     DisconnectDevice(OwnedObjectPath),
     RemoveDevice(OwnedObjectPath),
+    OpenMore,
     More(Id),
     ConfigReloaded(BluetoothSettingsConfig),
 }
@@ -135,6 +138,12 @@ impl BluetoothSettings {
                 ),
                 _ => Action::None,
             },
+            Message::OpenMore => {
+                if let Some(cmd) = &self.config.more_cmd {
+                    crate::utils::launcher::execute_command(cmd.to_string());
+                }
+                Action::None
+            }
             Message::More(id) => {
                 if let Some(cmd) = &self.config.more_cmd {
                     crate::utils::launcher::execute_command(cmd.to_string());
@@ -182,6 +191,7 @@ impl BluetoothSettings {
                     device_name,
                     service.state == BluetoothState::Active,
                     Message::Toggle,
+                    Some(Message::OpenMore),
                     Some((SubMenu::Bluetooth, sub_menu, Message::ToggleSubMenu))
                         .filter(|_| service.state == BluetoothState::Active),
                 ),
@@ -403,11 +413,17 @@ impl BluetoothSettings {
             && service.state == BluetoothState::Active
         {
             let connected_count = service.devices.iter().filter(|d| d.connected).count();
-            if connected_count > 0 {
-                return Some(icon(StaticIcon::BluetoothConnected).into());
+            let icon_type = if connected_count > 0 {
+                StaticIcon::BluetoothConnected
             } else {
-                return Some(icon(StaticIcon::Bluetooth).into());
-            }
+                StaticIcon::Bluetooth
+            };
+
+            return Some(
+                MouseArea::new(icon(icon_type))
+                    .on_right_press(Message::OpenMore)
+                    .into(),
+            );
         }
         None
     }

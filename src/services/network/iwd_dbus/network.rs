@@ -31,11 +31,11 @@ pub trait Network {
     #[zbus(property)]
     fn device(&self) -> zbus::Result<zbus::zvariant::OwnedObjectPath>;
 
-    /// ExtendedServiceSet property
+    /// `ExtendedServiceSet` property
     #[zbus(property)]
     fn extended_service_set(&self) -> zbus::Result<Vec<zbus::zvariant::OwnedObjectPath>>;
 
-    /// KnownNetwork property
+    /// `KnownNetwork` property
     #[zbus(property)]
     fn known_network(&self) -> zbus::Result<zbus::zvariant::OwnedObjectPath>;
 

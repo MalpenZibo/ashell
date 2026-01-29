@@ -56,3 +56,28 @@ Use the `workspace_colors` field for regular workspaces, and
 If `special_workspace_colors` is not defined, `workspace_colors` will be used.  
 If neither `workspace_colors` is defined nor a color exists
 for a given monitor, the `primary_color` will be used.
+
+## Complete Examples
+
+For complete theme examples with full palette configurations, see the [Theme documentation](./theme.md). These examples show popular color schemes like Catppuccin Mocha, Tokyo Night, and Nord with all colors configured.
+
+## Simple vs Advanced Syntax
+
+You can use simple hex colors for basic customization:
+
+```toml
+[appearance]
+primary_color = "#7aa2f7"
+success_color = "#9ece6a"
+text_color = "#a9b1d6"
+```
+
+Or use the advanced syntax with variants for more control:
+
+```toml
+[appearance.primary_color]
+base = "#7aa2f7"
+strong = "#8aacff"
+weak = "#6988e6"
+text = "#1a1b26"
+```

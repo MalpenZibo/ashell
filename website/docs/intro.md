@@ -18,8 +18,6 @@ Wayland compositors.
 
 ## Features
 
-- App Launcher button
-- Clipboard button
 - OS Updates indicator
 - Hyprland/Niri Active Window
 - Hyprland/Niri Workspaces
@@ -41,4 +39,4 @@ Wayland compositors.
   - Power profiles
   - Idle inhibitor
   - Airplane mode
-- Custom Modules
+- Custom Modules (applauncher, clipboard, custom clock, etc.)

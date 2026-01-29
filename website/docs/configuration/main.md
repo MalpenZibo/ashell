@@ -90,22 +90,30 @@ Render the status bar on a specific list of monitors:
 outputs = { Targets = ["DP-1", "eDP-1"] }
 ```
 
-## Position
+## Position & Layer
 
-You can set the position of the status bar to either `Top` or `Bottom`.
+Configure the bar position and Wayland layer.
 
-### Position Examples
+### Position Options
 
-Set the bar position to the top:
+- `"Top"` - Bar at top of screen (default)
+- `"Bottom"` - Bar at bottom of screen
+
+### Layer Options
+
+- `"Overlay"` - Above everything including fullscreen
+- `"Bottom"` - Above background, below windows (default)
+
+### Examples
 
 ```toml
 position = "Top"
+layer = "Overlay"
 ```
-
-Set the bar position to the bottom:
 
 ```toml
 position = "Bottom"
+layer = "Bottom"
 ```
 
 ## Close menu with esc

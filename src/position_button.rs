@@ -381,7 +381,7 @@ where
     ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
         self.content.as_widget_mut().overlay(
             &mut tree.children[0],
-            layout.children().next().unwrap(),
+            layout.children().next()?,
             renderer,
             translation,
         )
@@ -403,6 +403,7 @@ where
     Theme: Catalog + 'a,
     Renderer: iced::core::Renderer + 'a,
 {
+    #[inline]
     fn from(button: PositionButton<'a, Message, Theme, Renderer>) -> Self {
         Self::new(button)
     }

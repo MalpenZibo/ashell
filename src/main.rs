@@ -30,7 +30,10 @@ const CUSTOM_FONT: &[u8] = include_bytes!("../assets/AshellCustomIcon-Regular.ot
 const HEIGHT: f64 = 34.;
 
 #[derive(Parser, Debug)]
-#[command(version, about, long_about = None)]
+#[command(
+    version = concat!(env!("CARGO_PKG_VERSION"), " (", env!("GIT_HASH"), ")"),
+    about = env!("CARGO_PKG_DESCRIPTION")
+)]
 struct Args {
     #[arg(short, long, value_parser = clap::value_parser!(PathBuf))]
     config_path: Option<PathBuf>,
@@ -85,9 +88,10 @@ async fn main() -> iced::Result {
 
     logger.set_new_spec(get_log_spec(&config.log_level));
 
-    let font = match config.appearance.font_name {
-        Some(ref font_name) => Font::with_name(Box::leak(font_name.clone().into_boxed_str())),
-        None => Font::DEFAULT,
+    let font = if let Some(font_name) = &config.appearance.font_name {
+        Font::with_name(Box::leak(font_name.clone().into_boxed_str()))
+    } else {
+        Font::DEFAULT
     };
 
     iced::daemon(App::title, App::update, App::view)

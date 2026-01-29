@@ -55,3 +55,29 @@ strong = "#414868"
 [appearance.secondary_color]
 base = "#0c0d14"
 ```
+
+## Nord
+
+```toml
+[appearance]
+success_color = "#a3be8c"
+text_color = "#eceff4"
+workspace_colors = [ "#88c0d0", "#81a1c1", "#5e81ac" ]
+
+[appearance.primary_color]
+base = "#88c0d0"
+text = "#242933"
+
+[appearance.danger_color]
+base = "#bf616a"
+weak = "#ebcb8b"
+
+[appearance.background_color]
+base = "#3b4252"
+weak = "#434c5e"
+strong = "#4c566a"
+
+[appearance.secondary_color]
+base = "#1c212b"
+strong = "#2e3440"
+```

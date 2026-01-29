@@ -10,6 +10,7 @@ battery, power profile and idle inhibitor.
 It displays in the status bar indicators about:
 
 - Audio volume
+- Microphone volume
 - Network status
 - Bluetooth connection status
 - Battery status
@@ -49,6 +50,8 @@ reboot_cmd = "systemctl reboot"
 logout_cmd = "loginctl kill-user $(whoami)"
 ```
 
+The `lock_cmd` parameter is optional. If not set, the lock button will not appear.
+
 With the `audio_sinks_more_cmd` and `audio_sources_more_cmd`  
 options you can set commands to open the audio settings  
 for sinks and sources, if not set the related buttons will not appear.
@@ -67,11 +70,36 @@ The possible values are:
 - `Icon` - Show only the battery icon
 - `Percentage` - Show only the battery percentage
 - `IconAndPercentage` - Show both the battery icon and percentage (default)
+- `Time` - Show smart time display (time to full when charging, time to empty when discharging, "100%" when full)
+- `IconAndTime` - Show battery icon with smart time display
 
 In the same way it's possible to customize the peripheral battery indicator format.
 The possible values are the same as above, but you need to use
 the `peripheral_battery_format` option.
 The default value is `Icon`.
+
+### Battery Time Display Behavior
+
+The `Time` and `IconAndTime` formats provide intelligent time display:
+
+- **When charging**: Shows time until full (e.g., "45m", "2h 15m")
+- **When discharging**: Shows time until empty (e.g., "1h 30m", "3h 45m")
+- **When at 100%**: Shows "100%"
+- **When calculating**: Shows "Calculating..." for system battery, empty for peripherals
+
+```toml
+[settings]
+# Show time only for system battery
+battery_format = "Time"
+
+# Show icon + time for peripheral batteries
+peripheral_battery_format = "IconAndTime"
+
+# Example outputs:
+# Charging: "45m" or "🔋 45m"
+# Discharging: "2h 15m" or "🔋 2h 15m"
+# Full: "100%" or "🔋 100%"
+```
 
 With the `peripheral_indicators` you can decide which peripheral battery indicators
 are shown in the status bar.
@@ -103,6 +131,7 @@ Available indicators are:
 - `IdleInhibitor` - Shows an icon when idle inhibitor is active
 - `PowerProfile` - Shows the current power profile icon
 - `Audio` - Shows the audio volume level icon
+- `Microphone` - Shows the microphone volume level and mute status
 - `Network` - Shows the network connection status icon
 - `Vpn` - Shows the VPN connection status icon
 - `Bluetooth` - Shows a Bluetooth icon when connected to at least one device
@@ -112,10 +141,10 @@ Available indicators are:
 ```toml
 [settings]
 # Customize which indicators to show and their order
-indicators = ["Battery", "Bluetooth", "Network", "Audio"]
+indicators = ["Battery", "Bluetooth", "Network", "Audio", "Microphone"]
 
-# The default value is the following, the items are shown in this order:
-indicators = ["IdleInhibitor", "PowerProfile", "Audio", "Bluetooth", "Network", "Vpn", "Battery"]
+# Default indicators (shown in this order):
+indicators = ["IdleInhibitor", "PowerProfile", "Audio", "Microphone", "Bluetooth", "Network", "Vpn", "Battery"]
 ```
 
 ## Custom Buttons
@@ -206,7 +235,11 @@ vpn_more_cmd = "nm-connection-editor"
 bluetooth_more_cmd = "blueman-manager"
 remove_airplane_btn = true
 remove_idle_btn = true
-indicators = ["Battery", "Bluetooth", "Network", "Audio"]
+indicators = ["Battery", "Bluetooth", "Network", "Audio", "Microphone"]
+
+battery_format = "IconAndTime"
+peripheral_battery_format = "Time"
+peripheral_indicators = "All"
 
 [[settings.CustomButton]]
 name = "Virtual Keyboard"

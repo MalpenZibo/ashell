@@ -37,19 +37,6 @@ right = [ "SystemInfo", [ "Clock", "Privacy", "Settings" ] ]
 
 The following modules are available:
 
-### AppLauncher
-
-Provides a way to launch applications from the status bar.
-
-:::info
-This module requires additional configuration to work properly.
-See the dedicated section in the [documentation](./app_launcher.md).
-:::
-
-:::warning
-This module will be deprecated in future releases.
-:::
-
 ### Updates
 
 Provides information about available updates for the system.
@@ -57,19 +44,6 @@ Provides information about available updates for the system.
 :::info
 This module requires additional configuration to work properly.
 See the dedicated section in the [documentation](./updates.md).
-:::
-
-### Clipboard
-
-Launches a clipboard manager.
-
-:::info
-This module requires additional configuration to work properly.
-See the dedicated section in the [documentation](./clipboard.md).
-:::
-
-:::warning
-This module will be deprecated in future releases.
 :::
 
 ### Workspaces
@@ -91,6 +65,11 @@ Displays the current keyboard layout and allows switching between layouts.
 ### KeyboardSubmap
 
 Displays the current keyboard submap.
+
+### CustomModule
+
+Allows creating custom modules with user-defined functionality.
+See the [custom module documentation](./custom_module.md) for details.
 
 ### Tray
 
