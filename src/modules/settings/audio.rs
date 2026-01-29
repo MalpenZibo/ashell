@@ -1,6 +1,7 @@
 use super::SubMenu;
 use crate::{
     components::icons::{StaticIcon, icon, icon_button},
+    config::SettingsFormat,
     services::{
         ReadOnlyService, Service, ServiceEvent,
         audio::{AudioCommand, AudioService, DeviceType, Sinks, Sources},
@@ -27,6 +28,7 @@ pub enum Message {
     SinksMore(Id),
     SourcesMore(Id),
     OpenMore,
+    OpenSourceMore,
     ToggleSinksMenu,
     ToggleSourcesMenu,
     ConfigReloaded(AudioSettingsConfig),
@@ -44,13 +46,22 @@ pub enum Action {
 pub struct AudioSettingsConfig {
     pub sinks_more_cmd: Option<String>,
     pub sources_more_cmd: Option<String>,
+    pub indicator_format: SettingsFormat,
+    pub microphone_indicator_format: SettingsFormat,
 }
 
 impl AudioSettingsConfig {
-    pub fn new(sinks_more_cmd: Option<String>, sources_more_cmd: Option<String>) -> Self {
+    pub fn new(
+        sinks_more_cmd: Option<String>,
+        sources_more_cmd: Option<String>,
+        indicator_format: SettingsFormat,
+        microphone_indicator_format: SettingsFormat,
+    ) -> Self {
         Self {
             sinks_more_cmd,
             sources_more_cmd,
+            indicator_format,
+            microphone_indicator_format,
         }
     }
 }
@@ -147,6 +158,12 @@ impl AudioSettings {
                 }
                 Action::None
             }
+            Message::OpenSourceMore => {
+                if let Some(cmd) = &self.config.sources_more_cmd {
+                    crate::utils::launcher::execute_command(cmd.to_string());
+                }
+                Action::None
+            }
             Message::SinksMore(id) => {
                 if let Some(cmd) = &self.config.sinks_more_cmd {
                     crate::utils::launcher::execute_command(cmd.to_string());
@@ -172,55 +189,108 @@ impl AudioSettings {
         }
     }
 
-    pub fn sink_indicator(&'_ self) -> Option<Element<'_, Message>> {
+    pub fn sink_indicator(&'_ self, theme: &'_ AshellTheme) -> Option<Element<'_, Message>> {
         self.service
             .as_ref()
             .filter(|service| !service.sinks.is_empty())
             .map(|service| {
                 let icon_type = Sinks::get_icon(&service.sinks, &service.server_info.default_sink);
-                let icon = icon(icon_type);
-                MouseArea::new(icon)
-                    .on_right_press(Message::OpenMore)
-                    .on_scroll(|delta| {
-                        let cur_vol = service.cur_sink_volume;
+                let volume = service.cur_sink_volume;
+
+                let make_scroll_handler = |cur_volume: i32| {
+                    move |delta| {
                         let delta = match delta {
                             iced::mouse::ScrollDelta::Lines { y, .. } => y,
                             iced::mouse::ScrollDelta::Pixels { y, .. } => y,
                         };
                         let new_volume = if delta > 0.0 {
-                            (cur_vol + 5).min(100)
+                            (cur_volume + 5).min(100)
                         } else {
-                            (cur_vol - 5).max(0)
+                            (cur_volume - 5).max(0)
                         };
                         Message::SinkVolumeChanged(new_volume)
-                    })
-                    .into()
+                    }
+                };
+
+                match self.config.indicator_format {
+                    SettingsFormat::Icon => {
+                        let icon = icon(icon_type);
+                        MouseArea::new(icon)
+                            .on_right_press(Message::OpenMore)
+                            .on_scroll(make_scroll_handler(volume))
+                            .into()
+                    }
+                    SettingsFormat::Percentage | SettingsFormat::Time => {
+                        MouseArea::new(text(format!("{}%", volume)))
+                            .on_right_press(Message::OpenMore)
+                            .on_scroll(make_scroll_handler(volume))
+                            .into()
+                    }
+                    SettingsFormat::IconAndPercentage | SettingsFormat::IconAndTime => {
+                        let icon = icon(icon_type);
+                        MouseArea::new(
+                            row!(icon, text(format!("{}%", volume)))
+                                .spacing(theme.space.xxs)
+                                .align_y(Alignment::Center),
+                        )
+                        .on_right_press(Message::OpenMore)
+                        .on_scroll(make_scroll_handler(volume))
+                        .into()
+                    }
+                }
             })
     }
 
-    pub fn source_indicator(&'_ self) -> Option<Element<'_, Message>> {
+    pub fn source_indicator(&'_ self, theme: &'_ AshellTheme) -> Option<Element<'_, Message>> {
         self.service
             .as_ref()
             .filter(|service| !service.sources.is_empty())
             .map(|service| {
                 let icon_type =
                     Sources::get_icon(&service.sources, &service.server_info.default_source);
-                let icon = icon(icon_type);
-                MouseArea::new(icon)
-                    .on_scroll(|delta| {
-                        let cur_vol = service.cur_source_volume;
+                let volume = service.cur_source_volume;
+
+                let make_scroll_handler = |cur_volume: i32| {
+                    move |delta| {
                         let delta = match delta {
                             iced::mouse::ScrollDelta::Lines { y, .. } => y,
                             iced::mouse::ScrollDelta::Pixels { y, .. } => y,
                         };
                         let new_volume = if delta > 0.0 {
-                            (cur_vol + 5).min(100)
+                            (cur_volume + 5).min(100)
                         } else {
-                            (cur_vol - 5).max(0)
+                            (cur_volume - 5).max(0)
                         };
                         Message::SourceVolumeChanged(new_volume)
-                    })
-                    .into()
+                    }
+                };
+
+                match self.config.microphone_indicator_format {
+                    SettingsFormat::Icon => {
+                        let icon = icon(icon_type);
+                        MouseArea::new(icon)
+                            .on_right_press(Message::OpenSourceMore)
+                            .on_scroll(make_scroll_handler(volume))
+                            .into()
+                    }
+                    SettingsFormat::Percentage | SettingsFormat::Time => {
+                        MouseArea::new(text(format!("{}%", volume)))
+                            .on_right_press(Message::OpenSourceMore)
+                            .on_scroll(make_scroll_handler(volume))
+                            .into()
+                    }
+                    SettingsFormat::IconAndPercentage | SettingsFormat::IconAndTime => {
+                        let icon = icon(icon_type);
+                        MouseArea::new(
+                            row!(icon, text(format!("{}%", volume)))
+                                .spacing(theme.space.xxs)
+                                .align_y(Alignment::Center),
+                        )
+                        .on_right_press(Message::OpenSourceMore)
+                        .on_scroll(make_scroll_handler(volume))
+                        .into()
+                    }
+                }
             })
     }
 
