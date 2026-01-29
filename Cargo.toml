@@ -70,6 +70,10 @@ inotify = "0.11.0"
 pin-project-lite = "0.2.16"
 niri-ipc = "25.11.0"
 parking_lot = "0.12.5"
+signal-hook = "0.4.1"
+signal-hook-tokio = { version = "0.4", features = ["futures-v0_3"] }
+futures = "0.3"
+libc = "0.2.180"
 
 [build-dependencies]
 allsorts = "0.15"
