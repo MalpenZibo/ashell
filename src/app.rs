@@ -90,7 +90,6 @@ pub enum Message {
     MediaPlayer(modules::media_player::Message),
     Notifications(modules::notifications::Message),
     NotificationsServiceInit,
-    NotificationsServiceUpdate,
     OutputEvent((OutputEvent, WlOutput)),
     CloseAllMenus,
     ResumeFromSleep,
@@ -437,13 +436,6 @@ impl App {
                 self.general_config.layer,
                 self.theme.scale_factor,
             ),
-            Message::NotificationsServiceUpdate => {
-                if let Some(service) = &self.notifications_service {
-                    self.notifications
-                        .update_notifications(service.get_notifications());
-                }
-                Task::none()
-            }
             Message::Notifications(message) => {
                 self.notifications.update(message);
                 Task::none()
@@ -602,17 +594,13 @@ impl App {
             Subscription::batch(self.modules_subscriptions(&self.general_config.modules.left)),
             Subscription::batch(self.modules_subscriptions(&self.general_config.modules.center)),
             Subscription::batch(self.modules_subscriptions(&self.general_config.modules.right)),
+            self.notifications
+                .subscription()
+                .map(Message::Notifications),
             config::subscription(&self.config_path),
             crate::services::logind::LogindService::subscribe().map(|event| match event {
                 crate::services::ServiceEvent::Update(_) => Message::ResumeFromSleep,
                 _ => Message::None,
-            }),
-            crate::services::notifications::NotificationsService::subscribe().map(|event| {
-                match event {
-                    crate::services::ServiceEvent::Init(_) => Message::NotificationsServiceInit,
-                    crate::services::ServiceEvent::Update(_) => Message::NotificationsServiceUpdate,
-                    crate::services::ServiceEvent::Error(_) => Message::None,
-                }
             }),
             listen_with(move |evt, _, _| match evt {
                 iced::Event::PlatformSpecific(iced::event::PlatformSpecific::Wayland(

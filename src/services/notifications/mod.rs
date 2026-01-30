@@ -1,8 +1,8 @@
 use crate::services::notifications::dbus::NotificationDaemon;
 use crate::services::{ReadOnlyService, ServiceEvent};
 use iced::Subscription;
+use iced::futures::SinkExt;
 use std::collections::HashMap;
-use tokio::sync::mpsc;
 use zbus::Connection;
 
 pub mod dbus;
@@ -24,7 +24,6 @@ pub enum Error {
 pub struct NotificationsService {
     notifications: HashMap<u32, Notification>,
     connection: Option<Connection>,
-    sender: Option<mpsc::UnboundedSender<ServiceEvent<Self>>>,
 }
 
 impl NotificationsService {
@@ -32,35 +31,15 @@ impl NotificationsService {
         Self {
             notifications: HashMap::new(),
             connection: None,
-            sender: None,
         }
     }
 
     pub async fn start(&mut self) -> Result<(), Error> {
-        let (tx, _rx) = mpsc::unbounded_channel();
-
-        self.sender = Some(tx.clone());
-
         let connection = NotificationDaemon::start_server()
             .await
             .map_err(|e| Error::ConnectionError(e.to_string()))?;
 
-        self.connection = Some(connection.clone());
-
-        // Spawn a task to handle notifications
-        tokio::spawn(async move {
-            let daemon = NotificationDaemon::default();
-            let _ = connection
-                .object_server()
-                .at(dbus::OBJECT_PATH, daemon)
-                .await;
-
-            // Listen for signals or something
-            // For now, just keep running
-            loop {
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-            }
-        });
+        self.connection = Some(connection);
 
         Ok(())
     }
@@ -86,6 +65,51 @@ impl ReadOnlyService for NotificationsService {
     }
 
     fn subscribe() -> Subscription<ServiceEvent<Self>> {
-        Subscription::none() // For now, no subscription
+        use iced::futures::StreamExt;
+        use std::any::TypeId;
+
+        let id = TypeId::of::<Self>();
+
+        Subscription::run_with_id(
+            id,
+            iced::stream::channel(100, |mut output| async move {
+                let mut last_notifications = HashMap::new();
+                loop {
+                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+                    if let Some(notifications) = crate::modules::notifications::NOTIFICATIONS.get()
+                    {
+                        let current_notifications = if let Ok(guard) = notifications.lock() {
+                            (*guard).clone()
+                        } else {
+                            HashMap::new()
+                        };
+                        // Check for new notifications
+                        for (id, notification) in current_notifications.iter() {
+                            if !last_notifications.contains_key(id) {
+                                let _ = output
+                                    .send(ServiceEvent::Update(UpdateEvent::NotificationReceived(
+                                        notification.clone(),
+                                    )))
+                                    .await;
+                            }
+                        }
+
+                        // Check for closed notifications
+                        for id in last_notifications.keys() {
+                            if !current_notifications.contains_key(id) {
+                                let _ = output
+                                    .send(ServiceEvent::Update(UpdateEvent::NotificationClosed(
+                                        *id,
+                                    )))
+                                    .await;
+                            }
+                        }
+
+                        last_notifications = current_notifications;
+                    }
+                }
+            }),
+        )
     }
 }

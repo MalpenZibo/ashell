@@ -7,6 +7,7 @@ use crate::{
 use chrono::{DateTime, Local};
 use iced::{
     Alignment, Background, Border, Element, Length, Subscription, Theme,
+    futures::SinkExt,
     widget::{button, column, container, horizontal_rule, row, scrollable, text},
     window::Id,
 };
@@ -20,6 +21,7 @@ pub enum Message {
     ConfigReloaded(config::NotificationsModuleConfig),
     NotificationClicked(u32),
     ClearNotifications,
+    UpdateNotifications,
 }
 
 pub struct Notifications {
@@ -65,6 +67,14 @@ impl Notifications {
                     notifications_map.clear();
                 }
             }
+            Message::UpdateNotifications => {
+                // Update self.notifications from global
+                if let Some(notifications) = NOTIFICATIONS.get()
+                    && let Ok(notifications_map) = notifications.lock()
+                {
+                    self.notifications = notifications_map.clone();
+                }
+            }
         }
     }
 
@@ -93,7 +103,27 @@ impl Notifications {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        Subscription::none()
+        use std::any::TypeId;
+
+        let id = TypeId::of::<Self>();
+
+        Subscription::run_with_id(
+            id,
+            iced::stream::channel(100, |mut output| async move {
+                let mut last_count = 0;
+                loop {
+                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+                    if let Some(notifications) = NOTIFICATIONS.get() {
+                        let current_count = notifications.lock().map(|n| n.len()).unwrap_or(0);
+                        if current_count != last_count {
+                            let _ = output.send(Message::UpdateNotifications).await;
+                            last_count = current_count;
+                        }
+                    }
+                }
+            }),
+        )
     }
 
     pub fn menu_view<'a>(&'a self, _id: Id, theme: &'a AshellTheme) -> Element<'a, Message> {

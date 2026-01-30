@@ -95,13 +95,20 @@ impl NotificationDaemon {
     }
 
     async fn close_notification(&mut self, id: u32) {
-        if self.notifications.remove(&id).is_some() {
+        let removed = if self.notifications.remove(&id).is_some() {
             let mut global_notifications = NOTIFICATIONS
                 .get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()))
                 .lock()
                 .unwrap();
             global_notifications.remove(&id);
-            // self.notification_closed(id, 3).await.unwrap(); // 3 = closed by call to CloseNotification
+            true
+        } else {
+            false
+        };
+
+        if removed {
+            // Emit signal for notification closed (reason 3 = closed by call to CloseNotification)
+            // let _ = self.notification_closed(id, 3).await;
         }
     }
 
@@ -115,10 +122,10 @@ impl NotificationDaemon {
     }
 
     // #[zbus(signal)]
-    // async fn notification_received(&self, id: u32, notification: Notification) -> zbus::Result<()>;
+    // async fn notification_closed(&self, id: u32, reason: u32) -> zbus::Result<()>;
 
     // #[zbus(signal)]
-    // async fn notification_closed(&self, id: u32, reason: u32) -> zbus::Result<()>;
+    // async fn action_invoked(&self, id: u32, action_key: String) -> zbus::Result<()>;
 }
 
 impl NotificationDaemon {
