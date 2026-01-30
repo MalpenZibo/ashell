@@ -86,7 +86,7 @@ impl Notifications {
         drop(notifications);
 
         if count > 0 {
-            row![icon(StaticIcon::Bell), text(format!("{} ", count))].into()
+            icon(StaticIcon::BellBadge).into()
         } else {
             icon(StaticIcon::Bell).into()
         }
