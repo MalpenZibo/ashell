@@ -96,7 +96,7 @@ pub trait Sinks {
 impl Sinks for Vec<Device> {
     fn get_icon(&self, default_sink: &str) -> StaticIcon {
         match self.iter().find_map(|s| {
-            if s.ports.iter().any(|p| p.active) && s.name == default_sink {
+            if (s.ports.is_empty() || s.ports.iter().any(|p| p.active)) && s.name == default_sink {
                 Some((s.is_mute, s.volume.get_volume()))
             } else {
                 None
@@ -124,7 +124,8 @@ pub trait Sources {
 impl Sources for Vec<Device> {
     fn get_icon(&self, default_source: &str) -> StaticIcon {
         match self.iter().find_map(|s| {
-            if s.ports.iter().any(|p| p.active) && s.name == default_source {
+            if (s.ports.is_empty() || s.ports.iter().any(|p| p.active)) && s.name == default_source
+            {
                 Some(s.is_mute)
             } else {
                 None
@@ -263,10 +264,8 @@ impl ReadOnlyService for AudioService {
                     .sinks
                     .iter()
                     .find_map(|sink| {
-                        if sink
-                            .ports
-                            .iter()
-                            .any(|p| p.active && sink.name == self.server_info.default_sink)
+                        if (sink.ports.is_empty() || sink.ports.iter().any(|p| p.active))
+                            && sink.name == self.server_info.default_sink
                         {
                             Some(if sink.is_mute {
                                 0.
@@ -286,10 +285,8 @@ impl ReadOnlyService for AudioService {
                     .sources
                     .iter()
                     .find_map(|source| {
-                        if source
-                            .ports
-                            .iter()
-                            .any(|p| p.active && source.name == self.server_info.default_source)
+                        if (source.ports.is_empty() || source.ports.iter().any(|p| p.active))
+                            && source.name == self.server_info.default_source
                         {
                             Some(if source.is_mute {
                                 0.
@@ -309,10 +306,8 @@ impl ReadOnlyService for AudioService {
                     .sinks
                     .iter()
                     .find_map(|sink| {
-                        if sink
-                            .ports
-                            .iter()
-                            .any(|p| p.active && sink.name == self.server_info.default_sink)
+                        if (sink.ports.is_empty() || sink.ports.iter().any(|p| p.active))
+                            && sink.name == self.server_info.default_sink
                         {
                             Some(if sink.is_mute {
                                 0.
@@ -329,10 +324,8 @@ impl ReadOnlyService for AudioService {
                     .sources
                     .iter()
                     .find_map(|source| {
-                        if source
-                            .ports
-                            .iter()
-                            .any(|p| p.active && source.name == self.server_info.default_source)
+                        if (source.ports.is_empty() || source.ports.iter().any(|p| p.active))
+                            && source.name == self.server_info.default_source
                         {
                             Some(if source.is_mute {
                                 0.
@@ -380,57 +373,61 @@ impl Service for AudioService {
     fn command(&mut self, command: Self::Command) -> Task<ServiceEvent<Self>> {
         match command {
             AudioCommand::ToggleSinkMute => {
-                if let Some(sink) = self
-                    .data
+                self.data
                     .sinks
                     .iter()
                     .find(|sink| sink.name == self.data.server_info.default_sink)
-                {
-                    let _ = self.commander.send(PulseAudioCommand::SinkMute(
-                        sink.name.clone(),
-                        !sink.is_mute,
-                    ));
-                }
+                    .inspect(|sink| {
+                        let _ = self.commander.send(PulseAudioCommand::SinkMute(
+                            sink.name.clone(),
+                            !sink.is_mute,
+                        ));
+                    });
             }
             AudioCommand::ToggleSourceMute => {
-                if let Some(source) = self
-                    .data
+                self.data
                     .sources
                     .iter()
                     .find(|source| source.name == self.data.server_info.default_source)
-                {
-                    let _ = self.commander.send(PulseAudioCommand::SourceMute(
-                        source.name.clone(),
-                        !source.is_mute,
-                    ));
-                }
+                    .inspect(|source| {
+                        let _ = self.commander.send(PulseAudioCommand::SourceMute(
+                            source.name.clone(),
+                            !source.is_mute,
+                        ));
+                    });
             }
             AudioCommand::SinkVolume(volume) => {
-                if let Some(sink) = self
-                    .data
+                self.data
                     .sinks
                     .iter_mut()
                     .find(|sink| sink.name == self.data.server_info.default_sink)
-                    && let Some(volume) = sink.volume.scale_volume(volume as f64 / 100.)
-                {
-                    let _ = self
-                        .commander
-                        .send(PulseAudioCommand::SinkVolume(sink.name.clone(), *volume));
-                }
+                    .and_then(|sink| {
+                        sink.volume
+                            .scale_volume(volume as f64 / 100.)
+                            .map(|vol| (sink.name.clone(), *vol))
+                    })
+                    .inspect(|(name, volume)| {
+                        let _ = self
+                            .commander
+                            .send(PulseAudioCommand::SinkVolume(name.clone(), *volume));
+                    });
             }
             AudioCommand::SourceVolume(volume) => {
-                if let Some(source) = self
-                    .data
+                self.data
                     .sources
                     .iter_mut()
                     .find(|source| source.name == self.data.server_info.default_source)
-                    && let Some(volume) = source.volume.scale_volume(volume as f64 / 100.)
-                {
-                    let _ = self.commander.send(PulseAudioCommand::SourceVolume(
-                        source.name.clone(),
-                        *volume,
-                    ));
-                }
+                    .and_then(|source| {
+                        source
+                            .volume
+                            .scale_volume(volume as f64 / 100.)
+                            .map(|vol| (source.name.clone(), *vol))
+                    })
+                    .inspect(|(name, volume)| {
+                        let _ = self
+                            .commander
+                            .send(PulseAudioCommand::SourceVolume(name.clone(), *volume));
+                    });
             }
             AudioCommand::DefaultSink(name, port) => {
                 let _ = self
@@ -736,12 +733,12 @@ impl PulseAudioServer {
     ) {
         match info {
             ListResult::Item(data) => {
-                if data
-                    .ports
-                    .iter()
-                    .any(|port| port.available != PortAvailable::No)
+                if data.ports.is_empty()
+                    || data
+                        .ports
+                        .iter()
+                        .any(|port| port.available != PortAvailable::No)
                 {
-                    debug!("Adding sink data: {data:?}");
                     sinks.push(data.into());
                 }
             }
@@ -814,16 +811,24 @@ impl PulseAudioServer {
         let op = self.context.set_default_sink(name, |_| {});
         self.wait_for_response(op)?;
 
-        let op = self.introspector.set_sink_port_by_name(name, port, None);
-        self.wait_for_response(op)
+        if !port.is_empty() {
+            let op = self.introspector.set_sink_port_by_name(name, port, None);
+            self.wait_for_response(op)?;
+        }
+
+        Ok(())
     }
 
     fn set_default_source(&mut self, name: &str, port: &str) -> anyhow::Result<()> {
         let op = self.context.set_default_source(name, |_| {});
         self.wait_for_response(op)?;
 
-        let op = self.introspector.set_source_port_by_name(name, port, None);
-        self.wait_for_response(op)
+        if !port.is_empty() {
+            let op = self.introspector.set_source_port_by_name(name, port, None);
+            self.wait_for_response(op)?;
+        }
+
+        Ok(())
     }
 }
 
