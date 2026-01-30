@@ -373,59 +373,61 @@ impl Service for AudioService {
     fn command(&mut self, command: Self::Command) -> Task<ServiceEvent<Self>> {
         match command {
             AudioCommand::ToggleSinkMute => {
-                if let Some(sink) = self
-                    .data
+                self.data
                     .sinks
                     .iter()
                     .find(|sink| sink.name == self.data.server_info.default_sink)
-                {
-                    let _ = self.commander.send(PulseAudioCommand::SinkMute(
-                        sink.name.clone(),
-                        !sink.is_mute,
-                    ));
-                }
+                    .inspect(|sink| {
+                        let _ = self.commander.send(PulseAudioCommand::SinkMute(
+                            sink.name.clone(),
+                            !sink.is_mute,
+                        ));
+                    });
             }
             AudioCommand::ToggleSourceMute => {
-                if let Some(source) = self
-                    .data
+                self.data
                     .sources
                     .iter()
                     .find(|source| source.name == self.data.server_info.default_source)
-                {
-                    let _ = self.commander.send(PulseAudioCommand::SourceMute(
-                        source.name.clone(),
-                        !source.is_mute,
-                    ));
-                }
+                    .inspect(|source| {
+                        let _ = self.commander.send(PulseAudioCommand::SourceMute(
+                            source.name.clone(),
+                            !source.is_mute,
+                        ));
+                    });
             }
             AudioCommand::SinkVolume(volume) => {
-                if let Some(sink) = self
-                    .data
+                self.data
                     .sinks
                     .iter_mut()
                     .find(|sink| sink.name == self.data.server_info.default_sink)
-                {
-                    if let Some(volume) = sink.volume.scale_volume(volume as f64 / 100.) {
+                    .and_then(|sink| {
+                        sink.volume
+                            .scale_volume(volume as f64 / 100.)
+                            .map(|vol| (sink.name.clone(), *vol))
+                    })
+                    .inspect(|(name, volume)| {
                         let _ = self
                             .commander
-                            .send(PulseAudioCommand::SinkVolume(sink.name.clone(), *volume));
-                    }
-                }
+                            .send(PulseAudioCommand::SinkVolume(name.clone(), *volume));
+                    });
             }
             AudioCommand::SourceVolume(volume) => {
-                if let Some(source) = self
-                    .data
+                self.data
                     .sources
                     .iter_mut()
                     .find(|source| source.name == self.data.server_info.default_source)
-                {
-                    if let Some(volume) = source.volume.scale_volume(volume as f64 / 100.) {
-                        let _ = self.commander.send(PulseAudioCommand::SourceVolume(
-                            source.name.clone(),
-                            *volume,
-                        ));
-                    }
-                }
+                    .and_then(|source| {
+                        source
+                            .volume
+                            .scale_volume(volume as f64 / 100.)
+                            .map(|vol| (source.name.clone(), *vol))
+                    })
+                    .inspect(|(name, volume)| {
+                        let _ = self
+                            .commander
+                            .send(PulseAudioCommand::SourceVolume(name.clone(), *volume));
+                    });
             }
             AudioCommand::DefaultSink(name, port) => {
                 let _ = self
