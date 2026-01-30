@@ -32,6 +32,7 @@ pub struct Config {
     pub workspaces: WorkspacesModuleConfig,
     pub window_title: WindowTitleConfig,
     pub system_info: SystemInfoModuleConfig,
+    pub notifications: NotificationsModuleConfig,
     pub clock: ClockModuleConfig,
     pub settings: SettingsModuleConfig,
     pub appearance: Appearance,
@@ -52,6 +53,7 @@ impl Default for Config {
             workspaces: WorkspacesModuleConfig::default(),
             window_title: WindowTitleConfig::default(),
             system_info: SystemInfoModuleConfig::default(),
+            notifications: NotificationsModuleConfig::default(),
             clock: ClockModuleConfig::default(),
             settings: SettingsModuleConfig::default(),
             appearance: Appearance::default(),
@@ -252,6 +254,32 @@ impl Default for ClockModuleConfig {
             format: "%a %d %b %R".to_string(),
         }
     }
+}
+#[derive(Deserialize, Clone, Debug)]
+#[serde(default)]
+pub struct NotificationsModuleConfig {
+    pub format: String,
+    pub show_timestamps: bool,
+    pub max_notifications: Option<usize>,
+    pub show_bodies: bool,
+    pub view_display_mode: NotificationViewMode,
+}
+impl Default for NotificationsModuleConfig {
+    fn default() -> Self {
+        Self {
+            format: "%H:%M".to_string(),
+            show_timestamps: true,
+            max_notifications: None,
+            show_bodies: true,
+            view_display_mode: NotificationViewMode::SummaryOnly,
+        }
+    }
+}
+#[derive(Deserialize, Copy, Clone, Default, PartialEq, Eq, Debug)]
+pub enum NotificationViewMode {
+    #[default]
+    SummaryOnly,
+    Full,
 }
 
 #[derive(Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -593,6 +621,7 @@ pub enum ModuleName {
     Settings,
     MediaPlayer,
     Custom(String),
+    Notifications,
 }
 
 impl<'de> Deserialize<'de> for ModuleName {
@@ -619,6 +648,7 @@ impl<'de> Deserialize<'de> for ModuleName {
                     "KeyboardSubmap" => ModuleName::KeyboardSubmap,
                     "Tray" => ModuleName::Tray,
                     "Clock" => ModuleName::Clock,
+                    "Notifications" => ModuleName::Notifications,
                     "Privacy" => ModuleName::Privacy,
                     "Settings" => ModuleName::Settings,
                     "MediaPlayer" => ModuleName::MediaPlayer,
