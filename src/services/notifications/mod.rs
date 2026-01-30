@@ -43,10 +43,6 @@ impl NotificationsService {
 
         Ok(())
     }
-
-    pub fn get_notifications(&self) -> &HashMap<u32, Notification> {
-        &self.notifications
-    }
 }
 
 impl ReadOnlyService for NotificationsService {
@@ -65,7 +61,6 @@ impl ReadOnlyService for NotificationsService {
     }
 
     fn subscribe() -> Subscription<ServiceEvent<Self>> {
-        
         use std::any::TypeId;
 
         let id = TypeId::of::<Self>();
