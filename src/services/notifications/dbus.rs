@@ -47,7 +47,7 @@ impl NotificationDaemon {
             "actions".to_string(),
         ]
     }
-
+    #[allow(clippy::too_many_arguments)]
     async fn notify(
         &mut self,
         app_name: String,
