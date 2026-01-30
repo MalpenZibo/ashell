@@ -17,7 +17,6 @@ use std::{
     any::TypeId,
     collections::{HashMap, HashSet},
     fmt::Display,
-    sync::Arc,
 };
 use url::Url;
 use zbus::{fdo::DBusProxy, zvariant::OwnedValue};
@@ -190,6 +189,13 @@ enum DbusEvent {
 impl MprisPlayerService {
     async fn initialize_data(conn: &zbus::Connection) -> anyhow::Result<Vec<MprisPlayerData>> {
         let dbus = DBusProxy::new(conn).await?;
+        let names = Self::get_player_names(&dbus).await?;
+        debug!("Found MPRIS player services: {names:?}");
+
+        Ok(Self::get_mpris_player_data(conn, &names).await)
+    }
+
+    async fn get_player_names(dbus: &DBusProxy<'_>) -> anyhow::Result<Vec<String>> {
         let names: Vec<String> = dbus
             .list_names()
             .await?
@@ -202,15 +208,13 @@ impl MprisPlayerService {
                 }
             })
             .collect();
-        debug!("Found MPRIS player services: {names:?}");
-
-        Ok(Self::get_mpris_player_data(conn, &names).await)
+        Ok(names)
     }
 
-    async fn get_mpris_player_data(
+    async fn create_proxies(
         conn: &zbus::Connection,
         names: &[String],
-    ) -> Vec<MprisPlayerData> {
+    ) -> Vec<(String, MprisPlayerProxy<'static>)> {
         let proxies: Vec<_> = join_all(names.iter().map(
             async |s| -> anyhow::Result<(String, MprisPlayerProxy<'static>)> {
                 let proxy = MprisPlayerProxy::new(conn, s.to_string()).await?;
@@ -221,6 +225,14 @@ impl MprisPlayerService {
         .into_iter()
         .filter_map(Result::ok)
         .collect();
+        proxies
+    }
+
+    async fn get_mpris_player_data(
+        conn: &zbus::Connection,
+        names: &[String],
+    ) -> Vec<MprisPlayerData> {
+        let proxies = Self::create_proxies(conn, names).await;
 
         join_all(proxies.into_iter().map(|(name, proxy)| async {
             let metadata = proxy
@@ -253,7 +265,6 @@ impl MprisPlayerService {
         conn: &zbus::Connection,
     ) -> anyhow::Result<impl Stream<Item = DbusEvent> + use<>> {
         let dbus = DBusProxy::new(conn).await?;
-        let data = Self::initialize_data(conn).await?;
 
         let mut combined = SelectAll::new();
 
@@ -272,73 +283,47 @@ impl MprisPlayerService {
                 .boxed(),
         );
 
-        for s in data.iter() {
-            let cache = Arc::new(s.metadata.clone());
+        let proxies = Self::create_proxies(conn, &Self::get_player_names(&dbus).await?).await;
 
+        for (_, p) in proxies.iter() {
             combined.push(
-                s.proxy
-                    .receive_metadata_changed()
+                p.receive_metadata_changed()
                     .await
                     .filter_map({
-                        let cache = cache.clone();
+                        move |m| async move {
+                            let new_metadata = m.get().await.map(MprisPlayerMetadata::from).ok();
+                            debug!("Metadata changed: {new_metadata:?}");
 
-                        move |m| {
-                            let cache = cache.clone();
-
-                            async move {
-                                let new_metadata =
-                                    m.get().await.map(MprisPlayerMetadata::from).ok();
-                                if &new_metadata == cache.as_ref() {
-                                    None
-                                } else {
-                                    debug!("Metadata changed: {new_metadata:?}");
-
-                                    Some(DbusEvent::DataChanged)
-                                }
-                            }
+                            Some(DbusEvent::DataChanged)
                         }
                     })
                     .boxed(),
             );
         }
 
-        for s in data.iter() {
-            let volume = s.volume;
-
+        for (_, p) in proxies.iter() {
             combined.push(
-                s.proxy
-                    .receive_volume_changed()
+                p.receive_volume_changed()
                     .await
                     .filter_map(move |v| async move {
                         let new_volume = v.get().await.ok();
-                        if volume == new_volume {
-                            None
-                        } else {
-                            debug!("Volume changed: {new_volume:?}");
+                        debug!("Volume changed: {new_volume:?}");
 
-                            Some(DbusEvent::DataChanged)
-                        }
+                        Some(DbusEvent::DataChanged)
                     })
                     .boxed(),
             );
         }
 
-        for s in data.iter() {
-            let state = s.state;
-
+        for (_, p) in proxies.iter() {
             combined.push(
-                s.proxy
-                    .receive_playback_status_changed()
+                p.receive_playback_status_changed()
                     .await
                     .filter_map(move |v| async move {
                         let new_state = v.get().await.map(PlaybackStatus::from).unwrap_or_default();
-                        if state == new_state {
-                            None
-                        } else {
-                            debug!("PlaybackStatus changed: {new_state:?}");
+                        debug!("PlaybackStatus changed: {new_state:?}");
 
-                            Some(DbusEvent::DataChanged)
-                        }
+                        Some(DbusEvent::DataChanged)
                     })
                     .boxed(),
             );
@@ -395,7 +380,7 @@ impl MprisPlayerService {
                                 break;
                             };
                             debug!("MPRIS player service receive events: {chunk:?}");
-                            if chunk.iter().any(|e| *e == DbusEvent::PlayersChanged) {
+                            if chunk.contains(&DbusEvent::PlayersChanged) {
                                 // We have to recreate the D-Bus subscriptions with the new players
                                 break;
                             }
