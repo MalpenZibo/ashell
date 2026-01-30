@@ -249,30 +249,36 @@ impl Updates {
                 elements.into()
             },
             horizontal_rule(1),
-            column!(
+            self.update_buttons(id, theme),
+        )
+        .spacing(theme.space.xs)
+        .into()
+    }
+
+    fn update_buttons<'a>(&'a self, id: Id, theme: &'a AshellTheme) -> Element<'a, Message> {
+        let mut buttons = column!().spacing(theme.space.xs);
+
+        if !self.updates.is_empty() {
+            buttons = buttons.push(
                 button("Update")
                     .style(theme.ghost_button_style())
                     .padding(theme.space.xs)
                     .on_press(Message::Update(id))
                     .width(Length::Fill),
-                button({
-                    let mut content = row!(text("Check now").width(Length::Fill),);
+            );
+        }
 
-                    if self.state == State::Checking {
-                        content = content.push(icon(StaticIcon::Refresh));
-                    }
-
-                    content
-                })
-                .style(theme.ghost_button_style())
-                .padding(theme.space.xs)
-                .on_press(Message::CheckNow)
-                .width(Length::Fill)
-            ),
-        )
-        .spacing(theme.space.xs)
-        .max_width(MenuSize::Small)
-        .into()
+        buttons
+            .push(
+                button(row!(text("Check now").width(Length::Fill)))
+                    .style(theme.ghost_button_style())
+                    .padding(theme.space.xs)
+                    .on_press(Message::CheckNow)
+                    .width(Length::Fill),
+            )
+            .spacing(theme.space.xs)
+            .width(MenuSize::Small)
+            .into()
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
