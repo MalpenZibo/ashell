@@ -65,7 +65,7 @@ impl ReadOnlyService for NotificationsService {
     }
 
     fn subscribe() -> Subscription<ServiceEvent<Self>> {
-        use iced::futures::StreamExt;
+        
         use std::any::TypeId;
 
         let id = TypeId::of::<Self>();

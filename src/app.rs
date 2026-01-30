@@ -67,7 +67,6 @@ pub struct App {
     pub settings: Settings,
     pub media_player: MediaPlayer,
     pub notifications: Notifications,
-    pub notifications_service: Option<crate::services::notifications::NotificationsService>,
 }
 
 #[derive(Debug, Clone)]
@@ -140,7 +139,6 @@ impl App {
                     privacy: Privacy::default(),
                     settings: Settings::new(config.settings),
                     notifications,
-                    notifications_service: None,
                     media_player: MediaPlayer::new(config.media_player),
                 },
                 Task::batch(vec![
