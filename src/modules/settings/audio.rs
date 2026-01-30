@@ -243,7 +243,13 @@ impl AudioSettings {
                     Message::ToggleSinkMute,
                     service.cur_sink_volume,
                     &Message::SinkVolumeChanged,
-                    if service.sinks.iter().map(|s| s.ports.len()).sum::<usize>() > 1 {
+                    if service
+                        .sinks
+                        .iter()
+                        .map(|s| s.ports.len().max(1))
+                        .sum::<usize>()
+                        > 1
+                    {
                         Some((sub_menu, Message::ToggleSinksMenu))
                     } else {
                         None
@@ -265,7 +271,13 @@ impl AudioSettings {
                         Message::ToggleSourceMute,
                         service.cur_source_volume,
                         &Message::SourceVolumeChanged,
-                        if service.sources.iter().map(|s| s.ports.len()).sum::<usize>() > 1 {
+                        if service
+                            .sources
+                            .iter()
+                            .map(|s| s.ports.len().max(1))
+                            .sum::<usize>()
+                            > 1
+                        {
                             Some((sub_menu, Message::ToggleSourcesMenu))
                         } else {
                             None
@@ -294,12 +306,27 @@ impl AudioSettings {
                     .sinks
                     .iter()
                     .flat_map(|s| {
-                        s.ports.iter().map(|p| SubmenuEntry {
-                            name: format!("{}: {}", p.description, s.description),
-                            device: p.device_type,
-                            active: p.active && s.name == service.server_info.default_sink,
-                            msg: Message::DefaultSinkChanged(s.name.clone(), p.name.clone()),
-                        })
+                        if s.ports.is_empty() {
+                            vec![SubmenuEntry {
+                                name: s.description.clone(),
+                                device: DeviceType::Speaker,
+                                active: s.name == service.server_info.default_sink,
+                                msg: Message::DefaultSinkChanged(s.name.clone(), String::new()),
+                            }]
+                        } else {
+                            s.ports
+                                .iter()
+                                .map(|p| SubmenuEntry {
+                                    name: format!("{}: {}", p.description, s.description),
+                                    device: p.device_type,
+                                    active: p.active && s.name == service.server_info.default_sink,
+                                    msg: Message::DefaultSinkChanged(
+                                        s.name.clone(),
+                                        p.name.clone(),
+                                    ),
+                                })
+                                .collect()
+                        }
                     })
                     .collect(),
                 if self.config.sinks_more_cmd.is_some() {
@@ -323,12 +350,28 @@ impl AudioSettings {
                     .sources
                     .iter()
                     .flat_map(|s| {
-                        s.ports.iter().map(|p| SubmenuEntry {
-                            name: format!("{}: {}", p.description, s.description),
-                            device: p.device_type,
-                            active: p.active && s.name == service.server_info.default_source,
-                            msg: Message::DefaultSourceChanged(s.name.clone(), p.name.clone()),
-                        })
+                        if s.ports.is_empty() {
+                            vec![SubmenuEntry {
+                                name: s.description.clone(),
+                                device: DeviceType::Headset,
+                                active: s.name == service.server_info.default_source,
+                                msg: Message::DefaultSourceChanged(s.name.clone(), String::new()),
+                            }]
+                        } else {
+                            s.ports
+                                .iter()
+                                .map(|p| SubmenuEntry {
+                                    name: format!("{}: {}", p.description, s.description),
+                                    device: p.device_type,
+                                    active: p.active
+                                        && s.name == service.server_info.default_source,
+                                    msg: Message::DefaultSourceChanged(
+                                        s.name.clone(),
+                                        p.name.clone(),
+                                    ),
+                                })
+                                .collect()
+                        }
                     })
                     .collect(),
                 if self.config.sources_more_cmd.is_some() {
