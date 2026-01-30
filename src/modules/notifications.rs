@@ -78,10 +78,6 @@ impl Notifications {
         }
     }
 
-    pub fn update_notifications(&mut self, notifications: &HashMap<u32, Notification>) {
-        self.notifications = notifications.clone();
-    }
-
     fn format_timestamp(&self, timestamp: std::time::SystemTime) -> String {
         let datetime: DateTime<Local> = timestamp.into();
         datetime.format(&self.config.format).to_string()
