@@ -148,7 +148,14 @@ impl App {
                             let mut service =
                                 crate::services::notifications::NotificationsService::new();
                             if let Err(e) = service.start().await {
-                                warn!("Failed to start notifications service: {:?}", e);
+                                warn!(
+                                    "Failed to start notifications service: {:?}",
+                                    match e {
+                                        crate::services::notifications::Error::ConnectionError(
+                                            msg,
+                                        ) => msg,
+                                    }
+                                );
                             }
                             service
                         },
