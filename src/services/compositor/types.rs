@@ -93,7 +93,7 @@ pub struct CompositorService {
 #[derive(Debug, Clone)]
 pub enum CompositorEvent {
     ActionPerformed, // for now a noop to respond to commands
-    StateChanged(CompositorState),
+    StateChanged(Box<CompositorState>),
     // We can add specific events if needed, but a full state sync is safer for workspaces
 }
 

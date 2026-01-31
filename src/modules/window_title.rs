@@ -11,7 +11,7 @@ use iced::{
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    ServiceEvent(ServiceEvent<CompositorService>),
+    ServiceEvent(Box<ServiceEvent<CompositorService>>),
     ConfigReloaded(WindowTitleConfig),
 }
 
@@ -32,7 +32,7 @@ impl WindowTitle {
 
     pub fn update(&mut self, message: Message) {
         match message {
-            Message::ServiceEvent(event) => match event {
+            Message::ServiceEvent(event) => match *event {
                 ServiceEvent::Init(service) => {
                     self.service = Some(service);
                     self.recalculate_value();
@@ -98,6 +98,6 @@ impl WindowTitle {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        CompositorService::subscribe().map(Message::ServiceEvent)
+        CompositorService::subscribe().map(|event| Message::ServiceEvent(Box::new(event)))
     }
 }
