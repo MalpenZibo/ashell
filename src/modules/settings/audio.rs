@@ -179,10 +179,9 @@ impl AudioSettings {
                     StaticIcon::Speaker0
                 } else {
                     match service.cur_sink_volume {
-                        1..=33 => StaticIcon::Speaker1,
+                        0..=33 => StaticIcon::Speaker1,
                         34..=66 => StaticIcon::Speaker2,
-                        67.. => StaticIcon::Speaker3,
-                        _ => StaticIcon::Speaker0,
+                        _ => StaticIcon::Speaker3,
                     }
                 });
                 MouseArea::new(icon)
