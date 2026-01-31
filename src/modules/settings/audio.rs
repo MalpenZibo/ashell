@@ -3,7 +3,7 @@ use crate::{
     components::icons::{StaticIcon, icon, icon_button},
     services::{
         ReadOnlyService, Service, ServiceEvent,
-        audio::{AudioCommand, AudioService, DeviceType, Sinks, Sources},
+        audio::{AudioCommand, AudioService, DeviceType},
     },
     theme::AshellTheme,
 };
@@ -18,8 +18,8 @@ use iced::{
 #[derive(Debug, Clone)]
 pub enum Message {
     Event(ServiceEvent<AudioService>),
-    DefaultSinkChanged(String, String),
-    DefaultSourceChanged(String, String),
+    DefaultSinkChanged(String, Option<String>),
+    DefaultSourceChanged(String, Option<String>),
     ToggleSinkMute,
     SinkVolumeChanged(i32),
     ToggleSourceMute,
@@ -93,11 +93,11 @@ impl AudioSettings {
                     if let Some(service) = self.service.as_mut() {
                         service.update(data);
 
-                        if service.sinks.len() < 2 {
+                        if service.has_multiple_sinks() {
                             return Action::CloseSubMenu;
                         }
 
-                        if service.sources.len() < 2 {
+                        if service.has_multiple_sources() {
                             return Action::CloseSubMenu;
                         }
                     }
@@ -173,12 +173,17 @@ impl AudioSettings {
     }
 
     pub fn sink_indicator(&'_ self) -> Option<Element<'_, Message>> {
-        self.service
-            .as_ref()
-            .filter(|service| !service.sinks.is_empty())
-            .map(|service| {
-                let icon_type = Sinks::get_icon(&service.sinks, &service.server_info.default_sink);
-                let icon = icon(icon_type);
+        self.service.as_ref().and_then(|service| {
+            service.active_sink().map(|sink| {
+                let icon = icon(if sink.is_mute {
+                    StaticIcon::Speaker0
+                } else {
+                    match service.cur_sink_volume {
+                        0..=33 => StaticIcon::Speaker1,
+                        34..=66 => StaticIcon::Speaker2,
+                        _ => StaticIcon::Speaker3,
+                    }
+                });
                 MouseArea::new(icon)
                     .on_right_press(Message::OpenMore)
                     .on_scroll(|delta| {
@@ -196,16 +201,17 @@ impl AudioSettings {
                     })
                     .into()
             })
+        })
     }
 
     pub fn source_indicator(&'_ self) -> Option<Element<'_, Message>> {
-        self.service
-            .as_ref()
-            .filter(|service| !service.sources.is_empty())
-            .map(|service| {
-                let icon_type =
-                    Sources::get_icon(&service.sources, &service.server_info.default_source);
-                let icon = icon(icon_type);
+        self.service.as_ref().and_then(|service| {
+            service.active_source().map(|source| {
+                let icon = icon(if source.is_mute {
+                    StaticIcon::Mic0
+                } else {
+                    StaticIcon::Mic1
+                });
                 MouseArea::new(icon)
                     .on_scroll(|delta| {
                         let cur_vol = service.cur_source_volume;
@@ -222,6 +228,7 @@ impl AudioSettings {
                     })
                     .into()
             })
+        })
     }
 
     pub fn sliders<'a>(
@@ -230,12 +237,7 @@ impl AudioSettings {
         sub_menu: Option<SubMenu>,
     ) -> (Option<Element<'a, Message>>, Option<Element<'a, Message>>) {
         if let Some(service) = &self.service {
-            let active_sink = service
-                .sinks
-                .iter()
-                .find(|sink| sink.name == service.server_info.default_sink);
-
-            let sink_slider = active_sink.map(|s| {
+            let sink_slider = service.active_sink().map(|s| {
                 Self::slider(
                     theme,
                     SliderType::Sink,
@@ -243,7 +245,7 @@ impl AudioSettings {
                     Message::ToggleSinkMute,
                     service.cur_sink_volume,
                     &Message::SinkVolumeChanged,
-                    if service.sinks.iter().map(|s| s.ports.len()).sum::<usize>() > 1 {
+                    if service.has_multiple_sinks() {
                         Some((sub_menu, Message::ToggleSinksMenu))
                     } else {
                         None
@@ -251,32 +253,23 @@ impl AudioSettings {
                 )
             });
 
-            if !service.sources.is_empty() {
-                let active_source = service
-                    .sources
-                    .iter()
-                    .find(|source| source.name == service.server_info.default_source);
+            let source_slider = service.active_source().map(|s| {
+                Self::slider(
+                    theme,
+                    SliderType::Source,
+                    s.is_mute,
+                    Message::ToggleSourceMute,
+                    service.cur_source_volume,
+                    &Message::SourceVolumeChanged,
+                    if service.has_multiple_sources() {
+                        Some((sub_menu, Message::ToggleSourcesMenu))
+                    } else {
+                        None
+                    },
+                )
+            });
 
-                let source_slider = active_source.map(|s| {
-                    Self::slider(
-                        theme,
-                        SliderType::Source,
-                        s.is_mute,
-                        Message::ToggleSourceMute,
-                        service.cur_source_volume,
-                        &Message::SourceVolumeChanged,
-                        if service.sources.iter().map(|s| s.ports.len()).sum::<usize>() > 1 {
-                            Some((sub_menu, Message::ToggleSourcesMenu))
-                        } else {
-                            None
-                        },
-                    )
-                });
-
-                (sink_slider, source_slider)
-            } else {
-                (sink_slider, None)
-            }
+            (sink_slider, source_slider)
         } else {
             (None, None)
         }
@@ -291,15 +284,19 @@ impl AudioSettings {
             Self::submenu(
                 theme,
                 service
-                    .sinks
-                    .iter()
-                    .flat_map(|s| {
-                        s.ports.iter().map(|p| SubmenuEntry {
-                            name: format!("{}: {}", p.description, s.description),
-                            device: p.device_type,
-                            active: p.active && s.name == service.server_info.default_sink,
-                            msg: Message::DefaultSinkChanged(s.name.clone(), p.name.clone()),
-                        })
+                    .sink_iter()
+                    .map(|route| SubmenuEntry {
+                        name: route.to_string(),
+                        device: route
+                            .port
+                            .map(|p| p.device_type)
+                            .unwrap_or(DeviceType::Speaker),
+                        active: route.is_active()
+                            && route.device.name == service.server_info.default_sink,
+                        msg: Message::DefaultSinkChanged(
+                            route.device.name.clone(),
+                            route.port.map(|p| p.name.clone()),
+                        ),
                     })
                     .collect(),
                 if self.config.sinks_more_cmd.is_some() {
@@ -320,15 +317,19 @@ impl AudioSettings {
             Self::submenu(
                 theme,
                 service
-                    .sources
-                    .iter()
-                    .flat_map(|s| {
-                        s.ports.iter().map(|p| SubmenuEntry {
-                            name: format!("{}: {}", p.description, s.description),
-                            device: p.device_type,
-                            active: p.active && s.name == service.server_info.default_source,
-                            msg: Message::DefaultSourceChanged(s.name.clone(), p.name.clone()),
-                        })
+                    .source_iter()
+                    .map(|route| SubmenuEntry {
+                        name: route.to_string(),
+                        device: route
+                            .port
+                            .map(|p| p.device_type)
+                            .unwrap_or(DeviceType::Speaker),
+                        active: route.is_active()
+                            && route.device.name == service.server_info.default_source,
+                        msg: Message::DefaultSourceChanged(
+                            route.device.name.clone(),
+                            route.port.map(|p| p.name.clone()),
+                        ),
                     })
                     .collect(),
                 if self.config.sources_more_cmd.is_some() {
