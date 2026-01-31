@@ -75,7 +75,7 @@ impl ReadOnlyService for CompositorService {
     fn update(&mut self, event: Self::UpdateEvent) {
         match event {
             CompositorEvent::StateChanged(new_state) => {
-                self.state = new_state;
+                self.state = *new_state;
             }
             CompositorEvent::ActionPerformed => {}
         }
