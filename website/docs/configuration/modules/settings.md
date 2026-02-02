@@ -54,10 +54,12 @@ The `lock_cmd` parameter is optional. If not set, the lock button will not appea
 
 With the `audio_sinks_more_cmd` and `audio_sources_more_cmd`  
 options you can set commands to open the audio settings  
-for sinks and sources, if not set the related buttons will not appear.
+for sinks and sources, if not set the related buttons will not appear.  
+When configured, right-clicking the speaker or microphone indicators (or their quick settings buttons) launches the respective command immediately.
 
 With the `wifi_more_cmd`, `vpn_more_cmd` and `bluetooth_more_cmd` options  
-you can set commands to open the network, VPN and bluetooth settings.
+you can set commands to open the network, VPN and bluetooth settings.  
+Right-clicking the Wi-Fi, VPN, Bluetooth or airplane-mode quick settings buttons (and the Wi-Fi indicator in the bar) triggers these commands directly when they are set.
 
 With the `remove_airplane_btn` option you can remove the airplane mode button.
 
