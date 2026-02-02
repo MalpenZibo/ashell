@@ -106,7 +106,7 @@ impl Settings {
                 config.audio_indicator_format,
                 config.microphone_indicator_format,
             )),
-            brightness: BrightnessSettings::new(),
+            brightness: BrightnessSettings::new(config.brightness_indicator_format),
             network: NetworkSettings::new(NetworkSettingsConfig::new(
                 config.wifi_more_cmd,
                 config.vpn_more_cmd,
@@ -409,12 +409,16 @@ impl Settings {
                         config.bluetooth_indicator_format,
                     ),
                 ));
+                self.brightness.update(brightness::Message::ConfigReloaded(
+                    config.brightness_indicator_format,
+                ));
                 if config.remove_idle_btn {
                     self.idle_inhibitor = None;
                 } else if self.idle_inhibitor.is_none() {
                     self.idle_inhibitor = IdleInhibitorManager::new();
                 }
                 self.indicators = config.indicators;
+                self.custom_buttons = config.custom_buttons;
                 Action::None
             }
         }
@@ -696,6 +700,15 @@ impl Settings {
                         .power
                         .peripheral_indicators(theme)
                         .map(|e| e.map(Message::Power))
+                    {
+                        row = row.push(element);
+                    }
+                }
+                SettingsIndicator::Brightness => {
+                    if let Some(element) = self
+                        .brightness
+                        .brightness_indicator(theme)
+                        .map(|e| e.map(Message::Brightness))
                     {
                         row = row.push(element);
                     }
