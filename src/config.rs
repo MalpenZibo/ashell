@@ -102,6 +102,8 @@ pub enum WindowTitleMode {
     #[default]
     Title,
     Class,
+    InitialTitle,
+    InitialClass,
 }
 
 #[derive(Deserialize, Copy, Clone, Debug)]
