@@ -129,7 +129,9 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
         let state = map_state(&internal_state);
 
         // Emit Update
-        let _ = tx.send(ServiceEvent::Update(CompositorEvent::StateChanged(Box::new(state))));
+        let _ = tx.send(ServiceEvent::Update(CompositorEvent::StateChanged(
+            Box::new(state),
+        )));
     }
 
     Ok(())

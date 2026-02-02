@@ -73,7 +73,9 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
 
         match fetch_full_state(&state_guard) {
             Ok(state) => {
-                let _ = tx.send(ServiceEvent::Update(CompositorEvent::StateChanged(Box::new(state))));
+                let _ = tx.send(ServiceEvent::Update(CompositorEvent::StateChanged(
+                    Box::new(state),
+                )));
             }
             Err(e) => {
                 log::error!("Failed to fetch initial compositor state: {}", e);
@@ -95,8 +97,9 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
                         if let Ok(state_guard) = internal_state.read()
                             && let Ok(state) = fetch_full_state(&*state_guard)
                         {
-                            let _ =
-                                tx.send(ServiceEvent::Update(CompositorEvent::StateChanged(Box::new(state))));
+                            let _ = tx.send(ServiceEvent::Update(CompositorEvent::StateChanged(
+                                Box::new(state),
+                            )));
                         }
                     })
                 }
@@ -129,7 +132,9 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
                 if let Ok(mut state_guard) = internal_state.write() {
                     state_guard.submap = new_submap;
                     if let Ok(state) = fetch_full_state(&state_guard) {
-                        let _ = tx.send(ServiceEvent::Update(CompositorEvent::StateChanged(Box::new(state))));
+                        let _ = tx.send(ServiceEvent::Update(CompositorEvent::StateChanged(
+                            Box::new(state),
+                        )));
                     }
                 }
             })
