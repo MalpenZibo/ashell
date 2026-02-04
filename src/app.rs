@@ -548,7 +548,6 @@ impl App {
                 Some((MenuType::Tempo, button_ui_ref)) => self.menu_wrapper(
                     id,
                     self.tempo.menu_view(&self.theme).map(Message::Tempo),
-                    MenuSize::XLarge,
                     *button_ui_ref,
                 ),
                 None => Row::new().into(),

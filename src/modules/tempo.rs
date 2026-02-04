@@ -1,6 +1,7 @@
 use crate::{
     components::icons::{StaticIcon, icon},
     config::{TempoModuleConfig, WeatherLocation},
+    menu::MenuSize,
     theme::AshellTheme,
 };
 use chrono::{DateTime, Datelike, Days, Local, Months, NaiveDate, NaiveDateTime, Weekday};
@@ -111,6 +112,7 @@ impl Tempo {
             .push(self.calendar(theme))
             .push_maybe(self.weather(theme))
             .spacing(theme.space.lg)
+            .width(MenuSize::XLarge)
             .into()
     }
 
