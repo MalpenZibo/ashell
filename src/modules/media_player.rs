@@ -1,6 +1,7 @@
 use crate::{
     components::icons::{IconButtonSize, StaticIcon, icon, icon_button},
     config::{MediaPlayerFormat, MediaPlayerModuleConfig},
+    menu::MenuSize,
     services::{
         ReadOnlyService, Service, ServiceEvent,
         mpris::{
@@ -140,6 +141,7 @@ impl MediaPlayer {
                 .spacing(theme.space.md)
             )
             .spacing(theme.space.xs)
+            .width(MenuSize::Large)
             .into(),
         }
     }

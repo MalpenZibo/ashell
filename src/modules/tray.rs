@@ -1,6 +1,6 @@
 use crate::{
     components::icons::{StaticIcon, icon},
-    position_button::{ButtonUIRef, position_button},
+    menu::MenuSize,
     services::{
         ReadOnlyService, Service, ServiceEvent,
         tray::{
@@ -9,6 +9,7 @@ use crate::{
         },
     },
     theme::AshellTheme,
+    widgets::{ButtonUIRef, position_button},
 };
 use iced::{
     Alignment, Element, Length, Subscription, Task,
@@ -223,8 +224,9 @@ impl TrayModule {
                     .map(|menu| self.menu_voice(theme, name, menu)),
             )
             .spacing(theme.space.xs)
+            .width(MenuSize::Medium)
             .into(),
-            _ => Row::new().into(),
+            _ => Row::new().width(MenuSize::Medium).into(),
         }
     }
 
