@@ -8,7 +8,7 @@ use chrono::{DateTime, Local};
 use iced::{
     Alignment, Background, Border, Color, Element, Length, Subscription, Theme,
     futures::SinkExt,
-    widget::{button, column, container, horizontal_rule, row, scrollable, text},
+    widget::{button, column, container, row, scrollable, text},
     window::Id,
 };
 use std::collections::HashMap;
@@ -247,7 +247,7 @@ impl Notifications {
         column!(
             row!(
                 text("Notifications").size(theme.font_size.lg),
-                if self.notifications.len() > 0 {
+                if !self.notifications.is_empty() {
                     container(
                         button("Clear")
                             .style(move |iced_theme: &Theme, _status| button::Style {
