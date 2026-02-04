@@ -86,6 +86,7 @@ impl Tempo {
             .push(text(
                 self.date.format(&self.config.clock_format).to_string(),
             ))
+            .align_y(Vertical::Center)
             .spacing(theme.space.sm)
             .into()
     }
@@ -94,14 +95,11 @@ impl Tempo {
         self.weather_data.as_ref().map(|data| {
             row!(
                 weather_icon(data.current.weather_code, data.current.is_day > 0)
-                    .width(Length::Shrink)
-                    .height(theme.font_size.md),
-                container(
-                    text(format!("{}°C", data.current.temperature_2m)).size(theme.font_size.sm)
-                )
-                .padding([theme.space.xxs, 0, 0, 0])
+                    .width(Length::Fixed(15.)),
+                text(format!("{}°C", data.current.temperature_2m))
+                    .align_y(Vertical::Center)
+                    .size(theme.font_size.sm)
             )
-            .align_y(Vertical::Center)
             .spacing(theme.space.xxs)
             .into()
         })
@@ -545,7 +543,7 @@ impl Tempo {
                         Ok(loc) => {
                             debug!("Location fetched successfully: {:?}", loc);
 
-                            let (lat, lon) = (loc.lat, loc.lon);
+                            let (lat, lon) = (loc.latitude, loc.longitude);
                             output.send(Message::UpdateLocation(loc)).await.ok();
 
                             loop {
@@ -596,12 +594,13 @@ async fn fetch_location(location: WeatherLocation) -> anyhow::Result<Location> {
             let response = reqwest::get(&url).await?;
             let raw_data = response.text().await?;
 
-            let data: Locations = serde_json::from_str(&raw_data)?;
+            let data: GeoLocations = serde_json::from_str(&raw_data)?;
 
             data.results
                 .first()
                 .ok_or_else(|| anyhow::anyhow!("No location found"))
                 .cloned()
+                .map(|l| l.into())
         }
         WeatherLocation::Current => {
             let find_location = "http://ip-api.com/json/";
@@ -609,23 +608,65 @@ async fn fetch_location(location: WeatherLocation) -> anyhow::Result<Location> {
             let response = reqwest::get(find_location).await?;
             let raw_data = response.text().await?;
 
-            let data: Location = serde_json::from_str(&raw_data)?;
+            let data: IpLocation = serde_json::from_str(&raw_data)?;
 
-            Ok(data)
+            Ok(data.into())
         }
     }
 }
 
 #[derive(Clone, Debug, Deserialize)]
-struct Locations {
-    results: Vec<Location>,
+struct GeoLocations {
+    results: Vec<GeoLocation>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Location {
+pub struct GeoLocation {
+    latitude: f32,
+    longitude: f32,
+    name: String,
+    #[serde(default)]
+    admin1: Option<String>,
+    #[serde(default)]
+    country: Option<String>,
+}
+
+impl From<GeoLocation> for Location {
+    fn from(value: GeoLocation) -> Self {
+        Location {
+            latitude: value.latitude,
+            longitude: value.longitude,
+            city: value.name,
+            region_name: value.admin1.or(value.country).unwrap_or_default(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IpLocation {
     lat: f32,
     lon: f32,
+    city: String,
+    region_name: String,
+}
+
+impl From<IpLocation> for Location {
+    fn from(value: IpLocation) -> Self {
+        Location {
+            latitude: value.lat,
+            longitude: value.lon,
+            city: value.city,
+            region_name: value.region_name,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct Location {
+    latitude: f32,
+    longitude: f32,
     city: String,
     region_name: String,
 }
