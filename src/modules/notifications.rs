@@ -6,7 +6,7 @@ use crate::{
 };
 use chrono::{DateTime, Local};
 use iced::{
-    Alignment, Background, Border, Element, Length, Subscription, Theme,
+    Alignment, Background, Border, Color, Element, Length, Subscription, Theme,
     futures::SinkExt,
     widget::{button, column, container, horizontal_rule, row, scrollable, text},
     window::Id,
@@ -247,31 +247,26 @@ impl Notifications {
         column!(
             row!(
                 text("Notifications").size(theme.font_size.lg),
-                container(
-                    button("Clear")
-                        .style(move |iced_theme: &Theme, _status| button::Style {
-                            background: Some(Background::Color(
-                                iced_theme
-                                    .extended_palette()
-                                    .secondary
-                                    .weak
-                                    .color
-                                    .scale_alpha(theme.opacity),
-                            )),
-                            text_color: (iced_theme.palette().text),
-                            border: Border::default().rounded(theme.radius.md),
-                            ..button::Style::default()
-                        })
-                        .on_press(Message::ClearNotifications)
-                )
-                .width(Length::Fill)
-                .align_x(Alignment::End)
+                if self.notifications.len() > 0 {
+                    container(
+                        button("Clear")
+                            .style(move |iced_theme: &Theme, _status| button::Style {
+                                background: Some(Background::Color(Color::TRANSPARENT)),
+                                text_color: (iced_theme.palette().text),
+                                border: Border::default().rounded(theme.radius.md),
+                                ..button::Style::default()
+                            })
+                            .on_press(Message::ClearNotifications),
+                    )
+                    .width(Length::Fill)
+                    .align_x(Alignment::End)
+                } else {
+                    container(text(""))
+                        .width(Length::Fill)
+                        .align_x(Alignment::End)
+                }
             ),
-            horizontal_rule(1),
-            scrollable(content)
-                .scrollbar_width(0.0)
-                .scroller_width(0.0)
-                .height(Length::Fixed(400.0)),
+            scrollable(content).scrollbar_width(0.0).scroller_width(0.0),
         )
         .spacing(theme.space.sm)
         .into()
