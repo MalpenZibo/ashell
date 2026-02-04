@@ -14,8 +14,9 @@ use crate::{
 use iced::{
     Background, Border, Element, Length, Subscription, Task, Theme,
     alignment::Vertical,
-    widget::{Column, column, container, horizontal_rule, row, slider, text},
+    widget::{Row, column, container, horizontal_rule, horizontal_space, image, row, slider, text},
 };
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -35,6 +36,7 @@ pub enum Action {
 pub struct MediaPlayer {
     config: MediaPlayerModuleConfig,
     service: Option<MprisPlayerService>,
+    covers: HashMap<String, image::Handle>,
 }
 
 impl MediaPlayer {
@@ -42,6 +44,7 @@ impl MediaPlayer {
         Self {
             config,
             service: None,
+            covers: HashMap::new(),
         }
     }
 
@@ -64,6 +67,7 @@ impl MediaPlayer {
                     if let Some(service) = self.service.as_mut() {
                         service.update(d);
                     }
+                    self.sync_cover_handles();
                     Action::None
                 }
                 ServiceEvent::Error(_) => Action::None,
@@ -78,12 +82,34 @@ impl MediaPlayer {
     pub fn menu_view<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
         match &self.service {
             None => text("Not connected to MPRIS service").into(),
-            Some(s) => column!(
+            Some(service) => column!(
                 text("Players").size(theme.font_size.lg),
                 horizontal_rule(1),
-                column(s.iter().map(|d| {
-                    let title = text(self.get_title(d))
+                column(service.players().iter().map(|d| {
+                    let m = d.metadata.as_ref();
+                    let title = m
+                        .and_then(|m| m.title.clone())
+                        .unwrap_or("No Title".to_string());
+                    let artists = m
+                        .and_then(|m| m.artists.clone())
+                        .map(|a| a.join(", "))
+                        .unwrap_or("Unknown Artist".to_string());
+                    let album = m
+                        .and_then(|m| m.album.clone())
+                        .unwrap_or("Unknown Album".to_string());
+                    let title = text(truncate_text(&title, self.config.max_title_length))
                         .wrapping(text::Wrapping::WordOrGlyph)
+                        .width(Length::Fill);
+                    let artists = text(truncate_text(&artists, self.config.max_title_length))
+                        .wrapping(text::Wrapping::WordOrGlyph)
+                        .size(theme.font_size.sm)
+                        .width(Length::Fill);
+                    let album = text(truncate_text(&album, self.config.max_title_length))
+                        .wrapping(text::Wrapping::WordOrGlyph)
+                        .size(theme.font_size.sm)
+                        .width(Length::Fill);
+                    let description = column![title, artists, album]
+                        .spacing(theme.space.xxs)
                         .width(Length::Fill);
 
                     let play_pause_icon = match d.state {
@@ -104,22 +130,51 @@ impl MediaPlayer {
                     ]
                     .align_y(Vertical::Center)
                     .spacing(theme.space.xs);
-
-                    let volume_slider = d.volume.map(|v| {
-                        slider(0.0..=100.0, v, move |v| {
+                    let volume_slider: Element<'_, _> = match d.volume {
+                        Some(v) => slider(0.0..=100.0, v, move |v| {
                             Message::SetVolume(d.service.clone(), v)
                         })
-                    });
+                        .width(Length::Fill)
+                        .into(),
+                        None => horizontal_space().into(),
+                    };
+                    let controls = Row::new()
+                        .push(volume_slider)
+                        .push(buttons)
+                        .spacing(theme.space.md)
+                        .align_y(Vertical::Center);
+
+                    // Is it possible to dynamically size the cover to match the buttons?
+                    let buttons_width =
+                        IconButtonSize::Large.container_size() * 3. + theme.space.xs as f32 * 2.;
+
+                    let cover: Option<Element<_, _>> = d
+                        .metadata
+                        .as_ref()
+                        .and_then(|m| m.art_url.as_ref())
+                        .map(|url| {
+                            self.covers
+                                .get(url)
+                                .map(|handle| {
+                                    image(handle)
+                                        .filter_method(image::FilterMethod::Linear)
+                                        .width(buttons_width)
+                                        .into()
+                                })
+                                .unwrap_or_else(|| {
+                                    text("Loading cover...")
+                                        .width(buttons_width)
+                                        .height(buttons_width)
+                                        .into()
+                                })
+                        });
+                    let metadata = row![description]
+                        .push_maybe(cover)
+                        .spacing(theme.space.md)
+                        .align_y(Vertical::Center);
 
                     container(
-                        Column::new()
-                            .push(
-                                row!(title, buttons)
-                                    .spacing(theme.space.xs)
-                                    .align_y(Vertical::Center),
-                            )
-                            .push_maybe(volume_slider)
-                            .spacing(theme.space.xs),
+                        column![metadata, controls].spacing(theme.space.xs), // .align_y(Vertical::Center),
                     )
                     .style(move |app_theme: &Theme| container::Style {
                         background: Background::Color(
@@ -167,7 +222,7 @@ impl MediaPlayer {
 
     pub fn view(&'_ self, theme: &AshellTheme) -> Option<Element<'_, Message>> {
         self.service.as_ref().and_then(|s| {
-            s.first().map(|player| {
+            s.players().first().map(|player| {
                 let title =
                     (self.config.indicator_format == MediaPlayerFormat::IconAndTitle).then(|| {
                         container(
@@ -189,5 +244,30 @@ impl MediaPlayer {
 
     pub fn subscription(&self) -> Subscription<Message> {
         MprisPlayerService::subscribe().map(Message::Event)
+    }
+
+    fn sync_cover_handles(&mut self) {
+        let Some(service) = &self.service else {
+            return;
+        };
+
+        let desired_urls: HashSet<String> = service
+            .players()
+            .iter()
+            .filter_map(|player| player.metadata.as_ref()?.art_url.clone())
+            .collect();
+        self.covers.retain(|url, _| desired_urls.contains(url));
+        let unloaded_urls: HashSet<String> = desired_urls
+            .difference(&self.covers.keys().cloned().collect())
+            .cloned()
+            .collect();
+
+        for url in unloaded_urls {
+            let Some(cover) = service.get_cover(&url) else {
+                continue;
+            };
+            self.covers
+                .insert(url.clone(), image::Handle::from_bytes(cover.clone()));
+        }
     }
 }
