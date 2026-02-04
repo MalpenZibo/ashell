@@ -6,7 +6,7 @@ repository = "https://github.com/MalpenZibo/ashell"
 license = "MIT"
 version = "0.7.0"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.89"
 
 [profile.release]
 lto = "thin"
@@ -28,7 +28,7 @@ depends = ["libwayland-client0", "libpipewire-0.3-0t64", "libpulse0"]
 depends = ["libwayland-client", "pipewire-libs", "pulseaudio-libs"]
 
 [dependencies]
-iced = { git = "https://github.com/MalpenZibo/iced", rev = "237116726a405b326bf6f61f2b9105b38a938490", features = [
+iced = { git = "https://github.com/MalpenZibo/iced", rev = "daccb115c0827bd67fb11bf767db15b2066ed9df", features = [
   "tokio",
   "multi-window",
   "advanced",

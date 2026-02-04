@@ -263,7 +263,7 @@ impl Default for ClockModuleConfig {
 pub struct TempoModuleConfig {
     pub clock_format: String,
     #[serde(default)]
-    pub weather_location: WeatherLocation,
+    pub weather_location: Option<WeatherLocation>,
 }
 
 #[derive(Deserialize, Default, Clone, Debug)]
@@ -277,7 +277,7 @@ impl Default for TempoModuleConfig {
     fn default() -> Self {
         Self {
             clock_format: "%a %d %b %R".to_string(),
-            weather_location: WeatherLocation::default(),
+            weather_location: None,
         }
     }
 }

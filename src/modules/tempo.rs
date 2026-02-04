@@ -529,10 +529,7 @@ impl Tempo {
             Duration::from_secs(5)
         };
 
-        let location = self.config.weather_location.clone();
-
-        Subscription::batch(vec![
-            every(interval).map(|_| Message::Update),
+        let weather_sub = self.config.weather_location.clone().map(|location| {
             Subscription::run_with_id(
                 (
                     TypeId::of::<Self>(),
@@ -576,8 +573,14 @@ impl Tempo {
                         }
                     }
                 }),
-            ),
-        ])
+            )
+        });
+
+        if let Some(weather_sub) = weather_sub {
+            Subscription::batch(vec![every(interval).map(|_| Message::Update), weather_sub])
+        } else {
+            every(interval).map(|_| Message::Update)
+        }
     }
 }
 
