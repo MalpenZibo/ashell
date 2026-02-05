@@ -62,10 +62,22 @@ impl Notifications {
                             NotificationDaemon::invoke_action(id, action_key).await.ok();
                         });
                     }
-                // Remove the notification from local state
+                // Close the notification properly (removes from both daemon and global state)
+                tokio::spawn(async move {
+                    let _ = NotificationDaemon::close_notification_by_id(id).await;
+                });
+                // Remove from local state immediately for responsive UI
                 self.notifications.remove(&id);
             }
             Message::ClearNotifications => {
+                // Close each notification through the daemon (cleans up both daemon and global state)
+                let notification_ids: Vec<u32> = self.notifications.keys().copied().collect();
+                tokio::spawn(async move {
+                    for id in notification_ids {
+                        let _ = NotificationDaemon::close_notification_by_id(id).await;
+                    }
+                });
+                // Clear local state immediately for responsive UI (will be re-synced by service layer)
                 self.notifications.clear();
             }
         }

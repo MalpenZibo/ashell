@@ -568,9 +568,6 @@ impl App {
             Subscription::batch(self.modules_subscriptions(&self.general_config.modules.left)),
             Subscription::batch(self.modules_subscriptions(&self.general_config.modules.center)),
             Subscription::batch(self.modules_subscriptions(&self.general_config.modules.right)),
-            self.notifications
-                .subscription()
-                .map(Message::Notifications),
             config::subscription(&self.config_path),
             crate::services::logind::LogindService::subscribe().map(|event| match event {
                 crate::services::ServiceEvent::Update(_) => Message::ResumeFromSleep,

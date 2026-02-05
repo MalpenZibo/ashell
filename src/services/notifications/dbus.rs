@@ -162,4 +162,18 @@ impl NotificationDaemon {
         }
         Ok(())
     }
+
+    pub async fn close_notification_by_id(id: u32) -> anyhow::Result<()> {
+        if let Some(connection) = NOTIFICATION_CONNECTION.get() {
+            // Get the object server interface to call the method properly
+            let iface_ref = connection
+                .object_server()
+                .interface::<_, NotificationDaemon>(OBJECT_PATH)
+                .await?;
+
+            // Call the close_notification method which properly cleans up both stores
+            iface_ref.get_mut().await.close_notification(id).await;
+        }
+        Ok(())
+    }
 }
