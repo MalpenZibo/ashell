@@ -1,6 +1,7 @@
 use crate::{
     components::icons::{StaticIcon, icon},
     config::{SystemInfoIndicator, SystemInfoModuleConfig},
+    menu::MenuSize,
     theme::AshellTheme,
 };
 use iced::{
@@ -334,6 +335,7 @@ impl SystemInfo {
                 .padding([0, theme.space.xs])
         )
         .spacing(theme.space.xs)
+        .width(MenuSize::Medium)
         .into()
     }
 

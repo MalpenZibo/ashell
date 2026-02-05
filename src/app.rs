@@ -1,8 +1,8 @@
 use crate::{
-    HEIGHT, centerbox,
+    HEIGHT,
     config::{self, AppearanceStyle, Config, Modules, Position},
     get_log_spec,
-    menu::{MenuSize, MenuType},
+    menu::MenuType,
     modules::{
         self,
         clock::Clock,
@@ -20,9 +20,9 @@ use crate::{
         workspaces::Workspaces,
     },
     outputs::{HasOutput, Outputs},
-    position_button::ButtonUIRef,
     services::ReadOnlyService,
     theme::{AshellTheme, backdrop_color, darken_color},
+    widgets::{ButtonUIRef, Centerbox},
 };
 use flexi_logger::LoggerHandle;
 use iced::{
@@ -71,7 +71,6 @@ pub struct App {
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    None,
     ConfigChanged(Box<Config>),
     ToggleMenu(MenuType, Id, ButtonUIRef),
     CloseMenu(Id),
@@ -91,6 +90,7 @@ pub enum Message {
     OutputEvent((OutputEvent, WlOutput)),
     CloseAllMenus,
     ResumeFromSleep,
+    None,
 }
 
 impl App {
@@ -220,7 +220,6 @@ impl App {
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::None => Task::none(),
             Message::ConfigChanged(config) => {
                 info!("New config: {config:?}");
                 let mut tasks = Vec::new();
@@ -424,6 +423,7 @@ impl App {
                 self.notifications.update(message);
                 Task::none()
             }
+            Message::None => Task::none(),
         }
     }
 
@@ -432,7 +432,7 @@ impl App {
             Some(HasOutput::Main) => {
                 let [left, center, right] = self.modules_section(id, &self.theme);
 
-                let centerbox = centerbox::Centerbox::new([left, center, right])
+                let centerbox = Centerbox::new([left, center, right])
                     .spacing(self.theme.space.xxs)
                     .width(Length::Fill)
                     .align_items(Alignment::Center)
@@ -518,7 +518,6 @@ impl App {
                         self.menu_wrapper(
                             id,
                             updates.menu_view(id, &self.theme).map(Message::Updates),
-                            MenuSize::Small,
                             *button_ui_ref,
                         )
                     } else {
@@ -528,7 +527,6 @@ impl App {
                 Some((MenuType::Tray(name), button_ui_ref)) => self.menu_wrapper(
                     id,
                     self.tray.menu_view(&self.theme, name).map(Message::Tray),
-                    MenuSize::Medium,
                     *button_ui_ref,
                 ),
                 Some((MenuType::Notifications, button_ui_ref)) => self.menu_wrapper(
@@ -544,7 +542,6 @@ impl App {
                     self.settings
                         .menu_view(id, &self.theme, self.theme.bar_position)
                         .map(Message::Settings),
-                    MenuSize::Medium,
                     *button_ui_ref,
                 ),
                 Some((MenuType::MediaPlayer, button_ui_ref)) => self.menu_wrapper(
@@ -552,7 +549,6 @@ impl App {
                     self.media_player
                         .menu_view(&self.theme)
                         .map(Message::MediaPlayer),
-                    MenuSize::Large,
                     *button_ui_ref,
                 ),
                 Some((MenuType::SystemInfo, button_ui_ref)) => self.menu_wrapper(
@@ -560,7 +556,6 @@ impl App {
                     self.system_info
                         .menu_view(&self.theme)
                         .map(Message::SystemInfo),
-                    MenuSize::Medium,
                     *button_ui_ref,
                 ),
                 None => Row::new().into(),

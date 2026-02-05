@@ -10,6 +10,7 @@ battery, power profile and idle inhibitor.
 It displays in the status bar indicators about:
 
 - Audio volume
+- Microphone volume
 - Network status
 - Bluetooth connection status
 - Battery status
@@ -53,14 +54,28 @@ The `lock_cmd` parameter is optional. If not set, the lock button will not appea
 
 With the `audio_sinks_more_cmd` and `audio_sources_more_cmd`  
 options you can set commands to open the audio settings  
-for sinks and sources, if not set the related buttons will not appear.
+for sinks and sources, if not set the related buttons will not appear.  
+When configured, right-clicking the speaker or microphone indicators (or their quick settings buttons) launches the respective command immediately.
 
 With the `wifi_more_cmd`, `vpn_more_cmd` and `bluetooth_more_cmd` options  
-you can set commands to open the network, VPN and bluetooth settings.
+you can set commands to open the network, VPN and bluetooth settings.  
+Right-clicking the Wi-Fi, VPN, Bluetooth or airplane-mode quick settings buttons (and the Wi-Fi indicator in the bar) triggers these commands directly when they are set.
 
 With the `remove_airplane_btn` option you can remove the airplane mode button.
 
 With the `remove_idle_btn` option you can remove the idle inhibitor button.
+
+## Indicator Format Options
+
+With the format options you can customize how different indicators are displayed in the status bar.
+
+All format options support the same values:
+
+- `Icon` - Show only the icon
+- `Percentage` (or `Value`) - Show only the numeric value (percentage, count, or strength)
+- `IconAndPercentage` (or `IconAndValue`) - Show both the icon and the numeric value (default)
+
+### Battery Format
 
 With the `battery_format` option you can customize the battery indicator format.
 
@@ -72,10 +87,10 @@ The possible values are:
 - `Time` - Show smart time display (time to full when charging, time to empty when discharging, "100%" when full)
 - `IconAndTime` - Show battery icon with smart time display
 
-In the same way it's possible to customize the peripheral battery indicator format.
-The possible values are the same as above, but you need to use
-the `peripheral_battery_format` option.
-The default value is `Icon`.
+```toml
+[settings]
+battery_format = "IconAndPercentage"
+```
 
 ### Battery Time Display Behavior
 
@@ -100,6 +115,13 @@ peripheral_battery_format = "IconAndTime"
 # Full: "100%" or "🔋 100%"
 ```
 
+### Peripheral Battery Format
+
+In the same way it's possible to customize the peripheral battery indicator format.
+The possible values are the same as above, but you need to use
+the `peripheral_battery_format` option.
+The default value is `Icon`.
+
 With the `peripheral_indicators` you can decide which peripheral battery indicators
 are shown in the status bar.
 
@@ -118,6 +140,93 @@ The possible values are:
 battery_format = "IconAndPercentage"
 peripheral_battery_format = "Icon"
 peripheral_indicators = { Specific = ["Gamepad", "Keyboard"] }
+audio_indicator_format = "Icon"
+microphone_indicator_format = "Icon"
+network_indicator_format = "Icon"
+bluetooth_indicator_format = "Icon"
+```
+
+### Audio Format
+
+With the `audio_indicator_format` option you can customize the audio volume indicator format.
+
+The default value is `Icon`.
+
+```toml
+[settings]
+audio_indicator_format = "IconAndPercentage"
+```
+
+### Microphone Format
+
+With the `microphone_indicator_format` option you can customize the microphone volume indicator format.
+
+The default value is `Icon`.
+
+```toml
+[settings]
+microphone_indicator_format = "IconAndPercentage"
+```
+
+### Network Format
+
+With the `network_indicator_format` option you can customize the network connection indicator format.
+For WiFi connections, this shows the signal strength as a percentage.
+
+The default value is `Icon`.
+
+```toml
+[settings]
+network_indicator_format = "IconAndPercentage"
+```
+
+### Bluetooth Format
+
+With the `bluetooth_indicator_format` option you can customize the bluetooth indicator format.
+When devices are connected, this shows the number of connected devices.
+
+The default value is `Icon`.
+
+```toml
+[settings]
+bluetooth_indicator_format = "IconAndValue"
+```
+
+### Brightness Format
+
+With the `brightness_indicator_format` option you can customize the brightness indicator format.
+
+The default value is `Icon`.
+
+```toml
+[settings]
+brightness_indicator_format = "IconAndPercentage"
+```
+
+## Peripheral Indicators
+
+With the `peripheral_indicators` you can decide which peripheral battery indicators
+are shown in the status bar.
+
+The possible values are:
+
+- `All` - Show all peripheral battery indicators (default)
+- `Specific` - Show only the peripheral battery indicators in the specified categories.
+  The possible categories are:
+  - `Keyboard`
+  - `Mouse`
+  - `Headphones`
+  - `Gamepad`
+
+```toml
+[settings]
+battery_format = "IconAndPercentage"
+peripheral_battery_format = "Icon"
+peripheral_indicators = { Specific = ["Gamepad", "Keyboard"] }
+audio_indicator_format = "Icon"
+network_indicator_format = "Icon"
+bluetooth_indicator_format = "Icon"
+brightness_indicator_format = "Icon"
 ```
 
 ## Status Bar Indicators
@@ -130,19 +239,21 @@ Available indicators are:
 - `IdleInhibitor` - Shows an icon when idle inhibitor is active
 - `PowerProfile` - Shows the current power profile icon
 - `Audio` - Shows the audio volume level icon
+- `Microphone` - Shows the microphone volume level and mute status
 - `Network` - Shows the network connection status icon
 - `Vpn` - Shows the VPN connection status icon
 - `Bluetooth` - Shows a Bluetooth icon when connected to at least one device
 - `Battery` - Shows the battery level and charging status
 - `PeripheralBattery` - Shows the peripheral battery status
+- `Brightness` - Shows the current brightness level
 
 ```toml
 [settings]
 # Customize which indicators to show and their order
-indicators = ["Battery", "Bluetooth", "Network", "Audio"]
+indicators = ["Battery", "Bluetooth", "Network", "Audio", "Microphone"]
 
 # Default indicators (shown in this order):
-# ["IdleInhibitor", "PowerProfile", "Audio", "Bluetooth", "Network", "Vpn", "Battery"]
+indicators = ["IdleInhibitor", "PowerProfile", "Audio", "Microphone", "Bluetooth", "Network", "Vpn", "Battery", "Brightness"]
 ```
 
 ## Custom Buttons
@@ -233,11 +344,12 @@ vpn_more_cmd = "nm-connection-editor"
 bluetooth_more_cmd = "blueman-manager"
 remove_airplane_btn = true
 remove_idle_btn = true
-indicators = ["Battery", "Bluetooth", "Network", "Audio"]
+indicators = ["Battery", "Bluetooth", "Network", "Audio", "Microphone", "Brightness"]
 
 battery_format = "IconAndTime"
 peripheral_battery_format = "Time"
 peripheral_indicators = "All"
+
 
 [[settings.CustomButton]]
 name = "Virtual Keyboard"

@@ -9,6 +9,7 @@ use tokio::time::timeout;
 use crate::{
     components::icons::{DynamicIcon, Icon, IconButtonSize, StaticIcon, icon, icon_button},
     config::{Position, SettingsCustomButton, SettingsIndicator, SettingsModuleConfig},
+    menu::MenuSize,
     modules::settings::{
         audio::{AudioSettings, AudioSettingsConfig},
         bluetooth::{BluetoothSettings, BluetoothSettingsConfig},
@@ -103,15 +104,19 @@ impl Settings {
             audio: AudioSettings::new(AudioSettingsConfig::new(
                 config.audio_sinks_more_cmd,
                 config.audio_sources_more_cmd,
+                config.audio_indicator_format,
+                config.microphone_indicator_format,
             )),
-            brightness: BrightnessSettings::new(),
+            brightness: BrightnessSettings::new(config.brightness_indicator_format),
             network: NetworkSettings::new(NetworkSettingsConfig::new(
                 config.wifi_more_cmd,
                 config.vpn_more_cmd,
                 config.remove_airplane_btn,
+                config.network_indicator_format,
             )),
             bluetooth: BluetoothSettings::new(BluetoothSettingsConfig::new(
                 config.bluetooth_more_cmd,
+                config.bluetooth_indicator_format,
             )),
             idle_inhibitor: if config.remove_idle_btn {
                 None
@@ -388,16 +393,25 @@ impl Settings {
                     .update(audio::Message::ConfigReloaded(AudioSettingsConfig::new(
                         config.audio_sinks_more_cmd,
                         config.audio_sources_more_cmd,
+                        config.audio_indicator_format,
+                        config.microphone_indicator_format,
                     )));
                 self.network.update(network::Message::ConfigReloaded(
                     NetworkSettingsConfig::new(
                         config.wifi_more_cmd,
                         config.vpn_more_cmd,
                         config.remove_airplane_btn,
+                        config.network_indicator_format,
                     ),
                 ));
                 self.bluetooth.update(bluetooth::Message::ConfigReloaded(
-                    BluetoothSettingsConfig::new(config.bluetooth_more_cmd),
+                    BluetoothSettingsConfig::new(
+                        config.bluetooth_more_cmd,
+                        config.bluetooth_indicator_format,
+                    ),
+                ));
+                self.brightness.update(brightness::Message::ConfigReloaded(
+                    config.brightness_indicator_format,
                 ));
                 if config.remove_idle_btn {
                     self.idle_inhibitor = None;
@@ -405,6 +419,7 @@ impl Settings {
                     self.idle_inhibitor = IdleInhibitorManager::new();
                 }
                 self.indicators = config.indicators;
+                self.custom_buttons = config.custom_buttons;
                 Action::None
             }
         }
@@ -592,6 +607,7 @@ impl Settings {
                 )
                 .push(quick_settings)
                 .spacing(theme.space.md)
+                .width(MenuSize::Medium)
                 .into()
         }
     }
@@ -628,8 +644,10 @@ impl Settings {
                     }
                 }
                 SettingsIndicator::Audio => {
-                    if let Some(element) =
-                        self.audio.sink_indicator().map(|e| e.map(Message::Audio))
+                    if let Some(element) = self
+                        .audio
+                        .sink_indicator(theme)
+                        .map(|e| e.map(Message::Audio))
                     {
                         row = row.push(element);
                     }
@@ -661,6 +679,15 @@ impl Settings {
                         row = row.push(element);
                     }
                 }
+                SettingsIndicator::Microphone => {
+                    if let Some(element) = self
+                        .audio
+                        .source_indicator(theme)
+                        .map(|e| e.map(Message::Audio))
+                    {
+                        row = row.push(element);
+                    }
+                }
                 SettingsIndicator::Battery => {
                     if let Some(element) = self
                         .power
@@ -675,6 +702,15 @@ impl Settings {
                         .power
                         .peripheral_indicators(theme)
                         .map(|e| e.map(Message::Power))
+                    {
+                        row = row.push(element);
+                    }
+                }
+                SettingsIndicator::Brightness => {
+                    if let Some(element) = self
+                        .brightness
+                        .brightness_indicator(theme)
+                        .map(|e| e.map(Message::Brightness))
                     {
                         row = row.push(element);
                     }
