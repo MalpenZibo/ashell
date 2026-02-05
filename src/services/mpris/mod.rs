@@ -11,7 +11,7 @@ use iced::{
     stream::channel,
 };
 use log::{debug, error, info};
-use std::{any::TypeId, collections::HashMap, fmt::Display, ops::Deref, sync::Arc};
+use std::{any::TypeId, collections::HashMap, fmt::Display, ops::Deref};
 use zbus::{fdo::DBusProxy, zvariant::OwnedValue};
 
 mod dbus;
