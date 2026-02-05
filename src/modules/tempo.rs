@@ -95,11 +95,12 @@ impl Tempo {
         self.weather_data.as_ref().map(|data| {
             row!(
                 weather_icon(data.current.weather_code, data.current.is_day > 0)
-                    .width(Length::Fixed(15.)),
+                    .width(Length::Fixed(theme.font_size.sm as f32)),
                 text(format!("{}°C", data.current.temperature_2m))
                     .align_y(Vertical::Center)
                     .size(theme.font_size.sm)
             )
+            .align_y(Vertical::Center)
             .spacing(theme.space.xxs)
             .into()
         })
@@ -585,13 +586,17 @@ impl Tempo {
 }
 
 async fn fetch_location(location: WeatherLocation) -> anyhow::Result<Location> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .build()?;
+
     match location {
         WeatherLocation::City(city) => {
             let url = format!(
                 "https://geocoding-api.open-meteo.com/v1/search?name={}&count=1&language=en&format=json",
                 city
             );
-            let response = reqwest::get(&url).await?;
+            let response = client.get(&url).send().await?;
             let raw_data = response.text().await?;
 
             let data: GeoLocations = serde_json::from_str(&raw_data)?;
@@ -605,7 +610,7 @@ async fn fetch_location(location: WeatherLocation) -> anyhow::Result<Location> {
         WeatherLocation::Current => {
             let find_location = "http://ip-api.com/json/";
 
-            let response = reqwest::get(find_location).await?;
+            let response = client.get(find_location).send().await?;
             let raw_data = response.text().await?;
 
             let data: IpLocation = serde_json::from_str(&raw_data)?;
@@ -672,7 +677,11 @@ pub struct Location {
 }
 
 async fn fetch_weather_data(lat: f32, lon: f32) -> anyhow::Result<WeatherData> {
-    let response = reqwest::get(format!(
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .build()?;
+
+    let response = client.get(format!(
         "https://api.open-meteo.com/v1/forecast?\
         latitude={}&longitude={}\
         &current=weather_code,apparent_temperature,relative_humidity_2m,temperature_2m,is_day,wind_speed_10m,wind_direction_10m\
@@ -680,7 +689,7 @@ async fn fetch_weather_data(lat: f32, lon: f32) -> anyhow::Result<WeatherData> {
         &daily=weather_code,temperature_2m_max,temperature_2m_min,wind_speed_10m_max,wind_direction_10m_dominant\
         &forecast_days=7", 
         lat, lon
-    )).await?;
+    )).send().await?;
     let raw_data = response.text().await?;
 
     let data: WeatherData = serde_json::from_str(&raw_data)?;
