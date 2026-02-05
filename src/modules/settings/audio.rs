@@ -104,11 +104,11 @@ impl AudioSettings {
                     if let Some(service) = self.service.as_mut() {
                         service.update(data);
 
-                        if service.has_multiple_sinks() {
+                        if !service.has_multiple_sinks() {
                             return Action::CloseSubMenu;
                         }
 
-                        if service.has_multiple_sources() {
+                        if !service.has_multiple_sources() {
                             return Action::CloseSubMenu;
                         }
                     }
