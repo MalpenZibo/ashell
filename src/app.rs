@@ -88,7 +88,6 @@ pub enum Message {
     Settings(modules::settings::Message),
     MediaPlayer(modules::media_player::Message),
     Notifications(modules::notifications::Message),
-    NotificationsServiceInit,
     OutputEvent((OutputEvent, WlOutput)),
     CloseAllMenus,
     ResumeFromSleep,
@@ -141,27 +140,7 @@ impl App {
                     notifications,
                     media_player: MediaPlayer::new(config.media_player),
                 },
-                Task::batch(vec![
-                    task,
-                    Task::perform(
-                        async {
-                            let mut service =
-                                crate::services::notifications::NotificationsService::new();
-                            if let Err(e) = service.start().await {
-                                warn!(
-                                    "Failed to start notifications service: {:?}",
-                                    match e {
-                                        crate::services::notifications::Error::ConnectionError(
-                                            msg,
-                                        ) => msg,
-                                    }
-                                );
-                            }
-                            service
-                        },
-                        |_| Message::NotificationsServiceInit,
-                    ),
-                ]),
+                task,
             )
         }
     }
@@ -443,10 +422,6 @@ impl App {
             ),
             Message::Notifications(message) => {
                 self.notifications.update(message);
-                Task::none()
-            }
-            Message::NotificationsServiceInit => {
-                // Service is started, but we don't store it since it's running in background
                 Task::none()
             }
         }

@@ -9,8 +9,9 @@ use zbus::{
     zvariant::{self, OwnedValue},
 };
 
-// Import the static from the notifications module
-use crate::modules::notifications::NOTIFICATIONS;
+// Global static for storing notifications - accessed by service layer
+pub static NOTIFICATIONS: std::sync::OnceLock<std::sync::Mutex<HashMap<u32, Notification>>> =
+    std::sync::OnceLock::new();
 
 pub static NOTIFICATION_CONNECTION: std::sync::OnceLock<Connection> = std::sync::OnceLock::new();
 
@@ -80,7 +81,7 @@ impl NotificationDaemon {
 
         self.notifications.insert(id, notification.clone());
         {
-            let mut global_notifications = crate::modules::notifications::NOTIFICATIONS
+            let mut global_notifications = NOTIFICATIONS
                 .get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()))
                 .lock()
                 .unwrap();

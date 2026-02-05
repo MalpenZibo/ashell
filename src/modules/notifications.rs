@@ -1,32 +1,32 @@
 use crate::{
     components::icons::{DynamicIcon, Icon, StaticIcon, icon},
     config::{self, NotificationsModuleConfig},
-    services::notifications::{Notification, dbus::NotificationDaemon},
+    services::{
+        ReadOnlyService, ServiceEvent,
+        notifications::{Notification, NotificationsService, dbus::NotificationDaemon},
+    },
     theme::AshellTheme,
 };
 use chrono::{DateTime, Local};
 use iced::{
     Alignment, Background, Border, Color, Element, Length, Subscription, Theme,
-    futures::SinkExt,
     widget::{button, column, container, row, scrollable, text},
     window::Id,
 };
 use std::collections::HashMap;
-
-pub static NOTIFICATIONS: std::sync::OnceLock<std::sync::Mutex<HashMap<u32, Notification>>> =
-    std::sync::OnceLock::new();
 
 #[derive(Debug, Clone)]
 pub enum Message {
     ConfigReloaded(config::NotificationsModuleConfig),
     NotificationClicked(u32),
     ClearNotifications,
-    UpdateNotifications,
+    Event(ServiceEvent<NotificationsService>),
 }
 
 pub struct Notifications {
     config: NotificationsModuleConfig,
     notifications: HashMap<u32, Notification>,
+    service: Option<NotificationsService>,
 }
 
 impl Notifications {
@@ -34,6 +34,7 @@ impl Notifications {
         Self {
             config,
             notifications: HashMap::new(),
+            service: None,
         }
     }
 
@@ -42,38 +43,34 @@ impl Notifications {
             Message::ConfigReloaded(notifications_module_config) => {
                 self.config = notifications_module_config;
             }
+            Message::Event(event) => match event {
+                ServiceEvent::Init(service) => {
+                    self.service = Some(service);
+                }
+                ServiceEvent::Update(update_event) => {
+                    if let Some(service) = self.service.as_mut() {
+                        service.update(update_event);
+                        self.notifications = service.notifications.clone();
+                    }
+                }
+                ServiceEvent::Error(_) => {}
+            },
             Message::NotificationClicked(id) => {
                 // Get the notification to check for actions
-                if let Some(notifications) = NOTIFICATIONS.get()
-                    && let Ok(mut notifications_map) = notifications.lock()
-                {
-                    if let Some(notification) = notifications_map.get(&id)
-                        && !notification.actions.is_empty()
-                    {
+                if let Some(notification) = self.notifications.get(&id) {
+                    if !notification.actions.is_empty() {
                         // Invoke the default action (first action)
                         let action_key = notification.actions[0].clone();
                         tokio::spawn(async move {
                             NotificationDaemon::invoke_action(id, action_key).await.ok();
                         });
                     }
-                    // Remove the notification from the global map
-                    notifications_map.remove(&id);
                 }
+                // Remove the notification from local state
+                self.notifications.remove(&id);
             }
             Message::ClearNotifications => {
-                if let Some(notifications) = NOTIFICATIONS.get()
-                    && let Ok(mut notifications_map) = notifications.lock()
-                {
-                    notifications_map.clear();
-                }
-            }
-            Message::UpdateNotifications => {
-                // Update self.notifications from global
-                if let Some(notifications) = NOTIFICATIONS.get()
-                    && let Ok(notifications_map) = notifications.lock()
-                {
-                    self.notifications = notifications_map.clone();
-                }
+                self.notifications.clear();
             }
         }
     }
@@ -84,12 +81,7 @@ impl Notifications {
     }
 
     pub fn view(&'_ self, _: &AshellTheme) -> Element<'_, Message> {
-        let notifications = NOTIFICATIONS
-            .get_or_init(|| std::sync::Mutex::new(HashMap::new()))
-            .lock()
-            .unwrap();
-        let count = notifications.len();
-        drop(notifications);
+        let count = self.notifications.len();
 
         if count > 0 {
             icon(StaticIcon::BellBadge).into()
@@ -99,36 +91,12 @@ impl Notifications {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        use std::any::TypeId;
-
-        let id = TypeId::of::<Self>();
-
-        Subscription::run_with_id(
-            id,
-            iced::stream::channel(100, |mut output| async move {
-                let mut last_count = 0;
-                loop {
-                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-
-                    if let Some(notifications) = NOTIFICATIONS.get() {
-                        let current_count = notifications.lock().map(|n| n.len()).unwrap_or(0);
-                        if current_count != last_count {
-                            let _ = output.send(Message::UpdateNotifications).await;
-                            last_count = current_count;
-                        }
-                    }
-                }
-            }),
-        )
+        use crate::services::ReadOnlyService;
+        NotificationsService::subscribe().map(Message::Event)
     }
 
     pub fn menu_view<'a>(&'a self, _id: Id, theme: &'a AshellTheme) -> Element<'a, Message> {
-        let notifications = NOTIFICATIONS
-            .get_or_init(|| std::sync::Mutex::new(HashMap::new()))
-            .lock()
-            .unwrap();
-        let mut notifications_data: Vec<_> = notifications.values().cloned().collect();
-        drop(notifications);
+        let mut notifications_data: Vec<_> = self.notifications.values().cloned().collect();
 
         // Sort by timestamp (newest first) and limit
         notifications_data.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
