@@ -107,11 +107,18 @@ impl Tempo {
     }
 
     pub fn menu_view<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
+        let has_weather = self.weather_data.is_some() && self.location.is_some();
+        let width: Length = if has_weather {
+            MenuSize::XLarge.into()
+        } else {
+            Length::Shrink
+        };
+
         Row::new()
             .push(self.calendar(theme))
             .push_maybe(self.weather(theme))
             .spacing(theme.space.lg)
-            .width(MenuSize::XLarge)
+            .width(width)
             .into()
     }
 
