@@ -57,15 +57,14 @@ impl Notifications {
             },
             Message::NotificationClicked(id) => {
                 // Get the notification to check for actions
-                if let Some(notification) = self.notifications.get(&id) {
-                    if !notification.actions.is_empty() {
+                if let Some(notification) = self.notifications.get(&id)
+                    && !notification.actions.is_empty() {
                         // Invoke the default action (first action)
                         let action_key = notification.actions[0].clone();
                         tokio::spawn(async move {
                             NotificationDaemon::invoke_action(id, action_key).await.ok();
                         });
                     }
-                }
                 // Remove the notification from local state
                 self.notifications.remove(&id);
             }

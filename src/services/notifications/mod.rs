@@ -27,7 +27,6 @@ pub struct NotificationsData {
 #[derive(Debug, Clone)]
 pub struct NotificationsService {
     data: NotificationsData,
-    connection: Connection,
 }
 
 impl Deref for NotificationsService {
@@ -60,7 +59,6 @@ impl NotificationsService {
                             data: NotificationsData {
                                 notifications: HashMap::new(),
                             },
-                            connection: connection.clone(),
                         }))
                         .await;
                     State::Active(connection)
