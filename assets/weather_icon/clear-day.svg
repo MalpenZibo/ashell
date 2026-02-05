@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- (c) ammap.com | SVG weather icons -->
+
+<svg
+   width="52"
+   height="52"
+   version="1.1"
+   id="svg10"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs2">
+    <filter
+       id="blur"
+       x="-0.19166667"
+       y="-0.19166667"
+       width="1.3833333"
+       height="1.4666667">
+      <feGaussianBlur
+         in="SourceAlpha"
+         stdDeviation="3"
+         id="feGaussianBlur1" />
+      <feOffset
+         dx="0"
+         dy="4"
+         result="offsetblur"
+         id="feOffset1" />
+      <feComponentTransfer
+         id="feComponentTransfer1">
+        <feFuncA
+           slope="0.05"
+           type="linear"
+           id="feFuncA1" />
+      </feComponentTransfer>
+      <feMerge
+         id="feMerge2">
+        <feMergeNode
+           id="feMergeNode1" />
+        <feMergeNode
+           in="SourceGraphic"
+           id="feMergeNode2" />
+      </feMerge>
+    </filter>
+  </defs>
+  <g
+     id="day"
+     transform="translate(16,14)"
+     filter="url(#blur)">
+    <g
+       class="am-weather-sun"
+       id="g10"
+       transform="matrix(2,0,0,2,10,12)">
+      <line
+         transform="translate(0,9)"
+         y2="3"
+         fill="none"
+         stroke="#ffa500"
+         stroke-linecap="round"
+         stroke-width="2"
+         id="line2"
+         x1="0"
+         y1="0"
+         x2="0" />
+      <g
+         transform="rotate(45)"
+         id="g3">
+        <line
+           transform="translate(0,9)"
+           y2="3"
+           fill="none"
+           stroke="#ffa500"
+           stroke-linecap="round"
+           stroke-width="2"
+           id="line3"
+           x1="0"
+           y1="0"
+           x2="0" />
+      </g>
+      <g
+         transform="rotate(90)"
+         id="g4">
+        <line
+           transform="translate(0,9)"
+           y2="3"
+           fill="none"
+           stroke="#ffa500"
+           stroke-linecap="round"
+           stroke-width="2"
+           id="line4"
+           x1="0"
+           y1="0"
+           x2="0" />
+      </g>
+      <g
+         transform="rotate(135)"
+         id="g5">
+        <line
+           transform="translate(0,9)"
+           y2="3"
+           fill="none"
+           stroke="#ffa500"
+           stroke-linecap="round"
+           stroke-width="2"
+           id="line5"
+           x1="0"
+           y1="0"
+           x2="0" />
+      </g>
+      <g
+         transform="scale(-1)"
+         id="g6">
+        <line
+           transform="translate(0,9)"
+           y2="3"
+           fill="none"
+           stroke="#ffa500"
+           stroke-linecap="round"
+           stroke-width="2"
+           id="line6"
+           x1="0"
+           y1="0"
+           x2="0" />
+      </g>
+      <g
+         transform="rotate(-135)"
+         id="g7">
+        <line
+           transform="translate(0,9)"
+           y2="3"
+           fill="none"
+           stroke="#ffa500"
+           stroke-linecap="round"
+           stroke-width="2"
+           id="line7"
+           x1="0"
+           y1="0"
+           x2="0" />
+      </g>
+      <g
+         transform="rotate(-90)"
+         id="g8">
+        <line
+           transform="translate(0,9)"
+           y2="3"
+           fill="none"
+           stroke="#ffa500"
+           stroke-linecap="round"
+           stroke-width="2"
+           id="line8"
+           x1="0"
+           y1="0"
+           x2="0" />
+      </g>
+      <g
+         transform="rotate(-45)"
+         id="g9">
+        <line
+           transform="translate(0,9)"
+           y2="3"
+           fill="none"
+           stroke="#ffa500"
+           stroke-linecap="round"
+           stroke-width="2"
+           id="line9"
+           x1="0"
+           y1="0"
+           x2="0" />
+      </g>
+      <circle
+         r="5"
+         fill="#ffa500"
+         stroke="#ffa500"
+         stroke-width="2"
+         id="circle9"
+         cx="0"
+         cy="0" />
+    </g>
+  </g>
+</svg>

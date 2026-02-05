@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   width="52"
+   height="52"
+   version="1.1"
+   id="svg5"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs2">
+    <filter
+       id="blur"
+       x="-0.1696025"
+       y="-0.24702788"
+       width="1.3389821"
+       height="1.612065">
+      <feGaussianBlur
+         in="SourceAlpha"
+         stdDeviation="3"
+         id="feGaussianBlur1" />
+      <feOffset
+         dx="0"
+         dy="4"
+         result="offsetblur"
+         id="feOffset1" />
+      <feComponentTransfer
+         id="feComponentTransfer1">
+        <feFuncA
+           slope="0.05"
+           type="linear"
+           id="feFuncA1" />
+      </feComponentTransfer>
+      <feMerge
+         id="feMerge2">
+        <feMergeNode
+           id="feMergeNode1" />
+        <feMergeNode
+           in="SourceGraphic"
+           id="feMergeNode2" />
+      </feMerge>
+    </filter>
+  </defs>
+  <g
+     transform="translate(16,-2)"
+     filter="url(#blur)"
+     id="g5">
+    <g
+       class="am-weather-wind"
+       transform="matrix(1.2105727,0,0,1.2105727,-22.052864,7.4202641)"
+       fill="none"
+       stroke="#57a0ee"
+       stroke-linecap="round"
+       stroke-width="2"
+       id="g4">
+      <path
+         d="M 25.5,5 A 4,4 0 1 1 29,11 H 10"
+         id="path2" />
+      <path
+         d="M 39.5,11 A 4,4 0 1 1 43,17 H 6"
+         id="path3" />
+      <path
+         stroke-width="2"
+         d="M 28.5,29 A 4,4 0 1 0 32,23 H 15"
+         id="path4" />
+    </g>
+  </g>
+</svg>
