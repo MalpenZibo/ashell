@@ -276,7 +276,12 @@ impl App {
                 .tray
                 .view(id, &self.theme)
                 .map(|view| (view.map(Message::Tray), None)),
-            ModuleName::Clock => Some((self.clock.view(&self.theme).map(Message::Clock), None)),
+            ModuleName::Clock => Some((
+                self.clock.view(&self.theme).map(Message::Clock),
+                Some(OnModulePress::Action(Box::new(Message::Clock(
+                    clock::Message::CycleFormat,
+                )))),
+            )),
             ModuleName::Privacy => self
                 .privacy
                 .view(&self.theme)
