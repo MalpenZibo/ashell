@@ -201,28 +201,13 @@ impl MprisPlayerService {
         );
 
         for s in data.iter() {
-            let cache = Arc::new(s.metadata.clone());
-
             combined.push(
                 s.proxy
                     .receive_metadata_changed()
                     .await
-                    .filter_map({
-                        let cache = cache.clone();
-
-                        move |m| {
-                            let cache = cache.clone();
-
+                    .filter_map({ move |_| {
                             async move {
-                                let new_metadata =
-                                    m.get().await.map(MprisPlayerMetadata::from).ok();
-                                if &new_metadata == cache.as_ref() {
-                                    None
-                                } else {
-                                    debug!("Metadata changed: {new_metadata:?}");
-
-                                    Some(())
-                                }
+                                Some(())
                             }
                         }
                     })
@@ -231,42 +216,24 @@ impl MprisPlayerService {
         }
 
         for s in data.iter() {
-            let volume = s.volume;
-
             combined.push(
                 s.proxy
                     .receive_volume_changed()
                     .await
-                    .filter_map(move |v| async move {
-                        let new_volume = v.get().await.ok();
-                        if volume == new_volume {
-                            None
-                        } else {
-                            debug!("Volume changed: {new_volume:?}");
-
-                            Some(())
-                        }
+                    .filter_map(move |_| async move {
+                        Some(())
                     })
                     .boxed(),
             );
         }
 
         for s in data.iter() {
-            let state = s.state;
-
             combined.push(
                 s.proxy
                     .receive_playback_status_changed()
                     .await
-                    .filter_map(move |v| async move {
-                        let new_state = v.get().await.map(PlaybackStatus::from).unwrap_or_default();
-                        if state == new_state {
-                            None
-                        } else {
-                            debug!("PlaybackStatus changed: {new_state:?}");
-
-                            Some(())
-                        }
+                    .filter_map(|_| async move {
+                        Some(())
                     })
                     .boxed(),
             );
