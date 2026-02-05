@@ -107,12 +107,14 @@ impl Tempo {
     }
 
     pub fn menu_view<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
-        Row::new()
-            .push(self.calendar(theme))
-            .push_maybe(self.weather(theme))
-            .spacing(theme.space.lg)
-            .width(MenuSize::XLarge)
-            .into()
+        container(
+            Row::new()
+                .push(self.calendar(theme))
+                .push_maybe(self.weather(theme))
+                .spacing(theme.space.lg),
+        )
+        .max_width(MenuSize::XLarge)
+        .into()
     }
 
     fn calendar<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {

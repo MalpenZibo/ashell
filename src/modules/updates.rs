@@ -271,7 +271,7 @@ impl Updates {
             ),
         )
         .spacing(theme.space.xs)
-        .width(MenuSize::Small)
+        .max_width(MenuSize::Small)
         .into()
     }
 

@@ -173,6 +173,7 @@ impl App {
                     },
                     ..Default::default()
                 })
+                .width(Length::Shrink)
                 .into(),
         )
         .padding({
