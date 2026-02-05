@@ -1,11 +1,8 @@
 use crate::{
-    components::icons::{DynamicIcon, Icon, StaticIcon, icon},
-    config::{self, NotificationsModuleConfig},
-    services::{
+    components::icons::{DynamicIcon, Icon, StaticIcon, icon}, config::{self, NotificationsModuleConfig}, menu::MenuSize, services::{
         ReadOnlyService, ServiceEvent,
         notifications::{Notification, NotificationsService, dbus::NotificationDaemon},
-    },
-    theme::AshellTheme,
+    }, theme::AshellTheme
 };
 use chrono::{DateTime, Local};
 use iced::{
@@ -234,7 +231,7 @@ impl Notifications {
                 }
             ),
             scrollable(content).scrollbar_width(0.0).scroller_width(0.0),
-        )
+        ).width(MenuSize::Medium)
         .spacing(theme.space.sm)
         .into()
     }

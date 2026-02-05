@@ -534,7 +534,6 @@ impl App {
                     self.notifications
                         .menu_view(id, &self.theme)
                         .map(Message::Notifications),
-                    MenuSize::Medium,
                     *button_ui_ref,
                 ),
                 Some((MenuType::Settings, button_ui_ref)) => self.menu_wrapper(
