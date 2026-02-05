@@ -76,8 +76,8 @@ impl MediaPlayer {
     }
 
     pub fn menu_view<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
-        match &self.service {
-            None => text("Not connected to MPRIS service").into(),
+        container(match &self.service {
+            None => Into::<Element<'a, Message>>::into(text("Not connected to MPRIS service")),
             Some(s) => column!(
                 text("Players").size(theme.font_size.lg),
                 horizontal_rule(1),
@@ -141,9 +141,10 @@ impl MediaPlayer {
                 .spacing(theme.space.md)
             )
             .spacing(theme.space.xs)
-            .width(MenuSize::Large)
             .into(),
-        }
+        })
+        .max_width(MenuSize::Large)
+        .into()
     }
 
     fn handle_command(&mut self, service_name: String, command: PlayerCommand) -> Task<Message> {

@@ -254,88 +254,90 @@ impl SystemInfo {
     }
 
     pub fn menu_view(&'_ self, theme: &AshellTheme) -> Element<'_, Message> {
-        column!(
-            text("System Info").size(theme.font_size.lg),
-            horizontal_rule(1),
-            Column::new()
-                .push(Self::info_element(
-                    theme,
-                    StaticIcon::Cpu,
-                    "CPU Usage".to_string(),
-                    format!("{}%", self.data.cpu_usage),
-                ))
-                .push(Self::info_element(
-                    theme,
-                    StaticIcon::Mem,
-                    "Memory Usage".to_string(),
-                    format!("{}%", self.data.memory_usage),
-                ))
-                .push(Self::info_element(
-                    theme,
-                    StaticIcon::Mem,
-                    "Swap memory Usage".to_string(),
-                    format!("{}%", self.data.memory_swap_usage),
-                ))
-                .push_maybe(self.data.temperature.map(|temp| {
-                    Self::info_element(
+        container(
+            column!(
+                text("System Info").size(theme.font_size.lg),
+                horizontal_rule(1),
+                Column::new()
+                    .push(Self::info_element(
                         theme,
-                        StaticIcon::Temp,
-                        "Temperature".to_string(),
-                        format!("{temp}°C"),
+                        StaticIcon::Cpu,
+                        "CPU Usage".to_string(),
+                        format!("{}%", self.data.cpu_usage),
+                    ))
+                    .push(Self::info_element(
+                        theme,
+                        StaticIcon::Mem,
+                        "Memory Usage".to_string(),
+                        format!("{}%", self.data.memory_usage),
+                    ))
+                    .push(Self::info_element(
+                        theme,
+                        StaticIcon::Mem,
+                        "Swap memory Usage".to_string(),
+                        format!("{}%", self.data.memory_swap_usage),
+                    ))
+                    .push_maybe(self.data.temperature.map(|temp| {
+                        Self::info_element(
+                            theme,
+                            StaticIcon::Temp,
+                            "Temperature".to_string(),
+                            format!("{temp}°C"),
+                        )
+                    }))
+                    .push(
+                        Column::with_children(
+                            self.data
+                                .disks
+                                .iter()
+                                .map(|(mount_point, usage)| {
+                                    Self::info_element(
+                                        theme,
+                                        StaticIcon::Drive,
+                                        format!("Disk Usage {mount_point}"),
+                                        format!("{usage}%"),
+                                    )
+                                })
+                                .collect::<Vec<Element<_>>>(),
+                        )
+                        .spacing(theme.space.xxs),
                     )
-                }))
-                .push(
-                    Column::with_children(
-                        self.data
-                            .disks
-                            .iter()
-                            .map(|(mount_point, usage)| {
-                                Self::info_element(
-                                    theme,
-                                    StaticIcon::Drive,
-                                    format!("Disk Usage {mount_point}"),
-                                    format!("{usage}%"),
-                                )
-                            })
-                            .collect::<Vec<Element<_>>>(),
-                    )
-                    .spacing(theme.space.xxs),
-                )
-                .push_maybe(self.data.network.as_ref().map(|network| {
-                    Column::with_children(vec![
-                        Self::info_element(
-                            theme,
-                            StaticIcon::IpAddress,
-                            "IP Address".to_string(),
-                            network.ip.clone(),
-                        ),
-                        Self::info_element(
-                            theme,
-                            StaticIcon::DownloadSpeed,
-                            "Download Speed".to_string(),
-                            if network.download_speed > 1000 {
-                                format!("{} MB/s", network.download_speed / 1000)
-                            } else {
-                                format!("{} KB/s", network.download_speed)
-                            },
-                        ),
-                        Self::info_element(
-                            theme,
-                            StaticIcon::UploadSpeed,
-                            "Upload Speed".to_string(),
-                            if network.upload_speed > 1000 {
-                                format!("{} MB/s", network.upload_speed / 1000)
-                            } else {
-                                format!("{} KB/s", network.upload_speed)
-                            },
-                        ),
-                    ])
-                }))
-                .spacing(theme.space.xxs)
-                .padding([0, theme.space.xs])
+                    .push_maybe(self.data.network.as_ref().map(|network| {
+                        Column::with_children(vec![
+                            Self::info_element(
+                                theme,
+                                StaticIcon::IpAddress,
+                                "IP Address".to_string(),
+                                network.ip.clone(),
+                            ),
+                            Self::info_element(
+                                theme,
+                                StaticIcon::DownloadSpeed,
+                                "Download Speed".to_string(),
+                                if network.download_speed > 1000 {
+                                    format!("{} MB/s", network.download_speed / 1000)
+                                } else {
+                                    format!("{} KB/s", network.download_speed)
+                                },
+                            ),
+                            Self::info_element(
+                                theme,
+                                StaticIcon::UploadSpeed,
+                                "Upload Speed".to_string(),
+                                if network.upload_speed > 1000 {
+                                    format!("{} MB/s", network.upload_speed / 1000)
+                                } else {
+                                    format!("{} KB/s", network.upload_speed)
+                                },
+                            ),
+                        ])
+                    }))
+                    .spacing(theme.space.xxs)
+                    .padding([0, theme.space.xs])
+            )
+            .spacing(theme.space.xs),
         )
-        .spacing(theme.space.xs)
-        .width(MenuSize::Medium)
+        .max_width(MenuSize::Medium)
         .into()
     }
 

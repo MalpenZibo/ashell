@@ -431,185 +431,189 @@ impl Settings {
         theme: &'a AshellTheme,
         position: Position,
     ) -> Element<'a, Message> {
-        if let Some((ssid, current_password)) = &self.password_dialog {
-            password_dialog::view(id, theme, ssid, current_password).map(Message::PasswordDialog)
-        } else {
-            let battery_data = self
-                .power
-                .battery_menu_indicator(theme)
-                .map(|e| e.map(Message::Power));
-            let right_buttons = Row::new()
-                .push_maybe(
-                    self.lock_cmd
-                        .as_ref()
-                        .map(|_| icon_button(theme, StaticIcon::Lock).on_press(Message::Lock)),
-                )
-                .push(
-                    icon_button(
-                        theme,
-                        if self.sub_menu == Some(SubMenu::Power) {
-                            StaticIcon::Close
-                        } else {
-                            StaticIcon::Power
-                        },
+        container(
+            if let Some((ssid, current_password)) = &self.password_dialog {
+                password_dialog::view(id, theme, ssid, current_password)
+                    .map(Message::PasswordDialog)
+            } else {
+                let battery_data = self
+                    .power
+                    .battery_menu_indicator(theme)
+                    .map(|e| e.map(Message::Power));
+                let right_buttons = Row::new()
+                    .push_maybe(
+                        self.lock_cmd
+                            .as_ref()
+                            .map(|_| icon_button(theme, StaticIcon::Lock).on_press(Message::Lock)),
                     )
-                    .on_press(Message::ToggleSubMenu(SubMenu::Power)),
-                )
-                .spacing(theme.space.xs);
-
-            let header = Row::new()
-                .push_maybe(battery_data)
-                .push(Space::with_width(Length::Fill))
-                .push(right_buttons)
-                .spacing(theme.space.xs)
-                .width(Length::Fill);
-
-            let (sink_slider, source_slider) = self.audio.sliders(theme, self.sub_menu);
-
-            let wifi_setting_button = self
-                .network
-                .wifi_quick_setting_button(id, theme, self.sub_menu)
-                .map(|(button, submenu)| {
-                    (
-                        button.map(Message::Network),
-                        submenu.map(|e| e.map(Message::Network)),
+                    .push(
+                        icon_button(
+                            theme,
+                            if self.sub_menu == Some(SubMenu::Power) {
+                                StaticIcon::Close
+                            } else {
+                                StaticIcon::Power
+                            },
+                        )
+                        .on_press(Message::ToggleSubMenu(SubMenu::Power)),
                     )
-                });
-            let quick_settings = quick_settings_section(
-                theme,
-                vec![
-                    wifi_setting_button,
-                    self.bluetooth
-                        .quick_setting_button(id, theme, self.sub_menu)
-                        .map(|(button, submenu)| {
+                    .spacing(theme.space.xs);
+
+                let header = Row::new()
+                    .push_maybe(battery_data)
+                    .push(Space::with_width(Length::Fill))
+                    .push(right_buttons)
+                    .spacing(theme.space.xs)
+                    .width(Length::Fill);
+
+                let (sink_slider, source_slider) = self.audio.sliders(theme, self.sub_menu);
+
+                let wifi_setting_button = self
+                    .network
+                    .wifi_quick_setting_button(id, theme, self.sub_menu)
+                    .map(|(button, submenu)| {
+                        (
+                            button.map(Message::Network),
+                            submenu.map(|e| e.map(Message::Network)),
+                        )
+                    });
+                let quick_settings = quick_settings_section(
+                    theme,
+                    vec![
+                        wifi_setting_button,
+                        self.bluetooth
+                            .quick_setting_button(id, theme, self.sub_menu)
+                            .map(|(button, submenu)| {
+                                (
+                                    button.map(Message::Bluetooth),
+                                    submenu.map(|e| e.map(Message::Bluetooth)),
+                                )
+                            }),
+                        self.network
+                            .vpn_quick_setting_button(id, theme, self.sub_menu)
+                            .map(|(button, submenu)| {
+                                (
+                                    button.map(Message::Network),
+                                    submenu.map(|e| e.map(Message::Network)),
+                                )
+                            }),
+                        self.network
+                            .airplane_mode_quick_setting_button(theme)
+                            .map(|(button, _)| (button.map(Message::Network), None)),
+                        self.idle_inhibitor.as_ref().map(|idle_inhibitor| {
                             (
-                                button.map(Message::Bluetooth),
-                                submenu.map(|e| e.map(Message::Bluetooth)),
+                                quick_setting_button(
+                                    theme,
+                                    if idle_inhibitor.is_inhibited() {
+                                        StaticIcon::EyeOpened
+                                    } else {
+                                        StaticIcon::EyeClosed
+                                    },
+                                    "Idle Inhibitor".to_string(),
+                                    None,
+                                    idle_inhibitor.is_inhibited(),
+                                    Message::ToggleInhibitIdle,
+                                    None,
+                                    None,
+                                ),
+                                None,
                             )
                         }),
-                    self.network
-                        .vpn_quick_setting_button(id, theme, self.sub_menu)
-                        .map(|(button, submenu)| {
-                            (
-                                button.map(Message::Network),
-                                submenu.map(|e| e.map(Message::Network)),
-                            )
-                        }),
-                    self.network
-                        .airplane_mode_quick_setting_button(theme)
-                        .map(|(button, _)| (button.map(Message::Network), None)),
-                    self.idle_inhibitor.as_ref().map(|idle_inhibitor| {
+                        self.power
+                            .quick_setting_button(theme)
+                            .map(|(button, submenu)| {
+                                (
+                                    button.map(Message::Power),
+                                    submenu.map(|e| e.map(Message::Power)),
+                                )
+                            }),
+                    ]
+                    .into_iter()
+                    .flatten()
+                    .chain(self.custom_buttons.iter().map(|button| {
+                        let is_active = self
+                            .custom_buttons_status
+                            .get(&button.name)
+                            .and_then(|v| *v)
+                            .unwrap_or(false);
                         (
                             quick_setting_button(
                                 theme,
-                                if idle_inhibitor.is_inhibited() {
-                                    StaticIcon::EyeOpened
-                                } else {
-                                    StaticIcon::EyeClosed
-                                },
-                                "Idle Inhibitor".to_string(),
-                                None,
-                                idle_inhibitor.is_inhibited(),
-                                Message::ToggleInhibitIdle,
+                                DynamicIcon(button.icon.clone()),
+                                button.name.clone(),
+                                button.tooltip.clone(),
+                                is_active,
+                                Message::CustomButton(button.name.clone()),
                                 None,
                                 None,
                             ),
                             None,
                         )
-                    }),
-                    self.power
-                        .quick_setting_button(theme)
-                        .map(|(button, submenu)| {
-                            (
-                                button.map(Message::Power),
-                                submenu.map(|e| e.map(Message::Power)),
-                            )
-                        }),
-                ]
-                .into_iter()
-                .flatten()
-                .chain(self.custom_buttons.iter().map(|button| {
-                    let is_active = self
-                        .custom_buttons_status
-                        .get(&button.name)
-                        .and_then(|v| *v)
-                        .unwrap_or(false);
-                    (
-                        quick_setting_button(
-                            theme,
-                            DynamicIcon(button.icon.clone()),
-                            button.name.clone(),
-                            button.tooltip.clone(),
-                            is_active,
-                            Message::CustomButton(button.name.clone()),
-                            None,
-                            None,
-                        ),
-                        None,
+                    }))
+                    .collect::<Vec<_>>(),
+                );
+
+                let (top_sink_slider, bottom_sink_slider) = match position {
+                    Position::Top => (sink_slider.map(|e| e.map(Message::Audio)), None),
+                    Position::Bottom => (None, sink_slider.map(|e| e.map(Message::Audio))),
+                };
+                let (top_source_slider, bottom_source_slider) = match position {
+                    Position::Top => (source_slider.map(|e| e.map(Message::Audio)), None),
+                    Position::Bottom => (None, source_slider.map(|e| e.map(Message::Audio))),
+                };
+
+                Column::new()
+                    .push(header)
+                    .push_maybe(
+                        self.sub_menu
+                            .filter(|menu_type| *menu_type == SubMenu::PeripheralMenu)
+                            .and_then(|_| {
+                                self.power
+                                    .peripheral_menu(theme)
+                                    .map(|e| sub_menu_wrapper(theme, e.map(Message::Power)))
+                            }),
                     )
-                }))
-                .collect::<Vec<_>>(),
-            );
-
-            let (top_sink_slider, bottom_sink_slider) = match position {
-                Position::Top => (sink_slider.map(|e| e.map(Message::Audio)), None),
-                Position::Bottom => (None, sink_slider.map(|e| e.map(Message::Audio))),
-            };
-            let (top_source_slider, bottom_source_slider) = match position {
-                Position::Top => (source_slider.map(|e| e.map(Message::Audio)), None),
-                Position::Bottom => (None, source_slider.map(|e| e.map(Message::Audio))),
-            };
-
-            Column::new()
-                .push(header)
-                .push_maybe(
-                    self.sub_menu
-                        .filter(|menu_type| *menu_type == SubMenu::PeripheralMenu)
-                        .and_then(|_| {
-                            self.power
-                                .peripheral_menu(theme)
-                                .map(|e| sub_menu_wrapper(theme, e.map(Message::Power)))
-                        }),
-                )
-                .push_maybe(
-                    self.sub_menu
-                        .filter(|menu_type| *menu_type == SubMenu::Power)
-                        .map(|_| {
-                            sub_menu_wrapper(theme, self.power.menu(theme).map(Message::Power))
-                        }),
-                )
-                .push_maybe(top_sink_slider)
-                .push_maybe(
-                    self.sub_menu
-                        .filter(|menu_type| *menu_type == SubMenu::Sinks)
-                        .and_then(|_| {
-                            self.audio
-                                .sinks_submenu(id, theme)
-                                .map(|submenu| sub_menu_wrapper(theme, submenu.map(Message::Audio)))
-                        }),
-                )
-                .push_maybe(bottom_sink_slider)
-                .push_maybe(top_source_slider)
-                .push_maybe(
-                    self.sub_menu
-                        .filter(|menu_type| *menu_type == SubMenu::Sources)
-                        .and_then(|_| {
-                            self.audio
-                                .sources_submenu(id, theme)
-                                .map(|submenu| sub_menu_wrapper(theme, submenu.map(Message::Audio)))
-                        }),
-                )
-                .push_maybe(bottom_source_slider)
-                .push_maybe(
-                    self.brightness
-                        .slider(theme)
-                        .map(|e| e.map(Message::Brightness)),
-                )
-                .push(quick_settings)
-                .spacing(theme.space.md)
-                .width(MenuSize::Medium)
-                .into()
-        }
+                    .push_maybe(
+                        self.sub_menu
+                            .filter(|menu_type| *menu_type == SubMenu::Power)
+                            .map(|_| {
+                                sub_menu_wrapper(theme, self.power.menu(theme).map(Message::Power))
+                            }),
+                    )
+                    .push_maybe(top_sink_slider)
+                    .push_maybe(
+                        self.sub_menu
+                            .filter(|menu_type| *menu_type == SubMenu::Sinks)
+                            .and_then(|_| {
+                                self.audio.sinks_submenu(id, theme).map(|submenu| {
+                                    sub_menu_wrapper(theme, submenu.map(Message::Audio))
+                                })
+                            }),
+                    )
+                    .push_maybe(bottom_sink_slider)
+                    .push_maybe(top_source_slider)
+                    .push_maybe(
+                        self.sub_menu
+                            .filter(|menu_type| *menu_type == SubMenu::Sources)
+                            .and_then(|_| {
+                                self.audio.sources_submenu(id, theme).map(|submenu| {
+                                    sub_menu_wrapper(theme, submenu.map(Message::Audio))
+                                })
+                            }),
+                    )
+                    .push_maybe(bottom_source_slider)
+                    .push_maybe(
+                        self.brightness
+                            .slider(theme)
+                            .map(|e| e.map(Message::Brightness)),
+                    )
+                    .push(quick_settings)
+                    .spacing(theme.space.md)
+                    .into()
+            },
+        )
+        .max_width(MenuSize::Medium)
+        .into()
     }
 
     pub fn view<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
