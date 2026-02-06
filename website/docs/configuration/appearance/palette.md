@@ -32,6 +32,7 @@ text = "#ffffff"
 The following are the colors that make up the palette:
 
 - `background_color`: Used as the background color for all status bar components
+  - `menu_background`: Optional, will be used only for drop-down menus
 - `primary_color`: Used for elements like buttons or slider handles
 - `secondary_color`: Used for borders and slider tracks
 - `success_color`: Used for success indicators
