@@ -7,7 +7,7 @@ use crate::{
 use chrono::{DateTime, Local};
 use iced::{
     Alignment, Background, Border, Color, Element, Length, Subscription, Theme,
-    widget::{button, column, container, row, scrollable, text},
+    widget::{button, column, container, row, scrollable, text, Space},
     window::Id,
 };
 use std::collections::HashMap;
@@ -145,14 +145,17 @@ impl Notifications {
                                     color: Some(theme.palette().text),
                                 }
                             ),
-                            if self.config.show_timestamps {
-                                text(self.format_timestamp(notification.timestamp))
-                                    .size(theme.font_size.sm)
-                                    .style(|theme: &Theme| text::Style {
-                                        color: Some(theme.extended_palette().secondary.weak.text),
-                                    })
-                            } else {
-                                text("")
+                            {
+                                let timestamp_element: Element<'_, Message> = if self.config.show_timestamps {
+                                    text(self.format_timestamp(notification.timestamp))
+                                        .size(theme.font_size.sm)
+                                        .style(|theme: &Theme| text::Style {
+                                            color: Some(theme.extended_palette().secondary.weak.text),
+                                        }).into()
+                                } else {
+                                    Space::with_width(Length::Shrink).into()
+                                };
+                                timestamp_element
                             }
                         )
                         .spacing(theme.space.xs)
@@ -162,15 +165,18 @@ impl Notifications {
                                 color: Some(theme.extended_palette().secondary.strong.text),
                             }
                         ),
-                        if self.config.show_bodies && !notification.body.is_empty() {
-                            text(notification.body)
-                                .size(theme.font_size.sm)
-                                .wrapping(text::Wrapping::WordOrGlyph)
-                                .style(|theme: &Theme| text::Style {
-                                    color: Some(theme.extended_palette().secondary.strong.text),
-                                })
-                        } else {
-                            text("")
+                        {
+                            let body_element: Element<'_, Message> = if self.config.show_bodies && !notification.body.is_empty() {
+                                text(notification.body)
+                                    .size(theme.font_size.sm)
+                                    .wrapping(text::Wrapping::WordOrGlyph)
+                                    .style(|theme: &Theme| text::Style {
+                                        color: Some(theme.extended_palette().secondary.strong.text),
+                                    }).into()
+                            } else {
+                                Space::with_height(Length::Shrink).into()
+                            };
+                            body_element
                         }
                     )
                     .spacing(theme.space.xxs),
@@ -237,7 +243,7 @@ impl Notifications {
                     .width(Length::Fill)
                     .align_x(Alignment::End)
                 } else {
-                    container(text(""))
+                    container(Space::new(Length::Fill, Length::Shrink))
                         .width(Length::Fill)
                         .align_x(Alignment::End)
                 }
