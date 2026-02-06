@@ -1,4 +1,6 @@
-use crate::config::{Appearance, AppearanceColor, AppearanceStyle, MenuAppearance, Position};
+use crate::config::{
+    Appearance, AppearanceColor, AppearanceStyle, MenuAppearance, MenuBackground, Position,
+};
 use iced::{
     Background, Border, Color, Theme,
     theme::{Palette, palette},
@@ -90,6 +92,7 @@ pub struct AshellTheme {
     pub bar_style: AppearanceStyle,
     pub opacity: f32,
     pub menu: MenuAppearance,
+    pub menu_background: Option<palette::Background>,
     pub workspace_colors: Vec<AppearanceColor>,
     pub special_workspace_colors: Option<Vec<AppearanceColor>>,
     pub scale_factor: f64,
@@ -105,6 +108,31 @@ impl AshellTheme {
             bar_style: appearance.style,
             opacity: appearance.opacity,
             menu: appearance.menu,
+            menu_background: appearance.menu.background.as_ref().map(|menu| {
+                let color = match menu {
+                    MenuBackground::Background => &appearance.background_color,
+                    MenuBackground::Primary => &appearance.primary_color,
+                    MenuBackground::Secondary => &appearance.secondary_color,
+                    MenuBackground::Success => &appearance.success_color,
+                    MenuBackground::Danger => &appearance.danger_color,
+                    MenuBackground::Custom(color) => color,
+                };
+                let default_text = appearance.text_color.get_base();
+                let default_menu = palette::Background::new(
+                    color.get_base(),
+                    color.get_text().unwrap_or(default_text),
+                );
+                palette::Background {
+                    base: default_menu.base,
+                    weak: color
+                        .get_weak_pair(default_text)
+                        .unwrap_or(default_menu.weak),
+                    strong: appearance
+                        .background_color
+                        .get_strong_pair(default_text)
+                        .unwrap_or(default_menu.strong),
+                }
+            }),
             workspace_colors: appearance.workspace_colors.clone(),
             special_workspace_colors: appearance.special_workspace_colors.clone(),
             scale_factor: appearance.scale_factor,

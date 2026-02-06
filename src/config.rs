@@ -507,11 +507,22 @@ pub enum AppearanceStyle {
 }
 
 #[derive(Deserialize, Clone, Copy, Debug)]
+pub enum MenuBackground {
+    Background,
+    Primary,
+    Secondary,
+    Success,
+    Danger,
+    Custom(AppearanceColor),
+}
+
+#[derive(Deserialize, Clone, Copy, Debug)]
 #[serde(default)]
 pub struct MenuAppearance {
     #[serde(deserialize_with = "opacity_deserializer")]
     pub opacity: f32,
     pub backdrop: f32,
+    pub background: Option<MenuBackground>,
 }
 
 impl Default for MenuAppearance {
@@ -519,6 +530,7 @@ impl Default for MenuAppearance {
         Self {
             opacity: default_opacity(),
             backdrop: f32::default(),
+            background: None,
         }
     }
 }

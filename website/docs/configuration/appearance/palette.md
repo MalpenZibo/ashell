@@ -57,6 +57,27 @@ If `special_workspace_colors` is not defined, `workspace_colors` will be used.
 If neither `workspace_colors` is defined nor a color exists
 for a given monitor, the `primary_color` will be used.
 
+## Menu Background
+
+Using `appearance.menu.background`, it is possible to set the background
+colour for the status bar menus.
+
+This can be set to one of `Background`, `Primary`, `Secondary`, `Success`
+or `Danger` to use one of the palette colors specified (see above), or to
+`Custom = "#hex code"` to use a fully custom background.
+
+Example:
+
+```toml
+[appearance.menu]
+background.Custom = "#36363aff"
+
+# or
+
+[appearance.menu]
+background = "Primary"
+```
+
 ## Complete Examples
 
 For complete theme examples with full palette configurations, see the [Theme documentation](./theme.md). These examples show popular color schemes like Catppuccin Mocha, Tokyo Night, and Nord with all colors configured.

@@ -14,4 +14,4 @@ You can customize things like:
 - The scaling factor of the status bar
 - The style of the status bar
 - The opacity of the status bar components
-- The opacity of the status bar menus
+- The opacity and background colour of the status bar menus
