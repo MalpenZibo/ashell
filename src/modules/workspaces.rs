@@ -323,19 +323,51 @@ impl Workspaces {
                     .iter()
                     .find(|w| w.displayed == Displayed::Active);
 
-                let Some(current_id) = current_workspace.map(|w| w.id) else {
+                let Some(current_workspace_id) = current_workspace.map(|w| w.id) else {
                     return iced::Task::none();
+                };
+
+                let current_monitor = current_workspace
+                    .map(|w| w.monitor.clone())
+                    .unwrap_or_default();
+                let current_monitor_id = current_workspace.and_then(|w| w.monitor_id);
+
+                let restrict_to_monitor = matches!(
+                    self.config.visibility_mode,
+                    WorkspaceVisibilityMode::MonitorSpecific
+                        | WorkspaceVisibilityMode::MonitorSpecificExclusive
+                );
+
+                let in_current_group = |w: &&UiWorkspace| -> bool {
+                    if !restrict_to_monitor {
+                        return true;
+                    }
+
+                    if let Some(w_monitor_id) = w.monitor_id
+                        && let Some(active_monitor_id) = current_monitor_id
+                    {
+                        return w_monitor_id == active_monitor_id;
+                    }
+
+                    if !w.monitor.is_empty() && !current_monitor.is_empty() {
+                        return w.monitor == current_monitor;
+                    }
+
+                    // monitor doesn't seem to contain any useful info, so assume it's part of the group
+                    true
                 };
 
                 let next_workspace = if direction > 0 {
                     self.ui_workspaces
                         .iter()
-                        .filter(|w| w.id < current_id)
+                        .filter(|w| in_current_group(w))
+                        .filter(|w| w.id < current_workspace_id)
                         .max_by_key(|w| w.id)
                 } else {
                     self.ui_workspaces
                         .iter()
-                        .filter(|w| w.id > current_id)
+                        .filter(|w| in_current_group(w))
+                        .filter(|w| w.id > current_workspace_id)
                         .min_by_key(|w| w.id)
                 };
 
