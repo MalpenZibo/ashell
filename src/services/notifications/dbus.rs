@@ -1,6 +1,7 @@
 use log::{debug, info, warn};
 use std::collections::HashMap;
 use std::time::SystemTime;
+use tokio::sync::broadcast;
 use zbus::{
     Connection,
     fdo::{DBusProxy, RequestNameFlags, RequestNameReply},
@@ -14,6 +15,16 @@ pub static NOTIFICATIONS: std::sync::OnceLock<std::sync::Mutex<HashMap<u32, Noti
     std::sync::OnceLock::new();
 
 pub static NOTIFICATION_CONNECTION: std::sync::OnceLock<Connection> = std::sync::OnceLock::new();
+
+// Channel for internal notification events
+pub static NOTIFICATION_EVENTS: std::sync::OnceLock<broadcast::Sender<NotificationEvent>> =
+    std::sync::OnceLock::new();
+
+#[derive(Debug, Clone)]
+pub enum NotificationEvent {
+    Received(Notification),
+    Closed(u32),
+}
 
 const NAME: WellKnownName =
     WellKnownName::from_static_str_unchecked("org.freedesktop.Notifications");
@@ -89,8 +100,10 @@ impl NotificationDaemon {
         }
         debug!("New notification: {:?}", notification);
 
-        // Emit signal
-        // self.notification_received(id, notification).await.unwrap();
+        // Send event through channel
+        if let Some(tx) = NOTIFICATION_EVENTS.get() {
+            let _ = tx.send(NotificationEvent::Received(notification));
+        }
 
         id
     }
@@ -108,8 +121,22 @@ impl NotificationDaemon {
         };
 
         if removed {
-            // Emit signal for notification closed (reason 3 = closed by call to CloseNotification)
-            // let _ = self.notification_closed(id, 3).await;
+            // Send event through channel
+            if let Some(tx) = NOTIFICATION_EVENTS.get() {
+                let _ = tx.send(NotificationEvent::Closed(id));
+            }
+            // Emit DBus signal for external applications
+            if let Some(connection) = NOTIFICATION_CONNECTION.get() {
+                let _ = connection
+                    .emit_signal(
+                        None::<&str>,
+                        OBJECT_PATH,
+                        NAME.as_str(),
+                        "NotificationClosed",
+                        &(id, 3u32),
+                    )
+                    .await;
+            }
         }
     }
 
@@ -121,21 +148,30 @@ impl NotificationDaemon {
             "1.2".to_string(),
         )
     }
-
-    // #[zbus(signal)]
-    // async fn notification_closed(&self, id: u32, reason: u32) -> zbus::Result<()>;
-
-    // #[zbus(signal)]
-    // async fn action_invoked(&self, id: u32, action_key: String) -> zbus::Result<()>;
 }
 
 impl NotificationDaemon {
     pub async fn start_server() -> anyhow::Result<Connection> {
+        // Check if already initialized and return existing connection
+        if let Some(existing_connection) = NOTIFICATION_CONNECTION.get() {
+            info!("Notification daemon already running, reusing existing connection");
+            return Ok(existing_connection.clone());
+        }
+
+        // Initialize the event channel (100 message buffer)
+        let (tx, _rx) = broadcast::channel(100);
+        if NOTIFICATION_EVENTS.set(tx).is_err() {
+            // Already initialized, just continue
+        }
+
         let connection = zbus::connection::Connection::session().await?;
         let daemon = NotificationDaemon::default();
         connection.object_server().at(OBJECT_PATH, daemon).await?;
 
-        NOTIFICATION_CONNECTION.set(connection.clone()).unwrap();
+        // Try to set the connection, but don't panic if already set
+        if NOTIFICATION_CONNECTION.set(connection.clone()).is_err() {
+            warn!("Notification connection already set");
+        }
 
         let dbus_proxy = DBusProxy::new(&connection).await?;
         let flags = RequestNameFlags::AllowReplacement.into();

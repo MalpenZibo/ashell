@@ -1,4 +1,4 @@
-use crate::services::notifications::dbus::NotificationDaemon;
+use crate::services::notifications::dbus::{NotificationDaemon, NotificationEvent};
 use crate::services::{ReadOnlyService, ServiceEvent};
 use iced::Subscription;
 use iced::futures::{SinkExt, StreamExt, channel::mpsc::Sender, stream::pending};
@@ -7,6 +7,7 @@ use log::{error, info};
 use std::any::TypeId;
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
+use tokio_stream::wrappers::BroadcastStream;
 use zbus::Connection;
 
 pub mod dbus;
@@ -69,42 +70,33 @@ impl NotificationsService {
                 }
             },
             State::Active(_connection) => {
-                let mut last_notifications = HashMap::new();
-                loop {
-                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                // Subscribe to notification events from the broadcast channel
+                if let Some(tx) = dbus::NOTIFICATION_EVENTS.get() {
+                    let rx = tx.subscribe();
+                    let mut stream = BroadcastStream::new(rx);
 
-                    if let Some(notifications) = dbus::NOTIFICATIONS.get() {
-                        let current_notifications = if let Ok(guard) = notifications.lock() {
-                            (*guard).clone()
-                        } else {
-                            HashMap::new()
-                        };
-
-                        // Check for new notifications
-                        for (id, notification) in current_notifications.iter() {
-                            if !last_notifications.contains_key(id) {
-                                let _ = output
-                                    .send(ServiceEvent::Update(UpdateEvent::NotificationReceived(
-                                        notification.clone(),
-                                    )))
-                                    .await;
+                    while let Some(result) = stream.next().await {
+                        match result {
+                            Ok(event) => {
+                                let update = match event {
+                                    NotificationEvent::Received(notification) => {
+                                        UpdateEvent::NotificationReceived(notification)
+                                    }
+                                    NotificationEvent::Closed(id) => {
+                                        UpdateEvent::NotificationClosed(id)
+                                    }
+                                };
+                                let _ = output.send(ServiceEvent::Update(update)).await;
+                            }
+                            Err(e) => {
+                                error!("Error receiving notification event: {e}");
                             }
                         }
-
-                        // Check for closed notifications
-                        for id in last_notifications.keys() {
-                            if !current_notifications.contains_key(id) {
-                                let _ = output
-                                    .send(ServiceEvent::Update(UpdateEvent::NotificationClosed(
-                                        *id,
-                                    )))
-                                    .await;
-                            }
-                        }
-
-                        last_notifications = current_notifications;
                     }
                 }
+                // If we exit the loop, something went wrong
+                error!("Notification event stream ended unexpectedly");
+                State::Error
             }
             State::Error => {
                 error!("Notifications service error");
