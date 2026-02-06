@@ -20,6 +20,7 @@ pub mod notifications;
 pub mod privacy;
 pub mod settings;
 pub mod system_info;
+pub mod tempo;
 pub mod tray;
 pub mod updates;
 pub mod window_title;
@@ -278,6 +279,10 @@ impl App {
                 .view(id, &self.theme)
                 .map(|view| (view.map(Message::Tray), None)),
             ModuleName::Clock => Some((self.clock.view(&self.theme).map(Message::Clock), None)),
+            ModuleName::Tempo => Some((
+                self.tempo.view(&self.theme).map(Message::Tempo),
+                Some(OnModulePress::ToggleMenu(MenuType::Tempo)),
+            )),
             ModuleName::Privacy => self
                 .privacy
                 .view(&self.theme)
@@ -331,6 +336,7 @@ impl App {
             ),
             ModuleName::Tray => Some(self.tray.subscription().map(Message::Tray)),
             ModuleName::Clock => Some(self.clock.subscription().map(Message::Clock)),
+            ModuleName::Tempo => Some(self.tempo.subscription().map(Message::Tempo)),
             ModuleName::Privacy => Some(self.privacy.subscription().map(Message::Privacy)),
             ModuleName::MediaPlayer => {
                 Some(self.media_player.subscription().map(Message::MediaPlayer))

@@ -34,6 +34,7 @@ pub struct Config {
     pub system_info: SystemInfoModuleConfig,
     pub notifications: NotificationsModuleConfig,
     pub clock: ClockModuleConfig,
+    pub tempo: TempoModuleConfig,
     pub settings: SettingsModuleConfig,
     pub appearance: Appearance,
     pub media_player: MediaPlayerModuleConfig,
@@ -55,6 +56,7 @@ impl Default for Config {
             system_info: SystemInfoModuleConfig::default(),
             notifications: NotificationsModuleConfig::default(),
             clock: ClockModuleConfig::default(),
+            tempo: TempoModuleConfig::default(),
             settings: SettingsModuleConfig::default(),
             appearance: Appearance::default(),
             media_player: MediaPlayerModuleConfig::default(),
@@ -282,6 +284,30 @@ pub enum NotificationViewMode {
     #[default]
     SummaryOnly,
     Full,
+}
+
+#[derive(Deserialize, Clone, Debug)]
+#[serde(default)]
+pub struct TempoModuleConfig {
+    pub clock_format: String,
+    #[serde(default)]
+    pub weather_location: Option<WeatherLocation>,
+}
+
+#[derive(Deserialize, Default, Clone, Debug)]
+pub enum WeatherLocation {
+    #[default]
+    Current,
+    City(String),
+}
+
+impl Default for TempoModuleConfig {
+    fn default() -> Self {
+        Self {
+            clock_format: "%a %d %b %R".to_string(),
+            weather_location: None,
+        }
+    }
 }
 
 #[derive(Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -633,6 +659,7 @@ pub enum ModuleName {
     KeyboardSubmap,
     Tray,
     Clock,
+    Tempo,
     Privacy,
     Settings,
     MediaPlayer,
@@ -665,6 +692,7 @@ impl<'de> Deserialize<'de> for ModuleName {
                     "Tray" => ModuleName::Tray,
                     "Clock" => ModuleName::Clock,
                     "Notifications" => ModuleName::Notifications,
+                    "Tempo" => ModuleName::Tempo,
                     "Privacy" => ModuleName::Privacy,
                     "Settings" => ModuleName::Settings,
                     "MediaPlayer" => ModuleName::MediaPlayer,

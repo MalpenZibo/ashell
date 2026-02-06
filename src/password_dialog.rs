@@ -1,6 +1,5 @@
 use crate::{
     components::icons::{StaticIcon, icon},
-    menu::MenuSize,
     theme::AshellTheme,
 };
 use iced::{
@@ -56,6 +55,5 @@ pub fn view<'a>(
     )
     .spacing(theme.space.md)
     .padding(theme.space.md)
-    .width(MenuSize::Medium)
     .into()
 }

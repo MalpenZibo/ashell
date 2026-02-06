@@ -4,6 +4,12 @@ sidebar_position: 9
 
 # Clock
 
+:::warning
+
+This module will be deprecated in future releases. Use the `Tempo` module instead.
+
+:::
+
 This module displays the current time and date in the status bar.
 
 Using the `format` configuration, you can customize how the time and date are displayed.

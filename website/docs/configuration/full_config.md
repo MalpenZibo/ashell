@@ -46,9 +46,9 @@ warn_threshold = 60
 alert_threshold = 80
 sensor = "acpitz temp1"
 
-[clock]
-format = "%H:%M"
-date_format = "%Y-%m-%d"
+[tempo]
+clock_format = "%a %d %b %R"
+weather_location = { City = "Rome" }
 
 [notifications]
 format = "%H:%M"
