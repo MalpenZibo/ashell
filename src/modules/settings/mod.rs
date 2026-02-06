@@ -23,9 +23,7 @@ use crate::{
 };
 use iced::{
     Alignment, Background, Border, Element, Length, Padding, Subscription, Task, Theme,
-    widget::{
-        Column, MouseArea, Row, Space, button, column, container, horizontal_space, row, text,
-    },
+    widget::{Column, MouseArea, Row, Space, button, container, horizontal_space, row, text},
     window::Id,
 };
 
@@ -458,7 +456,7 @@ impl Settings {
                     .power
                     .battery_menu_indicator(theme)
                     .map(|e| e.map(Message::Power));
-                let right_buttons = Row::new()
+                let right_buttons = Row::with_capacity(2)
                     .push_maybe(
                         self.lock_cmd
                             .as_ref()
@@ -477,7 +475,7 @@ impl Settings {
                     )
                     .spacing(theme.space.xs);
 
-                let header = Row::new()
+                let header = Row::with_capacity(3)
                     .push_maybe(battery_data)
                     .push(Space::with_width(Length::Fill))
                     .push(right_buttons)
@@ -580,7 +578,7 @@ impl Settings {
                     Position::Bottom => (None, source_slider.map(|e| e.map(Message::Audio))),
                 };
 
-                Column::new()
+                Column::with_capacity(11)
                     .push(header)
                     .push_maybe(
                         self.sub_menu
@@ -635,7 +633,7 @@ impl Settings {
     }
 
     pub fn view<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
-        let mut row = Row::new();
+        let mut row = Row::with_capacity(self.indicators.len());
 
         for indicator in &self.indicators {
             match indicator {
@@ -758,7 +756,10 @@ fn quick_settings_section<'a>(
     theme: &'a AshellTheme,
     buttons: Vec<(Element<'a, Message>, Option<Element<'a, Message>>)>,
 ) -> Element<'a, Message> {
-    let mut section = column!().spacing(theme.space.xs);
+    // TODO trying to read this function gives me a headache; there's surely
+    // a better way to do this, maybe with Iterator::chunks or something?
+    // I might be way off though, I still don't fully understand how this works.
+    let mut section = Column::with_capacity(buttons.len() * 3).spacing(theme.space.xs);
 
     let mut before: Option<(Element<'a, Message>, Option<Element<'a, Message>>)> = None;
 
@@ -837,7 +838,7 @@ fn quick_setting_button<'a, Msg: Clone + 'static, I: Icon>(
     let main_content = row!(
         icon(icon_type).size(theme.font_size.lg),
         container(
-            Column::new()
+            Column::with_capacity(2)
                 .push(text(title).size(theme.font_size.sm))
                 .push_maybe(subtitle.map(|s| {
                     text(s)
@@ -854,7 +855,7 @@ fn quick_setting_button<'a, Msg: Clone + 'static, I: Icon>(
     .align_y(Alignment::Center);
 
     let btn = button(
-        Row::new()
+        Row::with_capacity(2)
             .push(main_content)
             .push_maybe(with_submenu.map(|(menu_type, submenu, msg)| {
                 icon_button(

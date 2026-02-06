@@ -258,7 +258,7 @@ impl SystemInfo {
             column!(
                 text("System Info").size(theme.font_size.lg),
                 horizontal_rule(1),
-                Column::new()
+                Column::with_capacity(6)
                     .push(Self::info_element(
                         theme,
                         StaticIcon::Cpu,

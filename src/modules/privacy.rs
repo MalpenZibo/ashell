@@ -41,7 +41,7 @@ impl Privacy {
         {
             Some(
                 container(
-                    Row::new()
+                    Row::with_capacity(3)
                         .push_maybe(
                             service
                                 .screenshare_access()

@@ -207,13 +207,14 @@ impl PowerSettings {
                         .peripherals
                         .iter()
                         .map(|p| {
-                            Row::new()
-                                .push(icon(p.kind.get_icon()))
-                                .push(text(p.name.to_string()).width(Length::Fill))
-                                .push(self.menu_indicator(theme, p.data, None))
-                                .align_y(Vertical::Center)
-                                .spacing(theme.space.sm)
-                                .into()
+                            row![
+                                icon(p.kind.get_icon()),
+                                text(p.name.to_string()).width(Length::Fill),
+                                self.menu_indicator(theme, p.data, None),
+                            ]
+                            .align_y(Vertical::Center)
+                            .spacing(theme.space.sm)
+                            .into()
                         })
                         .collect::<Vec<Element<Message>>>(),
                 )
@@ -236,7 +237,7 @@ impl PowerSettings {
                         })
                 })
                 .map(|service| {
-                    let mut row = Row::new()
+                    let mut row = Row::with_capacity(service.peripherals.len())
                         .spacing(ashell_theme.space.xxs)
                         .align_y(Alignment::Center);
 
@@ -357,7 +358,7 @@ impl PowerSettings {
 
         container({
             let battery_info = container(
-                Row::new()
+                Row::with_capacity(3)
                     .push_maybe(peripheral_icon.map(icon))
                     .push(icon(battery.get_icon()))
                     .push(text(format!("{}%", battery.capacity)))

@@ -236,7 +236,7 @@ impl BluetoothSettings {
             let some_known = known_devices.peek().is_some();
             let some_available = available_devices.peek().is_some();
 
-            Column::new()
+            Column::with_capacity(6)
                 .push(
                     row![
                         text("Bluetooth Devices").width(Length::Fill),
@@ -267,7 +267,7 @@ impl BluetoothSettings {
                 .push_maybe(if some_known {
                     let known_device_entry = |d: &BluetoothDevice| {
                         button(
-                            Row::new()
+                            Row::with_capacity(3)
                                 .push(
                                     text(d.name.clone())
                                         .color_maybe(if d.connected {

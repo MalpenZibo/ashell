@@ -128,7 +128,7 @@ impl TrayModule {
                 ..
             } if display == "submenu" => {
                 let is_open = self.submenus.contains(&layout.0);
-                Column::new()
+                Column::with_capacity(2)
                     .push(
                         button(row!(
                             text(label.replace("_", "").to_owned()).width(Length::Fill),
