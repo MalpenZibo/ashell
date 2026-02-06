@@ -10,6 +10,7 @@ use crate::{
         keyboard_layout::KeyboardLayout,
         keyboard_submap::KeyboardSubmap,
         media_player::MediaPlayer,
+        notifications::Notifications,
         privacy::Privacy,
         settings::Settings,
         system_info::SystemInfo,
@@ -67,6 +68,7 @@ pub struct App {
     pub privacy: Privacy,
     pub settings: Settings,
     pub media_player: MediaPlayer,
+    pub notifications: Notifications,
 }
 
 #[derive(Debug, Clone)]
@@ -87,6 +89,7 @@ pub enum Message {
     Privacy(modules::privacy::Message),
     Settings(modules::settings::Message),
     MediaPlayer(modules::media_player::Message),
+    Notifications(modules::notifications::Message),
     OutputEvent((OutputEvent, WlOutput)),
     CloseAllMenus,
     ResumeFromSleep,
@@ -112,6 +115,8 @@ impl App {
                 .map(|o| (o.name.clone(), Custom::new(o)))
                 .collect();
 
+            let notifications = Notifications::new(config.notifications);
+
             (
                 App {
                     config_path,
@@ -136,6 +141,7 @@ impl App {
                     tempo: Tempo::new(config.tempo),
                     privacy: Privacy::default(),
                     settings: Settings::new(config.settings),
+                    notifications,
                     media_player: MediaPlayer::new(config.media_player),
                 },
                 task,
@@ -190,6 +196,10 @@ impl App {
         self.media_player
             .update(modules::media_player::Message::ConfigReloaded(
                 config.media_player,
+            ));
+        self.notifications
+            .update(modules::notifications::Message::ConfigReloaded(
+                config.notifications,
             ));
     }
 
@@ -417,6 +427,10 @@ impl App {
                 self.general_config.layer,
                 self.theme.scale_factor,
             ),
+            Message::Notifications(message) => {
+                self.notifications.update(message);
+                Task::none()
+            }
             Message::None => Task::none(),
         }
     }
@@ -521,6 +535,13 @@ impl App {
                 Some((MenuType::Tray(name), button_ui_ref)) => self.menu_wrapper(
                     id,
                     self.tray.menu_view(&self.theme, name).map(Message::Tray),
+                    *button_ui_ref,
+                ),
+                Some((MenuType::Notifications, button_ui_ref)) => self.menu_wrapper(
+                    id,
+                    self.notifications
+                        .menu_view(id, &self.theme)
+                        .map(Message::Notifications),
                     *button_ui_ref,
                 ),
                 Some((MenuType::Settings, button_ui_ref)) => self.menu_wrapper(
