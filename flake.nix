@@ -70,14 +70,14 @@
           inherit ldLibraryPath;
           buildInputs = buildInputs ++ [
             pkgs.rust-analyzer-unwrapped
-            pkgs.nixfmt-rfc-style
+            pkgs.nixfmt
           ];
 
           RUST_SRC_PATH = "${rustToolchain.rust-src}/lib/rustlib/src/rust/library";
           LD_LIBRARY_PATH = ldLibraryPath;
         };
 
-        formatter = pkgs.nixfmt-rfc-style;
+        formatter = pkgs.nixfmt;
       });
     in
     {
