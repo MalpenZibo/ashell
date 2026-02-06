@@ -112,7 +112,7 @@ impl MediaPlayer {
                     });
 
                     container(
-                        Column::new()
+                        Column::with_capacity(2)
                             .push(
                                 row!(title, buttons)
                                     .spacing(theme.space.xs)

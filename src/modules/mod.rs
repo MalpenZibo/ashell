@@ -7,7 +7,7 @@ use crate::{
 };
 use iced::{
     Alignment, Border, Color, Element, Length, Subscription,
-    widget::{Row, container, row},
+    widget::{Row, container},
     window::Id,
 };
 
@@ -43,7 +43,7 @@ impl App {
             &self.general_config.modules.right,
         ]
         .map(|modules_def| {
-            let mut row = row!()
+            let mut row = Row::with_capacity(modules_def.len())
                 .height(Length::Shrink)
                 .align_y(Alignment::Center)
                 .spacing(self.theme.space.xxs);
