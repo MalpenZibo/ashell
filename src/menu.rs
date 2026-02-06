@@ -1,6 +1,6 @@
 use crate::app::{self, App};
 use crate::config::{AppearanceStyle, Position};
-use crate::theme::backdrop_color;
+use crate::theme::{AshellTheme, backdrop_color};
 use crate::widgets::{self, ButtonUIRef};
 use iced::alignment::Vertical;
 use iced::platform_specific::shell::commands::layer_surface::{
@@ -146,21 +146,20 @@ impl App {
     pub fn menu_wrapper<'a>(
         &'a self,
         id: Id,
+        theme: &'a AshellTheme,
         content: Element<'a, app::Message>,
         button_ui_ref: ButtonUIRef,
     ) -> Element<'a, app::Message> {
+        let menu_bg = theme.menu_background;
         widgets::MenuWrapper::new(
             button_ui_ref.position.x,
             container(content)
                 .padding(self.theme.space.md)
                 .style(move |theme: &Theme| Style {
-                    background: Some(
-                        theme
-                            .palette()
-                            .background
-                            .scale_alpha(self.theme.menu.opacity)
-                            .into(),
-                    ),
+                    background: menu_bg
+                        .map(|mb| mb.base.color)
+                        .or(Some(theme.palette().background))
+                        .map(|color| color.scale_alpha(self.theme.menu.opacity).into()),
                     border: Border {
                         color: theme
                             .extended_palette()

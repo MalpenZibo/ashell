@@ -514,6 +514,7 @@ pub struct Appearance {
     pub opacity: f32,
     pub menu: MenuAppearance,
     pub background_color: AppearanceColor,
+    pub menu_background: Option<AppearanceColor>,
     pub primary_color: AppearanceColor,
     pub secondary_color: AppearanceColor,
     pub success_color: AppearanceColor,
@@ -583,6 +584,7 @@ impl Default for Appearance {
                 weak: Some(HexColor::rgb(49, 50, 68)),
                 text: None,
             },
+            menu_background: None,
             primary_color: AppearanceColor::Complete {
                 base: PRIMARY,
                 strong: None,
