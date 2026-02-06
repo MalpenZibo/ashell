@@ -145,6 +145,7 @@ impl Notifications {
                                     color: Some(theme.palette().text),
                                 }
                             ),
+                            Space::with_width(Length::Fill),
                             {
                                 let timestamp_element: Element<'_, Message> = if self.config.show_timestamps {
                                     text(self.format_timestamp(notification.timestamp))
