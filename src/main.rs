@@ -1,3 +1,4 @@
+mod config_watcher;
 mod layout;
 mod modules;
 mod services;
@@ -22,6 +23,10 @@ mod theme {
 
 fn main() {
     env_logger::init();
+
+    let config_path = config_watcher::resolve_config_path(None);
+    config_watcher::ensure_config_dir(&config_path);
+    config_watcher::spawn_config_watcher(config_path);
 
     let compositor_state = create_signal(CompositorState::default());
     let compositor_svc = start_compositor_service(compositor_state);
