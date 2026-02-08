@@ -6,12 +6,14 @@ use iced::{
     stream::channel,
 };
 use inotify::{Inotify, WatchMask};
-use log::{debug, error, info};
-use std::{any::TypeId, ops::Deref, pin::Pin};
+use log::{debug, error, info, warn};
+use std::{any::TypeId, io::ErrorKind, ops::Deref, pin::Pin};
 use tokio::process::Command;
 use zbus::zvariant::OwnedObjectPath;
 
 mod dbus;
+
+type EventStream = Pin<Box<dyn Stream<Item = ()> + Send>>;
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum BluetoothState {
@@ -91,8 +93,6 @@ impl BluetoothService {
 
     async fn events(conn: &zbus::Connection) -> anyhow::Result<impl Stream<Item = ()> + use<>> {
         let bluetooth = BluetoothDbus::new(conn).await?;
-
-        type EventStream = Pin<Box<dyn Stream<Item = ()> + Send>>;
 
         let interface_changed = stream_select!(
             bluetooth
@@ -231,25 +231,47 @@ impl BluetoothService {
         }
     }
 
+    async fn spawn_rfkill(binary: &str, args: &[&str]) -> std::io::Result<std::process::Output> {
+        let mut command = Command::new(binary);
+        for arg in args {
+            command.arg(arg);
+        }
+        command.output().await
+    }
+
+    async fn run_rfkill_command(args: &[&str]) -> std::io::Result<std::process::Output> {
+        BluetoothService::spawn_rfkill("rfkill", args).await
+    }
+
     pub async fn check_rfkill_soft_block() -> anyhow::Result<bool> {
-        let output = Command::new("rfkill")
-            .arg("list")
-            .arg("bluetooth")
-            .output()
-            .await?;
+        let output = match BluetoothService::run_rfkill_command(&["list", "bluetooth"]).await {
+            Ok(output) => output,
+            Err(err) if err.kind() == ErrorKind::NotFound => {
+                warn!("rfkill binary not found, assuming bluetooth is not soft blocked");
+                return Ok(false);
+            }
+            Err(err) => return Err(err.into()),
+        };
 
         let output = String::from_utf8(output.stdout)?;
 
         Ok(output.contains("Soft blocked: yes"))
     }
 
-    pub async fn listen_rfkill_soft_block_changes() -> anyhow::Result<impl Stream<Item = ()>> {
+    pub async fn listen_rfkill_soft_block_changes() -> anyhow::Result<EventStream> {
         let inotify = Inotify::init()?;
 
-        inotify.watches().add("/dev/rfkill", WatchMask::MODIFY)?;
-
-        let buffer = [0; 512];
-        Ok(inotify.into_event_stream(buffer)?.map(|_| {}))
+        match inotify.watches().add("/dev/rfkill", WatchMask::MODIFY) {
+            Ok(_) => {
+                let buffer = [0; 512];
+                Ok(inotify.into_event_stream(buffer)?.map(|_| {}).boxed())
+            }
+            Err(err) if err.kind() == ErrorKind::NotFound => {
+                warn!("/dev/rfkill not found, disabling rfkill change notifications for bluetooth");
+                Ok(pending().boxed())
+            }
+            Err(err) => Err(err.into()),
+        }
     }
 
     async fn toggle_power(conn: &zbus::Connection, power: bool) -> anyhow::Result<()> {
