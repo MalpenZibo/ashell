@@ -36,6 +36,153 @@ static SYSTEM_ICON_ENTRIES: LazyLock<Vec<(String, String)>> = LazyLock::new(|| {
         .collect()
 });
 
+#[derive(Debug, Clone)]
+struct DesktopEntryIcon {
+    file_stem: String,
+    name: Option<String>,
+    icon: String,
+}
+
+static DESKTOP_ENTRY_ICONS: Lazy<Vec<DesktopEntryIcon>> = Lazy::new(load_desktop_entry_icons);
+
+fn load_desktop_entry_icons() -> Vec<DesktopEntryIcon> {
+    let mut entries = Vec::new();
+
+    for dir in desktop_directories() {
+        collect_desktop_entries(&dir, &mut entries);
+    }
+
+    entries
+}
+
+fn collect_desktop_entries(dir: &Path, entries: &mut Vec<DesktopEntryIcon>) {
+    if !dir.is_dir() {
+        return;
+    }
+
+    if let Ok(read_dir) = fs::read_dir(dir) {
+        for entry in read_dir.flatten() {
+            let path = entry.path();
+            let file_type = match entry.file_type() {
+                Ok(ft) => ft,
+                Err(_) => continue,
+            };
+
+            if file_type.is_dir() {
+                collect_desktop_entries(&path, entries);
+            } else if file_type.is_file()
+                && path
+                    .extension()
+                    .is_some_and(|ext| ext.eq_ignore_ascii_case("desktop"))
+                && let Some(parsed) = parse_desktop_entry(&path)
+            {
+                entries.push(parsed);
+            }
+        }
+    }
+}
+
+fn parse_desktop_entry(path: &Path) -> Option<DesktopEntryIcon> {
+    let contents = fs::read_to_string(path).ok()?;
+    let mut in_desktop_entry = false;
+    let mut icon: Option<String> = None;
+    let mut name: Option<String> = None;
+
+    for line in contents.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+
+        if line.starts_with('[') && line.ends_with(']') {
+            in_desktop_entry = line.eq_ignore_ascii_case("[Desktop Entry]");
+            continue;
+        }
+
+        if !in_desktop_entry {
+            continue;
+        }
+
+        if let Some((key, value)) = line.split_once('=') {
+            let value = value.trim();
+            match key {
+                "Icon" if icon.is_none() && !value.is_empty() => icon = Some(value.to_string()),
+                "Name" if name.is_none() && !value.is_empty() => name = Some(value.to_string()),
+                _ => {}
+            }
+        }
+    }
+
+    let icon = icon?;
+    let file_stem = path.file_stem()?.to_string_lossy().to_string();
+
+    Some(DesktopEntryIcon {
+        file_stem,
+        name,
+        icon,
+    })
+}
+
+fn desktop_directories() -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+
+    if let Ok(data_home) = env::var("XDG_DATA_HOME") {
+        dirs.push(PathBuf::from(data_home).join("applications"));
+    }
+
+    if let Ok(home) = env::var("HOME") {
+        dirs.push(PathBuf::from(home).join(".local/share/applications"));
+    }
+
+    let data_dirs =
+        env::var("XDG_DATA_DIRS").unwrap_or_else(|_| "/usr/local/share:/usr/share".into());
+    for dir in data_dirs.split(':') {
+        if dir.is_empty() {
+            continue;
+        }
+        dirs.push(PathBuf::from(dir).join("applications"));
+    }
+
+    dirs.push(PathBuf::from("/usr/share/applications"));
+
+    dirs.sort();
+    dirs.dedup();
+    dirs
+}
+
+fn icon_from_desktop_entries(icon_name: &str) -> Option<TrayIcon> {
+    if DESKTOP_ENTRY_ICONS.is_empty() {
+        return None;
+    }
+
+    let normalized = normalize_icon_name(icon_name);
+
+    for entry in DESKTOP_ENTRY_ICONS.iter() {
+        let matches_file_stem = normalize_icon_name(&entry.file_stem) == normalized;
+        let matches_name = entry
+            .name
+            .as_ref()
+            .is_some_and(|n| normalize_icon_name(n) == normalized);
+        let matches_icon_field = normalize_icon_name(&entry.icon) == normalized;
+
+        if !(matches_file_stem || matches_name || matches_icon_field) {
+            continue;
+        }
+
+        if entry.icon.starts_with('/') {
+            if let Some(icon) = tray_icon_from_path(PathBuf::from(&entry.icon)) {
+                return Some(icon);
+            }
+        } else if let Some(path) = find_icon_path(&entry.icon)
+            && let Some(icon) = tray_icon_from_path(path)
+        {
+            return Some(icon);
+        }
+    }
+
+    None
+}
+
 fn get_icon_from_name(icon_name: &str) -> Option<TrayIcon> {
     if let Some(path) = find_icon_path(icon_name) {
         return tray_icon_from_path(path);
@@ -53,6 +200,10 @@ fn get_icon_from_name(icon_name: &str) -> Option<TrayIcon> {
         && let Some(path) = find_icon_path(&prefix_candidate)
     {
         return tray_icon_from_path(path);
+    }
+
+    if let Some(icon) = icon_from_desktop_entries(icon_name) {
+        return Some(icon);
     }
 
     None
@@ -251,6 +402,30 @@ impl StatusNotifierItem {
 
         debug!("item_proxy {item_proxy:?}");
 
+        let icon_name_prop = item_proxy.icon_name().await.ok();
+        let id_prop = item_proxy.id().await.ok();
+        let title_prop = item_proxy.title().await.ok();
+
+        let mut fallbacks = Vec::new();
+        if let Some(ref icon_name) = icon_name_prop {
+            let icon_name = icon_name.trim();
+            if !icon_name.is_empty() && !fallbacks.contains(&icon_name.to_string()) {
+                fallbacks.push(icon_name.to_string());
+            }
+        }
+        if let Some(ref id) = id_prop {
+            let id = id.trim();
+            if !id.is_empty() && !fallbacks.contains(&id.to_string()) {
+                fallbacks.push(id.to_string());
+            }
+        }
+        if let Some(ref title) = title_prop {
+            let title = title.trim();
+            if !title.is_empty() && !fallbacks.contains(&title.to_string()) {
+                fallbacks.push(title.to_string());
+            }
+        }
+
         let icon_pixmap = item_proxy.icon_pixmap().await;
 
         let icon = match icon_pixmap {
@@ -272,13 +447,29 @@ impl StatusNotifierItem {
                             i.bytes,
                         ))
                     })
+                    .or_else(|| {
+                        // Try each fallback candidate
+                        let mut found_icon = None;
+                        for candidate in fallbacks.iter() {
+                            if let Some(icon) = get_icon_from_name(candidate) {
+                                found_icon = Some(icon);
+                                break;
+                            }
+                        }
+                        found_icon
+                    })
             }
-            Err(_) => item_proxy
-                .icon_name()
-                .await
-                .ok()
-                .as_deref()
-                .and_then(get_icon_from_name),
+            Err(_) => {
+                // Try each fallback candidate
+                let mut found_icon = None;
+                for candidate in fallbacks.iter() {
+                    if let Some(icon) = get_icon_from_name(candidate) {
+                        found_icon = Some(icon);
+                        break;
+                    }
+                }
+                found_icon
+            }
         };
 
         let menu_path = item_proxy.menu().await?;
@@ -338,9 +529,24 @@ impl TrayService {
         let items = proxy.registered_status_notifier_items().await?;
 
         let mut status_items = Vec::with_capacity(items.len());
+        let mut failed_items = Vec::new();
         for item in items {
-            let item = StatusNotifierItem::new(conn, item).await?;
-            status_items.push(item);
+            match StatusNotifierItem::new(conn, item.clone()).await {
+                Ok(item_instance) => {
+                    status_items.push(item_instance);
+                }
+                Err(err) => {
+                    failed_items.push((item.clone(), format!("{err:?}")));
+                }
+            }
+        }
+
+        if !failed_items.is_empty() {
+            debug!(
+                "Skipped {} tray items due to initialization errors: {:?}",
+                failed_items.len(),
+                failed_items
+            );
         }
 
         Ok(TrayData(status_items))
@@ -392,7 +598,12 @@ impl TrayService {
         let mut menu_layout_change = Vec::with_capacity(items.len());
 
         for name in items {
-            let item = StatusNotifierItem::new(conn, name.to_string()).await?;
+            let item = match StatusNotifierItem::new(conn, name.to_string()).await {
+                Ok(item) => item,
+                Err(_) => {
+                    continue;
+                }
+            };
 
             icon_pixel_change.push(
                 item.item_proxy
@@ -520,34 +731,27 @@ impl TrayService {
                     State::Error
                 }
             },
-            State::Active(conn) => {
-                info!("Listening for tray events");
+            State::Active(conn) => match TrayService::events(&conn).await {
+                Ok(mut events) => {
+                    while let Some(event) = events.next().await {
+                        debug!("tray data {event:?}");
+                        let reload_events = matches!(event, TrayEvent::Registered(_));
 
-                match TrayService::events(&conn).await {
-                    Ok(mut events) => {
-                        while let Some(event) = events.next().await {
-                            debug!("tray data {event:?}");
+                        let _ = output.send(ServiceEvent::Update(event)).await;
 
-                            let reload_events = matches!(event, TrayEvent::Registered(_));
-
-                            let _ = output.send(ServiceEvent::Update(event)).await;
-
-                            if reload_events {
-                                break;
-                            }
+                        if reload_events {
+                            break;
                         }
+                    }
 
-                        State::Active(conn)
-                    }
-                    Err(err) => {
-                        error!("Failed to listen for tray events: {err}");
-                        State::Error
-                    }
+                    State::Active(conn)
                 }
-            }
+                Err(err) => {
+                    error!("Failed to listen for tray events: {err}");
+                    State::Error
+                }
+            },
             State::Error => {
-                error!("Tray service error");
-
                 let _ = pending::<u8>().next().await;
                 State::Error
             }
@@ -581,11 +785,12 @@ impl ReadOnlyService for TrayService {
     fn update(&mut self, event: Self::UpdateEvent) {
         match event {
             TrayEvent::Registered(new_item) => {
+                let service_name = new_item.name.clone();
                 match self
                     .data
                     .0
                     .iter_mut()
-                    .find(|item| item.name == new_item.name)
+                    .find(|item| item.name == service_name)
                 {
                     Some(existing_item) => {
                         *existing_item = new_item;
