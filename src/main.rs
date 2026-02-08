@@ -1,3 +1,4 @@
+mod layout;
 mod modules;
 mod services;
 
@@ -37,11 +38,7 @@ fn main() {
             container()
                 .width(fill())
                 .height(fill())
-                .layout(
-                    Flex::row()
-                        .main_axis_alignment(MainAxisAlignment::SpaceBetween)
-                        .cross_axis_alignment(CrossAxisAlignment::Center),
-                )
+                .layout(layout::CenterBox::new())
                 .padding_xy(8.0, 0.0)
                 .child(modules::workspaces::view(compositor_state, compositor_svc.clone()))
                 .child(modules::window_title::view(compositor_state))
