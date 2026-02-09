@@ -2,7 +2,7 @@ use super::types::{
     ActiveWindow, ActiveWindowNiri, CompositorCommand, CompositorMonitor, CompositorState,
     CompositorStateWriters, CompositorWorkspace,
 };
-use anyhow::{Context as _, anyhow};
+use anyhow::{Context, Result, anyhow};
 use itertools::Itertools;
 use niri_ipc::{
     Action, Event, Reply, Request, WorkspaceReferenceArg,
@@ -14,7 +14,7 @@ use tokio::{
     net::UnixStream,
 };
 
-pub async fn execute_command(cmd: CompositorCommand) -> anyhow::Result<()> {
+pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
     let mut stream = connect().await?;
 
     let action = match cmd {
@@ -69,16 +69,19 @@ pub fn is_available() -> bool {
         .is_some()
 }
 
-pub async fn run_listener(state: CompositorStateWriters) -> anyhow::Result<()> {
+pub async fn run_listener(state: CompositorStateWriters) -> Result<()> {
+    // 1. Init
     let mut stream = connect().await?;
 
+    // 2. Send the EventStream request
     let request_json = serde_json::to_string(&Request::EventStream)? + "\n";
     stream.write_all(request_json.as_bytes()).await?;
     stream.flush().await?;
 
+    // 3. Create ONE BufReader for the lifetime of this connection
     let mut reader = BufReader::new(stream);
 
-    // Read the Handled response
+    // 4. Read the Handled response
     let mut line = String::new();
     reader.read_line(&mut line).await?;
 
@@ -87,39 +90,49 @@ pub async fn run_listener(state: CompositorStateWriters) -> anyhow::Result<()> {
         return Err(anyhow!("Niri refused EventStream: {}", e));
     }
 
-    // Shutdown write half
+    // 5. Shutdown write half
     let _ = reader.get_mut().shutdown().await;
 
     let mut internal_state = EventStreamState::default();
 
+    // 6. Loop forever using the SAME reader
     loop {
         line.clear();
         let bytes_read = reader.read_line(&mut line).await?;
         if bytes_read == 0 {
-            break;
+            break; // EOF
         }
 
         let event: Event = match serde_json::from_str(&line) {
             Ok(ev) => ev,
             Err(e) => {
+                // This can happen a lot if the installed niri version and the IPC are out of sync
+                // From niri's wiki:
+                // The JSON output should remain stable, as in:
+                // - existing fields and enum variants should not be renamed
+                // - non-optional existing fields should not be removed
+                // However, new fields and enum variants will be added, so you should handle unknown fields or variants gracefully where reasonable.
                 log::debug!(
-                    "Failed to parse Niri event (IPC version mismatch) -> {:?}",
+                    "Failed to parse Niri event (this is caused by niri's IPC not being version bound) -> {:?}",
                     e
                 );
                 continue;
             }
         };
 
+        // Apply to internal Niri state tracker
         internal_state.apply(event);
 
+        // Map to generic Ashell state
         let new_state = map_state(&internal_state);
+
         state.set(new_state);
     }
 
     Ok(())
 }
 
-async fn connect() -> anyhow::Result<UnixStream> {
+async fn connect() -> Result<UnixStream> {
     let socket_path = env::var_os("NIRI_SOCKET")
         .or_else(|| env::var_os("NIRI_SOCKET_PATH"))
         .ok_or_else(|| anyhow!("NIRI_SOCKET or NIRI_SOCKET_PATH environment variable not set"))?;
@@ -129,7 +142,7 @@ async fn connect() -> anyhow::Result<UnixStream> {
     UnixStream::from_std(std_stream).context("Failed to convert stream")
 }
 
-async fn send_command_request(stream: &mut UnixStream, request: Request) -> anyhow::Result<()> {
+async fn send_command_request(stream: &mut UnixStream, request: Request) -> Result<()> {
     let mut json = serde_json::to_string(&request)?;
     json.push('\n');
     stream.write_all(json.as_bytes()).await?;
@@ -159,6 +172,7 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
         })
         .collect();
 
+    // INFO: this is how niri sorts the outpus internally (niri msg outputs - in client.rs)
     let outputs = output_to_active_ws
         .keys()
         .sorted_unstable()
@@ -169,29 +183,34 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
         .workspaces
         .values()
         .sorted_by_key(|w| w.idx)
-        .map(|w| CompositorWorkspace {
-            id: w.id as i32,
-            index: w.idx as i32,
-            name: w.name.clone().unwrap_or_else(|| w.idx.to_string()),
-            monitor: w.output.clone().unwrap_or_default(),
-            monitor_id: w.output.as_ref().map(|wo| {
-                outputs
-                    .iter()
-                    .position(|o| *o == wo)
-                    .map_or(-1, |i| i as i32) as i128
-            }),
-            windows: 0,
-            is_special: false,
+        .map(|w| {
+            CompositorWorkspace {
+                id: w.id as i32,
+                index: w.idx as i32,
+                name: w.name.clone().unwrap_or_else(|| w.idx.to_string()),
+                monitor: w.output.clone().unwrap_or_default(),
+                // niri does not have an output index
+                monitor_id: w.output.as_ref().map(|wo| {
+                    outputs
+                        .iter()
+                        .position(|o| *o == wo)
+                        .map_or(-1, |i| i as i32) as i128
+                }),
+                windows: 0,
+                is_special: false,
+            }
         })
         .collect();
 
     // Calculate window counts
     for win in niri.windows.windows.values() {
-        if let Some(ws_id) = win.workspace_id
-            && let Some(ws) = niri.workspaces.workspaces.get(&ws_id)
-            && let Some(generic_ws) = workspaces.iter_mut().find(|w| w.id == ws.id as i32)
-        {
-            generic_ws.windows += 1;
+        if let Some(ws_id) = win.workspace_id {
+            // Resolve Niri Workspace ID (u64) -> Visual Index (u8) -> Generic ID (i32)
+            if let Some(ws) = niri.workspaces.workspaces.get(&ws_id)
+                && let Some(generic_ws) = workspaces.iter_mut().find(|w| w.id == ws.id as i32)
+            {
+                generic_ws.windows += 1;
+            }
         }
     }
 

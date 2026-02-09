@@ -1,6 +1,6 @@
 use guido::prelude::*;
 
-use crate::services::{
+use crate::services::compositor::{
     CompositorCommand, CompositorMonitor, CompositorStateSignals, CompositorWorkspace,
 };
 use crate::theme;

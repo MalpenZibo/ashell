@@ -2,6 +2,7 @@ use super::types::{
     ActiveWindow, ActiveWindowHyprland, CompositorCommand, CompositorMonitor, CompositorState,
     CompositorStateWriters, CompositorWorkspace,
 };
+use anyhow::Result;
 use hyprland::{
     data::{Client, Devices, Monitors, Workspace, Workspaces},
     dispatch::{Dispatch, DispatchType, MonitorIdentifier, WorkspaceIdentifierWithSpecial},
@@ -11,7 +12,7 @@ use hyprland::{
 use itertools::Itertools;
 use std::sync::{Arc, RwLock};
 
-pub async fn execute_command(cmd: CompositorCommand) -> anyhow::Result<()> {
+pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
     match cmd {
         CompositorCommand::FocusWorkspace(id) => {
             Dispatch::call(DispatchType::Workspace(WorkspaceIdentifierWithSpecial::Id(
@@ -58,7 +59,8 @@ pub fn is_available() -> bool {
     std::env::var_os(IPC_ENV_VAR).is_some()
 }
 
-pub async fn run_listener(state: CompositorStateWriters) -> anyhow::Result<()> {
+pub async fn run_listener(state: CompositorStateWriters) -> Result<()> {
+    // copying this strategy from how niri's IPC works
     let internal_state = Arc::new(RwLock::new(HyprInternalState::default()));
 
     // Initial fetch
@@ -82,10 +84,8 @@ pub async fn run_listener(state: CompositorStateWriters) -> anyhow::Result<()> {
     macro_rules! add_refresh_handler {
         ($method:ident) => {
             listener.$method({
-                let state = state;
                 let internal_state = Arc::clone(&internal_state);
                 move |_| {
-                    let state = state;
                     let internal_state = Arc::clone(&internal_state);
                     Box::pin(async move {
                         if let Ok(state_guard) = internal_state.read()
@@ -114,10 +114,10 @@ pub async fn run_listener(state: CompositorStateWriters) -> anyhow::Result<()> {
 
     add_refresh_handler!(add_layout_changed_handler);
 
+    // custom refresh handler that takes the changed value as the submap
     listener.add_sub_map_changed_handler({
         let internal_state = Arc::clone(&internal_state);
         move |new_submap| {
-            let state = state;
             let internal_state = Arc::clone(&internal_state);
             Box::pin(async move {
                 if let Ok(mut state_guard) = internal_state.write() {
@@ -136,7 +136,7 @@ pub async fn run_listener(state: CompositorStateWriters) -> anyhow::Result<()> {
         .map_err(|e| anyhow::anyhow!(e))
 }
 
-fn fetch_full_state(internal_state: &HyprInternalState) -> anyhow::Result<CompositorState> {
+fn fetch_full_state(internal_state: &HyprInternalState) -> Result<CompositorState> {
     let workspaces = Workspaces::get()?
         .into_iter()
         .sorted_by_key(|w| w.id)

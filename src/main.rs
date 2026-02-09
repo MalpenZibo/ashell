@@ -4,7 +4,9 @@ mod modules;
 mod services;
 
 use guido::prelude::*;
-use services::{CompositorState, CompositorStateSignals, start_compositor_service};
+use services::compositor::{
+    CompositorState, CompositorStateSignals, start_compositor_service,
+};
 
 #[allow(dead_code)]
 mod theme {

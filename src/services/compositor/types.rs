@@ -54,6 +54,20 @@ impl ActiveWindow {
             ActiveWindow::Niri(w) => &w.class,
         }
     }
+
+    pub fn initial_title(&self) -> Result<&str, &str> {
+        match self {
+            ActiveWindow::Hyprland(w) => Ok(&w.initial_title),
+            ActiveWindow::Niri(_) => Err("InitialTitle isn't supported on Niri"),
+        }
+    }
+
+    pub fn initial_class(&self) -> Result<&str, &str> {
+        match self {
+            ActiveWindow::Hyprland(w) => Ok(&w.initial_class),
+            ActiveWindow::Niri(_) => Err("InitialClass isn't supported on Niri"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, guido::SignalFields)]
@@ -79,7 +93,7 @@ pub enum CompositorCommand {
     FocusSpecialWorkspace(String),
     FocusMonitor(i128),
     ToggleSpecialWorkspace(String),
-    ScrollWorkspace(i32),
-    CustomDispatch(String, String),
+    ScrollWorkspace(i32),           // +1 or -1
+    CustomDispatch(String, String), // For "vdesk"
     NextLayout,
 }

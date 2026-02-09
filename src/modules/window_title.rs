@@ -1,6 +1,6 @@
 use guido::prelude::*;
 
-use crate::services::CompositorStateSignals;
+use crate::services::compositor::CompositorStateSignals;
 use crate::theme;
 
 const MAX_TITLE_LEN: usize = 150;
