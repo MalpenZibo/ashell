@@ -1,6 +1,6 @@
 use guido::prelude::*;
 
-use crate::services::{CompositorCommand, CompositorState};
+use crate::services::{CompositorCommand, CompositorMonitor, CompositorState, CompositorWorkspace};
 use crate::theme;
 
 const PILL_HEIGHT: f32 = 16.0;
@@ -33,12 +33,13 @@ fn workspace_color(monitor_id: Option<i128>) -> Color {
     WORKSPACE_COLORS[idx % WORKSPACE_COLORS.len()]
 }
 
-fn compute_displayed(state: &CompositorState, ws_id: i32) -> Displayed {
-    let is_active = state.active_workspace_id == Some(ws_id);
-    let is_visible = state
-        .monitors
-        .iter()
-        .any(|m| m.active_workspace_id == ws_id);
+fn compute_displayed(
+    active_ws_id: Option<i32>,
+    monitors: &[CompositorMonitor],
+    ws_id: i32,
+) -> Displayed {
+    let is_active = active_ws_id == Some(ws_id);
+    let is_visible = monitors.iter().any(|m| m.active_workspace_id == ws_id);
     match (is_active, is_visible) {
         (true, _) => Displayed::Active,
         (false, true) => Displayed::Visible,
@@ -46,12 +47,11 @@ fn compute_displayed(state: &CompositorState, ws_id: i32) -> Displayed {
     }
 }
 
-fn is_empty(state: &CompositorState, ws_id: i32) -> bool {
-    state
-        .workspaces
+fn is_empty(workspaces: &[CompositorWorkspace], ws_id: i32) -> bool {
+    workspaces
         .iter()
         .find(|w| w.id == ws_id)
-        .map_or(true, |w| w.windows == 0)
+        .is_none_or(|w| w.windows == 0)
 }
 
 fn pill_background(color: Color, displayed: Displayed, empty: bool) -> Color {
@@ -98,6 +98,11 @@ pub fn view(state: Signal<CompositorState>, svc: Service<CompositorCommand>) -> 
     let svc_scroll = svc.clone();
     let svc_children = svc;
 
+    // Field-level memos — only notify when their specific data changes
+    let workspaces = create_memo(move || state.with(|s| s.workspaces.clone()));
+    let monitors = create_memo(move || state.with(|s| s.monitors.clone()));
+    let active_ws_id = create_memo(move || state.with(|s| s.active_workspace_id));
+
     container()
         .layout(
             Flex::row()
@@ -109,11 +114,10 @@ pub fn view(state: Signal<CompositorState>, svc: Service<CompositorCommand>) -> 
             svc_scroll.send(CompositorCommand::ScrollWorkspace(dir));
         })
         .children(move || {
-            let s = state.get();
+            let ws = workspaces.get();
             let svc = svc_children.clone();
 
-            s.workspaces
-                .iter()
+            ws.iter()
                 .filter(|w| !w.is_special)
                 .map(|w| {
                     let id = w.id;
@@ -121,26 +125,25 @@ pub fn view(state: Signal<CompositorState>, svc: Service<CompositorCommand>) -> 
                     let svc = svc.clone();
 
                     (id as u64, move || {
+                        // Per-pill derived values — only repaint when this pill's state changes
+                        let displayed = create_memo(move || {
+                            let active = active_ws_id.get();
+                            let mons = monitors.get();
+                            compute_displayed(active, &mons, id)
+                        });
+                        let empty = create_memo(move || is_empty(&workspaces.get(), id));
+
                         let label = id.to_string();
                         container()
-                            .width(move || state.with(|s| compute_displayed(s, id)).width())
+                            .width(move || displayed.get().width())
                             .height(PILL_HEIGHT)
                             .background(move || {
-                                let displayed = state.with(|s| compute_displayed(s, id));
-                                let empty = state.with(|s| is_empty(s, id));
-                                pill_background(color, displayed, empty)
+                                pill_background(color, displayed.get(), empty.get())
                             })
                             .corner_radius(PILL_CORNER_RADIUS)
                             .border(
-                                move || {
-                                    let empty = state.with(|s| is_empty(s, id));
-                                    pill_border_width(empty)
-                                },
-                                move || {
-                                    let displayed = state.with(|s| compute_displayed(s, id));
-                                    let empty = state.with(|s| is_empty(s, id));
-                                    pill_border_color(color, displayed, empty)
-                                },
+                                move || pill_border_width(empty.get()),
+                                move || pill_border_color(color, displayed.get(), empty.get()),
                             )
                             .layout(
                                 Flex::row()
@@ -148,11 +151,12 @@ pub fn view(state: Signal<CompositorState>, svc: Service<CompositorCommand>) -> 
                                     .cross_axis_alignment(CrossAxisAlignment::Center),
                             )
                             .overflow(Overflow::Hidden)
-                            .child(text(label).color(move || {
-                                let displayed = state.with(|s| compute_displayed(s, id));
-                                let empty = state.with(|s| is_empty(s, id));
-                                pill_text_color(displayed, empty)
-                            }).font_size(10.0).nowrap())
+                            .child(
+                                text(label)
+                                    .color(move || pill_text_color(displayed.get(), empty.get()))
+                                    .font_size(10.0)
+                                    .nowrap(),
+                            )
                             .on_click(move || {
                                 svc.send(CompositorCommand::FocusWorkspace(id));
                             })
