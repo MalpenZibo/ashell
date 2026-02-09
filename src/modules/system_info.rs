@@ -67,6 +67,7 @@ pub fn menu_view(info: SystemInfoDataSignals) -> impl Widget {
     let temp = info.temperature;
 
     container()
+        .width(fill())
         .layout(Flex::column().spacing(12.0))
         .child(menu_row(
             StaticIcon::Cpu,
@@ -119,17 +120,21 @@ fn menu_row(
 ) -> impl Widget {
     let color_fn2 = color_fn.clone();
     container()
+        .width(fill())
         .layout(
             Flex::row()
-                .spacing(8.0)
+                .main_axis_alignment(MainAxisAlignment::SpaceBetween)
                 .cross_axis_alignment(CrossAxisAlignment::Center),
         )
-        .child(icon(ic).color(color_fn).font_size(16.0))
         .child(
-            text(label)
-                .color(theme::TEXT)
-                .font_size(14.0),
+            container()
+                .layout(
+                    Flex::row()
+                        .spacing(8.0)
+                        .cross_axis_alignment(CrossAxisAlignment::Center),
+                )
+                .child(icon(ic).color(color_fn).font_size(16.0))
+                .child(text(label).color(theme::TEXT).font_size(14.0)),
         )
-        .child(container().width(fill()))
         .child(text(value_fn).color(color_fn2).font_size(14.0))
 }
