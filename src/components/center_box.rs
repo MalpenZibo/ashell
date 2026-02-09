@@ -1,19 +1,22 @@
 use guido::layout::{Constraints, Layout, Size};
+use guido::prelude::*;
 use guido::tree::{Tree, WidgetId};
 
-pub struct CenterBox {
+// -- Layout -----------------------------------------------------------------
+
+struct CenterBoxLayout {
     child_sizes: Vec<Size>,
 }
 
-impl CenterBox {
-    pub fn new() -> Self {
+impl CenterBoxLayout {
+    fn new() -> Self {
         Self {
             child_sizes: Vec::with_capacity(3),
         }
     }
 }
 
-impl Layout for CenterBox {
+impl Layout for CenterBoxLayout {
     fn layout(
         &mut self,
         tree: &mut Tree,
@@ -85,5 +88,30 @@ impl Layout for CenterBox {
 
         // Return full available size
         constraints.constrain(Size::new(available_width, available_height))
+    }
+}
+
+// -- Component --------------------------------------------------------------
+
+#[component]
+pub struct CenterBox {
+    #[prop(slot)]
+    left: (),
+    #[prop(slot)]
+    center: (),
+    #[prop(slot)]
+    right: (),
+}
+
+impl CenterBox {
+    fn render(&self) -> impl Widget + use<> {
+        container()
+            .width(fill())
+            .height(fill())
+            .layout(CenterBoxLayout::new())
+            .padding_xy(4.0, 0.0)
+            .child(self.take_left().unwrap_or_else(|| Box::new(container())))
+            .child(self.take_center().unwrap_or_else(|| Box::new(container())))
+            .child(self.take_right().unwrap_or_else(|| Box::new(container())))
     }
 }

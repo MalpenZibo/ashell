@@ -1,12 +1,11 @@
+mod components;
 mod config_watcher;
-mod layout;
 mod modules;
 mod services;
 
+use components::{center_box, module_group};
 use guido::prelude::*;
-use services::compositor::{
-    CompositorState, CompositorStateSignals, start_compositor_service,
-};
+use services::compositor::{CompositorState, CompositorStateSignals, start_compositor_service};
 
 #[allow(dead_code)]
 mod theme {
@@ -40,29 +39,25 @@ async fn main() {
             .anchor(Anchor::TOP | Anchor::LEFT | Anchor::RIGHT)
             .layer(Layer::Bottom)
             .exclusive_zone(Some(34))
-            .background_color(theme::BASE)
+            .background_color(Color::TRANSPARENT)
+            .keyboard_interactivity(KeyboardInteractivity::None)
             .namespace("ashell"),
         move || {
             container()
-                .width(fill())
-                .height(fill())
-                .layout(layout::CenterBox::new())
-                .padding_xy(8.0, 0.0)
-                .child(modules::workspaces::view(
-                    compositor_state,
-                    compositor_svc.clone(),
-                ))
-                .child(modules::window_title::view(compositor_state))
                 .child(
-                    container()
-                        .layout(
-                            Flex::row()
-                                .spacing(16.0)
-                                .cross_axis_alignment(CrossAxisAlignment::Center),
-                        )
-                        .child(modules::system_info::view())
-                        .child(modules::clock::view()),
+                    center_box()
+                        .left(module_group().child(modules::workspaces::view(
+                            compositor_state,
+                            compositor_svc.clone(),
+                        )))
+                        .center(module_group().child(modules::window_title::view(compositor_state)))
+                        .right(
+                            module_group()
+                                .child(modules::system_info::view())
+                                .child(modules::clock::view()),
+                        ),
                 )
+                .padding_xy(0., 4.)
         },
     );
     app.run();
