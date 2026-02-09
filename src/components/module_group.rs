@@ -8,7 +8,7 @@ pub struct ModuleGroup {
     background: Color,
     #[prop(default = "16.0")]
     corner_radius: f32,
-    #[prop(default = "12.0")]
+    #[prop(default = "0.0")]
     padding_x: f32,
     #[prop(callback)]
     on_click: (),

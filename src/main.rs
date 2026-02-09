@@ -3,7 +3,7 @@ mod config_watcher;
 mod modules;
 mod services;
 
-use components::{center_box, module_group};
+use components::{center_box, module_group, module_item};
 use guido::prelude::*;
 use services::compositor::{CompositorState, CompositorStateSignals, start_compositor_service};
 
@@ -22,8 +22,7 @@ mod theme {
     pub const YELLOW: Color = Color::rgb(249.0 / 255.0, 226.0 / 255.0, 175.0 / 255.0);
 }
 
-const NERD_FONT: &[u8] =
-    include_bytes!("../target/generated/SymbolsNerdFont-Regular-Subset.ttf");
+const NERD_FONT: &[u8] = include_bytes!("../target/generated/SymbolsNerdFont-Regular-Subset.ttf");
 
 const BAR_HEIGHT: f32 = 34.0;
 const MENU_WIDTH: f32 = 300.0;
@@ -78,24 +77,32 @@ async fn main() {
                 .on_pointer_move(move |x, _y| pointer_x.set(x))
                 .child(
                     center_box()
-                        .left(module_group().child(modules::workspaces::view(
-                            compositor_state,
-                            compositor_svc.clone(),
-                        )))
-                        .center(module_group().child(modules::window_title::view(compositor_state)))
+                        .left(module_group().child(
+                            module_item().child(modules::workspaces::view(
+                                compositor_state,
+                                compositor_svc.clone(),
+                            )),
+                        ))
+                        .center(module_group().child(
+                            module_item().child(modules::window_title::view(compositor_state)),
+                        ))
                         .right(
                             module_group()
-                                .child(modules::system_info::view(system_info, move || {
-                                    let open = !menu_open.get();
-                                    if open {
-                                        menu_x.set(pointer_x.get());
-                                    }
-                                    menu_open.set(open);
-                                    if let Some(id) = menu_sid.get() {
-                                        toggle_menu_surface(id, open);
-                                    }
-                                }))
-                                .child(modules::clock::view()),
+                                .child(
+                                    module_item()
+                                        .on_click(move || {
+                                            let open = !menu_open.get();
+                                            if open {
+                                                menu_x.set(pointer_x.get());
+                                            }
+                                            menu_open.set(open);
+                                            if let Some(id) = menu_sid.get() {
+                                                toggle_menu_surface(id, open);
+                                            }
+                                        })
+                                        .child(modules::system_info::view(system_info)),
+                                )
+                                .child(module_item().child(modules::clock::view())),
                         ),
                 )
                 .padding_xy(0., 4.)

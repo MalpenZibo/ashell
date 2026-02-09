@@ -24,26 +24,13 @@ pub fn create() -> SystemInfoDataSignals {
     info
 }
 
-/// Bar view: compact indicators with hover highlight and click handler.
-pub fn view(info: SystemInfoDataSignals, on_click: impl Fn() + 'static) -> impl Widget {
+/// Bar view: compact indicators.
+pub fn view(info: SystemInfoDataSignals) -> impl Widget {
     let cpu = info.cpu_usage;
     let mem = info.memory_usage;
     let temp = info.temperature;
 
-    let hovered = create_signal(false);
-
     container()
-        .on_click(on_click)
-        .on_hover(move |h| hovered.set(h))
-        .corner_radius(10.0)
-        .padding_xy(6.0, 4.0)
-        .background(move || {
-            if hovered.get() {
-                Color::rgba(1.0, 1.0, 1.0, 0.1)
-            } else {
-                Color::TRANSPARENT
-            }
-        })
         .layout(
             Flex::row()
                 .spacing(4.0)
