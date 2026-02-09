@@ -31,9 +31,9 @@ impl Layout for CenterBox {
         let loose = Constraints::loose(Size::new(available_width, available_height));
         self.child_sizes.clear();
         for &child_id in children {
-            if let Some(size) = tree.with_widget_mut(child_id, |widget, id, tree| {
-                widget.layout(tree, id, loose)
-            }) {
+            if let Some(size) =
+                tree.with_widget_mut(child_id, |widget, id, tree| widget.layout(tree, id, loose))
+            {
                 self.child_sizes.push(size);
             } else {
                 self.child_sizes.push(Size::zero());
@@ -45,7 +45,7 @@ impl Layout for CenterBox {
         let right_width = self.child_sizes.get(2).map_or(0.0, |s| s.width);
 
         // Position left at origin
-        if children.len() > 0 {
+        if !children.is_empty() {
             let left_h = self.child_sizes[0].height;
             let y = origin.1 + (available_height - left_h) / 2.0;
             tree.set_origin(children[0], origin.0, y);

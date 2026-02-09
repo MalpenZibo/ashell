@@ -188,12 +188,11 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
 
     // Calculate window counts
     for win in niri.windows.windows.values() {
-        if let Some(ws_id) = win.workspace_id {
-            if let Some(ws) = niri.workspaces.workspaces.get(&ws_id)
-                && let Some(generic_ws) = workspaces.iter_mut().find(|w| w.id == ws.id as i32)
-            {
-                generic_ws.windows += 1;
-            }
+        if let Some(ws_id) = win.workspace_id
+            && let Some(ws) = niri.workspaces.workspaces.get(&ws_id)
+            && let Some(generic_ws) = workspaces.iter_mut().find(|w| w.id == ws.id as i32)
+        {
+            generic_ws.windows += 1;
         }
     }
 
