@@ -1,14 +1,10 @@
 use guido::prelude::*;
 
+use crate::components::{StaticIcon, icon};
 use crate::services::system_info::{
     SystemInfoData, SystemInfoDataSignals, start_system_info_service,
 };
 use crate::theme;
-
-// NerdFont icons
-const CPU_ICON: &str = "\u{f0502}";
-const MEM_ICON: &str = "\u{efc5}";
-const TEMP_ICON: &str = "\u{f050f}";
 
 fn status_color(value: f32, warn: f32, alert: f32) -> Color {
     if value > alert {
@@ -31,16 +27,16 @@ pub fn view() -> impl Widget {
     container()
         .layout(
             Flex::row()
-                .spacing(12.0)
+                .spacing(4.0)
                 .cross_axis_alignment(CrossAxisAlignment::Center),
         )
         .child(indicator(
-            CPU_ICON,
+            StaticIcon::Cpu,
             move || format!("{:.0}%", cpu.get()),
             move || status_color(cpu.get(), 60.0, 80.0),
         ))
         .child(indicator(
-            MEM_ICON,
+            StaticIcon::Mem,
             move || format!("{:.0}%", mem.get()),
             move || status_color(mem.get(), 70.0, 85.0),
         ))
@@ -48,7 +44,7 @@ pub fn view() -> impl Widget {
             let t = temp.get();
             if t.is_some() {
                 Some(indicator(
-                    TEMP_ICON,
+                    StaticIcon::Temp,
                     move || format!("{:.0}°", temp.get().unwrap_or(0.0)),
                     move || status_color(temp.get().unwrap_or(0.0), 60.0, 80.0),
                 ))
@@ -59,7 +55,7 @@ pub fn view() -> impl Widget {
 }
 
 fn indicator(
-    icon: &'static str,
+    ic: StaticIcon,
     value_fn: impl Fn() -> String + 'static,
     color_fn: impl Fn() -> Color + 'static + Clone,
 ) -> impl Widget {
@@ -70,6 +66,6 @@ fn indicator(
                 .spacing(4.0)
                 .cross_axis_alignment(CrossAxisAlignment::Center),
         )
-        .child(text(icon).color(color_fn).font_size(14.0))
+        .child(icon(ic).color(color_fn).font_size(14.0))
         .child(text(value_fn).color(color_fn2).font_size(13.0))
 }

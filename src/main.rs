@@ -22,9 +22,13 @@ mod theme {
     pub const YELLOW: Color = Color::rgb(249.0 / 255.0, 226.0 / 255.0, 175.0 / 255.0);
 }
 
+const NERD_FONT: &[u8] =
+    include_bytes!("../target/generated/SymbolsNerdFont-Regular-Subset.ttf");
+
 #[tokio::main]
 async fn main() {
     env_logger::init();
+    load_font(NERD_FONT.to_vec());
 
     let config_path = config_watcher::resolve_config_path(None);
     config_watcher::ensure_config_dir(&config_path);
