@@ -56,7 +56,7 @@ impl ActiveWindow {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq, guido::SignalFields)]
 pub struct CompositorState {
     pub workspaces: Vec<CompositorWorkspace>,
     pub monitors: Vec<CompositorMonitor>,

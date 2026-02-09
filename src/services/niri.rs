@@ -1,9 +1,8 @@
 use super::types::{
     ActiveWindow, ActiveWindowNiri, CompositorCommand, CompositorMonitor, CompositorState,
-    CompositorWorkspace,
+    CompositorStateWriters, CompositorWorkspace,
 };
 use anyhow::{Context as _, anyhow};
-use guido::prelude::*;
 use itertools::Itertools;
 use niri_ipc::{
     Action, Event, Reply, Request, WorkspaceReferenceArg,
@@ -70,7 +69,7 @@ pub fn is_available() -> bool {
         .is_some()
 }
 
-pub async fn run_listener(state: WriteSignal<CompositorState>) -> anyhow::Result<()> {
+pub async fn run_listener(state: CompositorStateWriters) -> anyhow::Result<()> {
     let mut stream = connect().await?;
 
     let request_json = serde_json::to_string(&Request::EventStream)? + "\n";

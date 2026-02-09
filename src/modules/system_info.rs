@@ -9,7 +9,7 @@ const CPU_ICON: &str = "\u{f0502}";
 const MEM_ICON: &str = "\u{efc5}";
 const TEMP_ICON: &str = "\u{f050f}";
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, guido::SignalFields)]
 struct SystemInfoData {
     cpu_usage: f32,
     memory_usage: f32,
@@ -37,8 +37,8 @@ fn status_color(value: f32, warn: f32, alert: f32) -> Color {
 }
 
 pub fn view() -> impl Widget {
-    let info = create_signal(SystemInfoData::default());
-    let info_writer = info.writer();
+    let info = SystemInfoDataSignals::new(SystemInfoData::default());
+    let info_writers = info.writers();
 
     let _ = create_service::<(), _, _>(move |_rx, ctx| async move {
         let mut sys = System::new();
@@ -62,7 +62,7 @@ pub fn view() -> impl Widget {
                 .and_then(|s| s.trim().parse::<f32>().ok())
                 .map(|t| t / 1000.0);
 
-            info_writer.set(SystemInfoData {
+            info_writers.set(SystemInfoData {
                 cpu_usage,
                 memory_usage,
                 temperature,
@@ -72,6 +72,10 @@ pub fn view() -> impl Widget {
         }
     });
 
+    let cpu = info.cpu_usage;
+    let mem = info.memory_usage;
+    let temp = info.temperature;
+
     container()
         .layout(
             Flex::row()
@@ -80,21 +84,21 @@ pub fn view() -> impl Widget {
         )
         .child(indicator(
             CPU_ICON,
-            move || format!("{:.0}%", info.with(|i| i.cpu_usage)),
-            move || status_color(info.with(|i| i.cpu_usage), 60.0, 80.0),
+            move || format!("{:.0}%", cpu.get()),
+            move || status_color(cpu.get(), 60.0, 80.0),
         ))
         .child(indicator(
             MEM_ICON,
-            move || format!("{:.0}%", info.with(|i| i.memory_usage)),
-            move || status_color(info.with(|i| i.memory_usage), 70.0, 85.0),
+            move || format!("{:.0}%", mem.get()),
+            move || status_color(mem.get(), 70.0, 85.0),
         ))
         .child(move || {
-            let has_temp = info.with(|i| i.temperature.is_some());
-            if has_temp {
+            let t = temp.get();
+            if t.is_some() {
                 Some(indicator(
                     TEMP_ICON,
-                    move || format!("{:.0}°", info.with(|i| i.temperature.unwrap_or(0.0))),
-                    move || status_color(info.with(|i| i.temperature.unwrap_or(0.0)), 60.0, 80.0),
+                    move || format!("{:.0}°", temp.get().unwrap_or(0.0)),
+                    move || status_color(temp.get().unwrap_or(0.0), 60.0, 80.0),
                 ))
             } else {
                 None

@@ -1,16 +1,15 @@
 use guido::prelude::*;
 
-use crate::services::CompositorState;
+use crate::services::CompositorStateSignals;
 use crate::theme;
 
 const MAX_TITLE_LEN: usize = 150;
 
-pub fn view(state: Signal<CompositorState>) -> impl Widget {
-    // Only re-renders when the actual title string changes
+pub fn view(state: CompositorStateSignals) -> impl Widget {
+    // Only re-renders when active_window changes (per-field signal)
     let title = create_memo(move || {
-        state.with(|s| {
-            s.active_window
-                .as_ref()
+        state.active_window.with(|w| {
+            w.as_ref()
                 .map(|w| w.title().to_string())
                 .unwrap_or_default()
         })

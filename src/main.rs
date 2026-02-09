@@ -4,7 +4,7 @@ mod modules;
 mod services;
 
 use guido::prelude::*;
-use services::{CompositorState, start_compositor_service};
+use services::{CompositorState, CompositorStateSignals, start_compositor_service};
 
 #[allow(dead_code)]
 mod theme {
@@ -29,8 +29,8 @@ async fn main() {
     config_watcher::ensure_config_dir(&config_path);
     config_watcher::spawn_config_watcher(config_path);
 
-    let compositor_state = create_signal(CompositorState::default());
-    let compositor_svc = start_compositor_service(compositor_state);
+    let compositor_state = CompositorStateSignals::new(CompositorState::default());
+    let compositor_svc = start_compositor_service(compositor_state.writers());
 
     let (app, _) = App::new().add_surface(
         SurfaceConfig::new()

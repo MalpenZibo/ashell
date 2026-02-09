@@ -1,8 +1,7 @@
 use super::types::{
     ActiveWindow, ActiveWindowHyprland, CompositorCommand, CompositorMonitor, CompositorState,
-    CompositorWorkspace,
+    CompositorStateWriters, CompositorWorkspace,
 };
-use guido::prelude::*;
 use hyprland::{
     data::{Client, Devices, Monitors, Workspace, Workspaces},
     dispatch::{Dispatch, DispatchType, MonitorIdentifier, WorkspaceIdentifierWithSpecial},
@@ -59,7 +58,7 @@ pub fn is_available() -> bool {
     std::env::var_os(IPC_ENV_VAR).is_some()
 }
 
-pub async fn run_listener(state: WriteSignal<CompositorState>) -> anyhow::Result<()> {
+pub async fn run_listener(state: CompositorStateWriters) -> anyhow::Result<()> {
     let internal_state = Arc::new(RwLock::new(HyprInternalState::default()));
 
     // Initial fetch

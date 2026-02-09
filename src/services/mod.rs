@@ -3,7 +3,8 @@ pub mod niri;
 pub mod types;
 
 pub use self::types::{
-    CompositorChoice, CompositorCommand, CompositorMonitor, CompositorState, CompositorWorkspace,
+    CompositorChoice, CompositorCommand, CompositorMonitor, CompositorState,
+    CompositorStateSignals, CompositorStateWriters, CompositorWorkspace,
 };
 
 use guido::prelude::*;
@@ -19,8 +20,9 @@ fn detect_backend() -> Option<CompositorChoice> {
     }
 }
 
-pub fn start_compositor_service(state: Signal<CompositorState>) -> Service<CompositorCommand> {
-    let state_writer = state.writer();
+pub fn start_compositor_service(
+    state_writers: CompositorStateWriters,
+) -> Service<CompositorCommand> {
     create_service(move |mut rx, ctx| async move {
         let Some(backend) = detect_backend() else {
             log::error!("No supported compositor backend found");
@@ -31,11 +33,11 @@ pub fn start_compositor_service(state: Signal<CompositorState>) -> Service<Compo
 
         // Spawn the event listener
         let listener_handle = tokio::spawn({
-            let state_writer = state_writer;
+            let state_writers = state_writers;
             async move {
                 let result = match backend {
-                    CompositorChoice::Hyprland => hyprland::run_listener(state_writer).await,
-                    CompositorChoice::Niri => niri::run_listener(state_writer).await,
+                    CompositorChoice::Hyprland => hyprland::run_listener(state_writers).await,
+                    CompositorChoice::Niri => niri::run_listener(state_writers).await,
                 };
                 if let Err(e) = result {
                     log::error!("Compositor event loop failed: {}", e);

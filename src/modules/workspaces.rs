@@ -1,6 +1,8 @@
 use guido::prelude::*;
 
-use crate::services::{CompositorCommand, CompositorMonitor, CompositorState, CompositorWorkspace};
+use crate::services::{
+    CompositorCommand, CompositorMonitor, CompositorStateSignals, CompositorWorkspace,
+};
 use crate::theme;
 
 const PILL_HEIGHT: f32 = 16.0;
@@ -94,14 +96,14 @@ fn pill_border_color(color: Color, displayed: Displayed, empty: bool) -> Color {
     }
 }
 
-pub fn view(state: Signal<CompositorState>, svc: Service<CompositorCommand>) -> impl Widget {
+pub fn view(state: CompositorStateSignals, svc: Service<CompositorCommand>) -> impl Widget {
     let svc_scroll = svc.clone();
     let svc_children = svc;
 
-    // Field-level memos — only notify when their specific data changes
-    let workspaces = create_memo(move || state.with(|s| s.workspaces.clone()));
-    let monitors = create_memo(move || state.with(|s| s.monitors.clone()));
-    let active_ws_id = create_memo(move || state.with(|s| s.active_workspace_id));
+    // Direct per-field signals — no Memo workaround needed
+    let workspaces = state.workspaces;
+    let monitors = state.monitors;
+    let active_ws_id = state.active_workspace_id;
 
     container()
         .layout(
