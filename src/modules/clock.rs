@@ -7,10 +7,10 @@ pub fn view() -> impl Widget {
     let clock_text = create_signal(format_time());
     let clock_writer = clock_text.writer();
 
-    let _ = create_service::<(), _>(move |_rx, ctx| {
+    let _ = create_service::<(), _, _>(move |_rx, ctx| async move {
         while ctx.is_running() {
             clock_writer.set(format_time());
-            std::thread::sleep(Duration::from_secs(1));
+            tokio::time::sleep(Duration::from_secs(1)).await;
         }
     });
 

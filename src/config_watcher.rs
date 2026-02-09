@@ -1,19 +1,18 @@
-use std::ffi::OsStr;
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
-use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
+use futures::StreamExt;
 use inotify::{Inotify, WatchMask};
 
 const DEBOUNCE_MS: u64 = 500;
 
 pub fn resolve_config_path(custom: Option<&str>) -> PathBuf {
     if let Some(p) = custom {
-        if let Some(rest) = p.strip_prefix("~/") {
-            if let Ok(home) = std::env::var("HOME") {
-                return PathBuf::from(home).join(rest);
-            }
+        if let Some(rest) = p.strip_prefix("~/")
+            && let Ok(home) = std::env::var("HOME")
+        {
+            return PathBuf::from(home).join(rest);
         }
         return PathBuf::from(p);
     }
@@ -26,25 +25,19 @@ pub fn resolve_config_path(custom: Option<&str>) -> PathBuf {
 }
 
 pub fn ensure_config_dir(path: &Path) {
-    if let Some(parent) = path.parent() {
-        if !parent.exists() {
-            if let Err(e) = std::fs::create_dir_all(parent) {
-                log::warn!("Failed to create config directory {:?}: {}", parent, e);
-            }
-        }
+    if let Some(parent) = path.parent()
+        && !parent.exists()
+        && let Err(e) = std::fs::create_dir_all(parent)
+    {
+        log::warn!("Failed to create config directory {:?}: {}", parent, e);
     }
 }
 
 pub fn spawn_config_watcher(path: PathBuf) {
-    thread::Builder::new()
-        .name("config-watcher".into())
-        .spawn(move || {
-            config_watch_loop(&path);
-        })
-        .expect("Failed to spawn config watcher thread");
+    tokio::spawn(config_watch_loop(path));
 }
 
-fn config_watch_loop(path: &Path) {
+async fn config_watch_loop(path: PathBuf) {
     let parent = match path.parent() {
         Some(p) => p,
         None => {
@@ -61,7 +54,7 @@ fn config_watch_loop(path: &Path) {
         }
     };
 
-    let mut inotify = match Inotify::init() {
+    let inotify = match Inotify::init() {
         Ok(i) => i,
         Err(e) => {
             log::error!("Failed to init inotify: {}", e);
@@ -83,47 +76,31 @@ fn config_watch_loop(path: &Path) {
 
     log::info!("Watching {:?} for config changes", parent);
 
-    let mut buf = [0u8; 4096];
+    let mut stream = inotify
+        .into_event_stream([0u8; 4096])
+        .expect("Failed to create inotify event stream");
 
-    loop {
-        let mut events = match inotify.read_events_blocking(&mut buf) {
-            Ok(evts) => evts,
+    while let Some(event_or_err) = stream.next().await {
+        match event_or_err {
+            Ok(event) => {
+                let relevant = event.name.as_ref().is_some_and(|n| *n == *file_name);
+
+                if relevant {
+                    log::info!("Config change detected, debouncing...");
+                    tokio::time::sleep(Duration::from_millis(DEBOUNCE_MS)).await;
+                    log::info!(
+                        "Config change debounced. Restarting via exec()... (watched: {:?})",
+                        file_name
+                    );
+                    do_exec();
+                }
+            }
             Err(e) => {
-                log::error!("inotify read error: {}", e);
+                log::error!("inotify stream error: {}", e);
                 return;
             }
-        };
-
-        let relevant =
-            events.any(|ev| ev.name.map_or(false, |n| n == file_name.as_os_str()));
-
-        if relevant {
-            log::info!("Config change detected, debouncing...");
-            debounce_and_exec(&file_name);
         }
     }
-}
-
-fn debounce_and_exec(file_name: &OsStr) {
-    let deadline = Instant::now() + Duration::from_millis(DEBOUNCE_MS);
-
-    loop {
-        let remaining = deadline.saturating_duration_since(Instant::now());
-        if remaining.is_zero() {
-            break;
-        }
-        // Drain any queued events during the debounce window
-        thread::sleep(remaining);
-        // Try a non-blocking drain — if there are more events, extend the deadline
-        // by just consuming them (we already decided to restart)
-    }
-
-    log::info!(
-        "Config change debounced. Restarting via exec()... (watched: {:?})",
-        file_name
-    );
-
-    do_exec();
 }
 
 fn do_exec() -> ! {

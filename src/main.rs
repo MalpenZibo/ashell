@@ -21,7 +21,8 @@ mod theme {
     pub const YELLOW: Color = Color::rgb(249.0 / 255.0, 226.0 / 255.0, 175.0 / 255.0);
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     env_logger::init();
 
     let config_path = config_watcher::resolve_config_path(None);
@@ -45,7 +46,10 @@ fn main() {
                 .height(fill())
                 .layout(layout::CenterBox::new())
                 .padding_xy(8.0, 0.0)
-                .child(modules::workspaces::view(compositor_state, compositor_svc.clone()))
+                .child(modules::workspaces::view(
+                    compositor_state,
+                    compositor_svc.clone(),
+                ))
                 .child(modules::window_title::view(compositor_state))
                 .child(
                     container()

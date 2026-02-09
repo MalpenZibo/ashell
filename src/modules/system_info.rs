@@ -40,7 +40,7 @@ pub fn view() -> impl Widget {
     let info = create_signal(SystemInfoData::default());
     let info_writer = info.writer();
 
-    let _ = create_service::<(), _>(move |_rx, ctx| {
+    let _ = create_service::<(), _, _>(move |_rx, ctx| async move {
         let mut sys = System::new();
 
         while ctx.is_running() {
@@ -68,7 +68,7 @@ pub fn view() -> impl Widget {
                 temperature,
             });
 
-            std::thread::sleep(Duration::from_secs(5));
+            tokio::time::sleep(Duration::from_secs(5)).await;
         }
     });
 
@@ -93,19 +93,8 @@ pub fn view() -> impl Widget {
             if has_temp {
                 Some(indicator(
                     TEMP_ICON,
-                    move || {
-                        format!(
-                            "{:.0}°",
-                            info.with(|i| i.temperature.unwrap_or(0.0))
-                        )
-                    },
-                    move || {
-                        status_color(
-                            info.with(|i| i.temperature.unwrap_or(0.0)),
-                            60.0,
-                            80.0,
-                        )
-                    },
+                    move || format!("{:.0}°", info.with(|i| i.temperature.unwrap_or(0.0))),
+                    move || status_color(info.with(|i| i.temperature.unwrap_or(0.0)), 60.0, 80.0),
                 ))
             } else {
                 None
@@ -122,9 +111,9 @@ fn indicator(
     container()
         .layout(
             Flex::row()
-                .spacing(4.0)
+                .spacing(12.0)
                 .cross_axis_alignment(CrossAxisAlignment::Center),
         )
-        .child(text(icon).color(move || color_fn()).font_size(14.0))
-        .child(text(value_fn).color(move || color_fn2()).font_size(13.0))
+        .child(text(icon).color(color_fn).font_size(14.0))
+        .child(text(value_fn).color(color_fn2).font_size(13.0))
 }
