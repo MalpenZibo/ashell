@@ -15,7 +15,7 @@ pub fn view(state: CompositorStateSignals) -> impl Widget {
         })
     });
 
-    container().overflow(Overflow::Hidden).child(
+    container().child(
         text(move || {
             let t = title.get();
             if t.len() > MAX_TITLE_LEN {

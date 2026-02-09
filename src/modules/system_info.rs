@@ -67,7 +67,7 @@ fn indicator(
     container()
         .layout(
             Flex::row()
-                .spacing(12.0)
+                .spacing(4.0)
                 .cross_axis_alignment(CrossAxisAlignment::Center),
         )
         .child(text(icon).color(color_fn).font_size(14.0))
