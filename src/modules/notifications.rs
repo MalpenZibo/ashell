@@ -37,7 +37,7 @@ pub enum Message {
 
 pub struct Notifications {
     config: NotificationsModuleConfig,
-    notifications: HashMap<u32, Notification>,
+    notifications: Vec<Notification>,
     service: Option<NotificationsService>,
     collapse: bool,
 }
@@ -46,7 +46,7 @@ impl Notifications {
     pub fn new(config: NotificationsModuleConfig) -> Self {
         Self {
             config,
-            notifications: HashMap::new(),
+            notifications: Vec::new(),
             service: None,
             collapse: true,
         }
@@ -66,7 +66,7 @@ impl Notifications {
                 ServiceEvent::Update(update_event) => {
                     if let Some(service) = self.service.as_mut() {
                         service.update(update_event);
-                        self.notifications = service.notifications.clone();
+                        self.notifications = service.notifications.values().cloned().collect();
                     }
                     Task::none()
                 }
@@ -74,7 +74,8 @@ impl Notifications {
             },
             Message::NotificationClicked(id) => {
                 // Get the notification action before async operation
-                let action_key = self.notifications.get(&id)
+                let action_key = self.notifications.iter()
+                    .find(|n| n.id == id)
                     .filter(|n| !n.actions.is_empty())
                     .and_then(|n| n.actions.first())
                     .cloned();
@@ -98,12 +99,12 @@ impl Notifications {
             }
             Message::NotificationClosed(id) => {
                 // Remove from local state after async operation completes
-                self.notifications.remove(&id);
+                self.notifications.retain(|n| n.id != id);
                 Task::none()
             }
             Message::ClearNotifications => {
                 // Get notification IDs for async operation
-                let notification_ids: Vec<u32> = self.notifications.keys().copied().collect();
+                let notification_ids: Vec<u32> = self.notifications.iter().map(|n| n.id).collect();
 
                 // Close each notification through the daemon
                 Task::perform(
@@ -286,7 +287,7 @@ impl Notifications {
         theme: &'a AshellTheme,
     ) -> Element<'a, Message> {
         let mut grouped: HashMap<String, Vec<&Notification>> = HashMap::new();
-        for notification in self.notifications.values() {
+        for notification in &self.notifications {
             grouped
                 .entry(notification.app_name.clone())
                 .or_default()
@@ -392,17 +393,20 @@ impl Notifications {
         content.into()
     }
     fn list_notifications<'a>(&'a self, _id: Id, theme: &'a AshellTheme) -> Element<'a, Message> {
-        let mut notifications_data: Vec<_> = self.notifications.values().cloned().collect();
+        // Collect references and sort them
+        let mut notifications_refs: Vec<&Notification> = self.notifications.iter().collect();
 
-        // Sort by timestamp (newest first) and limit
-        notifications_data.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+        // Sort by timestamp (newest first)
+        notifications_refs.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+
+        // Apply max limit if configured
         if let Some(max) = self.config.max_notifications {
-            notifications_data.truncate(max);
+            notifications_refs.truncate(max);
         }
 
         let mut content = column!().spacing(theme.space.sm);
         {
-            for notification in notifications_data {
+            for notification in notifications_refs {
                 let notification_element = container(
                     column!(
                         row!(
@@ -420,7 +424,7 @@ impl Notifications {
                                         color: Some(theme.palette().text),
                                     })
                             },
-                            text(notification.app_name).size(theme.font_size.md).style(
+                            text(&notification.app_name).size(theme.font_size.md).style(
                                 |theme: &Theme| text::Style {
                                     color: Some(theme.palette().text),
                                 }
@@ -445,7 +449,7 @@ impl Notifications {
                         )
                         .spacing(theme.space.xs)
                         .align_y(Alignment::Center),
-                        text(notification.summary).size(theme.font_size.sm).style(
+                        text(&notification.summary).size(theme.font_size.sm).style(
                             |theme: &Theme| text::Style {
                                 color: Some(theme.extended_palette().secondary.strong.text),
                             }
@@ -454,7 +458,7 @@ impl Notifications {
                             let body_element: Element<'_, Message> = if self.config.show_bodies
                                 && !notification.body.is_empty()
                             {
-                                text(notification.body)
+                                text(&notification.body)
                                     .size(theme.font_size.sm)
                                     .wrapping(text::Wrapping::WordOrGlyph)
                                     .style(|theme: &Theme| text::Style {
