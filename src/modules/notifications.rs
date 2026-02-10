@@ -67,6 +67,8 @@ impl Notifications {
                     if let Some(service) = self.service.as_mut() {
                         service.update(update_event);
                         self.notifications = service.notifications.values().cloned().collect();
+                        // Sort by timestamp (newest first) immediately after syncing
+                        self.notifications.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
                     }
                     Task::none()
                 }
@@ -393,11 +395,8 @@ impl Notifications {
         content.into()
     }
     fn list_notifications<'a>(&'a self, _id: Id, theme: &'a AshellTheme) -> Element<'a, Message> {
-        // Collect references and sort them
+        // Collect references (already sorted by timestamp in update method)
         let mut notifications_refs: Vec<&Notification> = self.notifications.iter().collect();
-
-        // Sort by timestamp (newest first)
-        notifications_refs.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
 
         // Apply max limit if configured
         if let Some(max) = self.config.max_notifications {
