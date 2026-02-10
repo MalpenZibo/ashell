@@ -197,7 +197,8 @@ impl App {
             .update(modules::media_player::Message::ConfigReloaded(
                 config.media_player,
             ));
-        self.notifications
+        let _ = self
+            .notifications
             .update(modules::notifications::Message::ConfigReloaded(
                 config.notifications,
             ));
@@ -428,8 +429,7 @@ impl App {
                 self.theme.scale_factor,
             ),
             Message::Notifications(message) => {
-                self.notifications.update(message);
-                Task::none()
+                self.notifications.update(message).map(Message::Notifications)
             }
             Message::None => Task::none(),
         }
