@@ -83,11 +83,10 @@ impl Notifications {
                 Task::perform(
                     async move {
                         // Invoke action if present
-                        if let Some(action_key) = action_key {
-                            if let Err(e) = NotificationDaemon::invoke_action(id, action_key).await {
+                        if let Some(action_key) = action_key
+                            && let Err(e) = NotificationDaemon::invoke_action(id, action_key).await {
                                 error!("Failed to invoke notification action for id {}: {}", id, e);
                             }
-                        }
                         // Close notification
                         if let Err(e) = NotificationDaemon::close_notification_by_id(id).await {
                             error!("Failed to close notification id {}: {}", id, e);
