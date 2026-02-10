@@ -18,13 +18,13 @@ use crate::{
 };
 
 #[derive(Debug, Clone)]
-struct ShellInfo {
-    id: Id,
-    position: Position,
-    layer: config::Layer,
-    style: AppearanceStyle,
-    menu: Menu,
-    scale_factor: f64,
+pub struct ShellInfo {
+    pub id: Id,
+    pub position: Position,
+    pub layer: config::Layer,
+    pub style: AppearanceStyle,
+    pub menu: Menu,
+    pub scale_factor: f64,
 }
 
 #[derive(Debug, Clone)]
@@ -36,6 +36,9 @@ pub enum HasOutput<'a> {
 }
 
 impl Outputs {
+    pub fn iter(&self) -> std::slice::Iter<'_, (String, Option<ShellInfo>, Option<WlOutput>)> {
+        self.0.iter()
+    }
     pub fn new<Message: 'static>(
         style: AppearanceStyle,
         position: Position,
@@ -71,7 +74,7 @@ impl Outputs {
             * scale_factor
     }
 
-    fn create_output_layers<Message: 'static>(
+    pub fn create_output_layers<Message: 'static>(
         style: AppearanceStyle,
         wl_output: Option<WlOutput>,
         position: Position,
