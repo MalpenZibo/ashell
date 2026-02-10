@@ -267,6 +267,7 @@ pub struct NotificationsModuleConfig {
     pub max_notifications: Option<usize>,
     pub show_bodies: bool,
     pub view_display_mode: NotificationViewMode,
+    pub(crate) grouped: bool,
 }
 impl Default for NotificationsModuleConfig {
     fn default() -> Self {
@@ -276,6 +277,7 @@ impl Default for NotificationsModuleConfig {
             max_notifications: None,
             show_bodies: true,
             view_display_mode: NotificationViewMode::SummaryOnly,
+            grouped: true,
         }
     }
 }

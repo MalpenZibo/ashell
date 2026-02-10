@@ -1,16 +1,29 @@
 use crate::{
-    components::icons::{DynamicIcon, Icon, StaticIcon, icon}, config::{self, NotificationsModuleConfig}, menu::MenuSize, services::{
+    components::icons::{DynamicIcon, Icon, StaticIcon, icon},
+    config::{self, NotificationsModuleConfig},
+    menu::MenuSize,
+    services::{
         ReadOnlyService, ServiceEvent,
         notifications::{Notification, NotificationsService, dbus::NotificationDaemon},
-    }, theme::AshellTheme
+    },
+    theme::AshellTheme,
 };
 use chrono::{DateTime, Local};
 use iced::{
-    Alignment, Background, Border, Color, Element, Length, Subscription, Theme,
-    widget::{button, column, container, row, scrollable, text, Space},
+    Alignment, Background, Border, Color, Element, Length, Radius, Subscription, Theme,
+    widget::{Space, button, column, container, horizontal_rule, row, scrollable, text},
     window::Id,
 };
+use log::error;
 use std::collections::HashMap;
+
+// Constants for UI dimensions and styling
+const EMPTY_STATE_HEIGHT: f32 = 300.0;
+const ICON_SIZE: f32 = 20.0;
+const NOTIFICATION_ICON_SPACING: f32 = 10.0;
+const HORIZONTAL_RULE_HEIGHT: f32 = 0.2;
+const BUTTON_BORDER_RADIUS: f32 = 8.0;
+const MAX_PREVIEW_ITEMS: usize = 3;
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -18,12 +31,14 @@ pub enum Message {
     NotificationClicked(u32),
     ClearNotifications,
     Event(ServiceEvent<NotificationsService>),
+    Expand,
 }
 
 pub struct Notifications {
     config: NotificationsModuleConfig,
     notifications: HashMap<u32, Notification>,
     service: Option<NotificationsService>,
+    collapse: bool,
 }
 
 impl Notifications {
@@ -32,6 +47,7 @@ impl Notifications {
             config,
             notifications: HashMap::new(),
             service: None,
+            collapse: true,
         }
     }
 
@@ -55,16 +71,21 @@ impl Notifications {
             Message::NotificationClicked(id) => {
                 // Get the notification to check for actions
                 if let Some(notification) = self.notifications.get(&id)
-                    && !notification.actions.is_empty() {
-                        // Invoke the default action (first action)
-                        let action_key = notification.actions[0].clone();
-                        tokio::spawn(async move {
-                            NotificationDaemon::invoke_action(id, action_key).await.ok();
-                        });
-                    }
+                    && !notification.actions.is_empty()
+                {
+                    // Invoke the default action (first action)
+                    let action_key = notification.actions[0].clone();
+                    tokio::spawn(async move {
+                        if let Err(e) = NotificationDaemon::invoke_action(id, action_key).await {
+                            error!("Failed to invoke notification action for id {}: {}", id, e);
+                        }
+                    });
+                }
                 // Close the notification properly (removes from both daemon and global state)
                 tokio::spawn(async move {
-                    let _ = NotificationDaemon::close_notification_by_id(id).await;
+                    if let Err(e) = NotificationDaemon::close_notification_by_id(id).await {
+                        error!("Failed to close notification id {}: {}", id, e);
+                    }
                 });
                 // Remove from local state immediately for responsive UI
                 self.notifications.remove(&id);
@@ -74,11 +95,16 @@ impl Notifications {
                 let notification_ids: Vec<u32> = self.notifications.keys().copied().collect();
                 tokio::spawn(async move {
                     for id in notification_ids {
-                        let _ = NotificationDaemon::close_notification_by_id(id).await;
+                        if let Err(e) = NotificationDaemon::close_notification_by_id(id).await {
+                            error!("Failed to close notification id {}: {}", id, e);
+                        }
                     }
                 });
                 // Clear local state immediately for responsive UI (will be re-synced by service layer)
                 self.notifications.clear();
+            }
+            Message::Expand => {
+                self.collapse = !self.collapse;
             }
         }
     }
@@ -86,6 +112,118 @@ impl Notifications {
     fn format_timestamp(&self, timestamp: std::time::SystemTime) -> String {
         let datetime: DateTime<Local> = timestamp.into();
         datetime.format(&self.config.format).to_string()
+    }
+
+    fn build_preview_item<'a>(
+        &'a self,
+        notification: &'a Notification,
+        is_last: bool,
+        theme: &'a AshellTheme,
+    ) -> Element<'a, Message> {
+        button(row!(
+            text(&notification.summary)
+                .size(theme.font_size.sm)
+                .style(|theme: &Theme| text::Style {
+                    color: Some(theme.extended_palette().secondary.strong.text),
+                },),
+            Space::with_width(Length::Fixed(NOTIFICATION_ICON_SPACING)),
+            text(&notification.body)
+                .size(theme.font_size.sm)
+                .wrapping(text::Wrapping::WordOrGlyph)
+                .style(|theme: &Theme| text::Style {
+                    color: Some(theme.extended_palette().secondary.weak.text),
+                },)
+        ))
+        .width(Length::Fill)
+        .style(move |iced_theme: &Theme, status| {
+            let mut style = iced::widget::button::Style::default();
+            match status {
+                iced::widget::button::Status::Hovered => {
+                    if is_last {
+                        style.border = Border::default().rounded(
+                            Radius::default()
+                                .bottom_left(theme.radius.md)
+                                .bottom_right(theme.radius.md),
+                        );
+                    }
+                    style.background = Some(Background::Color(
+                        iced_theme
+                            .extended_palette()
+                            .background
+                            .weak
+                            .color
+                            .scale_alpha(theme.opacity),
+                    ));
+                }
+                _ => {
+                    style.background = Some(Background::Color(iced::Color::TRANSPARENT));
+                }
+            }
+            style
+        })
+        .on_press(Message::NotificationClicked(notification.id))
+        .into()
+    }
+
+    fn build_full_item<'a>(
+        &'a self,
+        notification: &'a Notification,
+        is_last: bool,
+        theme: &'a AshellTheme,
+    ) -> Element<'a, Message> {
+        button(
+            column!(
+                row!(
+                    text(&notification.summary)
+                        .size(theme.font_size.sm)
+                        .style(|theme: &Theme| text::Style {
+                            color: Some(theme.extended_palette().secondary.strong.text),
+                        },),
+                    Space::with_width(Length::Fill),
+                    text(self.format_timestamp(notification.timestamp))
+                        .size(theme.font_size.sm)
+                        .style(|theme: &Theme| text::Style {
+                            color: Some(theme.extended_palette().secondary.weak.text,),
+                        })
+                ),
+                text(&notification.body)
+                    .size(theme.font_size.sm)
+                    .wrapping(text::Wrapping::WordOrGlyph)
+                    .style(|theme: &Theme| text::Style {
+                        color: Some(theme.extended_palette().secondary.weak.text),
+                    },)
+            )
+            .spacing(theme.space.xs),
+        )
+        .width(Length::Fill)
+        .style(move |iced_theme: &Theme, status| {
+            let mut style = iced::widget::button::Style::default();
+            match status {
+                iced::widget::button::Status::Hovered => {
+                    if is_last {
+                        style.border = Border::default().rounded(
+                            Radius::default()
+                                .bottom_left(theme.radius.md)
+                                .bottom_right(theme.radius.md),
+                        );
+                    }
+                    style.background = Some(Background::Color(
+                        iced_theme
+                            .extended_palette()
+                            .background
+                            .weak
+                            .color
+                            .scale_alpha(theme.opacity),
+                    ));
+                }
+                _ => {
+                    style.background = Some(Background::Color(iced::Color::TRANSPARENT));
+                }
+            }
+            style
+        })
+        .on_press(Message::NotificationClicked(notification.id))
+        .into()
     }
 
     pub fn view(&'_ self, _: &AshellTheme) -> Element<'_, Message> {
@@ -102,8 +240,249 @@ impl Notifications {
         use crate::services::ReadOnlyService;
         NotificationsService::subscribe().map(Message::Event)
     }
+    fn grouped_notifications<'a>(
+        &'a self,
+        _id: Id,
+        theme: &'a AshellTheme,
+    ) -> Element<'a, Message> {
+        let mut grouped: HashMap<String, Vec<&Notification>> = HashMap::new();
+        for notification in self.notifications.values() {
+            grouped
+                .entry(notification.app_name.clone())
+                .or_default()
+                .push(notification);
+        }
 
-    pub fn menu_view<'a>(&'a self, _id: Id, theme: &'a AshellTheme) -> Element<'a, Message> {
+        let mut content = column!().spacing(theme.space.sm);
+        for (app_name, notifications) in grouped {
+            let app_icon = notifications.first().and_then(|n| {
+                if n.app_icon.is_empty() {
+                    None
+                } else {
+                    Some(
+                        DynamicIcon(n.app_icon.clone())
+                            .to_text()
+                            .size(ICON_SIZE)
+                            .style(|theme: &Theme| text::Style {
+                                color: Some(theme.palette().text),
+                            }),
+                    )
+                }
+            });
+            let header = row!(
+                button(
+                    app_icon.unwrap_or_else(|| icon(StaticIcon::Bell).size(ICON_SIZE).style(
+                        |theme: &Theme| text::Style {
+                            color: Some(theme.palette().text),
+                        }
+                    ))
+                )
+                .on_press(Message::ClearNotifications),
+                text(app_name)
+                    .size(theme.font_size.md)
+                    .style(|theme: &Theme| text::Style {
+                        color: Some(theme.palette().text),
+                    }),
+                Space::with_width(Length::Fill),
+                text(format!(
+                    "{} new {}",
+                    notifications.len(),
+                    notifications
+                        .first()
+                        .map(|a| { self.format_timestamp(a.timestamp) })
+                        .unwrap_or_default()
+                ))
+                .size(theme.font_size.sm)
+                .style(|theme: &Theme| text::Style {
+                    color: Some(theme.extended_palette().secondary.weak.text),
+                }),
+                icon(if self.collapse {
+                    StaticIcon::RightChevron
+                } else {
+                    StaticIcon::UpChevron
+                })
+            )
+            .spacing(theme.space.xs)
+            .align_y(Alignment::Center);
+            let mut preview = column!();
+            if self.collapse {
+                for (i, notification) in notifications.iter().take(3).enumerate() {
+                    let is_last = i == notifications.len() - 1;
+                    preview = preview.push(
+                        button(row!(
+                            text(&notification.summary).size(theme.font_size.sm).style(
+                                |theme: &Theme| text::Style {
+                                    color: Some(theme.extended_palette().secondary.strong.text),
+                                },
+                            ),
+                            Space::with_width(Length::Fixed(NOTIFICATION_ICON_SPACING)),
+                            text(&notification.body)
+                                .size(theme.font_size.sm)
+                                .wrapping(text::Wrapping::WordOrGlyph)
+                                .style(|theme: &Theme| text::Style {
+                                    color: Some(theme.extended_palette().secondary.weak.text),
+                                },)
+                        ))
+                        .width(Length::Fill)
+                        .style(move |iced_theme: &Theme, status| {
+                            let mut style = iced::widget::button::Style::default();
+                            match status {
+                                iced::widget::button::Status::Hovered => {
+                                    if is_last {
+                                        style.border = Border::default().rounded(
+                                            Radius::default()
+                                                .bottom_left(theme.radius.md)
+                                                .bottom_right(theme.radius.md),
+                                        );
+                                    }
+                                    style.background = Some(Background::Color(
+                                        iced_theme
+                                            .extended_palette()
+                                            .background
+                                            .weak
+                                            .color
+                                            .scale_alpha(theme.opacity),
+                                    ));
+                                }
+                                _ => {
+                                    style.background =
+                                        Some(Background::Color(iced::Color::TRANSPARENT));
+                                }
+                            }
+                            style
+                        })
+                        .on_press(Message::NotificationClicked(notification.id)),
+                    );
+                }
+            } else {
+                for (i, notification) in notifications.iter().enumerate() {
+                    let is_last = i == notifications.len() - 1;
+                    preview = preview.push(column!(
+                        horizontal_rule(HORIZONTAL_RULE_HEIGHT),
+                        button(
+                            column!(
+                                row!(
+                                    text(&notification.summary).size(theme.font_size.sm).style(
+                                        |theme: &Theme| text::Style {
+                                            color: Some(
+                                                theme.extended_palette().secondary.strong.text
+                                            ),
+                                        },
+                                    ),
+                                    Space::with_width(Length::Fill),
+                                    text(self.format_timestamp(notification.timestamp))
+                                        .size(theme.font_size.sm)
+                                        .style(|theme: &Theme| text::Style {
+                                            color: Some(
+                                                theme.extended_palette().secondary.weak.text,
+                                            ),
+                                        })
+                                ),
+                                text(&notification.body)
+                                    .size(theme.font_size.sm)
+                                    .wrapping(text::Wrapping::WordOrGlyph)
+                                    .style(|theme: &Theme| text::Style {
+                                        color: Some(theme.extended_palette().secondary.weak.text),
+                                    },)
+                            )
+                            .spacing(theme.space.xs)
+                        )
+                        .width(Length::Fill)
+                        .style(move |iced_theme: &Theme, status| {
+                            let mut style = iced::widget::button::Style::default();
+                            match status {
+                                iced::widget::button::Status::Hovered => {
+                                    if is_last {
+                                        style.border = Border::default().rounded(
+                                            Radius::default()
+                                                .bottom_left(theme.radius.md)
+                                                .bottom_right(theme.radius.md),
+                                        );
+                                    }
+                                    style.background = Some(Background::Color(
+                                        iced_theme
+                                            .extended_palette()
+                                            .background
+                                            .weak
+                                            .color
+                                            .scale_alpha(theme.opacity),
+                                    ));
+                                }
+                                _ => {
+                                    style.background =
+                                        Some(Background::Color(iced::Color::TRANSPARENT));
+                                }
+                            }
+                            style
+                        })
+                        .on_press(Message::NotificationClicked(notification.id)),
+                    ));
+                }
+            }
+            let item = column!(
+                button(header)
+                    // .padding(0)
+                    .width(Length::Fill)
+                    .style(move |iced_theme: &Theme, status| {
+                        let mut style = iced::widget::button::Style::default();
+                        match status {
+                            iced::widget::button::Status::Hovered => {
+                                style.background = Some(Background::Color(
+                                    iced_theme
+                                        .extended_palette()
+                                        .background
+                                        .weak
+                                        .color
+                                        .scale_alpha(theme.opacity),
+                                ));
+                                style.border = Border::default().rounded(
+                                    Radius::default()
+                                        .top_left(theme.radius.md)
+                                        .top_right(theme.radius.md),
+                                );
+                            }
+                            _ => {
+                                style.background =
+                                    Some(Background::Color(iced::Color::TRANSPARENT));
+                                style.border = Border::default().rounded(
+                                    Radius::default()
+                                        .top_left(theme.radius.md)
+                                        .top_right(theme.radius.md),
+                                );
+                            }
+                        }
+                        style
+                    })
+                    .on_press(Message::Expand),
+                preview
+            );
+            content = content.push(
+                container(item)
+                    .style(move |app_theme: &Theme| container::Style {
+                        background: Background::Color(
+                            app_theme
+                                .extended_palette()
+                                .secondary
+                                .strong
+                                .color
+                                .scale_alpha(theme.opacity),
+                        )
+                        .into(),
+                        border: Border::default().rounded(theme.radius.md),
+                        ..container::Style::default()
+                    })
+                    // .padding(theme.space.sm)
+                    .width(Length::Fill),
+            );
+        }
+
+        scrollable(content)
+            .scrollbar_width(0.0)
+            .scroller_width(0.0)
+            .width(MenuSize::Medium)
+            .into()
+    }
+    fn list_notifications<'a>(&'a self, _id: Id, theme: &'a AshellTheme) -> Element<'a, Message> {
         let mut notifications_data: Vec<_> = self.notifications.values().cloned().collect();
 
         // Sort by timestamp (newest first) and limit
@@ -117,9 +496,9 @@ impl Notifications {
             content = content.push(
                 container(text("No notifications").size(theme.font_size.md))
                     .width(Length::Fill)
-                    .height(Length::Fixed(300.0))
+                    .height(Length::Fixed(EMPTY_STATE_HEIGHT))
                     .center_x(Length::Fill)
-                    .center_y(Length::Fixed(300.0)),
+                    .center_y(Length::Fixed(EMPTY_STATE_HEIGHT)),
             );
         } else {
             for notification in notifications_data {
@@ -127,15 +506,15 @@ impl Notifications {
                     column!(
                         row!(
                             if notification.app_icon.is_empty() {
-                                icon(StaticIcon::Bell).size(20.0).style(|theme: &Theme| {
-                                    text::Style {
+                                icon(StaticIcon::Bell)
+                                    .size(ICON_SIZE)
+                                    .style(|theme: &Theme| text::Style {
                                         color: Some(theme.palette().text),
-                                    }
-                                })
+                                    })
                             } else {
                                 DynamicIcon(notification.app_icon.clone())
                                     .to_text()
-                                    .size(20.0)
+                                    .size(ICON_SIZE)
                                     .style(|theme: &Theme| text::Style {
                                         color: Some(theme.palette().text),
                                     })
@@ -147,15 +526,19 @@ impl Notifications {
                             ),
                             Space::with_width(Length::Fill),
                             {
-                                let timestamp_element: Element<'_, Message> = if self.config.show_timestamps {
-                                    text(self.format_timestamp(notification.timestamp))
-                                        .size(theme.font_size.sm)
-                                        .style(|theme: &Theme| text::Style {
-                                            color: Some(theme.extended_palette().secondary.weak.text),
-                                        }).into()
-                                } else {
-                                    Space::with_width(Length::Shrink).into()
-                                };
+                                let timestamp_element: Element<'_, Message> =
+                                    if self.config.show_timestamps {
+                                        text(self.format_timestamp(notification.timestamp))
+                                            .size(theme.font_size.sm)
+                                            .style(|theme: &Theme| text::Style {
+                                                color: Some(
+                                                    theme.extended_palette().secondary.weak.text,
+                                                ),
+                                            })
+                                            .into()
+                                    } else {
+                                        Space::with_width(Length::Shrink).into()
+                                    };
                                 timestamp_element
                             }
                         )
@@ -167,13 +550,16 @@ impl Notifications {
                             }
                         ),
                         {
-                            let body_element: Element<'_, Message> = if self.config.show_bodies && !notification.body.is_empty() {
+                            let body_element: Element<'_, Message> = if self.config.show_bodies
+                                && !notification.body.is_empty()
+                            {
                                 text(notification.body)
                                     .size(theme.font_size.sm)
                                     .wrapping(text::Wrapping::WordOrGlyph)
                                     .style(|theme: &Theme| text::Style {
                                         color: Some(theme.extended_palette().secondary.strong.text),
-                                    }).into()
+                                    })
+                                    .into()
                             } else {
                                 Space::with_height(Length::Shrink).into()
                             };
@@ -213,12 +599,12 @@ impl Notifications {
                                             .color
                                             .scale_alpha(0.2),
                                     ));
-                                    style.border = Border::default().rounded(8.0);
+                                    style.border = Border::default().rounded(theme.radius.md);
                                 }
                                 _ => {
                                     style.background =
                                         Some(Background::Color(iced::Color::TRANSPARENT));
-                                    style.border = Border::default().rounded(8.0);
+                                    style.border = Border::default().rounded(theme.radius.md);
                                 }
                             }
                             style
@@ -250,7 +636,49 @@ impl Notifications {
                 }
             ),
             scrollable(content).scrollbar_width(0.0).scroller_width(0.0),
-        ).width(MenuSize::Medium)
+        )
+        .width(MenuSize::Medium)
+        .spacing(theme.space.sm)
+        .into()
+    }
+    pub fn menu_view<'a>(&'a self, _id: Id, theme: &'a AshellTheme) -> Element<'a, Message> {
+        let content = if self.notifications.is_empty() {
+            container(text("No notifications").size(theme.font_size.md))
+                .width(Length::Fill)
+                .height(Length::Fixed(EMPTY_STATE_HEIGHT))
+                .center_x(Length::Fill)
+                .center_y(Length::Fixed(EMPTY_STATE_HEIGHT))
+                .into()
+        } else if self.config.grouped {
+            self.grouped_notifications(_id, theme)
+        } else {
+            self.list_notifications(_id, theme)
+        };
+        column!(
+            row!(
+                text("Notifications").size(theme.font_size.lg),
+                if !self.notifications.is_empty() {
+                    container(
+                        button("Clear")
+                            .style(move |iced_theme: &Theme, _status| button::Style {
+                                background: Some(Background::Color(Color::TRANSPARENT)),
+                                text_color: (iced_theme.palette().text),
+                                border: Border::default().rounded(theme.radius.md),
+                                ..button::Style::default()
+                            })
+                            .on_press(Message::ClearNotifications),
+                    )
+                    .width(Length::Fill)
+                    .align_x(Alignment::End)
+                } else {
+                    container(Space::new(Length::Fill, Length::Shrink))
+                        .width(Length::Fill)
+                        .align_x(Alignment::End)
+                }
+            ),
+            scrollable(content).scrollbar_width(0.0).scroller_width(0.0),
+        )
+        .width(MenuSize::Medium)
         .spacing(theme.space.sm)
         .into()
     }
