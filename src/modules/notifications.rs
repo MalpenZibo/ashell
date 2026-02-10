@@ -75,7 +75,8 @@ impl Notifications {
                 ServiceEvent::Error(_) => Task::none(),
             },
             Message::NotificationClicked(id) => {
-                // Get the notification action before async operation
+                // Get connection and notification action before async operation
+                let connection = self.service.as_ref().map(|s| s.connection.clone());
                 let action_key = self.notifications.iter()
                     .find(|n| n.id == id)
                     .filter(|n| !n.actions.is_empty())
@@ -85,14 +86,17 @@ impl Notifications {
                 // Perform async operations, then remove from state
                 Task::perform(
                     async move {
-                        // Invoke action if present
-                        if let Some(action_key) = action_key
-                            && let Err(e) = NotificationDaemon::invoke_action(id, action_key).await {
-                                error!("Failed to invoke notification action for id {}: {}", id, e);
+                        if let Some(connection) = connection {
+                            // Invoke action if present
+                            if let Some(action_key) = action_key {
+                                if let Err(e) = NotificationDaemon::invoke_action(&connection, id, action_key).await {
+                                    error!("Failed to invoke notification action for id {}: {}", id, e);
+                                }
                             }
-                        // Close notification
-                        if let Err(e) = NotificationDaemon::close_notification_by_id(id).await {
-                            error!("Failed to close notification id {}: {}", id, e);
+                            // Close notification
+                            if let Err(e) = NotificationDaemon::close_notification_by_id(&connection, id).await {
+                                error!("Failed to close notification id {}: {}", id, e);
+                            }
                         }
                         id
                     },
@@ -105,15 +109,18 @@ impl Notifications {
                 Task::none()
             }
             Message::ClearNotifications => {
-                // Get notification IDs for async operation
+                // Get connection and notification IDs for async operation
+                let connection = self.service.as_ref().map(|s| s.connection.clone());
                 let notification_ids: Vec<u32> = self.notifications.iter().map(|n| n.id).collect();
 
                 // Close each notification through the daemon
                 Task::perform(
                     async move {
-                        for id in notification_ids {
-                            if let Err(e) = NotificationDaemon::close_notification_by_id(id).await {
-                                error!("Failed to close notification id {}: {}", id, e);
+                        if let Some(connection) = connection {
+                            for id in notification_ids {
+                                if let Err(e) = NotificationDaemon::close_notification_by_id(&connection, id).await {
+                                    error!("Failed to close notification id {}: {}", id, e);
+                                }
                             }
                         }
                     },

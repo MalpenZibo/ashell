@@ -7,6 +7,7 @@ use log::{error, info};
 use std::any::TypeId;
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
+use tokio::sync::broadcast;
 use tokio_stream::wrappers::BroadcastStream;
 use zbus::Connection;
 
@@ -23,6 +24,7 @@ pub enum UpdateEvent {
 #[derive(Debug, Clone)]
 pub struct NotificationsData {
     pub notifications: HashMap<u32, Notification>,
+   pub connection: Connection,
 }
 
 #[derive(Debug, Clone)]
@@ -45,52 +47,51 @@ impl DerefMut for NotificationsService {
 }
 
 impl NotificationsService {
-    async fn init_service() -> anyhow::Result<Connection> {
-        let connection = NotificationDaemon::start_server().await?;
-        Ok(connection)
+    async fn init_service() -> anyhow::Result<(Connection, broadcast::Sender<NotificationEvent>)> {
+        let (connection, event_tx) = NotificationDaemon::start_server().await?;
+        Ok((connection, event_tx))
     }
 
     async fn start_listening(state: State, output: &mut Sender<ServiceEvent<Self>>) -> State {
         match state {
             State::Init => match Self::init_service().await {
-                Ok(connection) => {
+                Ok((connection, event_tx)) => {
                     info!("Notifications service initialized");
                     let _ = output
                         .send(ServiceEvent::Init(NotificationsService {
                             data: NotificationsData {
                                 notifications: HashMap::new(),
+                                connection: connection.clone(),
                             },
                         }))
                         .await;
-                    State::Active(connection)
+                    State::Active(connection, event_tx)
                 }
                 Err(err) => {
                     error!("Failed to initialize notifications service: {err}");
                     State::Error
                 }
             },
-            State::Active(_connection) => {
+            State::Active(_connection, event_tx) => {
                 // Subscribe to notification events from the broadcast channel
-                if let Some(tx) = dbus::NOTIFICATION_EVENTS.get() {
-                    let rx = tx.subscribe();
-                    let mut stream = BroadcastStream::new(rx);
+                let rx = event_tx.subscribe();
+                let mut stream = BroadcastStream::new(rx);
 
-                    while let Some(result) = stream.next().await {
-                        match result {
-                            Ok(event) => {
-                                let update = match event {
-                                    NotificationEvent::Received(notification) => {
-                                        UpdateEvent::NotificationReceived(notification)
-                                    }
-                                    NotificationEvent::Closed(id) => {
-                                        UpdateEvent::NotificationClosed(id)
-                                    }
-                                };
-                                let _ = output.send(ServiceEvent::Update(update)).await;
-                            }
-                            Err(e) => {
-                                error!("Error receiving notification event: {e}");
-                            }
+                while let Some(result) = stream.next().await {
+                    match result {
+                        Ok(event) => {
+                            let update = match event {
+                                NotificationEvent::Received(notification) => {
+                                    UpdateEvent::NotificationReceived(notification)
+                                }
+                                NotificationEvent::Closed(id) => {
+                                    UpdateEvent::NotificationClosed(id)
+                                }
+                            };
+                            let _ = output.send(ServiceEvent::Update(update)).await;
+                        }
+                        Err(e) => {
+                            error!("Error receiving notification event: {e}");
                         }
                     }
                 }
@@ -109,7 +110,7 @@ impl NotificationsService {
 
 enum State {
     Init,
-    Active(Connection),
+    Active(Connection, broadcast::Sender<NotificationEvent>),
     Error,
 }
 

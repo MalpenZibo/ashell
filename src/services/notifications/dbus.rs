@@ -10,16 +10,6 @@ use zbus::{
     zvariant::{self, OwnedValue},
 };
 
-// Global static for storing notifications - accessed by service layer
-pub static NOTIFICATIONS: std::sync::OnceLock<std::sync::Mutex<HashMap<u32, Notification>>> =
-    std::sync::OnceLock::new();
-
-pub static NOTIFICATION_CONNECTION: std::sync::OnceLock<Connection> = std::sync::OnceLock::new();
-
-// Channel for internal notification events
-pub static NOTIFICATION_EVENTS: std::sync::OnceLock<broadcast::Sender<NotificationEvent>> =
-    std::sync::OnceLock::new();
-
 #[derive(Debug, Clone)]
 pub enum NotificationEvent {
     Received(Notification),
@@ -43,10 +33,22 @@ pub struct Notification {
     pub timestamp: SystemTime,
 }
 
-#[derive(Debug, Default)]
 pub struct NotificationDaemon {
     notifications: HashMap<u32, Notification>,
     next_id: u32,
+    event_tx: broadcast::Sender<NotificationEvent>,
+    connection: Connection,
+}
+
+impl NotificationDaemon {
+    pub fn new(event_tx: broadcast::Sender<NotificationEvent>, connection: Connection) -> Self {
+        Self {
+            notifications: HashMap::new(),
+            next_id: 0,
+            event_tx,
+            connection,
+        }
+    }
 }
 
 #[interface(name = "org.freedesktop.Notifications")]
@@ -59,6 +61,7 @@ impl NotificationDaemon {
             "actions".to_string(),
         ]
     }
+
     #[allow(clippy::too_many_arguments)]
     async fn notify(
         &mut self,
@@ -91,52 +94,31 @@ impl NotificationDaemon {
         };
 
         self.notifications.insert(id, notification.clone());
-        {
-            let mut global_notifications = NOTIFICATIONS
-                .get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()))
-                .lock()
-                .unwrap();
-            global_notifications.insert(id, notification.clone());
-        }
         debug!("New notification: {:?}", notification);
 
         // Send event through channel
-        if let Some(tx) = NOTIFICATION_EVENTS.get() {
-            let _ = tx.send(NotificationEvent::Received(notification));
-        }
+        let _ = self.event_tx.send(NotificationEvent::Received(notification));
 
         id
     }
 
     async fn close_notification(&mut self, id: u32) {
-        let removed = if self.notifications.remove(&id).is_some() {
-            let mut global_notifications = NOTIFICATIONS
-                .get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()))
-                .lock()
-                .unwrap();
-            global_notifications.remove(&id);
-            true
-        } else {
-            false
-        };
+        let removed = self.notifications.remove(&id).is_some();
 
         if removed {
             // Send event through channel
-            if let Some(tx) = NOTIFICATION_EVENTS.get() {
-                let _ = tx.send(NotificationEvent::Closed(id));
-            }
+            let _ = self.event_tx.send(NotificationEvent::Closed(id));
+
             // Emit DBus signal for external applications
-            if let Some(connection) = NOTIFICATION_CONNECTION.get() {
-                let _ = connection
-                    .emit_signal(
-                        None::<&str>,
-                        OBJECT_PATH,
-                        NAME.as_str(),
-                        "NotificationClosed",
-                        &(id, 3u32),
-                    )
-                    .await;
-            }
+            let _ = self.connection
+                .emit_signal(
+                    None::<&str>,
+                    OBJECT_PATH,
+                    NAME.as_str(),
+                    "NotificationClosed",
+                    &(id, 3u32),
+                )
+                .await;
         }
     }
 
@@ -151,27 +133,13 @@ impl NotificationDaemon {
 }
 
 impl NotificationDaemon {
-    pub async fn start_server() -> anyhow::Result<Connection> {
-        // Check if already initialized and return existing connection
-        if let Some(existing_connection) = NOTIFICATION_CONNECTION.get() {
-            info!("Notification daemon already running, reusing existing connection");
-            return Ok(existing_connection.clone());
-        }
-
+    pub async fn start_server() -> anyhow::Result<(Connection, broadcast::Sender<NotificationEvent>)> {
         // Initialize the event channel (100 message buffer)
-        let (tx, _rx) = broadcast::channel(100);
-        if NOTIFICATION_EVENTS.set(tx).is_err() {
-            // Already initialized, just continue
-        }
+        let (event_tx, _rx) = broadcast::channel(100);
 
         let connection = zbus::connection::Connection::session().await?;
-        let daemon = NotificationDaemon::default();
+        let daemon = NotificationDaemon::new(event_tx.clone(), connection.clone());
         connection.object_server().at(OBJECT_PATH, daemon).await?;
-
-        // Try to set the connection, but don't panic if already set
-        if NOTIFICATION_CONNECTION.set(connection.clone()).is_err() {
-            warn!("Notification connection already set");
-        }
 
         let dbus_proxy = DBusProxy::new(&connection).await?;
         let flags = RequestNameFlags::AllowReplacement.into();
@@ -181,35 +149,31 @@ impl NotificationDaemon {
             info!("Acquired notification daemon bus name");
         }
 
-        Ok(connection)
+        Ok((connection, event_tx))
     }
 
-    pub async fn invoke_action(id: u32, action_key: String) -> anyhow::Result<()> {
-        if let Some(connection) = NOTIFICATION_CONNECTION.get() {
-            connection
-                .emit_signal(
-                    None::<&str>,
-                    OBJECT_PATH,
-                    NAME.as_str(),
-                    "ActionInvoked",
-                    &(id, action_key),
-                )
-                .await?;
-        }
+    pub async fn invoke_action(connection: &Connection, id: u32, action_key: String) -> anyhow::Result<()> {
+        connection
+            .emit_signal(
+                None::<&str>,
+                OBJECT_PATH,
+                NAME.as_str(),
+                "ActionInvoked",
+                &(id, action_key),
+            )
+            .await?;
         Ok(())
     }
 
-    pub async fn close_notification_by_id(id: u32) -> anyhow::Result<()> {
-        if let Some(connection) = NOTIFICATION_CONNECTION.get() {
-            // Get the object server interface to call the method properly
-            let iface_ref = connection
-                .object_server()
-                .interface::<_, NotificationDaemon>(OBJECT_PATH)
-                .await?;
+    pub async fn close_notification_by_id(connection: &Connection, id: u32) -> anyhow::Result<()> {
+        // Get the object server interface to call the method properly
+        let iface_ref = connection
+            .object_server()
+            .interface::<_, NotificationDaemon>(OBJECT_PATH)
+            .await?;
 
-            // Call the close_notification method which properly cleans up both stores
-            iface_ref.get_mut().await.close_notification(id).await;
-        }
+        // Call the close_notification method which properly cleans up and emits events
+        iface_ref.get_mut().await.close_notification(id).await;
         Ok(())
     }
 }
