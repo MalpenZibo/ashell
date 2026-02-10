@@ -277,7 +277,7 @@ impl Default for NotificationsModuleConfig {
             max_notifications: None,
             show_bodies: true,
             view_display_mode: NotificationViewMode::SummaryOnly,
-            grouped: true,
+            grouped: false,
         }
     }
 }

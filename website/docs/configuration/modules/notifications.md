@@ -38,6 +38,31 @@ Whether to display the body text of notifications in the menu.
 **Type:** `boolean`  
 **Default:** `true`
 
+### grouped
+
+Whether to group notifications by application in the menu.
+
+When enabled, notifications are grouped by app name and each group can be
+expanded or collapsed. The group header shows the newest notification time for
+that app, and the collapsed preview shows up to 3 notifications.
+
+Note: in grouped mode, `max_notifications`, `show_timestamps`, and
+`show_bodies` are not applied.
+
+**Type:** `boolean`  
+**Default:** `false`
+
+### view_display_mode
+
+Controls the display mode for the notification list view.
+
+**Type:** `string` (`SummaryOnly` or `Full`)  
+**Default:** `SummaryOnly`
+
+:::note
+This option is reserved for future use and currently has no effect.
+:::
+
 ## Example
 
 ```toml
@@ -46,4 +71,6 @@ format = "%m/%d %H:%M"
 show_timestamps = true
 max_notifications = 20
 show_bodies = false
+grouped = true
+view_display_mode = "SummaryOnly"
 ```
