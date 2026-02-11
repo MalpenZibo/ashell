@@ -266,7 +266,6 @@ pub struct NotificationsModuleConfig {
     pub show_timestamps: bool,
     pub max_notifications: Option<usize>,
     pub show_bodies: bool,
-    pub view_display_mode: NotificationViewMode,
     pub(crate) grouped: bool,
 }
 impl Default for NotificationsModuleConfig {
@@ -276,16 +275,9 @@ impl Default for NotificationsModuleConfig {
             show_timestamps: true,
             max_notifications: None,
             show_bodies: true,
-            view_display_mode: NotificationViewMode::SummaryOnly,
             grouped: false,
         }
     }
-}
-#[derive(Deserialize, Copy, Clone, Default, PartialEq, Eq, Debug)]
-pub enum NotificationViewMode {
-    #[default]
-    SummaryOnly,
-    Full,
 }
 
 #[derive(Deserialize, Clone, Debug)]

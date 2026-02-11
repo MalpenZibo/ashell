@@ -540,7 +540,7 @@ impl App {
                 Some((MenuType::Notifications, button_ui_ref)) => self.menu_wrapper(
                     id,
                     self.notifications
-                        .menu_view(id, &self.theme)
+                        .menu_view(&self.theme)
                         .map(Message::Notifications),
                     *button_ui_ref,
                 ),

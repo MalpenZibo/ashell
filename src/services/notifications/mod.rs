@@ -1,4 +1,3 @@
-use crate::services::notifications::dbus::{NotificationDaemon, NotificationEvent};
 use crate::services::{ReadOnlyService, ServiceEvent};
 use iced::Subscription;
 use iced::futures::{SinkExt, StreamExt, channel::mpsc::Sender, stream::pending};
@@ -6,7 +5,6 @@ use iced::stream::channel;
 use log::{error, info};
 use std::any::TypeId;
 use std::collections::HashMap;
-use std::ops::{Deref, DerefMut};
 use tokio::sync::broadcast;
 use tokio_stream::wrappers::BroadcastStream;
 use zbus::Connection;
@@ -14,41 +12,17 @@ use zbus::Connection;
 pub mod dbus;
 
 pub use dbus::Notification;
-
-#[derive(Debug, Clone)]
-pub enum UpdateEvent {
-    NotificationReceived(Notification),
-    NotificationClosed(u32),
-}
-
-#[derive(Debug, Clone)]
-pub struct NotificationsData {
-    pub notifications: HashMap<u32, Notification>,
-   pub connection: Connection,
-}
+use dbus::NotificationEvent;
 
 #[derive(Debug, Clone)]
 pub struct NotificationsService {
-    data: NotificationsData,
-}
-
-impl Deref for NotificationsService {
-    type Target = NotificationsData;
-
-    fn deref(&self) -> &Self::Target {
-        &self.data
-    }
-}
-
-impl DerefMut for NotificationsService {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.data
-    }
+    pub notifications: HashMap<u32, Notification>,
+    pub connection: Connection,
 }
 
 impl NotificationsService {
     async fn init_service() -> anyhow::Result<(Connection, broadcast::Sender<NotificationEvent>)> {
-        let (connection, event_tx) = NotificationDaemon::start_server().await?;
+        let (connection, event_tx) = dbus::NotificationDaemon::start_server().await?;
         Ok((connection, event_tx))
     }
 
@@ -59,10 +33,8 @@ impl NotificationsService {
                     info!("Notifications service initialized");
                     let _ = output
                         .send(ServiceEvent::Init(NotificationsService {
-                            data: NotificationsData {
-                                notifications: HashMap::new(),
-                                connection: connection.clone(),
-                            },
+                            notifications: HashMap::new(),
+                            connection: connection.clone(),
                         }))
                         .await;
                     State::Active(connection, event_tx)
@@ -73,29 +45,19 @@ impl NotificationsService {
                 }
             },
             State::Active(_connection, event_tx) => {
-                // Subscribe to notification events from the broadcast channel
                 let rx = event_tx.subscribe();
                 let mut stream = BroadcastStream::new(rx);
 
                 while let Some(result) = stream.next().await {
                     match result {
                         Ok(event) => {
-                            let update = match event {
-                                NotificationEvent::Received(notification) => {
-                                    UpdateEvent::NotificationReceived(notification)
-                                }
-                                NotificationEvent::Closed(id) => {
-                                    UpdateEvent::NotificationClosed(id)
-                                }
-                            };
-                            let _ = output.send(ServiceEvent::Update(update)).await;
+                            let _ = output.send(ServiceEvent::Update(event)).await;
                         }
                         Err(e) => {
                             error!("Error receiving notification event: {e}");
                         }
                     }
                 }
-                // If we exit the loop, something went wrong
                 error!("Notification event stream ended unexpectedly");
                 State::Error
             }
@@ -115,16 +77,16 @@ enum State {
 }
 
 impl ReadOnlyService for NotificationsService {
-    type UpdateEvent = UpdateEvent;
+    type UpdateEvent = NotificationEvent;
     type Error = ();
 
-    fn update(&mut self, event: UpdateEvent) {
+    fn update(&mut self, event: NotificationEvent) {
         match event {
-            UpdateEvent::NotificationReceived(notification) => {
-                self.data.notifications.insert(notification.id, notification);
+            NotificationEvent::Received(notification) => {
+                self.notifications.insert(notification.id, notification);
             }
-            UpdateEvent::NotificationClosed(id) => {
-                self.data.notifications.remove(&id);
+            NotificationEvent::Closed(id) => {
+                self.notifications.remove(&id);
             }
         }
     }
