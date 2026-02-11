@@ -394,10 +394,9 @@ impl Notifications {
 
             let mut preview = column!();
             if is_collapsed {
-                // TODO: not panic if notifications is empty
                 if let Some(first_notification) = notifications.first() {
                     preview = preview.push(horizontal_rule(HORIZONTAL_RULE_HEIGHT));
-                    preview = preview.push(self.build_full_item((first_notification), true, theme))
+                    preview = preview.push(self.build_full_item(first_notification, true, theme))
                 }
             } else {
                 for (i, notification) in notifications.iter().enumerate() {
