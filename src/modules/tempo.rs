@@ -200,8 +200,6 @@ impl Tempo {
                                             .color_maybe({
                                                 if day == self.date.date_naive() {
                                                     Some(theme.iced_theme.palette().success)
-                                                } else if day == selected_date {
-                                                    Some(theme.iced_theme.palette().primary)
                                                 } else if day.month0() != current_month {
                                                     Some(
                                                         theme
