@@ -32,6 +32,7 @@ pub struct Config {
     pub workspaces: WorkspacesModuleConfig,
     pub window_title: WindowTitleConfig,
     pub system_info: SystemInfoModuleConfig,
+    pub notifications: NotificationsModuleConfig,
     pub clock: ClockModuleConfig,
     pub tempo: TempoModuleConfig,
     pub settings: SettingsModuleConfig,
@@ -53,6 +54,7 @@ impl Default for Config {
             workspaces: WorkspacesModuleConfig::default(),
             window_title: WindowTitleConfig::default(),
             system_info: SystemInfoModuleConfig::default(),
+            notifications: NotificationsModuleConfig::default(),
             clock: ClockModuleConfig::default(),
             tempo: TempoModuleConfig::default(),
             settings: SettingsModuleConfig::default(),
@@ -254,6 +256,26 @@ impl Default for ClockModuleConfig {
     fn default() -> Self {
         Self {
             format: "%a %d %b %R".to_string(),
+        }
+    }
+}
+#[derive(Deserialize, Clone, Debug)]
+#[serde(default)]
+pub struct NotificationsModuleConfig {
+    pub format: String,
+    pub show_timestamps: bool,
+    pub max_notifications: Option<usize>,
+    pub show_bodies: bool,
+    pub(crate) grouped: bool,
+}
+impl Default for NotificationsModuleConfig {
+    fn default() -> Self {
+        Self {
+            format: "%H:%M".to_string(),
+            show_timestamps: true,
+            max_notifications: None,
+            show_bodies: true,
+            grouped: false,
         }
     }
 }
@@ -636,6 +658,7 @@ pub enum ModuleName {
     Settings,
     MediaPlayer,
     Custom(String),
+    Notifications,
 }
 
 impl<'de> Deserialize<'de> for ModuleName {
@@ -662,6 +685,7 @@ impl<'de> Deserialize<'de> for ModuleName {
                     "KeyboardSubmap" => ModuleName::KeyboardSubmap,
                     "Tray" => ModuleName::Tray,
                     "Clock" => ModuleName::Clock,
+                    "Notifications" => ModuleName::Notifications,
                     "Tempo" => ModuleName::Tempo,
                     "Privacy" => ModuleName::Privacy,
                     "Settings" => ModuleName::Settings,

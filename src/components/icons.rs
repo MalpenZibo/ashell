@@ -112,6 +112,9 @@ pub enum StaticIcon {
     GamepadBatteryAlert,
     GamepadBatteryCharging,
     Remove,
+    Bell,
+    BellBadge,
+    UpChevron,
 }
 
 impl StaticIcon {
@@ -211,6 +214,9 @@ impl StaticIcon {
             StaticIcon::GamepadBatteryAlert => "\u{f074b}",
             StaticIcon::GamepadBatteryCharging => "\u{f0a22}",
             StaticIcon::Remove => "\u{f0377}",
+            StaticIcon::Bell => "\u{eaa2}",
+            StaticIcon::BellBadge => "\u{eb9a}",
+            StaticIcon::UpChevron => "\u{f106}",
         }
     }
 
