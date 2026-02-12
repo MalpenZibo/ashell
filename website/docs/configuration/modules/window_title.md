@@ -1,5 +1,5 @@
 ---
-sidebar_position: 5
+sidebar_position: 12
 ---
 
 # Window Title
@@ -12,10 +12,10 @@ Using the `mode` field, you can choose what information to display:
 
 - `Title`: The window's title text (default)
 - `Class`: The application name or class
-- `InitialTitle`: The window's initial title text (ex - *kitty* instead of *hyprctl clients*)
+- `InitialTitle`: The window's initial title text (ex - _kitty_ instead of _hyprctl clients_)
 - `InitialClass`: The initial application name or class. This is unlikely to differ from the current class but Hyprland exposes it
 
-Note that *InitialTitle* and *InitialClass* are Hyprland-only and should not be used when running Niri.
+Note that _InitialTitle_ and _InitialClass_ are Hyprland-only and should not be used when running Niri.
 
 ## Title Length Control
 
