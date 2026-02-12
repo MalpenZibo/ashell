@@ -85,6 +85,8 @@ impl MediaPlayer {
                 text("Players").size(theme.font_size.lg),
                 horizontal_rule(1),
                 column(service.players().iter().map(|d| {
+                    const LEFT_COLUMN_WIDTH: Length = Length::FillPortion(3);
+                    const RIGHT_COLUMN_WIDTH: Length = Length::FillPortion(2);
                     let m = d.metadata.as_ref();
                     let title = m
                         .and_then(|m| m.title.clone())
@@ -109,32 +111,34 @@ impl MediaPlayer {
                         .width(Length::Fill);
                     let description = column![title, artists, album]
                         .spacing(theme.space.xxs)
-                        .width(Length::FillPortion(2));
+                        .width(LEFT_COLUMN_WIDTH);
 
                     let play_pause_icon = match d.state {
                         PlaybackStatus::Playing => StaticIcon::Pause,
                         PlaybackStatus::Paused | PlaybackStatus::Stopped => StaticIcon::Play,
                     };
 
-                    let buttons = row![
-                        icon_button(theme, StaticIcon::SkipPrevious)
-                            .on_press(Message::Prev(d.service.clone()))
-                            .size(IconButtonSize::Large),
-                        icon_button(theme, play_pause_icon)
-                            .on_press(Message::PlayPause(d.service.clone()))
-                            .size(IconButtonSize::Large),
-                        icon_button(theme, StaticIcon::SkipNext)
-                            .on_press(Message::Next(d.service.clone()))
-                            .size(IconButtonSize::Large),
-                    ]
-                    .align_y(Vertical::Center)
-                    .spacing(theme.space.xs)
-                    .width(Length::FillPortion(1));
+                    let buttons = container(
+                        row![
+                            icon_button(theme, StaticIcon::SkipPrevious)
+                                .on_press(Message::Prev(d.service.clone()))
+                                .size(IconButtonSize::Large),
+                            icon_button(theme, play_pause_icon)
+                                .on_press(Message::PlayPause(d.service.clone()))
+                                .size(IconButtonSize::Large),
+                            icon_button(theme, StaticIcon::SkipNext)
+                                .on_press(Message::Next(d.service.clone()))
+                                .size(IconButtonSize::Large),
+                        ]
+                        .align_y(Vertical::Center)
+                        .spacing(theme.space.xs),
+                    )
+                    .center_x(RIGHT_COLUMN_WIDTH);
                     let volume_slider: Option<Element<'_, _>> = d.volume.map(|v| {
                         slider(0.0..=100.0, v, move |v| {
                             Message::SetVolume(d.service.clone(), v)
                         })
-                        .width(Length::FillPortion(2))
+                        .width(LEFT_COLUMN_WIDTH)
                         .into()
                     });
                     let cover: Option<Element<'_, _>> = d
@@ -151,7 +155,7 @@ impl MediaPlayer {
                                         .into()
                                 })
                                 .unwrap_or_else(|| text("Loading cover...").into());
-                            container(inner).center_x(Length::FillPortion(1)).into()
+                            container(inner).center_x(RIGHT_COLUMN_WIDTH).into()
                         });
                     let metadata = |description, cover| -> Element<'_, _> {
                         row![description]
@@ -175,7 +179,7 @@ impl MediaPlayer {
                         }
                         (None, cover) => {
                             let controls =
-                                row![horizontal_space().width(Length::FillPortion(2)), buttons]
+                                row![horizontal_space().width(LEFT_COLUMN_WIDTH), buttons]
                                     .spacing(theme.space.md)
                                     .align_y(Vertical::Center);
                             column![metadata(description, cover), controls]
