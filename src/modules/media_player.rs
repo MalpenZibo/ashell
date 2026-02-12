@@ -13,7 +13,7 @@ use crate::{
 use iced::{
     Background, Border, Element, Length, Subscription, Task, Theme,
     alignment::Vertical,
-    widget::{Row, column, container, horizontal_rule, horizontal_space, image, row, slider, text},
+    widget::{column, container, horizontal_rule, horizontal_space, image, row, slider, text},
 };
 use std::collections::{HashMap, HashSet};
 
@@ -109,7 +109,7 @@ impl MediaPlayer {
                         .width(Length::Fill);
                     let description = column![title, artists, album]
                         .spacing(theme.space.xxs)
-                        .width(Length::Fill);
+                        .width(Length::FillPortion(2));
 
                     let play_pause_icon = match d.state {
                         PlaybackStatus::Playing => StaticIcon::Pause,
@@ -128,69 +128,78 @@ impl MediaPlayer {
                             .size(IconButtonSize::Large),
                     ]
                     .align_y(Vertical::Center)
-                    .spacing(theme.space.xs);
-                    let volume_slider: Element<'_, _> = match d.volume {
-                        Some(v) => slider(0.0..=100.0, v, move |v| {
+                    .spacing(theme.space.xs)
+                    .width(Length::FillPortion(1));
+                    let volume_slider: Option<Element<'_, _>> = d.volume.map(|v| {
+                        slider(0.0..=100.0, v, move |v| {
                             Message::SetVolume(d.service.clone(), v)
                         })
-                        .width(Length::Fill)
-                        .into(),
-                        None => horizontal_space().into(),
-                    };
-                    let controls = Row::new()
-                        .push(volume_slider)
-                        .push(buttons)
-                        .spacing(theme.space.md)
-                        .align_y(Vertical::Center);
-
-                    // Is it possible to dynamically size the cover to match the buttons?
-                    let buttons_width =
-                        IconButtonSize::Large.container_size() * 3. + theme.space.xs as f32 * 2.;
-
-                    let cover: Option<Element<_, _>> = d
+                        .width(Length::FillPortion(2))
+                        .into()
+                    });
+                    let cover: Option<Element<'_, _>> = d
                         .metadata
                         .as_ref()
                         .and_then(|m| m.art_url.as_ref())
                         .map(|url| {
-                            self.covers
+                            let inner: Element<'_, _> = self
+                                .covers
                                 .get(url)
                                 .map(|handle| {
                                     image(handle)
                                         .filter_method(image::FilterMethod::Linear)
-                                        .width(buttons_width)
                                         .into()
                                 })
-                                .unwrap_or_else(|| {
-                                    text("Loading cover...")
-                                        .width(buttons_width)
-                                        .height(buttons_width)
-                                        .into()
-                                })
+                                .unwrap_or_else(|| text("Loading cover...").into());
+                            container(inner).center_x(Length::FillPortion(1)).into()
                         });
-                    let metadata = row![description]
-                        .push_maybe(cover)
-                        .spacing(theme.space.md)
-                        .align_y(Vertical::Center);
-
-                    container(
-                        column![metadata, controls].spacing(theme.space.xs), // .align_y(Vertical::Center),
-                    )
-                    .style(move |app_theme: &Theme| container::Style {
-                        background: Background::Color(
-                            app_theme
-                                .extended_palette()
-                                .secondary
-                                .strong
-                                .color
-                                .scale_alpha(theme.opacity),
-                        )
-                        .into(),
-                        border: Border::default().rounded(theme.radius.lg),
-                        ..container::Style::default()
-                    })
-                    .padding(theme.space.md)
-                    .width(Length::Fill)
-                    .into()
+                    let metadata = |description, cover| -> Element<'_, _> {
+                        row![description]
+                            .push_maybe(cover)
+                            .spacing(theme.space.md)
+                            .align_y(Vertical::Center)
+                            .into()
+                    };
+                    let content: Element<'_, _> = match (volume_slider, cover) {
+                        (None, None) => row![description, buttons]
+                            .spacing(theme.space.md)
+                            .align_y(Vertical::Center)
+                            .into(),
+                        (Some(v), cover) => {
+                            let controls = row![v, buttons]
+                                .spacing(theme.space.md)
+                                .align_y(Vertical::Center);
+                            column![metadata(description, cover), controls]
+                                .spacing(theme.space.md)
+                                .into()
+                        }
+                        (None, cover) => {
+                            let controls =
+                                row![horizontal_space().width(Length::FillPortion(2)), buttons]
+                                    .spacing(theme.space.md)
+                                    .align_y(Vertical::Center);
+                            column![metadata(description, cover), controls]
+                                .spacing(theme.space.md)
+                                .into()
+                        }
+                    };
+                    container(content)
+                        .style(move |app_theme: &Theme| container::Style {
+                            background: Background::Color(
+                                app_theme
+                                    .extended_palette()
+                                    .secondary
+                                    .strong
+                                    .color
+                                    .scale_alpha(theme.opacity),
+                            )
+                            .into(),
+                            border: Border::default().rounded(theme.radius.lg),
+                            ..container::Style::default()
+                        })
+                        .padding(theme.space.md)
+                        .width(Length::Fill)
+                        .into()
                 }))
                 .spacing(theme.space.md)
             )
