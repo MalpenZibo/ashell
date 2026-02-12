@@ -81,7 +81,7 @@ impl Tempo {
     }
 
     pub fn view(&'_ self, theme: &AshellTheme) -> Element<'_, Message> {
-        Row::new()
+        Row::with_capacity(2)
             .push_maybe(self.weather_indicator(theme))
             .push(text(
                 self.date.format(&self.config.clock_format).to_string(),
@@ -108,7 +108,7 @@ impl Tempo {
 
     pub fn menu_view<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
         container(
-            Row::new()
+            Row::with_capacity(2)
                 .push(self.calendar(theme))
                 .push_maybe(self.weather(theme))
                 .spacing(theme.space.lg),
@@ -141,53 +141,49 @@ impl Tempo {
             6
         };
 
-        let calendar = Column::new()
-            .push(
-                row!(
-                    button(icon(StaticIcon::LeftChevron))
-                        .on_press(Message::ChangeSelectDate(
-                            selected_date.checked_sub_months(Months::new(1)),
-                        ))
-                        .padding([theme.space.xs, theme.space.md])
-                        .style(theme.settings_button_style()),
-                    text(selected_date.format("%B").to_string())
-                        .size(theme.font_size.md)
+        let calendar = column![
+            row![
+                button(icon(StaticIcon::LeftChevron))
+                    .on_press(Message::ChangeSelectDate(
+                        selected_date.checked_sub_months(Months::new(1)),
+                    ))
+                    .padding([theme.space.xs, theme.space.md])
+                    .style(theme.settings_button_style()),
+                text(selected_date.format("%B").to_string())
+                    .size(theme.font_size.md)
+                    .width(Length::Fill)
+                    .align_x(Horizontal::Center),
+                button(icon(StaticIcon::RightChevron))
+                    .on_press(Message::ChangeSelectDate(
+                        selected_date.checked_add_months(Months::new(1))
+                    ))
+                    .padding([theme.space.xs, theme.space.md])
+                    .style(theme.settings_button_style())
+            ]
+            .width(Length::Fill)
+            .align_y(Vertical::Center),
+            Row::with_children(
+                [
+                    Weekday::Mon,
+                    Weekday::Tue,
+                    Weekday::Wed,
+                    Weekday::Thu,
+                    Weekday::Fri,
+                    Weekday::Sat,
+                    Weekday::Sun,
+                ]
+                .into_iter()
+                .map(|i| {
+                    text(i.to_string())
+                        .align_x(Horizontal::Center)
                         .width(Length::Fill)
-                        .align_x(Horizontal::Center),
-                    button(icon(StaticIcon::RightChevron))
-                        .on_press(Message::ChangeSelectDate(
-                            selected_date.checked_add_months(Months::new(1))
-                        ))
-                        .padding([theme.space.xs, theme.space.md])
-                        .style(theme.settings_button_style())
-                )
-                .width(Length::Fill)
-                .align_y(Vertical::Center),
+                        .into()
+                })
+                .collect::<Vec<Element<'a, Message>>>(),
             )
-            .push(
-                Row::with_children(
-                    [
-                        Weekday::Mon,
-                        Weekday::Tue,
-                        Weekday::Wed,
-                        Weekday::Thu,
-                        Weekday::Fri,
-                        Weekday::Sat,
-                        Weekday::Sun,
-                    ]
-                    .into_iter()
-                    .map(|i| {
-                        text(i.to_string())
-                            .align_x(Horizontal::Center)
-                            .width(Length::Fill)
-                            .into()
-                    })
-                    .collect::<Vec<Element<'a, Message>>>(),
-                )
-                .width(Length::Fill)
-                .spacing(theme.space.sm),
-            )
-            .push(Column::with_children(
+            .width(Length::Fill)
+            .spacing(theme.space.sm),
+            Column::with_children(
                 (0..weeks_in_month)
                     .map(|_| {
                         Row::with_children(
@@ -233,9 +229,10 @@ impl Tempo {
                         .into()
                     })
                     .collect::<Vec<Element<'a, Message>>>(),
-            ))
-            .spacing(theme.space.md)
-            .width(Length::Fixed(225.));
+            ),
+        ]
+        .spacing(theme.space.md)
+        .width(Length::Fixed(225.));
 
         column!(
             button(
