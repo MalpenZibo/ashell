@@ -545,9 +545,13 @@ impl NetworkSettings {
             row!(
                 text("Nearby Wifi").width(Length::Fill),
                 text(if service.scanning_nearby_wifi {
-                    "Scanning..."
+                    "Scanning...".to_string()
+                } else if service.scan_completed_at.is_some_and(|t| {
+                    t.elapsed() < crate::services::network::SCAN_RESULT_DISPLAY_DURATION
+                }) {
+                    "Scan complete".to_string()
                 } else {
-                    ""
+                    String::new()
                 })
                 .size(theme.font_size.sm),
                 icon_button(theme, StaticIcon::Refresh).on_press(Message::ScanNearByWiFi)

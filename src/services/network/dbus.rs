@@ -53,6 +53,7 @@ impl super::NetworkBackend for NetworkDbus<'_> {
             wireless_access_points,
             known_connections,
             scanning_nearby_wifi: false,
+            scan_completed_at: None,
         })
     }
 
@@ -76,19 +77,37 @@ impl super::NetworkBackend for NetworkDbus<'_> {
     }
 
     async fn scan_nearby_wifi(&self) -> anyhow::Result<()> {
-        for device_path in self
-            .wireless_access_points()
-            .await?
-            .iter()
-            .map(|ap| ap.path.clone())
-        {
-            let device = WirelessDeviceProxy::builder(self.0.inner().connection())
-                .path(device_path)?
-                .build()
-                .await?;
+        let device_paths = self.wireless_devices().await?;
 
-            device.request_scan(HashMap::new()).await?;
-        }
+        let tasks = device_paths.into_iter().map(|device_path| {
+            let conn = self.0.inner().connection().clone();
+            async move {
+                let device_path_str = device_path.to_string();
+                let device = WirelessDeviceProxy::builder(&conn)
+                    .path(device_path)?
+                    .build()
+                    .await?;
+
+                let last_scan_before = device.last_scan().await.unwrap_or(-1);
+
+                if let Err(e) = device.request_scan(HashMap::new()).await {
+                    warn!("Scan request failed for device {device_path_str}: {e}");
+                    return Ok(());
+                }
+
+                // Wait for LastScan property to change, indicating scan finished
+                let mut last_scan_stream = device.receive_last_scan_changed().await;
+                while let Some(change) = last_scan_stream.next().await {
+                    let new_val = change.get().await.unwrap_or(-1);
+                    if new_val != last_scan_before {
+                        break;
+                    }
+                }
+                Ok::<(), anyhow::Error>(())
+            }
+        });
+
+        iced::futures::future::join_all(tasks).await;
 
         Ok(())
     }
@@ -676,6 +695,18 @@ impl NetworkDbus<'_> {
             }
         }
 
+        // Deduplicate across devices, keeping the strongest signal per SSID
+        let mut deduped = HashMap::<String, AccessPoint>::new();
+        for ap in wireless_access_points {
+            if let Some(existing) = deduped.get(&ap.ssid)
+                && existing.strength >= ap.strength
+            {
+                continue;
+            }
+            deduped.insert(ap.ssid.clone(), ap);
+        }
+
+        let mut wireless_access_points: Vec<_> = deduped.into_values().collect();
         wireless_access_points.sort_by(|a, b| b.strength.cmp(&a.strength));
 
         Ok(wireless_access_points)
