@@ -82,7 +82,7 @@ impl Default for FontSize {
 
 #[derive(Debug, Default, Clone)]
 pub struct AshellTheme {
-    iced_theme: Theme,
+    pub iced_theme: Theme,
     pub space: Space,
     pub radius: Radius,
     pub font_size: FontSize,
@@ -561,6 +561,11 @@ impl AshellTheme {
                             .scale_alpha(self.opacity)
                             .into(),
                     );
+                    base
+                }
+                Status::Disabled => {
+                    base.border.width = 0.;
+
                     base
                 }
                 _ => base,

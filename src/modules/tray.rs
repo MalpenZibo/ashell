@@ -1,6 +1,6 @@
 use crate::{
     components::icons::{StaticIcon, icon},
-    position_button::{ButtonUIRef, position_button},
+    menu::MenuSize,
     services::{
         ReadOnlyService, Service, ServiceEvent,
         tray::{
@@ -9,10 +9,11 @@ use crate::{
         },
     },
     theme::AshellTheme,
+    widgets::{ButtonUIRef, position_button},
 };
 use iced::{
     Alignment, Element, Length, Subscription, Task,
-    widget::{Column, Image, Row, Svg, button, horizontal_rule, row, text, toggler},
+    widget::{Column, Image, Row, Svg, button, container, horizontal_rule, row, text, toggler},
     window::Id,
 };
 use log::debug;
@@ -211,21 +212,24 @@ impl TrayModule {
     }
 
     pub fn menu_view<'a>(&'a self, theme: &'a AshellTheme, name: &'a str) -> Element<'a, Message> {
-        match self
-            .service
-            .as_ref()
-            .and_then(|service| service.data.iter().find(|item| item.name == name))
-        {
-            Some(item) => Column::with_children(
-                item.menu
-                    .2
-                    .iter()
-                    .map(|menu| self.menu_voice(theme, name, menu)),
-            )
-            .spacing(theme.space.xs)
-            .into(),
-            _ => Row::new().into(),
-        }
+        container(
+            match self
+                .service
+                .as_ref()
+                .and_then(|service| service.data.iter().find(|item| item.name == name))
+            {
+                Some(item) => Column::with_children(
+                    item.menu
+                        .2
+                        .iter()
+                        .map(|menu| self.menu_voice(theme, name, menu)),
+                )
+                .spacing(theme.space.xs),
+                _ => Column::new(),
+            },
+        )
+        .max_width(MenuSize::Medium)
+        .into()
     }
 
     pub fn subscription(&self) -> Subscription<Message> {

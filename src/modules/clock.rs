@@ -1,6 +1,7 @@
 use crate::{config::ClockModuleConfig, theme::AshellTheme};
 use chrono::{DateTime, Local};
 use iced::{Element, Subscription, time::every, widget::text};
+use log::warn;
 use std::time::Duration;
 
 #[derive(Debug, Clone)]
@@ -15,6 +16,9 @@ pub struct Clock {
 
 impl Clock {
     pub fn new(config: ClockModuleConfig) -> Self {
+        warn!(
+            "Clock module is deprecated and will be removed in a future release. Please migrate to the Tempo module."
+        );
         Self {
             config,
             date: Local::now(),

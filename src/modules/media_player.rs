@@ -1,6 +1,7 @@
 use crate::{
     components::icons::{IconButtonSize, StaticIcon, icon, icon_button},
     config::{MediaPlayerFormat, MediaPlayerModuleConfig},
+    menu::MenuSize,
     services::{
         ReadOnlyService, Service, ServiceEvent,
         mpris::{
@@ -79,8 +80,8 @@ impl MediaPlayer {
     }
 
     pub fn menu_view<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
-        match &self.service {
-            None => text("Not connected to MPRIS service").into(),
+        container(match &self.service {
+            None => Into::<Element<'a, Message>>::into(text("Not connected to MPRIS service")),
             Some(service) => column!(
                 text("Players").size(theme.font_size.lg),
                 horizontal_rule(1),
@@ -209,7 +210,9 @@ impl MediaPlayer {
             )
             .spacing(theme.space.xs)
             .into(),
-        }
+        })
+        .max_width(MenuSize::Large)
+        .into()
     }
 
     fn handle_command(&mut self, service_name: String, command: PlayerCommand) -> Task<Message> {

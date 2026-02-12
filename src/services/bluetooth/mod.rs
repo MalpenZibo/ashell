@@ -1,22 +1,19 @@
 use super::{ReadOnlyService, Service, ServiceEvent};
-use dbus::{BatteryProxy, BluetoothDbus};
+use dbus::{BatteryProxy, BluetoothDbus, DeviceProxy};
 use iced::{
     Subscription, Task,
-    futures::{
-        SinkExt, Stream, StreamExt,
-        channel::mpsc::Sender,
-        stream::{pending, select_all},
-        stream_select,
-    },
+    futures::{SinkExt, Stream, StreamExt, channel::mpsc::Sender, stream::pending, stream_select},
     stream::channel,
 };
 use inotify::{Inotify, WatchMask};
-use log::{debug, error, info};
-use std::{any::TypeId, ops::Deref};
+use log::{debug, error, info, warn};
+use std::{any::TypeId, io::ErrorKind, ops::Deref, pin::Pin};
 use tokio::process::Command;
 use zbus::zvariant::OwnedObjectPath;
 
 mod dbus;
+
+type EventStream = Pin<Box<dyn Stream<Item = ()> + Send>>;
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum BluetoothState {
@@ -118,23 +115,55 @@ impl BluetoothService {
                 let rfkill = BluetoothService::listen_rfkill_soft_block_changes().await?;
                 let devices = bluetooth.devices().await?;
 
-                let mut batteries = Vec::with_capacity(devices.len());
+                let mut batteries: Vec<EventStream> = Vec::with_capacity(devices.len());
+                let mut device_properties: Vec<EventStream> = Vec::with_capacity(devices.len());
                 for device in devices {
-                    let battery = BatteryProxy::builder(bluetooth.bluez.inner().connection())
+                    let conn = bluetooth.bluez.inner().connection();
+
+                    let battery = BatteryProxy::builder(conn)
+                        .path(device.path.clone())?
+                        .build()
+                        .await?;
+                    batteries.push(
+                        battery
+                            .receive_percentage_changed()
+                            .await
+                            .map(|_| {})
+                            .boxed(),
+                    );
+
+                    let device_proxy = DeviceProxy::builder(conn)
                         .path(device.path)?
                         .build()
                         .await?;
-                    batteries.push(battery.receive_percentage_changed().await.map(|_| {}));
+                    let connected_changed: EventStream = device_proxy
+                        .receive_connected_changed()
+                        .await
+                        .map(|_| {})
+                        .boxed();
+                    device_properties.push(connected_changed);
                 }
 
-                stream_select!(
+                let battery_events = if batteries.is_empty() {
+                    iced::futures::stream::pending().boxed()
+                } else {
+                    iced::futures::stream::select_all(batteries).boxed()
+                };
+
+                let device_property_events = if device_properties.is_empty() {
+                    iced::futures::stream::pending().boxed()
+                } else {
+                    iced::futures::stream::select_all(device_properties).boxed()
+                };
+
+                Box::pin(stream_select!(
                     interface_changed,
                     powered,
                     discovering,
                     rfkill,
-                    select_all(batteries)
-                )
-                .boxed()
+                    battery_events,
+                    device_property_events,
+                ))
             }
             _ => interface_changed,
         };
@@ -202,25 +231,47 @@ impl BluetoothService {
         }
     }
 
+    async fn spawn_rfkill(binary: &str, args: &[&str]) -> std::io::Result<std::process::Output> {
+        let mut command = Command::new(binary);
+        for arg in args {
+            command.arg(arg);
+        }
+        command.output().await
+    }
+
+    async fn run_rfkill_command(args: &[&str]) -> std::io::Result<std::process::Output> {
+        BluetoothService::spawn_rfkill("rfkill", args).await
+    }
+
     pub async fn check_rfkill_soft_block() -> anyhow::Result<bool> {
-        let output = Command::new("rfkill")
-            .arg("list")
-            .arg("bluetooth")
-            .output()
-            .await?;
+        let output = match BluetoothService::run_rfkill_command(&["list", "bluetooth"]).await {
+            Ok(output) => output,
+            Err(err) if err.kind() == ErrorKind::NotFound => {
+                warn!("rfkill binary not found, assuming bluetooth is not soft blocked");
+                return Ok(false);
+            }
+            Err(err) => return Err(err.into()),
+        };
 
         let output = String::from_utf8(output.stdout)?;
 
         Ok(output.contains("Soft blocked: yes"))
     }
 
-    pub async fn listen_rfkill_soft_block_changes() -> anyhow::Result<impl Stream<Item = ()>> {
+    pub async fn listen_rfkill_soft_block_changes() -> anyhow::Result<EventStream> {
         let inotify = Inotify::init()?;
 
-        inotify.watches().add("/dev/rfkill", WatchMask::MODIFY)?;
-
-        let buffer = [0; 512];
-        Ok(inotify.into_event_stream(buffer)?.map(|_| {}))
+        match inotify.watches().add("/dev/rfkill", WatchMask::MODIFY) {
+            Ok(_) => {
+                let buffer = [0; 512];
+                Ok(inotify.into_event_stream(buffer)?.map(|_| {}).boxed())
+            }
+            Err(err) if err.kind() == ErrorKind::NotFound => {
+                warn!("/dev/rfkill not found, disabling rfkill change notifications for bluetooth");
+                Ok(pending().boxed())
+            }
+            Err(err) => Err(err.into()),
+        }
     }
 
     async fn toggle_power(conn: &zbus::Connection, power: bool) -> anyhow::Result<()> {

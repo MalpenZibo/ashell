@@ -6,7 +6,7 @@ repository = "https://github.com/MalpenZibo/ashell"
 license = "MIT"
 version = "0.7.0"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.89"
 
 [profile.release]
 lto = "thin"
@@ -28,7 +28,7 @@ depends = ["libwayland-client0", "libpipewire-0.3-0t64", "libpulse0"]
 depends = ["libwayland-client", "pipewire-libs", "pulseaudio-libs"]
 
 [dependencies]
-iced = { git = "https://github.com/MalpenZibo/iced", rev = "237116726a405b326bf6f61f2b9105b38a938490", features = [
+iced = { git = "https://github.com/MalpenZibo/iced", rev = "daccb115c0827bd67fb11bf767db15b2066ed9df", features = [
   "tokio",
   "multi-window",
   "advanced",
@@ -39,7 +39,7 @@ iced = { git = "https://github.com/MalpenZibo/iced", rev = "237116726a405b326bf6
   "svg",
   "canvas",
 ] }
-chrono = { version = "0.4", default-features = false, features = ["clock"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
 hyprland = "0.4.0-beta.2"
 serde = { version = "1.0", default-features = false, features = [] }
 sysinfo = "0.37"
@@ -61,16 +61,16 @@ linicon-theme = "1.2.0"
 once_cell = "1.18.0"
 serde_json = "1"
 regex = "1.12.2"
-serde_with = "3.12.0"
-tokio-stream = "0.1.17"
-uuid = { version = "1.19.0", features = ["v4"] }
-clap = { version = "4.5", features = ["derive"] }
+serde_with = { version = "3.12", default-features = false, features = ["macros"] }
+tokio-stream = { version = "0.1", default-features = false }
+uuid = { version = "1", default-features = false, features = ["v4"] }
+clap = { version = "4.5", default-features = false, features = ["std", "derive"] }
 shellexpand = { version = "3", features = ["path"] }
-inotify = "0.11.0"
+inotify = { version = "0.11.0", default-features = false, features = ["stream"] }
 pin-project-lite = "0.2.16"
 niri-ipc = "25.11.0"
 parking_lot = "0.12.5"
-reqwest = { version = "0.12.24", default-features = false, features = ["rustls-tls"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
 url = "2.5.7"
 
 [build-dependencies]

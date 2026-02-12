@@ -55,6 +55,5 @@ pub fn view<'a>(
     )
     .spacing(theme.space.md)
     .padding(theme.space.md)
-    .max_width(350.)
     .into()
 }

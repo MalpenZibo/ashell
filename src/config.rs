@@ -33,6 +33,7 @@ pub struct Config {
     pub window_title: WindowTitleConfig,
     pub system_info: SystemInfoModuleConfig,
     pub clock: ClockModuleConfig,
+    pub tempo: TempoModuleConfig,
     pub settings: SettingsModuleConfig,
     pub appearance: Appearance,
     pub media_player: MediaPlayerModuleConfig,
@@ -53,6 +54,7 @@ impl Default for Config {
             window_title: WindowTitleConfig::default(),
             system_info: SystemInfoModuleConfig::default(),
             clock: ClockModuleConfig::default(),
+            tempo: TempoModuleConfig::default(),
             settings: SettingsModuleConfig::default(),
             appearance: Appearance::default(),
             media_player: MediaPlayerModuleConfig::default(),
@@ -102,6 +104,8 @@ pub enum WindowTitleMode {
     #[default]
     Title,
     Class,
+    InitialTitle,
+    InitialClass,
 }
 
 #[derive(Deserialize, Copy, Clone, Debug)]
@@ -254,6 +258,30 @@ impl Default for ClockModuleConfig {
     }
 }
 
+#[derive(Deserialize, Clone, Debug)]
+#[serde(default)]
+pub struct TempoModuleConfig {
+    pub clock_format: String,
+    #[serde(default)]
+    pub weather_location: Option<WeatherLocation>,
+}
+
+#[derive(Deserialize, Default, Clone, Debug)]
+pub enum WeatherLocation {
+    #[default]
+    Current,
+    City(String),
+}
+
+impl Default for TempoModuleConfig {
+    fn default() -> Self {
+        Self {
+            clock_format: "%a %d %b %R".to_string(),
+            weather_location: None,
+        }
+    }
+}
+
 #[derive(Deserialize, Clone, Debug, PartialEq, Eq)]
 pub enum SettingsIndicator {
     IdleInhibitor,
@@ -265,13 +293,16 @@ pub enum SettingsIndicator {
     Bluetooth,
     Battery,
     PeripheralBattery,
+    Brightness,
 }
 
 #[derive(Deserialize, Copy, Clone, Default, PartialEq, Eq, Debug)]
-pub enum BatteryFormat {
+pub enum SettingsFormat {
     Icon,
+    #[serde(alias = "Value")]
     Percentage,
     #[default]
+    #[serde(alias = "IconAndValue")]
     IconAndPercentage,
     Time,
     IconAndTime,
@@ -293,9 +324,14 @@ pub struct SettingsModuleConfig {
     pub hibernate_cmd: String,
     pub reboot_cmd: String,
     pub logout_cmd: String,
-    pub battery_format: BatteryFormat,
+    pub battery_format: SettingsFormat,
     pub peripheral_indicators: PeripheralIndicators,
-    pub peripheral_battery_format: BatteryFormat,
+    pub peripheral_battery_format: SettingsFormat,
+    pub audio_indicator_format: SettingsFormat,
+    pub microphone_indicator_format: SettingsFormat,
+    pub network_indicator_format: SettingsFormat,
+    pub bluetooth_indicator_format: SettingsFormat,
+    pub brightness_indicator_format: SettingsFormat,
     pub audio_sinks_more_cmd: Option<String>,
     pub audio_sources_more_cmd: Option<String>,
     pub wifi_more_cmd: Option<String>,
@@ -317,9 +353,14 @@ impl Default for SettingsModuleConfig {
             hibernate_cmd: "systemctl hibernate".to_string(),
             reboot_cmd: "systemctl reboot".to_string(),
             logout_cmd: "loginctl kill-user $(whoami)".to_string(),
-            battery_format: Default::default(),
+            battery_format: SettingsFormat::IconAndPercentage,
             peripheral_indicators: Default::default(),
-            peripheral_battery_format: BatteryFormat::Icon,
+            peripheral_battery_format: SettingsFormat::Icon,
+            audio_indicator_format: SettingsFormat::Icon,
+            microphone_indicator_format: SettingsFormat::Icon,
+            network_indicator_format: SettingsFormat::Icon,
+            bluetooth_indicator_format: SettingsFormat::Icon,
+            brightness_indicator_format: SettingsFormat::Icon,
             audio_sinks_more_cmd: Default::default(),
             audio_sources_more_cmd: Default::default(),
             wifi_more_cmd: Default::default(),
@@ -336,6 +377,7 @@ impl Default for SettingsModuleConfig {
                 SettingsIndicator::Network,
                 SettingsIndicator::Vpn,
                 SettingsIndicator::Battery,
+                SettingsIndicator::Brightness,
             ],
             custom_buttons: Default::default(),
         }
@@ -589,6 +631,7 @@ pub enum ModuleName {
     KeyboardSubmap,
     Tray,
     Clock,
+    Tempo,
     Privacy,
     Settings,
     MediaPlayer,
@@ -619,6 +662,7 @@ impl<'de> Deserialize<'de> for ModuleName {
                     "KeyboardSubmap" => ModuleName::KeyboardSubmap,
                     "Tray" => ModuleName::Tray,
                     "Clock" => ModuleName::Clock,
+                    "Tempo" => ModuleName::Tempo,
                     "Privacy" => ModuleName::Privacy,
                     "Settings" => ModuleName::Settings,
                     "MediaPlayer" => ModuleName::MediaPlayer,

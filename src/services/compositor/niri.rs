@@ -1,6 +1,6 @@
 use super::types::{
-    ActiveWindow, CompositorCommand, CompositorEvent, CompositorMonitor, CompositorService,
-    CompositorState, CompositorWorkspace,
+    ActiveWindow, ActiveWindowNiri, CompositorCommand, CompositorEvent, CompositorMonitor,
+    CompositorService, CompositorState, CompositorWorkspace,
 };
 use crate::services::ServiceEvent;
 use anyhow::{Context, Result, anyhow};
@@ -129,7 +129,9 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
         let state = map_state(&internal_state);
 
         // Emit Update
-        let _ = tx.send(ServiceEvent::Update(CompositorEvent::StateChanged(state)));
+        let _ = tx.send(ServiceEvent::Update(CompositorEvent::StateChanged(
+            Box::new(state),
+        )));
     }
 
     Ok(())
@@ -242,10 +244,12 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
         .windows
         .values()
         .find(|w| w.is_focused)
-        .map(|w| ActiveWindow {
-            title: w.title.clone().unwrap_or_default(),
-            class: w.app_id.clone().unwrap_or_default(),
-            address: w.id.to_string(),
+        .map(|w| {
+            ActiveWindow::Niri(ActiveWindowNiri {
+                title: w.title.clone().unwrap_or_default(),
+                class: w.app_id.clone().unwrap_or_default(),
+                address: w.id.to_string(),
+            })
         });
 
     let keyboard_layout = niri.keyboard_layouts.keyboard_layouts.as_ref().map_or_else(

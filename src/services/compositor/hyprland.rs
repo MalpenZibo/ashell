@@ -1,6 +1,6 @@
 use super::types::{
-    ActiveWindow, CompositorCommand, CompositorEvent, CompositorMonitor, CompositorState,
-    CompositorWorkspace,
+    ActiveWindow, ActiveWindowHyprland, CompositorCommand, CompositorEvent, CompositorMonitor,
+    CompositorState, CompositorWorkspace,
 };
 use crate::services::{ServiceEvent, compositor::CompositorService};
 use anyhow::Result;
@@ -73,7 +73,9 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
 
         match fetch_full_state(&state_guard) {
             Ok(state) => {
-                let _ = tx.send(ServiceEvent::Update(CompositorEvent::StateChanged(state)));
+                let _ = tx.send(ServiceEvent::Update(CompositorEvent::StateChanged(
+                    Box::new(state),
+                )));
             }
             Err(e) => {
                 log::error!("Failed to fetch initial compositor state: {}", e);
@@ -95,8 +97,9 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
                         if let Ok(state_guard) = internal_state.read()
                             && let Ok(state) = fetch_full_state(&*state_guard)
                         {
-                            let _ =
-                                tx.send(ServiceEvent::Update(CompositorEvent::StateChanged(state)));
+                            let _ = tx.send(ServiceEvent::Update(CompositorEvent::StateChanged(
+                                Box::new(state),
+                            )));
                         }
                     })
                 }
@@ -129,7 +132,9 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
                 if let Ok(mut state_guard) = internal_state.write() {
                     state_guard.submap = new_submap;
                     if let Ok(state) = fetch_full_state(&state_guard) {
-                        let _ = tx.send(ServiceEvent::Update(CompositorEvent::StateChanged(state)));
+                        let _ = tx.send(ServiceEvent::Update(CompositorEvent::StateChanged(
+                            Box::new(state),
+                        )));
                     }
                 }
             })
@@ -169,10 +174,14 @@ fn fetch_full_state(internal_state: &HyprInternalState) -> Result<CompositorStat
 
     let active_workspace_id = Workspace::get_active().ok().map(|w| w.id);
 
-    let active_window = Client::get_active().ok().flatten().map(|w| ActiveWindow {
-        title: w.title,
-        class: w.class,
-        address: w.address.to_string(),
+    let active_window = Client::get_active().ok().flatten().map(|w| {
+        ActiveWindow::Hyprland(ActiveWindowHyprland {
+            title: w.title,
+            class: w.class,
+            address: w.address.to_string(),
+            initial_title: w.initial_title,
+            initial_class: w.initial_class,
+        })
     });
 
     let keyboard_layout = Devices::get()

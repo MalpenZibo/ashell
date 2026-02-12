@@ -1,8 +1,8 @@
 use crate::{
-    HEIGHT, centerbox,
+    HEIGHT,
     config::{self, AppearanceStyle, Config, Modules, Position},
     get_log_spec,
-    menu::{MenuSize, MenuType},
+    menu::MenuType,
     modules::{
         self,
         clock::Clock,
@@ -13,15 +13,16 @@ use crate::{
         privacy::Privacy,
         settings::Settings,
         system_info::SystemInfo,
+        tempo::Tempo,
         tray::TrayModule,
         updates::Updates,
         window_title::WindowTitle,
         workspaces::Workspaces,
     },
     outputs::{HasOutput, Outputs},
-    position_button::ButtonUIRef,
     services::ReadOnlyService,
     theme::{AshellTheme, backdrop_color, darken_color},
+    widgets::{ButtonUIRef, Centerbox},
 };
 use flexi_logger::LoggerHandle;
 use iced::{
@@ -62,6 +63,7 @@ pub struct App {
     pub keyboard_submap: KeyboardSubmap,
     pub tray: TrayModule,
     pub clock: Clock,
+    pub tempo: Tempo,
     pub privacy: Privacy,
     pub settings: Settings,
     pub media_player: MediaPlayer,
@@ -69,7 +71,6 @@ pub struct App {
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    None,
     ConfigChanged(Box<Config>),
     ToggleMenu(MenuType, Id, ButtonUIRef),
     CloseMenu(Id),
@@ -82,12 +83,14 @@ pub enum Message {
     KeyboardSubmap(modules::keyboard_submap::Message),
     Tray(modules::tray::Message),
     Clock(modules::clock::Message),
+    Tempo(modules::tempo::Message),
     Privacy(modules::privacy::Message),
     Settings(modules::settings::Message),
     MediaPlayer(modules::media_player::Message),
     OutputEvent((OutputEvent, WlOutput)),
     CloseAllMenus,
     ResumeFromSleep,
+    None,
 }
 
 impl App {
@@ -130,6 +133,7 @@ impl App {
                     keyboard_submap: KeyboardSubmap::default(),
                     tray: TrayModule::default(),
                     clock: Clock::new(config.clock),
+                    tempo: Tempo::new(config.tempo),
                     privacy: Privacy::default(),
                     settings: Settings::new(config.settings),
                     media_player: MediaPlayer::new(config.media_player),
@@ -180,6 +184,7 @@ impl App {
 
         self.keyboard_submap = KeyboardSubmap::default();
         self.clock = Clock::new(config.clock);
+        self.tempo = Tempo::new(config.tempo);
         self.settings
             .update(modules::settings::Message::ConfigReloaded(config.settings));
         self.media_player
@@ -210,7 +215,6 @@ impl App {
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::None => Task::none(),
             Message::ConfigChanged(config) => {
                 info!("New config: {config:?}");
                 let mut tasks = Vec::new();
@@ -342,6 +346,9 @@ impl App {
                 self.clock.update(message);
                 Task::none()
             }
+            Message::Tempo(message) => match self.tempo.update(message) {
+                modules::tempo::Action::None => Task::none(),
+            },
             Message::Privacy(msg) => {
                 self.privacy.update(msg);
                 Task::none()
@@ -410,6 +417,7 @@ impl App {
                 self.general_config.layer,
                 self.theme.scale_factor,
             ),
+            Message::None => Task::none(),
         }
     }
 
@@ -418,7 +426,7 @@ impl App {
             Some(HasOutput::Main) => {
                 let [left, center, right] = self.modules_section(id, &self.theme);
 
-                let centerbox = centerbox::Centerbox::new([left, center, right])
+                let centerbox = Centerbox::new([left, center, right])
                     .spacing(self.theme.space.xxs)
                     .width(Length::Fill)
                     .align_items(Alignment::Center)
@@ -504,7 +512,6 @@ impl App {
                         self.menu_wrapper(
                             id,
                             updates.menu_view(id, &self.theme).map(Message::Updates),
-                            MenuSize::Small,
                             *button_ui_ref,
                         )
                     } else {
@@ -514,7 +521,6 @@ impl App {
                 Some((MenuType::Tray(name), button_ui_ref)) => self.menu_wrapper(
                     id,
                     self.tray.menu_view(&self.theme, name).map(Message::Tray),
-                    MenuSize::Medium,
                     *button_ui_ref,
                 ),
                 Some((MenuType::Settings, button_ui_ref)) => self.menu_wrapper(
@@ -522,7 +528,6 @@ impl App {
                     self.settings
                         .menu_view(id, &self.theme, self.theme.bar_position)
                         .map(Message::Settings),
-                    MenuSize::Medium,
                     *button_ui_ref,
                 ),
                 Some((MenuType::MediaPlayer, button_ui_ref)) => self.menu_wrapper(
@@ -530,7 +535,6 @@ impl App {
                     self.media_player
                         .menu_view(&self.theme)
                         .map(Message::MediaPlayer),
-                    MenuSize::Large,
                     *button_ui_ref,
                 ),
                 Some((MenuType::SystemInfo, button_ui_ref)) => self.menu_wrapper(
@@ -538,7 +542,12 @@ impl App {
                     self.system_info
                         .menu_view(&self.theme)
                         .map(Message::SystemInfo),
-                    MenuSize::Medium,
+                    *button_ui_ref,
+                ),
+
+                Some((MenuType::Tempo, button_ui_ref)) => self.menu_wrapper(
+                    id,
+                    self.tempo.menu_view(&self.theme).map(Message::Tempo),
                     *button_ui_ref,
                 ),
                 None => Row::new().into(),

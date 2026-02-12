@@ -203,7 +203,7 @@ pub trait Adapter {
 }
 
 #[proxy(default_service = "org.bluez", interface = "org.bluez.Device1")]
-trait Device {
+pub trait Device {
     #[zbus(property)]
     fn alias(&self) -> zbus::Result<String>;
 

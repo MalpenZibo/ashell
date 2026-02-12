@@ -1,6 +1,7 @@
 use crate::{
     components::icons::{StaticIcon, icon},
     config::UpdatesModuleConfig,
+    menu::MenuSize,
     theme::AshellTheme,
 };
 use iced::{
@@ -270,6 +271,7 @@ impl Updates {
             ),
         )
         .spacing(theme.space.xs)
+        .max_width(MenuSize::Small)
         .into()
     }
 

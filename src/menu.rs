@@ -1,16 +1,15 @@
 use crate::app::{self, App};
 use crate::config::{AppearanceStyle, Position};
-use crate::position_button::ButtonUIRef;
 use crate::theme::backdrop_color;
-use iced::alignment::{Horizontal, Vertical};
+use crate::widgets::{self, ButtonUIRef};
+use iced::alignment::Vertical;
 use iced::platform_specific::shell::commands::layer_surface::{
     KeyboardInteractivity, Layer, set_keyboard_interactivity, set_layer,
 };
 use iced::widget::container::Style;
-use iced::widget::mouse_area;
 use iced::window::Id;
 use iced::{self, Element, Task, Theme, widget::container};
-use iced::{Border, Length, Padding};
+use iced::{Border, Length, Padding, Pixels};
 
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub enum MenuType {
@@ -19,6 +18,7 @@ pub enum MenuType {
     Tray(String),
     MediaPlayer,
     SystemInfo,
+    Tempo,
 }
 
 #[derive(Clone, Debug)]
@@ -115,6 +115,7 @@ pub enum MenuSize {
     Small,
     Medium,
     Large,
+    XLarge,
 }
 
 impl MenuSize {
@@ -123,7 +124,20 @@ impl MenuSize {
             MenuSize::Small => 250.,
             MenuSize::Medium => 350.,
             MenuSize::Large => 450.,
+            MenuSize::XLarge => 650.,
         }
+    }
+}
+
+impl From<MenuSize> for Length {
+    fn from(value: MenuSize) -> Self {
+        Length::Fixed(value.size())
+    }
+}
+
+impl From<MenuSize> for Pixels {
+    fn from(value: MenuSize) -> Self {
+        Pixels::from(value.size())
     }
 }
 
@@ -133,77 +147,59 @@ impl App {
         &'a self,
         id: Id,
         content: Element<'a, app::Message>,
-        menu_size: MenuSize,
         button_ui_ref: ButtonUIRef,
     ) -> Element<'a, app::Message> {
-        mouse_area(
-            container(
-                mouse_area(
-                    container(content)
-                        .height(Length::Shrink)
-                        .width(Length::Shrink)
-                        .max_width(menu_size.size())
-                        .padding(self.theme.space.md)
-                        .style(move |theme: &Theme| Style {
-                            background: Some(
-                                theme
-                                    .palette()
-                                    .background
-                                    .scale_alpha(self.theme.menu.opacity)
-                                    .into(),
-                            ),
-                            border: Border {
-                                color: theme
-                                    .extended_palette()
-                                    .secondary
-                                    .base
-                                    .color
-                                    .scale_alpha(self.theme.menu.opacity),
-                                width: 1.,
-                                radius: self.theme.radius.lg.into(),
-                            },
-                            ..Default::default()
-                        }),
-                )
-                .on_release(app::Message::None),
-            )
-            .align_y(match self.theme.bar_position {
-                Position::Top => Vertical::Top,
-                Position::Bottom => Vertical::Bottom,
-            })
-            .align_x(Horizontal::Left)
-            .padding({
-                let size = menu_size.size();
-
-                let v_padding = match self.theme.bar_style {
-                    AppearanceStyle::Solid | AppearanceStyle::Gradient => 2,
-                    AppearanceStyle::Islands => 0,
-                };
-
-                Padding::new(0.)
-                    .top(if self.theme.bar_position == Position::Top {
-                        v_padding
-                    } else {
-                        0
-                    })
-                    .bottom(if self.theme.bar_position == Position::Bottom {
-                        v_padding
-                    } else {
-                        0
-                    })
-                    .left(f32::min(
-                        f32::max(button_ui_ref.position.x - size / 2., 8.),
-                        button_ui_ref.viewport.0 - size - 8.,
-                    ))
-            })
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .style(move |_| Style {
-                background: Some(backdrop_color(self.theme.menu.backdrop).into()),
-                ..Default::default()
-            }),
+        widgets::MenuWrapper::new(
+            button_ui_ref.position.x,
+            container(content)
+                .padding(self.theme.space.md)
+                .style(move |theme: &Theme| Style {
+                    background: Some(
+                        theme
+                            .palette()
+                            .background
+                            .scale_alpha(self.theme.menu.opacity)
+                            .into(),
+                    ),
+                    border: Border {
+                        color: theme
+                            .extended_palette()
+                            .secondary
+                            .base
+                            .color
+                            .scale_alpha(self.theme.menu.opacity),
+                        width: 1.,
+                        radius: self.theme.radius.lg.into(),
+                    },
+                    ..Default::default()
+                })
+                .width(Length::Shrink)
+                .into(),
         )
-        .on_release(app::Message::CloseMenu(id))
+        .padding({
+            let v_padding = match self.theme.bar_style {
+                AppearanceStyle::Solid | AppearanceStyle::Gradient => 2,
+                AppearanceStyle::Islands => 0,
+            };
+
+            Padding::new(0.)
+                .top(if self.theme.bar_position == Position::Top {
+                    v_padding
+                } else {
+                    0
+                })
+                .bottom(if self.theme.bar_position == Position::Bottom {
+                    v_padding
+                } else {
+                    0
+                })
+        })
+        .align_y(match self.theme.bar_position {
+            Position::Top => Vertical::Top,
+            Position::Bottom => Vertical::Bottom,
+        })
+        .backdrop(backdrop_color(self.theme.menu.backdrop))
+        .on_click_outside(app::Message::CloseMenu(id))
         .into()
     }
 }
