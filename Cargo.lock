@@ -354,6 +354,7 @@ dependencies = [
  "tokio-stream",
  "toml",
  "udev",
+ "url",
  "uuid",
  "wayland-client",
  "wayland-protocols",

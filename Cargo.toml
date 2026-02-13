@@ -71,6 +71,7 @@ pin-project-lite = "0.2.16"
 niri-ipc = "25.11.0"
 parking_lot = "0.12.5"
 reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
+url = "2.5.7"
 
 [build-dependencies]
 allsorts = "0.15"
