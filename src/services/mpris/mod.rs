@@ -153,6 +153,12 @@ impl ReadOnlyService for MprisPlayerService {
         match event {
             Event::MetadataChanged(data) => {
                 self.data = data;
+                let desired_urls: HashSet<String> = self
+                    .data
+                    .iter()
+                    .filter_map(|player| player.metadata.as_ref()?.art_url.clone())
+                    .collect();
+                self.covers.retain(|url, _| desired_urls.contains(url));
             }
             Event::CoverFetched(url, bytes) => {
                 self.covers.insert(url, bytes);
@@ -437,11 +443,15 @@ impl MprisPlayerService {
     }
 
     fn check_cover_update(data: &[MprisPlayerData], state_data: &mut ActiveData) {
-        let desired_urls: HashSet<String> = data
+        let mut desired_urls: HashSet<String> = data
             .iter()
             .filter_map(|p| p.metadata.as_ref()?.art_url.clone())
-            .filter(|url| !state_data.fetched_covers.contains(url))
             .collect();
+        // These will be removed in `update()`
+        state_data
+            .fetched_covers
+            .retain(|url| desired_urls.contains(url));
+        desired_urls.retain(|url| !state_data.fetched_covers.contains(url));
 
         for (_, handle) in state_data
             .in_flight
