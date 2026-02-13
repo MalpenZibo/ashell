@@ -3,7 +3,7 @@ use log::{info, warn};
 use std::time::Duration;
 use zbus::{
     Connection, Result,
-    fdo::{DBusProxy, RequestNameFlags, RequestNameReply},
+    fdo::{DBusProxy, IntrospectableProxy, RequestNameFlags, RequestNameReply},
     interface,
     message::Header,
     names::{BusName, UniqueName, WellKnownName},
@@ -114,6 +114,7 @@ impl StatusNotifierWatcher {
                 continue;
             }
 
+            // Only try to register services that explicitly mention StatusNotifierItem
             if name_str.contains("StatusNotifierItem") {
                 let sender = match dbus_proxy.get_name_owner(BusName::from(name.clone())).await {
                     Ok(owner) => owner,
@@ -129,6 +130,25 @@ impl StatusNotifierWatcher {
                         &emitter,
                     )
                     .await;
+            } else {
+                // Try introspection for other services
+                if let Some(path_hint) = Self::find_status_notifier_path(conn, name_str).await {
+                    let sender = match dbus_proxy.get_name_owner(BusName::from(name.clone())).await
+                    {
+                        Ok(owner) => owner,
+                        Err(_) => continue,
+                    };
+
+                    let mut watcher = interface.get_mut().await;
+                    let emitter = SignalEmitter::new(conn, OBJECT_PATH).unwrap();
+                    watcher
+                        .register_status_notifier_item_manual(
+                            &path_hint,
+                            sender.into_inner(),
+                            &emitter,
+                        )
+                        .await;
+                }
             }
         }
         Ok(())
@@ -136,6 +156,39 @@ impl StatusNotifierWatcher {
 }
 
 impl StatusNotifierWatcher {
+    async fn find_status_notifier_path(conn: &Connection, name: &str) -> Option<String> {
+        let candidates = [
+            "/StatusNotifierItem",
+            "/org/ayatana/NotificationItem",
+            "/MenuBar",
+        ];
+
+        for path in candidates {
+            let builder = match IntrospectableProxy::builder(conn).destination(name.to_string()) {
+                Ok(builder) => builder,
+                Err(_) => continue,
+            };
+
+            let builder = match builder.path(path) {
+                Ok(builder) => builder,
+                Err(_) => continue,
+            };
+
+            let proxy = match builder.build().await {
+                Ok(proxy) => proxy,
+                Err(_) => continue,
+            };
+
+            if let Ok(xml) = proxy.introspect().await
+                && xml.contains("org.kde.StatusNotifierItem")
+            {
+                return Some(path.to_string());
+            }
+        }
+
+        None
+    }
+
     async fn register_status_notifier_item_manual(
         &mut self,
         service: &str,
@@ -152,9 +205,9 @@ impl StatusNotifierWatcher {
             return;
         }
 
-        Self::status_notifier_item_registered(emitter, &service)
-            .await
-            .unwrap();
+        if let Err(err) = Self::status_notifier_item_registered(emitter, &service).await {
+            warn!("Failed to emit status_notifier_item_registered for '{service}': {err:?}");
+        }
 
         self.items.push((sender, service));
     }
@@ -233,6 +286,12 @@ pub trait StatusNotifierItem {
 
     #[zbus(property)]
     fn menu(&self) -> zbus::Result<OwnedObjectPath>;
+
+    #[zbus(property)]
+    fn id(&self) -> zbus::Result<String>;
+
+    #[zbus(property)]
+    fn title(&self) -> zbus::Result<String>;
 }
 
 #[derive(Clone, Debug, Type)]
