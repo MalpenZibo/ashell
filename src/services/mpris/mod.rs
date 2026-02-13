@@ -102,11 +102,11 @@ impl From<HashMap<String, OwnedValue>> for MprisPlayerMetadata {
 pub struct MprisPlayerService {
     data: Vec<MprisPlayerData>,
     conn: zbus::Connection,
-    pub covers: HashMap<String, Bytes>,
+    covers: HashMap<String, Bytes>,
 }
 
 impl MprisPlayerService {
-    pub fn players(&self) -> &Vec<MprisPlayerData> {
+    pub fn players(&self) -> &[MprisPlayerData] {
         &self.data
     }
 
@@ -427,7 +427,7 @@ impl MprisPlayerService {
                 debug!("Refreshing MPRIS player data for {} players", data.len());
                 Self::check_cover_update(&data, state_data);
                 let _ = output
-                    .send(ServiceEvent::Update(Event::MetadataChanged(data.clone())))
+                    .send(ServiceEvent::Update(Event::MetadataChanged(data)))
                     .await;
             }
             Err(err) => {
