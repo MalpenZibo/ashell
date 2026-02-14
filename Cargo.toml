@@ -28,7 +28,7 @@ depends = ["libwayland-client0", "libpipewire-0.3-0t64", "libpulse0"]
 depends = ["libwayland-client", "pipewire-libs", "pulseaudio-libs"]
 
 [dependencies]
-iced = { git = "https://github.com/MalpenZibo/iced", rev = "daccb115c0827bd67fb11bf767db15b2066ed9df", features = [
+iced = { git = "https://github.com/OneNoted/iced", rev = "79f23ed51eae9fd2c2e538a6f7fc59add7bb9ead", features = [
   "tokio",
   "multi-window",
   "advanced",
