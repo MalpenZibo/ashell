@@ -17,19 +17,19 @@ use iced::{
 };
 use linicon_theme::get_icon_theme;
 use log::{debug, error, info, trace};
-use once_cell::sync::Lazy;
 use std::{
     any::TypeId,
     collections::BTreeSet,
     env, fs,
     ops::Deref,
     path::{Path, PathBuf},
+    sync::LazyLock,
 };
 
 pub mod dbus;
 
-static SYSTEM_ICON_NAMES: Lazy<BTreeSet<String>> = Lazy::new(load_system_icon_names);
-static SYSTEM_ICON_ENTRIES: Lazy<Vec<(String, String)>> = Lazy::new(|| {
+static SYSTEM_ICON_NAMES: LazyLock<BTreeSet<String>> = LazyLock::new(load_system_icon_names);
+static SYSTEM_ICON_ENTRIES: LazyLock<Vec<(String, String)>> = LazyLock::new(|| {
     SYSTEM_ICON_NAMES
         .iter()
         .map(|name| (name.clone(), normalize_icon_name(name)))
