@@ -72,6 +72,9 @@ niri-ipc = "25.11.0"
 parking_lot = "0.12.5"
 reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
 
+[patch.crates-io]
+wgpu-hal = { path = "patches/wgpu-hal" }
+
 [build-dependencies]
 allsorts = "0.15"
 
