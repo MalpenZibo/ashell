@@ -125,7 +125,9 @@ impl Tempo {
         let day_of_week_first_day = first_day_month.weekday();
 
         let mut current = first_day_month
-            .checked_sub_days(Days::new(day_of_week_first_day.number_from_monday() as u64))
+            .checked_sub_days(Days::new(
+                day_of_week_first_day.num_days_from_monday() as u64
+            ))
             .unwrap_or_default();
 
         let weeks_in_month = if current
