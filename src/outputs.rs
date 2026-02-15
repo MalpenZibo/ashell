@@ -82,6 +82,7 @@ impl Outputs {
         let height = Self::get_height(style, scale_factor);
 
         let iced_layer = match layer {
+            config::Layer::Top => Layer::Top,
             config::Layer::Bottom => Layer::Bottom,
             config::Layer::Overlay => Layer::Overlay,
         };
