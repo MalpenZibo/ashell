@@ -428,9 +428,10 @@ impl App {
                 self.general_config.layer,
                 self.theme.scale_factor,
             ),
-            Message::Notifications(message) => {
-                self.notifications.update(message).map(Message::Notifications)
-            }
+            Message::Notifications(message) => self
+                .notifications
+                .update(message)
+                .map(Message::Notifications),
             Message::None => Task::none(),
         }
     }

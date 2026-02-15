@@ -97,7 +97,9 @@ impl NotificationDaemon {
         debug!("New notification: {:?}", notification);
 
         // Send event through channel
-        let _ = self.event_tx.send(NotificationEvent::Received(notification));
+        let _ = self
+            .event_tx
+            .send(NotificationEvent::Received(notification));
 
         id
     }
@@ -110,7 +112,8 @@ impl NotificationDaemon {
             let _ = self.event_tx.send(NotificationEvent::Closed(id));
 
             // Emit DBus signal for external applications
-            let _ = self.connection
+            let _ = self
+                .connection
                 .emit_signal(
                     None::<&str>,
                     OBJECT_PATH,
@@ -133,7 +136,8 @@ impl NotificationDaemon {
 }
 
 impl NotificationDaemon {
-    pub async fn start_server() -> anyhow::Result<(Connection, broadcast::Sender<NotificationEvent>)> {
+    pub async fn start_server() -> anyhow::Result<(Connection, broadcast::Sender<NotificationEvent>)>
+    {
         // Initialize the event channel (100 message buffer)
         let (event_tx, _rx) = broadcast::channel(100);
 
@@ -152,7 +156,11 @@ impl NotificationDaemon {
         Ok((connection, event_tx))
     }
 
-    pub async fn invoke_action(connection: &Connection, id: u32, action_key: String) -> anyhow::Result<()> {
+    pub async fn invoke_action(
+        connection: &Connection,
+        id: u32,
+        action_key: String,
+    ) -> anyhow::Result<()> {
         connection
             .emit_signal(
                 None::<&str>,

@@ -317,7 +317,8 @@ impl Notifications {
                     .size(theme.font_size.sm)
                     .wrapping(text::Wrapping::WordOrGlyph)
                     .style(weak_text_style)
-            ).padding(theme.space.xs)
+            )
+            .padding(theme.space.xs)
             .spacing(theme.space.xs),
         )
         .width(Length::Fill)
@@ -382,12 +383,9 @@ impl Notifications {
                     .size(theme.font_size.md)
                     .style(palette_text_style),
                 Space::with_width(Length::Fill),
-                text(format!(
-                    "{} new",
-                    notifications.len(),
-                ))
-                .size(theme.font_size.sm)
-                .style(weak_text_style),
+                text(format!("{} new", notifications.len(),))
+                    .size(theme.font_size.sm)
+                    .style(weak_text_style),
             )
             .spacing(theme.space.xs)
             .align_y(Alignment::Center);

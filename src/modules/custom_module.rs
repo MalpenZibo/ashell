@@ -8,7 +8,7 @@ use iced::widget::canvas;
 use iced::{
     Element, Length, Subscription, Theme,
     stream::channel,
-    widget::{Stack, row, text, Space},
+    widget::{Space, Stack, row, text},
 };
 use iced::{
     mouse::Cursor,
