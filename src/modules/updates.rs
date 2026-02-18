@@ -251,6 +251,7 @@ impl Updates {
             horizontal_rule(1),
             self.update_buttons(id, theme),
         )
+        .width(MenuSize::Small)
         .spacing(theme.space.xs)
         .into()
     }
