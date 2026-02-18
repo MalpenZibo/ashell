@@ -511,6 +511,7 @@ impl App {
                     if let Some(updates) = self.updates.as_ref() {
                         self.menu_wrapper(
                             id,
+                            &self.theme,
                             updates.menu_view(id, &self.theme).map(Message::Updates),
                             *button_ui_ref,
                         )
@@ -520,11 +521,13 @@ impl App {
                 }
                 Some((MenuType::Tray(name), button_ui_ref)) => self.menu_wrapper(
                     id,
+                    &self.theme,
                     self.tray.menu_view(&self.theme, name).map(Message::Tray),
                     *button_ui_ref,
                 ),
                 Some((MenuType::Settings, button_ui_ref)) => self.menu_wrapper(
                     id,
+                    &self.theme,
                     self.settings
                         .menu_view(id, &self.theme, self.theme.bar_position)
                         .map(Message::Settings),
@@ -532,6 +535,7 @@ impl App {
                 ),
                 Some((MenuType::MediaPlayer, button_ui_ref)) => self.menu_wrapper(
                     id,
+                    &self.theme,
                     self.media_player
                         .menu_view(&self.theme)
                         .map(Message::MediaPlayer),
@@ -539,6 +543,7 @@ impl App {
                 ),
                 Some((MenuType::SystemInfo, button_ui_ref)) => self.menu_wrapper(
                     id,
+                    &self.theme,
                     self.system_info
                         .menu_view(&self.theme)
                         .map(Message::SystemInfo),
@@ -547,6 +552,7 @@ impl App {
 
                 Some((MenuType::Tempo, button_ui_ref)) => self.menu_wrapper(
                     id,
+                    &self.theme,
                     self.tempo.menu_view(&self.theme).map(Message::Tempo),
                     *button_ui_ref,
                 ),
