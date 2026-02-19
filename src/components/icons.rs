@@ -114,7 +114,6 @@ pub enum StaticIcon {
     Remove,
     Bell,
     BellBadge,
-    UpChevron,
 }
 
 impl StaticIcon {
@@ -216,7 +215,6 @@ impl StaticIcon {
             StaticIcon::Remove => "\u{f0377}",
             StaticIcon::Bell => "\u{eaa2}",
             StaticIcon::BellBadge => "\u{eb9a}",
-            StaticIcon::UpChevron => "\u{f106}",
         }
     }
 
