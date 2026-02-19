@@ -6,7 +6,7 @@ sidebar_position: 5
 
 This module displays a notification indicator in the status bar and provides a menu to view and interact with notifications.
 
-The notification indicator shows a bell icon with the current number of unread notifications.
+The notification indicator shows a bell icon (🔔) when there are no notifications, and a bell with a badge (🔔•) when notifications are present.
 
 ## Notification Daemon
 
@@ -17,11 +17,20 @@ Enabling this module makes ashell register itself as the system notification dae
 
 ### Toast popups
 
-By default, ashell shows transient toast popups when notifications arrive. Toasts appear in a configurable corner of the screen, stack vertically up to `toast_max_visible`, and auto-dismiss after the timeout. Clicking a toast invokes the notification's default action and dismisses it.
+By default, ashell shows transient toast popups when notifications arrive. Toasts appear in a configurable corner of the screen, stack vertically up to `toast_max_visible`, and auto-dismiss after the timeout. Clicking a toast invokes the notification's default action (if one exists) and dismisses it.
 
 The `expire_timeout` hint sent by applications is respected: a value of `-1` falls back to `toast_default_timeout`, `0` means the toast never auto-dismisses, and any positive value (in milliseconds) is used directly.
 
-If you prefer no popups and only the panel, set `toast = false`.
+If you prefer no popups and only the panel indicator, set `toast = false`.
+
+## Notification Menu
+
+Click the notification indicator to open the notifications menu. The menu displays all active notifications with the following features:
+
+- **Individual notifications**: Shows the app icon, name, summary, and optional body text and timestamp
+- **Clear button**: Removes all notifications at once
+- **Grouped mode** (optional): Organizes notifications by application with expandable groups
+- **Clicking a notification**: Invokes its default action (if provided by the app) and closes it
 
 ## Configuration
 
@@ -34,21 +43,21 @@ The format string used to display notification timestamps. Uses chrono strftime 
 
 ### show_timestamps
 
-Whether to display timestamps for each notification in the menu.
+Whether to display timestamps for each notification in the menu. This setting only applies when `grouped` is `false`.
 
 **Type:** `boolean`
 **Default:** `true`
 
 ### max_notifications
 
-Maximum number of notifications to display in the menu. If not set, all notifications are shown.
+Maximum number of notifications to display in the menu. If not set, all notifications are shown. This setting only applies when `grouped` is `false`.
 
 **Type:** `integer` (optional)
 **Default:** `null`
 
 ### show_bodies
 
-Whether to display the body text of notifications in the menu.
+Whether to display the body text of notifications in the menu. This setting only applies when `grouped` is `false`.
 
 **Type:** `boolean`
 **Default:** `true`
@@ -58,9 +67,14 @@ Whether to display the body text of notifications in the menu.
 Whether to group notifications by application in the menu.
 
 When enabled, notifications are grouped by app name and each group can be
-expanded or collapsed independently. The group header shows the newest
-notification time for that app, and the collapsed preview shows up to 3
-notifications. Clicking the app icon clears all notifications for that group.
+expanded or collapsed independently. The group header shows the app name,
+icon, and count of notifications. When collapsed, only the most recent
+notification from each group is previewed. When expanded, all notifications
+in the group are shown. Clicking the app icon clears all notifications for
+that group.
+
+Clicking on a notification in the menu will invoke its default action (if
+one exists) and close it.
 
 Note: in grouped mode, `max_notifications`, `show_timestamps`, and
 `show_bodies` are not applied.

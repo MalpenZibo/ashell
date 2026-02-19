@@ -201,12 +201,10 @@ impl Outputs {
                     let old_output = self.0.swap_remove(index);
 
                     match old_output.1 {
-                        Some(shell_info) => {
-                            Task::batch(vec![
-                                destroy_layer_surface(shell_info.id),
-                                destroy_layer_surface(shell_info.menu.id),
-                            ])
-                        }
+                        Some(shell_info) => Task::batch(vec![
+                            destroy_layer_surface(shell_info.id),
+                            destroy_layer_surface(shell_info.menu.id),
+                        ]),
                         _ => Task::none(),
                     }
                 }
@@ -234,12 +232,10 @@ impl Outputs {
                         let old_output = self.0.swap_remove(index);
 
                         match old_output.1 {
-                            Some(shell_info) => {
-                                Task::batch(vec![
-                                    destroy_layer_surface(shell_info.id),
-                                    destroy_layer_surface(shell_info.menu.id),
-                                ])
-                            }
+                            Some(shell_info) => Task::batch(vec![
+                                destroy_layer_surface(shell_info.id),
+                                destroy_layer_surface(shell_info.menu.id),
+                            ]),
                             _ => Task::none(),
                         }
                     }
@@ -469,10 +465,20 @@ impl Outputs {
                 || shell_info.as_ref().map(|shell_info| shell_info.menu.id) == Some(id)
         }) {
             Some((_, Some(shell_info), _)) => {
+                let menu_id = shell_info.menu.id;
+                let toast_overlay = shell_info.toast_overlay;
                 let toggle_task =
                     shell_info
                         .menu
                         .toggle(menu_type, button_ui_ref, request_keyboard);
+                // If toggle closed the menu while toasts are still active,
+                // menu.close() sets Layer::Background; restore Overlay for the toast.
+                let menu_was_closed = shell_info.menu.menu_info.is_none();
+                let toggle_task = if menu_was_closed && toast_overlay {
+                    Task::batch(vec![toggle_task, set_layer(menu_id, Layer::Overlay)])
+                } else {
+                    toggle_task
+                };
                 let mut tasks = self
                     .0
                     .iter_mut()
@@ -524,7 +530,10 @@ impl Outputs {
             Some((_, Some(shell_info), _)) => {
                 let close_task = shell_info.menu.close();
                 if shell_info.toast_overlay {
-                    Task::batch(vec![close_task, set_layer(shell_info.menu.id, Layer::Overlay)])
+                    Task::batch(vec![
+                        close_task,
+                        set_layer(shell_info.menu.id, Layer::Overlay),
+                    ])
                 } else {
                     close_task
                 }
@@ -555,7 +564,10 @@ impl Outputs {
             Some((_, Some(shell_info), _)) => {
                 let close_task = shell_info.menu.close_if(menu_type);
                 if shell_info.toast_overlay && shell_info.menu.menu_info.is_none() {
-                    Task::batch(vec![close_task, set_layer(shell_info.menu.id, Layer::Overlay)])
+                    Task::batch(vec![
+                        close_task,
+                        set_layer(shell_info.menu.id, Layer::Overlay),
+                    ])
                 } else {
                     close_task
                 }

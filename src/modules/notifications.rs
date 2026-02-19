@@ -80,8 +80,7 @@ fn invoke_and_close_task(
                 {
                     error!("Failed to invoke notification action for id {}: {}", id, e);
                 }
-                if let Err(e) =
-                    NotificationDaemon::close_notification_by_id(&connection, id).await
+                if let Err(e) = NotificationDaemon::close_notification_by_id(&connection, id).await
                 {
                     error!("Failed to close notification id {}: {}", id, e);
                 }
@@ -358,27 +357,27 @@ impl Notifications {
 
     fn notification_button_style(
         theme: &AshellTheme,
-        is_last: NotificationStyle,
+        style: NotificationStyle,
     ) -> impl Fn(&Theme, iced::widget::button::Status) -> iced::widget::button::Style {
         let theme = theme.clone();
         move |iced_theme: &Theme, status| {
-            let mut style = iced::widget::button::Style::default();
+            let mut button_style = iced::widget::button::Style::default();
             match status {
                 iced::widget::button::Status::Hovered => {
-                    match is_last {
+                    match style {
                         NotificationStyle::Rectangular => (),
                         NotificationStyle::Rounded => {
-                            style.border = Border::default().rounded(theme.radius.md)
+                            button_style.border = Border::default().rounded(theme.radius.md)
                         }
                         NotificationStyle::BottomRounded => {
-                            style.border = Border::default().rounded(
+                            button_style.border = Border::default().rounded(
                                 Radius::default()
                                     .bottom_left(theme.radius.md)
                                     .bottom_right(theme.radius.md),
                             )
                         }
                     }
-                    style.background = Some(Background::Color(
+                    button_style.background = Some(Background::Color(
                         iced_theme
                             .extended_palette()
                             .background
@@ -388,10 +387,10 @@ impl Notifications {
                     ));
                 }
                 _ => {
-                    style.background = Some(Background::Color(iced::Color::TRANSPARENT));
+                    button_style.background = Some(Background::Color(iced::Color::TRANSPARENT));
                 }
             }
-            style
+            button_style
         }
     }
 
@@ -460,16 +459,15 @@ impl Notifications {
             Space::with_width(Length::Shrink).into()
         };
 
-        let body_element: Element<'_, Message> =
-            if show_body && !notification.body.is_empty() {
-                text(&notification.body)
-                    .size(theme.font_size.sm)
-                    .wrapping(text::Wrapping::WordOrGlyph)
-                    .style(strong_text_style)
-                    .into()
-            } else {
-                Space::with_height(Length::Shrink).into()
-            };
+        let body_element: Element<'_, Message> = if show_body && !notification.body.is_empty() {
+            text(&notification.body)
+                .size(theme.font_size.sm)
+                .wrapping(text::Wrapping::WordOrGlyph)
+                .style(strong_text_style)
+                .into()
+        } else {
+            Space::with_height(Length::Shrink).into()
+        };
 
         let card = container(
             column!(

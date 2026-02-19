@@ -428,22 +428,18 @@ impl App {
                 self.general_config.layer,
                 self.theme.scale_factor,
             ),
-            Message::Notifications(message) => {
-                match self.notifications.update(message) {
-                    modules::notifications::Action::None => Task::none(),
-                    modules::notifications::Action::Task(task) => {
-                        task.map(Message::Notifications)
-                    }
-                    modules::notifications::Action::Show(task) => Task::batch(vec![
-                        task.map(Message::Notifications),
-                        self.outputs.show_toast_layer(),
-                    ]),
-                    modules::notifications::Action::Hide(task) => Task::batch(vec![
-                        task.map(Message::Notifications),
-                        self.outputs.hide_toast_layer(),
-                    ]),
-                }
-            }
+            Message::Notifications(message) => match self.notifications.update(message) {
+                modules::notifications::Action::None => Task::none(),
+                modules::notifications::Action::Task(task) => task.map(Message::Notifications),
+                modules::notifications::Action::Show(task) => Task::batch(vec![
+                    task.map(Message::Notifications),
+                    self.outputs.show_toast_layer(),
+                ]),
+                modules::notifications::Action::Hide(task) => Task::batch(vec![
+                    task.map(Message::Notifications),
+                    self.outputs.hide_toast_layer(),
+                ]),
+            },
             Message::None => Task::none(),
         }
     }
