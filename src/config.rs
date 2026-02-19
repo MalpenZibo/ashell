@@ -259,6 +259,16 @@ impl Default for ClockModuleConfig {
         }
     }
 }
+#[derive(Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ToastPosition {
+    TopLeft,
+    #[default]
+    TopRight,
+    BottomLeft,
+    BottomRight,
+}
+
 #[derive(Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct NotificationsModuleConfig {
@@ -267,6 +277,10 @@ pub struct NotificationsModuleConfig {
     pub max_notifications: Option<usize>,
     pub show_bodies: bool,
     pub(crate) grouped: bool,
+    pub toast: bool,
+    pub toast_position: ToastPosition,
+    pub toast_default_timeout: u64,
+    pub toast_max_visible: usize,
 }
 impl Default for NotificationsModuleConfig {
     fn default() -> Self {
@@ -276,6 +290,10 @@ impl Default for NotificationsModuleConfig {
             max_notifications: None,
             show_bodies: true,
             grouped: false,
+            toast: true,
+            toast_position: ToastPosition::default(),
+            toast_default_timeout: 5000,
+            toast_max_visible: 5,
         }
     }
 }

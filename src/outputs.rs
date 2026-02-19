@@ -2,7 +2,7 @@ use iced::{
     Task,
     platform_specific::shell::commands::layer_surface::{
         Anchor, KeyboardInteractivity, Layer, destroy_layer_surface, get_layer_surface, set_anchor,
-        set_exclusive_zone, set_keyboard_interactivity, set_size,
+        set_exclusive_zone, set_keyboard_interactivity, set_layer, set_size,
     },
     runtime::platform_specific::wayland::layer_surface::{IcedOutput, SctkLayerSurfaceSettings},
     window::Id,
@@ -24,6 +24,7 @@ struct ShellInfo {
     layer: config::Layer,
     style: AppearanceStyle,
     menu: Menu,
+    toast_overlay: bool,
     scale_factor: f64,
 }
 
@@ -33,6 +34,7 @@ pub struct Outputs(Vec<(String, Option<ShellInfo>, Option<WlOutput>)>);
 pub enum HasOutput<'a> {
     Main,
     Menu(Option<&'a (MenuType, ButtonUIRef)>),
+    Toast,
 }
 
 impl Outputs {
@@ -51,6 +53,7 @@ impl Outputs {
                 Some(ShellInfo {
                     id,
                     menu: Menu::new(menu_id),
+                    toast_overlay: false,
                     position,
                     layer,
                     style,
@@ -137,7 +140,13 @@ impl Outputs {
                 if info.id == id {
                     Some(HasOutput::Main)
                 } else if info.menu.id == id {
-                    Some(HasOutput::Menu(info.menu.menu_info.as_ref()))
+                    if info.menu.menu_info.is_some() {
+                        Some(HasOutput::Menu(info.menu.menu_info.as_ref()))
+                    } else if info.toast_overlay {
+                        Some(HasOutput::Toast)
+                    } else {
+                        Some(HasOutput::Menu(None))
+                    }
                 } else {
                     None
                 }
@@ -193,10 +202,10 @@ impl Outputs {
 
                     match old_output.1 {
                         Some(shell_info) => {
-                            let destroy_main_task = destroy_layer_surface(shell_info.id);
-                            let destroy_menu_task = destroy_layer_surface(shell_info.menu.id);
-
-                            Task::batch(vec![destroy_main_task, destroy_menu_task])
+                            Task::batch(vec![
+                                destroy_layer_surface(shell_info.id),
+                                destroy_layer_surface(shell_info.menu.id),
+                            ])
                         }
                         _ => Task::none(),
                     }
@@ -209,6 +218,7 @@ impl Outputs {
                 Some(ShellInfo {
                     id,
                     menu: Menu::new(menu_id),
+                    toast_overlay: false,
                     position,
                     layer,
                     style,
@@ -225,14 +235,9 @@ impl Outputs {
 
                         match old_output.1 {
                             Some(shell_info) => {
-                                let destroy_fallback_main_task =
-                                    destroy_layer_surface(shell_info.id);
-                                let destroy_fallback_menu_task =
-                                    destroy_layer_surface(shell_info.menu.id);
-
                                 Task::batch(vec![
-                                    destroy_fallback_main_task,
-                                    destroy_fallback_menu_task,
+                                    destroy_layer_surface(shell_info.id),
+                                    destroy_layer_surface(shell_info.menu.id),
                                 ])
                             }
                             _ => Task::none(),
@@ -268,10 +273,10 @@ impl Outputs {
                 let (name, shell_info, wl_output) = self.0.swap_remove(index_to_remove);
 
                 let destroy_task = if let Some(shell_info) = shell_info {
-                    let destroy_main_task = destroy_layer_surface(shell_info.id);
-                    let destroy_menu_task = destroy_layer_surface(shell_info.menu.id);
-
-                    Task::batch(vec![destroy_main_task, destroy_menu_task])
+                    Task::batch(vec![
+                        destroy_layer_surface(shell_info.id),
+                        destroy_layer_surface(shell_info.menu.id),
+                    ])
                 } else {
                     Task::none()
                 };
@@ -291,6 +296,7 @@ impl Outputs {
                         Some(ShellInfo {
                             id,
                             menu: Menu::new(menu_id),
+                            toast_overlay: false,
                             position,
                             layer,
                             style,
@@ -403,18 +409,17 @@ impl Outputs {
                     scale_factor,
                 );
 
+                let batch = vec![destroy_main_task, destroy_menu_task, task];
+
                 shell_info.id = id;
                 shell_info.menu = Menu::new(menu_id);
+                shell_info.toast_overlay = false;
                 shell_info.position = position;
                 shell_info.layer = layer;
                 shell_info.style = style;
                 shell_info.scale_factor = scale_factor;
 
-                tasks.push(Task::batch(vec![
-                    destroy_main_task,
-                    destroy_menu_task,
-                    task,
-                ]));
+                tasks.push(Task::batch(batch));
             }
         }
 
@@ -516,7 +521,14 @@ impl Outputs {
             shell_info.as_ref().map(|shell_info| shell_info.id) == Some(id)
                 || shell_info.as_ref().map(|shell_info| shell_info.menu.id) == Some(id)
         }) {
-            Some((_, Some(shell_info), _)) => shell_info.menu.close(),
+            Some((_, Some(shell_info), _)) => {
+                let close_task = shell_info.menu.close();
+                if shell_info.toast_overlay {
+                    Task::batch(vec![close_task, set_layer(shell_info.menu.id, Layer::Overlay)])
+                } else {
+                    close_task
+                }
+            }
             _ => Task::none(),
         };
 
@@ -540,7 +552,14 @@ impl Outputs {
             shell_info.as_ref().map(|shell_info| shell_info.id) == Some(id)
                 || shell_info.as_ref().map(|shell_info| shell_info.menu.id) == Some(id)
         }) {
-            Some((_, Some(shell_info), _)) => shell_info.menu.close_if(menu_type),
+            Some((_, Some(shell_info), _)) => {
+                let close_task = shell_info.menu.close_if(menu_type);
+                if shell_info.toast_overlay && shell_info.menu.menu_info.is_none() {
+                    Task::batch(vec![close_task, set_layer(shell_info.menu.id, Layer::Overlay)])
+                } else {
+                    close_task
+                }
+            }
             _ => Task::none(),
         };
 
@@ -564,7 +583,15 @@ impl Outputs {
                 .iter_mut()
                 .map(|(_, shell_info, _)| {
                     if let Some(shell_info) = shell_info {
-                        shell_info.menu.close_if(menu_type.clone())
+                        let close_task = shell_info.menu.close_if(menu_type.clone());
+                        if shell_info.toast_overlay && shell_info.menu.menu_info.is_none() {
+                            Task::batch(vec![
+                                close_task,
+                                set_layer(shell_info.menu.id, Layer::Overlay),
+                            ])
+                        } else {
+                            close_task
+                        }
                     } else {
                         Task::none()
                     }
@@ -595,7 +622,15 @@ impl Outputs {
                 .map(|(_, shell_info, _)| {
                     if let Some(shell_info) = shell_info {
                         if shell_info.menu.menu_info.is_some() {
-                            shell_info.menu.close()
+                            let close_task = shell_info.menu.close();
+                            if shell_info.toast_overlay {
+                                Task::batch(vec![
+                                    close_task,
+                                    set_layer(shell_info.menu.id, Layer::Overlay),
+                                ])
+                            } else {
+                                close_task
+                            }
                         } else {
                             Task::none()
                         }
@@ -640,5 +675,33 @@ impl Outputs {
             Some((_, Some(shell_info), _)) => shell_info.menu.release_keyboard(),
             _ => Task::none(),
         }
+    }
+
+    pub fn show_toast_layer<Message: 'static>(&mut self) -> Task<Message> {
+        let mut tasks = vec![];
+        for (_, shell_info, _) in &mut self.0 {
+            if let Some(shell_info) = shell_info {
+                shell_info.toast_overlay = true;
+                // Only set to overlay if the menu isn't already handling it
+                if shell_info.menu.menu_info.is_none() {
+                    tasks.push(set_layer(shell_info.menu.id, Layer::Overlay));
+                }
+            }
+        }
+        Task::batch(tasks)
+    }
+
+    pub fn hide_toast_layer<Message: 'static>(&mut self) -> Task<Message> {
+        let mut tasks = vec![];
+        for (_, shell_info, _) in &mut self.0 {
+            if let Some(shell_info) = shell_info {
+                shell_info.toast_overlay = false;
+                // Only set back to background if no menu is open
+                if shell_info.menu.menu_info.is_none() {
+                    tasks.push(set_layer(shell_info.menu.id, Layer::Background));
+                }
+            }
+        }
+        Task::batch(tasks)
     }
 }
