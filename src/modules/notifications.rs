@@ -24,7 +24,6 @@ use std::{
 use zbus::Connection;
 
 // Constants for UI dimensions and styling
-const EMPTY_STATE_HEIGHT: f32 = 300.0;
 const ICON_SIZE: f32 = 20.0;
 const HORIZONTAL_RULE_HEIGHT: f32 = 0.2;
 
@@ -96,6 +95,7 @@ pub enum Message {
     ConfigReloaded(NotificationsModuleConfig),
     NotificationClicked(u32),
     NotificationClosed(u32),
+    CloseNotificationByAppIcon(u32),
     ClearNotifications,
     NotificationsCleared,
     ClearGroup(String),
@@ -328,6 +328,32 @@ impl Notifications {
                     Action::None
                 }
             }
+            Message::CloseNotificationByAppIcon(id) => {
+                let connection = self.service.as_ref().map(|s| s.connection.clone());
+                self.notifications.retain(|n| n.id != id);
+                let had_toasts = !self.toasts.is_empty();
+                self.toasts.retain(|t| t.id != id);
+
+                let task = Task::perform(
+                    async move {
+                        if let Some(connection) = connection {
+                            if let Err(e) =
+                                NotificationDaemon::close_notification_by_id(&connection, id).await
+                            {
+                                error!("Failed to close notification id {}: {}", id, e);
+                            }
+                        }
+                        id
+                    },
+                    Message::NotificationClosed,
+                );
+
+                if self.toasts.is_empty() && had_toasts {
+                    Action::Hide(task)
+                } else {
+                    Action::Task(task)
+                }
+            }
             Message::DismissToast(id) => {
                 let connection = self.service.as_ref().map(|s| s.connection.clone());
                 let action_key = self
@@ -469,10 +495,23 @@ impl Notifications {
             Space::with_height(Length::Shrink).into()
         };
 
+        let notification_id = notification.id;
+        let app_icon_button = button(notification_icon(&notification.app_icon))
+            .on_press(Message::CloseNotificationByAppIcon(notification_id))
+            .style(move |iced_theme: &Theme, status| button::Style {
+                background: Some(Background::Color(Color::TRANSPARENT)),
+                text_color: match status {
+                    button::Status::Hovered => iced_theme.palette().danger,
+                    _ => iced_theme.palette().text,
+                },
+                ..Default::default()
+            })
+            .padding(0);
+
         let card = container(
             column!(
                 row!(
-                    notification_icon(&notification.app_icon),
+                    app_icon_button,
                     text(&notification.app_name)
                         .size(theme.font_size.md)
                         .style(palette_text_style),
@@ -656,9 +695,9 @@ impl Notifications {
         let content = if self.notifications.is_empty() {
             container(text("No notifications").size(theme.font_size.md))
                 .width(Length::Fill)
-                .height(Length::Fixed(EMPTY_STATE_HEIGHT))
+                .height(Length::Fixed(self.config.empty_state_height))
                 .center_x(Length::Fill)
-                .center_y(Length::Fixed(EMPTY_STATE_HEIGHT))
+                .center_y(Length::Fixed(self.config.empty_state_height))
                 .into()
         } else if self.config.grouped {
             self.grouped_notifications(theme)
