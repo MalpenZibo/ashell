@@ -20,7 +20,7 @@ use iced::{
     },
     window::Id,
 };
-use log::info;
+use log::{info, warn};
 
 static WIFI_SIGNAL_ICONS: [StaticIcon; 6] = [
     StaticIcon::Wifi0,
@@ -113,6 +113,7 @@ pub enum Message {
     VpnMore(Id),
     SelectAccessPoint(AccessPoint),
     RequestWiFiPassword(Id, String),
+    ConfirmOpenNetwork(String),
     ToggleVpn(Vpn),
     ToggleAirplaneMode,
     OpenMore,
@@ -120,6 +121,7 @@ pub enum Message {
     ToggleVPNMenu,
     WifiMenuOpened,
     PasswordDialogConfirmed(String, String),
+    OpenNetworkDialogConfirmed(String),
     ConfigReloaded(NetworkSettingsConfig),
 }
 
@@ -127,6 +129,7 @@ pub enum Action {
     None,
     RequestPasswordForSSID(String),
     RequestPassword(Id, String),
+    ConfirmOpenNetwork(String),
     Command(Task<Message>),
     ToggleWifiMenu,
     ToggleVpnMenu,
@@ -217,6 +220,7 @@ impl NetworkSettings {
                 info!("Requesting password for {ssid}");
                 Action::RequestPassword(id, ssid)
             }
+            Message::ConfirmOpenNetwork(ssid) => Action::ConfirmOpenNetwork(ssid),
             Message::ScanNearByWiFi => match self.service.as_mut() {
                 Some(service) => Action::Command(
                     service
@@ -276,12 +280,38 @@ impl NetworkSettings {
                         .find(|ap| ap.ssid == ssid)
                         .cloned();
                     if let Some(ap) = ap {
+                        let password = (!password.is_empty()).then_some(password);
                         Action::Command(
                             service
-                                .command(NetworkCommand::SelectAccessPoint((ap, Some(password))))
+                                .command(NetworkCommand::SelectAccessPoint((ap, password)))
                                 .map(Message::Event),
                         )
                     } else {
+                        warn!(
+                            "Unable to confirm password dialog: access point '{ssid}' no longer available"
+                        );
+                        Action::None
+                    }
+                }
+                _ => Action::None,
+            },
+            Message::OpenNetworkDialogConfirmed(ssid) => match self.service.as_mut() {
+                Some(service) => {
+                    let ap = service
+                        .wireless_access_points
+                        .iter()
+                        .find(|ap| ap.ssid == ssid)
+                        .cloned();
+                    if let Some(ap) = ap {
+                        Action::Command(
+                            service
+                                .command(NetworkCommand::SelectAccessPoint((ap, None)))
+                                .map(Message::Event),
+                        )
+                    } else {
+                        warn!(
+                            "Unable to confirm open network dialog: access point '{ssid}' no longer available"
+                        );
                         Action::None
                     }
                 }
@@ -603,7 +633,9 @@ impl NetworkSettings {
                             .style(theme.ghost_button_style())
                             .padding([8, 8])
                             .on_press_maybe(if !is_active {
-                                Some(if is_known {
+                                Some(if ac.public {
+                                    Message::ConfirmOpenNetwork(ac.ssid.to_string())
+                                } else if is_known {
                                     Message::SelectAccessPoint(ac.clone())
                                 } else {
                                     Message::RequestWiFiPassword(id, ac.ssid.to_string())
