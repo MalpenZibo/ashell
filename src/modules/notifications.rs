@@ -336,13 +336,12 @@ impl Notifications {
 
                 let task = Task::perform(
                     async move {
-                        if let Some(connection) = connection {
-                            if let Err(e) =
+                        if let Some(connection) = connection
+                            && let Err(e) =
                                 NotificationDaemon::close_notification_by_id(&connection, id).await
                             {
                                 error!("Failed to close notification id {}: {}", id, e);
                             }
-                        }
                         id
                     },
                     Message::NotificationClosed,
