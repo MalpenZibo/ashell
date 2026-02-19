@@ -95,7 +95,7 @@ pub enum Message {
     ConfigReloaded(NotificationsModuleConfig),
     NotificationClicked(u32),
     NotificationClosed(u32),
-    CloseNotificationByAppIcon(u32),
+    CloseNotificationById(u32),
     ClearNotifications,
     NotificationsCleared,
     ClearGroup(String),
@@ -328,7 +328,7 @@ impl Notifications {
                     Action::None
                 }
             }
-            Message::CloseNotificationByAppIcon(id) => {
+            Message::CloseNotificationById(id) => {
                 let connection = self.service.as_ref().map(|s| s.connection.clone());
                 self.notifications.retain(|n| n.id != id);
                 let had_toasts = !self.toasts.is_empty();
@@ -497,7 +497,7 @@ impl Notifications {
 
         let notification_id = notification.id;
         let app_icon_button = button(notification_icon(&notification.app_icon))
-            .on_press(Message::CloseNotificationByAppIcon(notification_id))
+            .on_press(Message::CloseNotificationById(notification_id))
             .style(move |iced_theme: &Theme, status| button::Style {
                 background: Some(Background::Color(Color::TRANSPARENT)),
                 text_color: match status {
