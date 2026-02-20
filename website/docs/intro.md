@@ -4,14 +4,14 @@ sidebar_position: 1
 
 # 🚀 Getting Started
 
-Ashell is a status bar for Hyprland and Niri, written in Rust using the `iced` library.
+Ashell is a status bar for Hyprland, Niri, and MangoWC, written in Rust using the `iced` library.
 
-## Does it only work on Hyprland and Niri?
+## Does it only work on Hyprland, Niri, and MangoWC?
 
 This project originally supported only Hyprland, primarily because
 it is the compositor I use to test ashell.
 
-Thanks to community support, ashell now supports Niri as well.
+Thanks to community support, ashell now supports Niri and MangoWC as well.
 
 In the future, we plan to expand this functionality to other
 Wayland compositors.
@@ -19,11 +19,11 @@ Wayland compositors.
 ## Features
 
 - OS Updates indicator
-- Hyprland/Niri Active Window
-- Hyprland/Niri Workspaces
+- Hyprland/Niri/MangoWC Active Window
+- Hyprland/Niri/MangoWC Workspaces/Tags
 - System Information (CPU, RAM, Temperature)
-- Hyprland/Niri Keyboard Layout
-- Hyprland Keyboard Submap
+- Hyprland/Niri/MangoWC Keyboard Layout
+- Hyprland/MangoWC Keyboard Submap
 - Tray
 - Date and Time
 - Privacy indicators (microphone, camera, and screen sharing usage)
