@@ -266,6 +266,7 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
         workspaces,
         monitors,
         active_workspace_id,
+        active_workspace_ids: active_workspace_id.into_iter().collect(),
         active_window,
         keyboard_layout,
         submap: None,
