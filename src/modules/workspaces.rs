@@ -13,7 +13,7 @@ use iced::{
     window::Id,
 };
 use itertools::Itertools;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum Displayed {
@@ -60,7 +60,11 @@ fn calculate_ui_workspaces(
     config: &WorkspacesModuleConfig,
     state: &CompositorState,
 ) -> Vec<UiWorkspace> {
-    let active_id = state.active_workspace_id;
+    let active_ids: HashSet<i32> = if state.active_workspace_ids.is_empty() {
+        state.active_workspace_id.into_iter().collect()
+    } else {
+        state.active_workspace_ids.iter().copied().collect()
+    };
     let monitors = &state.monitors;
     let monitor_order = monitors
         .iter()
@@ -110,7 +114,7 @@ fn calculate_ui_workspaces(
 
         for w in normal.iter() {
             let vdesk_id = ((w.id - 1) / monitor_count as i32) + 1;
-            let is_active = Some(w.id) == active_id;
+            let is_active = active_ids.contains(&w.id);
 
             if let Some(vdesk) = virtual_desktops.get_mut(&vdesk_id) {
                 vdesk.windows += w.windows;
@@ -162,7 +166,7 @@ fn calculate_ui_workspaces(
                 w.name.clone()
             };
 
-            let is_active = active_id == Some(w.id);
+            let is_active = active_ids.contains(&w.id);
             let is_visible = monitors.iter().any(|m| m.active_workspace_id == w.id);
 
             result.push(UiWorkspace {
