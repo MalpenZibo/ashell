@@ -5,13 +5,14 @@ use crate::{
 use iced::{
     Alignment, Element, Length,
     alignment::Vertical,
-    widget::{button, column, horizontal_space, row, text, text_input},
+    widget::{button, column, container, horizontal_space, row, text, text_input},
     window::Id,
 };
 
 #[derive(Debug, Clone)]
 pub enum Message {
     PasswordChanged(String),
+    TogglePasswordVisibility,
     DialogConfirmed(Id),
     DialogCancelled(Id),
 }
@@ -21,6 +22,7 @@ pub fn view<'a>(
     theme: &'a AshellTheme,
     wifi_ssid: &str,
     current_password: &str,
+    show_password: bool,
 ) -> Element<'a, Message> {
     column!(
         row!(
@@ -30,13 +32,34 @@ pub fn view<'a>(
         .spacing(theme.space.md)
         .align_y(Alignment::Center),
         text(format!("Insert password to connect to: {wifi_ssid}")),
-        text_input("", current_password)
-            .secure(true)
-            .size(theme.font_size.md)
-            .padding([theme.space.xs, theme.space.md])
-            .style(theme.text_input_style())
-            .on_input(Message::PasswordChanged)
-            .on_submit(Message::DialogConfirmed(id)),
+        row!(
+            text_input("", current_password)
+                .secure(!show_password)
+                .size(theme.font_size.md)
+                .padding([theme.space.xs, theme.space.md])
+                .style(theme.text_input_style())
+                .on_input(Message::PasswordChanged)
+                .on_submit(Message::DialogConfirmed(id))
+                .width(Length::Fill),
+            button(
+                container(
+                    icon(if show_password {
+                        StaticIcon::EyeOpened
+                    } else {
+                        StaticIcon::EyeClosed
+                    })
+                    .size(theme.font_size.md)
+                )
+                .center(Length::Fill)
+            )
+            .padding(0)
+            .style(theme.round_button_style())
+            .on_press(Message::TogglePasswordVisibility)
+            .height(Length::Fixed(32.))
+            .width(Length::Fixed(32.)),
+        )
+        .spacing(theme.space.sm)
+        .align_y(Alignment::Center),
         row!(
             horizontal_space(),
             button(text("Cancel").align_y(Vertical::Center))
