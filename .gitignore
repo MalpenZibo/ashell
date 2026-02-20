@@ -8,3 +8,4 @@ vendor
 /.rpm/*
 !.rpm/ashell.spec
 .github/workflows/target/rust-analyzer/flycheck0
+.worktrees
