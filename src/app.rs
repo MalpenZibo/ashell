@@ -69,6 +69,7 @@ pub struct App {
     pub settings: Settings,
     pub media_player: MediaPlayer,
     pub notifications: Notifications,
+    pub visible: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -94,6 +95,7 @@ pub enum Message {
     CloseAllMenus,
     ResumeFromSleep,
     None,
+    ToggleVisibility,
 }
 
 impl App {
@@ -143,6 +145,7 @@ impl App {
                     settings: Settings::new(config.settings),
                     notifications,
                     media_player: MediaPlayer::new(config.media_player),
+                    visible: true,
                 },
                 task,
             )
@@ -441,12 +444,35 @@ impl App {
                 ]),
             },
             Message::None => Task::none(),
+            Message::ToggleVisibility => {
+                self.visible = !self.visible;
+                let height = if self.visible {
+                    (crate::HEIGHT
+                        - match self.theme.bar_style {
+                            AppearanceStyle::Solid | AppearanceStyle::Gradient => 8.,
+                            AppearanceStyle::Islands => 0.,
+                        })
+                        * self.theme.scale_factor
+                } else {
+                    0.0
+                };
+
+                Task::batch(self.outputs.iter().filter_map(|(_, shell_info, _)| {
+                    shell_info.as_ref().map(|info| {
+                        iced::platform_specific::shell::commands::layer_surface::set_exclusive_zone(info.id, height as i32)
+                    })
+                }).collect::<Vec<_>>())
+            }
         }
     }
 
     pub fn view(&'_ self, id: Id) -> Element<'_, Message> {
         match self.outputs.has(id) {
             Some(HasOutput::Main) => {
+                if !self.visible {
+                    return Row::new().into();
+                }
+
                 let [left, center, right] = self.modules_section(id, &self.theme);
 
                 let centerbox = Centerbox::new([left, center, right])
@@ -617,6 +643,18 @@ impl App {
                     }
                 }
                 _ => None,
+            }),
+            Subscription::run(|| {
+                use iced::futures::StreamExt;
+                signal_hook_tokio::Signals::new([libc::SIGUSR1])
+                    .expect("Failed to create signal stream")
+                    .filter_map(|sig| {
+                        if sig == libc::SIGUSR1 {
+                            iced::futures::future::ready(Some(Message::ToggleVisibility))
+                        } else {
+                            iced::futures::future::ready(None)
+                        }
+                    })
             }),
         ])
     }
