@@ -40,7 +40,7 @@ You can change the style of the status bar using the `style` field.
 
 You can choose between:
 
-- `Island`: This is the default style. Each module or module group is displayed
+- `Islands`: This is the default style. Each module or module group is displayed
   in a rounded rectangle using the background color.
 - `Solid`: The status bar has a solid background color.
 - `Gradient`: The status bar has a gradient background color.
