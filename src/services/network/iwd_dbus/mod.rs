@@ -48,44 +48,44 @@ pub struct IwdDbus<'a> {
 }
 
 /// Map IWD SignalLevelAgent discrete level (bucket index) to UI percentage.
-/// Levels correspond to RSSI thresholds: -30, -42, -54, -66, -78, -90 dBm.
-/// These thresholds match the 6-level mapping used in map_iwd_rssi_to_percent.
+/// Levels correspond to RSSI thresholds: -30, -50, -60, -70, -80 dBm.
+/// These are clean round numbers that provide intuitive signal level划分.
+/// Note: Wifi0 is only used for no signal (disconnected), not signal levels.
 fn map_iwd_level_to_percent(level: u8) -> u8 {
     match level {
-        0 => 100, // Wifi5: Excellent (≥ -30 dBm)
-        1 => 83,  // Wifi4: Good (-42 dBm)
-        2 => 67,  // Wifi3: Fair (-54 dBm)
-        3 => 50,  // Wifi2: Poor (-66 dBm)
-        4 => 33,  // Wifi1: Very Poor (-78 dBm)
-        5 => 17,  // Wifi0: Extremely Poor (-90 dBm)
-        _ => 0,
+        0 => 95, // Wifi5: Excellent (≥ -30 dBm)
+        1 => 75, // Wifi4: Good (-30 to -50 dBm)
+        2 => 50, // Wifi3: Fair (-50 to -60 dBm)
+        3 => 32, // Wifi2: Poor (-60 to -70 dBm)
+        4 => 18, // Wifi1: Very Weak (-70 to -80 dBm)
+        _ => 0,  // No signal (Wifi0 - disconnected state)
     }
 }
 
-/// Map ordered-network strength (i16, hundredths of dBm) to 0..100 percent.
-/// Used for initial AP/active connection snapshots from reachable_networks().
+/// Map IWD RSSI (reported in hundredths of dBm, e.g. -3900 for -39 dBm) to 0..100 percent.
+/// Based on WiFi Explorer's quadratic model derived from IPW2200 driver implementation.
+/// See: https://www.intuitibits.com/2016/03/23/dbm-to-percent-conversion/
 fn map_iwd_rssi_to_percent(rssi_hundredths: i16) -> u8 {
     let rssi_dbm = rssi_hundredths as f32 / 100.0;
 
-    match rssi_dbm {
-        r if r >= -30.0 => 100, // Wifi5: Excellent (≥ -30 dBm)
-
-        // Range -30 to -42 (Span 12dBm, Goal 100% to 83%)
-        r if r >= -42.0 => (83.0 + (r + 42.0) * 1.42) as u8,
-
-        // Range -42 to -54 (Span 12dBm, Goal 83% to 67%)
-        r if r >= -54.0 => (67.0 + (r + 54.0) * 1.33) as u8,
-
-        // Range -54 to -66 (Span 12dBm, Goal 67% to 50%)
-        r if r >= -66.0 => (50.0 + (r + 66.0) * 1.42) as u8,
-
-        // Range -66 to -78 (Span 12dBm, Goal 50% to 33%)
-        r if r >= -78.0 => (33.0 + (r + 78.0) * 1.42) as u8,
-
-        // Range -78 to -90 (Span 12dBm, Goal 33% to 17%)
-        r if r >= -90.0 => (17.0 + (r + 90.0) * 1.33) as u8,
-        _ => 0, // No signal (< -90 dBm)
+    // WiFi Explorer treats anything better than -20dBm as 100%
+    // and anything worse than -95dBm as a floor (usually 1%).
+    if rssi_dbm >= -20.0 {
+        return 100;
     }
+    if rssi_dbm <= -95.0 {
+        return 1;
+    }
+
+    // Quadratic model: percent = 100 - 0.0189 * (rssi + 20)^2
+    // This coefficient (0.0189) correctly maps:
+    // -40dBm ≈ 92%
+    // -60dBm ≈ 70%
+    // -80dBm ≈ 32%
+    // -92dBm ≈ 2%
+    let percent = 100.0 - 0.0189 * (rssi_dbm + 20.0).powi(2);
+
+    percent.clamp(1.0, 100.0).round() as u8
 }
 
 impl<'a> Deref for IwdDbus<'a> {
@@ -654,8 +654,8 @@ impl IwdDbus<'_> {
                     .boxed(),
             );
 
-            // Register signal level agent with thresholds matching our 6-level mapping.
-            let signal_thresholds = [-30, -42, -54, -66, -78, -90]; // Wifi5..Wifi0 boundaries
+            // Register signal level agent with clean round number thresholds
+            let signal_thresholds = [-30, -50, -60, -70, -80]; // Excellent, Good, Fair, Poor, Very Weak
             station
                 .register_signal_level_agent(&agent_path, &signal_thresholds)
                 .await?;
