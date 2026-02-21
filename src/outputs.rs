@@ -25,6 +25,7 @@ pub struct ShellInfo {
     pub style: AppearanceStyle,
     pub menu: Menu,
     pub scale_factor: f64,
+    pub toast_overlay: bool,
 }
 
 #[derive(Debug, Clone)]

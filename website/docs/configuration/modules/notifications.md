@@ -108,9 +108,17 @@ How long (in milliseconds) a toast is shown before auto-dismissing when the appl
 Maximum number of toasts that can be visible at the same time. When this limit is reached, the oldest toast is removed to make room for a new one.
 
 **Type:** `integer`
-**Default:** `5`
+**Default:** `3`
 
-## Example
+### empty_state_height
+
+Height (in pixels) of the notification menu when there are no notifications. This affects the size of the
+"No notifications" placeholder and can be used to avoid the menu collapsing to a tiny popup.
+
+**Type:** `number` (float)
+**Default:** `300.0`
+
+### Example
 
 ```toml
 [notifications]
@@ -123,4 +131,5 @@ toast = true
 toast_position = "top_right"
 toast_default_timeout = 4000
 toast_max_visible = 3
+empty_state_height = 350.0
 ```
