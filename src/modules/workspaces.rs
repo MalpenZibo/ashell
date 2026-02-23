@@ -1,5 +1,4 @@
 use crate::{
-    components::icons::{DynamicIcon, icon},
     config::{WorkspaceIndicatorFormat, WorkspaceVisibilityMode, WorkspacesModuleConfig},
     outputs::Outputs,
     services::{
@@ -25,12 +24,6 @@ pub enum Displayed {
 }
 
 #[derive(Debug, Clone)]
-pub enum WorkspaceIcon {
-    Glyph(String),
-    Xdg(XdgIcon),
-}
-
-#[derive(Debug, Clone)]
 pub struct UiWorkspace {
     pub id: i32,
     pub index: i32,
@@ -39,7 +32,7 @@ pub struct UiWorkspace {
     pub monitor: String,
     pub displayed: Displayed,
     pub windows: u16,
-    pub icons: Vec<WorkspaceIcon>,
+    pub icons: Vec<XdgIcon>,
 }
 
 #[derive(Debug, Clone)]
@@ -52,44 +45,21 @@ struct VirtualDesktop {
 fn resolve_workspace_icons(
     window_classes: &[String],
     config: &WorkspacesModuleConfig,
-) -> Vec<WorkspaceIcon> {
+) -> Vec<XdgIcon> {
     if config.indicator_format != WorkspaceIndicatorFormat::NameAndIcons {
         return Vec::new();
     }
 
     let mut icons = Vec::new();
-    let mut seen_glyphs = HashSet::new();
-    let mut seen_classes = HashSet::new();
+    let mut seen = HashSet::new();
 
     for class in window_classes {
         let class_lower = class.to_lowercase();
-
-        // Check user glyph config first
-        if let Some((_, glyph)) = config
-            .window_icons
-            .iter()
-            .find(|(pattern, _)| class_lower.contains(&pattern.to_lowercase()))
-        {
-            if seen_glyphs.insert(glyph.clone()) {
-                icons.push(WorkspaceIcon::Glyph(glyph.clone()));
-            }
+        if !seen.insert(class_lower.clone()) {
             continue;
         }
-
-        // Try XDG icon lookup
-        if !seen_classes.contains(&class_lower) {
-            if let Some(xdg) = xdg_icons::get_icon_from_name(&class_lower) {
-                seen_classes.insert(class_lower);
-                icons.push(WorkspaceIcon::Xdg(xdg));
-                continue;
-            }
-        }
-
-        // Fall back to default glyph
-        if let Some(default) = &config.default_window_icon {
-            if seen_glyphs.insert(default.clone()) {
-                icons.push(WorkspaceIcon::Glyph(default.clone()));
-            }
+        if let Some(xdg) = xdg_icons::get_icon_from_name(&class_lower) {
+            icons.push(xdg);
         }
     }
 
@@ -490,16 +460,13 @@ impl Workspaces {
                                 let mut children: Vec<Element<'a, Message>> =
                                     vec![text(w.name.as_str()).size(theme.font_size.xs).into()];
                                 children.extend(w.icons.iter().map(|i| match i {
-                                    WorkspaceIcon::Glyph(g) => {
-                                        icon(DynamicIcon(g.clone())).size(theme.font_size.xs).into()
-                                    }
-                                    WorkspaceIcon::Xdg(XdgIcon::Svg(handle)) => {
+                                    XdgIcon::Svg(handle) => {
                                         Svg::new(handle.clone())
                                             .height(Length::Fixed(theme.font_size.xs as f32))
                                             .width(Length::Shrink)
                                             .into()
                                     }
-                                    WorkspaceIcon::Xdg(XdgIcon::Image(handle)) => {
+                                    XdgIcon::Image(handle) => {
                                         Image::new(handle.clone())
                                             .height(Length::Fixed(theme.font_size.xs as f32))
                                             .width(Length::Shrink)
