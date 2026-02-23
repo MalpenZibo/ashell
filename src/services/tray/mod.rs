@@ -22,9 +22,6 @@ pub mod dbus;
 
 pub type TrayIcon = super::xdg_icons::XdgIcon;
 
-fn get_icon_from_name(icon_name: &str) -> Option<TrayIcon> {
-    xdg_icons::get_icon_from_name(icon_name)
-}
 
 #[derive(Debug, Clone)]
 pub enum TrayEvent {
@@ -87,7 +84,7 @@ impl StatusNotifierItem {
                 .await
                 .ok()
                 .as_deref()
-                .and_then(get_icon_from_name),
+                .and_then(xdg_icons::get_icon_from_name),
         };
 
         let menu_path = item_proxy.menu().await?;
@@ -253,7 +250,7 @@ impl TrayService {
                                     .await
                                     .ok()
                                     .as_deref()
-                                    .and_then(get_icon_from_name)
+                                    .and_then(xdg_icons::get_icon_from_name)
                                     .map(|icon| TrayEvent::IconChanged(name.to_owned(), icon))
                             }
                         }
