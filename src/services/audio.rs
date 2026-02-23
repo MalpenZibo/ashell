@@ -19,7 +19,7 @@ use libpulse_binding::{
     proplist::{Proplist, properties::APPLICATION_NAME},
     volume::ChannelVolumes,
 };
-use log::{debug, error, trace};
+use log::{debug, error, trace, warn};
 use std::{
     any::TypeId,
     cell::RefCell,
@@ -285,7 +285,7 @@ impl AudioService {
             if device.is_filter {
                 if device.ports.len() > 1 {
                     let device_name = device.name.as_str();
-                    error!("Unexpected multiple ports in a filter node: {device_name}")
+                    warn!("Unexpected multiple ports in a filter node: {device_name}")
                 }
                 Either::Left(std::iter::once(Route { device, port: None }))
             } else {

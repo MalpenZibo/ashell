@@ -315,7 +315,6 @@ impl AudioSettings {
                     }
                 }
             })
-        // })
     }
 
     pub fn sliders<'a>(
