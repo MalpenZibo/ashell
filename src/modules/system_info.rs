@@ -34,7 +34,7 @@ pub fn view(info: SystemInfoDataSignals) -> impl Widget {
         .layout(
             Flex::row()
                 .spacing(4.0)
-                .cross_axis_alignment(CrossAxisAlignment::Center),
+                .cross_alignment(CrossAlignment::Center),
         )
         .child(indicator(
             StaticIcon::Cpu,
@@ -106,7 +106,7 @@ fn indicator(
         .layout(
             Flex::row()
                 .spacing(4.0)
-                .cross_axis_alignment(CrossAxisAlignment::Center),
+                .cross_alignment(CrossAlignment::Center),
         )
         .child(icon(ic).color(color_fn).font_size(14.0))
         .child(text(value_fn).color(color_fn2).font_size(13.0))
@@ -123,15 +123,15 @@ fn menu_row(
         .width(fill())
         .layout(
             Flex::row()
-                .main_axis_alignment(MainAxisAlignment::SpaceBetween)
-                .cross_axis_alignment(CrossAxisAlignment::Center),
+                .main_alignment(MainAlignment::SpaceBetween)
+                .cross_alignment(CrossAlignment::Center),
         )
         .child(
             container()
                 .layout(
                     Flex::row()
                         .spacing(8.0)
-                        .cross_axis_alignment(CrossAxisAlignment::Center),
+                        .cross_alignment(CrossAlignment::Center),
                 )
                 .child(icon(ic).color(color_fn).font_size(16.0))
                 .child(text(label).color(theme::TEXT).font_size(14.0)),

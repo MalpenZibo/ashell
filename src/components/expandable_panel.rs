@@ -25,7 +25,7 @@ impl ExpandablePanel {
                 // Header row: [slot content] [chevron]
                 container()
                     .width(fill())
-                    .padding_xy(8.0, 6.0)
+                    .padding([6.0, 8.0])
                     .corner_radius(8.0)
                     .on_click(move || expanded.set(!expanded.get()))
                     .on_hover(move |h| header_hovered.set(h))
@@ -38,8 +38,8 @@ impl ExpandablePanel {
                     })
                     .layout(
                         Flex::row()
-                            .main_axis_alignment(MainAxisAlignment::SpaceBetween)
-                            .cross_axis_alignment(CrossAxisAlignment::Center),
+                            .main_alignment(MainAlignment::SpaceBetween)
+                            .cross_alignment(CrossAlignment::Center),
                     )
                     .child(header.unwrap_or_else(|| Box::new(container())))
                     .child(

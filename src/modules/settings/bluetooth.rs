@@ -83,15 +83,15 @@ pub fn bt_submenu(
                 .width(fill())
                 .layout(
                     Flex::row()
-                        .main_axis_alignment(MainAxisAlignment::SpaceBetween)
-                        .cross_axis_alignment(CrossAxisAlignment::Center),
+                        .main_alignment(MainAlignment::SpaceBetween)
+                        .cross_alignment(CrossAlignment::Center),
                 )
                 .child(text("Bluetooth Devices").color(theme::TEXT).font_size(14.0))
                 .child({
                     let svc_scan = svc.clone();
                     let hovered = create_signal(false);
                     container()
-                        .padding_xy(8.0, 4.0)
+                        .padding([4.0, 8.0])
                         .corner_radius(6.0)
                         .on_hover(move |h| hovered.set(h))
                         .on_click(move || {
@@ -159,7 +159,7 @@ pub fn bt_submenu(
                 col = col.child(
                     container()
                         .width(fill())
-                        .padding_xy(8.0, 6.0)
+                        .padding([6.0, 8.0])
                         .corner_radius(8.0)
                         .on_hover(move |h| hovered.set(h))
                         .on_click(move || {
@@ -175,7 +175,7 @@ pub fn bt_submenu(
                         .layout(
                             Flex::row()
                                 .spacing(8.0)
-                                .cross_axis_alignment(CrossAxisAlignment::Center),
+                                .cross_alignment(CrossAlignment::Center),
                         )
                         .child(
                             icon(StaticIcon::BluetoothConnected)
@@ -194,7 +194,7 @@ pub fn bt_submenu(
                 col = col.child(
                     container()
                         .width(fill())
-                        .padding_xy(8.0, 6.0)
+                        .padding([6.0, 8.0])
                         .corner_radius(8.0)
                         .on_hover(move |h| hovered.set(h))
                         .on_click(move || {
@@ -210,7 +210,7 @@ pub fn bt_submenu(
                         .layout(
                             Flex::row()
                                 .spacing(8.0)
-                                .cross_axis_alignment(CrossAxisAlignment::Center),
+                                .cross_alignment(CrossAlignment::Center),
                         )
                         .child(icon(StaticIcon::Bluetooth).color(theme::TEXT).font_size(14.0))
                         .child(text(name).color(theme::TEXT).font_size(12.0)),
@@ -220,7 +220,7 @@ pub fn bt_submenu(
             if !discovered.is_empty() {
                 col = col.child(
                     container()
-                        .padding_xy(8.0, 4.0)
+                        .padding([4.0, 8.0])
                         .child(text("Available").color(theme::LAVENDER).font_size(11.0)),
                 );
                 for device in discovered {
@@ -231,7 +231,7 @@ pub fn bt_submenu(
                     col = col.child(
                         container()
                             .width(fill())
-                            .padding_xy(8.0, 6.0)
+                            .padding([6.0, 8.0])
                             .corner_radius(8.0)
                             .on_hover(move |h| hovered.set(h))
                             .on_click(move || {
@@ -247,7 +247,7 @@ pub fn bt_submenu(
                             .layout(
                                 Flex::row()
                                     .spacing(8.0)
-                                    .cross_axis_alignment(CrossAxisAlignment::Center),
+                                    .cross_alignment(CrossAlignment::Center),
                             )
                             .child(
                                 icon(StaticIcon::Bluetooth).color(theme::TEXT).font_size(14.0),

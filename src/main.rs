@@ -39,7 +39,7 @@ fn toggle_menu_surface(id: SurfaceId, open: bool) {
         handle.set_layer(Layer::Overlay);
         handle.set_keyboard_interactivity(KeyboardInteractivity::OnDemand);
     } else {
-        handle.set_layer(Layer::Overlay);
+        handle.set_layer(Layer::Background);
         handle.set_keyboard_interactivity(KeyboardInteractivity::None);
     }
 }
@@ -64,6 +64,8 @@ async fn main() {
 
         // Menu state
         let active_menu = create_signal(None::<MenuType>);
+        // Fixed X position captured when menu opens
+        let menu_x = create_signal(0.0_f32);
         // Signal to share menu surface ID between bar and menu surface closures
         let menu_sid = create_signal(None::<SurfaceId>);
         // Widget refs for positioning the menu under the triggering module
@@ -88,9 +90,39 @@ async fn main() {
                 container()
                     .child(
                         center_box()
-                            .left(module_group().child(module_item().child(
-                                modules::workspaces::view(compositor_state, compositor_svc.clone()),
-                            )))
+                            .left(
+                                module_group()
+                                    .child(
+                                        container().widget_ref(updates_ref).child(
+                                            module_item()
+                                                .on_click(move || {
+                                                    let new = match active_menu.get() {
+                                                        Some(MenuType::Updates) => None,
+                                                        _ => Some(MenuType::Updates),
+                                                    };
+                                                    if new.is_some() {
+                                                        let r = updates_ref.rect().get();
+                                                        let screen_w = backdrop_ref.rect().get().width;
+                                                        let center = r.x + r.width / 2.0;
+                                                        menu_x.set(
+                                                            (center - MENU_WIDTH / 2.0)
+                                                                .max(8.0)
+                                                                .min(screen_w - MENU_WIDTH - 8.0),
+                                                        );
+                                                    }
+                                                    active_menu.set(new);
+                                                    if let Some(id) = menu_sid.get() {
+                                                        toggle_menu_surface(id, new.is_some());
+                                                    }
+                                                })
+                                                .child(modules::updates::view(updates_data)),
+                                        ),
+                                    )
+                                    .child(module_item().child(modules::workspaces::view(
+                                        compositor_state,
+                                        compositor_svc.clone(),
+                                    ))),
+                            )
                             .center(container().child(move || {
                                 compositor_state
                                     .active_window
@@ -105,22 +137,6 @@ async fn main() {
                             }))
                             .right(
                                 module_group()
-                                    .child(
-                                        container().widget_ref(updates_ref).child(
-                                            module_item()
-                                                .on_click(move || {
-                                                    let new = match active_menu.get() {
-                                                        Some(MenuType::Updates) => None,
-                                                        _ => Some(MenuType::Updates),
-                                                    };
-                                                    active_menu.set(new);
-                                                    if let Some(id) = menu_sid.get() {
-                                                        toggle_menu_surface(id, new.is_some());
-                                                    }
-                                                })
-                                                .child(modules::updates::view(updates_data)),
-                                        ),
-                                    )
                                     .child({
                                         let settings = settings_bar.clone();
                                         container().widget_ref(settings_ref).child(
@@ -130,6 +146,17 @@ async fn main() {
                                                         Some(MenuType::Settings) => None,
                                                         _ => Some(MenuType::Settings),
                                                     };
+                                                    if new.is_some() {
+                                                        let r = settings_ref.rect().get();
+                                                        let screen_w = backdrop_ref.rect().get().width;
+                                                        let w = 350.0_f32;
+                                                        let center = r.x + r.width / 2.0;
+                                                        menu_x.set(
+                                                            (center - w / 2.0)
+                                                                .max(8.0)
+                                                                .min(screen_w - w - 8.0),
+                                                        );
+                                                    }
                                                     active_menu.set(new);
                                                     if let Some(id) = menu_sid.get() {
                                                         toggle_menu_surface(id, new.is_some());
@@ -146,6 +173,16 @@ async fn main() {
                                                         Some(MenuType::SystemInfo) => None,
                                                         _ => Some(MenuType::SystemInfo),
                                                     };
+                                                    if new.is_some() {
+                                                        let r = sysinfo_ref.rect().get();
+                                                        let screen_w = backdrop_ref.rect().get().width;
+                                                        let center = r.x + r.width / 2.0;
+                                                        menu_x.set(
+                                                            (center - MENU_WIDTH / 2.0)
+                                                                .max(8.0)
+                                                                .min(screen_w - MENU_WIDTH - 8.0),
+                                                        );
+                                                    }
                                                     active_menu.set(new);
                                                     if let Some(id) = menu_sid.get() {
                                                         toggle_menu_surface(id, new.is_some());
@@ -157,7 +194,7 @@ async fn main() {
                                     .child(module_item().child(modules::clock::view())),
                             ),
                     )
-                    .padding_xy(0., 4.)
+                    .padding([4.0, 0.0])
             },
         );
 
@@ -191,12 +228,6 @@ async fn main() {
                         move || {
                             let menu = active_menu.get();
                             if menu.is_some() {
-                                let anchor_ref = match menu {
-                                    Some(MenuType::SystemInfo) => sysinfo_ref,
-                                    Some(MenuType::Updates) => updates_ref,
-                                    Some(MenuType::Settings) => settings_ref,
-                                    None => unreachable!(),
-                                };
                                 let menu_width = match menu {
                                     Some(MenuType::Settings) => 350.0,
                                     _ => MENU_WIDTH,
@@ -204,17 +235,7 @@ async fn main() {
                                 Some(
                                     // Menu content panel
                                     container()
-                                        .translate(
-                                            move || {
-                                                let r = anchor_ref.rect().get();
-                                                let center = r.x + r.width / 2.0;
-                                                let screen_w = backdrop_ref.rect().get().width;
-                                                (center - menu_width / 2.0)
-                                                    .max(8.0)
-                                                    .min(screen_w - menu_width - 8.0)
-                                            },
-                                            0.,
-                                        )
+                                        .translate(move || menu_x.get(), 0.)
                                         .width(menu_width)
                                         .height(at_most(800.0))
                                         .scrollable(ScrollAxis::Vertical)
@@ -230,13 +251,13 @@ async fn main() {
                                             move || {
                                                 let menu = active_menu.get();
                                                 match menu {
-                                                    Some(MenuType::SystemInfo) => Some(
-                                                        container().child(
+                                                    Some(MenuType::SystemInfo) => {
+                                                        Some(container().child(
                                                             modules::system_info::menu_view(
                                                                 system_info,
                                                             ),
-                                                        ),
-                                                    ),
+                                                        ))
+                                                    }
                                                     Some(MenuType::Updates) => {
                                                         Some(container().child(
                                                             modules::updates::menu_view(
@@ -244,8 +265,7 @@ async fn main() {
                                                                 svc.clone(),
                                                                 move || {
                                                                     active_menu.set(None);
-                                                                    if let Some(id) =
-                                                                        menu_sid.get()
+                                                                    if let Some(id) = menu_sid.get()
                                                                     {
                                                                         toggle_menu_surface(
                                                                             id, false,
@@ -261,8 +281,7 @@ async fn main() {
                                                                 settings.clone(),
                                                                 move || {
                                                                     active_menu.set(None);
-                                                                    if let Some(id) =
-                                                                        menu_sid.get()
+                                                                    if let Some(id) = menu_sid.get()
                                                                     {
                                                                         toggle_menu_surface(
                                                                             id, false,

@@ -25,7 +25,7 @@ pub fn menu_button(
     let hovered = create_signal(false);
     container()
         .width(fill())
-        .padding_xy(8.0, 6.0)
+        .padding([6.0, 8.0])
         .corner_radius(8.0)
         .on_click(move || on_click())
         .on_hover(move |h| hovered.set(h))

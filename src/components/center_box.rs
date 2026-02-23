@@ -109,7 +109,7 @@ impl CenterBox {
             .width(fill())
             .height(fill())
             .layout(CenterBoxLayout::new())
-            .padding_xy(4.0, 0.0)
+            .padding([0.0, 4.0])
             .child(self.take_left().unwrap_or_else(|| Box::new(container())))
             .child(self.take_center().unwrap_or_else(|| Box::new(container())))
             .child(self.take_right().unwrap_or_else(|| Box::new(container())))

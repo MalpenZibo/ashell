@@ -4,7 +4,13 @@ use crate::components::{StaticIcon, icon, slider};
 use crate::services::audio::{AudioCmd, AudioDataSignals, Sinks, Sources};
 use crate::theme;
 
-pub fn sink_slider(data: AudioDataSignals, svc: Service<AudioCmd>) -> impl Widget {
+use super::SubMenu;
+
+pub fn sink_slider(
+    data: AudioDataSignals,
+    svc: Service<AudioCmd>,
+    submenu: Signal<Option<SubMenu>>,
+) -> impl Widget {
     let sinks = data.sinks;
     let server_info = data.server_info;
     let cur_vol = data.cur_sink_volume;
@@ -26,10 +32,23 @@ pub fn sink_slider(data: AudioDataSignals, svc: Service<AudioCmd>) -> impl Widge
         },
         move |vol| svc_change.send(AudioCmd::SinkVolume(vol)),
         move || svc_mute.send(AudioCmd::ToggleSinkMute),
+        Some(move || {
+            submenu.set(
+                if submenu.get() == Some(SubMenu::Sinks) {
+                    None
+                } else {
+                    Some(SubMenu::Sinks)
+                },
+            );
+        }),
     )
 }
 
-pub fn source_slider(data: AudioDataSignals, svc: Service<AudioCmd>) -> impl Widget {
+pub fn source_slider(
+    data: AudioDataSignals,
+    svc: Service<AudioCmd>,
+    submenu: Signal<Option<SubMenu>>,
+) -> impl Widget {
     let sources = data.sources;
     let server_info = data.server_info;
     let cur_vol = data.cur_source_volume;
@@ -51,6 +70,15 @@ pub fn source_slider(data: AudioDataSignals, svc: Service<AudioCmd>) -> impl Wid
         },
         move |vol| svc_change.send(AudioCmd::SourceVolume(vol)),
         move || svc_mute.send(AudioCmd::ToggleSourceMute),
+        Some(move || {
+            submenu.set(
+                if submenu.get() == Some(SubMenu::Sources) {
+                    None
+                } else {
+                    Some(SubMenu::Sources)
+                },
+            );
+        }),
     )
 }
 
@@ -64,7 +92,7 @@ pub fn sink_indicator(data: AudioDataSignals) -> impl Widget {
         .layout(
             Flex::row()
                 .spacing(4.0)
-                .cross_axis_alignment(CrossAxisAlignment::Center),
+                .cross_alignment(CrossAlignment::Center),
         )
         .child(
             icon(move || sinks.with(|s| Sinks::get_icon(s, &server_info.with(|si| si.default_sink.clone()))))
@@ -106,7 +134,7 @@ pub fn sinks_submenu(
                     col = col.child(
                         container()
                             .width(fill())
-                            .padding_xy(8.0, 6.0)
+                            .padding([6.0, 8.0])
                             .corner_radius(8.0)
                             .on_hover(move |h| hovered.set(h))
                             .on_click(move || {
@@ -127,7 +155,7 @@ pub fn sinks_submenu(
                             .layout(
                                 Flex::row()
                                     .spacing(8.0)
-                                    .cross_axis_alignment(CrossAxisAlignment::Center),
+                                    .cross_alignment(CrossAlignment::Center),
                             )
                             .child(
                                 icon(port.device_type.get_icon())
@@ -174,7 +202,7 @@ pub fn sources_submenu(
                     col = col.child(
                         container()
                             .width(fill())
-                            .padding_xy(8.0, 6.0)
+                            .padding([6.0, 8.0])
                             .corner_radius(8.0)
                             .on_hover(move |h| hovered.set(h))
                             .on_click(move || {
@@ -195,7 +223,7 @@ pub fn sources_submenu(
                             .layout(
                                 Flex::row()
                                     .spacing(8.0)
-                                    .cross_axis_alignment(CrossAxisAlignment::Center),
+                                    .cross_alignment(CrossAlignment::Center),
                             )
                             .child(
                                 icon(StaticIcon::Mic1)

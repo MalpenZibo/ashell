@@ -1,6 +1,6 @@
 use guido::prelude::*;
 
-use crate::components::{StaticIcon, icon, slider};
+use crate::components::{StaticIcon, slider};
 use crate::services::brightness::{BrightnessCmd, BrightnessDataSignals};
 
 pub fn slider_view(
@@ -31,5 +31,6 @@ pub fn slider_view(
             svc_change.send(BrightnessCmd::Set(raw));
         },
         || {}, // no mute toggle for brightness
+        None::<fn()>,
     )
 }

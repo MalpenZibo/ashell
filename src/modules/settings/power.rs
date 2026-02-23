@@ -18,7 +18,7 @@ pub fn battery_indicator(data: UPowerDataSignals) -> impl Widget {
                         .layout(
                             Flex::row()
                                 .spacing(4.0)
-                                .cross_axis_alignment(CrossAxisAlignment::Center),
+                                .cross_alignment(CrossAlignment::Center),
                         )
                         .child(icon(b.get_icon()).color(theme::TEXT).font_size(14.0))
                         .child(
@@ -41,7 +41,7 @@ pub fn power_profile_quick_setting(
 
     quick_setting(
         move || StaticIcon::from(profile.get()),
-        move || "Power".to_string(),
+        move || "Power Saver".to_string(),
         move || match profile.get() {
             PowerProfile::Balanced => "Balanced".to_string(),
             PowerProfile::Performance => "Performance".to_string(),
@@ -62,7 +62,7 @@ pub fn battery_header(data: UPowerDataSignals) -> impl Widget {
         .layout(
             Flex::row()
                 .spacing(6.0)
-                .cross_axis_alignment(CrossAxisAlignment::Center),
+                .cross_alignment(CrossAlignment::Center),
         )
         .child(move || {
             battery.with(|bat| {
@@ -71,7 +71,7 @@ pub fn battery_header(data: UPowerDataSignals) -> impl Widget {
                         .layout(
                             Flex::row()
                                 .spacing(4.0)
-                                .cross_axis_alignment(CrossAxisAlignment::Center),
+                                .cross_alignment(CrossAlignment::Center),
                         )
                         .child(icon(b.get_icon()).color(theme::TEXT).font_size(16.0))
                         .child(
@@ -131,11 +131,11 @@ pub fn peripherals_view(data: UPowerDataSignals) -> impl Widget {
                 col = col.child(
                     container()
                         .width(fill())
-                        .padding_xy(8.0, 4.0)
+                        .padding([4.0, 8.0])
                         .layout(
                             Flex::row()
                                 .spacing(8.0)
-                                .cross_axis_alignment(CrossAxisAlignment::Center),
+                                .cross_alignment(CrossAlignment::Center),
                         )
                         .child(icon(ic).color(theme::TEXT).font_size(14.0))
                         .child(text(name).color(theme::TEXT).font_size(12.0))
@@ -202,7 +202,7 @@ fn power_action_button(
     let hovered = create_signal(false);
     container()
         .width(fill())
-        .padding_xy(8.0, 6.0)
+        .padding([6.0, 8.0])
         .corner_radius(8.0)
         .on_hover(move |h| hovered.set(h))
         .on_click(move || on_click())
@@ -216,7 +216,7 @@ fn power_action_button(
         .layout(
             Flex::row()
                 .spacing(8.0)
-                .cross_axis_alignment(CrossAxisAlignment::Center),
+                .cross_alignment(CrossAlignment::Center),
         )
         .child(icon(ic).color(theme::TEXT).font_size(14.0))
         .child(text(label).color(theme::TEXT).font_size(14.0))

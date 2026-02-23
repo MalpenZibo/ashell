@@ -179,6 +179,8 @@ dependencies = [
  "sysinfo",
  "tokio",
  "udev",
+ "wayland-client",
+ "wayland-protocols",
  "zbus",
 ]
 

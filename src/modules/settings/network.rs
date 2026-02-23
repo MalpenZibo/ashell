@@ -15,7 +15,7 @@ pub fn wifi_indicator(data: NetworkDataSignals) -> impl Widget {
         .layout(
             Flex::row()
                 .spacing(4.0)
-                .cross_axis_alignment(CrossAxisAlignment::Center),
+                .cross_alignment(CrossAlignment::Center),
         )
         .child(
             icon(move || wifi_icon(active, wifi_enabled))
@@ -177,15 +177,15 @@ pub fn wifi_submenu(
                 .width(fill())
                 .layout(
                     Flex::row()
-                        .main_axis_alignment(MainAxisAlignment::SpaceBetween)
-                        .cross_axis_alignment(CrossAxisAlignment::Center),
+                        .main_alignment(MainAlignment::SpaceBetween)
+                        .cross_alignment(CrossAlignment::Center),
                 )
                 .child(text("WiFi Networks").color(theme::TEXT).font_size(14.0))
                 .child({
                     let svc_scan = svc.clone();
                     let hovered = create_signal(false);
                     container()
-                        .padding_xy(8.0, 4.0)
+                        .padding([4.0, 8.0])
                         .corner_radius(6.0)
                         .on_hover(move |h| hovered.set(h))
                         .on_click(move || svc_scan.send(NetworkCmd::ScanNearByWiFi))
@@ -226,7 +226,7 @@ pub fn wifi_submenu(
                     col = col.child(
                         container()
                             .width(fill())
-                            .padding_xy(8.0, 6.0)
+                            .padding([6.0, 8.0])
                             .corner_radius(8.0)
                             .on_hover(move |h| hovered.set(h))
                             .on_click(move || {
@@ -244,7 +244,7 @@ pub fn wifi_submenu(
                             .layout(
                                 Flex::row()
                                     .spacing(8.0)
-                                    .cross_axis_alignment(CrossAxisAlignment::Center),
+                                    .cross_alignment(CrossAlignment::Center),
                             )
                             .child(
                                 icon(strength_to_icon(strength, true))
@@ -275,7 +275,7 @@ pub fn wifi_submenu(
                 col = col.child(
                     container()
                         .width(fill())
-                        .padding_xy(8.0, 6.0)
+                        .padding([6.0, 8.0])
                         .corner_radius(8.0)
                         .on_hover(move |h| hovered.set(h))
                         .background(move || {
@@ -288,7 +288,7 @@ pub fn wifi_submenu(
                         .layout(
                             Flex::row()
                                 .spacing(8.0)
-                                .cross_axis_alignment(CrossAxisAlignment::Center),
+                                .cross_alignment(CrossAlignment::Center),
                         )
                         .child(
                             icon(strength_to_icon(strength, is_public))
@@ -333,7 +333,7 @@ pub fn vpn_submenu(
                     col = col.child(
                         container()
                             .width(fill())
-                            .padding_xy(8.0, 6.0)
+                            .padding([6.0, 8.0])
                             .corner_radius(8.0)
                             .on_hover(move |h| hovered.set(h))
                             .on_click(move || {
@@ -351,7 +351,7 @@ pub fn vpn_submenu(
                             .layout(
                                 Flex::row()
                                     .spacing(8.0)
-                                    .cross_axis_alignment(CrossAxisAlignment::Center),
+                                    .cross_alignment(CrossAlignment::Center),
                             )
                             .child(icon(StaticIcon::Vpn).color(theme::TEXT).font_size(14.0))
                             .child(text(name).color(theme::TEXT).font_size(12.0)),

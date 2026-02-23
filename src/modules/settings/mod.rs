@@ -6,7 +6,7 @@ pub mod power;
 
 use guido::prelude::*;
 
-use crate::components::{StaticIcon, icon};
+use crate::components::{StaticIcon, icon, quick_setting};
 use crate::services;
 use crate::theme;
 
@@ -31,6 +31,8 @@ pub struct SettingsSignals {
     pub bluetooth_svc: Service<services::bluetooth::BluetoothCmd>,
     pub upower_data: services::upower::UPowerDataSignals,
     pub upower_svc: Service<services::upower::UPowerCmd>,
+    pub idle_inhibitor_data: services::idle_inhibitor::IdleInhibitorDataSignals,
+    pub idle_inhibitor_svc: Service<services::idle_inhibitor::IdleInhibitorCmd>,
     pub submenu: Signal<Option<SubMenu>>,
 }
 
@@ -47,6 +49,8 @@ impl Clone for SettingsSignals {
             bluetooth_svc: self.bluetooth_svc.clone(),
             upower_data: self.upower_data,
             upower_svc: self.upower_svc.clone(),
+            idle_inhibitor_data: self.idle_inhibitor_data,
+            idle_inhibitor_svc: self.idle_inhibitor_svc.clone(),
             submenu: self.submenu,
         }
     }
@@ -58,6 +62,7 @@ pub fn create() -> SettingsSignals {
     let (network_data, network_svc) = services::network::create();
     let (bluetooth_data, bluetooth_svc) = services::bluetooth::create();
     let (upower_data, upower_svc) = services::upower::create();
+    let (idle_inhibitor_data, idle_inhibitor_svc) = services::idle_inhibitor::create();
     let submenu = create_signal(None::<SubMenu>);
 
     SettingsSignals {
@@ -71,6 +76,8 @@ pub fn create() -> SettingsSignals {
         bluetooth_svc,
         upower_data,
         upower_svc,
+        idle_inhibitor_data,
+        idle_inhibitor_svc,
         submenu,
     }
 }
@@ -81,7 +88,7 @@ pub fn view(settings: SettingsSignals) -> impl Widget {
         .layout(
             Flex::row()
                 .spacing(10.0)
-                .cross_axis_alignment(CrossAxisAlignment::Center),
+                .cross_alignment(CrossAlignment::Center),
         )
         .child(audio::sink_indicator(settings.audio_data))
         .child(network::wifi_indicator(settings.network_data))
@@ -110,8 +117,8 @@ pub fn menu_view(
                 .width(fill())
                 .layout(
                     Flex::row()
-                        .main_axis_alignment(MainAxisAlignment::SpaceBetween)
-                        .cross_axis_alignment(CrossAxisAlignment::Center),
+                        .main_alignment(MainAlignment::SpaceBetween)
+                        .cross_alignment(CrossAlignment::Center),
                 )
                 .child(power::battery_header(settings.upower_data))
                 .child({
@@ -119,7 +126,7 @@ pub fn menu_view(
                         .layout(
                             Flex::row()
                                 .spacing(4.0)
-                                .cross_axis_alignment(CrossAxisAlignment::Center),
+                                .cross_alignment(CrossAlignment::Center),
                         )
                         .child(header_icon_button(StaticIcon::Lock, move || {
                             let _ = std::process::Command::new("loginctl")
@@ -146,12 +153,11 @@ pub fn menu_view(
                 None
             }
         })
-        // Divider
-        .child(divider())
-        // Audio: sink slider
+        // Audio: sink slider (with chevron for device selection)
         .child(audio::sink_slider(
             settings.audio_data,
             settings.audio_svc.clone(),
+            submenu,
         ))
         // Sinks submenu
         .child({
@@ -165,16 +171,11 @@ pub fn menu_view(
                 }
             }
         })
-        // Sink device selector button
-        .child(submenu_toggle_button(
-            "Output device",
-            submenu,
-            SubMenu::Sinks,
-        ))
-        // Audio: source slider
+        // Audio: source slider (with chevron for device selection)
         .child(audio::source_slider(
             settings.audio_data,
             settings.audio_svc.clone(),
+            submenu,
         ))
         // Sources submenu
         .child({
@@ -188,26 +189,18 @@ pub fn menu_view(
                 }
             }
         })
-        // Source device selector button
-        .child(submenu_toggle_button(
-            "Input device",
-            submenu,
-            SubMenu::Sources,
-        ))
         // Brightness slider
         .child(brightness::slider_view(
             settings.brightness_data,
             settings.brightness_svc.clone(),
         ))
-        // Divider
-        .child(divider())
         // Quick Settings Grid (2 columns)
+        // Row 1: WiFi | Bluetooth
         .child(move || {
             let settings = settings2.clone();
             Some(container()
                 .width(fill())
                 .layout(Flex::column().spacing(8.0))
-                // Row 1: WiFi | Bluetooth
                 .child(
                     container()
                         .width(fill())
@@ -300,14 +293,18 @@ pub fn menu_view(
                 }
             }
         })
-        // Row 3: Power profile
+        // Row 3: Idle Inhibitor | Power Profile
         .child({
+            let inhibitor_data = settings3.idle_inhibitor_data;
+            let inhibitor_svc = settings3.idle_inhibitor_svc.clone();
             let up_data = settings3.upower_data;
             let up_svc = settings3.upower_svc.clone();
             move || {
+                let inhibitor_svc = inhibitor_svc.clone();
                 Some(container()
                     .width(fill())
                     .layout(Flex::row().spacing(8.0))
+                    .child(idle_inhibitor_quick_setting(inhibitor_data, inhibitor_svc))
                     .child(power::power_profile_quick_setting(up_data, up_svc.clone())))
             }
         })
@@ -355,48 +352,25 @@ fn header_icon_button(
         .child(icon(ic).color(theme::TEXT).font_size(16.0))
 }
 
-fn submenu_toggle_button(
-    label: &'static str,
-    submenu: Signal<Option<SubMenu>>,
-    target: SubMenu,
+fn idle_inhibitor_quick_setting(
+    data: services::idle_inhibitor::IdleInhibitorDataSignals,
+    svc: Service<services::idle_inhibitor::IdleInhibitorCmd>,
 ) -> impl Widget {
-    let hovered = create_signal(false);
-    container()
-        .width(fill())
-        .padding_xy(8.0, 4.0)
-        .corner_radius(6.0)
-        .on_hover(move |h| hovered.set(h))
-        .on_click(move || {
-            submenu.set(
-                if submenu.get() == Some(target) {
-                    None
-                } else {
-                    Some(target)
-                },
-            );
-        })
-        .background(move || {
-            if hovered.get() {
-                Color::rgba(1.0, 1.0, 1.0, 0.08)
+    let inhibited = data.inhibited;
+    let svc_toggle = svc.clone();
+
+    quick_setting(
+        move || {
+            if inhibited.get() {
+                StaticIcon::EyeOpened
             } else {
-                Color::TRANSPARENT
+                StaticIcon::EyeClosed
             }
-        })
-        .layout(
-            Flex::row()
-                .main_axis_alignment(MainAxisAlignment::SpaceBetween)
-                .cross_axis_alignment(CrossAxisAlignment::Center),
-        )
-        .child(text(label).color(theme::LAVENDER).font_size(11.0))
-        .child(
-            icon(move || {
-                if submenu.get() == Some(target) {
-                    StaticIcon::MenuOpen
-                } else {
-                    StaticIcon::RightChevron
-                }
-            })
-            .color(theme::LAVENDER)
-            .font_size(11.0),
-        )
+        },
+        move || "Idle Inhibitor".to_string(),
+        move || String::new(),
+        move || inhibited.get(),
+        move || svc_toggle.send(services::idle_inhibitor::IdleInhibitorCmd::Toggle),
+        None::<fn()>,
+    )
 }

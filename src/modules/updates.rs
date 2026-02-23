@@ -19,7 +19,7 @@ pub fn view(data: UpdatesDataSignals) -> impl Widget {
         .layout(
             Flex::row()
                 .spacing(4.0)
-                .cross_axis_alignment(CrossAxisAlignment::Center),
+                .cross_alignment(CrossAlignment::Center),
         )
         .child(
             icon(move || {
@@ -134,7 +134,7 @@ fn menu_button(
     let hovered = create_signal(false);
     container()
         .width(fill())
-        .padding_xy(8.0, 6.0)
+        .padding([6.0, 8.0])
         .corner_radius(8.0)
         .on_click(move || on_click())
         .on_hover(move |h| hovered.set(h))
@@ -160,7 +160,7 @@ fn menu_button_with_indicator(
     let hovered = create_signal(false);
     container()
         .width(fill())
-        .padding_xy(8.0, 6.0)
+        .padding([6.0, 8.0])
         .corner_radius(8.0)
         .on_click(move || on_click())
         .on_hover(move |h| hovered.set(h))
@@ -173,8 +173,8 @@ fn menu_button_with_indicator(
         })
         .layout(
             Flex::row()
-                .main_axis_alignment(MainAxisAlignment::SpaceBetween)
-                .cross_axis_alignment(CrossAxisAlignment::Center),
+                .main_alignment(MainAlignment::SpaceBetween)
+                .cross_alignment(CrossAlignment::Center),
         )
         .child(text(label).color(theme::TEXT).font_size(14.0))
         .child(move || {

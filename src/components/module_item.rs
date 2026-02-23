@@ -15,9 +15,9 @@ impl ModuleItem {
 
         let mut c = container()
             .height(fill())
-            .padding_xy(10.0, 0.0)
+            .padding([0.0, 10.0])
             .corner_radius(16.0)
-            .layout(Flex::row().cross_axis_alignment(CrossAxisAlignment::Center));
+            .layout(Flex::row().cross_alignment(CrossAlignment::Center));
 
         if let Some(click_fn) = on_click {
             let hovered = create_signal(false);

@@ -38,9 +38,9 @@ pub fn quick_setting(
         .layout(
             Flex::row()
                 .spacing(8.0)
-                .cross_axis_alignment(CrossAxisAlignment::Center),
+                .cross_alignment(CrossAlignment::Center),
         )
-        .padding_xy(10.0, 0.0)
+        .padding([0.0, 10.0])
         // Icon
         .child(
             icon(move || ic())
@@ -105,7 +105,7 @@ pub fn quick_setting(
             .layout(
                 Flex::row()
                     .spacing(2.0)
-                    .cross_axis_alignment(CrossAxisAlignment::Stretch),
+                    .cross_alignment(CrossAlignment::Stretch),
             )
             .child(main)
             .child(
@@ -123,8 +123,8 @@ pub fn quick_setting(
                     })
                     .layout(
                         Flex::row()
-                            .main_axis_alignment(MainAxisAlignment::Center)
-                            .cross_axis_alignment(CrossAxisAlignment::Center),
+                            .main_alignment(MainAlignment::Center)
+                            .cross_alignment(CrossAlignment::Center),
                     )
                     .child(
                         icon(StaticIcon::RightChevron)

@@ -109,7 +109,7 @@ pub fn view(state: CompositorStateSignals, svc: Service<CompositorCommand>) -> i
         .layout(
             Flex::row()
                 .spacing(4.0)
-                .cross_axis_alignment(CrossAxisAlignment::Center),
+                .cross_alignment(CrossAlignment::Center),
         )
         .on_scroll(move |_dx, dy, _source| {
             let dir = if dy > 0.0 { -1 } else { 1 };
@@ -149,8 +149,8 @@ pub fn view(state: CompositorStateSignals, svc: Service<CompositorCommand>) -> i
                             )
                             .layout(
                                 Flex::row()
-                                    .main_axis_alignment(MainAxisAlignment::Center)
-                                    .cross_axis_alignment(CrossAxisAlignment::Center),
+                                    .main_alignment(MainAlignment::Center)
+                                    .cross_alignment(CrossAlignment::Center),
                             )
                             .overflow(Overflow::Hidden)
                             .child(
