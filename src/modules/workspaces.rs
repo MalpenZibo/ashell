@@ -5,12 +5,13 @@ use crate::{
     services::{
         ReadOnlyService, Service, ServiceEvent,
         compositor::{CompositorCommand, CompositorService, CompositorState},
+        xdg_icons::{self, XdgIcon},
     },
     theme::AshellTheme,
 };
 use iced::{
     Element, Length, Subscription, alignment,
-    widget::{MouseArea, Row, button, container, text},
+    widget::{Image, MouseArea, Row, Svg, button, container, text},
     window::Id,
 };
 use itertools::Itertools;
@@ -24,6 +25,12 @@ pub enum Displayed {
 }
 
 #[derive(Debug, Clone)]
+pub enum WorkspaceIcon {
+    Glyph(String),
+    Xdg(XdgIcon),
+}
+
+#[derive(Debug, Clone)]
 pub struct UiWorkspace {
     pub id: i32,
     pub index: i32,
@@ -32,7 +39,7 @@ pub struct UiWorkspace {
     pub monitor: String,
     pub displayed: Displayed,
     pub windows: u16,
-    pub icons: Vec<String>,
+    pub icons: Vec<WorkspaceIcon>,
 }
 
 #[derive(Debug, Clone)]
@@ -45,32 +52,47 @@ struct VirtualDesktop {
 fn resolve_workspace_icons(
     window_classes: &[String],
     config: &WorkspacesModuleConfig,
-) -> Vec<String> {
-    if config.indicator_format != WorkspaceIndicatorFormat::NameAndIcons
-        || (config.window_icons.is_empty() && config.default_window_icon.is_none())
-    {
+) -> Vec<WorkspaceIcon> {
+    if config.indicator_format != WorkspaceIndicatorFormat::NameAndIcons {
         return Vec::new();
     }
 
-    let mut seen = HashSet::new();
+    let mut icons = Vec::new();
+    let mut seen_glyphs = HashSet::new();
+    let mut seen_classes = HashSet::new();
 
     for class in window_classes {
         let class_lower = class.to_lowercase();
 
-        let icon = config
+        // Check user glyph config first
+        if let Some((_, glyph)) = config
             .window_icons
             .iter()
             .find(|(pattern, _)| class_lower.contains(&pattern.to_lowercase()))
-            .map(|(_, icon)| icon.as_str())
-            .or(config.default_window_icon.as_deref());
+        {
+            if seen_glyphs.insert(glyph.clone()) {
+                icons.push(WorkspaceIcon::Glyph(glyph.clone()));
+            }
+            continue;
+        }
 
-        if let Some(icon) = icon {
-            seen.insert(icon);
+        // Try XDG icon lookup
+        if !seen_classes.contains(&class_lower) {
+            if let Some(xdg) = xdg_icons::get_icon_from_name(&class_lower) {
+                seen_classes.insert(class_lower);
+                icons.push(WorkspaceIcon::Xdg(xdg));
+                continue;
+            }
+        }
+
+        // Fall back to default glyph
+        if let Some(default) = &config.default_window_icon {
+            if seen_glyphs.insert(default.clone()) {
+                icons.push(WorkspaceIcon::Glyph(default.clone()));
+            }
         }
     }
 
-    let mut icons: Vec<_> = seen.into_iter().map(str::to_owned).collect();
-    icons.sort();
     icons
 }
 
@@ -467,8 +489,22 @@ impl Workspaces {
                             let content: Element<'a, Message> = if has_icons {
                                 let mut children: Vec<Element<'a, Message>> =
                                     vec![text(w.name.as_str()).size(theme.font_size.xs).into()];
-                                children.extend(w.icons.iter().map(|i| {
-                                    icon(DynamicIcon(i.clone())).size(theme.font_size.xs).into()
+                                children.extend(w.icons.iter().map(|i| match i {
+                                    WorkspaceIcon::Glyph(g) => {
+                                        icon(DynamicIcon(g.clone())).size(theme.font_size.xs).into()
+                                    }
+                                    WorkspaceIcon::Xdg(XdgIcon::Svg(handle)) => {
+                                        Svg::new(handle.clone())
+                                            .height(Length::Fixed(theme.font_size.xs as f32))
+                                            .width(Length::Shrink)
+                                            .into()
+                                    }
+                                    WorkspaceIcon::Xdg(XdgIcon::Image(handle)) => {
+                                        Image::new(handle.clone())
+                                            .height(Length::Fixed(theme.font_size.xs as f32))
+                                            .width(Length::Shrink)
+                                            .into()
+                                    }
                                 }));
                                 Row::with_children(children)
                                     .spacing(theme.space.xxs)
