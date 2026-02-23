@@ -45,6 +45,7 @@ pub struct Settings {
     idle_inhibitor: Option<IdleInhibitorManager>,
     sub_menu: Option<SubMenu>,
     password_dialog: Option<(String, String)>,
+    password_dialog_show_password: bool,
     indicators: Vec<SettingsIndicator>,
     custom_buttons: Vec<SettingsCustomButton>,
     custom_buttons_status: HashMap<String, Option<bool>>,
@@ -128,6 +129,7 @@ impl Settings {
             indicators: config.indicators,
             custom_buttons: config.custom_buttons,
             custom_buttons_status: HashMap::new(),
+            password_dialog_show_password: false,
         }
     }
 
@@ -177,10 +179,12 @@ impl Settings {
                 network::Action::None => Action::None,
                 network::Action::RequestPasswordForSSID(ssid) => {
                     self.password_dialog = Some((ssid, "".to_string()));
+                    self.password_dialog_show_password = false;
                     Action::None
                 }
                 network::Action::RequestPassword(id, ssid) => {
                     self.password_dialog = Some((ssid, "".to_string()));
+                    self.password_dialog_show_password = false;
                     Action::RequestKeyboard(id)
                 }
                 network::Action::Command(task) => Action::Command(task.map(Message::Network)),
@@ -273,8 +277,13 @@ impl Settings {
 
                     Action::None
                 }
+                password_dialog::Message::TogglePasswordVisibility => {
+                    self.password_dialog_show_password = !self.password_dialog_show_password;
+
+                    Action::None
+                }
                 password_dialog::Message::DialogConfirmed(id) => {
-                    if let Some((ssid, password)) = self.password_dialog.take() {
+                    let action = if let Some((ssid, password)) = self.password_dialog.take() {
                         match self
                             .network
                             .update(network::Message::PasswordDialogConfirmed(
@@ -288,10 +297,13 @@ impl Settings {
                         }
                     } else {
                         Action::ReleaseKeyboard(id)
-                    }
+                    };
+                    self.password_dialog_show_password = false;
+                    action
                 }
                 password_dialog::Message::DialogCancelled(id) => {
                     self.password_dialog = None;
+                    self.password_dialog_show_password = false;
 
                     Action::ReleaseKeyboard(id)
                 }
@@ -433,8 +445,14 @@ impl Settings {
     ) -> Element<'a, Message> {
         container(
             if let Some((ssid, current_password)) = &self.password_dialog {
-                password_dialog::view(id, theme, ssid, current_password)
-                    .map(Message::PasswordDialog)
+                password_dialog::view(
+                    id,
+                    theme,
+                    ssid,
+                    current_password,
+                    self.password_dialog_show_password,
+                )
+                .map(Message::PasswordDialog)
             } else {
                 let battery_data = self
                     .power
