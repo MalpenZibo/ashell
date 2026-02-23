@@ -3,12 +3,14 @@ use iced::widget::{image, svg};
 use linicon_theme::get_icon_theme;
 use log::debug;
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeSet, HashMap},
     env, fs,
     path::{Path, PathBuf},
-    sync::LazyLock,
+    sync::{LazyLock, Mutex},
 };
 
+static ICON_CACHE: LazyLock<Mutex<HashMap<String, Option<XdgIcon>>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 static SYSTEM_ICON_NAMES: LazyLock<BTreeSet<String>> = LazyLock::new(load_system_icon_names);
 static SYSTEM_ICON_ENTRIES: LazyLock<Vec<(String, String)>> = LazyLock::new(|| {
     SYSTEM_ICON_NAMES
@@ -24,6 +26,16 @@ pub enum XdgIcon {
 }
 
 pub fn get_icon_from_name(icon_name: &str) -> Option<XdgIcon> {
+    let mut cache = ICON_CACHE.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(cached) = cache.get(icon_name) {
+        return cached.clone();
+    }
+    let result = lookup_icon(icon_name);
+    cache.insert(icon_name.to_string(), result.clone());
+    result
+}
+
+fn lookup_icon(icon_name: &str) -> Option<XdgIcon> {
     if let Some(path) = find_icon_path(icon_name) {
         return icon_from_path(path);
     }
