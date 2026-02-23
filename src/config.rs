@@ -105,8 +105,6 @@ pub struct WorkspacesModuleConfig {
     pub max_workspaces: Option<u32>,
     pub workspace_names: Vec<String>,
     pub enable_virtual_desktops: bool,
-    pub window_icons: HashMap<String, String>,
-    pub default_window_icon: Option<String>,
 }
 
 #[derive(Deserialize, Copy, Clone, Default, PartialEq, Eq, Debug)]
