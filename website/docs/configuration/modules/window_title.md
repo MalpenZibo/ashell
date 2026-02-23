@@ -21,9 +21,11 @@ Note that *InitialTitle* and *InitialClass* are Hyprland-only and should not be 
 
 The `truncate_title_after_length` field limits how long the displayed title can be:
 
-- **Set to a number** (e.g., 75): Cuts off long titles at that length
-- **Set to 0**: Shows the full title without any limit
+- **Set to a number** (e.g., 75): Cuts off long titles at that length (max 2048)
+- **Set to 0**: Shows the full title up to the 2048 character limit
 - **Default**: 150 characters
+
+**Important**: Window titles are **hard-limited to 2048 characters** regardless of configuration. This prevents Wayland socket buffer overflow errors that can cause crashes when applications (like games) send very long titles.
 
 When titles are too long, they're shortened to show the beginning and end with "..." in between, so you can still see both the app name and part of the title.
 
@@ -45,7 +47,7 @@ mode = "Class"
 truncate_title_after_length = 50
 ```
 
-**Show full titles without any length limit:**
+**Show full titles without any length limit (capped at 2048):**
 
 ```toml
 [window_title]
