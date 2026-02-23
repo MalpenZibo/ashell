@@ -4,7 +4,7 @@ use crate::theme;
 
 #[component]
 pub struct ModuleGroup {
-    #[prop(default = "Color::rgba(theme::BASE.r, theme::BASE.g, theme::BASE.b, 0.85)")]
+    #[prop(default = "Color::rgba(theme::BASE.r, theme::BASE.g, theme::BASE.b, 1.0)")]
     background: Color,
     #[prop(default = "16.0")]
     corner_radius: f32,

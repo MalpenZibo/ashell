@@ -1,4 +1,5 @@
 use guido::prelude::*;
+use guido::reactive::{IntoMaybeDyn, MaybeDyn};
 
 fn nerd_font_family() -> FontFamily {
     FontFamily::Name("Symbols Nerd Font".into())
@@ -105,7 +106,7 @@ pub enum StaticIcon {
 }
 
 impl StaticIcon {
-    fn get_str(&self) -> &'static str {
+    pub fn get_str(&self) -> &'static str {
         match self {
             StaticIcon::None => "",
             StaticIcon::Refresh => "\u{f0453}",
@@ -205,6 +206,18 @@ impl StaticIcon {
     }
 }
 
-pub fn icon(icon: StaticIcon) -> Text {
-    text(icon.get_str()).font_family(nerd_font_family())
+impl IntoMaybeDyn<StaticIcon> for StaticIcon {
+    fn into_maybe_dyn(self) -> MaybeDyn<StaticIcon> {
+        MaybeDyn::Static(self)
+    }
+}
+
+pub fn icon(ic: impl IntoMaybeDyn<StaticIcon>) -> Text {
+    let ic = ic.into_maybe_dyn();
+    match ic {
+        MaybeDyn::Static(s) => text(s.get_str()).font_family(nerd_font_family()),
+        MaybeDyn::Dynamic(f) => {
+            text(move || f().get_str().to_string()).font_family(nerd_font_family())
+        }
+    }
 }
