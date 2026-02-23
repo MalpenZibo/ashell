@@ -459,18 +459,16 @@ impl Workspaces {
                             let content: Element<'a, Message> = if has_icons {
                                 let mut children: Vec<Element<'a, Message>> =
                                     vec![text(w.name.as_str()).size(theme.font_size.xs).into()];
-                                children.extend(w.icons.iter().map(|i| match i {
-                                    XdgIcon::Svg(handle) => {
-                                        Svg::new(handle.clone())
+                                children.extend(w.icons.iter().map(|i| {
+                                    match i {
+                                        XdgIcon::Svg(handle) => Svg::new(handle.clone())
                                             .height(Length::Fixed(theme.font_size.xs as f32))
                                             .width(Length::Shrink)
-                                            .into()
-                                    }
-                                    XdgIcon::Image(handle) => {
-                                        Image::new(handle.clone())
+                                            .into(),
+                                        XdgIcon::Image(handle) => Image::new(handle.clone())
                                             .height(Length::Fixed(theme.font_size.xs as f32))
                                             .width(Length::Shrink)
-                                            .into()
+                                            .into(),
                                     }
                                 }));
                                 Row::with_children(children)

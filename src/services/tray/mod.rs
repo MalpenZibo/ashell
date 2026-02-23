@@ -1,5 +1,5 @@
-use super::{ReadOnlyService, Service, ServiceEvent};
 use super::xdg_icons;
+use super::{ReadOnlyService, Service, ServiceEvent};
 use dbus::{
     DBusMenuProxy, Layout, StatusNotifierItemProxy, StatusNotifierWatcher,
     StatusNotifierWatcherProxy,
@@ -21,7 +21,6 @@ use std::{any::TypeId, ops::Deref};
 pub mod dbus;
 
 pub type TrayIcon = super::xdg_icons::XdgIcon;
-
 
 #[derive(Debug, Clone)]
 pub enum TrayEvent {
