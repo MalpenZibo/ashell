@@ -1,9 +1,9 @@
 use super::{ReadOnlyService, Service, ServiceEvent};
+use super::xdg_icons;
 use dbus::{
     DBusMenuProxy, Layout, StatusNotifierItemProxy, StatusNotifierWatcher,
     StatusNotifierWatcherProxy,
 };
-use freedesktop_icons::lookup;
 use iced::{
     Subscription, Task,
     futures::{
@@ -13,253 +13,17 @@ use iced::{
         stream_select,
     },
     stream::channel,
-    widget::{image, svg},
+    widget::image,
 };
-use linicon_theme::get_icon_theme;
 use log::{debug, error, info, trace};
-use std::{
-    any::TypeId,
-    borrow::Cow,
-    collections::BTreeSet,
-    env,
-    ffi::OsString,
-    fs,
-    ops::Deref,
-    path::{Path, PathBuf},
-    sync::LazyLock,
-};
+use std::{any::TypeId, ops::Deref};
 
 pub mod dbus;
 
-static SYSTEM_ICON_NAMES: LazyLock<BTreeSet<OsString>> = LazyLock::new(load_system_icon_names);
-static SYSTEM_ICON_ENTRIES: LazyLock<Vec<(Cow<'static, str>, Cow<'static, str>)>> =
-    LazyLock::new(|| {
-        let capacity = SYSTEM_ICON_NAMES.len();
-        let mut entries = Vec::with_capacity(capacity);
-        for name in SYSTEM_ICON_NAMES.iter() {
-            if let Some(name_str) = name.to_str() {
-                let normalized = normalize_icon_name(name_str);
-                let normalized_cow = if normalized.as_ref() == name_str {
-                    Cow::Borrowed(name_str)
-                } else {
-                    match normalized {
-                        Cow::Borrowed(s) => Cow::Owned(s.to_string()),
-                        Cow::Owned(s) => Cow::Owned(s),
-                    }
-                };
-                entries.push((Cow::Owned(name_str.to_string()), normalized_cow));
-            }
-        }
-        entries
-    });
+pub type TrayIcon = super::xdg_icons::XdgIcon;
 
 fn get_icon_from_name(icon_name: &str) -> Option<TrayIcon> {
-    if let Some(path) = find_icon_path(icon_name) {
-        return tray_icon_from_path(path);
-    }
-
-    if let Some(candidates) = similar_icon_names(icon_name) {
-        for candidate in candidates {
-            if let Some(path) = find_icon_path(&candidate) {
-                return tray_icon_from_path(path);
-            }
-        }
-    }
-
-    if let Some(prefix_candidate) = prefix_match_icon(icon_name)
-        && let Some(path) = find_icon_path(&prefix_candidate)
-    {
-        return tray_icon_from_path(path);
-    }
-
-    None
-}
-
-fn tray_icon_from_path(path: PathBuf) -> Option<TrayIcon> {
-    if path.extension().is_some_and(|ext| ext == "svg") {
-        debug!("svg icon found. Path: {path:?}");
-
-        Some(TrayIcon::Svg(svg::Handle::from_path(path)))
-    } else {
-        debug!("raster icon found. Path: {path:?}");
-
-        Some(TrayIcon::Image(image::Handle::from_path(path)))
-    }
-}
-
-fn find_icon_path(icon_name: &str) -> Option<PathBuf> {
-    let base_lookup = lookup(icon_name).with_cache();
-
-    match get_icon_theme() {
-        Some(theme) => base_lookup.with_theme(&theme).find().or_else(|| {
-            let fallback_lookup = lookup(icon_name).with_cache();
-            fallback_lookup.find()
-        }),
-        None => base_lookup.find(),
-    }
-}
-
-fn similar_icon_names(icon_name: &str) -> Option<Vec<Cow<'static, str>>> {
-    if SYSTEM_ICON_ENTRIES.is_empty() {
-        return None;
-    }
-
-    let normalized = normalize_icon_name(icon_name);
-    let normalized_no_separators = strip_icon_separators(normalized.as_ref());
-    let mut matches: Vec<Cow<'static, str>> = Vec::with_capacity(5);
-
-    for (candidate_name, candidate_normalized) in SYSTEM_ICON_ENTRIES.iter() {
-        if candidate_normalized.as_ref() == normalized.as_ref() {
-            continue;
-        }
-
-        if candidate_normalized.as_ref().contains(normalized.as_ref())
-            || normalized.as_ref().contains(candidate_normalized.as_ref())
-            || candidate_normalized
-                .as_ref()
-                .contains(normalized_no_separators.as_ref())
-        {
-            matches.push(Cow::Borrowed(candidate_name.as_ref()));
-            if matches.len() >= 5 {
-                break;
-            }
-        }
-    }
-
-    if matches.is_empty() {
-        None
-    } else {
-        Some(matches)
-    }
-}
-
-fn normalize_icon_name(name: &str) -> Cow<'_, str> {
-    // Fast path: if name is already normalized (only lowercase alphanumeric, no separators)
-    if name
-        .chars()
-        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
-    {
-        return Cow::Borrowed(name);
-    }
-
-    // Slow path: normalize the name (lowercase and strip non-alphanumeric characters including separators)
-    Cow::Owned(
-        name.to_lowercase()
-            .chars()
-            .filter(|c| c.is_ascii_alphanumeric())
-            .collect(),
-    )
-}
-
-fn strip_icon_separators(name: &str) -> Cow<'_, str> {
-    if name.bytes().all(|byte| byte != b'-' && byte != b'_') {
-        return Cow::Borrowed(name);
-    }
-
-    Cow::Owned(name.chars().filter(|ch| *ch != '-' && *ch != '_').collect())
-}
-
-fn prefix_match_icon(icon_name: &str) -> Option<Cow<'static, str>> {
-    if SYSTEM_ICON_ENTRIES.is_empty() {
-        return None;
-    }
-
-    let normalized = normalize_icon_name(icon_name);
-
-    // Early exit: check for exact match first
-    if let Some(exact) = SYSTEM_ICON_ENTRIES
-        .iter()
-        .find(|(_, norm)| norm.as_ref() == normalized.as_ref())
-    {
-        return Some(Cow::Borrowed(exact.0.as_ref()));
-    }
-
-    // Iterate directly over chars to avoid Vec allocation
-    let mut candidates: Vec<_> = SYSTEM_ICON_ENTRIES.iter().collect();
-    for (idx, ch) in normalized.chars().enumerate() {
-        candidates.retain(|(_, name)| name.chars().nth(idx) == Some(ch));
-
-        match candidates.len() {
-            0 => break,
-            1 => return Some(Cow::Borrowed(candidates[0].0.as_ref())),
-            _ => continue,
-        }
-    }
-
-    candidates
-        .first()
-        .map(|(name, _)| Cow::Borrowed(name.as_ref()))
-}
-
-fn load_system_icon_names() -> BTreeSet<OsString> {
-    let mut names = BTreeSet::new();
-
-    for dir in icon_directories() {
-        if !dir.is_dir() {
-            continue;
-        }
-
-        collect_icon_names_recursive(&dir, &mut names);
-    }
-
-    names
-}
-
-fn collect_icon_names_recursive(dir: &Path, names: &mut BTreeSet<OsString>) {
-    if let Ok(entries) = fs::read_dir(dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if let Ok(file_type) = entry.file_type() {
-                if file_type.is_dir() {
-                    collect_icon_names_recursive(&path, names);
-                } else if file_type.is_file()
-                    && let Some(stem) = path.file_stem()
-                {
-                    names.insert(stem.to_os_string());
-                }
-            }
-        }
-    }
-}
-
-fn icon_directories() -> Vec<PathBuf> {
-    let mut dirs = Vec::new();
-
-    if let Ok(data_home) = env::var("XDG_DATA_HOME") {
-        let base = PathBuf::from(data_home);
-        dirs.push(base.join("icons"));
-        dirs.push(base.join("pixmaps"));
-    }
-
-    if let Ok(home) = env::var("HOME") {
-        let base = PathBuf::from(home);
-        dirs.push(base.join(".local/share/icons"));
-        dirs.push(base.join(".local/share/pixmaps"));
-    }
-
-    let data_dirs =
-        env::var("XDG_DATA_DIRS").unwrap_or_else(|_| "/usr/local/share:/usr/share".into());
-    for dir in data_dirs.split(':') {
-        if dir.is_empty() {
-            continue;
-        }
-        let base = PathBuf::from(dir);
-        dirs.push(base.join("icons"));
-        dirs.push(base.join("pixmaps"));
-    }
-
-    dirs.push(PathBuf::from("/usr/share/icons"));
-    dirs.push(PathBuf::from("/usr/share/pixmaps"));
-
-    dirs.sort();
-    dirs.dedup();
-    dirs
-}
-
-#[derive(Debug, Clone)]
-pub enum TrayIcon {
-    Image(image::Handle),
-    Svg(svg::Handle),
+    xdg_icons::get_icon_from_name(icon_name)
 }
 
 #[derive(Debug, Clone)]
