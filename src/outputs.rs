@@ -476,7 +476,6 @@ impl Outputs {
                 || shell_info.as_ref().map(|shell_info| shell_info.menu.id) == Some(id)
         }) {
             Some((_, Some(shell_info), _)) => {
-                
                 let toggle_task =
                     shell_info
                         .menu
@@ -693,14 +692,10 @@ impl Outputs {
                     shell_info.toast_id = Some(id);
 
                     let anchor = match position {
-                        config::ToastPosition::TopLeft =>
-                            Anchor::TOP | Anchor::LEFT,
-                        config::ToastPosition::TopRight =>
-                            Anchor::TOP | Anchor::RIGHT,
-                        config::ToastPosition::BottomLeft =>
-                            Anchor::BOTTOM | Anchor::LEFT,
-                        config::ToastPosition::BottomRight =>
-                            Anchor::BOTTOM | Anchor::RIGHT,
+                        config::ToastPosition::TopLeft => Anchor::TOP | Anchor::LEFT,
+                        config::ToastPosition::TopRight => Anchor::TOP | Anchor::RIGHT,
+                        config::ToastPosition::BottomLeft => Anchor::BOTTOM | Anchor::LEFT,
+                        config::ToastPosition::BottomRight => Anchor::BOTTOM | Anchor::RIGHT,
                     };
 
                     let toast_task = get_layer_surface(SctkLayerSurfaceSettings {
@@ -710,9 +705,9 @@ impl Outputs {
                         layer: Layer::Top,
                         keyboard_interactivity: KeyboardInteractivity::None,
                         exclusive_zone: 0,
-                        output: wl_output.clone().map_or(IcedOutput::Active, |wl| {
-                            IcedOutput::Output(wl)
-                        }),
+                        output: wl_output
+                            .clone()
+                            .map_or(IcedOutput::Active, |wl| IcedOutput::Output(wl)),
                         anchor,
                         ..Default::default()
                     });
@@ -736,5 +731,4 @@ impl Outputs {
         }
         Task::batch(tasks)
     }
-
 }
