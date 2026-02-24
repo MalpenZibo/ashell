@@ -707,7 +707,7 @@ impl Outputs {
                         id,
                         namespace: "ashell-toast-layer".to_string(),
                         size: Some((Some(width), Some(height))),
-                        layer: Layer::Background,
+                        layer: Layer::Top,
                         keyboard_interactivity: KeyboardInteractivity::None,
                         exclusive_zone: 0,
                         output: wl_output.clone().map_or(IcedOutput::Active, |wl| {
