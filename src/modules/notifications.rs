@@ -339,9 +339,9 @@ impl Notifications {
                         if let Some(connection) = connection
                             && let Err(e) =
                                 NotificationDaemon::close_notification_by_id(&connection, id).await
-                            {
-                                error!("Failed to close notification id {}: {}", id, e);
-                            }
+                        {
+                            error!("Failed to close notification id {}: {}", id, e);
+                        }
                         id
                     },
                     Message::NotificationClosed,
