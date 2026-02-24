@@ -276,7 +276,7 @@ pub struct NotificationsModuleConfig {
     pub show_timestamps: bool,
     pub max_notifications: Option<usize>,
     pub show_bodies: bool,
-    pub(crate) grouped: bool,
+    pub grouped: bool,
     pub toast: bool,
     pub toast_position: ToastPosition,
     pub toast_default_timeout: u64,
