@@ -528,10 +528,7 @@ impl Outputs {
             shell_info.as_ref().map(|shell_info| shell_info.id) == Some(id)
                 || shell_info.as_ref().map(|shell_info| shell_info.menu.id) == Some(id)
         }) {
-            Some((_, Some(shell_info), _)) => {
-                
-                shell_info.menu.close()
-            }
+            Some((_, Some(shell_info), _)) => shell_info.menu.close(),
             _ => Task::none(),
         };
 
@@ -555,10 +552,7 @@ impl Outputs {
             shell_info.as_ref().map(|shell_info| shell_info.id) == Some(id)
                 || shell_info.as_ref().map(|shell_info| shell_info.menu.id) == Some(id)
         }) {
-            Some((_, Some(shell_info), _)) => {
-                
-                shell_info.menu.close_if(menu_type)
-            }
+            Some((_, Some(shell_info), _)) => shell_info.menu.close_if(menu_type),
             _ => Task::none(),
         };
 
@@ -582,7 +576,6 @@ impl Outputs {
                 .iter_mut()
                 .map(|(_, shell_info, _)| {
                     if let Some(shell_info) = shell_info {
-                        
                         shell_info.menu.close_if(menu_type.clone())
                     } else {
                         Task::none()
@@ -616,7 +609,7 @@ impl Outputs {
                         if shell_info.menu.menu_info.is_some() {
                             // toasts are on a background surface, so menu close
                             // doesn't need to reorder them
-                            
+
                             shell_info.menu.close()
                         } else {
                             Task::none()
@@ -724,9 +717,10 @@ impl Outputs {
         let mut tasks = vec![];
         for (_, shell_info, _) in &mut self.0 {
             if let Some(shell_info) = shell_info
-                && let Some(toast_id) = shell_info.toast_id.take() {
-                    tasks.push(destroy_layer_surface(toast_id));
-                }
+                && let Some(toast_id) = shell_info.toast_id.take()
+            {
+                tasks.push(destroy_layer_surface(toast_id));
+            }
         }
         Task::batch(tasks)
     }
