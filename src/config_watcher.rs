@@ -1,9 +1,9 @@
-use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use futures::StreamExt;
 use inotify::{Inotify, WatchMask};
+use tokio::task::JoinHandle;
 
 const DEBOUNCE_MS: u64 = 500;
 
@@ -33,8 +33,8 @@ pub fn ensure_config_dir(path: &Path) {
     }
 }
 
-pub fn spawn_config_watcher(path: PathBuf) {
-    tokio::spawn(config_watch_loop(path));
+pub fn spawn_config_watcher(path: PathBuf) -> JoinHandle<()> {
+    tokio::spawn(config_watch_loop(path))
 }
 
 async fn config_watch_loop(path: PathBuf) {
@@ -88,11 +88,9 @@ async fn config_watch_loop(path: PathBuf) {
                 if relevant {
                     log::info!("Config change detected, debouncing...");
                     tokio::time::sleep(Duration::from_millis(DEBOUNCE_MS)).await;
-                    log::info!(
-                        "Config change debounced. Restarting via exec()... (watched: {:?})",
-                        file_name
-                    );
-                    do_exec();
+                    log::info!("Config change debounced. Requesting restart...");
+                    guido::restart_app();
+                    return;
                 }
             }
             Err(e) => {
@@ -101,15 +99,4 @@ async fn config_watch_loop(path: PathBuf) {
             }
         }
     }
-}
-
-fn do_exec() -> ! {
-    let args: Vec<String> = std::env::args().collect();
-    let exe = &args[0];
-
-    let err = std::process::Command::new(exe).args(&args[1..]).exec();
-
-    // exec() only returns on error
-    log::error!("exec() failed: {}", err);
-    std::process::exit(1);
 }
