@@ -440,7 +440,7 @@ impl App {
                     // toast widget and a generous height per toast.
                     let width = 380;
                     let height =
-                        (self.notifications.toast_max_visible() as u32).saturating_mul(100) + 20;
+                        (self.notifications.toast_max_visible() as u32).saturating_mul(112);
                     let position = self.notifications.toast_position();
                     Task::batch(vec![
                         task.map(Message::Notifications),
