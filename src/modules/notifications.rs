@@ -767,4 +767,14 @@ impl Notifications {
             .align_y(v_align)
             .into()
     }
+
+    /// Maximum number of toasts that may be visible (from configuration).
+    pub fn toast_max_visible(&self) -> usize {
+        self.config.toast_max_visible
+    }
+
+    /// Configured corner where toasts appear.
+    pub fn toast_position(&self) -> ToastPosition {
+        self.config.toast_position
+    }
 }

@@ -25,7 +25,8 @@ pub struct ShellInfo {
     pub style: AppearanceStyle,
     pub menu: Menu,
     pub scale_factor: f64,
-    pub toast_overlay: bool,
+    /// Optional layer surface used to render toast notifications.
+    pub toast_id: Option<Id>,
 }
 
 #[derive(Debug, Clone)]
@@ -56,7 +57,7 @@ impl Outputs {
                 Some(ShellInfo {
                     id,
                     menu: Menu::new(menu_id),
-                    toast_overlay: false,
+                    toast_id: None,
                     position,
                     layer,
                     style,
@@ -146,10 +147,14 @@ impl Outputs {
                 } else if info.menu.id == id {
                     if info.menu.menu_info.is_some() {
                         Some(HasOutput::Menu(info.menu.menu_info.as_ref()))
-                    } else if info.toast_overlay {
-                        Some(HasOutput::Toast)
                     } else {
                         Some(HasOutput::Menu(None))
+                    }
+                } else if let Some(toast_id) = info.toast_id {
+                    if toast_id == id {
+                        Some(HasOutput::Toast)
+                    } else {
+                        None
                     }
                 } else {
                     None
@@ -220,7 +225,7 @@ impl Outputs {
                 Some(ShellInfo {
                     id,
                     menu: Menu::new(menu_id),
-                    toast_overlay: false,
+                    toast_id: None,
                     position,
                     layer,
                     style,
@@ -273,10 +278,14 @@ impl Outputs {
                 let (name, shell_info, wl_output) = self.0.swap_remove(index_to_remove);
 
                 let destroy_task = if let Some(shell_info) = shell_info {
-                    Task::batch(vec![
+                    let mut tasks = vec![
                         destroy_layer_surface(shell_info.id),
                         destroy_layer_surface(shell_info.menu.id),
-                    ])
+                    ];
+                    if let Some(toast_id) = shell_info.toast_id {
+                        tasks.push(destroy_layer_surface(toast_id));
+                    }
+                    Task::batch(tasks)
                 } else {
                     Task::none()
                 };
@@ -296,7 +305,7 @@ impl Outputs {
                         Some(ShellInfo {
                             id,
                             menu: Menu::new(menu_id),
-                            toast_overlay: false,
+                            toast_id: None,
                             position,
                             layer,
                             style,
@@ -413,9 +422,7 @@ impl Outputs {
 
                 shell_info.id = id;
                 shell_info.menu = Menu::new(menu_id);
-                shell_info.toast_overlay = false;
-                shell_info.position = position;
-                shell_info.layer = layer;
+                shell_info.toast_id = None;
                 shell_info.style = style;
                 shell_info.scale_factor = scale_factor;
 
@@ -469,20 +476,11 @@ impl Outputs {
                 || shell_info.as_ref().map(|shell_info| shell_info.menu.id) == Some(id)
         }) {
             Some((_, Some(shell_info), _)) => {
-                let menu_id = shell_info.menu.id;
-                let toast_overlay = shell_info.toast_overlay;
+                
                 let toggle_task =
                     shell_info
                         .menu
                         .toggle(menu_type, button_ui_ref, request_keyboard);
-                // If toggle closed the menu while toasts are still active,
-                // menu.close() sets Layer::Background; restore Overlay for the toast.
-                let menu_was_closed = shell_info.menu.menu_info.is_none();
-                let toggle_task = if menu_was_closed && toast_overlay {
-                    Task::batch(vec![toggle_task, set_layer(menu_id, Layer::Overlay)])
-                } else {
-                    toggle_task
-                };
                 let mut tasks = self
                     .0
                     .iter_mut()
@@ -533,14 +531,7 @@ impl Outputs {
         }) {
             Some((_, Some(shell_info), _)) => {
                 let close_task = shell_info.menu.close();
-                if shell_info.toast_overlay {
-                    Task::batch(vec![
-                        close_task,
-                        set_layer(shell_info.menu.id, Layer::Overlay),
-                    ])
-                } else {
-                    close_task
-                }
+                close_task
             }
             _ => Task::none(),
         };
@@ -567,14 +558,7 @@ impl Outputs {
         }) {
             Some((_, Some(shell_info), _)) => {
                 let close_task = shell_info.menu.close_if(menu_type);
-                if shell_info.toast_overlay && shell_info.menu.menu_info.is_none() {
-                    Task::batch(vec![
-                        close_task,
-                        set_layer(shell_info.menu.id, Layer::Overlay),
-                    ])
-                } else {
-                    close_task
-                }
+                close_task
             }
             _ => Task::none(),
         };
@@ -600,14 +584,7 @@ impl Outputs {
                 .map(|(_, shell_info, _)| {
                     if let Some(shell_info) = shell_info {
                         let close_task = shell_info.menu.close_if(menu_type.clone());
-                        if shell_info.toast_overlay && shell_info.menu.menu_info.is_none() {
-                            Task::batch(vec![
-                                close_task,
-                                set_layer(shell_info.menu.id, Layer::Overlay),
-                            ])
-                        } else {
-                            close_task
-                        }
+                        close_task
                     } else {
                         Task::none()
                     }
@@ -638,15 +615,10 @@ impl Outputs {
                 .map(|(_, shell_info, _)| {
                     if let Some(shell_info) = shell_info {
                         if shell_info.menu.menu_info.is_some() {
+                            // toasts are on a background surface, so menu close
+                            // doesn't need to reorder them
                             let close_task = shell_info.menu.close();
-                            if shell_info.toast_overlay {
-                                Task::batch(vec![
-                                    close_task,
-                                    set_layer(shell_info.menu.id, Layer::Overlay),
-                                ])
-                            } else {
-                                close_task
-                            }
+                            close_task
                         } else {
                             Task::none()
                         }
@@ -693,17 +665,63 @@ impl Outputs {
         }
     }
 
-    pub fn show_toast_layer<Message: 'static>(&mut self) -> Task<Message> {
+    /// Show the toast layer(s) for every output.
+    ///
+    /// `width` and `height` specify the size of the new surface, and
+    /// `position` determines the corner where it should be anchored.  The
+    /// returned `Task` creates (or updates) the surfaces; callers should supply
+    /// values large enough to encompass all possible toasts, for example using
+    /// `toast_max_visible` from the notifications configuration.
+    pub fn show_toast_layer<Message: 'static>(
+        &mut self,
+        width: u32,
+        height: u32,
+        position: config::ToastPosition,
+    ) -> Task<Message> {
         let mut tasks = vec![];
-        for (_, shell_info, _) in &mut self.0 {
+
+        for (_, shell_info, wl_output) in &mut self.0 {
             if let Some(shell_info) = shell_info {
-                shell_info.toast_overlay = true;
-                // Only set to overlay if the menu isn't already handling it
-                if shell_info.menu.menu_info.is_none() {
-                    tasks.push(set_layer(shell_info.menu.id, Layer::Overlay));
+                // If we already created a toast surface for this output, just
+                // update its size and layer ordering.
+                if let Some(toast_id) = shell_info.toast_id {
+                    tasks.push(set_size(toast_id, Some(width), Some(height)));
+                    tasks.push(set_layer(toast_id, Layer::Overlay));
+                } else {
+                    // create a new surface for toasts
+                    let id = Id::unique();
+                    shell_info.toast_id = Some(id);
+
+                    let anchor = match position {
+                        config::ToastPosition::TopLeft =>
+                            Anchor::TOP | Anchor::LEFT,
+                        config::ToastPosition::TopRight =>
+                            Anchor::TOP | Anchor::RIGHT,
+                        config::ToastPosition::BottomLeft =>
+                            Anchor::BOTTOM | Anchor::LEFT,
+                        config::ToastPosition::BottomRight =>
+                            Anchor::BOTTOM | Anchor::RIGHT,
+                    };
+
+                    let toast_task = get_layer_surface(SctkLayerSurfaceSettings {
+                        id,
+                        namespace: "ashell-toast-layer".to_string(),
+                        size: Some((Some(width), Some(height))),
+                        layer: Layer::Background,
+                        keyboard_interactivity: KeyboardInteractivity::None,
+                        exclusive_zone: 0,
+                        output: wl_output.clone().map_or(IcedOutput::Active, |wl| {
+                            IcedOutput::Output(wl)
+                        }),
+                        anchor,
+                        ..Default::default()
+                    });
+
+                    tasks.push(toast_task);
                 }
             }
         }
+
         Task::batch(tasks)
     }
 
@@ -711,13 +729,12 @@ impl Outputs {
         let mut tasks = vec![];
         for (_, shell_info, _) in &mut self.0 {
             if let Some(shell_info) = shell_info {
-                shell_info.toast_overlay = false;
-                // Only set back to background if no menu is open
-                if shell_info.menu.menu_info.is_none() {
-                    tasks.push(set_layer(shell_info.menu.id, Layer::Background));
+                if let Some(toast_id) = shell_info.toast_id.take() {
+                    tasks.push(destroy_layer_surface(toast_id));
                 }
             }
         }
         Task::batch(tasks)
     }
+
 }
