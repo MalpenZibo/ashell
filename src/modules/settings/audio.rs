@@ -436,7 +436,7 @@ impl AudioSettings {
         volume_changed: &'a dyn Fn(i32) -> Message,
         with_submenu: Option<(Option<SubMenu>, Message)>,
     ) -> Element<'a, Message> {
-        Row::new()
+        Row::with_capacity(3)
             .push(
                 MouseArea::new(
                     icon_button(
