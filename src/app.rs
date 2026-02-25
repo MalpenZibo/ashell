@@ -184,7 +184,8 @@ impl App {
 
         self.keyboard_submap = KeyboardSubmap::default();
         self.clock = Clock::new(config.clock);
-        self.tempo = Tempo::new(config.tempo);
+        self.tempo
+            .update(modules::tempo::Message::ConfigReloaded(config.tempo));
         self.settings
             .update(modules::settings::Message::ConfigReloaded(config.settings));
         self.media_player

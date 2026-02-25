@@ -28,6 +28,9 @@ where
 {
     content: Element<'a, Message, Theme, Renderer>,
     on_press: Option<OnPress<'a, Message>>,
+    on_right_press: Option<OnPress<'a, Message>>,
+    on_scroll_up: Option<OnPress<'a, Message>>,
+    on_scroll_down: Option<OnPress<'a, Message>>,
     id: Id,
     width: Length,
     height: Length,
@@ -49,6 +52,9 @@ where
             content,
             id: Id::unique(),
             on_press: None,
+            on_right_press: None,
+            on_scroll_up: None,
+            on_scroll_down: None,
             width: size.width.fluid(),
             height: size.height.fluid(),
             padding: DEFAULT_PADDING,
@@ -91,6 +97,21 @@ where
         self
     }
 
+    pub fn on_right_press(mut self, on_right_press: Message) -> Self {
+        self.on_right_press = Some(OnPress::Message(on_right_press));
+        self
+    }
+
+    pub fn on_scroll_up(mut self, on_scroll_up: Message) -> Self {
+        self.on_scroll_up = Some(OnPress::Message(on_scroll_up));
+        self
+    }
+
+    pub fn on_scroll_down(mut self, on_scroll_down: Message) -> Self {
+        self.on_scroll_down = Some(OnPress::Message(on_scroll_down));
+        self
+    }
+
     /// Sets whether the contents of the [`Button`] should be clipped on
     /// overflow.
     pub fn clip(mut self, clip: bool) -> Self {
@@ -113,12 +134,42 @@ where
         self.id = id;
         self
     }
+
+    fn publish_on_press(
+        &self,
+        on_press: &OnPress<'a, Message>,
+        layout: Layout<'_>,
+        viewport: &Rectangle,
+        shell: &mut Shell<'_, Message>,
+    ) -> event::Status
+    where
+        Message: Clone,
+    {
+        match on_press {
+            OnPress::Message(message) => {
+                shell.publish(message.clone());
+                event::Status::Captured
+            }
+            OnPress::MessageWithPosition(on_press_with_position) => {
+                let ui_data = ButtonUIRef {
+                    position: Point::new(
+                        layout.bounds().width / 2. + layout.position().x,
+                        layout.bounds().height / 2. + layout.position().y,
+                    ),
+                    viewport: (viewport.width, viewport.height),
+                };
+                shell.publish(on_press_with_position(ui_data));
+                event::Status::Captured
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 struct State {
     is_hovered: bool,
     is_pressed: bool,
+    is_right_pressed: bool,
     is_focused: bool,
 }
 
@@ -221,6 +272,17 @@ where
                     }
                 }
             }
+            Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Right)) => {
+                if self.on_right_press.is_some() {
+                    let bounds = layout.bounds();
+
+                    if cursor.is_over(bounds) {
+                        let state = tree.state.downcast_mut::<State>();
+                        state.is_right_pressed = true;
+                        return event::Status::Captured;
+                    }
+                }
+            }
             Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left))
             | Event::Touch(touch::Event::FingerLifted { .. }) => {
                 if let Some(on_press) = self.on_press.as_ref() {
@@ -232,24 +294,45 @@ where
                         let bounds = layout.bounds();
 
                         if cursor.is_over(bounds) {
-                            match on_press {
-                                OnPress::Message(message) => {
-                                    shell.publish(message.clone());
-                                }
-                                OnPress::MessageWithPosition(on_press) => {
-                                    let ui_data = ButtonUIRef {
-                                        position: Point::new(
-                                            layout.bounds().width / 2. + layout.position().x,
-                                            layout.bounds().height / 2. + layout.position().y,
-                                        ),
-                                        viewport: (viewport.width, viewport.height),
-                                    };
-                                    shell.publish(on_press(ui_data));
-                                }
-                            }
+                            return self.publish_on_press(on_press, layout, viewport, shell);
                         }
 
                         return event::Status::Captured;
+                    }
+                }
+            }
+            Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Right)) => {
+                if let Some(on_right_press) = self.on_right_press.as_ref() {
+                    let state = tree.state.downcast_mut::<State>();
+
+                    if state.is_right_pressed {
+                        state.is_right_pressed = false;
+
+                        let bounds = layout.bounds();
+
+                        if cursor.is_over(bounds) {
+                            return self.publish_on_press(on_right_press, layout, viewport, shell);
+                        }
+
+                        return event::Status::Captured;
+                    }
+                }
+            }
+            Event::Mouse(mouse::Event::WheelScrolled { delta }) => {
+                let bounds = layout.bounds();
+                if cursor.is_over(bounds)
+                    && let mouse::ScrollDelta::Lines { y, .. } = delta
+                {
+                    let target = if y > 0.0 {
+                        self.on_scroll_up.as_ref()
+                    } else if y < 0.0 {
+                        self.on_scroll_down.as_ref()
+                    } else {
+                        None
+                    };
+
+                    if let Some(on_scroll) = target {
+                        return self.publish_on_press(on_scroll, layout, viewport, shell);
                     }
                 }
             }

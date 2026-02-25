@@ -263,6 +263,10 @@ impl Default for ClockModuleConfig {
 pub struct TempoModuleConfig {
     pub clock_format: String,
     #[serde(default)]
+    pub formats: Vec<String>,
+    #[serde(default)]
+    pub timezones: Vec<String>,
+    #[serde(default)]
     pub weather_location: Option<WeatherLocation>,
 }
 
@@ -277,6 +281,8 @@ impl Default for TempoModuleConfig {
     fn default() -> Self {
         Self {
             clock_format: "%a %d %b %R".to_string(),
+            formats: vec![],
+            timezones: vec![],
             weather_location: None,
         }
     }
@@ -697,7 +703,7 @@ impl Default for Modules {
             left: vec![ModuleDef::Single(ModuleName::Workspaces)],
             center: vec![ModuleDef::Single(ModuleName::WindowTitle)],
             right: vec![ModuleDef::Group(vec![
-                ModuleName::Clock,
+                ModuleName::Tempo,
                 ModuleName::Privacy,
                 ModuleName::Settings,
             ])],
