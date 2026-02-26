@@ -9,7 +9,7 @@ use crate::{
     theme::AshellTheme,
 };
 use iced::{
-    Element, Length, Subscription, alignment,
+    Element, Font, Length, Subscription, alignment,
     widget::{Image, MouseArea, Row, Svg, button, container, text},
     window::Id,
 };
@@ -58,9 +58,9 @@ fn resolve_workspace_icons(
         if !seen.insert(class_lower.clone()) {
             continue;
         }
-        if let Some(xdg) = xdg_icons::get_icon_from_name(&class_lower) {
-            icons.push(xdg);
-        }
+        icons.push(
+            xdg_icons::get_icon_from_name(&class_lower).unwrap_or_else(xdg_icons::fallback_icon),
+        );
     }
 
     icons
@@ -440,17 +440,24 @@ impl Workspaces {
                                 w.monitor_id
                             };
 
+                            let is_active = w.displayed == Displayed::Active;
+
                             let color = color_index.map(|i| {
-                                if w.id > 0 {
-                                    theme.workspace_colors.get(i as usize).copied()
-                                } else {
+                                let i = i as usize;
+                                let colors = if is_active {
+                                    theme
+                                        .active_workspace_colors
+                                        .as_ref()
+                                        .unwrap_or(&theme.workspace_colors)
+                                } else if w.id < 0 {
                                     theme
                                         .special_workspace_colors
                                         .as_ref()
                                         .unwrap_or(&theme.workspace_colors)
-                                        .get(i as usize)
-                                        .copied()
-                                }
+                                } else {
+                                    &theme.workspace_colors
+                                };
+                                colors.get(i).copied()
                             });
 
                             let has_icons = !w.icons.is_empty();
@@ -468,6 +475,10 @@ impl Workspaces {
                                         XdgIcon::Image(handle) => Image::new(handle.clone())
                                             .height(Length::Fixed(theme.font_size.xs as f32))
                                             .width(Length::Shrink)
+                                            .into(),
+                                        XdgIcon::NerdFont(glyph) => text(*glyph)
+                                            .size(theme.font_size.xs)
+                                            .font(Font::with_name("Symbols Nerd Font"))
                                             .into(),
                                     }
                                 }));

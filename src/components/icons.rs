@@ -115,7 +115,7 @@ pub enum StaticIcon {
 }
 
 impl StaticIcon {
-    fn get_str(&self) -> &'static str {
+    pub fn get_str(&self) -> &'static str {
         match self {
             StaticIcon::None => "",
             StaticIcon::Refresh => "\u{f0453}",

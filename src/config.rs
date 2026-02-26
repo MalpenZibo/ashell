@@ -523,6 +523,7 @@ pub struct Appearance {
     pub text_color: AppearanceColor,
     pub workspace_colors: Vec<AppearanceColor>,
     pub special_workspace_colors: Option<Vec<AppearanceColor>>,
+    pub active_workspace_colors: Option<Vec<AppearanceColor>>,
 }
 
 static PRIMARY: HexColor = HexColor::rgb(250, 179, 135);
@@ -611,6 +612,7 @@ impl Default for Appearance {
                 AppearanceColor::Simple(HexColor::rgb(203, 166, 247)),
             ],
             special_workspace_colors: None,
+            active_workspace_colors: None,
         }
     }
 }
