@@ -23,6 +23,11 @@ static SYSTEM_ICON_ENTRIES: LazyLock<Vec<(String, String)>> = LazyLock::new(|| {
 pub enum XdgIcon {
     Image(image::Handle),
     Svg(svg::Handle),
+    NerdFont(&'static str),
+}
+
+pub fn fallback_icon() -> XdgIcon {
+    XdgIcon::NerdFont(crate::components::icons::StaticIcon::Point.get_str())
 }
 
 pub fn get_icon_from_name(icon_name: &str) -> Option<XdgIcon> {
