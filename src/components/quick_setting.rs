@@ -1,6 +1,6 @@
 use guido::prelude::*;
 
-use crate::theme;
+use crate::theme::ThemeColors;
 
 use super::icons::{StaticIcon, icon};
 
@@ -14,6 +14,7 @@ pub fn quick_setting(
     on_toggle: impl Fn() + 'static,
     on_submenu: Option<impl Fn() + 'static>,
 ) -> impl Widget {
+    let theme = expect_context::<ThemeColors>();
     let hovered = create_signal(false);
     let active2 = active.clone();
     let active3 = active.clone();
@@ -28,7 +29,7 @@ pub fn quick_setting(
         .on_click(move || on_toggle())
         .background(move || {
             if active() {
-                theme::LAVENDER
+                theme.primary
             } else if hovered.get() {
                 Color::rgba(1.0, 1.0, 1.0, 0.1)
             } else {
@@ -46,9 +47,9 @@ pub fn quick_setting(
             icon(move || ic())
                 .color(move || {
                     if active2() {
-                        theme::BASE
+                        theme.background
                     } else {
-                        theme::TEXT
+                        theme.text
                     }
                 })
                 .font_size(16.0),
@@ -61,9 +62,9 @@ pub fn quick_setting(
                     text(move || title())
                         .color(move || {
                             if active3() {
-                                theme::BASE
+                                theme.background
                             } else {
-                                theme::TEXT
+                                theme.text
                             }
                         })
                         .font_size(12.0),
@@ -82,9 +83,9 @@ pub fn quick_setting(
                                     .color(move || {
                                         if active4() {
                                             Color::rgba(
-                                                theme::BASE.r,
-                                                theme::BASE.g,
-                                                theme::BASE.b,
+                                                theme.background.r,
+                                                theme.background.g,
+                                                theme.background.b,
                                                 0.7,
                                             )
                                         } else {
@@ -128,7 +129,7 @@ pub fn quick_setting(
                     )
                     .child(
                         icon(StaticIcon::RightChevron)
-                            .color(theme::TEXT)
+                            .color(theme.text)
                             .font_size(12.0),
                     ),
             )

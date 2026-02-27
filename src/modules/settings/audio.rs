@@ -2,7 +2,7 @@ use guido::prelude::*;
 
 use crate::components::{StaticIcon, icon, slider};
 use crate::services::audio::{AudioCmd, AudioDataSignals, Sinks, Sources};
-use crate::theme;
+use crate::theme::ThemeColors;
 
 use super::SubMenu;
 
@@ -84,6 +84,7 @@ pub fn source_slider(
 
 /// Bar indicator: speaker icon + volume %
 pub fn sink_indicator(data: AudioDataSignals) -> impl Widget {
+    let theme = expect_context::<ThemeColors>();
     let sinks = data.sinks;
     let server_info = data.server_info;
     let cur_vol = data.cur_sink_volume;
@@ -96,12 +97,12 @@ pub fn sink_indicator(data: AudioDataSignals) -> impl Widget {
         )
         .child(
             icon(move || sinks.with(|s| Sinks::get_icon(s, &server_info.with(|si| si.default_sink.clone()))))
-                .color(theme::TEXT)
+                .color(theme.text)
                 .font_size(14.0),
         )
         .child(
             text(move || format!("{}%", cur_vol.get()))
-                .color(theme::TEXT)
+                .color(theme.text)
                 .font_size(13.0),
         )
 }
@@ -111,6 +112,7 @@ pub fn sinks_submenu(
     data: AudioDataSignals,
     svc: Service<AudioCmd>,
 ) -> impl Widget {
+    let theme = expect_context::<ThemeColors>();
     let sinks = data.sinks;
     let server_info = data.server_info;
 
@@ -159,12 +161,12 @@ pub fn sinks_submenu(
                             )
                             .child(
                                 icon(port.device_type.get_icon())
-                                    .color(theme::TEXT)
+                                    .color(theme.text)
                                     .font_size(14.0),
                             )
                             .child(
                                 text(desc)
-                                    .color(theme::TEXT)
+                                    .color(theme.text)
                                     .font_size(12.0),
                             ),
                     );
@@ -179,6 +181,7 @@ pub fn sources_submenu(
     data: AudioDataSignals,
     svc: Service<AudioCmd>,
 ) -> impl Widget {
+    let theme = expect_context::<ThemeColors>();
     let sources = data.sources;
     let server_info = data.server_info;
 
@@ -227,12 +230,12 @@ pub fn sources_submenu(
                             )
                             .child(
                                 icon(StaticIcon::Mic1)
-                                    .color(theme::TEXT)
+                                    .color(theme.text)
                                     .font_size(14.0),
                             )
                             .child(
                                 text(desc)
-                                    .color(theme::TEXT)
+                                    .color(theme.text)
                                     .font_size(12.0),
                             ),
                     );

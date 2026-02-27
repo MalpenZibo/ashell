@@ -3,9 +3,7 @@ use log::error;
 use std::process::Stdio;
 use std::time::Duration;
 
-const CHECK_CMD: &str = "checkupdates";
-const UPDATE_CMD: &str = "";
-const INTERVAL_SECS: u64 = 3600;
+use crate::config::UpdatesModuleConfig;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Update {
@@ -35,10 +33,10 @@ pub enum UpdatesCmd {
     RunUpdate,
 }
 
-async fn check_updates_now() -> Vec<Update> {
+async fn check_updates_now(check_cmd: &str) -> Vec<Update> {
     let result = tokio::process::Command::new("bash")
         .arg("-c")
-        .arg(CHECK_CMD)
+        .arg(check_cmd)
         .stdout(Stdio::piped())
         .output()
         .await;
@@ -70,53 +68,64 @@ async fn check_updates_now() -> Vec<Update> {
     }
 }
 
-async fn run_update() {
-    if UPDATE_CMD.is_empty() {
+async fn run_update(update_cmd: &str) {
+    if update_cmd.is_empty() {
         return;
     }
     let _ = tokio::process::Command::new("bash")
         .arg("-c")
-        .arg(UPDATE_CMD)
+        .arg(update_cmd)
         .output()
         .await;
 }
 
-pub fn start_updates_service(writers: UpdatesDataWriters) -> Service<UpdatesCmd> {
-    create_service::<UpdatesCmd, _, _>(move |mut rx, ctx| async move {
-        // Initial check
-        writers.set(UpdatesData {
-            updates: Vec::new(),
-            is_checking: true,
-        });
-        let updates = check_updates_now().await;
-        writers.set(UpdatesData {
-            updates,
-            is_checking: false,
-        });
+pub fn start_updates_service(
+    writers: UpdatesDataWriters,
+    config: UpdatesModuleConfig,
+) -> Service<UpdatesCmd> {
+    let check_cmd = config.check_cmd;
+    let update_cmd = config.update_cmd;
+    let interval = config.interval;
 
-        while ctx.is_running() {
-            tokio::select! {
-                cmd = rx.recv() => {
-                    match cmd {
-                        Some(UpdatesCmd::CheckNow) => {
-                            writers.is_checking.set(true);
-                            let updates = check_updates_now().await;
-                            writers.set(UpdatesData { updates, is_checking: false });
+    create_service::<UpdatesCmd, _, _>(move |mut rx, ctx| {
+        let check_cmd = check_cmd.clone();
+        let update_cmd = update_cmd.clone();
+        async move {
+            // Initial check
+            writers.set(UpdatesData {
+                updates: Vec::new(),
+                is_checking: true,
+            });
+            let updates = check_updates_now(&check_cmd).await;
+            writers.set(UpdatesData {
+                updates,
+                is_checking: false,
+            });
+
+            while ctx.is_running() {
+                tokio::select! {
+                    cmd = rx.recv() => {
+                        match cmd {
+                            Some(UpdatesCmd::CheckNow) => {
+                                writers.is_checking.set(true);
+                                let updates = check_updates_now(&check_cmd).await;
+                                writers.set(UpdatesData { updates, is_checking: false });
+                            }
+                            Some(UpdatesCmd::RunUpdate) => {
+                                run_update(&update_cmd).await;
+                                // Re-check after update
+                                writers.is_checking.set(true);
+                                let updates = check_updates_now(&check_cmd).await;
+                                writers.set(UpdatesData { updates, is_checking: false });
+                            }
+                            None => break,
                         }
-                        Some(UpdatesCmd::RunUpdate) => {
-                            run_update().await;
-                            // Re-check after update
-                            writers.is_checking.set(true);
-                            let updates = check_updates_now().await;
-                            writers.set(UpdatesData { updates, is_checking: false });
-                        }
-                        None => break,
                     }
-                }
-                _ = tokio::time::sleep(Duration::from_secs(INTERVAL_SECS)) => {
-                    writers.is_checking.set(true);
-                    let updates = check_updates_now().await;
-                    writers.set(UpdatesData { updates, is_checking: false });
+                    _ = tokio::time::sleep(Duration::from_secs(interval)) => {
+                        writers.is_checking.set(true);
+                        let updates = check_updates_now(&check_cmd).await;
+                        writers.set(UpdatesData { updates, is_checking: false });
+                    }
                 }
             }
         }

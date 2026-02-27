@@ -1,4 +1,5 @@
 mod components;
+pub mod config;
 mod config_watcher;
 mod modules;
 mod services;
@@ -7,19 +8,46 @@ use components::{center_box, module_group, module_item};
 use guido::prelude::*;
 use services::compositor::{CompositorState, CompositorStateSignals, start_compositor_service};
 
-#[allow(dead_code)]
-mod theme {
+pub mod theme {
     use guido::prelude::Color;
 
-    // Catppuccin Mocha
-    pub const BASE: Color = Color::rgb(30.0 / 255.0, 30.0 / 255.0, 46.0 / 255.0);
-    pub const SURFACE: Color = Color::rgb(49.0 / 255.0, 50.0 / 255.0, 68.0 / 255.0);
-    pub const TEXT: Color = Color::rgb(205.0 / 255.0, 214.0 / 255.0, 244.0 / 255.0);
-    pub const PEACH: Color = Color::rgb(250.0 / 255.0, 179.0 / 255.0, 135.0 / 255.0);
-    pub const LAVENDER: Color = Color::rgb(180.0 / 255.0, 190.0 / 255.0, 254.0 / 255.0);
-    pub const MAUVE: Color = Color::rgb(203.0 / 255.0, 166.0 / 255.0, 247.0 / 255.0);
-    pub const RED: Color = Color::rgb(243.0 / 255.0, 139.0 / 255.0, 168.0 / 255.0);
-    pub const YELLOW: Color = Color::rgb(249.0 / 255.0, 226.0 / 255.0, 175.0 / 255.0);
+    use crate::config::Appearance;
+
+    const DEFAULT_YELLOW: Color = Color::rgb(249.0 / 255.0, 226.0 / 255.0, 175.0 / 255.0);
+
+    #[derive(Clone, Copy)]
+    pub struct ThemeColors {
+        pub text: Color,
+        pub background: Color,
+        pub primary: Color,
+        pub success: Color,
+        pub warning: Color,
+        pub danger: Color,
+    }
+
+    impl ThemeColors {
+        /// Slightly lighter background for panels/cards.
+        pub fn surface(&self) -> Color {
+            let a = 0.08_f32;
+            Color::rgb(
+                self.background.r * (1.0 - a) + a,
+                self.background.g * (1.0 - a) + a,
+                self.background.b * (1.0 - a) + a,
+            )
+        }
+    }
+
+    pub fn init(appearance: &Appearance) -> ThemeColors {
+        // let ws = &appearance.workspace_colors;
+        ThemeColors {
+            text: appearance.text_color.base(),
+            background: appearance.background_color.base(),
+            primary: appearance.primary_color.base(),
+            success: appearance.success_color.base(),
+            danger: appearance.danger_color.base(),
+            warning: appearance.danger_color.weak().unwrap_or(DEFAULT_YELLOW),
+        }
+    }
 }
 
 const NERD_FONT: &[u8] = include_bytes!("../target/generated/SymbolsNerdFont-Regular-Subset.ttf");
@@ -54,9 +82,15 @@ async fn main() {
     loop {
         load_font(NERD_FONT.to_vec());
 
+        let cfg = config::load_config(&config_path);
+        let theme_colors = theme::init(&cfg.appearance);
+
         let watcher_handle = config_watcher::spawn_config_watcher(config_path.clone());
 
         let reason = App::new().run(|app| {
+            provide_context(cfg.clone());
+            provide_context(theme_colors);
+
             let compositor_state = CompositorStateSignals::new(CompositorState::default());
             let compositor_svc = start_compositor_service(compositor_state.writers());
 
@@ -246,7 +280,7 @@ async fn main() {
                                             .width(menu_width)
                                             .height(at_most(800.0))
                                             .scrollable(ScrollAxis::Vertical)
-                                            .background(theme::SURFACE)
+                                            .background(theme_colors.surface())
                                             .corner_radius(12.0)
                                             .padding(16.0)
                                             .on_click(|| {

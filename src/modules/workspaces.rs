@@ -1,9 +1,10 @@
 use guido::prelude::*;
 
+use crate::config::Config;
 use crate::services::compositor::{
     CompositorCommand, CompositorMonitor, CompositorStateSignals, CompositorWorkspace,
 };
-use crate::theme;
+use crate::theme::ThemeColors;
 
 const PILL_HEIGHT: f32 = 16.0;
 const PILL_ACTIVE_WIDTH: f32 = 32.0;
@@ -11,7 +12,17 @@ const PILL_VISIBLE_WIDTH: f32 = 24.0;
 const PILL_HIDDEN_WIDTH: f32 = 16.0;
 const PILL_CORNER_RADIUS: f32 = 8.0;
 
-const WORKSPACE_COLORS: [Color; 3] = [theme::PEACH, theme::LAVENDER, theme::MAUVE];
+fn workspace_colors() -> Vec<Color> {
+    let ws = with_context::<Config, _>(|c| {
+        c.appearance.workspace_colors.iter().map(|c| c.base()).collect::<Vec<_>>()
+    }).unwrap();
+    if ws.is_empty() {
+        let theme = expect_context::<ThemeColors>();
+        vec![theme.primary, theme.success, theme.warning]
+    } else {
+        ws
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Displayed {
@@ -32,7 +43,8 @@ impl Displayed {
 
 fn workspace_color(monitor_id: Option<i128>) -> Color {
     let idx = monitor_id.unwrap_or(0).unsigned_abs() as usize;
-    WORKSPACE_COLORS[idx % WORKSPACE_COLORS.len()]
+    let colors = workspace_colors();
+    colors[idx % colors.len()]
 }
 
 fn compute_displayed(
@@ -56,9 +68,9 @@ fn is_empty(workspaces: &[CompositorWorkspace], ws_id: i32) -> bool {
         .is_none_or(|w| w.windows == 0)
 }
 
-fn pill_background(color: Color, displayed: Displayed, empty: bool) -> Color {
+fn pill_background(theme: ThemeColors, color: Color, displayed: Displayed, empty: bool) -> Color {
     if empty {
-        theme::SURFACE
+        theme.surface()
     } else {
         match displayed {
             Displayed::Active | Displayed::Visible => color,
@@ -71,16 +83,16 @@ fn pill_border_width(empty: bool) -> f32 {
     if empty { 1.0 } else { 0.0 }
 }
 
-fn pill_text_color(displayed: Displayed, empty: bool) -> Color {
+fn pill_text_color(theme: ThemeColors, displayed: Displayed, empty: bool) -> Color {
     if empty {
         match displayed {
-            Displayed::Active | Displayed::Visible => theme::TEXT,
-            Displayed::Hidden => Color::rgba(theme::TEXT.r, theme::TEXT.g, theme::TEXT.b, 0.4),
+            Displayed::Active | Displayed::Visible => theme.text,
+            Displayed::Hidden => Color::rgba(theme.text.r, theme.text.g, theme.text.b, 0.4),
         }
     } else {
         match displayed {
-            Displayed::Active | Displayed::Visible => theme::BASE,
-            Displayed::Hidden => theme::TEXT,
+            Displayed::Active | Displayed::Visible => theme.background,
+            Displayed::Hidden => theme.text,
         }
     }
 }
@@ -97,6 +109,7 @@ fn pill_border_color(color: Color, displayed: Displayed, empty: bool) -> Color {
 }
 
 pub fn view(state: CompositorStateSignals, svc: Service<CompositorCommand>) -> impl Widget {
+    let theme = expect_context::<ThemeColors>();
     let svc_scroll = svc.clone();
     let svc_children = svc;
 
@@ -140,7 +153,7 @@ pub fn view(state: CompositorStateSignals, svc: Service<CompositorCommand>) -> i
                             .width(move || displayed.get().width())
                             .height(PILL_HEIGHT)
                             .background(move || {
-                                pill_background(color, displayed.get(), empty.get())
+                                pill_background(theme, color, displayed.get(), empty.get())
                             })
                             .corner_radius(PILL_CORNER_RADIUS)
                             .border(
@@ -155,7 +168,7 @@ pub fn view(state: CompositorStateSignals, svc: Service<CompositorCommand>) -> i
                             .overflow(Overflow::Hidden)
                             .child(
                                 text(label)
-                                    .color(move || pill_text_color(displayed.get(), empty.get()))
+                                    .color(move || pill_text_color(theme, displayed.get(), empty.get()))
                                     .font_size(10.0)
                                     .nowrap(),
                             )

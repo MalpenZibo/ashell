@@ -4,10 +4,11 @@ use crate::components::{StaticIcon, icon, quick_setting};
 use crate::services::upower::{
     BatteryStatus, PowerProfile, UPowerCmd, UPowerDataSignals,
 };
-use crate::theme;
+use crate::theme::ThemeColors;
 
 /// Bar indicator: battery icon + percentage
 pub fn battery_indicator(data: UPowerDataSignals) -> impl Widget {
+    let theme = expect_context::<ThemeColors>();
     let battery = data.system_battery;
 
     container()
@@ -20,10 +21,10 @@ pub fn battery_indicator(data: UPowerDataSignals) -> impl Widget {
                                 .spacing(4.0)
                                 .cross_alignment(CrossAlignment::Center),
                         )
-                        .child(icon(b.get_icon()).color(theme::TEXT).font_size(14.0))
+                        .child(icon(b.get_icon()).color(theme.text).font_size(14.0))
                         .child(
                             text(format!("{}%", b.capacity))
-                                .color(theme::TEXT)
+                                .color(theme.text)
                                 .font_size(13.0),
                         )
                 })
@@ -56,6 +57,7 @@ pub fn power_profile_quick_setting(
 
 /// Battery section in menu header
 pub fn battery_header(data: UPowerDataSignals) -> impl Widget {
+    let theme = expect_context::<ThemeColors>();
     let battery = data.system_battery;
 
     container()
@@ -73,10 +75,10 @@ pub fn battery_header(data: UPowerDataSignals) -> impl Widget {
                                 .spacing(4.0)
                                 .cross_alignment(CrossAlignment::Center),
                         )
-                        .child(icon(b.get_icon()).color(theme::TEXT).font_size(16.0))
+                        .child(icon(b.get_icon()).color(theme.text).font_size(16.0))
                         .child(
                             text(format!("{}%", b.capacity))
-                                .color(theme::TEXT)
+                                .color(theme.text)
                                 .font_size(14.0),
                         )
                         .child(move || {
@@ -103,7 +105,7 @@ pub fn battery_header(data: UPowerDataSignals) -> impl Widget {
                                 }
                                 BatteryStatus::Full => Some("Full".to_string()),
                             };
-                            status_text.map(|s| text(s).color(theme::LAVENDER).font_size(11.0))
+                            status_text.map(|s| text(s).color(theme.primary).font_size(11.0))
                         })
                 })
             })
@@ -112,6 +114,7 @@ pub fn battery_header(data: UPowerDataSignals) -> impl Widget {
 
 /// Peripherals section in menu
 pub fn peripherals_view(data: UPowerDataSignals) -> impl Widget {
+    let theme = expect_context::<ThemeColors>();
     let peripherals = data.peripherals;
 
     container()
@@ -137,11 +140,11 @@ pub fn peripherals_view(data: UPowerDataSignals) -> impl Widget {
                                 .spacing(8.0)
                                 .cross_alignment(CrossAlignment::Center),
                         )
-                        .child(icon(ic).color(theme::TEXT).font_size(14.0))
-                        .child(text(name).color(theme::TEXT).font_size(12.0))
+                        .child(icon(ic).color(theme.text).font_size(14.0))
+                        .child(text(name).color(theme.text).font_size(12.0))
                         .child(
                             text(format!("{pct}%"))
-                                .color(theme::LAVENDER)
+                                .color(theme.primary)
                                 .font_size(12.0),
                         ),
                 );
@@ -199,6 +202,7 @@ fn power_action_button(
     label: &'static str,
     on_click: impl Fn() + 'static,
 ) -> impl Widget {
+    let theme = expect_context::<ThemeColors>();
     let hovered = create_signal(false);
     container()
         .width(fill())
@@ -218,6 +222,6 @@ fn power_action_button(
                 .spacing(8.0)
                 .cross_alignment(CrossAlignment::Center),
         )
-        .child(icon(ic).color(theme::TEXT).font_size(14.0))
-        .child(text(label).color(theme::TEXT).font_size(14.0))
+        .child(icon(ic).color(theme.text).font_size(14.0))
+        .child(text(label).color(theme.text).font_size(14.0))
 }

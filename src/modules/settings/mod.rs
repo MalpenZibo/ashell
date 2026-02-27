@@ -7,8 +7,9 @@ pub mod power;
 use guido::prelude::*;
 
 use crate::components::{StaticIcon, icon, quick_setting};
+use crate::config::Config;
 use crate::services;
-use crate::theme;
+use crate::theme::ThemeColors;
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum SubMenu {
@@ -107,6 +108,11 @@ pub fn menu_view(
     let settings3 = settings.clone();
     let close_menu2 = close_menu.clone();
 
+    let lock_cmd = with_context::<Config, _>(|c| {
+        c.settings.lock_cmd.clone()
+            .unwrap_or_else(|| "loginctl lock-session".to_string())
+    }).unwrap();
+
     container()
         .width(fill())
         .layout(Flex::column().spacing(12.0))
@@ -129,8 +135,9 @@ pub fn menu_view(
                                 .cross_alignment(CrossAlignment::Center),
                         )
                         .child(header_icon_button(StaticIcon::Lock, move || {
-                            let _ = std::process::Command::new("loginctl")
-                                .arg("lock-session")
+                            let _ = std::process::Command::new("bash")
+                                .arg("-c")
+                                .arg(&lock_cmd)
                                 .spawn();
                             close();
                         }))
@@ -336,6 +343,7 @@ fn header_icon_button(
     ic: StaticIcon,
     on_click: impl Fn() + 'static,
 ) -> impl Widget {
+    let theme = expect_context::<ThemeColors>();
     let hovered = create_signal(false);
     container()
         .padding(6.0)
@@ -349,7 +357,7 @@ fn header_icon_button(
                 Color::rgba(1.0, 1.0, 1.0, 0.08)
             }
         })
-        .child(icon(ic).color(theme::TEXT).font_size(16.0))
+        .child(icon(ic).color(theme.text).font_size(16.0))
 }
 
 fn idle_inhibitor_quick_setting(

@@ -4,10 +4,11 @@ use crate::components::{StaticIcon, icon, quick_setting};
 use crate::services::bluetooth::{
     BluetoothCmd, BluetoothDataSignals, BluetoothState,
 };
-use crate::theme;
+use crate::theme::ThemeColors;
 
 /// Bar indicator: Bluetooth icon
 pub fn bt_indicator(data: BluetoothDataSignals) -> impl Widget {
+    let theme = expect_context::<ThemeColors>();
     let state = data.state;
     let devices = data.devices;
 
@@ -23,7 +24,7 @@ pub fn bt_indicator(data: BluetoothDataSignals) -> impl Widget {
                         } else {
                             StaticIcon::Bluetooth
                         })
-                        .color(theme::TEXT)
+                        .color(theme.text)
                         .font_size(14.0),
                     )
                 }
@@ -72,6 +73,7 @@ pub fn bt_submenu(
     data: BluetoothDataSignals,
     svc: Service<BluetoothCmd>,
 ) -> impl Widget {
+    let theme = expect_context::<ThemeColors>();
     let devices = data.devices;
     let discovering = data.discovering;
 
@@ -86,7 +88,7 @@ pub fn bt_submenu(
                         .main_alignment(MainAlignment::SpaceBetween)
                         .cross_alignment(CrossAlignment::Center),
                 )
-                .child(text("Bluetooth Devices").color(theme::TEXT).font_size(14.0))
+                .child(text("Bluetooth Devices").color(theme.text).font_size(14.0))
                 .child({
                     let svc_scan = svc.clone();
                     let hovered = create_signal(false);
@@ -116,7 +118,7 @@ pub fn bt_submenu(
                                     StaticIcon::Refresh
                                 }
                             })
-                            .color(theme::TEXT)
+                            .color(theme.text)
                             .font_size(12.0),
                         )
                 }),
@@ -133,7 +135,7 @@ pub fn bt_submenu(
                 return Some(col.child(
                     container()
                         .padding(8.0)
-                        .child(text("No devices found").color(theme::TEXT).font_size(12.0)),
+                        .child(text("No devices found").color(theme.text).font_size(12.0)),
                 ));
             }
 
@@ -179,10 +181,10 @@ pub fn bt_submenu(
                         )
                         .child(
                             icon(StaticIcon::BluetoothConnected)
-                                .color(theme::TEXT)
+                                .color(theme.text)
                                 .font_size(14.0),
                         )
-                        .child(text(label).color(theme::TEXT).font_size(12.0)),
+                        .child(text(label).color(theme.text).font_size(12.0)),
                 );
             }
 
@@ -212,8 +214,8 @@ pub fn bt_submenu(
                                 .spacing(8.0)
                                 .cross_alignment(CrossAlignment::Center),
                         )
-                        .child(icon(StaticIcon::Bluetooth).color(theme::TEXT).font_size(14.0))
-                        .child(text(name).color(theme::TEXT).font_size(12.0)),
+                        .child(icon(StaticIcon::Bluetooth).color(theme.text).font_size(14.0))
+                        .child(text(name).color(theme.text).font_size(12.0)),
                 );
             }
 
@@ -221,7 +223,7 @@ pub fn bt_submenu(
                 col = col.child(
                     container()
                         .padding([4.0, 8.0])
-                        .child(text("Available").color(theme::LAVENDER).font_size(11.0)),
+                        .child(text("Available").color(theme.primary).font_size(11.0)),
                 );
                 for device in discovered {
                     let name = device.name.clone();
@@ -250,9 +252,9 @@ pub fn bt_submenu(
                                     .cross_alignment(CrossAlignment::Center),
                             )
                             .child(
-                                icon(StaticIcon::Bluetooth).color(theme::TEXT).font_size(14.0),
+                                icon(StaticIcon::Bluetooth).color(theme.text).font_size(14.0),
                             )
-                            .child(text(name).color(theme::TEXT).font_size(12.0)),
+                            .child(text(name).color(theme.text).font_size(12.0)),
                     );
                 }
             }

@@ -1,10 +1,10 @@
 use guido::prelude::*;
 
-use crate::theme;
+use crate::theme::ThemeColors;
 
 #[component]
 pub struct ModuleGroup {
-    #[prop(default = "Color::rgba(theme::BASE.r, theme::BASE.g, theme::BASE.b, 1.0)")]
+    #[prop(default = "{ let t = expect_context::<ThemeColors>(); Color::rgba(t.background.r, t.background.g, t.background.b, 1.0) }")]
     background: Color,
     #[prop(default = "16.0")]
     corner_radius: f32,

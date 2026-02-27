@@ -4,10 +4,11 @@ use crate::components::{StaticIcon, icon, quick_setting};
 use crate::services::network::{
     ActiveConnectionInfo, KnownConnection, NetworkCmd, NetworkDataSignals,
 };
-use crate::theme;
+use crate::theme::ThemeColors;
 
 /// Bar indicator: WiFi icon + SSID
 pub fn wifi_indicator(data: NetworkDataSignals) -> impl Widget {
+    let theme = expect_context::<ThemeColors>();
     let active = data.active_connections;
     let wifi_enabled = data.wifi_enabled;
 
@@ -19,7 +20,7 @@ pub fn wifi_indicator(data: NetworkDataSignals) -> impl Widget {
         )
         .child(
             icon(move || wifi_icon(active, wifi_enabled))
-                .color(theme::TEXT)
+                .color(theme.text)
                 .font_size(14.0),
         )
 }
@@ -165,6 +166,7 @@ pub fn wifi_submenu(
     data: NetworkDataSignals,
     svc: Service<NetworkCmd>,
 ) -> impl Widget {
+    let theme = expect_context::<ThemeColors>();
     let known = data.known_connections;
     let aps = data.wireless_access_points;
     let scanning = data.scanning_nearby_wifi;
@@ -180,7 +182,7 @@ pub fn wifi_submenu(
                         .main_alignment(MainAlignment::SpaceBetween)
                         .cross_alignment(CrossAlignment::Center),
                 )
-                .child(text("WiFi Networks").color(theme::TEXT).font_size(14.0))
+                .child(text("WiFi Networks").color(theme.text).font_size(14.0))
                 .child({
                     let svc_scan = svc.clone();
                     let hovered = create_signal(false);
@@ -198,9 +200,9 @@ pub fn wifi_submenu(
                         })
                         .child(move || {
                             Some(if scanning.get() {
-                                icon(StaticIcon::Refresh).color(theme::TEXT).font_size(12.0)
+                                icon(StaticIcon::Refresh).color(theme.text).font_size(12.0)
                             } else {
-                                icon(StaticIcon::Refresh).color(theme::TEXT).font_size(12.0)
+                                icon(StaticIcon::Refresh).color(theme.text).font_size(12.0)
                             })
                         })
                 }),
@@ -248,10 +250,10 @@ pub fn wifi_submenu(
                             )
                             .child(
                                 icon(strength_to_icon(strength, true))
-                                    .color(theme::TEXT)
+                                    .color(theme.text)
                                     .font_size(14.0),
                             )
-                            .child(text(ssid).color(theme::TEXT).font_size(12.0)),
+                            .child(text(ssid).color(theme.text).font_size(12.0)),
                     );
                 }
             }
@@ -292,10 +294,10 @@ pub fn wifi_submenu(
                         )
                         .child(
                             icon(strength_to_icon(strength, is_public))
-                                .color(theme::TEXT)
+                                .color(theme.text)
                                 .font_size(14.0),
                         )
-                        .child(text(ssid).color(theme::TEXT).font_size(12.0)),
+                        .child(text(ssid).color(theme.text).font_size(12.0)),
                 );
             }
             Some(col)
@@ -307,13 +309,14 @@ pub fn vpn_submenu(
     data: NetworkDataSignals,
     svc: Service<NetworkCmd>,
 ) -> impl Widget {
+    let theme = expect_context::<ThemeColors>();
     let known = data.known_connections;
     let active = data.active_connections;
 
     container()
         .width(fill())
         .layout(Flex::column().spacing(4.0))
-        .child(text("VPN").color(theme::TEXT).font_size(14.0))
+        .child(text("VPN").color(theme.text).font_size(14.0))
         .child(move || {
             let known_list = known.with(|k| k.clone());
             let active_list = active.with(|a| a.clone());
@@ -353,8 +356,8 @@ pub fn vpn_submenu(
                                     .spacing(8.0)
                                     .cross_alignment(CrossAlignment::Center),
                             )
-                            .child(icon(StaticIcon::Vpn).color(theme::TEXT).font_size(14.0))
-                            .child(text(name).color(theme::TEXT).font_size(12.0)),
+                            .child(icon(StaticIcon::Vpn).color(theme.text).font_size(14.0))
+                            .child(text(name).color(theme.text).font_size(12.0)),
                     );
                 }
             }

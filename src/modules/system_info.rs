@@ -1,18 +1,19 @@
 use guido::prelude::*;
 
 use crate::components::{StaticIcon, icon};
+use crate::config::Config;
 use crate::services::system_info::{
     SystemInfoData, SystemInfoDataSignals, start_system_info_service,
 };
-use crate::theme;
+use crate::theme::ThemeColors;
 
-fn status_color(value: f32, warn: f32, alert: f32) -> Color {
+fn status_color(theme: ThemeColors, value: f32, warn: f32, alert: f32) -> Color {
     if value > alert {
-        theme::RED
+        theme.danger
     } else if value > warn {
-        theme::YELLOW
+        theme.warning
     } else {
-        theme::TEXT
+        theme.text
     }
 }
 
@@ -26,9 +27,17 @@ pub fn create() -> SystemInfoDataSignals {
 
 /// Bar view: compact indicators.
 pub fn view(info: SystemInfoDataSignals) -> impl Widget {
+    let theme = expect_context::<ThemeColors>();
+    let config = expect_context::<Config>().system_info;
     let cpu = info.cpu_usage;
     let mem = info.memory_usage;
     let temp = info.temperature;
+    let cpu_warn = config.cpu.warn_threshold as f32;
+    let cpu_alert = config.cpu.alert_threshold as f32;
+    let mem_warn = config.memory.warn_threshold as f32;
+    let mem_alert = config.memory.alert_threshold as f32;
+    let temp_warn = config.temperature.warn_threshold as f32;
+    let temp_alert = config.temperature.alert_threshold as f32;
 
     container()
         .layout(
@@ -39,12 +48,12 @@ pub fn view(info: SystemInfoDataSignals) -> impl Widget {
         .child(indicator(
             StaticIcon::Cpu,
             move || format!("{:.0}%", cpu.get()),
-            move || status_color(cpu.get(), 60.0, 80.0),
+            move || status_color(theme, cpu.get(), cpu_warn, cpu_alert),
         ))
         .child(indicator(
             StaticIcon::Mem,
             move || format!("{:.0}%", mem.get()),
-            move || status_color(mem.get(), 70.0, 85.0),
+            move || status_color(theme, mem.get(), mem_warn, mem_alert),
         ))
         .child(move || {
             let t = temp.get();
@@ -52,7 +61,7 @@ pub fn view(info: SystemInfoDataSignals) -> impl Widget {
                 Some(indicator(
                     StaticIcon::Temp,
                     move || format!("{:.0}°", temp.get().unwrap_or(0.0)),
-                    move || status_color(temp.get().unwrap_or(0.0), 60.0, 80.0),
+                    move || status_color(theme, temp.get().unwrap_or(0.0), temp_warn, temp_alert),
                 ))
             } else {
                 None
@@ -62,33 +71,44 @@ pub fn view(info: SystemInfoDataSignals) -> impl Widget {
 
 /// Menu view: detailed system info rows.
 pub fn menu_view(info: SystemInfoDataSignals) -> impl Widget {
+    let theme = expect_context::<ThemeColors>();
+    let config = expect_context::<Config>().system_info;
     let cpu = info.cpu_usage;
     let mem = info.memory_usage;
     let temp = info.temperature;
+    let cpu_warn = config.cpu.warn_threshold as f32;
+    let cpu_alert = config.cpu.alert_threshold as f32;
+    let mem_warn = config.memory.warn_threshold as f32;
+    let mem_alert = config.memory.alert_threshold as f32;
+    let temp_warn = config.temperature.warn_threshold as f32;
+    let temp_alert = config.temperature.alert_threshold as f32;
 
     container()
         .width(fill())
         .layout(Flex::column().spacing(12.0))
         .child(menu_row(
+            theme,
             StaticIcon::Cpu,
             "CPU",
             move || format!("{:.0}%", cpu.get()),
-            move || status_color(cpu.get(), 60.0, 80.0),
+            move || status_color(theme, cpu.get(), cpu_warn, cpu_alert),
         ))
         .child(menu_row(
+            theme,
             StaticIcon::Mem,
             "Memory",
             move || format!("{:.0}%", mem.get()),
-            move || status_color(mem.get(), 70.0, 85.0),
+            move || status_color(theme, mem.get(), mem_warn, mem_alert),
         ))
         .child(move || {
             let t = temp.get();
             if t.is_some() {
                 Some(menu_row(
+                    theme,
                     StaticIcon::Temp,
                     "Temp",
                     move || format!("{:.0}°C", temp.get().unwrap_or(0.0)),
-                    move || status_color(temp.get().unwrap_or(0.0), 60.0, 80.0),
+                    move || status_color(theme, temp.get().unwrap_or(0.0), temp_warn, temp_alert),
                 ))
             } else {
                 None
@@ -113,6 +133,7 @@ fn indicator(
 }
 
 fn menu_row(
+    theme: ThemeColors,
     ic: StaticIcon,
     label: &'static str,
     value_fn: impl Fn() -> String + 'static,
@@ -134,7 +155,7 @@ fn menu_row(
                         .cross_alignment(CrossAlignment::Center),
                 )
                 .child(icon(ic).color(color_fn).font_size(16.0))
-                .child(text(label).color(theme::TEXT).font_size(14.0)),
+                .child(text(label).color(theme.text).font_size(14.0)),
         )
         .child(text(value_fn).color(color_fn2).font_size(14.0))
 }

@@ -1,17 +1,29 @@
 use guido::prelude::*;
 
 use crate::components::{StaticIcon, expandable_panel, icon};
-use crate::services::updates::{UpdatesCmd, UpdatesData, UpdatesDataSignals, start_updates_service};
-use crate::theme;
+use crate::config::{Config, UpdatesModuleConfig};
+use crate::services::updates::{
+    UpdatesCmd, UpdatesData, UpdatesDataSignals, start_updates_service,
+};
+use crate::theme::ThemeColors;
 
 pub fn create() -> (UpdatesDataSignals, Service<UpdatesCmd>) {
+    let config = with_context::<Config, _>(|c| {
+        c.updates.clone().unwrap_or_else(|| UpdatesModuleConfig {
+            check_cmd: "checkupdates".to_string(),
+            update_cmd: String::new(),
+            interval: 3600,
+        })
+    })
+    .unwrap();
     let data = UpdatesDataSignals::new(UpdatesData::default());
-    let svc = start_updates_service(data.writers());
+    let svc = start_updates_service(data.writers(), config);
     (data, svc)
 }
 
 /// Bar view: icon + count
 pub fn view(data: UpdatesDataSignals) -> impl Widget {
+    let theme = expect_context::<ThemeColors>();
     let is_checking = data.is_checking;
     let updates = data.updates;
 
@@ -31,15 +43,17 @@ pub fn view(data: UpdatesDataSignals) -> impl Widget {
                     StaticIcon::UpdatesAvailable
                 }
             })
-            .color(theme::TEXT)
+            .color(theme.text)
             .font_size(14.0),
         )
         .child(move || {
             let count = updates.with(|u| u.len());
             if count > 0 {
-                Some(text(move || updates.with(|u| u.len().to_string()))
-                    .color(theme::TEXT)
-                    .font_size(13.0))
+                Some(
+                    text(move || updates.with(|u| u.len().to_string()))
+                        .color(theme.text)
+                        .font_size(13.0),
+                )
             } else {
                 None
             }
@@ -52,6 +66,7 @@ pub fn menu_view(
     svc: Service<UpdatesCmd>,
     close_menu: impl Fn() + 'static + Clone,
 ) -> impl Widget {
+    let theme = expect_context::<ThemeColors>();
     let updates = data.updates;
     let is_checking = data.is_checking;
     let svc_update = svc.clone();
@@ -67,7 +82,7 @@ pub fn menu_view(
                 return Some(
                     container()
                         .padding(8.0)
-                        .child(text("Up to date ;)").color(theme::TEXT).font_size(14.0)),
+                        .child(text("Up to date ;)").color(theme.text).font_size(14.0)),
                 );
             }
             let mut scroll = container()
@@ -86,21 +101,23 @@ pub fn menu_view(
                     container()
                         .width(fill())
                         .layout(Flex::column().spacing(2.0))
-                        .child(text(pkg).color(theme::TEXT).font_size(12.0))
-                        .child(text(version_str).color(theme::LAVENDER).font_size(11.0)),
+                        .child(text(pkg).color(theme.text).font_size(12.0))
+                        .child(text(version_str).color(theme.primary).font_size(11.0)),
                 );
             }
-            Some(container().child(
-                expandable_panel()
-                    .header(
-                        text(move || {
-                            format!("{} Updates available", updates.with(|u| u.len()))
-                        })
-                        .color(theme::TEXT)
-                        .font_size(14.0),
-                    )
-                    .body(scroll),
-            ))
+            Some(
+                container().child(
+                    expandable_panel()
+                        .header(
+                            text(move || {
+                                format!("{} Updates available", updates.with(|u| u.len()))
+                            })
+                            .color(theme.text)
+                            .font_size(14.0),
+                        )
+                        .body(scroll),
+                ),
+            )
         })
         // Divider
         .child(
@@ -131,6 +148,7 @@ fn menu_button(
     _icon: Option<StaticIcon>,
     on_click: impl Fn() + 'static,
 ) -> impl Widget {
+    let theme = expect_context::<ThemeColors>();
     let hovered = create_signal(false);
     container()
         .width(fill())
@@ -145,11 +163,7 @@ fn menu_button(
                 Color::TRANSPARENT
             }
         })
-        .child(
-            text(label)
-                .color(theme::TEXT)
-                .font_size(14.0),
-        )
+        .child(text(label).color(theme.text).font_size(14.0))
 }
 
 fn menu_button_with_indicator(
@@ -157,6 +171,7 @@ fn menu_button_with_indicator(
     is_checking: Signal<bool>,
     on_click: impl Fn() + 'static,
 ) -> impl Widget {
+    let theme = expect_context::<ThemeColors>();
     let hovered = create_signal(false);
     container()
         .width(fill())
@@ -176,10 +191,10 @@ fn menu_button_with_indicator(
                 .main_alignment(MainAlignment::SpaceBetween)
                 .cross_alignment(CrossAlignment::Center),
         )
-        .child(text(label).color(theme::TEXT).font_size(14.0))
+        .child(text(label).color(theme.text).font_size(14.0))
         .child(move || {
             if is_checking.get() {
-                Some(icon(StaticIcon::Refresh).color(theme::TEXT).font_size(14.0))
+                Some(icon(StaticIcon::Refresh).color(theme.text).font_size(14.0))
             } else {
                 None
             }

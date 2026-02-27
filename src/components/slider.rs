@@ -1,6 +1,6 @@
 use guido::prelude::*;
 
-use crate::theme;
+use crate::theme::ThemeColors;
 
 use super::icons::{StaticIcon, icon};
 
@@ -14,6 +14,7 @@ pub fn slider(
     on_mute_toggle: impl Fn() + 'static,
     on_chevron: Option<impl Fn() + 'static>,
 ) -> impl Widget {
+    let theme = expect_context::<ThemeColors>();
     let track_ref = create_widget_ref();
     let dragging = create_signal(false);
 
@@ -49,7 +50,7 @@ pub fn slider(
                             if muted() {
                                 Color::rgba(1.0, 1.0, 1.0, 0.4)
                             } else {
-                                theme::TEXT
+                                theme.text
                             }
                         })
                         .font_size(16.0),
@@ -101,7 +102,7 @@ pub fn slider(
                             Length::from(fill_w)
                         })
                         .corner_radius(3.0)
-                        .background(theme::LAVENDER),
+                        .background(theme.primary),
                 )
                 // Thumb
                 .child(
@@ -110,7 +111,7 @@ pub fn slider(
                         .height(4.0)
                         .corner_radius(4.0)
                         .scale(3.)
-                        .background(theme::LAVENDER),
+                        .background(theme.primary),
                 ),
         );
 
@@ -132,7 +133,7 @@ pub fn slider(
                 })
                 .child(
                     icon(StaticIcon::RightChevron)
-                        .color(theme::TEXT)
+                        .color(theme.text)
                         .font_size(14.0),
                 ),
         )

@@ -1,7 +1,7 @@
 use guido::prelude::*;
 
 use super::icons::{StaticIcon, icon};
-use crate::theme;
+use crate::theme::ThemeColors;
 
 #[component]
 pub struct ExpandablePanel {
@@ -13,6 +13,7 @@ pub struct ExpandablePanel {
 
 impl ExpandablePanel {
     fn render(&self) -> impl Widget + use<> {
+        let theme = expect_context::<ThemeColors>();
         let expanded = create_signal(false);
         let header_hovered = create_signal(false);
         let header = self.take_header();
@@ -50,7 +51,7 @@ impl ExpandablePanel {
                                 StaticIcon::MenuOpen
                             }
                         })
-                        .color(theme::TEXT)
+                        .color(theme.text)
                         .font_size(14.0),
                     ),
             )

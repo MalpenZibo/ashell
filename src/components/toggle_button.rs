@@ -1,12 +1,13 @@
 use guido::prelude::*;
 
-use crate::theme;
+use crate::theme::ThemeColors;
 
 /// Pill-shaped on/off toggle button.
 pub fn toggle_button(
     active: impl Fn() -> bool + 'static + Clone,
     on_toggle: impl Fn() + 'static,
 ) -> impl Widget {
+    let theme = expect_context::<ThemeColors>();
     let hovered = create_signal(false);
     let active2 = active.clone();
     let active3 = active.clone();
@@ -20,7 +21,7 @@ pub fn toggle_button(
         .on_click(move || on_toggle())
         .background(move || {
             if active() {
-                theme::LAVENDER
+                theme.primary
             } else {
                 Color::rgba(1.0, 1.0, 1.0, 0.2)
             }
@@ -37,9 +38,9 @@ pub fn toggle_button(
                 )
                 .background(move || {
                     if active3() {
-                        theme::BASE
+                        theme.background
                     } else {
-                        theme::TEXT
+                        theme.text
                     }
                 }),
         )

@@ -22,6 +22,8 @@ pub fn menu_button(
     on_click: impl Fn() + 'static,
 ) -> impl guido::widgets::Widget {
     use guido::prelude::*;
+    use crate::theme::ThemeColors;
+    let theme = expect_context::<ThemeColors>();
     let hovered = create_signal(false);
     container()
         .width(fill())
@@ -38,7 +40,7 @@ pub fn menu_button(
         })
         .child(
             text(label)
-                .color(crate::theme::TEXT)
+                .color(theme.text)
                 .font_size(14.0),
         )
 }
