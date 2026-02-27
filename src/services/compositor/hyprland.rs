@@ -198,6 +198,7 @@ fn fetch_full_state(internal_state: &HyprInternalState) -> Result<CompositorStat
         workspaces,
         monitors,
         active_workspace_id,
+        active_workspace_ids: active_workspace_id.into_iter().collect(),
         active_window,
         keyboard_layout,
         submap: if internal_state.submap.is_empty() {

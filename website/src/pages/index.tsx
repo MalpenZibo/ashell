@@ -41,7 +41,7 @@ export default function Home(): ReactNode {
   return (
     <Layout
       title={`${siteConfig.title}`}
-      description="A ready to go Wayland status bar for Hyprland and Niri"
+      description="A ready to go Wayland status bar for Hyprland, Niri, and MangoWC"
     >
       <HomepageHeader />
       <main>
