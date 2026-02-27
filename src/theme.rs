@@ -90,6 +90,7 @@ pub struct AshellTheme {
     pub bar_style: AppearanceStyle,
     pub opacity: f32,
     pub menu: MenuAppearance,
+    pub menu_background: Option<palette::Background>,
     pub workspace_colors: Vec<AppearanceColor>,
     pub special_workspace_colors: Option<Vec<AppearanceColor>>,
     pub scale_factor: f64,
@@ -105,6 +106,23 @@ impl AshellTheme {
             bar_style: appearance.style,
             opacity: appearance.opacity,
             menu: appearance.menu,
+            menu_background: appearance.menu_background.map(|menu| {
+                let default_text = appearance.text_color.get_base();
+                let default_menu = palette::Background::new(
+                    menu.get_base(),
+                    menu.get_text().unwrap_or(default_text),
+                );
+                palette::Background {
+                    base: default_menu.base,
+                    weak: menu
+                        .get_weak_pair(default_text)
+                        .unwrap_or(default_menu.weak),
+                    strong: appearance
+                        .background_color
+                        .get_strong_pair(default_text)
+                        .unwrap_or(default_menu.strong),
+                }
+            }),
             workspace_colors: appearance.workspace_colors.clone(),
             special_workspace_colors: appearance.special_workspace_colors.clone(),
             scale_factor: appearance.scale_factor,
