@@ -1,11 +1,11 @@
 use super::{ReadOnlyService, Service, ServiceEvent};
-use crate::components::icons::StaticIcon;
 use iced::{
     Subscription, Task,
     futures::{SinkExt, StreamExt, channel::mpsc::Sender, executor::block_on, stream::pending},
     stream::channel,
 };
 use itertools::Either;
+pub use libpulse_binding::def::DevicePortType;
 use libpulse_binding::{
     callbacks::ListResult,
     context::{
@@ -13,7 +13,7 @@ use libpulse_binding::{
         introspect::{Introspector, SinkInfo, SourceInfo},
         subscribe::InterestMaskSet,
     },
-    def::{DevicePortType, PortAvailable},
+    def::PortAvailable,
     mainloop::standard::{IterateResult, Mainloop},
     operation::{self, Operation},
     proplist::{Proplist, properties::APPLICATION_NAME},
@@ -44,7 +44,7 @@ pub struct Device {
 pub struct Port {
     pub name: String,
     pub description: String,
-    pub device_type: DeviceType,
+    pub device_type: DevicePortType,
     pub active: bool,
 }
 
@@ -65,25 +65,6 @@ impl<'a> fmt::Display for Route<'a> {
         match self.port {
             Some(port) => write!(f, "{}: {}", port.description, self.device.description),
             None => write!(f, "{}", self.device.description),
-        }
-    }
-}
-
-#[derive(Debug, Copy, Clone)]
-pub enum DeviceType {
-    Headphones,
-    Speaker,
-    Headset,
-    Hdmi,
-}
-
-impl DeviceType {
-    pub fn get_icon(&self) -> StaticIcon {
-        match self {
-            DeviceType::Speaker => StaticIcon::Speaker3,
-            DeviceType::Headphones => StaticIcon::Headphones1,
-            DeviceType::Headset => StaticIcon::Headset,
-            DeviceType::Hdmi => StaticIcon::MonitorSpeaker,
         }
     }
 }
@@ -841,13 +822,7 @@ impl From<&SinkInfo<'_>> for Device {
                                 .as_ref()
                                 .map_or_else(String::default, |n| n.to_string()),
                             description: port.description.as_ref().unwrap().to_string(),
-                            device_type: match port.r#type {
-                                DevicePortType::Headphones => DeviceType::Headphones,
-                                DevicePortType::Speaker => DeviceType::Speaker,
-                                DevicePortType::Headset => DeviceType::Headset,
-                                DevicePortType::HDMI => DeviceType::Hdmi,
-                                _ => DeviceType::Speaker,
-                            },
+                            device_type: port.r#type,
                             active: value.active_port.as_ref().and_then(|p| p.name.as_ref())
                                 == port.name.as_ref(),
                         })
@@ -885,13 +860,7 @@ impl From<&SourceInfo<'_>> for Device {
                                 .as_ref()
                                 .map_or_else(String::default, |n| n.to_string()),
                             description: port.description.as_ref().unwrap().to_string(),
-                            device_type: match port.r#type {
-                                DevicePortType::Headphones => DeviceType::Headphones,
-                                DevicePortType::Speaker => DeviceType::Speaker,
-                                DevicePortType::Headset => DeviceType::Headset,
-                                DevicePortType::HDMI => DeviceType::Hdmi,
-                                _ => DeviceType::Speaker,
-                            },
+                            device_type: port.r#type,
                             active: value.active_port.as_ref().and_then(|p| p.name.as_ref())
                                 == port.name.as_ref(),
                         })
