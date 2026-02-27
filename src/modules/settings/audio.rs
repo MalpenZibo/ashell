@@ -1,6 +1,6 @@
 use super::SubMenu;
 use crate::{
-    components::icons::{StaticIcon, icon, icon_button},
+    components::icons::{StaticIcon, icon, icon_button, icon_mono},
     config::SettingsFormat,
     services::{
         ReadOnlyService, Service, ServiceEvent,
@@ -532,7 +532,7 @@ impl AudioSettings {
                 .map(|e| {
                     if e.active {
                         container(
-                            row!(icon(e.icon), text(e.name))
+                            row!(icon_mono(e.icon), text(e.name))
                                 .align_y(Alignment::Center)
                                 .spacing(theme.space.md)
                                 .padding([theme.space.xxs, theme.space.sm]),
@@ -544,7 +544,7 @@ impl AudioSettings {
                         .into()
                     } else {
                         button(
-                            row!(icon(e.icon), text(e.name))
+                            row!(icon_mono(e.icon), text(e.name))
                                 .spacing(theme.space.md)
                                 .align_y(Alignment::Center),
                         )
