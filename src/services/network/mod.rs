@@ -11,7 +11,7 @@ use iced::{
 };
 use iwd_dbus::IwdDbus;
 use log::{debug, error, info};
-use std::{any::TypeId, ops::Deref};
+use std::{any::TypeId, ops::Deref, time::Instant};
 use zbus::zvariant::OwnedObjectPath;
 
 pub mod dbus;
@@ -70,7 +70,7 @@ pub enum NetworkEvent {
     WirelessAccessPoint(Vec<AccessPoint>),
     Strength((String, u8)),
     RequestPasswordForSSID(String),
-    ScanningNearbyWifi,
+    ScanningNearbyWifi(bool),
 }
 
 #[derive(Debug, Clone)]
@@ -140,7 +140,10 @@ pub struct NetworkData {
     pub airplane_mode: bool,
     pub connectivity: ConnectivityState,
     pub scanning_nearby_wifi: bool,
+    pub scan_completed_at: Option<Instant>,
 }
+
+pub const SCAN_RESULT_DISPLAY_DURATION: std::time::Duration = std::time::Duration::from_secs(3);
 
 #[derive(Debug, Clone)]
 pub struct NetworkService {
@@ -176,8 +179,11 @@ impl ReadOnlyService for NetworkService {
                 debug!("WiFi enabled: {wifi_enabled}");
                 self.data.wifi_enabled = wifi_enabled;
             }
-            NetworkEvent::ScanningNearbyWifi => {
-                self.data.scanning_nearby_wifi = true;
+            NetworkEvent::ScanningNearbyWifi(scanning) => {
+                self.data.scanning_nearby_wifi = scanning;
+                if !scanning {
+                    self.data.scan_completed_at = Some(Instant::now());
+                }
             }
             NetworkEvent::WirelessDevice {
                 wifi_present,
@@ -531,12 +537,16 @@ impl Service for NetworkService {
                     |airplane_mode| ServiceEvent::Update(NetworkEvent::AirplaneMode(airplane_mode)),
                 )
             }
-            NetworkCommand::ScanNearByWiFi => Task::perform(
-                async move {
-                    let _ = bc.scan_nearby_wifi().await;
-                },
-                |_| ServiceEvent::Update(NetworkEvent::ScanningNearbyWifi),
-            ),
+            NetworkCommand::ScanNearByWiFi => {
+                self.data.scanning_nearby_wifi = true;
+                Task::perform(
+                    async move {
+                        let _ = bc.scan_nearby_wifi().await;
+                        false
+                    },
+                    |scanning| ServiceEvent::Update(NetworkEvent::ScanningNearbyWifi(scanning)),
+                )
+            }
             NetworkCommand::ToggleWiFi => {
                 let wifi_enabled = self.wifi_enabled;
 
