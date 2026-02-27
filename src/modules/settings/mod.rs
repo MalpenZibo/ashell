@@ -44,11 +44,24 @@ pub struct Settings {
     bluetooth: BluetoothSettings,
     idle_inhibitor: Option<IdleInhibitorManager>,
     sub_menu: Option<SubMenu>,
-    password_dialog: Option<(String, String)>,
-    password_dialog_show_password: bool,
+    network_dialog: Option<NetworkDialogState>,
+    network_dialog_show_password: bool,
     indicators: Vec<SettingsIndicator>,
     custom_buttons: Vec<SettingsCustomButton>,
     custom_buttons_status: HashMap<String, Option<bool>>,
+}
+
+#[derive(Debug, Clone)]
+enum NetworkDialogKind {
+    Password,
+    OpenNetworkWarning,
+}
+
+#[derive(Debug, Clone)]
+struct NetworkDialogState {
+    ssid: String,
+    password: Option<String>,
+    kind: NetworkDialogKind,
 }
 
 #[derive(Debug, Clone)]
@@ -125,11 +138,11 @@ impl Settings {
                 IdleInhibitorManager::new()
             },
             sub_menu: None,
-            password_dialog: None,
+            network_dialog: None,
             indicators: config.indicators,
             custom_buttons: config.custom_buttons,
             custom_buttons_status: HashMap::new(),
-            password_dialog_show_password: false,
+            network_dialog_show_password: false,
         }
     }
 
@@ -178,14 +191,31 @@ impl Settings {
             Message::Network(msg) => match self.network.update(msg) {
                 network::Action::None => Action::None,
                 network::Action::RequestPasswordForSSID(ssid) => {
-                    self.password_dialog = Some((ssid, "".to_string()));
-                    self.password_dialog_show_password = false;
+                    self.network_dialog = Some(NetworkDialogState {
+                        ssid,
+                        password: Some(String::new()),
+                        kind: NetworkDialogKind::Password,
+                    });
+                    self.network_dialog_show_password = false;
                     Action::None
                 }
                 network::Action::RequestPassword(id, ssid) => {
-                    self.password_dialog = Some((ssid, "".to_string()));
-                    self.password_dialog_show_password = false;
+                    self.network_dialog = Some(NetworkDialogState {
+                        ssid,
+                        password: Some(String::new()),
+                        kind: NetworkDialogKind::Password,
+                    });
+                    self.network_dialog_show_password = false;
                     Action::RequestKeyboard(id)
+                }
+                network::Action::ConfirmOpenNetwork(ssid) => {
+                    self.network_dialog = Some(NetworkDialogState {
+                        ssid,
+                        password: None,
+                        kind: NetworkDialogKind::OpenNetworkWarning,
+                    });
+                    self.network_dialog_show_password = false;
+                    Action::None
                 }
                 network::Action::Command(task) => Action::Command(task.map(Message::Network)),
                 network::Action::ToggleWifiMenu => {
@@ -271,25 +301,32 @@ impl Settings {
             }
             Message::PasswordDialog(msg) => match msg {
                 password_dialog::Message::PasswordChanged(password) => {
-                    if let Some((_, current_password)) = &mut self.password_dialog {
-                        *current_password = password;
+                    if let Some(dialog) = &mut self.network_dialog {
+                        dialog.password = Some(password);
                     }
 
                     Action::None
                 }
                 password_dialog::Message::TogglePasswordVisibility => {
-                    self.password_dialog_show_password = !self.password_dialog_show_password;
+                    self.network_dialog_show_password = !self.network_dialog_show_password;
 
                     Action::None
                 }
                 password_dialog::Message::DialogConfirmed(id) => {
-                    let action = if let Some((ssid, password)) = self.password_dialog.take() {
-                        match self
-                            .network
-                            .update(network::Message::PasswordDialogConfirmed(
-                                ssid.clone(),
-                                password.clone(),
-                            )) {
+                    let action = if let Some(dialog) = self.network_dialog.take() {
+                        let message = match dialog.kind {
+                            NetworkDialogKind::Password => {
+                                network::Message::PasswordDialogConfirmed(
+                                    dialog.ssid,
+                                    dialog.password.unwrap_or_default(),
+                                )
+                            }
+                            NetworkDialogKind::OpenNetworkWarning => {
+                                network::Message::OpenNetworkDialogConfirmed(dialog.ssid)
+                            }
+                        };
+
+                        match self.network.update(message) {
                             network::Action::Command(task) => {
                                 Action::ReleaseKeyboardWithCommand(id, task.map(Message::Network))
                             }
@@ -298,12 +335,12 @@ impl Settings {
                     } else {
                         Action::ReleaseKeyboard(id)
                     };
-                    self.password_dialog_show_password = false;
+                    self.network_dialog_show_password = false;
                     action
                 }
                 password_dialog::Message::DialogCancelled(id) => {
-                    self.password_dialog = None;
-                    self.password_dialog_show_password = false;
+                    self.network_dialog = None;
+                    self.network_dialog_show_password = false;
 
                     Action::ReleaseKeyboard(id)
                 }
@@ -443,193 +480,192 @@ impl Settings {
         theme: &'a AshellTheme,
         position: Position,
     ) -> Element<'a, Message> {
-        container(
-            if let Some((ssid, current_password)) = &self.password_dialog {
-                password_dialog::view(
-                    id,
-                    theme,
-                    ssid,
-                    current_password,
-                    self.password_dialog_show_password,
+        container(if let Some(dialog) = &self.network_dialog {
+            password_dialog::view(
+                id,
+                theme,
+                &dialog.ssid,
+                dialog.password.as_deref().unwrap_or(""),
+                self.network_dialog_show_password,
+                matches!(dialog.kind, NetworkDialogKind::OpenNetworkWarning),
+            )
+            .map(Message::PasswordDialog)
+        } else {
+            let battery_data = self
+                .power
+                .battery_menu_indicator(theme)
+                .map(|e| e.map(Message::Power));
+            let right_buttons = Row::new()
+                .push_maybe(
+                    self.lock_cmd
+                        .as_ref()
+                        .map(|_| icon_button(theme, StaticIcon::Lock).on_press(Message::Lock)),
                 )
-                .map(Message::PasswordDialog)
-            } else {
-                let battery_data = self
-                    .power
-                    .battery_menu_indicator(theme)
-                    .map(|e| e.map(Message::Power));
-                let right_buttons = Row::new()
-                    .push_maybe(
-                        self.lock_cmd
-                            .as_ref()
-                            .map(|_| icon_button(theme, StaticIcon::Lock).on_press(Message::Lock)),
+                .push(
+                    icon_button(
+                        theme,
+                        if self.sub_menu == Some(SubMenu::Power) {
+                            StaticIcon::Close
+                        } else {
+                            StaticIcon::Power
+                        },
                     )
-                    .push(
-                        icon_button(
-                            theme,
-                            if self.sub_menu == Some(SubMenu::Power) {
-                                StaticIcon::Close
-                            } else {
-                                StaticIcon::Power
-                            },
-                        )
-                        .on_press(Message::ToggleSubMenu(SubMenu::Power)),
+                    .on_press(Message::ToggleSubMenu(SubMenu::Power)),
+                )
+                .spacing(theme.space.xs);
+
+            let header = Row::new()
+                .push_maybe(battery_data)
+                .push(Space::with_width(Length::Fill))
+                .push(right_buttons)
+                .spacing(theme.space.xs)
+                .width(Length::Fill);
+
+            let (sink_slider, source_slider) = self.audio.sliders(theme, self.sub_menu);
+
+            let wifi_setting_button = self
+                .network
+                .wifi_quick_setting_button(id, theme, self.sub_menu)
+                .map(|(button, submenu)| {
+                    (
+                        button.map(Message::Network),
+                        submenu.map(|e| e.map(Message::Network)),
                     )
-                    .spacing(theme.space.xs);
-
-                let header = Row::new()
-                    .push_maybe(battery_data)
-                    .push(Space::with_width(Length::Fill))
-                    .push(right_buttons)
-                    .spacing(theme.space.xs)
-                    .width(Length::Fill);
-
-                let (sink_slider, source_slider) = self.audio.sliders(theme, self.sub_menu);
-
-                let wifi_setting_button = self
-                    .network
-                    .wifi_quick_setting_button(id, theme, self.sub_menu)
-                    .map(|(button, submenu)| {
-                        (
-                            button.map(Message::Network),
-                            submenu.map(|e| e.map(Message::Network)),
-                        )
-                    });
-                let quick_settings = quick_settings_section(
-                    theme,
-                    vec![
-                        wifi_setting_button,
-                        self.bluetooth
-                            .quick_setting_button(id, theme, self.sub_menu)
-                            .map(|(button, submenu)| {
-                                (
-                                    button.map(Message::Bluetooth),
-                                    submenu.map(|e| e.map(Message::Bluetooth)),
-                                )
-                            }),
-                        self.network
-                            .vpn_quick_setting_button(id, theme, self.sub_menu)
-                            .map(|(button, submenu)| {
-                                (
-                                    button.map(Message::Network),
-                                    submenu.map(|e| e.map(Message::Network)),
-                                )
-                            }),
-                        self.network
-                            .airplane_mode_quick_setting_button(theme)
-                            .map(|(button, _)| (button.map(Message::Network), None)),
-                        self.idle_inhibitor.as_ref().map(|idle_inhibitor| {
+                });
+            let quick_settings = quick_settings_section(
+                theme,
+                vec![
+                    wifi_setting_button,
+                    self.bluetooth
+                        .quick_setting_button(id, theme, self.sub_menu)
+                        .map(|(button, submenu)| {
                             (
-                                quick_setting_button(
-                                    theme,
-                                    if idle_inhibitor.is_inhibited() {
-                                        StaticIcon::EyeOpened
-                                    } else {
-                                        StaticIcon::EyeClosed
-                                    },
-                                    "Idle Inhibitor".to_string(),
-                                    None,
-                                    idle_inhibitor.is_inhibited(),
-                                    Message::ToggleInhibitIdle,
-                                    None,
-                                    None,
-                                ),
-                                None,
+                                button.map(Message::Bluetooth),
+                                submenu.map(|e| e.map(Message::Bluetooth)),
                             )
                         }),
-                        self.power
-                            .quick_setting_button(theme)
-                            .map(|(button, submenu)| {
-                                (
-                                    button.map(Message::Power),
-                                    submenu.map(|e| e.map(Message::Power)),
-                                )
-                            }),
-                    ]
-                    .into_iter()
-                    .flatten()
-                    .chain(self.custom_buttons.iter().map(|button| {
-                        let is_active = self
-                            .custom_buttons_status
-                            .get(&button.name)
-                            .and_then(|v| *v)
-                            .unwrap_or(false);
+                    self.network
+                        .vpn_quick_setting_button(id, theme, self.sub_menu)
+                        .map(|(button, submenu)| {
+                            (
+                                button.map(Message::Network),
+                                submenu.map(|e| e.map(Message::Network)),
+                            )
+                        }),
+                    self.network
+                        .airplane_mode_quick_setting_button(theme)
+                        .map(|(button, _)| (button.map(Message::Network), None)),
+                    self.idle_inhibitor.as_ref().map(|idle_inhibitor| {
                         (
                             quick_setting_button(
                                 theme,
-                                DynamicIcon(button.icon.clone()),
-                                button.name.clone(),
-                                button.tooltip.clone(),
-                                is_active,
-                                Message::CustomButton(button.name.clone()),
+                                if idle_inhibitor.is_inhibited() {
+                                    StaticIcon::EyeOpened
+                                } else {
+                                    StaticIcon::EyeClosed
+                                },
+                                "Idle Inhibitor".to_string(),
+                                None,
+                                idle_inhibitor.is_inhibited(),
+                                Message::ToggleInhibitIdle,
                                 None,
                                 None,
                             ),
                             None,
                         )
-                    }))
-                    .collect::<Vec<_>>(),
-                );
+                    }),
+                    self.power
+                        .quick_setting_button(theme)
+                        .map(|(button, submenu)| {
+                            (
+                                button.map(Message::Power),
+                                submenu.map(|e| e.map(Message::Power)),
+                            )
+                        }),
+                ]
+                .into_iter()
+                .flatten()
+                .chain(self.custom_buttons.iter().map(|button| {
+                    let is_active = self
+                        .custom_buttons_status
+                        .get(&button.name)
+                        .and_then(|v| *v)
+                        .unwrap_or(false);
+                    (
+                        quick_setting_button(
+                            theme,
+                            DynamicIcon(button.icon.clone()),
+                            button.name.clone(),
+                            button.tooltip.clone(),
+                            is_active,
+                            Message::CustomButton(button.name.clone()),
+                            None,
+                            None,
+                        ),
+                        None,
+                    )
+                }))
+                .collect::<Vec<_>>(),
+            );
 
-                let (top_sink_slider, bottom_sink_slider) = match position {
-                    Position::Top => (sink_slider.map(|e| e.map(Message::Audio)), None),
-                    Position::Bottom => (None, sink_slider.map(|e| e.map(Message::Audio))),
-                };
-                let (top_source_slider, bottom_source_slider) = match position {
-                    Position::Top => (source_slider.map(|e| e.map(Message::Audio)), None),
-                    Position::Bottom => (None, source_slider.map(|e| e.map(Message::Audio))),
-                };
+            let (top_sink_slider, bottom_sink_slider) = match position {
+                Position::Top => (sink_slider.map(|e| e.map(Message::Audio)), None),
+                Position::Bottom => (None, sink_slider.map(|e| e.map(Message::Audio))),
+            };
+            let (top_source_slider, bottom_source_slider) = match position {
+                Position::Top => (source_slider.map(|e| e.map(Message::Audio)), None),
+                Position::Bottom => (None, source_slider.map(|e| e.map(Message::Audio))),
+            };
 
-                Column::new()
-                    .push(header)
-                    .push_maybe(
-                        self.sub_menu
-                            .filter(|menu_type| *menu_type == SubMenu::PeripheralMenu)
-                            .and_then(|_| {
-                                self.power
-                                    .peripheral_menu(theme)
-                                    .map(|e| sub_menu_wrapper(theme, e.map(Message::Power)))
-                            }),
-                    )
-                    .push_maybe(
-                        self.sub_menu
-                            .filter(|menu_type| *menu_type == SubMenu::Power)
-                            .map(|_| {
-                                sub_menu_wrapper(theme, self.power.menu(theme).map(Message::Power))
-                            }),
-                    )
-                    .push_maybe(top_sink_slider)
-                    .push_maybe(
-                        self.sub_menu
-                            .filter(|menu_type| *menu_type == SubMenu::Sinks)
-                            .and_then(|_| {
-                                self.audio.sinks_submenu(id, theme).map(|submenu| {
-                                    sub_menu_wrapper(theme, submenu.map(Message::Audio))
-                                })
-                            }),
-                    )
-                    .push_maybe(bottom_sink_slider)
-                    .push_maybe(top_source_slider)
-                    .push_maybe(
-                        self.sub_menu
-                            .filter(|menu_type| *menu_type == SubMenu::Sources)
-                            .and_then(|_| {
-                                self.audio.sources_submenu(id, theme).map(|submenu| {
-                                    sub_menu_wrapper(theme, submenu.map(Message::Audio))
-                                })
-                            }),
-                    )
-                    .push_maybe(bottom_source_slider)
-                    .push_maybe(
-                        self.brightness
-                            .slider(theme)
-                            .map(|e| e.map(Message::Brightness)),
-                    )
-                    .push(quick_settings)
-                    .spacing(theme.space.md)
-                    .into()
-            },
-        )
+            Column::new()
+                .push(header)
+                .push_maybe(
+                    self.sub_menu
+                        .filter(|menu_type| *menu_type == SubMenu::PeripheralMenu)
+                        .and_then(|_| {
+                            self.power
+                                .peripheral_menu(theme)
+                                .map(|e| sub_menu_wrapper(theme, e.map(Message::Power)))
+                        }),
+                )
+                .push_maybe(
+                    self.sub_menu
+                        .filter(|menu_type| *menu_type == SubMenu::Power)
+                        .map(|_| {
+                            sub_menu_wrapper(theme, self.power.menu(theme).map(Message::Power))
+                        }),
+                )
+                .push_maybe(top_sink_slider)
+                .push_maybe(
+                    self.sub_menu
+                        .filter(|menu_type| *menu_type == SubMenu::Sinks)
+                        .and_then(|_| {
+                            self.audio
+                                .sinks_submenu(id, theme)
+                                .map(|submenu| sub_menu_wrapper(theme, submenu.map(Message::Audio)))
+                        }),
+                )
+                .push_maybe(bottom_sink_slider)
+                .push_maybe(top_source_slider)
+                .push_maybe(
+                    self.sub_menu
+                        .filter(|menu_type| *menu_type == SubMenu::Sources)
+                        .and_then(|_| {
+                            self.audio
+                                .sources_submenu(id, theme)
+                                .map(|submenu| sub_menu_wrapper(theme, submenu.map(Message::Audio)))
+                        }),
+                )
+                .push_maybe(bottom_source_slider)
+                .push_maybe(
+                    self.brightness
+                        .slider(theme)
+                        .map(|e| e.map(Message::Brightness)),
+                )
+                .push(quick_settings)
+                .spacing(theme.space.md)
+                .into()
+        })
         .max_width(MenuSize::Medium)
         .into()
     }
