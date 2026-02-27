@@ -18,6 +18,10 @@ use std::{
     any::TypeId,
     cell::RefCell,
     rc::Rc,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
     thread::{self, JoinHandle},
 };
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
@@ -200,16 +204,31 @@ enum PulseAudioCommand {
 }
 
 struct PulseAudioServerHandle {
-    _listener: JoinHandle<()>,
-    _commander: JoinHandle<()>,
+    listener: JoinHandle<()>,
+    commander: JoinHandle<()>,
     receiver: UnboundedReceiver<PulseAudioServerEvent>,
     sender: UnboundedSender<PulseAudioCommand>,
+    listener_running: Arc<AtomicBool>,
+}
+
+impl PulseAudioServerHandle {
+    /// Signal both PulseAudio threads to stop and wait for them to exit.
+    fn shutdown(self) {
+        self.listener_running.store(false, Ordering::SeqCst);
+        // Dropping sender causes commander's recv() to return None → break
+        drop(self.sender);
+        drop(self.receiver);
+        let _ = self.commander.join();
+        let _ = self.listener.join();
+    }
 }
 
 struct PulseAudioServer {
-    mainloop: Mainloop,
-    context: Context,
+    // Field order matters for drop order: introspector → context → mainloop.
+    // PulseAudio requires context to be dropped before mainloop.
     introspector: Introspector,
+    context: Context,
+    mainloop: Mainloop,
 }
 
 impl PulseAudioServer {
@@ -258,19 +277,23 @@ impl PulseAudioServer {
         let (from_server_tx, from_server_rx) = tokio::sync::mpsc::unbounded_channel();
         let (to_server_tx, to_server_rx) = tokio::sync::mpsc::unbounded_channel();
 
-        let listener = Self::start_listener(from_server_tx.clone()).await?;
+        let listener_running = Arc::new(AtomicBool::new(true));
+        let listener =
+            Self::start_listener(from_server_tx.clone(), listener_running.clone()).await?;
         let commander = Self::start_commander(from_server_tx.clone(), to_server_rx).await?;
 
         Ok(PulseAudioServerHandle {
-            _listener: listener,
-            _commander: commander,
+            listener,
+            commander,
             receiver: from_server_rx,
             sender: to_server_tx,
+            listener_running,
         })
     }
 
     async fn start_listener(
         from_server_tx: UnboundedSender<PulseAudioServerEvent>,
+        running: Arc<AtomicBool>,
     ) -> anyhow::Result<JoinHandle<()>> {
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
 
@@ -372,12 +395,18 @@ impl PulseAudioServer {
                         },
                     )));
 
-                    loop {
-                        let data = server.mainloop.iterate(true);
+                    while running.load(Ordering::SeqCst) {
+                        let data = server.mainloop.iterate(false);
                         if let IterateResult::Quit(_) | IterateResult::Err(_) = data {
                             error!("PulseAudio mainloop error");
+                            break;
                         }
+                        std::thread::sleep(std::time::Duration::from_millis(5));
                     }
+
+                    // Disconnect before dropping to avoid PulseAudio assertion failure
+                    server.context.disconnect();
+                    server.context.set_subscribe_callback(None);
                 }
                 Err(e) => {
                     error!("Failed to start PulseAudio listener thread: {e}");
@@ -430,9 +459,11 @@ impl PulseAudioServer {
                                 Some(PulseAudioCommand::DefaultSource(name, port)) => {
                                     let _ = server.set_default_source(&name, &port);
                                 }
-                                None => {}
+                                None => break,
                             }
                         }
+                        // Disconnect before dropping to avoid PulseAudio assertion failure
+                        server.context.disconnect();
                     }
                     Err(e) => {
                         error!("Failed to start PulseAudio server: {e}");
@@ -732,6 +763,9 @@ fn start_audio_service(writers: AudioDataWriters) -> Service<AudioCmd> {
                 }
             }
         }
+
+        // Clean shutdown: stop PulseAudio threads before dropping resources
+        handle.shutdown();
     })
 }
 
