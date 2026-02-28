@@ -87,10 +87,18 @@ pub enum WorkspaceVisibilityMode {
     MonitorSpecificExclusive,
 }
 
+#[derive(Deserialize, Copy, Clone, Default, PartialEq, Eq, Debug)]
+pub enum WorkspaceIndicatorFormat {
+    #[default]
+    Name,
+    NameAndIcons,
+}
+
 #[derive(Deserialize, Clone, Default, Debug)]
 #[serde(default)]
 pub struct WorkspacesModuleConfig {
     pub visibility_mode: WorkspaceVisibilityMode,
+    pub indicator_format: WorkspaceIndicatorFormat,
     pub group_by_monitor: bool,
     pub enable_workspace_filling: bool,
     pub disable_special_workspaces: bool,
@@ -515,6 +523,7 @@ pub struct Appearance {
     pub text_color: AppearanceColor,
     pub workspace_colors: Vec<AppearanceColor>,
     pub special_workspace_colors: Option<Vec<AppearanceColor>>,
+    pub active_workspace_colors: Option<Vec<AppearanceColor>>,
 }
 
 static PRIMARY: HexColor = HexColor::rgb(250, 179, 135);
@@ -603,6 +612,7 @@ impl Default for Appearance {
                 AppearanceColor::Simple(HexColor::rgb(203, 166, 247)),
             ],
             special_workspace_colors: None,
+            active_workspace_colors: None,
         }
     }
 }
