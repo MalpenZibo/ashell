@@ -117,7 +117,6 @@ pub struct Notification {
 }
 
 pub struct NotificationDaemon {
-    notifications: HashMap<u32, Notification>,
     next_id: u32,
     event_tx: broadcast::Sender<NotificationEvent>,
     connection: Connection,
@@ -126,7 +125,6 @@ pub struct NotificationDaemon {
 impl NotificationDaemon {
     pub fn new(event_tx: broadcast::Sender<NotificationEvent>, connection: Connection) -> Self {
         Self {
-            notifications: HashMap::new(),
             next_id: 0,
             event_tx,
             connection,
@@ -179,7 +177,6 @@ impl NotificationDaemon {
             timestamp: SystemTime::now(),
         };
 
-        self.notifications.insert(id, notification.clone());
         debug!("New notification: {:?}", notification);
 
         // Send event through channel
@@ -191,24 +188,20 @@ impl NotificationDaemon {
     }
 
     async fn close_notification(&mut self, id: u32) {
-        let removed = self.notifications.remove(&id).is_some();
+        // Send event through channel
+        let _ = self.event_tx.send(NotificationEvent::Closed(id));
 
-        if removed {
-            // Send event through channel
-            let _ = self.event_tx.send(NotificationEvent::Closed(id));
-
-            // Emit DBus signal for external applications
-            let _ = self
-                .connection
-                .emit_signal(
-                    None::<&str>,
-                    OBJECT_PATH,
-                    NAME.as_str(),
-                    "NotificationClosed",
-                    &(id, 3u32),
-                )
-                .await;
-        }
+        // Emit DBus signal for external applications
+        let _ = self
+            .connection
+            .emit_signal(
+                None::<&str>,
+                OBJECT_PATH,
+                NAME.as_str(),
+                "NotificationClosed",
+                &(id, 3u32),
+            )
+            .await;
     }
 
     async fn get_server_information(&self) -> (String, String, String, String) {
