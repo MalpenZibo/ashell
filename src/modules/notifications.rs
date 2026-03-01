@@ -15,7 +15,9 @@ use chrono::{DateTime, Local};
 use freedesktop_icons::lookup;
 use iced::{
     Alignment, Background, Border, Color, Element, Length, Radius, Subscription, Task, Theme,
-    widget::{Space, button, column, container, horizontal_rule, image, row, scrollable, svg, text},
+    widget::{
+        Space, button, column, container, horizontal_rule, image, row, scrollable, svg, text,
+    },
 };
 use linicon_theme::get_icon_theme;
 use log::error;
@@ -24,8 +26,8 @@ use std::{
     path::{Path, PathBuf},
     time::Duration,
 };
-use zbus::zvariant::OwnedValue;
 use zbus::Connection;
+use zbus::zvariant::OwnedValue;
 
 // Constants for UI dimensions and styling
 const ICON_SIZE: f32 = 20.0;
@@ -155,13 +157,13 @@ fn resolve_notification_icon(notification: &Notification) -> CachedNotificationI
 fn notification_icon<'a, M: 'a>(cached_icon: Option<&CachedNotificationIcon>) -> Element<'a, M> {
     match cached_icon {
         Some(CachedNotificationIcon::Vector(handle)) => svg(handle.clone())
-                .width(Length::Fixed(ICON_SIZE))
-                .height(Length::Fixed(ICON_SIZE))
-                .into(),
+            .width(Length::Fixed(ICON_SIZE))
+            .height(Length::Fixed(ICON_SIZE))
+            .into(),
         Some(CachedNotificationIcon::Raster(handle)) => image(handle.clone())
-                .width(Length::Fixed(ICON_SIZE))
-                .height(Length::Fixed(ICON_SIZE))
-                .into(),
+            .width(Length::Fixed(ICON_SIZE))
+            .height(Length::Fixed(ICON_SIZE))
+            .into(),
         Some(CachedNotificationIcon::Bell) | None => icon(StaticIcon::Bell)
             .size(ICON_SIZE)
             .style(palette_text_style)
@@ -173,11 +175,11 @@ fn notification_icon_with_frame<'a, M: 'a>(
     cached_icon: Option<&CachedNotificationIcon>,
 ) -> Element<'a, M> {
     container(notification_icon(cached_icon))
-            .center_x(Length::Fixed(ICON_SIZE))
-            .center_y(Length::Fixed(ICON_SIZE))
-            .width(Length::Fixed(ICON_SIZE))
-            .height(Length::Fixed(ICON_SIZE))
-            .into()
+        .center_x(Length::Fixed(ICON_SIZE))
+        .center_y(Length::Fixed(ICON_SIZE))
+        .width(Length::Fixed(ICON_SIZE))
+        .height(Length::Fixed(ICON_SIZE))
+        .into()
 }
 
 // Invokes the first action (if present) and closes the notification via D-Bus.
@@ -639,16 +641,16 @@ impl Notifications {
         let app_icon_button = button(notification_icon_with_frame(
             self.notification_icons.get(&notification_id),
         ))
-            .on_press(Message::CloseNotificationById(notification_id))
-            .style(move |iced_theme: &Theme, status| button::Style {
-                background: Some(Background::Color(Color::TRANSPARENT)),
-                text_color: match status {
-                    button::Status::Hovered => iced_theme.palette().danger,
-                    _ => iced_theme.palette().text,
-                },
-                ..Default::default()
-            })
-            .padding(0);
+        .on_press(Message::CloseNotificationById(notification_id))
+        .style(move |iced_theme: &Theme, status| button::Style {
+            background: Some(Background::Color(Color::TRANSPARENT)),
+            text_color: match status {
+                button::Status::Hovered => iced_theme.palette().danger,
+                _ => iced_theme.palette().text,
+            },
+            ..Default::default()
+        })
+        .padding(0);
 
         let card = container(
             column!(
