@@ -83,6 +83,7 @@ impl ReadOnlyService for NotificationsService {
     fn update(&mut self, event: NotificationEvent) {
         match event {
             NotificationEvent::Received(notification) => {
+                let notification = *notification;
                 self.notifications.insert(notification.id, notification);
             }
             NotificationEvent::Closed(id) => {

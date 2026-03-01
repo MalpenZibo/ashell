@@ -15,7 +15,7 @@ use zbus::{
 
 #[derive(Debug, Clone)]
 pub enum NotificationEvent {
-    Received(Notification),
+    Received(Box<Notification>),
     Closed(u32),
 }
 
@@ -185,7 +185,7 @@ impl NotificationDaemon {
         // Send event through channel
         let _ = self
             .event_tx
-            .send(NotificationEvent::Received(notification));
+            .send(NotificationEvent::Received(Box::new(notification)));
 
         id
     }
