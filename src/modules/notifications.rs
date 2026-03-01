@@ -20,7 +20,7 @@ use iced::{
 };
 use log::error;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{HashMap, HashSet, VecDeque},
     path::Path,
     time::Duration,
 };
@@ -163,9 +163,9 @@ struct ToastEntry {
 pub struct Notifications {
     config: NotificationsModuleConfig,
     connection: Option<Connection>,
-    notifications: HashMap<u32, Notification>,
+    notifications: VecDeque<Notification>,
     expanded_groups: HashSet<String>,
-    toasts: Vec<ToastEntry>,
+    toasts: VecDeque<ToastEntry>,
 }
 
 impl Notifications {
@@ -173,16 +173,14 @@ impl Notifications {
         Self {
             config,
             connection: None,
-            notifications: HashMap::new(),
+            notifications: VecDeque::new(),
             expanded_groups: HashSet::new(),
-            toasts: Vec::new(),
+            toasts: VecDeque::new(),
         }
     }
 
-    fn sorted_notifications(&self) -> Vec<&Notification> {
-        let mut notifications: Vec<&Notification> = self.notifications.values().collect();
-        notifications.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
-        notifications
+    fn all_notifications(&self) -> Vec<&Notification> {
+        self.notifications.iter().collect()
     }
 
     pub fn update(&mut self, message: Message) -> Action {
@@ -208,9 +206,9 @@ impl Notifications {
                             NotificationEvent::Received(notification) => {
                                 let was_empty = self.toasts.is_empty();
                                 while self.toasts.len() >= self.config.toast_max_visible {
-                                    self.toasts.remove(0);
+                                    self.toasts.pop_front();
                                 }
-                                self.toasts.push(ToastEntry {
+                                self.toasts.push_back(ToastEntry {
                                     id: notification.id,
                                 });
 
@@ -259,10 +257,12 @@ impl Notifications {
 
                     match update_event {
                         NotificationEvent::Received(notification) => {
-                            self.notifications.insert(notification.id, *notification);
+                            self.notifications.push_back(*notification);
                         }
                         NotificationEvent::Closed(id) => {
-                            self.notifications.remove(&id);
+                            if let Ok(pos) = self.notifications.binary_search_by_key(&id, |n| n.id) {
+                                self.notifications.remove(pos);
+                            }
                         }
                     }
 
@@ -274,7 +274,9 @@ impl Notifications {
                 let connection = self.connection.clone();
                 let action_key = self
                     .notifications
-                    .get(&id)
+                    .binary_search_by_key(&id, |n| n.id)
+                    .ok()
+                    .map(|i| &self.notifications[i])
                     .filter(|n| !n.actions.is_empty())
                     .and_then(|n| n.actions.first())
                     .cloned();
@@ -284,7 +286,7 @@ impl Notifications {
             Message::NotificationClosed => Action::None,
             Message::ClearNotifications => {
                 let connection = self.connection.clone();
-                let notification_ids: Vec<u32> = self.notifications.keys().copied().collect();
+                let notification_ids: Vec<u32> = self.notifications.iter().map(|n| n.id).collect();
 
                 Action::Task(Task::perform(
                     async move {
@@ -315,7 +317,7 @@ impl Notifications {
                 let connection = self.connection.clone();
                 let notification_ids: Vec<u32> = self
                     .notifications
-                    .values()
+                    .iter()
                     .filter(|n| n.app_name == app_name)
                     .map(|n| n.id)
                     .collect();
@@ -388,7 +390,9 @@ impl Notifications {
                 let connection = self.connection.clone();
                 let action_key = self
                     .notifications
-                    .get(&id)
+                    .binary_search_by_key(&id, |n| n.id)
+                    .ok()
+                    .map(|i| &self.notifications[i])
                     .filter(|n| !n.actions.is_empty())
                     .and_then(|n| n.actions.first())
                     .cloned();
@@ -623,7 +627,7 @@ impl Notifications {
 
     fn grouped_notifications<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
         let mut grouped: HashMap<String, Vec<&Notification>> = HashMap::new();
-        for notification in self.sorted_notifications() {
+        for notification in self.all_notifications() {
             grouped
                 .entry(notification.app_name.clone())
                 .or_default()
@@ -694,7 +698,7 @@ impl Notifications {
     }
 
     fn list_notifications<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
-        let mut notifications_refs = self.sorted_notifications();
+        let mut notifications_refs = self.all_notifications();
 
         if let Some(max) = self.config.max_notifications {
             notifications_refs.truncate(max);
@@ -766,7 +770,7 @@ impl Notifications {
             .width(380);
 
         for toast_entry in &self.toasts {
-            if let Some(notification) = self.notifications.get(&toast_entry.id) {
+            if let Some(notification) = self.notifications.binary_search_by_key(&toast_entry.id, |n| n.id).ok().map(|i| &self.notifications[i]) {
                 toast_column = toast_column.push(self.build_notification_card(
                     notification,
                     theme,
