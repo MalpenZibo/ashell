@@ -8,7 +8,7 @@ use iced::widget::canvas;
 use iced::{
     Element, Length, Subscription, Theme,
     stream::channel,
-    widget::{Stack, row, text},
+    widget::{Space, Stack, row, text},
 };
 use iced::{
     mouse::Cursor,
@@ -108,7 +108,7 @@ impl Custom {
                         None
                     }
                 })
-                .unwrap_or_else(|| text("").into()),
+                .unwrap_or_else(|| Space::with_width(Length::Shrink).into()),
             crate::config::CustomModuleType::Button => {
                 let mut icon_element = self.config.icon.as_ref().map_or_else(
                     || icon(StaticIcon::None),
