@@ -128,37 +128,56 @@ fn resolve_notification_icon_path(notification: &Notification) -> Option<PathBuf
     None
 }
 
-fn notification_icon<'a, M: 'a>(notification: &Notification) -> Element<'a, M> {
+#[derive(Debug, Clone)]
+enum CachedNotificationIcon {
+    Raster(image::Handle),
+    Vector(svg::Handle),
+    Bell,
+}
+
+fn resolve_notification_icon(notification: &Notification) -> CachedNotificationIcon {
     if let Some(path) = resolve_notification_icon_path(notification) {
         let is_svg = Path::new(&path)
             .extension()
             .and_then(|ext| ext.to_str())
             .is_some_and(|ext| ext.eq_ignore_ascii_case("svg"));
 
-        let icon_element: Element<'a, M> = if is_svg {
-            svg(svg::Handle::from_path(path))
-                .width(Length::Fixed(ICON_SIZE))
-                .height(Length::Fixed(ICON_SIZE))
-                .into()
+        if is_svg {
+            CachedNotificationIcon::Vector(svg::Handle::from_path(path))
         } else {
-            image(image::Handle::from_path(path))
+            CachedNotificationIcon::Raster(image::Handle::from_path(path))
+        }
+    } else {
+        CachedNotificationIcon::Bell
+    }
+}
+
+fn notification_icon<'a, M: 'a>(cached_icon: Option<&CachedNotificationIcon>) -> Element<'a, M> {
+    match cached_icon {
+        Some(CachedNotificationIcon::Vector(handle)) => svg(handle.clone())
                 .width(Length::Fixed(ICON_SIZE))
                 .height(Length::Fixed(ICON_SIZE))
-                .into()
-        };
+                .into(),
+        Some(CachedNotificationIcon::Raster(handle)) => image(handle.clone())
+                .width(Length::Fixed(ICON_SIZE))
+                .height(Length::Fixed(ICON_SIZE))
+                .into(),
+        Some(CachedNotificationIcon::Bell) | None => icon(StaticIcon::Bell)
+            .size(ICON_SIZE)
+            .style(palette_text_style)
+            .into(),
+    }
+}
 
-        container(icon_element)
+fn notification_icon_with_frame<'a, M: 'a>(
+    cached_icon: Option<&CachedNotificationIcon>,
+) -> Element<'a, M> {
+    container(notification_icon(cached_icon))
             .center_x(Length::Fixed(ICON_SIZE))
             .center_y(Length::Fixed(ICON_SIZE))
             .width(Length::Fixed(ICON_SIZE))
             .height(Length::Fixed(ICON_SIZE))
             .into()
-    } else {
-        icon(StaticIcon::Bell)
-            .size(ICON_SIZE)
-            .style(palette_text_style)
-            .into()
-    }
 }
 
 // Invokes the first action (if present) and closes the notification via D-Bus.
@@ -221,6 +240,7 @@ struct ToastEntry {
 pub struct Notifications {
     config: NotificationsModuleConfig,
     notifications: Vec<Notification>,
+    notification_icons: HashMap<u32, CachedNotificationIcon>,
     service: Option<NotificationsService>,
     expanded_groups: HashSet<String>,
     toasts: Vec<ToastEntry>,
@@ -231,9 +251,22 @@ impl Notifications {
         Self {
             config,
             notifications: Vec::new(),
+            notification_icons: HashMap::new(),
             service: None,
             expanded_groups: HashSet::new(),
             toasts: Vec::new(),
+        }
+    }
+
+    fn sync_notification_icons(&mut self) {
+        let desired_ids: HashSet<u32> = self.notifications.iter().map(|n| n.id).collect();
+        self.notification_icons
+            .retain(|id, _| desired_ids.contains(id));
+
+        for notification in &self.notifications {
+            self.notification_icons
+                .entry(notification.id)
+                .or_insert_with(|| resolve_notification_icon(notification));
         }
     }
 
@@ -251,6 +284,10 @@ impl Notifications {
             }
             Message::Event(event) => match event {
                 ServiceEvent::Init(service) => {
+                    self.notifications = service.notifications.values().cloned().collect();
+                    self.notifications
+                        .sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+                    self.sync_notification_icons();
                     self.service = Some(service);
                     Action::None
                 }
@@ -314,6 +351,7 @@ impl Notifications {
                         self.notifications = service.notifications.values().cloned().collect();
                         self.notifications
                             .sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+                        self.sync_notification_icons();
 
                         toast_action
                     } else {
@@ -336,6 +374,7 @@ impl Notifications {
             }
             Message::NotificationClosed(id) => {
                 self.notifications.retain(|n| n.id != id);
+                self.notification_icons.remove(&id);
                 Action::None
             }
             Message::ClearNotifications => {
@@ -360,6 +399,7 @@ impl Notifications {
             }
             Message::NotificationsCleared => {
                 self.notifications.clear();
+                self.notification_icons.clear();
                 let had_toasts = !self.toasts.is_empty();
                 self.toasts.clear();
                 if had_toasts {
@@ -402,6 +442,9 @@ impl Notifications {
                     .map(|n| n.id)
                     .collect();
                 self.notifications.retain(|n| n.app_name != app_name);
+                for id in group_ids.iter().copied() {
+                    self.notification_icons.remove(&id);
+                }
                 self.expanded_groups.remove(&app_name);
                 let had_toasts = !self.toasts.is_empty();
                 self.toasts.retain(|t| !group_ids.contains(&t.id));
@@ -428,6 +471,7 @@ impl Notifications {
             Message::CloseNotificationById(id) => {
                 let connection = self.service.as_ref().map(|s| s.connection.clone());
                 self.notifications.retain(|n| n.id != id);
+                self.notification_icons.remove(&id);
                 let had_toasts = !self.toasts.is_empty();
                 self.toasts.retain(|t| t.id != id);
 
@@ -592,7 +636,9 @@ impl Notifications {
         };
 
         let notification_id = notification.id;
-        let app_icon_button = button(notification_icon(notification))
+        let app_icon_button = button(notification_icon_with_frame(
+            self.notification_icons.get(&notification_id),
+        ))
             .on_press(Message::CloseNotificationById(notification_id))
             .style(move |iced_theme: &Theme, status| button::Style {
                 background: Some(Background::Color(Color::TRANSPARENT)),
@@ -701,7 +747,7 @@ impl Notifications {
             let is_expanded = self.expanded_groups.contains(&app_name);
             let app_icon: Element<'a, Message> = notifications
                 .first()
-                .map(|n| notification_icon(n))
+                .map(|n| notification_icon_with_frame(self.notification_icons.get(&n.id)))
                 .unwrap_or_else(|| icon(StaticIcon::Bell).size(ICON_SIZE).into());
 
             let clear_msg = Message::ClearGroup(app_name.clone());
