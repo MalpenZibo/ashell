@@ -278,7 +278,7 @@ impl Notifications {
 
                     match update_event {
                         NotificationEvent::Received(notification) => {
-                            self.notifications.push_back(*notification);
+                            self.notifications.push_front(*notification);
                         }
                         NotificationEvent::Closed(id) => {
                             if let Ok(pos) = self.notifications.binary_search_by_key(&id, |n| n.id)
