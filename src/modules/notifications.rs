@@ -12,22 +12,19 @@ use crate::{
     theme::AshellTheme,
 };
 use chrono::{DateTime, Local};
-use freedesktop_icons::lookup;
 use iced::{
     Alignment, Background, Border, Color, Element, Length, Radius, Subscription, Task, Theme,
     widget::{
         Space, button, column, container, horizontal_rule, image, row, scrollable, svg, text,
     },
 };
-use linicon_theme::get_icon_theme;
 use log::error;
 use std::{
     collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    path::Path,
     time::Duration,
 };
 use zbus::Connection;
-use zbus::zvariant::OwnedValue;
 
 // Constants for UI dimensions and styling
 const ICON_SIZE: f32 = 20.0;
@@ -55,81 +52,6 @@ fn palette_text_style(theme: &Theme) -> text::Style {
 
 // --- Shared icon helper ---
 
-fn non_empty_owned_value_string(value: Option<&OwnedValue>) -> Option<String> {
-    value
-        .and_then(|v| v.clone().try_into().ok())
-        .map(|s: String| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-}
-
-fn parse_file_url(value: &str) -> Option<PathBuf> {
-    if !value.starts_with("file://") {
-        return None;
-    }
-
-    let decoded = url::Url::parse(value).ok()?.to_file_path().ok()?;
-    decoded.exists().then_some(decoded)
-}
-
-fn find_icon_path(icon_name: &str) -> Option<PathBuf> {
-    let base_lookup = lookup(icon_name).with_cache();
-
-    match get_icon_theme() {
-        Some(theme) => base_lookup.with_theme(&theme).find().or_else(|| {
-            let fallback_lookup = lookup(icon_name).with_cache();
-            fallback_lookup.find()
-        }),
-        None => base_lookup.find(),
-    }
-}
-
-fn resolve_notification_icon_path(notification: &Notification) -> Option<PathBuf> {
-    let mut candidates = Vec::new();
-
-    if !notification.app_icon.trim().is_empty() {
-        candidates.push(notification.app_icon.trim().to_string());
-    }
-
-    for key in [
-        "image-path",
-        "image_path",
-        "icon-name",
-        "icon_name",
-        "desktop-entry",
-    ] {
-        if let Some(value) = non_empty_owned_value_string(notification.hints.get(key)) {
-            candidates.push(value);
-        }
-    }
-
-    if !notification.app_name.trim().is_empty() {
-        candidates.push(notification.app_name.trim().to_string());
-    }
-
-    for candidate in candidates {
-        if let Some(path) = parse_file_url(&candidate) {
-            return Some(path);
-        }
-
-        let candidate_path = PathBuf::from(&candidate);
-        if (candidate.contains('/') || candidate.starts_with('.')) && candidate_path.exists() {
-            return Some(candidate_path);
-        }
-
-        if let Some(path) = find_icon_path(&candidate) {
-            return Some(path);
-        }
-
-        if let Some(stripped) = candidate.strip_suffix(".desktop")
-            && let Some(path) = find_icon_path(stripped)
-        {
-            return Some(path);
-        }
-    }
-
-    None
-}
-
 #[derive(Debug, Clone)]
 enum CachedNotificationIcon {
     Raster(image::Handle),
@@ -138,16 +60,16 @@ enum CachedNotificationIcon {
 }
 
 fn resolve_notification_icon(notification: &Notification) -> CachedNotificationIcon {
-    if let Some(path) = resolve_notification_icon_path(notification) {
-        let is_svg = Path::new(&path)
+    if let Some(path) = notification.resolved_icon_path.as_ref() {
+        let is_svg = Path::new(path)
             .extension()
             .and_then(|ext| ext.to_str())
             .is_some_and(|ext| ext.eq_ignore_ascii_case("svg"));
 
         if is_svg {
-            CachedNotificationIcon::Vector(svg::Handle::from_path(path))
+            CachedNotificationIcon::Vector(svg::Handle::from_path(path.clone()))
         } else {
-            CachedNotificationIcon::Raster(image::Handle::from_path(path))
+            CachedNotificationIcon::Raster(image::Handle::from_path(path.clone()))
         }
     } else {
         CachedNotificationIcon::Bell

@@ -1,5 +1,8 @@
+use freedesktop_icons::lookup;
+use linicon_theme::get_icon_theme;
 use log::{debug, info, warn};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::time::SystemTime;
 use tokio::sync::broadcast;
 use zbus::{
@@ -7,7 +10,7 @@ use zbus::{
     fdo::{DBusProxy, RequestNameFlags, RequestNameReply},
     interface,
     names::WellKnownName,
-    zvariant::{self, OwnedValue},
+    zvariant::OwnedValue,
 };
 
 #[derive(Debug, Clone)]
@@ -20,11 +23,91 @@ const NAME: WellKnownName =
     WellKnownName::from_static_str_unchecked("org.freedesktop.Notifications");
 pub const OBJECT_PATH: &str = "/org/freedesktop/Notifications";
 
-#[derive(Debug, Clone, zvariant::Type, serde::Serialize, serde::Deserialize)]
+fn non_empty_owned_value_string(value: Option<&OwnedValue>) -> Option<String> {
+    value
+        .and_then(|v| v.clone().try_into().ok())
+        .map(|s: String| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+fn parse_file_url(value: &str) -> Option<PathBuf> {
+    if !value.starts_with("file://") {
+        return None;
+    }
+
+    let decoded = url::Url::parse(value).ok()?.to_file_path().ok()?;
+    decoded.exists().then_some(decoded)
+}
+
+fn find_icon_path(icon_name: &str) -> Option<PathBuf> {
+    let base_lookup = lookup(icon_name).with_cache();
+
+    match get_icon_theme() {
+        Some(theme) => base_lookup.with_theme(&theme).find().or_else(|| {
+            let fallback_lookup = lookup(icon_name).with_cache();
+            fallback_lookup.find()
+        }),
+        None => base_lookup.find(),
+    }
+}
+
+fn resolve_notification_icon_path(
+    app_name: &str,
+    app_icon: &str,
+    hints: &HashMap<String, OwnedValue>,
+) -> Option<String> {
+    let mut candidates = Vec::new();
+
+    if !app_icon.trim().is_empty() {
+        candidates.push(app_icon.trim().to_string());
+    }
+
+    for key in [
+        "image-path",
+        "image_path",
+        "icon-name",
+        "icon_name",
+        "desktop-entry",
+    ] {
+        if let Some(value) = non_empty_owned_value_string(hints.get(key)) {
+            candidates.push(value);
+        }
+    }
+
+    if !app_name.trim().is_empty() {
+        candidates.push(app_name.trim().to_string());
+    }
+
+    for candidate in candidates {
+        if let Some(path) = parse_file_url(&candidate) {
+            return Some(path.to_string_lossy().into_owned());
+        }
+
+        let candidate_path = PathBuf::from(&candidate);
+        if (candidate.contains('/') || candidate.starts_with('.')) && candidate_path.exists() {
+            return Some(candidate_path.to_string_lossy().into_owned());
+        }
+
+        if let Some(path) = find_icon_path(&candidate) {
+            return Some(path.to_string_lossy().into_owned());
+        }
+
+        if let Some(stripped) = candidate.strip_suffix(".desktop")
+            && let Some(path) = find_icon_path(stripped)
+        {
+            return Some(path.to_string_lossy().into_owned());
+        }
+    }
+
+    None
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Notification {
     pub id: u32,
     pub app_name: String,
     pub app_icon: String,
+    pub resolved_icon_path: Option<String>,
     pub summary: String,
     pub body: String,
     pub actions: Vec<String>,
@@ -81,10 +164,13 @@ impl NotificationDaemon {
             replaces_id
         };
 
+        let resolved_icon_path = resolve_notification_icon_path(&app_name, &app_icon, &hints);
+
         let notification = Notification {
             id,
             app_name,
             app_icon,
+            resolved_icon_path,
             summary,
             body,
             actions,
