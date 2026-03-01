@@ -1,5 +1,5 @@
 use crate::{
-    components::icons::{DynamicIcon, Icon, StaticIcon, icon},
+    components::icons::{StaticIcon, icon},
     config::{NotificationsModuleConfig, ToastPosition},
     menu::MenuSize,
     services::{
@@ -12,15 +12,19 @@ use crate::{
     theme::AshellTheme,
 };
 use chrono::{DateTime, Local};
+use freedesktop_icons::lookup;
 use iced::{
     Alignment, Background, Border, Color, Element, Length, Radius, Subscription, Task, Theme,
-    widget::{Space, button, column, container, horizontal_rule, row, scrollable, text},
+    widget::{Space, button, column, container, horizontal_rule, image, row, scrollable, svg, text},
 };
+use linicon_theme::get_icon_theme;
 use log::error;
 use std::{
     collections::{HashMap, HashSet},
+    path::{Path, PathBuf},
     time::Duration,
 };
+use zbus::zvariant::OwnedValue;
 use zbus::Connection;
 
 // Constants for UI dimensions and styling
@@ -49,15 +53,108 @@ fn palette_text_style(theme: &Theme) -> text::Style {
 
 // --- Shared icon helper ---
 
-fn notification_icon<'a, M: 'a>(app_icon: &str) -> Element<'a, M> {
-    if app_icon.is_empty() {
-        icon(StaticIcon::Bell)
-            .size(ICON_SIZE)
-            .style(palette_text_style)
+fn non_empty_owned_value_string(value: Option<&OwnedValue>) -> Option<String> {
+    value
+        .and_then(|v| v.clone().try_into().ok())
+        .map(|s: String| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+fn parse_file_url(value: &str) -> Option<PathBuf> {
+    if !value.starts_with("file://") {
+        return None;
+    }
+
+    let decoded = url::Url::parse(value).ok()?.to_file_path().ok()?;
+    decoded.exists().then_some(decoded)
+}
+
+fn find_icon_path(icon_name: &str) -> Option<PathBuf> {
+    let base_lookup = lookup(icon_name).with_cache();
+
+    match get_icon_theme() {
+        Some(theme) => base_lookup.with_theme(&theme).find().or_else(|| {
+            let fallback_lookup = lookup(icon_name).with_cache();
+            fallback_lookup.find()
+        }),
+        None => base_lookup.find(),
+    }
+}
+
+fn resolve_notification_icon_path(notification: &Notification) -> Option<PathBuf> {
+    let mut candidates = Vec::new();
+
+    if !notification.app_icon.trim().is_empty() {
+        candidates.push(notification.app_icon.trim().to_string());
+    }
+
+    for key in [
+        "image-path",
+        "image_path",
+        "icon-name",
+        "icon_name",
+        "desktop-entry",
+    ] {
+        if let Some(value) = non_empty_owned_value_string(notification.hints.get(key)) {
+            candidates.push(value);
+        }
+    }
+
+    if !notification.app_name.trim().is_empty() {
+        candidates.push(notification.app_name.trim().to_string());
+    }
+
+    for candidate in candidates {
+        if let Some(path) = parse_file_url(&candidate) {
+            return Some(path);
+        }
+
+        let candidate_path = PathBuf::from(&candidate);
+        if (candidate.contains('/') || candidate.starts_with('.')) && candidate_path.exists() {
+            return Some(candidate_path);
+        }
+
+        if let Some(path) = find_icon_path(&candidate) {
+            return Some(path);
+        }
+
+        if let Some(stripped) = candidate.strip_suffix(".desktop")
+            && let Some(path) = find_icon_path(stripped)
+        {
+            return Some(path);
+        }
+    }
+
+    None
+}
+
+fn notification_icon<'a, M: 'a>(notification: &Notification) -> Element<'a, M> {
+    if let Some(path) = resolve_notification_icon_path(notification) {
+        let is_svg = Path::new(&path)
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("svg"));
+
+        let icon_element: Element<'a, M> = if is_svg {
+            svg(svg::Handle::from_path(path))
+                .width(Length::Fixed(ICON_SIZE))
+                .height(Length::Fixed(ICON_SIZE))
+                .into()
+        } else {
+            image(image::Handle::from_path(path))
+                .width(Length::Fixed(ICON_SIZE))
+                .height(Length::Fixed(ICON_SIZE))
+                .into()
+        };
+
+        container(icon_element)
+            .center_x(Length::Fixed(ICON_SIZE))
+            .center_y(Length::Fixed(ICON_SIZE))
+            .width(Length::Fixed(ICON_SIZE))
+            .height(Length::Fixed(ICON_SIZE))
             .into()
     } else {
-        DynamicIcon(app_icon.to_string())
-            .to_text()
+        icon(StaticIcon::Bell)
             .size(ICON_SIZE)
             .style(palette_text_style)
             .into()
@@ -495,7 +592,7 @@ impl Notifications {
         };
 
         let notification_id = notification.id;
-        let app_icon_button = button(notification_icon(&notification.app_icon))
+        let app_icon_button = button(notification_icon(notification))
             .on_press(Message::CloseNotificationById(notification_id))
             .style(move |iced_theme: &Theme, status| button::Style {
                 background: Some(Background::Color(Color::TRANSPARENT)),
@@ -604,16 +701,7 @@ impl Notifications {
             let is_expanded = self.expanded_groups.contains(&app_name);
             let app_icon: Element<'a, Message> = notifications
                 .first()
-                .map(|n| {
-                    if n.app_icon.is_empty() {
-                        icon(StaticIcon::Bell).size(ICON_SIZE).into()
-                    } else {
-                        DynamicIcon(n.app_icon.to_string())
-                            .to_text()
-                            .size(ICON_SIZE)
-                            .into()
-                    }
-                })
+                .map(|n| notification_icon(n))
                 .unwrap_or_else(|| icon(StaticIcon::Bell).size(ICON_SIZE).into());
 
             let clear_msg = Message::ClearGroup(app_name.clone());
