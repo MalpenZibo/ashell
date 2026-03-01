@@ -444,8 +444,8 @@ impl Notifications {
                     .map(|n| n.id)
                     .collect();
                 self.notifications.retain(|n| n.app_name != app_name);
-                for id in group_ids.iter().copied() {
-                    self.notification_icons.remove(&id);
+                for id in group_ids.iter() {
+                    self.notification_icons.remove(id);
                 }
                 self.expanded_groups.remove(&app_name);
                 let had_toasts = !self.toasts.is_empty();
