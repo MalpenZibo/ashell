@@ -179,6 +179,7 @@ pub struct Notifications {
     notifications: VecDeque<Notification>,
     expanded_groups: HashSet<String>,
     toasts: VecDeque<u32>,
+    icons: HashMap<u32, NotificationIcon>,
 }
 
 impl Notifications {
@@ -189,6 +190,7 @@ impl Notifications {
             notifications: VecDeque::new(),
             expanded_groups: HashSet::new(),
             toasts: VecDeque::new(),
+            icons: HashMap::new(),
         }
     }
 
@@ -275,9 +277,12 @@ impl Notifications {
 
                     match update_event {
                         NotificationEvent::Received(notification) => {
+                            self.icons
+                                .insert(notification.id, resolve_notification_icon(&notification));
                             self.notifications.push_front(*notification);
                         }
                         NotificationEvent::Closed(id) => {
+                            self.icons.remove(&id);
                             if let Some(pos) = self.notifications.iter().position(|n| n.id == id) {
                                 self.notifications.remove(pos);
                             }
@@ -317,6 +322,7 @@ impl Notifications {
             Message::NotificationsCleared => {
                 let had_toasts = !self.toasts.is_empty();
                 self.toasts.clear();
+                self.icons.clear();
                 if had_toasts {
                     Action::Hide(Task::none())
                 } else {
@@ -351,6 +357,9 @@ impl Notifications {
             }
             Message::GroupCleared(app_name, group_ids) => {
                 self.expanded_groups.remove(&app_name);
+                for id in &group_ids {
+                    self.icons.remove(id);
+                }
                 let had_toasts = !self.toasts.is_empty();
                 self.toasts.retain(|t| !group_ids.contains(t));
                 if had_toasts && self.toasts.is_empty() {
@@ -531,8 +540,11 @@ impl Notifications {
         };
 
         let notification_id = notification.id;
-        let icon = resolve_notification_icon(notification);
-        let app_icon_button = button(notification_icon_with_frame(&icon))
+        let icon = self
+            .icons
+            .get(&notification_id)
+            .unwrap_or(&NotificationIcon::Bell);
+        let app_icon_button = button(notification_icon_with_frame(icon))
             .on_press(Message::CloseNotificationById(notification_id))
             .style(icon_button_style)
             .padding(0);
@@ -634,7 +646,8 @@ impl Notifications {
             let is_expanded = self.expanded_groups.contains(&app_name);
             let app_icon: Element<'a, Message> = notifications
                 .first()
-                .map(|n| notification_icon_with_frame(&resolve_notification_icon(n)))
+                .and_then(|n| self.icons.get(&n.id))
+                .map(notification_icon_with_frame)
                 .unwrap_or_else(|| icon(StaticIcon::Bell).size(ICON_SIZE).into());
 
             let clear_msg = Message::ClearGroup(app_name.clone());
