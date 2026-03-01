@@ -104,6 +104,28 @@ fn notification_icon_with_frame<'a, M: 'a>(
         .into()
 }
 
+// Shared button style for notification icon buttons: transparent background, danger colour on hover.
+fn icon_button_style(theme: &Theme, status: button::Status) -> button::Style {
+    button::Style {
+        background: Some(Background::Color(Color::TRANSPARENT)),
+        text_color: match status {
+            button::Status::Hovered => theme.palette().danger,
+            _ => theme.palette().text,
+        },
+        ..Default::default()
+    }
+}
+
+// Shared button style for the "Clear" action button.
+fn clear_button_style(radius: u16) -> impl Fn(&Theme, button::Status) -> button::Style {
+    move |iced_theme: &Theme, _status| button::Style {
+        background: Some(Background::Color(Color::TRANSPARENT)),
+        text_color: iced_theme.palette().text,
+        border: Border::default().rounded(radius),
+        ..button::Style::default()
+    }
+}
+
 // Invokes the first action (if present) and closes the notification via D-Bus.
 fn invoke_and_close_task(
     connection: Option<Connection>,
@@ -181,6 +203,20 @@ impl Notifications {
 
     fn all_notifications(&self) -> Vec<&Notification> {
         self.notifications.iter().collect()
+    }
+
+    fn find_notification(&self, id: u32) -> Option<&Notification> {
+        self.notifications
+            .binary_search_by_key(&id, |n| n.id)
+            .ok()
+            .map(|i| &self.notifications[i])
+    }
+
+    fn find_first_action_key(&self, id: u32) -> Option<String> {
+        self.find_notification(id)
+            .filter(|n| !n.actions.is_empty())
+            .and_then(|n| n.actions.first())
+            .cloned()
     }
 
     pub fn update(&mut self, message: Message) -> Action {
@@ -272,15 +308,7 @@ impl Notifications {
             },
             Message::NotificationClicked(id) => {
                 let connection = self.connection.clone();
-                let action_key = self
-                    .notifications
-                    .binary_search_by_key(&id, |n| n.id)
-                    .ok()
-                    .map(|i| &self.notifications[i])
-                    .filter(|n| !n.actions.is_empty())
-                    .and_then(|n| n.actions.first())
-                    .cloned();
-
+                let action_key = self.find_first_action_key(id);
                 Action::Task(invoke_and_close_task(connection, id, action_key))
             }
             Message::NotificationClosed => Action::None,
@@ -388,15 +416,7 @@ impl Notifications {
             }
             Message::DismissToast(id) => {
                 let connection = self.connection.clone();
-                let action_key = self
-                    .notifications
-                    .binary_search_by_key(&id, |n| n.id)
-                    .ok()
-                    .map(|i| &self.notifications[i])
-                    .filter(|n| !n.actions.is_empty())
-                    .and_then(|n| n.actions.first())
-                    .cloned();
-
+                let action_key = self.find_first_action_key(id);
                 self.toasts.retain(|t| t.id != id);
                 let task = invoke_and_close_task(connection, id, action_key);
 
@@ -531,16 +551,9 @@ impl Notifications {
         let notification_id = notification.id;
         let icon = resolve_notification_icon(notification);
         let app_icon_button = button(notification_icon_with_frame(&icon))
-        .on_press(Message::CloseNotificationById(notification_id))
-        .style(move |iced_theme: &Theme, status| button::Style {
-            background: Some(Background::Color(Color::TRANSPARENT)),
-            text_color: match status {
-                button::Status::Hovered => iced_theme.palette().danger,
-                _ => iced_theme.palette().text,
-            },
-            ..Default::default()
-        })
-        .padding(0);
+            .on_press(Message::CloseNotificationById(notification_id))
+            .style(icon_button_style)
+            .padding(0);
 
         let card = container(
             column!(
@@ -647,14 +660,7 @@ impl Notifications {
 
             let header = row!(
                 button(app_icon)
-                    .style(move |iced_theme: &Theme, status| button::Style {
-                        background: Some(Background::Color(Color::TRANSPARENT)),
-                        text_color: match status {
-                            button::Status::Hovered => iced_theme.palette().danger,
-                            _ => iced_theme.palette().text,
-                        },
-                        ..Default::default()
-                    })
+                    .style(icon_button_style)
                     .on_press(clear_msg),
                 text(app_name)
                     .size(theme.font_size.md)
@@ -736,12 +742,7 @@ impl Notifications {
                 if !is_empty {
                     container(
                         button("Clear")
-                            .style(move |iced_theme: &Theme, _status| button::Style {
-                                background: Some(Background::Color(Color::TRANSPARENT)),
-                                text_color: (iced_theme.palette().text),
-                                border: Border::default().rounded(theme.radius.md),
-                                ..button::Style::default()
-                            })
+                            .style(clear_button_style(theme.radius.md))
                             .on_press(Message::ClearNotifications),
                     )
                     .width(Length::Fill)
@@ -770,7 +771,7 @@ impl Notifications {
             .width(380);
 
         for toast_entry in &self.toasts {
-            if let Some(notification) = self.notifications.binary_search_by_key(&toast_entry.id, |n| n.id).ok().map(|i| &self.notifications[i]) {
+            if let Some(notification) = self.find_notification(toast_entry.id) {
                 toast_column = toast_column.push(self.build_notification_card(
                     notification,
                     theme,
