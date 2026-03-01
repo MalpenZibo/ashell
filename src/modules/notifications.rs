@@ -281,7 +281,8 @@ impl Notifications {
                             self.notifications.push_back(*notification);
                         }
                         NotificationEvent::Closed(id) => {
-                            if let Ok(pos) = self.notifications.binary_search_by_key(&id, |n| n.id) {
+                            if let Ok(pos) = self.notifications.binary_search_by_key(&id, |n| n.id)
+                            {
                                 self.notifications.remove(pos);
                             }
                         }
