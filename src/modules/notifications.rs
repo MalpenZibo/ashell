@@ -53,13 +53,13 @@ fn palette_text_style(theme: &Theme) -> text::Style {
 // --- Shared icon helper ---
 
 #[derive(Debug, Clone)]
-enum CachedNotificationIcon {
+enum NotificationIcon {
     Raster(image::Handle),
     Vector(svg::Handle),
     Bell,
 }
 
-fn resolve_notification_icon(notification: &Notification) -> CachedNotificationIcon {
+fn resolve_notification_icon(notification: &Notification) -> NotificationIcon {
     if let Some(path) = notification.resolved_icon_path.as_ref() {
         let is_svg = Path::new(path)
             .extension()
@@ -67,26 +67,26 @@ fn resolve_notification_icon(notification: &Notification) -> CachedNotificationI
             .is_some_and(|ext| ext.eq_ignore_ascii_case("svg"));
 
         if is_svg {
-            CachedNotificationIcon::Vector(svg::Handle::from_path(path.clone()))
+            NotificationIcon::Vector(svg::Handle::from_path(path.clone()))
         } else {
-            CachedNotificationIcon::Raster(image::Handle::from_path(path.clone()))
+            NotificationIcon::Raster(image::Handle::from_path(path.clone()))
         }
     } else {
-        CachedNotificationIcon::Bell
+        NotificationIcon::Bell
     }
 }
 
-fn notification_icon<'a, M: 'a>(cached_icon: Option<&CachedNotificationIcon>) -> Element<'a, M> {
-    match cached_icon {
-        Some(CachedNotificationIcon::Vector(handle)) => svg(handle.clone())
+fn notification_icon<'a, M: 'a>(icon_kind: &NotificationIcon) -> Element<'a, M> {
+    match icon_kind {
+        NotificationIcon::Vector(handle) => svg(handle.clone())
             .width(Length::Fixed(ICON_SIZE))
             .height(Length::Fixed(ICON_SIZE))
             .into(),
-        Some(CachedNotificationIcon::Raster(handle)) => image(handle.clone())
+        NotificationIcon::Raster(handle) => image(handle.clone())
             .width(Length::Fixed(ICON_SIZE))
             .height(Length::Fixed(ICON_SIZE))
             .into(),
-        Some(CachedNotificationIcon::Bell) | None => icon(StaticIcon::Bell)
+        NotificationIcon::Bell => icon(StaticIcon::Bell)
             .size(ICON_SIZE)
             .style(palette_text_style)
             .into(),
@@ -94,9 +94,9 @@ fn notification_icon<'a, M: 'a>(cached_icon: Option<&CachedNotificationIcon>) ->
 }
 
 fn notification_icon_with_frame<'a, M: 'a>(
-    cached_icon: Option<&CachedNotificationIcon>,
+    icon_kind: &NotificationIcon,
 ) -> Element<'a, M> {
-    container(notification_icon(cached_icon))
+    container(notification_icon(icon_kind))
         .center_x(Length::Fixed(ICON_SIZE))
         .center_y(Length::Fixed(ICON_SIZE))
         .width(Length::Fixed(ICON_SIZE))
@@ -124,9 +124,8 @@ fn invoke_and_close_task(
                     error!("Failed to close notification id {}: {}", id, e);
                 }
             }
-            id
         },
-        Message::NotificationClosed,
+        |_| Message::NotificationClosed,
     )
 }
 
@@ -134,12 +133,12 @@ fn invoke_and_close_task(
 pub enum Message {
     ConfigReloaded(NotificationsModuleConfig),
     NotificationClicked(u32),
-    NotificationClosed(u32),
+    NotificationClosed,
     CloseNotificationById(u32),
     ClearNotifications,
     NotificationsCleared,
     ClearGroup(String),
-    GroupCleared(String),
+    GroupCleared(String, Vec<u32>),
     Event(ServiceEvent<NotificationsService>),
     ToggleGroup(String),
     ExpireToast(u32),
@@ -163,9 +162,8 @@ struct ToastEntry {
 
 pub struct Notifications {
     config: NotificationsModuleConfig,
-    notifications: Vec<Notification>,
-    notification_icons: HashMap<u32, CachedNotificationIcon>,
-    service: Option<NotificationsService>,
+    connection: Option<Connection>,
+    notifications: HashMap<u32, Notification>,
     expanded_groups: HashSet<String>,
     toasts: Vec<ToastEntry>,
 }
@@ -174,24 +172,17 @@ impl Notifications {
     pub fn new(config: NotificationsModuleConfig) -> Self {
         Self {
             config,
-            notifications: Vec::new(),
-            notification_icons: HashMap::new(),
-            service: None,
+            connection: None,
+            notifications: HashMap::new(),
             expanded_groups: HashSet::new(),
             toasts: Vec::new(),
         }
     }
 
-    fn sync_notification_icons(&mut self) {
-        let desired_ids: HashSet<u32> = self.notifications.iter().map(|n| n.id).collect();
-        self.notification_icons
-            .retain(|id, _| desired_ids.contains(id));
-
-        for notification in &self.notifications {
-            self.notification_icons
-                .entry(notification.id)
-                .or_insert_with(|| resolve_notification_icon(notification));
-        }
+    fn sorted_notifications(&self) -> Vec<&Notification> {
+        let mut notifications: Vec<&Notification> = self.notifications.values().collect();
+        notifications.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+        notifications
     }
 
     pub fn update(&mut self, message: Message) -> Action {
@@ -208,102 +199,92 @@ impl Notifications {
             }
             Message::Event(event) => match event {
                 ServiceEvent::Init(service) => {
-                    self.notifications = service.notifications.values().cloned().collect();
-                    self.notifications
-                        .sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
-                    self.sync_notification_icons();
-                    self.service = Some(service);
+                    self.connection = Some(service.connection);
                     Action::None
                 }
                 ServiceEvent::Update(update_event) => {
-                    if let Some(service) = self.service.as_mut() {
-                        let toast_action = if self.config.toast {
-                            match &update_event {
-                                NotificationEvent::Received(notification) => {
-                                    let was_empty = self.toasts.is_empty();
-                                    while self.toasts.len() >= self.config.toast_max_visible {
-                                        self.toasts.remove(0);
-                                    }
-                                    self.toasts.push(ToastEntry {
-                                        id: notification.id,
-                                    });
-
-                                    let notification_id = notification.id;
-                                    let timeout = match notification.expire_timeout {
-                                        -1 => Some(Duration::from_millis(
-                                            self.config.toast_default_timeout,
-                                        )),
-                                        0 => None,
-                                        t if t > 0 => Some(Duration::from_millis(t as u64)),
-                                        _ => None,
-                                    };
-
-                                    let timer_task = if let Some(timeout) = timeout {
-                                        Task::perform(
-                                            async move {
-                                                tokio::time::sleep(timeout).await;
-                                                notification_id
-                                            },
-                                            Message::ExpireToast,
-                                        )
-                                    } else {
-                                        Task::none()
-                                    };
-
-                                    if was_empty {
-                                        Action::Show(timer_task)
-                                    } else {
-                                        Action::Task(timer_task)
-                                    }
+                    let toast_action = if self.config.toast {
+                        match &update_event {
+                            NotificationEvent::Received(notification) => {
+                                let was_empty = self.toasts.is_empty();
+                                while self.toasts.len() >= self.config.toast_max_visible {
+                                    self.toasts.remove(0);
                                 }
-                                NotificationEvent::Closed(id) => {
-                                    let id = *id;
-                                    let was_showing = !self.toasts.is_empty();
-                                    self.toasts.retain(|t| t.id != id);
-                                    if was_showing && self.toasts.is_empty() {
-                                        Action::Hide(Task::none())
-                                    } else {
-                                        Action::None
-                                    }
+                                self.toasts.push(ToastEntry {
+                                    id: notification.id,
+                                });
+
+                                let notification_id = notification.id;
+                                let timeout = match notification.expire_timeout {
+                                    -1 => Some(Duration::from_millis(
+                                        self.config.toast_default_timeout,
+                                    )),
+                                    0 => None,
+                                    t if t > 0 => Some(Duration::from_millis(t as u64)),
+                                    _ => None,
+                                };
+
+                                let timer_task = if let Some(timeout) = timeout {
+                                    Task::perform(
+                                        async move {
+                                            tokio::time::sleep(timeout).await;
+                                            notification_id
+                                        },
+                                        Message::ExpireToast,
+                                    )
+                                } else {
+                                    Task::none()
+                                };
+
+                                if was_empty {
+                                    Action::Show(timer_task)
+                                } else {
+                                    Action::Task(timer_task)
                                 }
                             }
-                        } else {
-                            Action::None
-                        };
-
-                        service.update(update_event);
-                        self.notifications = service.notifications.values().cloned().collect();
-                        self.notifications
-                            .sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
-                        self.sync_notification_icons();
-
-                        toast_action
+                            NotificationEvent::Closed(id) => {
+                                let id = *id;
+                                let was_showing = !self.toasts.is_empty();
+                                self.toasts.retain(|t| t.id != id);
+                                if was_showing && self.toasts.is_empty() {
+                                    Action::Hide(Task::none())
+                                } else {
+                                    Action::None
+                                }
+                            }
+                        }
                     } else {
                         Action::None
+                    };
+
+                    match update_event {
+                        NotificationEvent::Received(notification) => {
+                            self.notifications.insert(notification.id, *notification);
+                        }
+                        NotificationEvent::Closed(id) => {
+                            self.notifications.remove(&id);
+                        }
                     }
+
+                    toast_action
                 }
                 ServiceEvent::Error(_) => Action::None,
             },
             Message::NotificationClicked(id) => {
-                let connection = self.service.as_ref().map(|s| s.connection.clone());
+                let connection = self.connection.clone();
                 let action_key = self
                     .notifications
-                    .iter()
-                    .find(|n| n.id == id)
+                    .get(&id)
                     .filter(|n| !n.actions.is_empty())
                     .and_then(|n| n.actions.first())
                     .cloned();
 
                 Action::Task(invoke_and_close_task(connection, id, action_key))
             }
-            Message::NotificationClosed(id) => {
-                self.notifications.retain(|n| n.id != id);
-                self.notification_icons.remove(&id);
-                Action::None
-            }
+            Message::NotificationClosed => Action::None,
             Message::ClearNotifications => {
-                let connection = self.service.as_ref().map(|s| s.connection.clone());
-                let notification_ids: Vec<u32> = self.notifications.iter().map(|n| n.id).collect();
+                let connection = self.connection.clone();
+                let notification_ids: Vec<u32> = self.notifications.keys().copied().collect();
 
                 Action::Task(Task::perform(
                     async move {
@@ -322,8 +303,6 @@ impl Notifications {
                 ))
             }
             Message::NotificationsCleared => {
-                self.notifications.clear();
-                self.notification_icons.clear();
                 let had_toasts = !self.toasts.is_empty();
                 self.toasts.clear();
                 if had_toasts {
@@ -333,10 +312,10 @@ impl Notifications {
                 }
             }
             Message::ClearGroup(app_name) => {
-                let connection = self.service.as_ref().map(|s| s.connection.clone());
+                let connection = self.connection.clone();
                 let notification_ids: Vec<u32> = self
                     .notifications
-                    .iter()
+                    .values()
                     .filter(|n| n.app_name == app_name)
                     .map(|n| n.id)
                     .collect();
@@ -344,31 +323,21 @@ impl Notifications {
                 Action::Task(Task::perform(
                     async move {
                         if let Some(connection) = connection {
-                            for id in notification_ids {
+                            for id in &notification_ids {
                                 if let Err(e) =
-                                    NotificationDaemon::close_notification_by_id(&connection, id)
+                                    NotificationDaemon::close_notification_by_id(&connection, *id)
                                         .await
                                 {
                                     error!("Failed to close notification id {}: {}", id, e);
                                 }
                             }
                         }
-                        app_name
+                        (app_name, notification_ids)
                     },
-                    Message::GroupCleared,
+                    |(app_name, ids)| Message::GroupCleared(app_name, ids),
                 ))
             }
-            Message::GroupCleared(app_name) => {
-                let group_ids: Vec<u32> = self
-                    .notifications
-                    .iter()
-                    .filter(|n| n.app_name == app_name)
-                    .map(|n| n.id)
-                    .collect();
-                self.notifications.retain(|n| n.app_name != app_name);
-                for id in group_ids.iter() {
-                    self.notification_icons.remove(id);
-                }
+            Message::GroupCleared(app_name, group_ids) => {
                 self.expanded_groups.remove(&app_name);
                 let had_toasts = !self.toasts.is_empty();
                 self.toasts.retain(|t| !group_ids.contains(&t.id));
@@ -393,9 +362,7 @@ impl Notifications {
                 }
             }
             Message::CloseNotificationById(id) => {
-                let connection = self.service.as_ref().map(|s| s.connection.clone());
-                self.notifications.retain(|n| n.id != id);
-                self.notification_icons.remove(&id);
+                let connection = self.connection.clone();
                 let had_toasts = !self.toasts.is_empty();
                 self.toasts.retain(|t| t.id != id);
 
@@ -407,9 +374,8 @@ impl Notifications {
                         {
                             error!("Failed to close notification id {}: {}", id, e);
                         }
-                        id
                     },
-                    Message::NotificationClosed,
+                    |_| Message::NotificationClosed,
                 );
 
                 if self.toasts.is_empty() && had_toasts {
@@ -419,11 +385,10 @@ impl Notifications {
                 }
             }
             Message::DismissToast(id) => {
-                let connection = self.service.as_ref().map(|s| s.connection.clone());
+                let connection = self.connection.clone();
                 let action_key = self
                     .notifications
-                    .iter()
-                    .find(|n| n.id == id)
+                    .get(&id)
                     .filter(|n| !n.actions.is_empty())
                     .and_then(|n| n.actions.first())
                     .cloned();
@@ -560,9 +525,8 @@ impl Notifications {
         };
 
         let notification_id = notification.id;
-        let app_icon_button = button(notification_icon_with_frame(
-            self.notification_icons.get(&notification_id),
-        ))
+        let icon = resolve_notification_icon(notification);
+        let app_icon_button = button(notification_icon_with_frame(&icon))
         .on_press(Message::CloseNotificationById(notification_id))
         .style(move |iced_theme: &Theme, status| button::Style {
             background: Some(Background::Color(Color::TRANSPARENT)),
@@ -646,10 +610,10 @@ impl Notifications {
     }
 
     pub fn view(&'_ self, _: &AshellTheme) -> Element<'_, Message> {
-        if self.notifications.is_empty() {
-            icon(StaticIcon::Bell).into()
-        } else {
+        if !self.notifications.is_empty() {
             icon(StaticIcon::BellBadge).into()
+        } else {
+            icon(StaticIcon::Bell).into()
         }
     }
 
@@ -659,7 +623,7 @@ impl Notifications {
 
     fn grouped_notifications<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
         let mut grouped: HashMap<String, Vec<&Notification>> = HashMap::new();
-        for notification in &self.notifications {
+        for notification in self.sorted_notifications() {
             grouped
                 .entry(notification.app_name.clone())
                 .or_default()
@@ -671,7 +635,7 @@ impl Notifications {
             let is_expanded = self.expanded_groups.contains(&app_name);
             let app_icon: Element<'a, Message> = notifications
                 .first()
-                .map(|n| notification_icon_with_frame(self.notification_icons.get(&n.id)))
+                .map(|n| notification_icon_with_frame(&resolve_notification_icon(n)))
                 .unwrap_or_else(|| icon(StaticIcon::Bell).size(ICON_SIZE).into());
 
             let clear_msg = Message::ClearGroup(app_name.clone());
@@ -730,7 +694,7 @@ impl Notifications {
     }
 
     fn list_notifications<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
-        let mut notifications_refs: Vec<&Notification> = self.notifications.iter().collect();
+        let mut notifications_refs = self.sorted_notifications();
 
         if let Some(max) = self.config.max_notifications {
             notifications_refs.truncate(max);
@@ -749,7 +713,8 @@ impl Notifications {
     }
 
     pub fn menu_view<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
-        let content = if self.notifications.is_empty() {
+        let is_empty = self.notifications.is_empty();
+        let content = if is_empty {
             container(text("No notifications").size(theme.font_size.md))
                 .width(Length::Fill)
                 .height(Length::Fixed(self.config.empty_state_height))
@@ -764,7 +729,7 @@ impl Notifications {
         column!(
             row!(
                 text("Notifications").size(theme.font_size.lg),
-                if !self.notifications.is_empty() {
+                if !is_empty {
                     container(
                         button("Clear")
                             .style(move |iced_theme: &Theme, _status| button::Style {
@@ -801,7 +766,7 @@ impl Notifications {
             .width(380);
 
         for toast_entry in &self.toasts {
-            if let Some(notification) = self.notifications.iter().find(|n| n.id == toast_entry.id) {
+            if let Some(notification) = self.notifications.get(&toast_entry.id) {
                 toast_column = toast_column.push(self.build_notification_card(
                     notification,
                     theme,

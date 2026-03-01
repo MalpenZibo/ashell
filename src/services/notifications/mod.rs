@@ -4,7 +4,6 @@ use iced::futures::{SinkExt, StreamExt, channel::mpsc::Sender, stream::pending};
 use iced::stream::channel;
 use log::{error, info};
 use std::any::TypeId;
-use std::collections::HashMap;
 use tokio::sync::broadcast;
 use tokio_stream::wrappers::BroadcastStream;
 use zbus::Connection;
@@ -16,7 +15,6 @@ use dbus::NotificationEvent;
 
 #[derive(Debug, Clone)]
 pub struct NotificationsService {
-    pub notifications: HashMap<u32, Notification>,
     pub connection: Connection,
 }
 
@@ -33,7 +31,6 @@ impl NotificationsService {
                     info!("Notifications service initialized");
                     let _ = output
                         .send(ServiceEvent::Init(NotificationsService {
-                            notifications: HashMap::new(),
                             connection: connection.clone(),
                         }))
                         .await;
@@ -80,17 +77,7 @@ impl ReadOnlyService for NotificationsService {
     type UpdateEvent = NotificationEvent;
     type Error = ();
 
-    fn update(&mut self, event: NotificationEvent) {
-        match event {
-            NotificationEvent::Received(notification) => {
-                let notification = *notification;
-                self.notifications.insert(notification.id, notification);
-            }
-            NotificationEvent::Closed(id) => {
-                self.notifications.remove(&id);
-            }
-        }
-    }
+    fn update(&mut self, _event: NotificationEvent) {}
 
     fn subscribe() -> Subscription<ServiceEvent<Self>> {
         let id = TypeId::of::<Self>();
