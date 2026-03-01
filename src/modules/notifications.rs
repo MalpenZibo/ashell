@@ -193,10 +193,7 @@ impl Notifications {
     }
 
     fn find_notification(&self, id: u32) -> Option<&Notification> {
-        self.notifications
-            .binary_search_by_key(&id, |n| n.id)
-            .ok()
-            .map(|i| &self.notifications[i])
+        self.notifications.iter().find(|n| n.id == id)
     }
 
     fn find_first_action_key(&self, id: u32) -> Option<String> {
@@ -281,8 +278,7 @@ impl Notifications {
                             self.notifications.push_front(*notification);
                         }
                         NotificationEvent::Closed(id) => {
-                            if let Ok(pos) = self.notifications.binary_search_by_key(&id, |n| n.id)
-                            {
+                            if let Some(pos) = self.notifications.iter().position(|n| n.id == id) {
                                 self.notifications.remove(pos);
                             }
                         }
