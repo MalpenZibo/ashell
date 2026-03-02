@@ -60,19 +60,20 @@ enum NotificationIcon {
 }
 
 fn resolve_notification_icon(notification: &Notification) -> NotificationIcon {
-    if let Some(path) = notification.resolved_icon_path.as_ref() {
-        let is_svg = Path::new(path)
-            .extension()
-            .and_then(|ext| ext.to_str())
-            .is_some_and(|ext| ext.eq_ignore_ascii_case("svg"));
+    match notification.resolved_icon_path.as_ref() {
+        Some(path) => {
+            let is_svg = Path::new(path)
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("svg"));
 
-        if is_svg {
-            NotificationIcon::Vector(svg::Handle::from_path(path.clone()))
-        } else {
-            NotificationIcon::Raster(image::Handle::from_path(path.clone()))
+            if is_svg {
+                NotificationIcon::Vector(svg::Handle::from_path(path.clone()))
+            } else {
+                NotificationIcon::Raster(image::Handle::from_path(path.clone()))
+            }
         }
-    } else {
-        NotificationIcon::Bell
+        None => NotificationIcon::Bell,
     }
 }
 
