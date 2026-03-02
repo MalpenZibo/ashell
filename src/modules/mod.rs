@@ -29,6 +29,12 @@ pub mod workspaces;
 pub enum OnModulePress {
     Action(Box<Message>),
     ToggleMenu(MenuType),
+    ToggleMenuWithExtra {
+        menu_type: MenuType,
+        on_right_press: Option<Box<Message>>,
+        on_scroll_up: Option<Box<Message>>,
+        on_scroll_down: Option<Box<Message>>,
+    },
 }
 
 impl App {
@@ -102,6 +108,26 @@ impl App {
                         button.on_press_with_position(move |button_ui_ref| {
                             Message::ToggleMenu(menu_type.clone(), id, button_ui_ref)
                         })
+                    }
+                    OnModulePress::ToggleMenuWithExtra {
+                        menu_type,
+                        on_right_press,
+                        on_scroll_up,
+                        on_scroll_down,
+                    } => {
+                        let mut button = button.on_press_with_position(move |button_ui_ref| {
+                            Message::ToggleMenu(menu_type.clone(), id, button_ui_ref)
+                        });
+                        if let Some(msg) = on_right_press {
+                            button = button.on_right_press(*msg);
+                        }
+                        if let Some(msg) = on_scroll_up {
+                            button = button.on_scroll_up(*msg);
+                        }
+                        if let Some(msg) = on_scroll_down {
+                            button = button.on_scroll_down(*msg);
+                        }
+                        button
                     }
                 }
                 .into()
@@ -177,6 +203,31 @@ impl App {
                                                 button_ui_ref,
                                             )
                                         }),
+                                    OnModulePress::ToggleMenuWithExtra {
+                                        menu_type,
+                                        on_right_press,
+                                        on_scroll_up,
+                                        on_scroll_down,
+                                    } => {
+                                        let mut button =
+                                            button.on_press_with_position(move |button_ui_ref| {
+                                                Message::ToggleMenu(
+                                                    menu_type.clone(),
+                                                    id,
+                                                    button_ui_ref,
+                                                )
+                                            });
+                                        if let Some(msg) = on_right_press {
+                                            button = button.on_right_press(*msg);
+                                        }
+                                        if let Some(msg) = on_scroll_up {
+                                            button = button.on_scroll_up(*msg);
+                                        }
+                                        if let Some(msg) = on_scroll_down {
+                                            button = button.on_scroll_down(*msg);
+                                        }
+                                        button
+                                    }
                                 }
                                 .into()
                             }
@@ -280,7 +331,16 @@ impl App {
             ModuleName::Clock => Some((self.clock.view(&self.theme).map(Message::Clock), None)),
             ModuleName::Tempo => Some((
                 self.tempo.view(&self.theme).map(Message::Tempo),
-                Some(OnModulePress::ToggleMenu(MenuType::Tempo)),
+                Some(OnModulePress::ToggleMenuWithExtra {
+                    menu_type: MenuType::Tempo,
+                    on_right_press: Some(Box::new(Message::Tempo(tempo::Message::CycleFormat))),
+                    on_scroll_up: Some(Box::new(Message::Tempo(tempo::Message::CycleTimezone(
+                        tempo::TimezoneDirection::Forward,
+                    )))),
+                    on_scroll_down: Some(Box::new(Message::Tempo(tempo::Message::CycleTimezone(
+                        tempo::TimezoneDirection::Backward,
+                    )))),
+                }),
             )),
             ModuleName::Privacy => self
                 .privacy

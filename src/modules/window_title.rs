@@ -74,11 +74,14 @@ impl WindowTitle {
                     },
                 };
 
-                if self.config.truncate_title_after_length > 0 {
-                    truncate_text(raw_title, self.config.truncate_title_after_length)
+                // Apply hard limit of 2048 characters to prevent Wayland E2BIG errors
+                let max_length = if self.config.truncate_title_after_length > 0 {
+                    std::cmp::min(self.config.truncate_title_after_length, 2048)
                 } else {
-                    raw_title.to_string()
-                }
+                    2048
+                };
+
+                truncate_text(raw_title, max_length)
             });
         }
     }

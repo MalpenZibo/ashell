@@ -102,6 +102,7 @@ Configure the bar position and Wayland layer.
 ### Layer Options
 
 - `"Overlay"` - Above everything including fullscreen
+- `"Top"` - Above everything excluding fullscreen
 - `"Bottom"` - Above background, below windows (default)
 
 ### Examples

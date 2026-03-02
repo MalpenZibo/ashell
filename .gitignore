@@ -12,3 +12,6 @@ vendor
 # Ignore direnv
 .direnv/
 .envrc
+
+.worktrees
+
