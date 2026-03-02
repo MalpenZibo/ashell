@@ -1,10 +1,10 @@
 use super::SubMenu;
 use crate::{
-    components::icons::{StaticIcon, icon, icon_button},
+    components::icons::{StaticIcon, icon, icon_button, icon_mono},
     config::SettingsFormat,
     services::{
         ReadOnlyService, Service, ServiceEvent,
-        audio::{AudioCommand, AudioService, DeviceType},
+        audio::{AudioCommand, AudioService, DevicePortType, Port},
     },
     theme::AshellTheme,
 };
@@ -73,7 +73,7 @@ pub struct AudioSettings {
 
 pub struct SubmenuEntry<RMessage> {
     pub name: String,
-    pub device: DeviceType,
+    pub icon: StaticIcon,
     pub active: bool,
     pub msg: RMessage,
 }
@@ -373,10 +373,10 @@ impl AudioSettings {
                     .sink_iter()
                     .map(|route| SubmenuEntry {
                         name: route.to_string(),
-                        device: route
+                        icon: route
                             .port
-                            .map(|p| p.device_type)
-                            .unwrap_or(DeviceType::Speaker),
+                            .and_then(Self::port_icon)
+                            .unwrap_or(StaticIcon::Speaker3),
                         active: route.is_active()
                             && route.device.name == service.server_info.default_sink,
                         msg: Message::DefaultSinkChanged(
@@ -406,10 +406,10 @@ impl AudioSettings {
                     .source_iter()
                     .map(|route| SubmenuEntry {
                         name: route.to_string(),
-                        device: route
+                        icon: route
                             .port
-                            .map(|p| p.device_type)
-                            .unwrap_or(DeviceType::Speaker),
+                            .and_then(Self::port_icon)
+                            .unwrap_or(StaticIcon::Mic1),
                         active: route.is_active()
                             && route.device.name == service.server_info.default_source,
                         msg: Message::DefaultSourceChanged(
@@ -425,6 +425,34 @@ impl AudioSettings {
                 },
             )
         })
+    }
+
+    fn port_icon(port: &Port) -> Option<StaticIcon> {
+        match port.device_type {
+            DevicePortType::Unknown => None,
+            DevicePortType::Aux => Some(StaticIcon::AudioJack),
+            DevicePortType::Speaker => Some(StaticIcon::Speaker3),
+            DevicePortType::Headphones => Some(StaticIcon::Headphones1),
+            DevicePortType::Line => Some(StaticIcon::AudioJack),
+            DevicePortType::Mic => Some(StaticIcon::Mic1),
+            DevicePortType::Headset => Some(StaticIcon::Headset),
+            DevicePortType::Handset => Some(StaticIcon::Phone),
+            DevicePortType::Earpiece => Some(StaticIcon::Ear),
+            DevicePortType::SPDIF => Some(StaticIcon::AudioRca),
+            DevicePortType::HDMI => Some(StaticIcon::MonitorSpeaker),
+            DevicePortType::TV => Some(StaticIcon::MonitorSpeaker),
+            DevicePortType::Radio => Some(StaticIcon::Radio),
+            DevicePortType::Video => Some(StaticIcon::MonitorSpeaker),
+            DevicePortType::USB => Some(StaticIcon::Usb),
+            DevicePortType::Bluetooth => Some(StaticIcon::SpeakerBluetooth),
+            DevicePortType::Portable => None,
+            DevicePortType::Handsfree => Some(StaticIcon::Ear),
+            DevicePortType::Car => Some(StaticIcon::Car),
+            DevicePortType::HiFi => Some(StaticIcon::AudioHiFi),
+            DevicePortType::Phone => Some(StaticIcon::Phone),
+            DevicePortType::Network => Some(StaticIcon::SpeakerWireless),
+            DevicePortType::Analog => Some(StaticIcon::AudioRca),
+        }
     }
 
     fn slider<'a>(
@@ -504,7 +532,7 @@ impl AudioSettings {
                 .map(|e| {
                     if e.active {
                         container(
-                            row!(icon(e.device.get_icon()), text(e.name))
+                            row!(icon_mono(e.icon), text(e.name))
                                 .align_y(Alignment::Center)
                                 .spacing(theme.space.md)
                                 .padding([theme.space.xxs, theme.space.sm]),
@@ -516,7 +544,7 @@ impl AudioSettings {
                         .into()
                     } else {
                         button(
-                            row!(icon(e.device.get_icon()), text(e.name))
+                            row!(icon_mono(e.icon), text(e.name))
                                 .spacing(theme.space.md)
                                 .align_y(Alignment::Center),
                         )
