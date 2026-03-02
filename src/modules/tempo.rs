@@ -188,18 +188,21 @@ impl Tempo {
     }
 
     pub fn weather_indicator(&'_ self, theme: &AshellTheme) -> Option<Element<'_, Message>> {
-        self.weather_data.as_ref().map(|data| {
-            row!(
-                weather_icon(data.current.weather_code, data.current.is_day > 0)
-                    .width(Length::Fixed(theme.font_size.sm as f32)),
-                text(format!("{}°C", data.current.temperature_2m))
-                    .align_y(Vertical::Center)
-                    .size(theme.font_size.sm)
-            )
-            .align_y(Vertical::Center)
-            .spacing(theme.space.xxs)
-            .into()
-        })
+        self.weather_data
+            .as_ref()
+            .zip(self.location.as_ref())
+            .map(|(data, _)| {
+                row!(
+                    weather_icon(data.current.weather_code, data.current.is_day > 0)
+                        .width(Length::Fixed(theme.font_size.sm as f32)),
+                    text(format!("{}°C", data.current.temperature_2m))
+                        .align_y(Vertical::Center)
+                        .size(theme.font_size.sm)
+                )
+                .align_y(Vertical::Center)
+                .spacing(theme.space.xxs)
+                .into()
+            })
     }
 
     pub fn menu_view<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
@@ -652,57 +655,43 @@ impl Tempo {
                     "weather",
                 ),
                 channel(100, async move |mut output| {
-                    let mut failed_attempt = 0;
+                    let mut failed_attempt: u64 = 0;
 
                     loop {
-                        let location = fetch_location(&location).await;
-
-                        match location {
+                        let loc = match fetch_location(&location).await {
                             Ok(loc) => {
                                 debug!("Location fetched successfully: {:?}", loc);
-
                                 let (lat, lon) = (loc.latitude, loc.longitude);
                                 output.send(Message::UpdateLocation(loc)).await.ok();
-
-                                loop {
-                                    let data = fetch_weather_data(lat, lon).await;
-
-                                    match data {
-                                        Ok(weather_data) => {
-                                            failed_attempt = 0;
-
-                                            debug!(
-                                                "Weather data fetched successfully: {:?}",
-                                                weather_data
-                                            );
-                                            output
-                                                .send(Message::UpdateWeather(Box::new(
-                                                    weather_data,
-                                                )))
-                                                .await
-                                                .ok();
-
-                                            tokio::time::sleep(Duration::from_secs(60 * 30)).await;
-                                        }
-                                        Err(e) => {
-                                            warn!("Failed to fetch weather data: {:?}", e);
-                                            failed_attempt += 1;
-
-                                            tokio::time::sleep(Duration::from_secs(
-                                                60 * failed_attempt,
-                                            ))
-                                            .await;
-                                        }
-                                    }
-                                }
+                                Some((lat, lon))
                             }
                             Err(e) => {
                                 warn!("Failed to fetch location: {:?}", e);
-                                failed_attempt += 1;
+                                None
+                            }
+                        };
 
-                                tokio::time::sleep(Duration::from_secs(60 * failed_attempt)).await;
+                        if let Some((lat, lon)) = loc {
+                            match fetch_weather_data(lat, lon).await {
+                                Ok(weather_data) => {
+                                    failed_attempt = 0;
+                                    debug!("Weather data fetched successfully: {:?}", weather_data);
+                                    output
+                                        .send(Message::UpdateWeather(Box::new(weather_data)))
+                                        .await
+                                        .ok();
+
+                                    tokio::time::sleep(Duration::from_secs(60 * 30)).await;
+                                    continue;
+                                }
+                                Err(e) => {
+                                    warn!("Failed to fetch weather data: {:?}", e);
+                                }
                             }
                         }
+
+                        failed_attempt += 1;
+                        tokio::time::sleep(Duration::from_secs(60 * failed_attempt)).await;
                     }
                 }),
             )
