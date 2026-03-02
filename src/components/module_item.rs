@@ -15,7 +15,7 @@ impl ModuleItem {
 
         let mut c = container()
             .height(fill())
-            .padding([0.0, 10.0])
+            .padding([0.0, 8.0])
             .corner_radius(16.0)
             .layout(Flex::row().cross_alignment(CrossAlignment::Center));
 

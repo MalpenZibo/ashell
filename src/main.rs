@@ -4,8 +4,10 @@ mod config_watcher;
 mod modules;
 mod services;
 
-use components::{center_box, module_group, module_item};
+use components::center_box;
+use config::ModuleName;
 use guido::prelude::*;
+use modules::{MenuCtx, MenuType, ModuleData, close_menu_fn, menu_width_for, modules_in_config};
 use services::compositor::{CompositorState, CompositorStateSignals, start_compositor_service};
 
 pub mod theme {
@@ -28,7 +30,7 @@ pub mod theme {
     impl ThemeColors {
         /// Slightly lighter background for panels/cards.
         pub fn surface(&self) -> Color {
-            let a = 0.08_f32;
+            let a = 0.1_f32;
             Color::rgb(
                 self.background.r * (1.0 - a) + a,
                 self.background.g * (1.0 - a) + a,
@@ -38,7 +40,6 @@ pub mod theme {
     }
 
     pub fn init(appearance: &Appearance) -> ThemeColors {
-        // let ws = &appearance.workspace_colors;
         ThemeColors {
             text: appearance.text_color.base(),
             background: appearance.background_color.base(),
@@ -51,26 +52,6 @@ pub mod theme {
 }
 
 const NERD_FONT: &[u8] = include_bytes!("../target/generated/SymbolsNerdFont-Regular-Subset.ttf");
-
-const MENU_WIDTH: f32 = 300.0;
-
-#[derive(Clone, Copy, PartialEq)]
-enum MenuType {
-    SystemInfo,
-    Updates,
-    Settings,
-}
-
-fn toggle_menu_surface(id: SurfaceId, open: bool) {
-    let handle = surface_handle(id);
-    if open {
-        handle.set_layer(Layer::Overlay);
-        handle.set_keyboard_interactivity(KeyboardInteractivity::OnDemand);
-    } else {
-        handle.set_layer(Layer::Background);
-        handle.set_keyboard_interactivity(KeyboardInteractivity::None);
-    }
-}
 
 #[tokio::main]
 async fn main() {
@@ -94,26 +75,38 @@ async fn main() {
             let compositor_state = CompositorStateSignals::new(CompositorState::default());
             let compositor_svc = start_compositor_service(compositor_state.writers());
 
-            // Shared module signals
-            let system_info = modules::system_info::create();
-            let (updates_data, updates_svc) = modules::updates::create();
-            let settings = modules::settings::create();
+            // Only create expensive services for modules actually in the config
+            let needed = modules_in_config(&cfg.modules);
+
+            let system_info = needed
+                .contains(&ModuleName::SystemInfo)
+                .then(|| modules::system_info::create());
+
+            let updates = (needed.contains(&ModuleName::Updates) && cfg.updates.is_some())
+                .then(|| modules::updates::create());
+
+            let settings = needed
+                .contains(&ModuleName::Settings)
+                .then(|| modules::settings::create());
+
+            let data = ModuleData {
+                compositor_state,
+                compositor_svc,
+                system_info,
+                updates: updates.clone(),
+                settings: settings.clone(),
+            };
 
             // Menu state
-            let active_menu = create_signal(None::<MenuType>);
-            // Fixed X position captured when menu opens
-            let menu_x = create_signal(0.0_f32);
-            // Signal to share menu surface ID between bar and menu surface closures
-            let menu_sid = create_signal(None::<SurfaceId>);
-            // Widget refs for positioning the menu under the triggering module
-            let sysinfo_ref = create_widget_ref();
-            let updates_ref = create_widget_ref();
-            let settings_ref = create_widget_ref();
-            // Widget ref for the menu backdrop to get screen width for clamping
             let backdrop_ref = create_widget_ref();
+            let menu = MenuCtx {
+                active_menu: create_signal(None::<MenuType>),
+                menu_x: create_signal(0.0_f32),
+                menu_sid: create_signal(None::<SurfaceId>),
+                backdrop_ref,
+            };
 
             // Bar surface
-            let settings_bar = settings.clone();
             app.add_surface(
                 SurfaceConfig::new()
                     .height(34)
@@ -127,121 +120,16 @@ async fn main() {
                     container()
                         .child(
                             center_box()
-                                .left(
-                                    module_group()
-                                        .child(
-                                            container().widget_ref(updates_ref).child(
-                                                module_item()
-                                                    .on_click(move || {
-                                                        let new = match active_menu.get() {
-                                                            Some(MenuType::Updates) => None,
-                                                            _ => Some(MenuType::Updates),
-                                                        };
-                                                        if new.is_some() {
-                                                            let r = updates_ref.rect().get();
-                                                            let screen_w =
-                                                                backdrop_ref.rect().get().width;
-                                                            let center = r.x + r.width / 2.0;
-                                                            menu_x.set(
-                                                                (center - MENU_WIDTH / 2.0)
-                                                                    .max(8.0)
-                                                                    .min(
-                                                                        screen_w - MENU_WIDTH - 8.0,
-                                                                    ),
-                                                            );
-                                                        }
-                                                        active_menu.set(new);
-                                                        if let Some(id) = menu_sid.get() {
-                                                            toggle_menu_surface(id, new.is_some());
-                                                        }
-                                                    })
-                                                    .child(modules::updates::view(updates_data)),
-                                            ),
-                                        )
-                                        .child(module_item().child(modules::workspaces::view(
-                                            compositor_state,
-                                            compositor_svc.clone(),
-                                        ))),
-                                )
-                                .center(container().child(move || {
-                                    compositor_state.active_window.with(|w| w.is_some()).then(
-                                        || {
-                                            module_group().child(module_item().child(
-                                                modules::window_title::view(compositor_state),
-                                            ))
-                                        },
-                                    )
-                                }))
-                                .right(
-                                    module_group()
-                                        .child({
-                                            let settings = settings_bar.clone();
-                                            container().widget_ref(settings_ref).child(
-                                                module_item()
-                                                    .on_click(move || {
-                                                        let new = match active_menu.get() {
-                                                            Some(MenuType::Settings) => None,
-                                                            _ => Some(MenuType::Settings),
-                                                        };
-                                                        if new.is_some() {
-                                                            let r = settings_ref.rect().get();
-                                                            let screen_w =
-                                                                backdrop_ref.rect().get().width;
-                                                            let w = 350.0_f32;
-                                                            let center = r.x + r.width / 2.0;
-                                                            menu_x.set(
-                                                                (center - w / 2.0)
-                                                                    .max(8.0)
-                                                                    .min(screen_w - w - 8.0),
-                                                            );
-                                                        }
-                                                        active_menu.set(new);
-                                                        if let Some(id) = menu_sid.get() {
-                                                            toggle_menu_surface(id, new.is_some());
-                                                        }
-                                                    })
-                                                    .child(modules::settings::view(settings)),
-                                            )
-                                        })
-                                        .child(
-                                            container().widget_ref(sysinfo_ref).child(
-                                                module_item()
-                                                    .on_click(move || {
-                                                        let new = match active_menu.get() {
-                                                            Some(MenuType::SystemInfo) => None,
-                                                            _ => Some(MenuType::SystemInfo),
-                                                        };
-                                                        if new.is_some() {
-                                                            let r = sysinfo_ref.rect().get();
-                                                            let screen_w =
-                                                                backdrop_ref.rect().get().width;
-                                                            let center = r.x + r.width / 2.0;
-                                                            menu_x.set(
-                                                                (center - MENU_WIDTH / 2.0)
-                                                                    .max(8.0)
-                                                                    .min(
-                                                                        screen_w - MENU_WIDTH - 8.0,
-                                                                    ),
-                                                            );
-                                                        }
-                                                        active_menu.set(new);
-                                                        if let Some(id) = menu_sid.get() {
-                                                            toggle_menu_surface(id, new.is_some());
-                                                        }
-                                                    })
-                                                    .child(modules::system_info::view(system_info)),
-                                            ),
-                                        )
-                                        .child(module_item().child(modules::clock::view())),
-                                ),
+                                .left(modules::build_section(&cfg.modules.left, &data, menu))
+                                .center(modules::build_section(&cfg.modules.center, &data, menu))
+                                .right(modules::build_section(&cfg.modules.right, &data, menu)),
                         )
                         .padding([4.0, 0.0])
                 },
             );
 
             // Menu surface: full-screen overlay, starts hidden on Background layer
-            let updates_svc_menu = updates_svc.clone();
-            let settings_menu = settings.clone();
+            let close = close_menu_fn(menu);
             let menu_surface_id = app.add_surface(
                 SurfaceConfig::new()
                     .anchor(Anchor::TOP | Anchor::BOTTOM | Anchor::LEFT | Anchor::RIGHT)
@@ -251,104 +139,80 @@ async fn main() {
                     .keyboard_interactivity(KeyboardInteractivity::None)
                     .namespace("ashell-menu"),
                 move || {
-                    // Backdrop: full-screen, click-outside closes menu
+                    let active_menu = menu.active_menu;
+                    let menu_x = menu.menu_x;
+                    let close_outer = close.clone();
+
                     container()
                         .widget_ref(backdrop_ref)
                         .width(fill())
                         .height(fill())
                         .background(Color::TRANSPARENT)
-                        .on_click(move || {
-                            active_menu.set(None);
-                            if let Some(id) = menu_sid.get() {
-                                toggle_menu_surface(id, false);
-                            }
-                        })
+                        .on_click(close_outer)
                         .child({
-                            let updates_svc_inner = updates_svc_menu.clone();
-                            let settings_inner = settings_menu.clone();
+                            let updates_inner = updates.clone();
+                            let settings_inner = settings.clone();
+                            let close_inner = close.clone();
                             move || {
-                                let menu = active_menu.get();
-                                if menu.is_some() {
-                                    let menu_width = match menu {
-                                        Some(MenuType::Settings) => 350.0,
-                                        _ => MENU_WIDTH,
-                                    };
-                                    Some(
-                                        // Menu content panel
-                                        container()
-                                            .translate(move || menu_x.get(), 0.)
-                                            .width(menu_width)
-                                            .height(at_most(800.0))
-                                            .scrollable(ScrollAxis::Vertical)
-                                            .background(theme_colors.surface())
-                                            .corner_radius(12.0)
-                                            .padding(16.0)
-                                            .on_click(|| {
-                                                // Swallow clicks so they don't close the menu
-                                            })
-                                            .child({
-                                                let svc = updates_svc_inner.clone();
-                                                let settings = settings_inner.clone();
-                                                move || {
-                                                    let menu = active_menu.get();
-                                                    match menu {
-                                                        Some(MenuType::SystemInfo) => {
-                                                            Some(container().child(
-                                                                modules::system_info::menu_view(
-                                                                    system_info,
-                                                                ),
-                                                            ))
-                                                        }
-                                                        Some(MenuType::Updates) => {
-                                                            Some(container().child(
-                                                                modules::updates::menu_view(
-                                                                    updates_data,
-                                                                    svc.clone(),
-                                                                    move || {
-                                                                        active_menu.set(None);
-                                                                        if let Some(id) =
-                                                                            menu_sid.get()
-                                                                        {
-                                                                            toggle_menu_surface(
-                                                                                id, false,
-                                                                            );
-                                                                        }
-                                                                    },
-                                                                ),
-                                                            ))
-                                                        }
-                                                        Some(MenuType::Settings) => {
-                                                            Some(container().child(
-                                                                modules::settings::menu_view(
-                                                                    settings.clone(),
-                                                                    move || {
-                                                                        active_menu.set(None);
-                                                                        if let Some(id) =
-                                                                            menu_sid.get()
-                                                                        {
-                                                                            toggle_menu_surface(
-                                                                                id, false,
-                                                                            );
-                                                                        }
-                                                                    },
-                                                                ),
-                                                            ))
-                                                        }
-                                                        None => None,
-                                                    }
+                                let mt = active_menu.get();
+                                mt.map(|mt| {
+                                    let menu_width = menu_width_for(mt);
+                                    let close = close_inner.clone();
+                                    container()
+                                        .translate(move || menu_x.get(), 0.)
+                                        .width(menu_width)
+                                        .height(at_most(800.0))
+                                        .scrollable(ScrollAxis::Vertical)
+                                        .background(theme_colors.surface())
+                                        .corner_radius(12.0)
+                                        .padding(16.0)
+                                        .on_click(|| {
+                                            // Swallow clicks so they don't close the menu
+                                        })
+                                        .child({
+                                            let updates_inner = updates_inner.clone();
+                                            let settings_inner = settings_inner.clone();
+                                            let close = close.clone();
+                                            move || match active_menu.get() {
+                                                Some(MenuType::SystemInfo) => {
+                                                    system_info.map(|info| {
+                                                        container().child(
+                                                            modules::system_info::menu_view(info),
+                                                        )
+                                                    })
                                                 }
-                                            }),
-                                    )
-                                } else {
-                                    None
-                                }
+                                                Some(MenuType::Updates) => {
+                                                    updates_inner.as_ref().map(|(d, svc)| {
+                                                        container().child(
+                                                            modules::updates::menu_view(
+                                                                *d,
+                                                                svc.clone(),
+                                                                close.clone(),
+                                                            ),
+                                                        )
+                                                    })
+                                                }
+                                                Some(MenuType::Settings) => {
+                                                    settings_inner.as_ref().map(|s| {
+                                                        container().child(
+                                                            modules::settings::menu_view(
+                                                                s.clone(),
+                                                                close.clone(),
+                                                            ),
+                                                        )
+                                                    })
+                                                }
+                                                None => None,
+                                            }
+                                        })
+                                })
                             }
                         })
                 },
             );
 
             // Store the menu surface ID so on_click handlers can access it
-            menu_sid.set(Some(menu_surface_id));
+            menu.menu_sid.set(Some(menu_surface_id));
         });
 
         // App is dropped here, cleaning up all state
