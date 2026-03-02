@@ -4,7 +4,11 @@ use crate::{
     menu::MenuSize,
     theme::AshellTheme,
 };
-use chrono::{DateTime, Datelike, Days, Local, Months, NaiveDate, NaiveDateTime, Weekday};
+use chrono::{
+    DateTime, Datelike, Days, FixedOffset, Local, Months, NaiveDate, NaiveDateTime, TimeZone, Utc,
+    Weekday,
+};
+use chrono_tz::Tz;
 use iced::{
     Background, Border, Degrees, Element,
     Length::{self, FillPortion},
@@ -13,7 +17,6 @@ use iced::{
     core::svg::Handle,
     futures::SinkExt,
     stream::channel,
-    time::every,
     widget::{
         Column, Row, Svg, button, column, container, row, scrollable, scrollable::Scrollbar, svg,
         text,
@@ -30,6 +33,15 @@ pub enum Message {
     ChangeSelectDate(Option<NaiveDate>),
     UpdateWeather(Box<WeatherData>),
     UpdateLocation(Location),
+    CycleFormat,
+    CycleTimezone(TimezoneDirection),
+    ConfigReloaded(TempoModuleConfig),
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum TimezoneDirection {
+    Forward,
+    Backward,
 }
 
 pub enum Action {
@@ -42,6 +54,8 @@ pub struct Tempo {
     selected_date: Option<NaiveDate>,
     weather_data: Option<WeatherData>,
     location: Option<Location>,
+    current_format_index: usize,
+    current_timezone_index: usize,
 }
 
 impl Tempo {
@@ -52,6 +66,20 @@ impl Tempo {
             selected_date: None,
             weather_data: None,
             location: None,
+            current_format_index: 0,
+            current_timezone_index: 0,
+        }
+    }
+
+    fn current_format(&self) -> &str {
+        if !self.config.formats.is_empty() {
+            self.config
+                .formats
+                .get(self.current_format_index)
+                .or_else(|| self.config.formats.first())
+                .unwrap_or(&self.config.clock_format)
+        } else {
+            &self.config.clock_format
         }
     }
 
@@ -77,15 +105,83 @@ impl Tempo {
 
                 Action::None
             }
+            Message::CycleFormat => {
+                if !self.config.formats.is_empty() {
+                    self.current_format_index =
+                        (self.current_format_index + 1) % self.config.formats.len();
+                }
+                Action::None
+            }
+            Message::CycleTimezone(direction) => {
+                if !self.config.timezones.is_empty() {
+                    let len = self.config.timezones.len();
+                    self.current_timezone_index = match direction {
+                        TimezoneDirection::Forward => (self.current_timezone_index + 1) % len,
+                        TimezoneDirection::Backward => self
+                            .current_timezone_index
+                            .checked_sub(1)
+                            .unwrap_or(len - 1),
+                    };
+                }
+                Action::None
+            }
+            Message::ConfigReloaded(new_config) => {
+                // Reset indices if they would be out of bounds or if config is empty
+                if new_config.formats.is_empty()
+                    || self.current_format_index >= new_config.formats.len()
+                {
+                    self.current_format_index = 0;
+                }
+
+                if new_config.timezones.is_empty()
+                    || self.current_timezone_index >= new_config.timezones.len()
+                {
+                    self.current_timezone_index = 0;
+                }
+
+                self.config = new_config;
+                Action::None
+            }
         }
     }
 
     pub fn view(&'_ self, theme: &AshellTheme) -> Element<'_, Message> {
+        let format = self.current_format();
+
+        let display_text = {
+            // %Z prints timezone abbreviations; other specifiers (e.g., %z/%:z) only need numeric offsets https://docs.rs/chrono/latest/chrono/format/strftime/index.html#fn6
+            let format_requests_name = format.contains("%Z");
+            let utc_now = self.date.with_timezone(&Utc);
+
+            self.config
+                .timezones
+                .get(self.current_timezone_index)
+                .and_then(|tz_name| {
+                    if !format_requests_name && let Ok(offset) = tz_name.parse::<FixedOffset>() {
+                        return Some(
+                            offset
+                                .from_utc_datetime(&utc_now.naive_utc())
+                                .format(format)
+                                .to_string(),
+                        );
+                    }
+
+                    if let Ok(tz) = tz_name.parse::<Tz>() {
+                        return Some(
+                            tz.from_utc_datetime(&utc_now.naive_utc())
+                                .format(format)
+                                .to_string(),
+                        );
+                    }
+
+                    None
+                })
+                .unwrap_or_else(|| self.date.format(format).to_string())
+        };
+
         Row::new()
             .push_maybe(self.weather_indicator(theme))
-            .push(text(
-                self.date.format(&self.config.clock_format).to_string(),
-            ))
+            .push(text(display_text))
             .align_y(Vertical::Center)
             .spacing(theme.space.sm)
             .into()
@@ -525,14 +621,28 @@ impl Tempo {
             "%:z", // UTC offset with seconds
             "%s",  // Unix timestamp (seconds since epoch)
         ];
+
+        let current_format = self.current_format();
+
         let interval = if second_specifiers
             .iter()
-            .any(|&spec| self.config.clock_format.contains(spec))
+            .any(|&spec| current_format.contains(spec))
         {
             Duration::from_secs(1)
         } else {
             Duration::from_secs(5)
         };
+
+        let time_sub = Subscription::run_with_id(
+            TypeId::of::<Self>(),
+            channel(100, move |mut output| async move {
+                let mut interval = tokio::time::interval(interval);
+                loop {
+                    interval.tick().await;
+                    output.send(Message::Update).await.ok();
+                }
+            }),
+        );
 
         let weather_sub = self.config.weather_location.clone().map(|location| {
             Subscription::run_with_id(
@@ -599,9 +709,9 @@ impl Tempo {
         });
 
         if let Some(weather_sub) = weather_sub {
-            Subscription::batch(vec![every(interval).map(|_| Message::Update), weather_sub])
+            Subscription::batch(vec![time_sub, weather_sub])
         } else {
-            every(interval).map(|_| Message::Update)
+            time_sub
         }
     }
 }
@@ -708,7 +818,7 @@ async fn fetch_weather_data(lat: f32, lon: f32) -> anyhow::Result<WeatherData> {
         &current=weather_code,apparent_temperature,relative_humidity_2m,temperature_2m,is_day,wind_speed_10m,wind_direction_10m\
         &hourly=weather_code,temperature_2m,is_day\
         &daily=weather_code,temperature_2m_max,temperature_2m_min,wind_speed_10m_max,wind_direction_10m_dominant\
-        &forecast_days=7", 
+        &forecast_days=7",
         lat, lon
     )).send().await?;
     let raw_data = response.text().await?;
