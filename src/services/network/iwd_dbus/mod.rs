@@ -142,10 +142,10 @@ impl super::NetworkBackend for IwdDbus<'_> {
     }
 
     async fn set_wifi_enabled(&self, enabled: bool) -> anyhow::Result<()> {
-        AdapterProxy::new(self.inner().connection())
-            .await?
-            .set_powered(enabled)
-            .await?;
+        let adapters = self.adapters().await?;
+        for adapter in adapters {
+            adapter.set_powered(enabled).await?;
+        }
         Ok(())
     }
 
