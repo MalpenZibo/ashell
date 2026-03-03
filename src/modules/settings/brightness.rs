@@ -21,16 +21,13 @@ pub fn slider_view(
     .detach();
 
     let svc_change = svc.clone();
-    slider(
-        pct,
-        || StaticIcon::Brightness,
-        || false, // brightness can't be muted
-        move |new_pct| {
+    slider()
+        .value(pct)
+        .ic(StaticIcon::Brightness)
+        .muted(false)
+        .on_change(move |new_pct| {
             let m = max.get();
             let raw = (new_pct as f32 / 100.0 * m as f32).round() as u32;
             svc_change.send(BrightnessCmd::Set(raw));
-        },
-        || {}, // no mute toggle for brightness
-        None::<fn()>,
-    )
+        })
 }

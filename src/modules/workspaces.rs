@@ -250,25 +250,21 @@ fn is_empty(workspaces: &[CompositorWorkspace], ws_id: i32) -> bool {
 
 fn pill_background(theme: ThemeColors, ws_color: Option<Color>, empty: bool) -> Color {
     if empty {
-        theme.surface()
+        theme.background.lighter(0.1)
     } else {
-        ws_color.unwrap_or(theme.surface())
+        ws_color.unwrap_or(theme.background.lighter(0.1))
     }
 }
 
 fn pill_border_width(empty: bool) -> f32 {
-    if empty {
-        1.0
-    } else {
-        0.0
-    }
+    if empty { 1.0 } else { 0.0 }
 }
 
-fn pill_border_color(theme: ThemeColors, ws_color: Option<Color>, empty: bool) -> Color {
-    if empty {
+fn pill_border_color(theme: ThemeColors, ws_color: Option<Color>, active: bool) -> Color {
+    if active {
         // Workspace color when assigned → visible colored border.
         // Surface color when unassigned → border blends with background.
-        ws_color.unwrap_or(theme.surface())
+        ws_color.unwrap_or(theme.background.lighter(0.8))
     } else {
         Color::TRANSPARENT
     }
@@ -339,7 +335,8 @@ pub fn view(state: CompositorStateSignals, svc: Service<CompositorCommand>) -> i
                                 } else {
                                     // Look up current monitor_id from live workspace data
                                     let ws = workspaces.get();
-                                    let mid = ws.iter().find(|w| w.id == id).and_then(|w| w.monitor_id);
+                                    let mid =
+                                        ws.iter().find(|w| w.id == id).and_then(|w| w.monitor_id);
                                     resolve_ws_color(&colors, mid)
                                 }
                             }
@@ -359,8 +356,8 @@ pub fn view(state: CompositorStateSignals, svc: Service<CompositorCommand>) -> i
                                 let mc = mons.len().max(1) as i32;
                                 let range_start = (id - 1) * mc + 1;
                                 let range_end = id * mc;
-                                let is_active = active
-                                    .is_some_and(|a| a >= range_start && a <= range_end);
+                                let is_active =
+                                    active.is_some_and(|a| a >= range_start && a <= range_end);
                                 if is_active {
                                     Displayed::Active
                                 } else {
@@ -388,13 +385,17 @@ pub fn view(state: CompositorStateSignals, svc: Service<CompositorCommand>) -> i
 
                         let mut pill = container()
                             .height(PILL_HEIGHT)
-                            .background(move || {
-                                pill_background(theme, ws_color.get(), empty.get())
-                            })
+                            .background(move || pill_background(theme, ws_color.get(), empty.get()))
                             .corner_radius(PILL_CORNER_RADIUS)
                             .border(
                                 move || pill_border_width(empty.get()),
-                                move || pill_border_color(theme, ws_color.get(), empty.get()),
+                                move || {
+                                    pill_border_color(
+                                        theme,
+                                        ws_color.get(),
+                                        displayed.get() == Displayed::Active,
+                                    )
+                                },
                             )
                             .layout(
                                 Flex::row()
@@ -444,13 +445,13 @@ pub fn view(state: CompositorStateSignals, svc: Service<CompositorCommand>) -> i
                             });
                         } else {
                             // Normal workspaces: fixed width based on state
-                            pill = pill
-                                .width(move || displayed.get().width())
-                                .animate_width(Transition {
+                            pill = pill.width(move || displayed.get().width()).animate_width(
+                                Transition {
                                     duration_ms: 150.0,
                                     timing: TimingFunction::EaseInOut,
                                     delay_ms: 0.0,
-                                });
+                                },
+                            );
                         }
 
                         pill

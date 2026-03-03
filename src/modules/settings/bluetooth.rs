@@ -1,6 +1,6 @@
 use guido::prelude::*;
 
-use crate::components::{StaticIcon, icon, quick_setting};
+use crate::components::{IconKind, StaticIcon, icon, quick_setting};
 use crate::services::bluetooth::{
     BluetoothCmd, BluetoothDataSignals, BluetoothState,
 };
@@ -19,7 +19,7 @@ pub fn bt_indicator(data: BluetoothDataSignals) -> impl Widget {
                 _ => {
                     let connected = devices.with(|d| d.iter().any(|d| d.connected));
                     Some(
-                        icon(if connected {
+                        icon().ic(if connected {
                             StaticIcon::BluetoothConnected
                         } else {
                             StaticIcon::Bluetooth
@@ -42,17 +42,17 @@ pub fn bt_quick_setting(
     let devices = data.devices;
     let svc_toggle = svc.clone();
 
-    quick_setting(
-        move || {
+    quick_setting()
+        .ic(move || {
             let connected = devices.with(|d| d.iter().any(|d| d.connected));
             if connected {
                 StaticIcon::BluetoothConnected
             } else {
                 StaticIcon::Bluetooth
             }
-        },
-        move || "Bluetooth".to_string(),
-        move || {
+        })
+        .title(move || "Bluetooth".to_string())
+        .subtitle(move || {
             let connected_count = devices.with(|d| d.iter().filter(|d| d.connected).count());
             if connected_count > 0 {
                 format!("{connected_count} connected")
@@ -61,11 +61,10 @@ pub fn bt_quick_setting(
             } else {
                 "Off".to_string()
             }
-        },
-        move || state.get() == BluetoothState::Active,
-        move || svc_toggle.send(BluetoothCmd::Toggle(state.get())),
-        Some(on_submenu),
-    )
+        })
+        .active(move || state.get() == BluetoothState::Active)
+        .on_toggle(move || svc_toggle.send(BluetoothCmd::Toggle(state.get())))
+        .on_submenu(on_submenu)
 }
 
 /// Bluetooth submenu: device list
@@ -111,12 +110,13 @@ pub fn bt_submenu(
                             }
                         })
                         .child(
-                            icon(move || {
+                            icon().ic(move || -> IconKind {
                                 if discovering.get() {
                                     StaticIcon::Close
                                 } else {
                                     StaticIcon::Refresh
                                 }
+                                .into()
                             })
                             .color(theme.text)
                             .font_size(12.0),
@@ -180,7 +180,7 @@ pub fn bt_submenu(
                                 .cross_alignment(CrossAlignment::Center),
                         )
                         .child(
-                            icon(StaticIcon::BluetoothConnected)
+                            icon().ic(StaticIcon::BluetoothConnected)
                                 .color(theme.text)
                                 .font_size(14.0),
                         )
@@ -214,7 +214,7 @@ pub fn bt_submenu(
                                 .spacing(8.0)
                                 .cross_alignment(CrossAlignment::Center),
                         )
-                        .child(icon(StaticIcon::Bluetooth).color(theme.text).font_size(14.0))
+                        .child(icon().ic(StaticIcon::Bluetooth).color(theme.text).font_size(14.0))
                         .child(text(name).color(theme.text).font_size(12.0)),
                 );
             }
@@ -252,7 +252,7 @@ pub fn bt_submenu(
                                     .cross_alignment(CrossAlignment::Center),
                             )
                             .child(
-                                icon(StaticIcon::Bluetooth).color(theme.text).font_size(14.0),
+                                icon().ic(StaticIcon::Bluetooth).color(theme.text).font_size(14.0),
                             )
                             .child(text(name).color(theme.text).font_size(12.0)),
                     );

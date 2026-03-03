@@ -1,6 +1,6 @@
 use guido::prelude::*;
 
-use crate::components::{StaticIcon, icon, slider};
+use crate::components::{IconKind, StaticIcon, icon, slider};
 use crate::services::audio::{AudioCmd, AudioDataSignals, Sinks, Sources};
 use crate::theme::ThemeColors;
 
@@ -18,10 +18,10 @@ pub fn sink_slider(
     let svc_change = svc.clone();
     let svc_mute = svc.clone();
 
-    slider(
-        cur_vol,
-        move || sinks.with(|s| Sinks::get_icon(s, &server_info.with(|si| si.default_sink.clone()))),
-        move || {
+    slider()
+        .value(cur_vol)
+        .ic(move || sinks.with(|s| Sinks::get_icon(s, &server_info.with(|si| si.default_sink.clone()))))
+        .muted(move || {
             let si = server_info.with(|si| si.default_sink.clone());
             sinks.with(|s| {
                 s.iter()
@@ -29,10 +29,10 @@ pub fn sink_slider(
                     .map(|d| d.is_mute)
                     .unwrap_or(false)
             })
-        },
-        move |vol| svc_change.send(AudioCmd::SinkVolume(vol)),
-        move || svc_mute.send(AudioCmd::ToggleSinkMute),
-        Some(move || {
+        })
+        .on_change(move |vol| svc_change.send(AudioCmd::SinkVolume(vol)))
+        .on_mute_toggle(move || svc_mute.send(AudioCmd::ToggleSinkMute))
+        .on_chevron(move || {
             submenu.set(
                 if submenu.get() == Some(SubMenu::Sinks) {
                     None
@@ -40,8 +40,7 @@ pub fn sink_slider(
                     Some(SubMenu::Sinks)
                 },
             );
-        }),
-    )
+        })
 }
 
 pub fn source_slider(
@@ -56,10 +55,10 @@ pub fn source_slider(
     let svc_change = svc.clone();
     let svc_mute = svc.clone();
 
-    slider(
-        cur_vol,
-        move || sources.with(|s| Sources::get_icon(s, &server_info.with(|si| si.default_source.clone()))),
-        move || {
+    slider()
+        .value(cur_vol)
+        .ic(move || sources.with(|s| Sources::get_icon(s, &server_info.with(|si| si.default_source.clone()))))
+        .muted(move || {
             let si = server_info.with(|si| si.default_source.clone());
             sources.with(|s| {
                 s.iter()
@@ -67,10 +66,10 @@ pub fn source_slider(
                     .map(|d| d.is_mute)
                     .unwrap_or(false)
             })
-        },
-        move |vol| svc_change.send(AudioCmd::SourceVolume(vol)),
-        move || svc_mute.send(AudioCmd::ToggleSourceMute),
-        Some(move || {
+        })
+        .on_change(move |vol| svc_change.send(AudioCmd::SourceVolume(vol)))
+        .on_mute_toggle(move || svc_mute.send(AudioCmd::ToggleSourceMute))
+        .on_chevron(move || {
             submenu.set(
                 if submenu.get() == Some(SubMenu::Sources) {
                     None
@@ -78,8 +77,7 @@ pub fn source_slider(
                     Some(SubMenu::Sources)
                 },
             );
-        }),
-    )
+        })
 }
 
 /// Bar indicator: speaker icon + volume %
@@ -96,7 +94,7 @@ pub fn sink_indicator(data: AudioDataSignals) -> impl Widget {
                 .cross_alignment(CrossAlignment::Center),
         )
         .child(
-            icon(move || sinks.with(|s| Sinks::get_icon(s, &server_info.with(|si| si.default_sink.clone()))))
+            icon().ic(move || IconKind::from(sinks.with(|s| Sinks::get_icon(s, &server_info.with(|si| si.default_sink.clone())))))
                 .color(theme.text)
                 .font_size(14.0),
         )
@@ -160,7 +158,7 @@ pub fn sinks_submenu(
                                     .cross_alignment(CrossAlignment::Center),
                             )
                             .child(
-                                icon(port.device_type.get_icon())
+                                icon().ic(port.device_type.get_icon())
                                     .color(theme.text)
                                     .font_size(14.0),
                             )
@@ -229,7 +227,7 @@ pub fn sources_submenu(
                                     .cross_alignment(CrossAlignment::Center),
                             )
                             .child(
-                                icon(StaticIcon::Mic1)
+                                icon().ic(StaticIcon::Mic1)
                                     .color(theme.text)
                                     .font_size(14.0),
                             )

@@ -21,7 +21,7 @@ pub fn battery_indicator(data: UPowerDataSignals) -> impl Widget {
                                 .spacing(4.0)
                                 .cross_alignment(CrossAlignment::Center),
                         )
-                        .child(icon(b.get_icon()).color(theme.text).font_size(14.0))
+                        .child(icon().ic(b.get_icon()).color(theme.text).font_size(14.0))
                         .child(
                             text(format!("{}%", b.capacity))
                                 .color(theme.text)
@@ -40,19 +40,17 @@ pub fn power_profile_quick_setting(
     let profile = data.power_profile;
     let svc_toggle = svc.clone();
 
-    quick_setting(
-        move || StaticIcon::from(profile.get()),
-        move || match profile.get() {
+    quick_setting()
+        .ic(move || StaticIcon::from(profile.get()))
+        .title(move || match profile.get() {
             PowerProfile::Balanced => "Balanced".to_string(),
             PowerProfile::Performance => "Performance".to_string(),
             PowerProfile::PowerSaver => "Power Saver".to_string(),
             PowerProfile::Unknown => "Unknown".to_string(),
-        },
-        move || String::new(),
-        move || profile.get() != PowerProfile::Unknown,
-        move || svc_toggle.send(UPowerCmd::TogglePowerProfile),
-        None::<fn()>,
-    )
+        })
+        .subtitle(move || String::new())
+        .active(move || profile.get() != PowerProfile::Unknown)
+        .on_toggle(move || svc_toggle.send(UPowerCmd::TogglePowerProfile))
 }
 
 /// Battery section in menu header
@@ -75,7 +73,7 @@ pub fn battery_header(data: UPowerDataSignals) -> impl Widget {
                                 .spacing(4.0)
                                 .cross_alignment(CrossAlignment::Center),
                         )
-                        .child(icon(b.get_icon()).color(theme.text).font_size(16.0))
+                        .child(icon().ic(b.get_icon()).color(theme.text).font_size(16.0))
                         .child(
                             text(format!("{}%", b.capacity))
                                 .color(theme.text)
@@ -140,7 +138,7 @@ pub fn peripherals_view(data: UPowerDataSignals) -> impl Widget {
                                 .spacing(8.0)
                                 .cross_alignment(CrossAlignment::Center),
                         )
-                        .child(icon(ic).color(theme.text).font_size(14.0))
+                        .child(icon().ic(ic).color(theme.text).font_size(14.0))
                         .child(text(name).color(theme.text).font_size(12.0))
                         .child(
                             text(format!("{pct}%"))
@@ -222,6 +220,6 @@ fn power_action_button(
                 .spacing(8.0)
                 .cross_alignment(CrossAlignment::Center),
         )
-        .child(icon(ic).color(theme.text).font_size(14.0))
+        .child(icon().ic(ic).color(theme.text).font_size(14.0))
         .child(text(label).color(theme.text).font_size(14.0))
 }

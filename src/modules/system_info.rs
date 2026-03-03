@@ -128,7 +128,7 @@ fn indicator(
                 .spacing(4.0)
                 .cross_alignment(CrossAlignment::Center),
         )
-        .child(icon(ic).color(color_fn).font_size(14.0))
+        .child(icon().ic(ic).color(color_fn).font_size(14.0))
         .child(text(value_fn).color(color_fn2).font_size(13.0))
 }
 
@@ -154,7 +154,7 @@ fn menu_row(
                         .spacing(8.0)
                         .cross_alignment(CrossAlignment::Center),
                 )
-                .child(icon(ic).color(color_fn).font_size(16.0))
+                .child(icon().ic(ic).color(color_fn).font_size(16.0))
                 .child(text(label).color(theme.text).font_size(14.0)),
         )
         .child(text(value_fn).color(color_fn2).font_size(14.0))

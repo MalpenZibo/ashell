@@ -27,18 +27,6 @@ pub mod theme {
         pub danger: Color,
     }
 
-    impl ThemeColors {
-        /// Slightly lighter background for panels/cards.
-        pub fn surface(&self) -> Color {
-            let a = 0.1_f32;
-            Color::rgb(
-                self.background.r * (1.0 - a) + a,
-                self.background.g * (1.0 - a) + a,
-                self.background.b * (1.0 - a) + a,
-            )
-        }
-    }
-
     pub fn init(appearance: &Appearance) -> ThemeColors {
         ThemeColors {
             text: appearance.text_color.base(),
@@ -163,7 +151,7 @@ async fn main() {
                                         .width(menu_width)
                                         .height(at_most(800.0))
                                         .scrollable(ScrollAxis::Vertical)
-                                        .background(theme_colors.surface())
+                                        .background(theme_colors.background)
                                         .corner_radius(12.0)
                                         .padding(16.0)
                                         .on_click(|| {

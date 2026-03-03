@@ -5,6 +5,18 @@ fn nerd_font_family() -> FontFamily {
     FontFamily::Name("Symbols Nerd Font".into())
 }
 
+fn nerd_font_family_mono() -> FontFamily {
+    FontFamily::Name("Symbols Nerd Font Mono".into())
+}
+
+fn custom_icon_font() -> FontFamily {
+    FontFamily::Name("Ashell Custom Icon".into())
+}
+
+// ---------------------------------------------------------------------------
+// Icon data types
+// ---------------------------------------------------------------------------
+
 #[derive(Copy, Clone, Default)]
 #[allow(dead_code)]
 pub enum StaticIcon {
@@ -204,7 +216,104 @@ impl StaticIcon {
             StaticIcon::Remove => "\u{f0377}",
         }
     }
+
+    fn uses_custom_font(&self) -> bool {
+        matches!(
+            self,
+            StaticIcon::KeyboardBatteryFull
+                | StaticIcon::KeyboardBatteryMedium
+                | StaticIcon::KeyboardBatteryLow
+                | StaticIcon::KeyboardBatteryAlert
+                | StaticIcon::KeyboardBatteryCharging
+                | StaticIcon::MouseBatteryFull
+                | StaticIcon::MouseBatteryMedium
+                | StaticIcon::MouseBatteryLow
+                | StaticIcon::MouseBatteryAlert
+                | StaticIcon::MouseBatteryCharging
+                | StaticIcon::HeadphoneBatteryFull
+                | StaticIcon::HeadphoneBatteryMedium
+                | StaticIcon::HeadphoneBatteryLow
+                | StaticIcon::HeadphoneBatteryAlert
+                | StaticIcon::HeadphoneBatteryCharging
+        )
+    }
+
+    pub fn font_family(&self) -> FontFamily {
+        if self.uses_custom_font() {
+            custom_icon_font()
+        } else {
+            nerd_font_family()
+        }
+    }
+
+    pub fn font_family_mono(&self) -> FontFamily {
+        if self.uses_custom_font() {
+            custom_icon_font()
+        } else {
+            nerd_font_family_mono()
+        }
+    }
 }
+
+/// Arbitrary icon character string (always uses Nerd Font).
+#[derive(Clone)]
+pub struct DynamicIcon(pub String);
+
+// ---------------------------------------------------------------------------
+// IconKind — unified icon data: predefined variant OR arbitrary string
+// ---------------------------------------------------------------------------
+
+#[derive(Clone)]
+pub enum IconKind {
+    Static(StaticIcon),
+    Dynamic(String),
+}
+
+impl Default for IconKind {
+    fn default() -> Self {
+        IconKind::Static(StaticIcon::None)
+    }
+}
+
+impl IconKind {
+    fn get_str(&self) -> &str {
+        match self {
+            IconKind::Static(s) => s.get_str(),
+            IconKind::Dynamic(s) => s.as_str(),
+        }
+    }
+
+    fn font_family(&self) -> FontFamily {
+        match self {
+            IconKind::Static(s) => s.font_family(),
+            IconKind::Dynamic(_) => nerd_font_family(),
+        }
+    }
+
+    fn font_family_mono(&self) -> FontFamily {
+        match self {
+            IconKind::Static(s) => s.font_family_mono(),
+            IconKind::Dynamic(_) => nerd_font_family_mono(),
+        }
+    }
+}
+
+impl From<StaticIcon> for IconKind {
+    fn from(i: StaticIcon) -> Self {
+        IconKind::Static(i)
+    }
+}
+
+impl From<DynamicIcon> for IconKind {
+    fn from(d: DynamicIcon) -> Self {
+        IconKind::Dynamic(d.0)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// IntoMaybeDyn impls — let callers write icon().ic(StaticIcon::Wifi5)
+// or icon().ic("custom_char") without explicit wrapping
+// ---------------------------------------------------------------------------
 
 impl IntoMaybeDyn<StaticIcon> for StaticIcon {
     fn into_maybe_dyn(self) -> MaybeDyn<StaticIcon> {
@@ -212,12 +321,75 @@ impl IntoMaybeDyn<StaticIcon> for StaticIcon {
     }
 }
 
-pub fn icon(ic: impl IntoMaybeDyn<StaticIcon>) -> Text {
-    let ic = ic.into_maybe_dyn();
-    match ic {
-        MaybeDyn::Static(s) => text(s.get_str()).font_family(nerd_font_family()),
-        MaybeDyn::Dynamic(f) => {
-            text(move || f().get_str().to_string()).font_family(nerd_font_family())
-        }
+impl IntoMaybeDyn<IconKind> for IconKind {
+    fn into_maybe_dyn(self) -> MaybeDyn<IconKind> {
+        MaybeDyn::Static(self)
+    }
+}
+
+impl IntoMaybeDyn<IconKind> for StaticIcon {
+    fn into_maybe_dyn(self) -> MaybeDyn<IconKind> {
+        MaybeDyn::Static(IconKind::Static(self))
+    }
+}
+
+impl IntoMaybeDyn<IconKind> for DynamicIcon {
+    fn into_maybe_dyn(self) -> MaybeDyn<IconKind> {
+        MaybeDyn::Static(IconKind::Dynamic(self.0))
+    }
+}
+
+impl IntoMaybeDyn<IconKind> for &str {
+    fn into_maybe_dyn(self) -> MaybeDyn<IconKind> {
+        MaybeDyn::Static(IconKind::Dynamic(self.to_string()))
+    }
+}
+
+// Convenience: pass IconKind or StaticIcon directly to Option<IconKind> props
+impl IntoMaybeDyn<Option<IconKind>> for IconKind {
+    fn into_maybe_dyn(self) -> MaybeDyn<Option<IconKind>> {
+        MaybeDyn::Static(Some(self))
+    }
+}
+
+impl IntoMaybeDyn<Option<IconKind>> for StaticIcon {
+    fn into_maybe_dyn(self) -> MaybeDyn<Option<IconKind>> {
+        MaybeDyn::Static(Some(IconKind::Static(self)))
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Icon component
+// ---------------------------------------------------------------------------
+
+#[component]
+pub struct Icon {
+    #[prop]
+    ic: IconKind,
+    #[prop(default = "false")]
+    mono: bool,
+    #[prop(default = "Color::WHITE")]
+    color: Color,
+    #[prop(default = "14.0")]
+    font_size: f32,
+}
+
+impl Icon {
+    fn render(&self) -> impl Widget + use<> {
+        let ic = self.ic.clone();
+        let ic2 = self.ic.clone();
+        let mono = self.mono.clone();
+
+        text(move || ic.get().get_str().to_string())
+            .font_family(move || {
+                let i = ic2.get();
+                if mono.get() {
+                    i.font_family_mono()
+                } else {
+                    i.font_family()
+                }
+            })
+            .color(self.color.clone())
+            .font_size(self.font_size.clone())
     }
 }

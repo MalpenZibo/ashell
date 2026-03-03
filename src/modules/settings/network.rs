@@ -1,6 +1,6 @@
 use guido::prelude::*;
 
-use crate::components::{StaticIcon, icon, quick_setting};
+use crate::components::{IconKind, StaticIcon, icon, quick_setting};
 use crate::services::network::{
     ActiveConnectionInfo, KnownConnection, NetworkCmd, NetworkDataSignals,
 };
@@ -19,7 +19,7 @@ pub fn wifi_indicator(data: NetworkDataSignals) -> impl Widget {
                 .cross_alignment(CrossAlignment::Center),
         )
         .child(
-            icon(move || wifi_icon(active, wifi_enabled))
+            icon().ic(move || IconKind::from(wifi_icon(active, wifi_enabled)))
                 .color(theme.text)
                 .font_size(14.0),
         )
@@ -59,16 +59,16 @@ pub fn wifi_quick_setting(
     let active = data.active_connections;
     let svc_toggle = svc.clone();
 
-    quick_setting(
-        move || {
+    quick_setting()
+        .ic(move || {
             if wifi_enabled.get() {
                 wifi_icon(active, wifi_enabled)
             } else {
                 StaticIcon::Wifi0
             }
-        },
-        move || "Wi-Fi".to_string(),
-        move || {
+        })
+        .title(move || "Wi-Fi".to_string())
+        .subtitle(move || {
             if !wifi_enabled.get() {
                 return "Off".to_string();
             }
@@ -80,11 +80,10 @@ pub fn wifi_quick_setting(
                     })
                     .unwrap_or_default()
             })
-        },
-        move || wifi_enabled.get(),
-        move || svc_toggle.send(NetworkCmd::ToggleWiFi(wifi_enabled.get())),
-        Some(on_submenu),
-    )
+        })
+        .active(move || wifi_enabled.get())
+        .on_toggle(move || svc_toggle.send(NetworkCmd::ToggleWiFi(wifi_enabled.get())))
+        .on_submenu(on_submenu)
 }
 
 /// Airplane mode quick setting
@@ -95,20 +94,18 @@ pub fn airplane_quick_setting(
     let airplane = data.airplane_mode;
     let svc_toggle = svc.clone();
 
-    quick_setting(
-        move || StaticIcon::Airplane,
-        move || "Airplane".to_string(),
-        move || {
+    quick_setting()
+        .ic(move || StaticIcon::Airplane)
+        .title(move || "Airplane".to_string())
+        .subtitle(move || {
             if airplane.get() {
                 "On".to_string()
             } else {
                 "Off".to_string()
             }
-        },
-        move || airplane.get(),
-        move || svc_toggle.send(NetworkCmd::ToggleAirplaneMode(airplane.get())),
-        None::<fn()>,
-    )
+        })
+        .active(move || airplane.get())
+        .on_toggle(move || svc_toggle.send(NetworkCmd::ToggleAirplaneMode(airplane.get())))
 }
 
 /// VPN quick setting
@@ -121,10 +118,10 @@ pub fn vpn_quick_setting(
     let known = data.known_connections;
     let svc_toggle = svc.clone();
 
-    quick_setting(
-        move || StaticIcon::Vpn,
-        move || "VPN".to_string(),
-        move || {
+    quick_setting()
+        .ic(move || StaticIcon::Vpn)
+        .title(move || "VPN".to_string())
+        .subtitle(move || {
             active.with(|acs| {
                 acs.iter()
                     .find_map(|ac| match ac {
@@ -133,13 +130,13 @@ pub fn vpn_quick_setting(
                     })
                     .unwrap_or("Off".to_string())
             })
-        },
-        move || {
+        })
+        .active(move || {
             active.with(|acs| {
                 acs.iter().any(|ac| matches!(ac, ActiveConnectionInfo::Vpn { .. }))
             })
-        },
-        move || {
+        })
+        .on_toggle(move || {
             // Toggle first known VPN — read state on main thread
             let vpn = known.with(|kc| {
                 kc.iter().find_map(|k| match k {
@@ -158,9 +155,8 @@ pub fn vpn_quick_setting(
                 });
                 svc_toggle.send(NetworkCmd::ToggleVpn(v, active_path));
             }
-        },
-        Some(on_submenu),
-    )
+        })
+        .on_submenu(on_submenu)
 }
 
 /// WiFi submenu: list of known/available access points
@@ -202,9 +198,9 @@ pub fn wifi_submenu(
                         })
                         .child(move || {
                             Some(if scanning.get() {
-                                icon(StaticIcon::Refresh).color(theme.text).font_size(12.0)
+                                icon().ic(StaticIcon::Refresh).color(theme.text).font_size(12.0)
                             } else {
-                                icon(StaticIcon::Refresh).color(theme.text).font_size(12.0)
+                                icon().ic(StaticIcon::Refresh).color(theme.text).font_size(12.0)
                             })
                         })
                 }),
@@ -251,7 +247,7 @@ pub fn wifi_submenu(
                                     .cross_alignment(CrossAlignment::Center),
                             )
                             .child(
-                                icon(strength_to_icon(strength, true))
+                                icon().ic(strength_to_icon(strength, true))
                                     .color(theme.text)
                                     .font_size(14.0),
                             )
@@ -295,7 +291,7 @@ pub fn wifi_submenu(
                                 .cross_alignment(CrossAlignment::Center),
                         )
                         .child(
-                            icon(strength_to_icon(strength, is_public))
+                            icon().ic(strength_to_icon(strength, is_public))
                                 .color(theme.text)
                                 .font_size(14.0),
                         )
@@ -364,7 +360,7 @@ pub fn vpn_submenu(
                                     .spacing(8.0)
                                     .cross_alignment(CrossAlignment::Center),
                             )
-                            .child(icon(StaticIcon::Vpn).color(theme.text).font_size(14.0))
+                            .child(icon().ic(StaticIcon::Vpn).color(theme.text).font_size(14.0))
                             .child(text(name).color(theme.text).font_size(12.0)),
                     );
                 }

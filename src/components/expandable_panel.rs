@@ -1,6 +1,6 @@
 use guido::prelude::*;
 
-use super::icons::{StaticIcon, icon};
+use super::icons::{IconKind, StaticIcon, icon};
 use crate::theme::ThemeColors;
 
 #[component]
@@ -44,12 +44,13 @@ impl ExpandablePanel {
                     )
                     .child(header.unwrap_or_else(|| Box::new(container())))
                     .child(
-                        icon(move || {
+                        icon().ic(move || -> IconKind {
                             if expanded.get() {
                                 StaticIcon::MenuClosed
                             } else {
                                 StaticIcon::MenuOpen
                             }
+                            .into()
                         })
                         .color(theme.text)
                         .font_size(14.0),

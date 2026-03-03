@@ -6,7 +6,7 @@ pub mod power;
 
 use guido::prelude::*;
 
-use crate::components::{StaticIcon, icon, quick_setting};
+use crate::components::{IconKind, StaticIcon, button, icon, quick_setting};
 use crate::config::Config;
 use crate::services;
 use crate::theme::ThemeColors;
@@ -109,9 +109,12 @@ pub fn menu_view(
     let close_menu2 = close_menu.clone();
 
     let lock_cmd = with_context::<Config, _>(|c| {
-        c.settings.lock_cmd.clone()
+        c.settings
+            .lock_cmd
+            .clone()
             .unwrap_or_else(|| "loginctl lock-session".to_string())
-    }).unwrap();
+    })
+    .unwrap();
 
     container()
         .width(fill())
@@ -134,22 +137,24 @@ pub fn menu_view(
                                 .spacing(4.0)
                                 .cross_alignment(CrossAlignment::Center),
                         )
-                        .child(header_icon_button(StaticIcon::Lock, move || {
-                            let _ = std::process::Command::new("bash")
-                                .arg("-c")
-                                .arg(&lock_cmd)
-                                .spawn();
-                            close();
-                        }))
-                        .child(header_icon_button(StaticIcon::Power, move || {
-                            submenu.set(
-                                if submenu.get() == Some(SubMenu::Power) {
+                        .child(button().icon(IconKind::Static(StaticIcon::Lock)).on_click(
+                            move || {
+                                let _ = std::process::Command::new("bash")
+                                    .arg("-c")
+                                    .arg(&lock_cmd)
+                                    .spawn();
+                                close();
+                            },
+                        ))
+                        .child(button().icon(IconKind::Static(StaticIcon::Power)).on_click(
+                            move || {
+                                submenu.set(if submenu.get() == Some(SubMenu::Power) {
                                     None
                                 } else {
                                     Some(SubMenu::Power)
-                                },
-                            );
-                        }))
+                                });
+                            },
+                        ))
                 })
         })
         // Power submenu (conditionally shown)
@@ -172,7 +177,10 @@ pub fn menu_view(
             let audio_svc = settings.audio_svc.clone();
             move || {
                 if submenu.get() == Some(SubMenu::Sinks) {
-                    Some(submenu_wrapper(audio::sinks_submenu(audio_data, audio_svc.clone())))
+                    Some(submenu_wrapper(audio::sinks_submenu(
+                        audio_data,
+                        audio_svc.clone(),
+                    )))
                 } else {
                     None
                 }
@@ -190,7 +198,10 @@ pub fn menu_view(
             let audio_svc = settings.audio_svc.clone();
             move || {
                 if submenu.get() == Some(SubMenu::Sources) {
-                    Some(submenu_wrapper(audio::sources_submenu(audio_data, audio_svc.clone())))
+                    Some(submenu_wrapper(audio::sources_submenu(
+                        audio_data,
+                        audio_svc.clone(),
+                    )))
                 } else {
                     None
                 }
@@ -205,40 +216,38 @@ pub fn menu_view(
         // Row 1: WiFi | Bluetooth
         .child(move || {
             let settings = settings2.clone();
-            Some(container()
-                .width(fill())
-                .layout(Flex::column().spacing(8.0))
-                .child(
-                    container()
-                        .width(fill())
-                        .layout(Flex::row().spacing(8.0))
-                        .child(network::wifi_quick_setting(
-                            settings.network_data,
-                            settings.network_svc.clone(),
-                            move || {
-                                submenu.set(
-                                    if submenu.get() == Some(SubMenu::WiFi) {
+            Some(
+                container()
+                    .width(fill())
+                    .layout(Flex::column().spacing(8.0))
+                    .child(
+                        container()
+                            .width(fill())
+                            .layout(Flex::row().spacing(8.0))
+                            .child(network::wifi_quick_setting(
+                                settings.network_data,
+                                settings.network_svc.clone(),
+                                move || {
+                                    submenu.set(if submenu.get() == Some(SubMenu::WiFi) {
                                         None
                                     } else {
                                         Some(SubMenu::WiFi)
-                                    },
-                                );
-                            },
-                        ))
-                        .child(bluetooth::bt_quick_setting(
-                            settings.bluetooth_data,
-                            settings.bluetooth_svc.clone(),
-                            move || {
-                                submenu.set(
-                                    if submenu.get() == Some(SubMenu::Bluetooth) {
+                                    });
+                                },
+                            ))
+                            .child(bluetooth::bt_quick_setting(
+                                settings.bluetooth_data,
+                                settings.bluetooth_svc.clone(),
+                                move || {
+                                    submenu.set(if submenu.get() == Some(SubMenu::Bluetooth) {
                                         None
                                     } else {
                                         Some(SubMenu::Bluetooth)
-                                    },
-                                );
-                            },
-                        )),
-                ))
+                                    });
+                                },
+                            )),
+                    ),
+            )
         })
         // WiFi submenu
         .child({
@@ -246,7 +255,10 @@ pub fn menu_view(
             let net_svc = settings3.network_svc.clone();
             move || {
                 if submenu.get() == Some(SubMenu::WiFi) {
-                    Some(submenu_wrapper(network::wifi_submenu(net_data, net_svc.clone())))
+                    Some(submenu_wrapper(network::wifi_submenu(
+                        net_data,
+                        net_svc.clone(),
+                    )))
                 } else {
                     None
                 }
@@ -258,7 +270,10 @@ pub fn menu_view(
             let bt_svc = settings3.bluetooth_svc.clone();
             move || {
                 if submenu.get() == Some(SubMenu::Bluetooth) {
-                    Some(submenu_wrapper(bluetooth::bt_submenu(bt_data, bt_svc.clone())))
+                    Some(submenu_wrapper(bluetooth::bt_submenu(
+                        bt_data,
+                        bt_svc.clone(),
+                    )))
                 } else {
                     None
                 }
@@ -269,23 +284,23 @@ pub fn menu_view(
             let net_data = settings3.network_data;
             let net_svc = settings3.network_svc.clone();
             move || {
-                Some(container()
-                    .width(fill())
-                    .layout(Flex::row().spacing(8.0))
-                    .child(network::vpn_quick_setting(
-                        net_data,
-                        net_svc.clone(),
-                        move || {
-                            submenu.set(
-                                if submenu.get() == Some(SubMenu::Vpn) {
+                Some(
+                    container()
+                        .width(fill())
+                        .layout(Flex::row().spacing(8.0))
+                        .child(network::vpn_quick_setting(
+                            net_data,
+                            net_svc.clone(),
+                            move || {
+                                submenu.set(if submenu.get() == Some(SubMenu::Vpn) {
                                     None
                                 } else {
                                     Some(SubMenu::Vpn)
-                                },
-                            );
-                        },
-                    ))
-                    .child(network::airplane_quick_setting(net_data, net_svc.clone())))
+                                });
+                            },
+                        ))
+                        .child(network::airplane_quick_setting(net_data, net_svc.clone())),
+                )
             }
         })
         // VPN submenu
@@ -294,7 +309,10 @@ pub fn menu_view(
             let net_svc = settings3.network_svc.clone();
             move || {
                 if submenu.get() == Some(SubMenu::Vpn) {
-                    Some(submenu_wrapper(network::vpn_submenu(net_data, net_svc.clone())))
+                    Some(submenu_wrapper(network::vpn_submenu(
+                        net_data,
+                        net_svc.clone(),
+                    )))
                 } else {
                     None
                 }
@@ -308,11 +326,13 @@ pub fn menu_view(
             let up_svc = settings3.upower_svc.clone();
             move || {
                 let inhibitor_svc = inhibitor_svc.clone();
-                Some(container()
-                    .width(fill())
-                    .layout(Flex::row().spacing(8.0))
-                    .child(idle_inhibitor_quick_setting(inhibitor_data, inhibitor_svc))
-                    .child(power::power_profile_quick_setting(up_data, up_svc.clone())))
+                Some(
+                    container()
+                        .width(fill())
+                        .layout(Flex::row().spacing(8.0))
+                        .child(idle_inhibitor_quick_setting(inhibitor_data, inhibitor_svc))
+                        .child(power::power_profile_quick_setting(up_data, up_svc.clone())),
+                )
             }
         })
         // Peripherals
@@ -348,27 +368,6 @@ fn divider() -> impl Widget {
         .background(Color::rgba(1.0, 1.0, 1.0, 0.15))
 }
 
-fn header_icon_button(
-    ic: StaticIcon,
-    on_click: impl Fn() + 'static,
-) -> impl Widget {
-    let theme = expect_context::<ThemeColors>();
-    let hovered = create_signal(false);
-    container()
-        .padding(6.0)
-        .corner_radius(8.0)
-        .on_hover(move |h| hovered.set(h))
-        .on_click(move || on_click())
-        .background(move || {
-            if hovered.get() {
-                Color::rgba(1.0, 1.0, 1.0, 0.15)
-            } else {
-                Color::rgba(1.0, 1.0, 1.0, 0.08)
-            }
-        })
-        .child(icon(ic).color(theme.text).font_size(16.0))
-}
-
 fn idle_inhibitor_quick_setting(
     data: services::idle_inhibitor::IdleInhibitorDataSignals,
     svc: Service<services::idle_inhibitor::IdleInhibitorCmd>,
@@ -376,18 +375,16 @@ fn idle_inhibitor_quick_setting(
     let inhibited = data.inhibited;
     let svc_toggle = svc.clone();
 
-    quick_setting(
-        move || {
+    quick_setting()
+        .ic(move || {
             if inhibited.get() {
                 StaticIcon::EyeOpened
             } else {
                 StaticIcon::EyeClosed
             }
-        },
-        move || "Idle Inhibitor".to_string(),
-        move || String::new(),
-        move || inhibited.get(),
-        move || svc_toggle.send(services::idle_inhibitor::IdleInhibitorCmd::Toggle),
-        None::<fn()>,
-    )
+        })
+        .title(move || "Idle Inhibitor".to_string())
+        .subtitle(move || String::new())
+        .active(move || inhibited.get())
+        .on_toggle(move || svc_toggle.send(services::idle_inhibitor::IdleInhibitorCmd::Toggle))
 }

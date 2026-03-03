@@ -1,6 +1,6 @@
 use guido::prelude::*;
 
-use crate::components::{StaticIcon, expandable_panel, icon};
+use crate::components::{IconKind, StaticIcon, expandable_panel, icon};
 use crate::config::{Config, UpdatesModuleConfig};
 use crate::services::updates::{
     UpdatesCmd, UpdatesData, UpdatesDataSignals, start_updates_service,
@@ -34,7 +34,7 @@ pub fn view(data: UpdatesDataSignals) -> impl Widget {
                 .cross_alignment(CrossAlignment::Center),
         )
         .child(
-            icon(move || {
+            icon().ic(move || -> IconKind {
                 if is_checking.get() {
                     StaticIcon::Refresh
                 } else if updates.with(|u| u.is_empty()) {
@@ -42,6 +42,7 @@ pub fn view(data: UpdatesDataSignals) -> impl Widget {
                 } else {
                     StaticIcon::UpdatesAvailable
                 }
+                .into()
             })
             .color(theme.text)
             .font_size(14.0),
@@ -194,7 +195,7 @@ fn menu_button_with_indicator(
         .child(text(label).color(theme.text).font_size(14.0))
         .child(move || {
             if is_checking.get() {
-                Some(icon(StaticIcon::Refresh).color(theme.text).font_size(14.0))
+                Some(icon().ic(StaticIcon::Refresh).color(theme.text).font_size(14.0))
             } else {
                 None
             }
