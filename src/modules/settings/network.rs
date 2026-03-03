@@ -67,9 +67,10 @@ pub fn wifi_quick_setting(
                 StaticIcon::Wifi0
             }
         },
+        move || "Wi-Fi".to_string(),
         move || {
             if !wifi_enabled.get() {
-                return "WiFi".to_string();
+                return "Off".to_string();
             }
             active.with(|acs| {
                 acs.iter()
@@ -77,18 +78,11 @@ pub fn wifi_quick_setting(
                         ActiveConnectionInfo::WiFi { name, .. } => Some(name.clone()),
                         _ => None,
                     })
-                    .unwrap_or("WiFi".to_string())
+                    .unwrap_or_default()
             })
         },
-        move || {
-            if wifi_enabled.get() {
-                "Connected".to_string()
-            } else {
-                "Off".to_string()
-            }
-        },
         move || wifi_enabled.get(),
-        move || svc_toggle.send(NetworkCmd::ToggleWiFi),
+        move || svc_toggle.send(NetworkCmd::ToggleWiFi(wifi_enabled.get())),
         Some(on_submenu),
     )
 }
@@ -112,7 +106,7 @@ pub fn airplane_quick_setting(
             }
         },
         move || airplane.get(),
-        move || svc_toggle.send(NetworkCmd::ToggleAirplaneMode),
+        move || svc_toggle.send(NetworkCmd::ToggleAirplaneMode(airplane.get())),
         None::<fn()>,
     )
 }
@@ -146,7 +140,7 @@ pub fn vpn_quick_setting(
             })
         },
         move || {
-            // Toggle first known VPN
+            // Toggle first known VPN — read state on main thread
             let vpn = known.with(|kc| {
                 kc.iter().find_map(|k| match k {
                     KnownConnection::Vpn(v) => Some(v.clone()),
@@ -154,7 +148,15 @@ pub fn vpn_quick_setting(
                 })
             });
             if let Some(v) = vpn {
-                svc_toggle.send(NetworkCmd::ToggleVpn(v));
+                let active_path = active.with(|acs| {
+                    acs.iter().find_map(|ac| match ac {
+                        ActiveConnectionInfo::Vpn { name, object_path } if *name == v.name => {
+                            Some(object_path.clone())
+                        }
+                        _ => None,
+                    })
+                });
+                svc_toggle.send(NetworkCmd::ToggleVpn(v, active_path));
             }
         },
         Some(on_submenu),
@@ -330,9 +332,15 @@ pub fn vpn_submenu(
                     let vpn_clone = vpn.clone();
                     let svc = svc.clone();
                     let hovered = create_signal(false);
-                    let is_active = active_list
+                    let active_vpn_path = active_list
                         .iter()
-                        .any(|ac| matches!(ac, ActiveConnectionInfo::Vpn { name: n, .. } if *n == name));
+                        .find_map(|ac| match ac {
+                            ActiveConnectionInfo::Vpn { name: n, object_path } if *n == name => {
+                                Some(object_path.clone())
+                            }
+                            _ => None,
+                        });
+                    let is_active = active_vpn_path.is_some();
                     col = col.child(
                         container()
                             .width(fill())
@@ -340,7 +348,7 @@ pub fn vpn_submenu(
                             .corner_radius(8.0)
                             .on_hover(move |h| hovered.set(h))
                             .on_click(move || {
-                                svc.send(NetworkCmd::ToggleVpn(vpn_clone.clone()));
+                                svc.send(NetworkCmd::ToggleVpn(vpn_clone.clone(), active_vpn_path.clone()));
                             })
                             .background(move || {
                                 if is_active {

@@ -155,7 +155,7 @@ pub fn menu_view(
         // Power submenu (conditionally shown)
         .child(move || {
             if submenu.get() == Some(SubMenu::Power) {
-                Some(power::power_actions(close_menu2.clone()))
+                Some(submenu_wrapper(power::power_actions(close_menu2.clone())))
             } else {
                 None
             }
@@ -172,7 +172,7 @@ pub fn menu_view(
             let audio_svc = settings.audio_svc.clone();
             move || {
                 if submenu.get() == Some(SubMenu::Sinks) {
-                    Some(audio::sinks_submenu(audio_data, audio_svc.clone()))
+                    Some(submenu_wrapper(audio::sinks_submenu(audio_data, audio_svc.clone())))
                 } else {
                     None
                 }
@@ -190,7 +190,7 @@ pub fn menu_view(
             let audio_svc = settings.audio_svc.clone();
             move || {
                 if submenu.get() == Some(SubMenu::Sources) {
-                    Some(audio::sources_submenu(audio_data, audio_svc.clone()))
+                    Some(submenu_wrapper(audio::sources_submenu(audio_data, audio_svc.clone())))
                 } else {
                     None
                 }
@@ -246,7 +246,7 @@ pub fn menu_view(
             let net_svc = settings3.network_svc.clone();
             move || {
                 if submenu.get() == Some(SubMenu::WiFi) {
-                    Some(network::wifi_submenu(net_data, net_svc.clone()))
+                    Some(submenu_wrapper(network::wifi_submenu(net_data, net_svc.clone())))
                 } else {
                     None
                 }
@@ -258,7 +258,7 @@ pub fn menu_view(
             let bt_svc = settings3.bluetooth_svc.clone();
             move || {
                 if submenu.get() == Some(SubMenu::Bluetooth) {
-                    Some(bluetooth::bt_submenu(bt_data, bt_svc.clone()))
+                    Some(submenu_wrapper(bluetooth::bt_submenu(bt_data, bt_svc.clone())))
                 } else {
                     None
                 }
@@ -294,7 +294,7 @@ pub fn menu_view(
             let net_svc = settings3.network_svc.clone();
             move || {
                 if submenu.get() == Some(SubMenu::Vpn) {
-                    Some(network::vpn_submenu(net_data, net_svc.clone()))
+                    Some(submenu_wrapper(network::vpn_submenu(net_data, net_svc.clone())))
                 } else {
                     None
                 }
@@ -330,6 +330,15 @@ pub fn menu_view(
                 )
             }
         })
+}
+
+fn submenu_wrapper(content: impl Widget + 'static) -> impl Widget {
+    container()
+        .width(fill())
+        .padding(12.0)
+        .corner_radius(16.0)
+        .background(Color::rgba(1.0, 1.0, 1.0, 0.06))
+        .child(content)
 }
 
 fn divider() -> impl Widget {

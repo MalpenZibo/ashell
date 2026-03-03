@@ -11,10 +11,13 @@ pub use dbus::DeviceState;
 #[derive(Clone)]
 pub enum NetworkCmd {
     ScanNearByWiFi,
-    ToggleWiFi,
-    ToggleAirplaneMode,
+    /// bool = current wifi_enabled state (read on main thread)
+    ToggleWiFi(bool),
+    /// bool = current airplane_mode state (read on main thread)
+    ToggleAirplaneMode(bool),
     SelectAccessPoint((AccessPoint, Option<String>)),
-    ToggleVpn(Vpn),
+    /// (vpn, active_vpn_path if currently connected)
+    ToggleVpn(Vpn, Option<OwnedObjectPath>),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -200,14 +203,12 @@ async fn handle_network_cmd(
     };
 
     match cmd {
-        NetworkCmd::ToggleWiFi => {
-            let current = writers.wifi_enabled.get();
+        NetworkCmd::ToggleWiFi(current) => {
             if nm.set_wifi_enabled(!current).await.is_ok() {
                 writers.wifi_enabled.set(!current);
             }
         }
-        NetworkCmd::ToggleAirplaneMode => {
-            let current = writers.airplane_mode.get();
+        NetworkCmd::ToggleAirplaneMode(current) => {
             if nm.set_airplane_mode(!current).await.is_ok() {
                 writers.airplane_mode.set(!current);
             }
@@ -222,15 +223,8 @@ async fn handle_network_cmd(
                 writers.known_connections.set(kc);
             }
         }
-        NetworkCmd::ToggleVpn(vpn) => {
-            let acs = writers.active_connections.get();
-            let active = acs.iter().find_map(|ac| match ac {
-                ActiveConnectionInfo::Vpn { name, object_path } if *name == vpn.name => {
-                    Some(object_path.clone())
-                }
-                _ => None,
-            });
-            if let Some(active_path) = active {
+        NetworkCmd::ToggleVpn(vpn, active_path) => {
+            if let Some(active_path) = active_path {
                 let _ = nm.set_vpn(active_path, false).await;
             } else {
                 let _ = nm.set_vpn(vpn.path, true).await;

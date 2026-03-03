@@ -63,7 +63,7 @@ pub fn bt_quick_setting(
             }
         },
         move || state.get() == BluetoothState::Active,
-        move || svc_toggle.send(BluetoothCmd::Toggle),
+        move || svc_toggle.send(BluetoothCmd::Toggle(state.get())),
         Some(on_submenu),
     )
 }

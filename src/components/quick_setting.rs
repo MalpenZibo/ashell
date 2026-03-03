@@ -4,8 +4,9 @@ use crate::theme::ThemeColors;
 
 use super::icons::{StaticIcon, icon};
 
-/// A quick-setting button: icon + title + optional subtitle.
+/// A quick-setting button: icon + title + optional subtitle + optional chevron.
 /// Active state shows colored background, inactive shows dim.
+/// Chevron is inside the button (unified tile) matching ashell layout.
 pub fn quick_setting(
     ic: impl Fn() -> StaticIcon + 'static + Clone,
     title: impl Fn() -> String + 'static + Clone,
@@ -21,10 +22,10 @@ pub fn quick_setting(
     let active4 = active.clone();
     let active5 = active.clone();
 
-    let main = container()
+    let mut btn = container()
         .width(fill())
-        .height(56.0)
-        .corner_radius(12.0)
+        .height(50.0)
+        .corner_radius(16.0)
         .on_hover(move |h| hovered.set(h))
         .on_click(move || on_toggle())
         .background(move || {
@@ -99,29 +100,15 @@ pub fn quick_setting(
                 }),
         );
 
+    // Add spacer + chevron inside the button if there's a submenu action
     if let Some(on_sub) = on_submenu {
-        let chevron_hovered = create_signal(false);
-        container()
-            .width(fill())
-            .layout(
-                Flex::row()
-                    .spacing(2.0)
-                    .cross_alignment(CrossAlignment::Stretch),
-            )
-            .child(main)
+        btn = btn
+            // Fill spacer pushes chevron to the right
+            .child(container().width(fill()))
             .child(
                 container()
-                    .width(24.0)
-                    .corner_radius(8.0)
-                    .on_hover(move |h| chevron_hovered.set(h))
+                    .padding([0.0, 4.0])
                     .on_click(move || on_sub())
-                    .background(move || {
-                        if chevron_hovered.get() {
-                            Color::rgba(1.0, 1.0, 1.0, 0.1)
-                        } else {
-                            Color::TRANSPARENT
-                        }
-                    })
                     .layout(
                         Flex::row()
                             .main_alignment(MainAlignment::Center)
@@ -129,11 +116,17 @@ pub fn quick_setting(
                     )
                     .child(
                         icon(StaticIcon::RightChevron)
-                            .color(theme.text)
+                            .color(move || {
+                                if active5() {
+                                    theme.background
+                                } else {
+                                    theme.text
+                                }
+                            })
                             .font_size(12.0),
                     ),
-            )
-    } else {
-        container().width(fill()).child(main)
+            );
     }
+
+    btn
 }

@@ -43,7 +43,8 @@ impl Default for BluetoothData {
 
 #[derive(Clone)]
 pub enum BluetoothCmd {
-    Toggle,
+    /// BluetoothState read on main thread before sending
+    Toggle(BluetoothState),
     StartDiscovery,
     StopDiscovery,
     PairDevice(OwnedObjectPath),
@@ -206,8 +207,7 @@ async fn handle_bt_cmd(
     };
 
     match cmd {
-        BluetoothCmd::Toggle => {
-            let current = writers.state.get();
+        BluetoothCmd::Toggle(current) => {
             if current == BluetoothState::Unavailable {
                 return;
             }

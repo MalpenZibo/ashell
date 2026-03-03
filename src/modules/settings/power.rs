@@ -42,13 +42,13 @@ pub fn power_profile_quick_setting(
 
     quick_setting(
         move || StaticIcon::from(profile.get()),
-        move || "Power Saver".to_string(),
         move || match profile.get() {
             PowerProfile::Balanced => "Balanced".to_string(),
             PowerProfile::Performance => "Performance".to_string(),
             PowerProfile::PowerSaver => "Power Saver".to_string(),
             PowerProfile::Unknown => "Unknown".to_string(),
         },
+        move || String::new(),
         move || profile.get() != PowerProfile::Unknown,
         move || svc_toggle.send(UPowerCmd::TogglePowerProfile),
         None::<fn()>,
