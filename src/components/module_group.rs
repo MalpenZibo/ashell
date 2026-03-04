@@ -3,7 +3,7 @@ use guido::prelude::*;
 use crate::theme::ThemeColors;
 
 #[component]
-pub struct ModuleGroup {
+pub fn module_group(
     #[prop(
         default = "{ let t = expect_context::<ThemeColors>(); Color::rgba(t.background.r, t.background.g, t.background.b, 1.0) }"
     )]
@@ -14,20 +14,16 @@ pub struct ModuleGroup {
     on_click: (),
     #[prop(children)]
     children: (),
-}
-
-impl ModuleGroup {
-    fn render(&self) -> impl Widget + use<> {
-        container()
-            .height(fill())
-            .background(self.background.clone())
-            .corner_radius(self.corner_radius.get())
-            .layout(
-                Flex::row()
-                    .spacing(8.0)
-                    .cross_alignment(CrossAlignment::Center),
-            )
-            .on_click_option(self.on_click.clone())
-            .children_source(self.take_children())
-    }
+) -> impl Widget {
+    container()
+        .height(fill())
+        .background(background.clone())
+        .corner_radius(corner_radius.get())
+        .layout(
+            Flex::row()
+                .spacing(8)
+                .cross_alignment(CrossAlignment::Center),
+        )
+        .on_click_option(on_click.clone())
+        .children_source(children)
 }

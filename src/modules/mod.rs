@@ -199,7 +199,7 @@ pub fn build_section(
     menu: MenuCtx,
 ) -> impl Widget + use<> {
     let mut section = container()
-        .layout(Flex::row().spacing(4.0).cross_alignment(CrossAlignment::Center))
+        .layout(Flex::row().spacing(4).cross_alignment(CrossAlignment::Center))
         .height(fill());
 
     for def in defs {

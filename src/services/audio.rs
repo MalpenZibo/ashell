@@ -1,4 +1,4 @@
-use crate::components::icons::StaticIcon;
+use crate::components::{IconKind, icons::StaticIcon};
 use guido::prelude::*;
 use libpulse_binding::{
     callbacks::ListResult,
@@ -87,49 +87,53 @@ impl Volume for ChannelVolumes {
 }
 
 pub trait Sinks {
-    fn get_icon(&self, default_sink: &str) -> StaticIcon;
+    fn get_icon(&self, default_sink: &str) -> IconKind;
 }
 
 impl Sinks for Vec<Device> {
-    fn get_icon(&self, default_sink: &str) -> StaticIcon {
-        match self.iter().find_map(|s| {
-            if s.ports.iter().any(|p| p.active) && s.name == default_sink {
-                Some((s.is_mute, s.volume.get_volume()))
-            } else {
-                None
-            }
-        }) {
-            Some((true, _)) => StaticIcon::Speaker0,
-            Some((false, volume)) => {
-                if volume > 0.66 {
-                    StaticIcon::Speaker3
-                } else if volume > 0.33 {
-                    StaticIcon::Speaker2
+    fn get_icon(&self, default_sink: &str) -> IconKind {
+        IconKind::Static(
+            match self.iter().find_map(|s| {
+                if s.ports.iter().any(|p| p.active) && s.name == default_sink {
+                    Some((s.is_mute, s.volume.get_volume()))
                 } else {
-                    StaticIcon::Speaker1
+                    None
                 }
-            }
-            None => StaticIcon::Speaker0,
-        }
+            }) {
+                Some((true, _)) => StaticIcon::Speaker0,
+                Some((false, volume)) => {
+                    if volume > 0.66 {
+                        StaticIcon::Speaker3
+                    } else if volume > 0.33 {
+                        StaticIcon::Speaker2
+                    } else {
+                        StaticIcon::Speaker1
+                    }
+                }
+                None => StaticIcon::Speaker0,
+            },
+        )
     }
 }
 
 pub trait Sources {
-    fn get_icon(&self, default_source: &str) -> StaticIcon;
+    fn get_icon(&self, default_source: &str) -> IconKind;
 }
 
 impl Sources for Vec<Device> {
-    fn get_icon(&self, default_source: &str) -> StaticIcon {
-        match self.iter().find_map(|s| {
-            if s.ports.iter().any(|p| p.active) && s.name == default_source {
-                Some(s.is_mute)
-            } else {
-                None
-            }
-        }) {
-            Some(false) => StaticIcon::Mic1,
-            _ => StaticIcon::Mic0,
-        }
+    fn get_icon(&self, default_source: &str) -> IconKind {
+        IconKind::Static(
+            match self.iter().find_map(|s| {
+                if s.ports.iter().any(|p| p.active) && s.name == default_source {
+                    Some(s.is_mute)
+                } else {
+                    None
+                }
+            }) {
+                Some(false) => StaticIcon::Mic1,
+                _ => StaticIcon::Mic0,
+            },
+        )
     }
 }
 
@@ -347,11 +351,7 @@ impl PulseAudioServer {
                         let tx = from_server_tx.clone();
                         let sources = sources.clone();
                         move |info| {
-                            Self::populate_and_send_sources(
-                                info,
-                                &tx,
-                                &mut sources.borrow_mut(),
-                            );
+                            Self::populate_and_send_sources(info, &tx, &mut sources.borrow_mut());
                         }
                     })) {
                         Ok(_) => {}
@@ -805,10 +805,7 @@ fn handle_audio_cmd(
                 .find(|s| s.name == server_info.default_sink)
             {
                 if let Some(vol) = sink.volume.scale_volume(*volume as f64 / 100.) {
-                    let _ = sender.send(PulseAudioCommand::SinkVolume(
-                        sink.name.clone(),
-                        *vol,
-                    ));
+                    let _ = sender.send(PulseAudioCommand::SinkVolume(sink.name.clone(), *vol));
                 }
             }
         }
@@ -818,10 +815,7 @@ fn handle_audio_cmd(
                 .find(|s| s.name == server_info.default_source)
             {
                 if let Some(vol) = source.volume.scale_volume(*volume as f64 / 100.) {
-                    let _ = sender.send(PulseAudioCommand::SourceVolume(
-                        source.name.clone(),
-                        *vol,
-                    ));
+                    let _ = sender.send(PulseAudioCommand::SourceVolume(source.name.clone(), *vol));
                 }
             }
         }

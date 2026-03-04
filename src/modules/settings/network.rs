@@ -15,13 +15,13 @@ pub fn wifi_indicator(data: NetworkDataSignals) -> impl Widget {
     container()
         .layout(
             Flex::row()
-                .spacing(4.0)
+                .spacing(4)
                 .cross_alignment(CrossAlignment::Center),
         )
         .child(
             icon().ic(move || IconKind::from(wifi_icon(active, wifi_enabled)))
                 .color(theme.text)
-                .font_size(14.0),
+                .font_size(14),
         )
 }
 
@@ -171,7 +171,7 @@ pub fn wifi_submenu(
 
     container()
         .width(fill())
-        .layout(Flex::column().spacing(4.0))
+        .layout(Flex::column().spacing(4))
         .child(
             container()
                 .width(fill())
@@ -180,13 +180,13 @@ pub fn wifi_submenu(
                         .main_alignment(MainAlignment::SpaceBetween)
                         .cross_alignment(CrossAlignment::Center),
                 )
-                .child(text("WiFi Networks").color(theme.text).font_size(14.0))
+                .child(text("WiFi Networks").color(theme.text).font_size(14))
                 .child({
                     let svc_scan = svc.clone();
                     let hovered = create_signal(false);
                     container()
-                        .padding([4.0, 8.0])
-                        .corner_radius(6.0)
+                        .padding([4, 8])
+                        .corner_radius(6)
                         .on_hover(move |h| hovered.set(h))
                         .on_click(move || svc_scan.send(NetworkCmd::ScanNearByWiFi))
                         .background(move || {
@@ -198,9 +198,9 @@ pub fn wifi_submenu(
                         })
                         .child(move || {
                             Some(if scanning.get() {
-                                icon().ic(StaticIcon::Refresh).color(theme.text).font_size(12.0)
+                                icon().ic(StaticIcon::Refresh).color(theme.text).font_size(12)
                             } else {
-                                icon().ic(StaticIcon::Refresh).color(theme.text).font_size(12.0)
+                                icon().ic(StaticIcon::Refresh).color(theme.text).font_size(12)
                             })
                         })
                 }),
@@ -210,9 +210,9 @@ pub fn wifi_submenu(
             let ap_list = aps.with(|a| a.clone());
             let mut col = container()
                 .width(fill())
-                .height(at_most(250.0))
+                .height(at_most(250))
                 .scrollable(ScrollAxis::Vertical)
-                .layout(Flex::column().spacing(2.0));
+                .layout(Flex::column().spacing(2));
 
             // Known connections first
             for kc in &known_list {
@@ -226,8 +226,8 @@ pub fn wifi_submenu(
                     col = col.child(
                         container()
                             .width(fill())
-                            .padding([6.0, 8.0])
-                            .corner_radius(8.0)
+                            .padding([6, 8])
+                            .corner_radius(8)
                             .on_hover(move |h| hovered.set(h))
                             .on_click(move || {
                                 svc.send(NetworkCmd::SelectAccessPoint((ap_clone.clone(), None)));
@@ -243,15 +243,15 @@ pub fn wifi_submenu(
                             })
                             .layout(
                                 Flex::row()
-                                    .spacing(8.0)
+                                    .spacing(8)
                                     .cross_alignment(CrossAlignment::Center),
                             )
                             .child(
                                 icon().ic(strength_to_icon(strength, true))
                                     .color(theme.text)
-                                    .font_size(14.0),
+                                    .font_size(14),
                             )
-                            .child(text(ssid).color(theme.text).font_size(12.0)),
+                            .child(text(ssid).color(theme.text).font_size(12)),
                     );
                 }
             }
@@ -275,8 +275,8 @@ pub fn wifi_submenu(
                 col = col.child(
                     container()
                         .width(fill())
-                        .padding([6.0, 8.0])
-                        .corner_radius(8.0)
+                        .padding([6, 8])
+                        .corner_radius(8)
                         .on_hover(move |h| hovered.set(h))
                         .background(move || {
                             if hovered.get() {
@@ -287,15 +287,15 @@ pub fn wifi_submenu(
                         })
                         .layout(
                             Flex::row()
-                                .spacing(8.0)
+                                .spacing(8)
                                 .cross_alignment(CrossAlignment::Center),
                         )
                         .child(
                             icon().ic(strength_to_icon(strength, is_public))
                                 .color(theme.text)
-                                .font_size(14.0),
+                                .font_size(14),
                         )
-                        .child(text(ssid).color(theme.text).font_size(12.0)),
+                        .child(text(ssid).color(theme.text).font_size(12)),
                 );
             }
             Some(col)
@@ -313,14 +313,14 @@ pub fn vpn_submenu(
 
     container()
         .width(fill())
-        .layout(Flex::column().spacing(4.0))
-        .child(text("VPN").color(theme.text).font_size(14.0))
+        .layout(Flex::column().spacing(4))
+        .child(text("VPN").color(theme.text).font_size(14))
         .child(move || {
             let known_list = known.with(|k| k.clone());
             let active_list = active.with(|a| a.clone());
             let mut col = container()
                 .width(fill())
-                .layout(Flex::column().spacing(2.0));
+                .layout(Flex::column().spacing(2));
 
             for kc in &known_list {
                 if let KnownConnection::Vpn(vpn) = kc {
@@ -340,8 +340,8 @@ pub fn vpn_submenu(
                     col = col.child(
                         container()
                             .width(fill())
-                            .padding([6.0, 8.0])
-                            .corner_radius(8.0)
+                            .padding([6, 8])
+                            .corner_radius(8)
                             .on_hover(move |h| hovered.set(h))
                             .on_click(move || {
                                 svc.send(NetworkCmd::ToggleVpn(vpn_clone.clone(), active_vpn_path.clone()));
@@ -357,11 +357,11 @@ pub fn vpn_submenu(
                             })
                             .layout(
                                 Flex::row()
-                                    .spacing(8.0)
+                                    .spacing(8)
                                     .cross_alignment(CrossAlignment::Center),
                             )
-                            .child(icon().ic(StaticIcon::Vpn).color(theme.text).font_size(14.0))
-                            .child(text(name).color(theme.text).font_size(12.0)),
+                            .child(icon().ic(StaticIcon::Vpn).color(theme.text).font_size(14))
+                            .child(text(name).color(theme.text).font_size(12)),
                     );
                 }
             }

@@ -27,7 +27,7 @@ pub fn view(state: CompositorStateSignals) -> impl Widget {
             }
         })
         .color(theme.text)
-        .font_size(13.0)
+        .font_size(13)
         .nowrap(),
     )
 }

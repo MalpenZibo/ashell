@@ -30,7 +30,7 @@ pub fn view(data: UpdatesDataSignals) -> impl Widget {
     container()
         .layout(
             Flex::row()
-                .spacing(4.0)
+                .spacing(4)
                 .cross_alignment(CrossAlignment::Center),
         )
         .child(
@@ -45,7 +45,7 @@ pub fn view(data: UpdatesDataSignals) -> impl Widget {
                 .into()
             })
             .color(theme.text)
-            .font_size(14.0),
+            .font_size(14),
         )
         .child(move || {
             let count = updates.with(|u| u.len());
@@ -53,7 +53,7 @@ pub fn view(data: UpdatesDataSignals) -> impl Widget {
                 Some(
                     text(move || updates.with(|u| u.len().to_string()))
                         .color(theme.text)
-                        .font_size(13.0),
+                        .font_size(13),
                 )
             } else {
                 None
@@ -75,22 +75,22 @@ pub fn menu_view(
 
     container()
         .width(fill())
-        .layout(Flex::column().spacing(8.0))
+        .layout(Flex::column().spacing(8))
         // Update list or "Up to date" message
         .child(move || {
             let list = updates.with(|u| u.clone());
             if list.is_empty() {
                 return Some(
                     container()
-                        .padding(8.0)
-                        .child(text("Up to date ;)").color(theme.text).font_size(14.0)),
+                        .padding(8)
+                        .child(text("Up to date ;)").color(theme.text).font_size(14)),
                 );
             }
             let mut scroll = container()
                 .width(fill())
-                .height(at_most(300.0))
+                .height(at_most(300))
                 .scrollable(ScrollAxis::Vertical)
-                .layout(Flex::column().spacing(6.0));
+                .layout(Flex::column().spacing(6));
             for update in &list {
                 let pkg = update.package.clone();
                 let mut from = update.from.clone();
@@ -101,9 +101,9 @@ pub fn menu_view(
                 scroll = scroll.child(
                     container()
                         .width(fill())
-                        .layout(Flex::column().spacing(2.0))
-                        .child(text(pkg).color(theme.text).font_size(12.0))
-                        .child(text(version_str).color(theme.primary).font_size(11.0)),
+                        .layout(Flex::column().spacing(2))
+                        .child(text(pkg).color(theme.text).font_size(12))
+                        .child(text(version_str).color(theme.primary).font_size(11)),
                 );
             }
             Some(
@@ -114,7 +114,7 @@ pub fn menu_view(
                                 format!("{} Updates available", updates.with(|u| u.len()))
                             })
                             .color(theme.text)
-                            .font_size(14.0),
+                            .font_size(14),
                         )
                         .body(scroll),
                 ),
@@ -124,7 +124,7 @@ pub fn menu_view(
         .child(
             container()
                 .width(fill())
-                .height(1.0)
+                .height(1)
                 .background(Color::rgba(1.0, 1.0, 1.0, 0.15)),
         )
         // Action buttons
@@ -153,8 +153,8 @@ fn menu_button(
     let hovered = create_signal(false);
     container()
         .width(fill())
-        .padding([6.0, 8.0])
-        .corner_radius(8.0)
+        .padding([6, 8])
+        .corner_radius(8)
         .on_click(move || on_click())
         .on_hover(move |h| hovered.set(h))
         .background(move || {
@@ -164,7 +164,7 @@ fn menu_button(
                 Color::TRANSPARENT
             }
         })
-        .child(text(label).color(theme.text).font_size(14.0))
+        .child(text(label).color(theme.text).font_size(14))
 }
 
 fn menu_button_with_indicator(
@@ -176,8 +176,8 @@ fn menu_button_with_indicator(
     let hovered = create_signal(false);
     container()
         .width(fill())
-        .padding([6.0, 8.0])
-        .corner_radius(8.0)
+        .padding([6, 8])
+        .corner_radius(8)
         .on_click(move || on_click())
         .on_hover(move |h| hovered.set(h))
         .background(move || {
@@ -192,10 +192,10 @@ fn menu_button_with_indicator(
                 .main_alignment(MainAlignment::SpaceBetween)
                 .cross_alignment(CrossAlignment::Center),
         )
-        .child(text(label).color(theme.text).font_size(14.0))
+        .child(text(label).color(theme.text).font_size(14))
         .child(move || {
             if is_checking.get() {
-                Some(icon().ic(StaticIcon::Refresh).color(theme.text).font_size(14.0))
+                Some(icon().ic(StaticIcon::Refresh).color(theme.text).font_size(14))
             } else {
                 None
             }

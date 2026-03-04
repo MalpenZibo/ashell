@@ -1,35 +1,36 @@
 use guido::prelude::*;
 
-use crate::components::{StaticIcon, icon, quick_setting};
+use crate::components::{IconKind, StaticIcon, button, icon, quick_setting};
+use crate::modules::settings::SubMenu;
 use crate::services::upower::{
-    BatteryStatus, PowerProfile, UPowerCmd, UPowerDataSignals,
+    BatteryData, BatteryStatus, Peripheral, PowerProfile, UPowerCmd, UPowerDataSignals,
 };
 use crate::theme::ThemeColors;
+use crate::{IndicatorState, format_duration};
 
 /// Bar indicator: battery icon + percentage
 pub fn battery_indicator(data: UPowerDataSignals) -> impl Widget {
     let theme = expect_context::<ThemeColors>();
     let battery = data.system_battery;
 
-    container()
-        .child(move || {
-            battery.with(|bat| {
-                bat.map(|b| {
-                    container()
-                        .layout(
-                            Flex::row()
-                                .spacing(4.0)
-                                .cross_alignment(CrossAlignment::Center),
-                        )
-                        .child(icon().ic(b.get_icon()).color(theme.text).font_size(14.0))
-                        .child(
-                            text(format!("{}%", b.capacity))
-                                .color(theme.text)
-                                .font_size(13.0),
-                        )
-                })
+    container().child(move || {
+        battery.with(|bat| {
+            bat.map(|b| {
+                container()
+                    .layout(
+                        Flex::row()
+                            .spacing(4)
+                            .cross_alignment(CrossAlignment::Center),
+                    )
+                    .child(icon().ic(b.get_icon()).color(theme.text).font_size(14))
+                    .child(
+                        text(format!("{}%", b.capacity))
+                            .color(theme.text)
+                            .font_size(13),
+                    )
             })
         })
+    })
 }
 
 /// Power profile quick setting
@@ -53,61 +54,101 @@ pub fn power_profile_quick_setting(
         .on_toggle(move || svc_toggle.send(UPowerCmd::TogglePowerProfile))
 }
 
-/// Battery section in menu header
-pub fn battery_header(data: UPowerDataSignals) -> impl Widget {
+#[component]
+pub fn menu_indicator(battery: BatteryData, peripheral_icon: Option<IconKind>) -> impl Widget {
     let theme = expect_context::<ThemeColors>();
-    let battery = data.system_battery;
+
+    let state = battery.get().get_indicator_state();
+
+    let text_color = match state {
+        IndicatorState::Success => theme.success,
+        IndicatorState::Danger => theme.danger,
+        _ => theme.text,
+    };
+
+    let battery_info = container()
+        .layout(Flex::row().spacing(4))
+        .maybe_child(
+            peripheral_icon
+                .get()
+                .map(|ic| icon().ic(ic).color(text_color)),
+        )
+        .child(icon().ic(battery.get().get_icon()).color(text_color))
+        .child(text(format!("{}%", battery.get().capacity)).color(text_color));
+
+    let capacity = battery.get().capacity;
 
     container()
-        .layout(
-            Flex::row()
-                .spacing(6.0)
-                .cross_alignment(CrossAlignment::Center),
-        )
-        .child(move || {
-            battery.with(|bat| {
-                bat.map(|b| {
-                    container()
-                        .layout(
-                            Flex::row()
-                                .spacing(4.0)
-                                .cross_alignment(CrossAlignment::Center),
-                        )
-                        .child(icon().ic(b.get_icon()).color(theme.text).font_size(16.0))
-                        .child(
-                            text(format!("{}%", b.capacity))
-                                .color(theme.text)
-                                .font_size(14.0),
-                        )
-                        .child(move || {
-                            let status_text = match b.status {
-                                BatteryStatus::Charging(dur) => {
-                                    let secs = dur.as_secs();
-                                    if secs > 0 {
-                                        let h = secs / 3600;
-                                        let m = (secs % 3600) / 60;
-                                        Some(format!("{h}h {m}m to full"))
-                                    } else {
-                                        Some("Charging".to_string())
-                                    }
-                                }
-                                BatteryStatus::Discharging(dur) => {
-                                    let secs = dur.as_secs();
-                                    if secs > 0 {
-                                        let h = secs / 3600;
-                                        let m = (secs % 3600) / 60;
-                                        Some(format!("{h}h {m}m remaining"))
-                                    } else {
-                                        None
-                                    }
-                                }
-                                BatteryStatus::Full => Some("Full".to_string()),
-                            };
-                            status_text.map(|s| text(s).color(theme.primary).font_size(11.0))
+        .layout(Flex::row().spacing(4))
+        .padding([4, 2])
+        .child(battery_info)
+        .maybe_child(match battery.get().status {
+            BatteryStatus::Charging(remaining) if capacity < 95 => {
+                Some(text(format!("Full in {}", format_duration(&remaining))))
+            }
+            BatteryStatus::Discharging(remaining) if capacity < 95 && !remaining.is_zero() => {
+                Some(text(format!("Empty in {}", format_duration(&remaining))))
+            }
+            _ => None,
+        })
+}
+
+/// Battery/peripheral indicator in menu header.
+pub fn battery_header(data: UPowerDataSignals, submenu: Signal<Option<SubMenu>>) -> impl Widget {
+    let battery = data.system_battery;
+    let peripherals = data.peripherals;
+
+    container().child(move || -> Option<AnyWidget> {
+        battery.with(|bat| {
+            bat.map(|b| {
+                let indicator = menu_indicator().battery(b);
+                let has_peripherals = !peripherals.with(|p| p.is_empty());
+
+                if has_peripherals {
+                    button()
+                        .content(indicator)
+                        .on_click(move || {
+                            submenu.set(
+                                if submenu.get() == Some(SubMenu::Peripherals) {
+                                    None
+                                } else {
+                                    Some(SubMenu::Peripherals)
+                                },
+                            );
                         })
+                        .into_any()
+                } else {
+                    indicator.into_any()
+                }
+            })
+        })
+        .or_else(|| {
+            peripherals.with(|periphs| {
+                periphs.first().map(|p| {
+                    let indicator = menu_indicator()
+                        .battery(p.data)
+                        .peripheral_icon(p.kind.get_icon());
+
+                    if periphs.len() > 1 {
+                        button()
+                            .content(indicator)
+                            .on_click(move || {
+                                submenu.set(
+                                    if submenu.get() == Some(SubMenu::Peripherals) {
+                                        None
+                                    } else {
+                                        Some(SubMenu::Peripherals)
+                                    },
+                                );
+                            })
+                            .into_any()
+                    } else {
+                        indicator.into_any()
+                    }
                 })
             })
         })
+    })
 }
 
 /// Peripherals section in menu
@@ -115,40 +156,32 @@ pub fn peripherals_view(data: UPowerDataSignals) -> impl Widget {
     let theme = expect_context::<ThemeColors>();
     let peripherals = data.peripherals;
 
-    container()
-        .width(fill())
-        .child(move || {
-            let periphs = peripherals.with(|p| p.clone());
-            if periphs.is_empty() {
-                return Some(container());
-            }
-            let mut col = container()
-                .width(fill())
-                .layout(Flex::column().spacing(4.0));
-            for p in &periphs {
-                let name = p.name.clone();
-                let ic = p.kind.get_icon();
-                let pct = p.data.capacity;
-                col = col.child(
-                    container()
-                        .width(fill())
-                        .padding([4.0, 8.0])
-                        .layout(
-                            Flex::row()
-                                .spacing(8.0)
-                                .cross_alignment(CrossAlignment::Center),
-                        )
-                        .child(icon().ic(ic).color(theme.text).font_size(14.0))
-                        .child(text(name).color(theme.text).font_size(12.0))
-                        .child(
-                            text(format!("{pct}%"))
-                                .color(theme.primary)
-                                .font_size(12.0),
-                        ),
-                );
-            }
-            Some(col)
-        })
+    container().width(fill()).child(move || {
+        let periphs = peripherals.with(|p| p.clone());
+        if periphs.is_empty() {
+            return Some(container());
+        }
+        let mut col = container().width(fill()).layout(Flex::column().spacing(4));
+        for p in &periphs {
+            let name = p.name.clone();
+            let ic = p.kind.get_icon();
+            let pct = p.data.capacity;
+            col = col.child(
+                container()
+                    .width(fill())
+                    .padding([4, 8])
+                    .layout(
+                        Flex::row()
+                            .spacing(8)
+                            .cross_alignment(CrossAlignment::Center),
+                    )
+                    .child(icon().ic(ic).color(theme.text).font_size(14))
+                    .child(text(name).color(theme.text).font_size(12))
+                    .child(text(format!("{pct}%")).color(theme.primary).font_size(12)),
+            );
+        }
+        Some(col)
+    })
 }
 
 /// Power actions menu
@@ -161,38 +194,58 @@ pub fn power_actions(close_menu: impl Fn() + 'static + Clone) -> impl Widget {
 
     container()
         .width(fill())
-        .layout(Flex::column().spacing(2.0))
-        .child(power_action_button(StaticIcon::Suspend, "Suspend", move || {
-            let _ = std::process::Command::new("systemctl")
-                .arg("suspend")
-                .spawn();
-            close1();
-        }))
-        .child(power_action_button(StaticIcon::Hibernate, "Hibernate", move || {
-            let _ = std::process::Command::new("systemctl")
-                .arg("hibernate")
-                .spawn();
-            close2();
-        }))
-        .child(power_action_button(StaticIcon::Reboot, "Reboot", move || {
-            let _ = std::process::Command::new("systemctl")
-                .arg("reboot")
-                .spawn();
-            close3();
-        }))
-        .child(power_action_button(StaticIcon::Power, "Shutdown", move || {
-            let _ = std::process::Command::new("systemctl")
-                .arg("poweroff")
-                .spawn();
-            close4();
-        }))
-        .child(power_action_button(StaticIcon::Logout, "Logout", move || {
-            let _ = std::process::Command::new("loginctl")
-                .arg("terminate-user")
-                .arg(std::env::var("USER").unwrap_or_default())
-                .spawn();
-            close5();
-        }))
+        .layout(Flex::column().spacing(2))
+        .child(power_action_button(
+            StaticIcon::Suspend,
+            "Suspend",
+            move || {
+                let _ = std::process::Command::new("systemctl")
+                    .arg("suspend")
+                    .spawn();
+                close1();
+            },
+        ))
+        .child(power_action_button(
+            StaticIcon::Hibernate,
+            "Hibernate",
+            move || {
+                let _ = std::process::Command::new("systemctl")
+                    .arg("hibernate")
+                    .spawn();
+                close2();
+            },
+        ))
+        .child(power_action_button(
+            StaticIcon::Reboot,
+            "Reboot",
+            move || {
+                let _ = std::process::Command::new("systemctl")
+                    .arg("reboot")
+                    .spawn();
+                close3();
+            },
+        ))
+        .child(power_action_button(
+            StaticIcon::Power,
+            "Shutdown",
+            move || {
+                let _ = std::process::Command::new("systemctl")
+                    .arg("poweroff")
+                    .spawn();
+                close4();
+            },
+        ))
+        .child(power_action_button(
+            StaticIcon::Logout,
+            "Logout",
+            move || {
+                let _ = std::process::Command::new("loginctl")
+                    .arg("terminate-user")
+                    .arg(std::env::var("USER").unwrap_or_default())
+                    .spawn();
+                close5();
+            },
+        ))
 }
 
 fn power_action_button(
@@ -204,8 +257,8 @@ fn power_action_button(
     let hovered = create_signal(false);
     container()
         .width(fill())
-        .padding([6.0, 8.0])
-        .corner_radius(8.0)
+        .padding([6, 8])
+        .corner_radius(8)
         .on_hover(move |h| hovered.set(h))
         .on_click(move || on_click())
         .background(move || {
@@ -217,9 +270,9 @@ fn power_action_button(
         })
         .layout(
             Flex::row()
-                .spacing(8.0)
+                .spacing(8)
                 .cross_alignment(CrossAlignment::Center),
         )
-        .child(icon().ic(ic).color(theme.text).font_size(14.0))
-        .child(text(label).color(theme.text).font_size(14.0))
+        .child(icon().ic(ic).color(theme.text).font_size(14))
+        .child(text(label).color(theme.text).font_size(14))
 }

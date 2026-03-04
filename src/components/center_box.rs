@@ -94,24 +94,20 @@ impl Layout for CenterBoxLayout {
 // -- Component --------------------------------------------------------------
 
 #[component]
-pub struct CenterBox {
+pub fn center_box(
     #[prop(slot)]
     left: (),
     #[prop(slot)]
     center: (),
     #[prop(slot)]
     right: (),
-}
-
-impl CenterBox {
-    fn render(&self) -> impl Widget + use<> {
-        container()
-            .width(fill())
-            .height(fill())
-            .layout(CenterBoxLayout::new())
-            .padding([0.0, 4.0])
-            .child(self.take_left().unwrap_or_else(|| Box::new(container())))
-            .child(self.take_center().unwrap_or_else(|| Box::new(container())))
-            .child(self.take_right().unwrap_or_else(|| Box::new(container())))
-    }
+) -> impl Widget {
+    container()
+        .width(fill())
+        .height(fill())
+        .layout(CenterBoxLayout::new())
+        .padding([0, 4])
+        .child(left.unwrap_or_else(|| Box::new(container())))
+        .child(center.unwrap_or_else(|| Box::new(container())))
+        .child(right.unwrap_or_else(|| Box::new(container())))
 }

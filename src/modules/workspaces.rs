@@ -300,7 +300,7 @@ pub fn view(state: CompositorStateSignals, svc: Service<CompositorCommand>) -> i
     container()
         .layout(
             Flex::row()
-                .spacing(4.0)
+                .spacing(4)
                 .cross_alignment(CrossAlignment::Center),
         )
         .on_scroll(move |_dx, dy, _source| {
@@ -408,7 +408,7 @@ pub fn view(state: CompositorStateSignals, svc: Service<CompositorCommand>) -> i
                                     .color(move || {
                                         pill_text_color(theme, ws_color.get(), empty.get())
                                     })
-                                    .font_size(10.0)
+                                    .font_size(10)
                                     .nowrap(),
                             )
                             .on_click(move || {

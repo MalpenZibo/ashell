@@ -1,5 +1,5 @@
 use guido::prelude::*;
-use guido::reactive::{IntoMaybeDyn, MaybeDyn};
+use guido::reactive::IntoVal;
 
 fn nerd_font_family() -> FontFamily {
     FontFamily::Name("Symbols Nerd Font".into())
@@ -310,51 +310,16 @@ impl From<DynamicIcon> for IconKind {
     }
 }
 
-// ---------------------------------------------------------------------------
-// IntoMaybeDyn impls — let callers write icon().ic(StaticIcon::Wifi5)
-// or icon().ic("custom_char") without explicit wrapping
-// ---------------------------------------------------------------------------
-
-impl IntoMaybeDyn<StaticIcon> for StaticIcon {
-    fn into_maybe_dyn(self) -> MaybeDyn<StaticIcon> {
-        MaybeDyn::Static(self)
+impl From<&str> for IconKind {
+    fn from(s: &str) -> Self {
+        IconKind::Dynamic(s.to_string())
     }
 }
 
-impl IntoMaybeDyn<IconKind> for IconKind {
-    fn into_maybe_dyn(self) -> MaybeDyn<IconKind> {
-        MaybeDyn::Static(self)
-    }
-}
-
-impl IntoMaybeDyn<IconKind> for StaticIcon {
-    fn into_maybe_dyn(self) -> MaybeDyn<IconKind> {
-        MaybeDyn::Static(IconKind::Static(self))
-    }
-}
-
-impl IntoMaybeDyn<IconKind> for DynamicIcon {
-    fn into_maybe_dyn(self) -> MaybeDyn<IconKind> {
-        MaybeDyn::Static(IconKind::Dynamic(self.0))
-    }
-}
-
-impl IntoMaybeDyn<IconKind> for &str {
-    fn into_maybe_dyn(self) -> MaybeDyn<IconKind> {
-        MaybeDyn::Static(IconKind::Dynamic(self.to_string()))
-    }
-}
-
-// Convenience: pass IconKind or StaticIcon directly to Option<IconKind> props
-impl IntoMaybeDyn<Option<IconKind>> for IconKind {
-    fn into_maybe_dyn(self) -> MaybeDyn<Option<IconKind>> {
-        MaybeDyn::Static(Some(self))
-    }
-}
-
-impl IntoMaybeDyn<Option<IconKind>> for StaticIcon {
-    fn into_maybe_dyn(self) -> MaybeDyn<Option<IconKind>> {
-        MaybeDyn::Static(Some(IconKind::Static(self)))
+// Cross-type IntoVal for Option wrapping (no natural From chain)
+impl IntoVal<Option<IconKind>> for StaticIcon {
+    fn into_val(self) -> Option<IconKind> {
+        Some(IconKind::Static(self))
     }
 }
 
@@ -363,8 +328,7 @@ impl IntoMaybeDyn<Option<IconKind>> for StaticIcon {
 // ---------------------------------------------------------------------------
 
 #[component]
-pub struct Icon {
-    #[prop]
+pub fn icon(
     ic: IconKind,
     #[prop(default = "false")]
     mono: bool,
@@ -372,24 +336,20 @@ pub struct Icon {
     color: Color,
     #[prop(default = "14.0")]
     font_size: f32,
-}
+) -> impl Widget {
+    let ic1 = ic.clone();
+    let ic2 = ic.clone();
+    let mono = mono.clone();
 
-impl Icon {
-    fn render(&self) -> impl Widget + use<> {
-        let ic = self.ic.clone();
-        let ic2 = self.ic.clone();
-        let mono = self.mono.clone();
-
-        text(move || ic.get().get_str().to_string())
-            .font_family(move || {
-                let i = ic2.get();
-                if mono.get() {
-                    i.font_family_mono()
-                } else {
-                    i.font_family()
-                }
-            })
-            .color(self.color.clone())
-            .font_size(self.font_size.clone())
-    }
+    text(move || ic1.get().get_str().to_string())
+        .font_family(move || {
+            let i = ic2.get();
+            if mono.get() {
+                i.font_family_mono()
+            } else {
+                i.font_family()
+            }
+        })
+        .color(color.clone())
+        .font_size(font_size.clone())
 }

@@ -25,7 +25,7 @@ pub fn bt_indicator(data: BluetoothDataSignals) -> impl Widget {
                             StaticIcon::Bluetooth
                         })
                         .color(theme.text)
-                        .font_size(14.0),
+                        .font_size(14),
                     )
                 }
             }
@@ -78,7 +78,7 @@ pub fn bt_submenu(
 
     container()
         .width(fill())
-        .layout(Flex::column().spacing(4.0))
+        .layout(Flex::column().spacing(4))
         .child(
             container()
                 .width(fill())
@@ -87,13 +87,13 @@ pub fn bt_submenu(
                         .main_alignment(MainAlignment::SpaceBetween)
                         .cross_alignment(CrossAlignment::Center),
                 )
-                .child(text("Bluetooth Devices").color(theme.text).font_size(14.0))
+                .child(text("Bluetooth Devices").color(theme.text).font_size(14))
                 .child({
                     let svc_scan = svc.clone();
                     let hovered = create_signal(false);
                     container()
-                        .padding([4.0, 8.0])
-                        .corner_radius(6.0)
+                        .padding([4, 8])
+                        .corner_radius(6)
                         .on_hover(move |h| hovered.set(h))
                         .on_click(move || {
                             if discovering.get() {
@@ -119,7 +119,7 @@ pub fn bt_submenu(
                                 .into()
                             })
                             .color(theme.text)
-                            .font_size(12.0),
+                            .font_size(12),
                         )
                 }),
         )
@@ -127,15 +127,15 @@ pub fn bt_submenu(
             let device_list = devices.with(|d| d.clone());
             let mut col = container()
                 .width(fill())
-                .height(at_most(250.0))
+                .height(at_most(250))
                 .scrollable(ScrollAxis::Vertical)
-                .layout(Flex::column().spacing(2.0));
+                .layout(Flex::column().spacing(2));
 
             if device_list.is_empty() {
                 return Some(col.child(
                     container()
-                        .padding(8.0)
-                        .child(text("No devices found").color(theme.text).font_size(12.0)),
+                        .padding(8)
+                        .child(text("No devices found").color(theme.text).font_size(12)),
                 ));
             }
 
@@ -161,8 +161,8 @@ pub fn bt_submenu(
                 col = col.child(
                     container()
                         .width(fill())
-                        .padding([6.0, 8.0])
-                        .corner_radius(8.0)
+                        .padding([6, 8])
+                        .corner_radius(8)
                         .on_hover(move |h| hovered.set(h))
                         .on_click(move || {
                             svc.send(BluetoothCmd::DisconnectDevice(path.clone()));
@@ -176,15 +176,15 @@ pub fn bt_submenu(
                         })
                         .layout(
                             Flex::row()
-                                .spacing(8.0)
+                                .spacing(8)
                                 .cross_alignment(CrossAlignment::Center),
                         )
                         .child(
                             icon().ic(StaticIcon::BluetoothConnected)
                                 .color(theme.text)
-                                .font_size(14.0),
+                                .font_size(14),
                         )
-                        .child(text(label).color(theme.text).font_size(12.0)),
+                        .child(text(label).color(theme.text).font_size(12)),
                 );
             }
 
@@ -196,8 +196,8 @@ pub fn bt_submenu(
                 col = col.child(
                     container()
                         .width(fill())
-                        .padding([6.0, 8.0])
-                        .corner_radius(8.0)
+                        .padding([6, 8])
+                        .corner_radius(8)
                         .on_hover(move |h| hovered.set(h))
                         .on_click(move || {
                             svc.send(BluetoothCmd::ConnectDevice(path.clone()));
@@ -211,19 +211,19 @@ pub fn bt_submenu(
                         })
                         .layout(
                             Flex::row()
-                                .spacing(8.0)
+                                .spacing(8)
                                 .cross_alignment(CrossAlignment::Center),
                         )
-                        .child(icon().ic(StaticIcon::Bluetooth).color(theme.text).font_size(14.0))
-                        .child(text(name).color(theme.text).font_size(12.0)),
+                        .child(icon().ic(StaticIcon::Bluetooth).color(theme.text).font_size(14))
+                        .child(text(name).color(theme.text).font_size(12)),
                 );
             }
 
             if !discovered.is_empty() {
                 col = col.child(
                     container()
-                        .padding([4.0, 8.0])
-                        .child(text("Available").color(theme.primary).font_size(11.0)),
+                        .padding([4, 8])
+                        .child(text("Available").color(theme.primary).font_size(11)),
                 );
                 for device in discovered {
                     let name = device.name.clone();
@@ -233,8 +233,8 @@ pub fn bt_submenu(
                     col = col.child(
                         container()
                             .width(fill())
-                            .padding([6.0, 8.0])
-                            .corner_radius(8.0)
+                            .padding([6, 8])
+                            .corner_radius(8)
                             .on_hover(move |h| hovered.set(h))
                             .on_click(move || {
                                 svc.send(BluetoothCmd::PairDevice(path.clone()));
@@ -248,13 +248,13 @@ pub fn bt_submenu(
                             })
                             .layout(
                                 Flex::row()
-                                    .spacing(8.0)
+                                    .spacing(8)
                                     .cross_alignment(CrossAlignment::Center),
                             )
                             .child(
-                                icon().ic(StaticIcon::Bluetooth).color(theme.text).font_size(14.0),
+                                icon().ic(StaticIcon::Bluetooth).color(theme.text).font_size(14),
                             )
-                            .child(text(name).color(theme.text).font_size(12.0)),
+                            .child(text(name).color(theme.text).font_size(12)),
                     );
                 }
             }

@@ -39,7 +39,43 @@ pub mod theme {
     }
 }
 
+use std::time::Duration;
+
+#[derive(Debug, Clone, Copy)]
+pub enum IndicatorState {
+    Normal,
+    Success,
+    Warning,
+    Danger,
+}
+
+pub fn format_duration(duration: &Duration) -> String {
+    let h = duration.as_secs() / 60 / 60;
+    let m = duration.as_secs() / 60 % 60;
+    if h > 0 {
+        format!("{h}h {m:>2}m")
+    } else {
+        format!("{m:>2}m")
+    }
+}
+
+pub fn truncate_text(value: &str, max_length: u32) -> String {
+    let length = value.len();
+
+    if length > max_length as usize {
+        let split = max_length as usize / 2;
+        let first_part = value.chars().take(split).collect::<String>();
+        let last_part = value.chars().skip(length - split).collect::<String>();
+        format!("{first_part}...{last_part}")
+    } else {
+        value.to_string()
+    }
+}
+
 const NERD_FONT: &[u8] = include_bytes!("../target/generated/SymbolsNerdFont-Regular-Subset.ttf");
+const NERD_FONT_MONO: &[u8] =
+    include_bytes!("../target/generated/SymbolsNerdFontMono-Regular-Subset.ttf");
+const CUSTOM_FONT: &[u8] = include_bytes!("../assets/AshellCustomIcon-Regular.otf");
 
 #[tokio::main]
 async fn main() {
@@ -50,6 +86,8 @@ async fn main() {
 
     loop {
         load_font(NERD_FONT.to_vec());
+        load_font(NERD_FONT_MONO.to_vec());
+        load_font(CUSTOM_FONT.to_vec());
 
         let cfg = config::load_config(&config_path);
         let theme_colors = theme::init(&cfg.appearance);
@@ -112,7 +150,7 @@ async fn main() {
                                 .center(modules::build_section(&cfg.modules.center, &data, menu))
                                 .right(modules::build_section(&cfg.modules.right, &data, menu)),
                         )
-                        .padding([4.0, 0.0])
+                        .padding([4, 0])
                 },
             );
 
@@ -147,13 +185,13 @@ async fn main() {
                                     let menu_width = menu_width_for(mt);
                                     let close = close_inner.clone();
                                     container()
-                                        .translate(move || menu_x.get(), 0.)
+                                        .translate(move || menu_x.get(), 0)
                                         .width(menu_width)
-                                        .height(at_most(800.0))
+                                        .height(at_most(800))
                                         .scrollable(ScrollAxis::Vertical)
                                         .background(theme_colors.background)
-                                        .corner_radius(12.0)
-                                        .padding(16.0)
+                                        .corner_radius(12)
+                                        .padding(16)
                                         .on_click(|| {
                                             // Swallow clicks so they don't close the menu
                                         })

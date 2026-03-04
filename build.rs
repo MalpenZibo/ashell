@@ -16,10 +16,13 @@ use allsorts::{subset, tag};
 fn main() -> Result<(), Box<dyn Error>> {
     let source = "src/components/icons.rs";
     let input = "assets/SymbolsNerdFont-Regular.ttf";
+    let input_mono = "assets/SymbolsNerdFontMono-Regular.ttf";
     let output = "target/generated/SymbolsNerdFont-Regular-Subset.ttf";
+    let output_mono = "target/generated/SymbolsNerdFontMono-Regular-Subset.ttf";
 
     println!("cargo:rerun-if-changed={source}");
     println!("cargo:rerun-if-changed={input}");
+    println!("cargo:rerun-if-changed={input_mono}");
 
     let content = std::fs::read_to_string(source)?;
 
@@ -44,6 +47,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let text = unicodes.join("");
     subset_font(input, &text, output)?;
+    subset_font(input_mono, &text, output_mono)?;
 
     Ok(())
 }

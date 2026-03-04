@@ -1,4 +1,7 @@
-use crate::components::icons::StaticIcon;
+use crate::{
+    IndicatorState,
+    components::{IconKind, icons::StaticIcon},
+};
 use dbus::{DeviceProxy, PowerProfilesProxy, SystemBattery, UPowerDbus, UPowerProxy, UpDeviceKind};
 use futures::StreamExt;
 use guido::prelude::*;
@@ -8,25 +11,51 @@ use zbus::zvariant::ObjectPath;
 
 pub mod dbus;
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct BatteryData {
     pub capacity: i64,
     pub status: BatteryStatus,
 }
 
 impl BatteryData {
-    pub fn get_icon(&self) -> StaticIcon {
+    pub fn get_indicator_state(&self) -> IndicatorState {
         match self {
             BatteryData {
                 status: BatteryStatus::Charging(_),
                 ..
-            } => StaticIcon::BatteryCharging,
-            BatteryData { capacity, .. } if *capacity < 20 => StaticIcon::Battery0,
-            BatteryData { capacity, .. } if *capacity < 40 => StaticIcon::Battery1,
-            BatteryData { capacity, .. } if *capacity < 60 => StaticIcon::Battery2,
-            BatteryData { capacity, .. } if *capacity < 80 => StaticIcon::Battery3,
-            _ => StaticIcon::Battery4,
+            } => IndicatorState::Success,
+            BatteryData {
+                status: BatteryStatus::Discharging(_),
+                capacity,
+            } if *capacity < 20 => IndicatorState::Danger,
+            _ => IndicatorState::Normal,
         }
+    }
+
+    pub fn get_icon(&self) -> IconKind {
+        IconKind::Static(match self {
+            BatteryData {
+                status: BatteryStatus::Charging(_),
+                ..
+            } => StaticIcon::BatteryCharging,
+            BatteryData {
+                status: BatteryStatus::Discharging(_),
+                capacity,
+            } if *capacity < 20 => StaticIcon::Battery0,
+            BatteryData {
+                status: BatteryStatus::Discharging(_),
+                capacity,
+            } if *capacity < 40 => StaticIcon::Battery1,
+            BatteryData {
+                status: BatteryStatus::Discharging(_),
+                capacity,
+            } if *capacity < 60 => StaticIcon::Battery2,
+            BatteryData {
+                status: BatteryStatus::Discharging(_),
+                capacity,
+            } if *capacity < 80 => StaticIcon::Battery3,
+            _ => StaticIcon::Battery4,
+        })
     }
 }
 
@@ -47,20 +76,21 @@ pub enum PeripheralDeviceKind {
 }
 
 impl PeripheralDeviceKind {
-    pub fn get_icon(&self) -> StaticIcon {
-        match self {
+    pub fn get_icon(&self) -> IconKind {
+        IconKind::Static(match self {
             PeripheralDeviceKind::Keyboard => StaticIcon::Keyboard,
             PeripheralDeviceKind::Mouse => StaticIcon::Mouse,
             PeripheralDeviceKind::Headphones => StaticIcon::Headphones1,
             PeripheralDeviceKind::Gamepad => StaticIcon::Gamepad,
-        }
+        })
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
 pub enum BatteryStatus {
     Charging(Duration),
     Discharging(Duration),
+    #[default]
     Full,
 }
 
@@ -338,11 +368,7 @@ enum UPowerEvent {
     PowerProfileChanged,
 }
 
-async fn handle_upower_cmd(
-    conn: &zbus::Connection,
-    writers: &UPowerDataWriters,
-    cmd: UPowerCmd,
-) {
+async fn handle_upower_cmd(conn: &zbus::Connection, writers: &UPowerDataWriters, cmd: UPowerCmd) {
     match cmd {
         UPowerCmd::TogglePowerProfile => {
             if let Ok(pp) = PowerProfilesProxy::new(conn).await {

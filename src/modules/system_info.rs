@@ -42,7 +42,7 @@ pub fn view(info: SystemInfoDataSignals) -> impl Widget {
     container()
         .layout(
             Flex::row()
-                .spacing(4.0)
+                .spacing(4)
                 .cross_alignment(CrossAlignment::Center),
         )
         .child(indicator(
@@ -85,7 +85,7 @@ pub fn menu_view(info: SystemInfoDataSignals) -> impl Widget {
 
     container()
         .width(fill())
-        .layout(Flex::column().spacing(12.0))
+        .layout(Flex::column().spacing(12))
         .child(menu_row(
             theme,
             StaticIcon::Cpu,
@@ -125,11 +125,11 @@ fn indicator(
     container()
         .layout(
             Flex::row()
-                .spacing(4.0)
+                .spacing(4)
                 .cross_alignment(CrossAlignment::Center),
         )
-        .child(icon().ic(ic).color(color_fn).font_size(14.0))
-        .child(text(value_fn).color(color_fn2).font_size(13.0))
+        .child(icon().ic(ic).color(color_fn).font_size(14))
+        .child(text(value_fn).color(color_fn2).font_size(13))
 }
 
 fn menu_row(
@@ -151,11 +151,11 @@ fn menu_row(
             container()
                 .layout(
                     Flex::row()
-                        .spacing(8.0)
+                        .spacing(8)
                         .cross_alignment(CrossAlignment::Center),
                 )
-                .child(icon().ic(ic).color(color_fn).font_size(16.0))
-                .child(text(label).color(theme.text).font_size(14.0)),
+                .child(icon().ic(ic).color(color_fn).font_size(16))
+                .child(text(label).color(theme.text).font_size(14)),
         )
-        .child(text(value_fn).color(color_fn2).font_size(14.0))
+        .child(text(value_fn).color(color_fn2).font_size(14))
 }

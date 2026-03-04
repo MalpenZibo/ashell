@@ -4,63 +4,57 @@ use super::icons::{IconKind, StaticIcon, icon};
 use crate::theme::ThemeColors;
 
 #[component]
-pub struct ExpandablePanel {
+pub fn expandable_panel(
     #[prop(slot)]
     header: (),
     #[prop(slot)]
     body: (),
-}
+) -> impl Widget {
+    let theme = expect_context::<ThemeColors>();
+    let expanded = create_signal(false);
+    let header_hovered = create_signal(false);
 
-impl ExpandablePanel {
-    fn render(&self) -> impl Widget + use<> {
-        let theme = expect_context::<ThemeColors>();
-        let expanded = create_signal(false);
-        let header_hovered = create_signal(false);
-        let header = self.take_header();
-        let body = self.take_body();
-
-        container()
-            .width(fill())
-            .layout(Flex::column().spacing(move || if expanded.get() { 8.0 } else { 0.0 }))
-            .child(
-                // Header row: [slot content] [chevron]
-                container()
-                    .width(fill())
-                    .padding([6.0, 8.0])
-                    .corner_radius(8.0)
-                    .on_click(move || expanded.set(!expanded.get()))
-                    .on_hover(move |h| header_hovered.set(h))
-                    .background(move || {
-                        if header_hovered.get() {
-                            Color::rgba(1.0, 1.0, 1.0, 0.1)
+    container()
+        .width(fill())
+        .layout(Flex::column().spacing(move || if expanded.get() { 8 } else { 0 }))
+        .child(
+            // Header row: [slot content] [chevron]
+            container()
+                .width(fill())
+                .padding([6, 8])
+                .corner_radius(8)
+                .on_click(move || expanded.set(!expanded.get()))
+                .on_hover(move |h| header_hovered.set(h))
+                .background(move || {
+                    if header_hovered.get() {
+                        Color::rgba(1.0, 1.0, 1.0, 0.1)
+                    } else {
+                        Color::TRANSPARENT
+                    }
+                })
+                .layout(
+                    Flex::row()
+                        .main_alignment(MainAlignment::SpaceBetween)
+                        .cross_alignment(CrossAlignment::Center),
+                )
+                .child(header.unwrap_or_else(|| Box::new(container())))
+                .child(
+                    icon().ic(move || -> IconKind {
+                        if expanded.get() {
+                            StaticIcon::MenuClosed
                         } else {
-                            Color::TRANSPARENT
+                            StaticIcon::MenuOpen
                         }
+                        .into()
                     })
-                    .layout(
-                        Flex::row()
-                            .main_alignment(MainAlignment::SpaceBetween)
-                            .cross_alignment(CrossAlignment::Center),
-                    )
-                    .child(header.unwrap_or_else(|| Box::new(container())))
-                    .child(
-                        icon().ic(move || -> IconKind {
-                            if expanded.get() {
-                                StaticIcon::MenuClosed
-                            } else {
-                                StaticIcon::MenuOpen
-                            }
-                            .into()
-                        })
-                        .color(theme.text)
-                        .font_size(14.0),
-                    ),
-            )
-            .child(
-                container()
-                    .width(fill())
-                    .visible(expanded)
-                    .child(body.unwrap_or_else(|| Box::new(container()))),
-            )
-    }
+                    .color(theme.text)
+                    .font_size(14),
+                ),
+        )
+        .child(
+            container()
+                .width(fill())
+                .visible(expanded)
+                .child(body.unwrap_or_else(|| Box::new(container()))),
+        )
 }

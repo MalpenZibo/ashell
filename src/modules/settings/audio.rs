@@ -90,18 +90,18 @@ pub fn sink_indicator(data: AudioDataSignals) -> impl Widget {
     container()
         .layout(
             Flex::row()
-                .spacing(4.0)
+                .spacing(4)
                 .cross_alignment(CrossAlignment::Center),
         )
         .child(
             icon().ic(move || IconKind::from(sinks.with(|s| Sinks::get_icon(s, &server_info.with(|si| si.default_sink.clone())))))
                 .color(theme.text)
-                .font_size(14.0),
+                .font_size(14),
         )
         .child(
             text(move || format!("{}%", cur_vol.get()))
                 .color(theme.text)
-                .font_size(13.0),
+                .font_size(13),
         )
 }
 
@@ -116,13 +116,13 @@ pub fn sinks_submenu(
 
     container()
         .width(fill())
-        .layout(Flex::column().spacing(4.0))
+        .layout(Flex::column().spacing(4))
         .child(move || {
             let devices = sinks.with(|s| s.clone());
             let default = server_info.with(|si| si.default_sink.clone());
             let mut col = container()
                 .width(fill())
-                .layout(Flex::column().spacing(2.0));
+                .layout(Flex::column().spacing(2));
             for device in devices {
                 for port in &device.ports {
                     let name = device.name.clone();
@@ -134,8 +134,8 @@ pub fn sinks_submenu(
                     col = col.child(
                         container()
                             .width(fill())
-                            .padding([6.0, 8.0])
-                            .corner_radius(8.0)
+                            .padding([6, 8])
+                            .corner_radius(8)
                             .on_hover(move |h| hovered.set(h))
                             .on_click(move || {
                                 svc.send(AudioCmd::DefaultSink(
@@ -154,18 +154,18 @@ pub fn sinks_submenu(
                             })
                             .layout(
                                 Flex::row()
-                                    .spacing(8.0)
+                                    .spacing(8)
                                     .cross_alignment(CrossAlignment::Center),
                             )
                             .child(
                                 icon().ic(port.device_type.get_icon())
                                     .color(theme.text)
-                                    .font_size(14.0),
+                                    .font_size(14),
                             )
                             .child(
                                 text(desc)
                                     .color(theme.text)
-                                    .font_size(12.0),
+                                    .font_size(12),
                             ),
                     );
                 }
@@ -185,13 +185,13 @@ pub fn sources_submenu(
 
     container()
         .width(fill())
-        .layout(Flex::column().spacing(4.0))
+        .layout(Flex::column().spacing(4))
         .child(move || {
             let devices = sources.with(|s| s.clone());
             let default = server_info.with(|si| si.default_source.clone());
             let mut col = container()
                 .width(fill())
-                .layout(Flex::column().spacing(2.0));
+                .layout(Flex::column().spacing(2));
             for device in devices {
                 for port in &device.ports {
                     let name = device.name.clone();
@@ -203,8 +203,8 @@ pub fn sources_submenu(
                     col = col.child(
                         container()
                             .width(fill())
-                            .padding([6.0, 8.0])
-                            .corner_radius(8.0)
+                            .padding([6, 8])
+                            .corner_radius(8)
                             .on_hover(move |h| hovered.set(h))
                             .on_click(move || {
                                 svc.send(AudioCmd::DefaultSource(
@@ -223,18 +223,18 @@ pub fn sources_submenu(
                             })
                             .layout(
                                 Flex::row()
-                                    .spacing(8.0)
+                                    .spacing(8)
                                     .cross_alignment(CrossAlignment::Center),
                             )
                             .child(
                                 icon().ic(StaticIcon::Mic1)
                                     .color(theme.text)
-                                    .font_size(14.0),
+                                    .font_size(14),
                             )
                             .child(
                                 text(desc)
                                     .color(theme.text)
-                                    .font_size(12.0),
+                                    .font_size(12),
                             ),
                     );
                 }

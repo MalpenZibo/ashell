@@ -19,6 +19,7 @@ pub enum SubMenu {
     Bluetooth,
     Vpn,
     Power,
+    Peripherals,
 }
 
 pub struct SettingsSignals {
@@ -88,7 +89,7 @@ pub fn view(settings: SettingsSignals) -> impl Widget {
     container()
         .layout(
             Flex::row()
-                .spacing(10.0)
+                .spacing(10)
                 .cross_alignment(CrossAlignment::Center),
         )
         .child(audio::sink_indicator(settings.audio_data))
@@ -118,7 +119,7 @@ pub fn menu_view(
 
     container()
         .width(fill())
-        .layout(Flex::column().spacing(12.0))
+        .layout(Flex::column().spacing(12))
         // Header: battery info + power buttons
         .child({
             let close = close_menu.clone();
@@ -129,12 +130,12 @@ pub fn menu_view(
                         .main_alignment(MainAlignment::SpaceBetween)
                         .cross_alignment(CrossAlignment::Center),
                 )
-                .child(power::battery_header(settings.upower_data))
+                .child(power::battery_header(settings.upower_data, submenu))
                 .child({
                     container()
                         .layout(
                             Flex::row()
-                                .spacing(4.0)
+                                .spacing(4)
                                 .cross_alignment(CrossAlignment::Center),
                         )
                         .child(button().icon(IconKind::Static(StaticIcon::Lock)).on_click(
@@ -163,6 +164,17 @@ pub fn menu_view(
                 Some(submenu_wrapper(power::power_actions(close_menu2.clone())))
             } else {
                 None
+            }
+        })
+        // Peripherals submenu (conditionally shown)
+        .child({
+            let upower_data = settings.upower_data;
+            move || {
+                if submenu.get() == Some(SubMenu::Peripherals) {
+                    Some(submenu_wrapper(power::peripherals_view(upower_data)))
+                } else {
+                    None
+                }
             }
         })
         // Audio: sink slider (with chevron for device selection)
@@ -219,11 +231,11 @@ pub fn menu_view(
             Some(
                 container()
                     .width(fill())
-                    .layout(Flex::column().spacing(8.0))
+                    .layout(Flex::column().spacing(8))
                     .child(
                         container()
                             .width(fill())
-                            .layout(Flex::row().spacing(8.0))
+                            .layout(Flex::row().spacing(8))
                             .child(network::wifi_quick_setting(
                                 settings.network_data,
                                 settings.network_svc.clone(),
@@ -287,7 +299,7 @@ pub fn menu_view(
                 Some(
                     container()
                         .width(fill())
-                        .layout(Flex::row().spacing(8.0))
+                        .layout(Flex::row().spacing(8))
                         .child(network::vpn_quick_setting(
                             net_data,
                             net_svc.clone(),
@@ -329,24 +341,9 @@ pub fn menu_view(
                 Some(
                     container()
                         .width(fill())
-                        .layout(Flex::row().spacing(8.0))
+                        .layout(Flex::row().spacing(8))
                         .child(idle_inhibitor_quick_setting(inhibitor_data, inhibitor_svc))
                         .child(power::power_profile_quick_setting(up_data, up_svc.clone())),
-                )
-            }
-        })
-        // Peripherals
-        .child(move || {
-            let periphs = settings3.upower_data.peripherals.with(|p| p.clone());
-            if periphs.is_empty() {
-                None
-            } else {
-                Some(
-                    container()
-                        .width(fill())
-                        .layout(Flex::column().spacing(4.0))
-                        .child(divider())
-                        .child(power::peripherals_view(settings3.upower_data)),
                 )
             }
         })
@@ -355,8 +352,8 @@ pub fn menu_view(
 fn submenu_wrapper(content: impl Widget + 'static) -> impl Widget {
     container()
         .width(fill())
-        .padding(12.0)
-        .corner_radius(16.0)
+        .padding(12)
+        .corner_radius(16)
         .background(Color::rgba(1.0, 1.0, 1.0, 0.06))
         .child(content)
 }
@@ -364,7 +361,7 @@ fn submenu_wrapper(content: impl Widget + 'static) -> impl Widget {
 fn divider() -> impl Widget {
     container()
         .width(fill())
-        .height(1.0)
+        .height(1)
         .background(Color::rgba(1.0, 1.0, 1.0, 0.15))
 }
 
