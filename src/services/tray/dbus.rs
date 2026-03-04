@@ -1,5 +1,5 @@
 use iced::futures::StreamExt;
-use log::{info, warn};
+use log::{debug, info, warn};
 use std::time::Duration;
 use zbus::{
     Connection, Result,
@@ -18,7 +18,7 @@ const OBJECT_PATH: &str = "/StatusNotifierWatcher";
 
 #[derive(Debug, Default)]
 pub struct StatusNotifierWatcher {
-    items: Vec<(UniqueName<'static>, String)>,
+    items: std::collections::HashMap<String, String>,
 }
 
 impl StatusNotifierWatcher {
@@ -65,19 +65,20 @@ impl StatusNotifierWatcher {
                             }
                         } else if let BusName::Unique(name) = &args.name {
                             let mut interface = internal_interface.get_mut().await;
-                            if let Some(idx) = interface
-                                .items
-                                .iter()
-                                .position(|(unique_name, _)| unique_name == name)
-                            {
-                                let emitter =
-                                    SignalEmitter::new(&internal_connection, OBJECT_PATH).unwrap();
-                                let service = interface.items.remove(idx).1;
-                                StatusNotifierWatcher::status_notifier_item_unregistered(
+                            if let Some(service) = interface.items.remove(&name.to_string()) {
+                                let emitter = match SignalEmitter::new(&internal_connection, OBJECT_PATH) {
+                                    Ok(emitter) => emitter,
+                                    Err(err) => {
+                                        warn!("Failed to create signal emitter for unregistration: {err}");
+                                        continue;
+                                    }
+                                };
+                                if let Err(err) = StatusNotifierWatcher::status_notifier_item_unregistered(
                                     &emitter, &service,
                                 )
-                                .await
-                                .unwrap();
+                                .await {
+                                    warn!("Failed to emit status notifier item unregistered signal for service '{service}': {err}");
+                                }
                             }
                         }
                     }
@@ -116,47 +117,60 @@ impl StatusNotifierWatcher {
 
             // Only try to register services that explicitly mention StatusNotifierItem
             if name_str.contains("StatusNotifierItem") {
-                let sender = match dbus_proxy.get_name_owner(BusName::from(name.clone())).await {
-                    Ok(owner) => owner,
-                    Err(_) => continue,
-                };
-
-                let mut watcher = interface.get_mut().await;
-                let emitter = SignalEmitter::new(conn, OBJECT_PATH).unwrap();
-                watcher
-                    .register_status_notifier_item_manual(
-                        "/StatusNotifierItem",
-                        sender.into_inner(),
-                        &emitter,
-                    )
-                    .await;
+                Self::try_register_item(
+                    conn,
+                    interface,
+                    &dbus_proxy,
+                    &BusName::from(name.clone()),
+                    "/StatusNotifierItem",
+                )
+                .await;
             } else {
                 // Try introspection for other services
                 if let Some(path_hint) = Self::find_status_notifier_path(conn, name_str).await {
-                    let sender = match dbus_proxy.get_name_owner(BusName::from(name.clone())).await
-                    {
-                        Ok(owner) => owner,
-                        Err(_) => continue,
-                    };
-
-                    let mut watcher = interface.get_mut().await;
-                    let emitter = SignalEmitter::new(conn, OBJECT_PATH).unwrap();
-                    watcher
-                        .register_status_notifier_item_manual(
-                            &path_hint,
-                            sender.into_inner(),
-                            &emitter,
-                        )
-                        .await;
+                    Self::try_register_item(
+                        conn,
+                        interface,
+                        &dbus_proxy,
+                        &BusName::from(name.clone()),
+                        &path_hint,
+                    )
+                    .await;
                 }
             }
         }
         Ok(())
     }
+
+    async fn try_register_item(
+        conn: &Connection,
+        interface: &zbus::object_server::InterfaceRef<StatusNotifierWatcher>,
+        dbus_proxy: &DBusProxy<'_>,
+        name: &BusName<'_>,
+        service_path: &str,
+    ) {
+        let sender = match dbus_proxy.get_name_owner(name.clone()).await {
+            Ok(owner) => owner,
+            Err(_) => return,
+        };
+
+        let mut watcher = interface.get_mut().await;
+        let emitter = match SignalEmitter::new(conn, OBJECT_PATH) {
+            Ok(emitter) => emitter,
+            Err(err) => {
+                warn!("Failed to create signal emitter for registration: {err}");
+                return;
+            }
+        };
+        watcher
+            .register_status_notifier_item_manual(service_path, sender.into_inner(), &emitter)
+            .await;
+    }
 }
 
 impl StatusNotifierWatcher {
     async fn find_status_notifier_path(conn: &Connection, name: &str) -> Option<String> {
+        debug!("Attempting to find StatusNotifier path for service: {name}");
         let candidates = [
             "/StatusNotifierItem",
             "/org/ayatana/NotificationItem",
@@ -164,28 +178,50 @@ impl StatusNotifierWatcher {
         ];
 
         for path in candidates {
+            debug!("Trying path: {path} for service: {name}");
             let builder = match IntrospectableProxy::builder(conn).destination(name.to_string()) {
                 Ok(builder) => builder,
-                Err(_) => continue,
+                Err(err) => {
+                    debug!("Failed to create proxy builder for {name} at {path}: {err}");
+                    continue;
+                }
             };
 
             let builder = match builder.path(path) {
                 Ok(builder) => builder,
-                Err(_) => continue,
+                Err(err) => {
+                    debug!("Failed to set path {path} for {name}: {err}");
+                    continue;
+                }
             };
 
             let proxy = match builder.build().await {
                 Ok(proxy) => proxy,
-                Err(_) => continue,
+                Err(err) => {
+                    debug!("Failed to build proxy for {name} at {path}: {err}");
+                    continue;
+                }
             };
 
-            if let Ok(xml) = proxy.introspect().await
-                && xml.contains("org.kde.StatusNotifierItem")
+            if let Ok(xml_result) =
+                tokio::time::timeout(tokio::time::Duration::from_secs(5), proxy.introspect()).await
             {
-                return Some(path.to_string());
+                if let Ok(xml) = xml_result
+                    && xml.contains("org.kde.StatusNotifierItem")
+                {
+                    info!("Found StatusNotifierItem at {path} for service: {name}");
+                    return Some(path.to_string());
+                } else {
+                    debug!(
+                        "Introspection successful for {name} at {path}, but no StatusNotifierItem interface found"
+                    );
+                }
+            } else {
+                warn!("Introspection timeout for {name} at {path} after 5 seconds");
             }
         }
 
+        debug!("No StatusNotifierItem path found for service: {name}");
         None
     }
 
@@ -201,15 +237,35 @@ impl StatusNotifierWatcher {
             service.to_string()
         };
 
-        if self.items.iter().any(|(_, s)| s == &service) {
+        let sender_key = sender.to_string();
+
+        if let Some(existing_service) = self.items.get(&sender_key)
+            && existing_service == &service
+        {
             return;
+        }
+
+        // Check if this service is already registered by a different sender
+        if let Some((old_sender, old_service)) = self
+            .items
+            .iter()
+            .find(|(_, s)| *s == &service)
+            .map(|(k, v)| (k.clone(), v.clone()))
+        {
+            // Emit unregistered signal for the old entry before removing it
+            if let Err(err) = Self::status_notifier_item_unregistered(emitter, &old_service).await {
+                warn!(
+                    "Failed to emit status_notifier_item_unregistered for duplicate service '{old_service}': {err}"
+                );
+            }
+            self.items.remove(&old_sender);
         }
 
         if let Err(err) = Self::status_notifier_item_registered(emitter, &service).await {
             warn!("Failed to emit status_notifier_item_registered for '{service}': {err:?}");
         }
 
-        self.items.push((sender, service));
+        self.items.insert(sender_key, service);
     }
 }
 
@@ -228,7 +284,13 @@ impl StatusNotifierWatcher {
         #[zbus(header)] header: Header<'_>,
         #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
     ) {
-        let sender = header.sender().unwrap().to_owned();
+        let sender = match header.sender() {
+            Some(sender) => sender.to_owned(),
+            None => {
+                warn!("Received status notifier item registration signal without sender header");
+                return;
+            }
+        };
         self.register_status_notifier_item_manual(service, sender, &emitter)
             .await;
     }
@@ -237,7 +299,7 @@ impl StatusNotifierWatcher {
 
     #[zbus(property)]
     fn registered_status_notifier_items(&self) -> Vec<String> {
-        self.items.iter().map(|(_, x)| x.clone()).collect()
+        self.items.values().cloned().collect()
     }
 
     #[zbus(property)]
@@ -274,6 +336,16 @@ pub struct Icon {
     pub width: i32,
     pub height: i32,
     pub bytes: Vec<u8>,
+}
+
+/// Convert ARGB pixel format to RGBA
+/// ARGB format is [A, R, G, B], RGBA format is [R, G, B, A]
+/// rotate_left(1) moves the alpha byte from position 0 to position 3
+pub fn convert_argb_to_rgba(mut icon: Icon) -> Icon {
+    for pixel in icon.bytes.chunks_exact_mut(4) {
+        pixel.rotate_left(1);
+    }
+    icon
 }
 
 #[proxy(interface = "org.kde.StatusNotifierItem")]
