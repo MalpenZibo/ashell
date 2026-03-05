@@ -85,7 +85,9 @@ impl NetworkDbus<'_> {
                                 .build()
                                 .await?;
                             info.push(ActiveConnectionInfo::WiFi {
-                                name: String::from_utf8_lossy(&ap.ssid().await?).into_owned(),
+                                name: String::from_utf8_lossy(&ap.ssid().await?)
+                                    .trim()
+                                    .to_string(),
                                 strength: ap.strength().await.unwrap_or_default(),
                             });
                         }
@@ -156,7 +158,7 @@ impl NetworkDbus<'_> {
                     .path(ap_path)?
                     .build()
                     .await?;
-                let ssid = String::from_utf8_lossy(&ap.ssid().await?).into_owned();
+                let ssid = String::from_utf8_lossy(&ap.ssid().await?).trim().to_string();
                 let public = ap.flags().await.unwrap_or_default() == 0;
                 let strength = ap.strength().await?;
 

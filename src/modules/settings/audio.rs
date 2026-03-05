@@ -1,8 +1,9 @@
 use guido::prelude::*;
 
-use crate::components::{IconKind, StaticIcon, icon, slider};
+use crate::components::{IconKind, StaticIcon, icon, selectable_item, slider};
 use crate::services::audio::{AudioCmd, AudioDataSignals, Sinks, Sources};
 use crate::theme::ThemeColors;
+
 
 use super::SubMenu;
 
@@ -32,6 +33,7 @@ pub fn sink_slider(
         })
         .on_change(move |vol| svc_change.send(AudioCmd::SinkVolume(vol)))
         .on_mute_toggle(move || svc_mute.send(AudioCmd::ToggleSinkMute))
+        .expanded(move || submenu.get() == Some(SubMenu::Sinks))
         .on_chevron(move || {
             submenu.set(
                 if submenu.get() == Some(SubMenu::Sinks) {
@@ -69,6 +71,7 @@ pub fn source_slider(
         })
         .on_change(move |vol| svc_change.send(AudioCmd::SourceVolume(vol)))
         .on_mute_toggle(move || svc_mute.send(AudioCmd::ToggleSourceMute))
+        .expanded(move || submenu.get() == Some(SubMenu::Sources))
         .on_chevron(move || {
             submenu.set(
                 if submenu.get() == Some(SubMenu::Sources) {
@@ -110,7 +113,6 @@ pub fn sinks_submenu(
     data: AudioDataSignals,
     svc: Service<AudioCmd>,
 ) -> impl Widget {
-    let theme = expect_context::<ThemeColors>();
     let sinks = data.sinks;
     let server_info = data.server_info;
 
@@ -130,43 +132,17 @@ pub fn sinks_submenu(
                     let desc = port.description.clone();
                     let is_active = device.name == default && port.active;
                     let svc = svc.clone();
-                    let hovered = create_signal(false);
                     col = col.child(
-                        container()
-                            .width(fill())
-                            .padding([6, 8])
-                            .corner_radius(8)
-                            .on_hover(move |h| hovered.set(h))
+                        selectable_item()
+                            .ic(port.device_type.get_icon())
+                            .label(desc)
+                            .selected(is_active)
                             .on_click(move || {
                                 svc.send(AudioCmd::DefaultSink(
                                     name.clone(),
                                     port_name.clone(),
                                 ));
-                            })
-                            .background(move || {
-                                if is_active {
-                                    Color::rgba(1.0, 1.0, 1.0, 0.15)
-                                } else if hovered.get() {
-                                    Color::rgba(1.0, 1.0, 1.0, 0.1)
-                                } else {
-                                    Color::TRANSPARENT
-                                }
-                            })
-                            .layout(
-                                Flex::row()
-                                    .spacing(8)
-                                    .cross_alignment(CrossAlignment::Center),
-                            )
-                            .child(
-                                icon().ic(port.device_type.get_icon())
-                                    .color(theme.text)
-                                    .font_size(14),
-                            )
-                            .child(
-                                text(desc)
-                                    .color(theme.text)
-                                    .font_size(12),
-                            ),
+                            }),
                     );
                 }
             }
@@ -179,7 +155,6 @@ pub fn sources_submenu(
     data: AudioDataSignals,
     svc: Service<AudioCmd>,
 ) -> impl Widget {
-    let theme = expect_context::<ThemeColors>();
     let sources = data.sources;
     let server_info = data.server_info;
 
@@ -199,43 +174,17 @@ pub fn sources_submenu(
                     let desc = port.description.clone();
                     let is_active = device.name == default && port.active;
                     let svc = svc.clone();
-                    let hovered = create_signal(false);
                     col = col.child(
-                        container()
-                            .width(fill())
-                            .padding([6, 8])
-                            .corner_radius(8)
-                            .on_hover(move |h| hovered.set(h))
+                        selectable_item()
+                            .ic(port.device_type.get_icon())
+                            .label(desc)
+                            .selected(is_active)
                             .on_click(move || {
                                 svc.send(AudioCmd::DefaultSource(
                                     name.clone(),
                                     port_name.clone(),
                                 ));
-                            })
-                            .background(move || {
-                                if is_active {
-                                    Color::rgba(1.0, 1.0, 1.0, 0.15)
-                                } else if hovered.get() {
-                                    Color::rgba(1.0, 1.0, 1.0, 0.1)
-                                } else {
-                                    Color::TRANSPARENT
-                                }
-                            })
-                            .layout(
-                                Flex::row()
-                                    .spacing(8)
-                                    .cross_alignment(CrossAlignment::Center),
-                            )
-                            .child(
-                                icon().ic(StaticIcon::Mic1)
-                                    .color(theme.text)
-                                    .font_size(14),
-                            )
-                            .child(
-                                text(desc)
-                                    .color(theme.text)
-                                    .font_size(12),
-                            ),
+                            }),
                     );
                 }
             }

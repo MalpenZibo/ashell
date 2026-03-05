@@ -337,19 +337,15 @@ pub fn icon(
     #[prop(default = "14.0")]
     font_size: f32,
 ) -> impl Widget {
-    let ic1 = ic.clone();
-    let ic2 = ic.clone();
-    let mono = mono.clone();
-
-    text(move || ic1.get().get_str().to_string())
+    text(move || ic.get().get_str().to_string())
         .font_family(move || {
-            let i = ic2.get();
+            let i = ic.get();
             if mono.get() {
                 i.font_family_mono()
             } else {
                 i.font_family()
             }
         })
-        .color(color.clone())
-        .font_size(font_size.clone())
+        .color(color)
+        .font_size(font_size)
 }

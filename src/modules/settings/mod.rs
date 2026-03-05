@@ -6,6 +6,7 @@ pub mod power;
 
 use guido::prelude::*;
 
+use crate::components::buttons::icon_button;
 use crate::components::{IconKind, StaticIcon, button, icon, quick_setting};
 use crate::config::Config;
 use crate::services;
@@ -138,24 +139,28 @@ pub fn menu_view(
                                 .spacing(4)
                                 .cross_alignment(CrossAlignment::Center),
                         )
-                        .child(button().icon(IconKind::Static(StaticIcon::Lock)).on_click(
-                            move || {
-                                let _ = std::process::Command::new("bash")
-                                    .arg("-c")
-                                    .arg(&lock_cmd)
-                                    .spawn();
-                                close();
-                            },
-                        ))
-                        .child(button().icon(IconKind::Static(StaticIcon::Power)).on_click(
-                            move || {
-                                submenu.set(if submenu.get() == Some(SubMenu::Power) {
-                                    None
-                                } else {
-                                    Some(SubMenu::Power)
-                                });
-                            },
-                        ))
+                        .child(
+                            icon_button()
+                                .icon(IconKind::Static(StaticIcon::Lock))
+                                .on_click(move || {
+                                    let _ = std::process::Command::new("bash")
+                                        .arg("-c")
+                                        .arg(&lock_cmd)
+                                        .spawn();
+                                    close();
+                                }),
+                        )
+                        .child(
+                            icon_button()
+                                .icon(IconKind::Static(StaticIcon::Power))
+                                .on_click(move || {
+                                    submenu.set(if submenu.get() == Some(SubMenu::Power) {
+                                        None
+                                    } else {
+                                        Some(SubMenu::Power)
+                                    });
+                                }),
+                        )
                 })
         })
         // Power submenu (conditionally shown)
@@ -246,6 +251,7 @@ pub fn menu_view(
                                         Some(SubMenu::WiFi)
                                     });
                                 },
+                                move || submenu.get() == Some(SubMenu::WiFi),
                             ))
                             .child(bluetooth::bt_quick_setting(
                                 settings.bluetooth_data,
@@ -257,6 +263,7 @@ pub fn menu_view(
                                         Some(SubMenu::Bluetooth)
                                     });
                                 },
+                                move || submenu.get() == Some(SubMenu::Bluetooth),
                             )),
                     ),
             )
@@ -310,6 +317,7 @@ pub fn menu_view(
                                     Some(SubMenu::Vpn)
                                 });
                             },
+                            move || submenu.get() == Some(SubMenu::Vpn),
                         ))
                         .child(network::airplane_quick_setting(net_data, net_svc.clone())),
                 )

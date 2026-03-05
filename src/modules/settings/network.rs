@@ -1,6 +1,6 @@
 use guido::prelude::*;
 
-use crate::components::{IconKind, StaticIcon, icon, quick_setting};
+use crate::components::{IconKind, StaticIcon, icon, quick_setting, selectable_item, toggle_button};
 use crate::services::network::{
     ActiveConnectionInfo, KnownConnection, NetworkCmd, NetworkDataSignals,
 };
@@ -54,6 +54,7 @@ pub fn wifi_quick_setting(
     data: NetworkDataSignals,
     svc: Service<NetworkCmd>,
     on_submenu: impl Fn() + 'static,
+    expanded: impl Fn() -> bool + 'static,
 ) -> impl Widget {
     let wifi_enabled = data.wifi_enabled;
     let active = data.active_connections;
@@ -84,6 +85,7 @@ pub fn wifi_quick_setting(
         .active(move || wifi_enabled.get())
         .on_toggle(move || svc_toggle.send(NetworkCmd::ToggleWiFi(wifi_enabled.get())))
         .on_submenu(on_submenu)
+        .expanded(expanded)
 }
 
 /// Airplane mode quick setting
@@ -113,6 +115,7 @@ pub fn vpn_quick_setting(
     data: NetworkDataSignals,
     svc: Service<NetworkCmd>,
     on_submenu: impl Fn() + 'static,
+    expanded: impl Fn() -> bool + 'static,
 ) -> impl Widget {
     let active = data.active_connections;
     let known = data.known_connections;
@@ -157,6 +160,7 @@ pub fn vpn_quick_setting(
             }
         })
         .on_submenu(on_submenu)
+        .expanded(expanded)
 }
 
 /// WiFi submenu: list of known/available access points
@@ -221,37 +225,15 @@ pub fn wifi_submenu(
                     let strength = ap.strength;
                     let ap_clone = ap.clone();
                     let svc = svc.clone();
-                    let hovered = create_signal(false);
                     let is_connected = ap.state == crate::services::network::DeviceState::Activated;
                     col = col.child(
-                        container()
-                            .width(fill())
-                            .padding([6, 8])
-                            .corner_radius(8)
-                            .on_hover(move |h| hovered.set(h))
+                        selectable_item()
+                            .ic(strength_to_icon(strength, true))
+                            .label(ssid)
+                            .selected(is_connected)
                             .on_click(move || {
                                 svc.send(NetworkCmd::SelectAccessPoint((ap_clone.clone(), None)));
-                            })
-                            .background(move || {
-                                if is_connected {
-                                    Color::rgba(1.0, 1.0, 1.0, 0.15)
-                                } else if hovered.get() {
-                                    Color::rgba(1.0, 1.0, 1.0, 0.1)
-                                } else {
-                                    Color::TRANSPARENT
-                                }
-                            })
-                            .layout(
-                                Flex::row()
-                                    .spacing(8)
-                                    .cross_alignment(CrossAlignment::Center),
-                            )
-                            .child(
-                                icon().ic(strength_to_icon(strength, true))
-                                    .color(theme.text)
-                                    .font_size(14),
-                            )
-                            .child(text(ssid).color(theme.text).font_size(12)),
+                            }),
                     );
                 }
             }
@@ -271,38 +253,18 @@ pub fn wifi_submenu(
                 let ssid = ap.ssid.clone();
                 let strength = ap.strength;
                 let is_public = ap.public;
-                let hovered = create_signal(false);
                 col = col.child(
-                    container()
-                        .width(fill())
-                        .padding([6, 8])
-                        .corner_radius(8)
-                        .on_hover(move |h| hovered.set(h))
-                        .background(move || {
-                            if hovered.get() {
-                                Color::rgba(1.0, 1.0, 1.0, 0.1)
-                            } else {
-                                Color::TRANSPARENT
-                            }
-                        })
-                        .layout(
-                            Flex::row()
-                                .spacing(8)
-                                .cross_alignment(CrossAlignment::Center),
-                        )
-                        .child(
-                            icon().ic(strength_to_icon(strength, is_public))
-                                .color(theme.text)
-                                .font_size(14),
-                        )
-                        .child(text(ssid).color(theme.text).font_size(12)),
+                    selectable_item()
+                        .ic(strength_to_icon(strength, is_public))
+                        .label(ssid)
+                        .selected(false),
                 );
             }
             Some(col)
         })
 }
 
-/// VPN submenu: list of known VPNs with toggle
+/// VPN submenu: list of known VPNs with toggle switches
 pub fn vpn_submenu(
     data: NetworkDataSignals,
     svc: Service<NetworkCmd>,
@@ -311,62 +273,59 @@ pub fn vpn_submenu(
     let known = data.known_connections;
     let active = data.active_connections;
 
-    container()
+    let mut col = container()
         .width(fill())
-        .layout(Flex::column().spacing(4))
-        .child(text("VPN").color(theme.text).font_size(14))
-        .child(move || {
-            let known_list = known.with(|k| k.clone());
-            let active_list = active.with(|a| a.clone());
-            let mut col = container()
-                .width(fill())
-                .layout(Flex::column().spacing(2));
+        .layout(Flex::column().spacing(4));
 
-            for kc in &known_list {
-                if let KnownConnection::Vpn(vpn) = kc {
-                    let name = vpn.name.clone();
-                    let vpn_clone = vpn.clone();
-                    let svc = svc.clone();
-                    let hovered = create_signal(false);
-                    let active_vpn_path = active_list
-                        .iter()
-                        .find_map(|ac| match ac {
-                            ActiveConnectionInfo::Vpn { name: n, object_path } if *n == name => {
-                                Some(object_path.clone())
-                            }
-                            _ => None,
-                        });
-                    let is_active = active_vpn_path.is_some();
-                    col = col.child(
-                        container()
-                            .width(fill())
-                            .padding([6, 8])
-                            .corner_radius(8)
-                            .on_hover(move |h| hovered.set(h))
-                            .on_click(move || {
-                                svc.send(NetworkCmd::ToggleVpn(vpn_clone.clone(), active_vpn_path.clone()));
+    // Build VPN rows from the known list (static at menu open time)
+    let known_list = known.with(|k| k.clone());
+    for kc in &known_list {
+        if let KnownConnection::Vpn(vpn) = kc {
+            let vpn_name = vpn.name.clone();
+            let vpn_clone = vpn.clone();
+            let svc = svc.clone();
+            let name_for_active = vpn_name.clone();
+
+            col = col.child(
+                container()
+                    .width(fill())
+                    .height(32)
+                    .padding([0, 8])
+                    .layout(
+                        Flex::row()
+                            .main_alignment(MainAlignment::SpaceBetween)
+                            .cross_alignment(CrossAlignment::Center),
+                    )
+                    .child(text(vpn_name).color(theme.text).font_size(12))
+                    .child(
+                        toggle_button()
+                            .active(move || {
+                                active.with(|acs| {
+                                    acs.iter().any(|ac| matches!(
+                                        ac,
+                                        ActiveConnectionInfo::Vpn { name, .. } if *name == name_for_active
+                                    ))
+                                })
                             })
-                            .background(move || {
-                                if is_active {
-                                    Color::rgba(1.0, 1.0, 1.0, 0.15)
-                                } else if hovered.get() {
-                                    Color::rgba(1.0, 1.0, 1.0, 0.1)
-                                } else {
-                                    Color::TRANSPARENT
-                                }
-                            })
-                            .layout(
-                                Flex::row()
-                                    .spacing(8)
-                                    .cross_alignment(CrossAlignment::Center),
-                            )
-                            .child(icon().ic(StaticIcon::Vpn).color(theme.text).font_size(14))
-                            .child(text(name).color(theme.text).font_size(12)),
-                    );
-                }
-            }
-            Some(col)
-        })
+                            .on_toggle(move || {
+                                let active_path = active.with(|acs| {
+                                    acs.iter().find_map(|ac| match ac {
+                                        ActiveConnectionInfo::Vpn { name, object_path }
+                                            if *name == vpn_clone.name =>
+                                        {
+                                            Some(object_path.clone())
+                                        }
+                                        _ => None,
+                                    })
+                                });
+                                svc.send(NetworkCmd::ToggleVpn(vpn_clone.clone(), active_path));
+                            }),
+                    ),
+            );
+        }
+    }
+
+    col.child(super::divider())
 }
 
 fn strength_to_icon(strength: u8, public: bool) -> StaticIcon {

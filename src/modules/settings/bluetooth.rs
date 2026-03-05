@@ -1,6 +1,6 @@
 use guido::prelude::*;
 
-use crate::components::{IconKind, StaticIcon, icon, quick_setting};
+use crate::components::{IconKind, StaticIcon, icon, quick_setting, selectable_item};
 use crate::services::bluetooth::{
     BluetoothCmd, BluetoothDataSignals, BluetoothState,
 };
@@ -37,6 +37,7 @@ pub fn bt_quick_setting(
     data: BluetoothDataSignals,
     svc: Service<BluetoothCmd>,
     on_submenu: impl Fn() + 'static,
+    expanded: impl Fn() -> bool + 'static,
 ) -> impl Widget {
     let state = data.state;
     let devices = data.devices;
@@ -65,6 +66,7 @@ pub fn bt_quick_setting(
         .active(move || state.get() == BluetoothState::Active)
         .on_toggle(move || svc_toggle.send(BluetoothCmd::Toggle(state.get())))
         .on_submenu(on_submenu)
+        .expanded(expanded)
 }
 
 /// Bluetooth submenu: device list
@@ -157,34 +159,14 @@ pub fn bt_submenu(
                     .unwrap_or_default();
                 let label = format!("{name}{battery_str}");
                 let svc = svc.clone();
-                let hovered = create_signal(false);
                 col = col.child(
-                    container()
-                        .width(fill())
-                        .padding([6, 8])
-                        .corner_radius(8)
-                        .on_hover(move |h| hovered.set(h))
+                    selectable_item()
+                        .ic(StaticIcon::BluetoothConnected)
+                        .label(label)
+                        .selected(true)
                         .on_click(move || {
                             svc.send(BluetoothCmd::DisconnectDevice(path.clone()));
-                        })
-                        .background(move || {
-                            if hovered.get() {
-                                Color::rgba(1.0, 1.0, 1.0, 0.1)
-                            } else {
-                                Color::rgba(1.0, 1.0, 1.0, 0.15)
-                            }
-                        })
-                        .layout(
-                            Flex::row()
-                                .spacing(8)
-                                .cross_alignment(CrossAlignment::Center),
-                        )
-                        .child(
-                            icon().ic(StaticIcon::BluetoothConnected)
-                                .color(theme.text)
-                                .font_size(14),
-                        )
-                        .child(text(label).color(theme.text).font_size(12)),
+                        }),
                 );
             }
 
@@ -192,30 +174,14 @@ pub fn bt_submenu(
                 let name = device.name.clone();
                 let path = device.path.clone();
                 let svc = svc.clone();
-                let hovered = create_signal(false);
                 col = col.child(
-                    container()
-                        .width(fill())
-                        .padding([6, 8])
-                        .corner_radius(8)
-                        .on_hover(move |h| hovered.set(h))
+                    selectable_item()
+                        .ic(StaticIcon::Bluetooth)
+                        .label(name)
+                        .selected(false)
                         .on_click(move || {
                             svc.send(BluetoothCmd::ConnectDevice(path.clone()));
-                        })
-                        .background(move || {
-                            if hovered.get() {
-                                Color::rgba(1.0, 1.0, 1.0, 0.1)
-                            } else {
-                                Color::TRANSPARENT
-                            }
-                        })
-                        .layout(
-                            Flex::row()
-                                .spacing(8)
-                                .cross_alignment(CrossAlignment::Center),
-                        )
-                        .child(icon().ic(StaticIcon::Bluetooth).color(theme.text).font_size(14))
-                        .child(text(name).color(theme.text).font_size(12)),
+                        }),
                 );
             }
 
@@ -229,32 +195,14 @@ pub fn bt_submenu(
                     let name = device.name.clone();
                     let path = device.path.clone();
                     let svc = svc.clone();
-                    let hovered = create_signal(false);
                     col = col.child(
-                        container()
-                            .width(fill())
-                            .padding([6, 8])
-                            .corner_radius(8)
-                            .on_hover(move |h| hovered.set(h))
+                        selectable_item()
+                            .ic(StaticIcon::Bluetooth)
+                            .label(name)
+                            .selected(false)
                             .on_click(move || {
                                 svc.send(BluetoothCmd::PairDevice(path.clone()));
-                            })
-                            .background(move || {
-                                if hovered.get() {
-                                    Color::rgba(1.0, 1.0, 1.0, 0.1)
-                                } else {
-                                    Color::TRANSPARENT
-                                }
-                            })
-                            .layout(
-                                Flex::row()
-                                    .spacing(8)
-                                    .cross_alignment(CrossAlignment::Center),
-                            )
-                            .child(
-                                icon().ic(StaticIcon::Bluetooth).color(theme.text).font_size(14),
-                            )
-                            .child(text(name).color(theme.text).font_size(12)),
+                            }),
                     );
                 }
             }

@@ -1,8 +1,11 @@
 use guido::prelude::*;
 
-use crate::theme::ThemeColors;
+use crate::{
+    components::{ButtonHierarchy, ButtonKind, ButtonSize, button, buttons::icon_button},
+    theme::ThemeColors,
+};
 
-use super::icons::{IconKind, StaticIcon, icon};
+use super::icons::{IconKind, StaticIcon};
 
 /// A quick-setting button: icon + title + optional subtitle + optional chevron.
 /// Active state shows colored background, inactive shows dim.
@@ -13,65 +16,38 @@ pub fn quick_setting(
     title: String,
     subtitle: String,
     active: bool,
-    #[prop(callback)]
-    on_toggle: (),
-    #[prop(callback)]
-    on_submenu: (),
+    #[prop(callback)] on_toggle: (),
+    #[prop(callback)] on_submenu: (),
+    #[prop(default = "false")] expanded: bool,
 ) -> impl Widget {
     let theme = expect_context::<ThemeColors>();
-    let hovered = create_signal(false);
 
-    let ic = ic.clone();
-    let title = title.clone();
-    let subtitle = subtitle.clone();
-    let active1 = active.clone();
-    let active2 = active.clone();
-    let active3 = active.clone();
-    let active4 = active.clone();
-    let active5 = active.clone();
+    let on_toggle = on_toggle.clone();
     let on_submenu = on_submenu.clone();
 
-    let mut btn = container()
-        .width(fill())
-        .height(50)
-        .corner_radius(16)
-        .on_hover(move |h| hovered.set(h))
-        .on_click_option(on_toggle.clone())
-        .background(move || {
-            if active1.get() {
-                theme.primary
-            } else if hovered.get() {
-                Color::rgba(1.0, 1.0, 1.0, 0.1)
-            } else {
-                Color::rgba(1.0, 1.0, 1.0, 0.05)
-            }
-        })
+    // Build inner content: [title column (fill)] [optional chevron]
+    let mut inner = container()
         .layout(
             Flex::row()
                 .spacing(8)
                 .cross_alignment(CrossAlignment::Center),
         )
-        .padding([0, 10])
-        // Icon
-        .child(
-            icon().ic(move || IconKind::from(ic.get()))
-                .color(move || {
-                    if active2.get() {
-                        theme.background
-                    } else {
-                        theme.text
-                    }
-                })
-                .font_size(16),
-        )
+        .width(fill())
+        .height(fill())
         // Text column
         .child(
             container()
-                .layout(Flex::column().spacing(1))
+                .layout(
+                    Flex::column()
+                        .main_alignment(MainAlignment::Center)
+                        .spacing(2),
+                )
+                .width(fill())
+                .height(fill())
                 .child(
                     text(move || title.get())
                         .color(move || {
-                            if active3.get() {
+                            if active.get() {
                                 theme.background
                             } else {
                                 theme.text
@@ -80,18 +56,16 @@ pub fn quick_setting(
                         .font_size(12),
                 )
                 .child({
-                    let subtitle = subtitle.clone();
-                    let active4 = active4.clone();
                     move || {
                         let sub = subtitle.get();
                         if sub.is_empty() {
                             None
                         } else {
-                            let active4 = active4.clone();
                             Some(
                                 text(sub)
+                                    .nowrap()
                                     .color(move || {
-                                        if active4.get() {
+                                        if active.get() {
                                             Color::rgba(
                                                 theme.background.r,
                                                 theme.background.g,
@@ -109,32 +83,68 @@ pub fn quick_setting(
                 }),
         );
 
-    // Add spacer + chevron inside the button if there's a submenu action
+    // Add chevron button if there's a submenu action
     if let Some(on_sub) = on_submenu {
-        btn = btn
-            // Fill spacer pushes chevron to the right
-            .child(container().width(fill()))
-            .child(
-                container()
-                    .padding([0, 4])
-                    .on_click(move || on_sub())
-                    .layout(
-                        Flex::row()
-                            .main_alignment(MainAlignment::Center)
-                            .cross_alignment(CrossAlignment::Center),
-                    )
-                    .child(
-                        icon().ic(StaticIcon::RightChevron)
-                            .color(move || {
-                                if active5.get() {
-                                    theme.background
-                                } else {
-                                    theme.text
-                                }
-                            })
-                            .font_size(12),
-                    ),
-            );
+        inner = inner.child(
+            icon_button()
+                .size(ButtonSize::Small)
+                .kind(move || {
+                    if expanded.get() {
+                        ButtonKind::Solid
+                    } else {
+                        ButtonKind::Transparent
+                    }
+                })
+                .hierarchy(move || {
+                    if expanded.get() {
+                        // Expanded (close button): inverted colors on tile
+                        if active.get() {
+                            ButtonHierarchy::Custom {
+                                bg: theme.background,
+                                fg: theme.text,
+                            }
+                        } else {
+                            ButtonHierarchy::Secondary
+                        }
+                    } else {
+                        // Collapsed chevron
+                        if active.get() {
+                            ButtonHierarchy::Custom {
+                                bg: Color::TRANSPARENT,
+                                fg: theme.background,
+                            }
+                        } else {
+                            ButtonHierarchy::Secondary
+                        }
+                    }
+                })
+                .icon(move || {
+                    IconKind::Static(if expanded.get() {
+                        StaticIcon::Close
+                    } else {
+                        StaticIcon::RightChevron
+                    })
+                })
+                .on_click(move || on_sub()),
+        );
+    }
+
+    // Wrap in a Large Solid button with reactive hierarchy + icon
+    let mut btn = button()
+        .size(ButtonSize::Large)
+        .kind(ButtonKind::Solid)
+        .icon(move || Some(IconKind::from(ic.get())))
+        .hierarchy(move || {
+            if active.get() {
+                ButtonHierarchy::Primary
+            } else {
+                ButtonHierarchy::Secondary
+            }
+        })
+        .content(inner);
+
+    if let Some(on_toggle) = on_toggle {
+        btn = btn.on_click(move || on_toggle());
     }
 
     btn

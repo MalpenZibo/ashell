@@ -1,8 +1,11 @@
 use guido::prelude::*;
 
-use crate::{components::button, theme::ThemeColors};
+use crate::{
+    components::{button, buttons::icon_button, icon},
+    theme::ThemeColors,
+};
 
-use super::icons::{IconKind, StaticIcon, icon};
+use super::icons::{IconKind, StaticIcon};
 
 /// A slider component with drag-to-adjust, click-to-set, and scroll-to-adjust.
 /// Renders: [mute icon] [track with fill bar + thumb] [optional chevron]
@@ -14,15 +17,12 @@ pub fn slider(
     #[prop(callback)] on_change: fn(i32),
     #[prop(callback)] on_mute_toggle: (),
     #[prop(callback)] on_chevron: (),
+    #[prop(default = "false")] expanded: bool,
 ) -> impl Widget {
     let theme = expect_context::<ThemeColors>();
     let track_ref = create_widget_ref();
     let dragging = create_signal(false);
 
-    let value_a = value.clone();
-    let value_b = value.clone();
-    let ic = ic.clone();
-    let muted = muted.clone();
     let on_change_down = on_change.clone();
     let on_change_move = on_change.clone();
     let on_change_scroll = on_change.clone();
@@ -37,31 +37,18 @@ pub fn slider(
         )
         // Mute icon
         .child({
-            let mute_hovered = create_signal(false);
-            container()
-                .padding(4)
-                .corner_radius(4)
-                .on_click_option(on_mute_toggle.clone())
-                .on_hover(move |h| mute_hovered.set(h))
-                .background(move || {
-                    if mute_hovered.get() {
-                        Color::rgba(1.0, 1.0, 1.0, 0.1)
-                    } else {
-                        Color::TRANSPARENT
-                    }
-                })
-                .child(
-                    icon()
-                        .ic(move || IconKind::from(ic.get()))
-                        .color(move || {
-                            if muted.get() {
-                                Color::rgba(1.0, 1.0, 1.0, 0.4)
-                            } else {
-                                theme.text
-                            }
-                        })
-                        .font_size(16),
-                )
+            if let Some(on_mute) = on_mute_toggle.clone() {
+                icon_button()
+                    .icon(move || ic.get())
+                    .on_click(move || on_mute())
+                    .into_any()
+            } else {
+                container()
+                    .layout(Flex::column().cross_alignment(CrossAlignment::Center))
+                    .width(at_least(32))
+                    .child(icon().ic(ic.get()))
+                    .into_any()
+            }
         })
         // Track with fill bar + thumb
         .child(
@@ -98,7 +85,7 @@ pub fn slider(
                 })
                 .on_scroll(move |_dx, dy, _src| {
                     if let Some(ref on_change) = on_change_scroll {
-                        let cur = value_a.get();
+                        let cur = value.get();
                         let step = if dy > 0.0 { -5 } else { 5 };
                         let new_val = (cur + step).clamp(0, 100);
                         on_change(new_val);
@@ -109,7 +96,7 @@ pub fn slider(
                     container()
                         .height(fill())
                         .width(move || -> Length {
-                            let v = value_b.get();
+                            let v = value.get();
                             let w = track_ref.rect().get().width;
                             let fill_w = (v as f32 / 100.0 * w - 6.0).max(0.0);
                             Length::from(fill_w)
@@ -128,11 +115,17 @@ pub fn slider(
                 ),
         );
 
-    // Optional chevron button
+    // Optional chevron button (shows Close when expanded, RightArrow otherwise)
     if let Some(on_chev) = on_chevron {
         row = row.child(
-            button()
-                .icon(IconKind::Static(StaticIcon::RightChevron))
+            icon_button()
+                .icon(move || {
+                    IconKind::Static(if expanded.get() {
+                        StaticIcon::Close
+                    } else {
+                        StaticIcon::RightArrow
+                    })
+                })
                 .on_click(move || on_chev()),
         );
     }
