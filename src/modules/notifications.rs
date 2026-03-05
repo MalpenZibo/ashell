@@ -29,11 +29,8 @@ use std::{
 use zbus::Connection;
 use zbus::zvariant::OwnedValue;
 
-// Constants for UI dimensions and styling
 const ICON_SIZE: f32 = 20.0;
 const HORIZONTAL_RULE_HEIGHT: f32 = 0.2;
-
-// --- Shared text style helpers ---
 
 fn strong_text_style(theme: &Theme) -> text::Style {
     text::Style {
@@ -52,8 +49,6 @@ fn palette_text_style(theme: &Theme) -> text::Style {
         color: Some(theme.palette().text),
     }
 }
-
-// --- Shared icon helper ---
 
 #[derive(Debug, Clone)]
 enum NotificationIcon {
@@ -186,7 +181,6 @@ fn notification_icon_with_frame<'a, M: 'a>(icon_kind: &NotificationIcon) -> Elem
         .into()
 }
 
-// Shared button style for notification icon buttons: transparent background, danger colour on hover.
 fn icon_button_style(theme: &Theme, status: button::Status) -> button::Style {
     button::Style {
         background: Some(Background::Color(Color::TRANSPARENT)),
@@ -198,7 +192,6 @@ fn icon_button_style(theme: &Theme, status: button::Status) -> button::Style {
     }
 }
 
-// Shared button style for the "Clear" action button.
 fn clear_button_style(radius: u16) -> impl Fn(&Theme, button::Status) -> button::Style {
     move |iced_theme: &Theme, _status| button::Style {
         background: Some(Background::Color(Color::TRANSPARENT)),
@@ -208,7 +201,6 @@ fn clear_button_style(radius: u16) -> impl Fn(&Theme, button::Status) -> button:
     }
 }
 
-// Invokes the first action (if present) and closes the notification via D-Bus.
 fn invoke_and_close_task(
     connection: Option<Connection>,
     id: u32,
@@ -890,13 +882,9 @@ impl Notifications {
             .into()
     }
 
-    /// Returns the `(width, height)` in logical pixels that the toast layer
-    /// surface should be sized to, computed from the active theme and config.
     pub fn toast_layer_size(&self, theme: &AshellTheme) -> (u32, u32) {
         let n = self.config.toast_max_visible as u32;
         let margin = theme.space.sm as u32;
-        // Per-card height estimate with multi-line budget to avoid clipping
-        // long summaries/bodies in toast cards.
         let line_height = theme.font_size.sm as u32 + theme.space.xxs as u32;
         let card_height = ICON_SIZE as u32
             + (self.config.toast_summary_line_budget + self.config.toast_body_line_budget)
@@ -908,7 +896,6 @@ impl Notifications {
         (width, height)
     }
 
-    /// Configured corner where toasts appear.
     pub fn toast_position(&self) -> ToastPosition {
         self.config.toast_position
     }
