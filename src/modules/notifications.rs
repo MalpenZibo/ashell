@@ -30,18 +30,6 @@ use zbus::Connection;
 const ICON_SIZE: f32 = 20.0;
 const HORIZONTAL_RULE_HEIGHT: f32 = 0.2;
 
-// Toast layer sizing constants (all in logical pixels)
-/// Width of the toast column itself.
-const TOAST_COLUMN_WIDTH: u16 = 380;
-/// Gap between the toast column and the screen edge.
-const TOAST_MARGIN: u16 = 12;
-/// Generous per-card height estimate (allows for wrapped body text).
-const TOAST_CARD_HEIGHT: u32 = 100;
-/// Vertical spacing between consecutive cards (matches space.sm).
-const TOAST_CARD_SPACING: u32 = 12;
-/// Vertical padding applied to the toast column (matches space.sm).
-const TOAST_COLUMN_PADDING: u32 = 12;
-
 // --- Shared text style helpers ---
 
 fn strong_text_style(theme: &Theme) -> text::Style {
@@ -776,7 +764,7 @@ impl Notifications {
         let mut toast_column = column!()
             .spacing(theme.space.sm)
             .padding(theme.space.sm)
-            .width(TOAST_COLUMN_WIDTH);
+            .width(self.config.toast_width);
 
         for &toast_id in &self.toasts {
             if let Some(notification) = self.find_notification(toast_id) {
@@ -799,23 +787,29 @@ impl Notifications {
         container(toast_column)
             .width(Length::Fill)
             .height(Length::Fill)
-            .padding(TOAST_MARGIN)
+            .padding(theme.space.sm)
             .align_x(h_align)
             .align_y(v_align)
             .into()
     }
 
     /// Returns the `(width, height)` in logical pixels that the toast layer
-    /// surface should be sized to.  Width accounts for the screen-edge margin
-    /// on both sides; height accounts for per-card estimates, inter-card
-    /// spacing, column padding, and the screen-edge margin.
-    pub fn toast_layer_size(&self) -> (u32, u32) {
+    /// surface should be sized to, computed from the active theme and config.
+    pub fn toast_layer_size(&self, theme: &AshellTheme) -> (u32, u32) {
         let n = self.config.toast_max_visible as u32;
-        let margin = TOAST_MARGIN as u32;
-        let width = TOAST_COLUMN_WIDTH as u32 + 2 * margin;
-        let height = n * TOAST_CARD_HEIGHT
-            + n.saturating_sub(1) * TOAST_CARD_SPACING
-            + 2 * TOAST_COLUMN_PADDING
+        let margin = theme.space.sm as u32;
+        // Per-card height: icon row + summary + body (with wrap buffer) +
+        // two inter-row gaps + top/bottom card padding.
+        let card_height = ICON_SIZE as u32
+            + 3 * theme.font_size.sm as u32
+            + 2 * theme.space.xxs as u32
+            + 3 * theme.space.sm as u32;
+        let spacing = theme.space.sm as u32;
+        let col_padding = theme.space.sm as u32;
+        let width = self.config.toast_width as u32 + 2 * margin;
+        let height = n * card_height
+            + n.saturating_sub(1) * spacing
+            + 2 * col_padding
             + 2 * margin;
         (width, height)
     }

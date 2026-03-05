@@ -281,6 +281,7 @@ pub struct NotificationsModuleConfig {
     pub toast_position: ToastPosition,
     pub toast_default_timeout: u64,
     pub toast_max_visible: usize,
+    pub toast_width: u16,
     pub empty_state_height: f32,
 }
 impl Default for NotificationsModuleConfig {
@@ -295,6 +296,7 @@ impl Default for NotificationsModuleConfig {
             toast_position: ToastPosition::default(),
             toast_default_timeout: 5000,
             toast_max_visible: 3,
+            toast_width: 380,
             empty_state_height: 300.0,
         }
     }

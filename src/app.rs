@@ -436,7 +436,7 @@ impl App {
                 modules::notifications::Action::None => Task::none(),
                 modules::notifications::Action::Task(task) => task.map(Message::Notifications),
                 modules::notifications::Action::Show(task) => {
-                    let (width, height) = self.notifications.toast_layer_size();
+                    let (width, height) = self.notifications.toast_layer_size(&self.theme);
                     let position = self.notifications.toast_position();
                     Task::batch(vec![
                         task.map(Message::Notifications),
