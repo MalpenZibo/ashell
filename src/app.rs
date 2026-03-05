@@ -436,12 +436,7 @@ impl App {
                 modules::notifications::Action::None => Task::none(),
                 modules::notifications::Action::Task(task) => task.map(Message::Notifications),
                 modules::notifications::Action::Show(task) => {
-                    // compute a size that can accommodate the maximum number of
-                    // visible toasts; we use a fixed width that matches the
-                    // toast widget and a generous height per toast.
-                    let width = 380;
-                    let height =
-                        (self.notifications.toast_max_visible() as u32).saturating_mul(112);
+                    let (width, height) = self.notifications.toast_layer_size();
                     let position = self.notifications.toast_position();
                     Task::batch(vec![
                         task.map(Message::Notifications),
