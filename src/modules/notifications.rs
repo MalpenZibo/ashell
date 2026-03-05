@@ -29,8 +29,6 @@ use zbus::Connection;
 // Constants for UI dimensions and styling
 const ICON_SIZE: f32 = 20.0;
 const HORIZONTAL_RULE_HEIGHT: f32 = 0.2;
-const TOAST_SUMMARY_LINE_BUDGET: u32 = 3;
-const TOAST_BODY_LINE_BUDGET: u32 = 8;
 
 // --- Shared text style helpers ---
 
@@ -815,7 +813,8 @@ impl Notifications {
         // long summaries/bodies in toast cards.
         let line_height = theme.font_size.sm as u32 + theme.space.xxs as u32;
         let card_height = ICON_SIZE as u32
-            + (TOAST_SUMMARY_LINE_BUDGET + TOAST_BODY_LINE_BUDGET) * line_height
+            + (self.config.toast_summary_line_budget + self.config.toast_body_line_budget)
+                * line_height
             + 3 * theme.space.sm as u32;
         let spacing = theme.space.sm as u32;
         let width = self.config.toast_width as u32 + 2 * margin;
