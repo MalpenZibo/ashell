@@ -264,6 +264,14 @@ pub struct TempoModuleConfig {
     pub clock_format: String,
     #[serde(default)]
     pub weather_location: Option<WeatherLocation>,
+    pub weather_indicator: Option<WeatherIndicator>,
+}
+
+#[derive(Deserialize, Clone, Debug, PartialEq, Eq)]
+pub enum WeatherIndicator {
+    Empty,
+    Icon,
+    IconAndTemperature,
 }
 
 #[derive(Deserialize, Default, Clone, Debug)]
@@ -278,6 +286,7 @@ impl Default for TempoModuleConfig {
         Self {
             clock_format: "%a %d %b %R".to_string(),
             weather_location: None,
+            weather_indicator: None,
         }
     }
 }

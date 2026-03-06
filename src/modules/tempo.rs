@@ -1,6 +1,6 @@
 use crate::{
     components::icons::{StaticIcon, icon},
-    config::{TempoModuleConfig, WeatherLocation},
+    config::{TempoModuleConfig, WeatherIndicator, WeatherLocation},
     menu::MenuSize,
     theme::AshellTheme,
 };
@@ -92,17 +92,27 @@ impl Tempo {
     }
 
     pub fn weather_indicator(&'_ self, theme: &AshellTheme) -> Option<Element<'_, Message>> {
+        if self.config.weather_location.is_none()
+            || self.config.weather_indicator == Some(WeatherIndicator::Empty)
+        {
+            return None;
+        }
         self.weather_data.as_ref().map(|data| {
-            row!(
-                weather_icon(data.current.weather_code, data.current.is_day > 0)
-                    .width(Length::Fixed(theme.font_size.sm as f32)),
-                text(format!("{}°C", data.current.temperature_2m))
-                    .align_y(Vertical::Center)
-                    .size(theme.font_size.sm)
-            )
-            .align_y(Vertical::Center)
-            .spacing(theme.space.xxs)
-            .into()
+            Row::new()
+                .push(
+                    weather_icon(data.current.weather_code, data.current.is_day > 0)
+                        .width(Length::Fixed(theme.font_size.sm as f32)),
+                )
+                .push_maybe(
+                    (self.config.weather_indicator != Some(WeatherIndicator::Icon)).then(|| {
+                        text(format!("{}°C", data.current.temperature_2m))
+                            .align_y(Vertical::Center)
+                            .size(theme.font_size.sm)
+                    }),
+                )
+                .align_y(Vertical::Center)
+                .spacing(theme.space.xxs)
+                .into()
         })
     }
 
