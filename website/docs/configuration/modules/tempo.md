@@ -17,10 +17,11 @@ Tempo combines a highly configurable clock with an optional weather summary in t
 
 ## Configuration
 
-| Option             | Type     | Default       | Description                                                                                                                                                                                           |
-| ------------------ | -------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `clock_format`     | `string` | `%a %d %b %R` | Strftime-compatible format used for the clock in the bar and in the menu header. See the [chrono formatting guide](https://docs.rs/chrono/latest/chrono/format/strftime/index.html) for placeholders. |
-| `weather_location` | `enum`   | `None`        | Determines which coordinates are queried when requesting weather data. `Current` geo-locates via IP using `ip-api.com`. Use the `City` variant to pin the module to a specific place.                 |
+| Option             | Type     | Default             | Description                                                                                                                                                                                           |
+| ------------------ | -------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `clock_format`     | `string` | `%a %d %b %R`       | Strftime-compatible format used for the clock in the bar and in the menu header. See the [chrono formatting guide](https://docs.rs/chrono/latest/chrono/format/strftime/index.html) for placeholders. |
+| `weather_location` | `enum`   | `None`              | Determines which coordinates are queried when requesting weather data. `Current` geo-locates via IP using `ip-api.com`. Use the `City` variant to pin the module to a specific place.                 |
+| `weather_indicator`| `enum`   | `IconAndTemperature`| Determines what information about the weather is shown in the bar, valid options are `Empty`, `Icon`, and `IconAndTemperature`.           |
 
 ### City-based weather
 
@@ -28,6 +29,7 @@ Tempo combines a highly configurable clock with an optional weather summary in t
 [tempo]
 clock_format = "%a %d %b %R"
 weather_location = { City = "Rome" }
+weather_indicator = "Icon"
 ```
 
 ### Clock-only mode
