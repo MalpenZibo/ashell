@@ -150,7 +150,7 @@ impl super::NetworkBackend for IwdDbus<'_> {
     }
 
     async fn select_access_point(
-        &mut self,
+        &self,
         ap: &AccessPoint,
         password: Option<String>,
     ) -> anyhow::Result<()> {
@@ -455,11 +455,12 @@ impl IwdDbus<'_> {
                         ];
                         if is_scanning {
                             debug!("Scanning wifi");
-                            events.push(NetworkEvent::ScanningNearbyWifi);
+                            events.push(NetworkEvent::ScanningNearbyWifi(true));
                             // to update list, if scanning stopped use device
                             events.push(NetworkEvent::WirelessAccessPoint(aps));
                         } else {
                             debug!("Stopped scanning wifi");
+                            events.push(NetworkEvent::ScanningNearbyWifi(false));
                             events.push(NetworkEvent::WirelessDevice {
                                 // TODO: can we reasonably assume this is true here?
                                 wifi_present: iwd.wireless_enabled().await.unwrap_or(false),

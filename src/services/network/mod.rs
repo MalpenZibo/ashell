@@ -40,7 +40,7 @@ pub trait NetworkBackend: Send + Sync {
     /// Connects to a specific access point, potentially with a password.
     /// Returns the updated list of known connections.
     async fn select_access_point(
-        &mut self,
+        &self,
         ap: &AccessPoint,
         password: Option<String>,
     ) -> anyhow::Result<()>;
@@ -70,7 +70,7 @@ pub enum NetworkEvent {
     WirelessAccessPoint(Vec<AccessPoint>),
     Strength((String, u8)),
     RequestPasswordForSSID(String),
-    ScanningNearbyWifi,
+    ScanningNearbyWifi(bool),
 }
 
 #[derive(Debug, Clone)]
@@ -176,13 +176,20 @@ impl ReadOnlyService for NetworkService {
                 debug!("WiFi enabled: {wifi_enabled}");
                 self.data.wifi_enabled = wifi_enabled;
             }
-            NetworkEvent::ScanningNearbyWifi => {
-                self.data.scanning_nearby_wifi = true;
+            NetworkEvent::ScanningNearbyWifi(scanning) => {
+                debug!(
+                    "ScanningNearbyWifi event received, setting scanning_nearby_wifi to {scanning}"
+                );
+                self.data.scanning_nearby_wifi = scanning;
             }
             NetworkEvent::WirelessDevice {
                 wifi_present,
                 wireless_access_points,
             } => {
+                debug!(
+                    "WirelessDevice event received, setting scanning_nearby_wifi to false, wifi_present: {wifi_present}, access_points count: {}",
+                    wireless_access_points.len()
+                );
                 self.data.wifi_present = wifi_present;
                 self.data.scanning_nearby_wifi = false;
                 self.data.wireless_access_points = wireless_access_points;
@@ -309,7 +316,7 @@ impl NetworkBackend for BackendChoiceWithConnection {
     }
 
     async fn select_access_point(
-        &mut self,
+        &self,
         ap: &AccessPoint,
         password: Option<String>,
     ) -> anyhow::Result<()> {
@@ -512,7 +519,7 @@ impl Service for NetworkService {
     fn command(&mut self, command: Self::Command) -> Task<ServiceEvent<Self>> {
         debug!("Command: {command:?}");
         let conn = self.conn.clone();
-        let mut bc = self.backend_choice.with_connection(conn);
+        let bc = self.backend_choice.with_connection(conn);
         match command {
             NetworkCommand::ToggleAirplaneMode => {
                 let airplane_mode = self.airplane_mode;
@@ -531,12 +538,33 @@ impl Service for NetworkService {
                     |airplane_mode| ServiceEvent::Update(NetworkEvent::AirplaneMode(airplane_mode)),
                 )
             }
-            NetworkCommand::ScanNearByWiFi => Task::perform(
-                async move {
-                    let _ = bc.scan_nearby_wifi().await;
-                },
-                |_| ServiceEvent::Update(NetworkEvent::ScanningNearbyWifi),
-            ),
+            NetworkCommand::ScanNearByWiFi => {
+                self.data.scanning_nearby_wifi = true;
+                match self.backend_choice {
+                    BackendChoice::NetworkManager => Task::perform(
+                        async move {
+                            debug!("ScanNearByWiFi command: Starting scan");
+                            let result = bc.scan_nearby_wifi().await;
+                            debug!(
+                                "ScanNearByWiFi command: Scan request completed with result: {result:?}"
+                            );
+                            true
+                        },
+                        |scanning| ServiceEvent::Update(NetworkEvent::ScanningNearbyWifi(scanning)),
+                    ),
+                    BackendChoice::Iwd => Task::perform(
+                        async move {
+                            debug!("ScanNearByWiFi command: Starting scan");
+                            let result = bc.scan_nearby_wifi().await;
+                            debug!(
+                                "ScanNearByWiFi command: Scan request completed with result: {result:?}"
+                            );
+                            true
+                        },
+                        |scanning| ServiceEvent::Update(NetworkEvent::ScanningNearbyWifi(scanning)),
+                    ),
+                }
+            }
             NetworkCommand::ToggleWiFi => {
                 let wifi_enabled = self.wifi_enabled;
 
