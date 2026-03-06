@@ -108,14 +108,14 @@ async fn main() {
 
             let system_info = needed
                 .contains(&ModuleName::SystemInfo)
-                .then(|| modules::system_info::create());
+                .then(modules::system_info::create);
 
             let updates = (needed.contains(&ModuleName::Updates) && cfg.updates.is_some())
-                .then(|| modules::updates::create());
+                .then(modules::updates::create);
 
             let settings = needed
                 .contains(&ModuleName::Settings)
-                .then(|| modules::settings::create());
+                .then(modules::settings::create);
 
             let data = ModuleData {
                 compositor_state,

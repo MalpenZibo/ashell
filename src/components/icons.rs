@@ -330,12 +330,9 @@ impl IntoVal<Option<IconKind>> for StaticIcon {
 #[component]
 pub fn icon(
     kind: IconKind,
-    #[prop(default = "false")]
-    mono: bool,
-    #[prop(default = "Color::WHITE")]
-    color: Color,
-    #[prop(default = "14.0")]
-    font_size: f32,
+    #[prop(default = "false")] mono: bool,
+    #[prop(default = "Color::WHITE")] color: Color,
+    #[prop(default = "14.0")] font_size: f32,
 ) -> impl Widget {
     text(move || kind.get().get_str().to_string())
         .font_family(move || {

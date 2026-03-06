@@ -149,7 +149,11 @@ fn start_bluetooth_service(writers: BluetoothDataWriters) -> Service<BluetoothCm
             None => futures::stream::pending().boxed(),
         };
         let mut discovering_stream = match &bluetooth.adapter {
-            Some(adapter) => adapter.receive_discovering_changed().await.map(|_| ()).boxed(),
+            Some(adapter) => adapter
+                .receive_discovering_changed()
+                .await
+                .map(|_| ())
+                .boxed(),
             None => futures::stream::pending().boxed(),
         };
 
@@ -193,11 +197,7 @@ async fn refresh_data(conn: &zbus::Connection, writers: &BluetoothDataWriters) {
     }
 }
 
-async fn handle_bt_cmd(
-    conn: &zbus::Connection,
-    writers: &BluetoothDataWriters,
-    cmd: BluetoothCmd,
-) {
+async fn handle_bt_cmd(conn: &zbus::Connection, writers: &BluetoothDataWriters, cmd: BluetoothCmd) {
     let bt = match BluetoothDbus::new(conn).await {
         Ok(bt) => bt,
         Err(e) => {

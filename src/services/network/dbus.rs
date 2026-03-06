@@ -1,7 +1,6 @@
 use super::{AccessPoint, ActiveConnectionInfo, KnownConnection, Vpn};
-use futures::StreamExt;
 use itertools::Itertools;
-use log::{debug, warn};
+use log::warn;
 use std::{collections::HashMap, ops::Deref};
 use tokio::process::Command;
 use zbus::{
@@ -158,14 +157,14 @@ impl NetworkDbus<'_> {
                     .path(ap_path)?
                     .build()
                     .await?;
-                let ssid = String::from_utf8_lossy(&ap.ssid().await?).trim().to_string();
+                let ssid = String::from_utf8_lossy(&ap.ssid().await?)
+                    .trim()
+                    .to_string();
                 let public = ap.flags().await.unwrap_or_default() == 0;
                 let strength = ap.strength().await?;
 
-                if let Some(existing) = aps.get(&ssid) {
-                    if existing.strength > strength {
-                        continue;
-                    }
+                if aps.contains_key(&ssid) && aps[&ssid].strength > strength {
+                    continue;
                 }
 
                 aps.insert(
@@ -182,7 +181,10 @@ impl NetworkDbus<'_> {
                 );
             }
 
-            let mut sorted: Vec<_> = aps.into_values().sorted_by(|a, b| b.strength.cmp(&a.strength)).collect();
+            let mut sorted: Vec<_> = aps
+                .into_values()
+                .sorted_by(|a, b| b.strength.cmp(&a.strength))
+                .collect();
             all_aps.append(&mut sorted);
         }
 
@@ -192,7 +194,8 @@ impl NetworkDbus<'_> {
 
     pub async fn known_connections(&self) -> anyhow::Result<Vec<KnownConnection>> {
         let wireless_access_points = self.wireless_access_points().await?;
-        self.known_connections_internal(&wireless_access_points).await
+        self.known_connections_internal(&wireless_access_points)
+            .await
     }
 
     async fn known_connections_internal(
@@ -215,7 +218,7 @@ impl NetworkDbus<'_> {
                 continue;
             };
 
-            if s.get("802-11-wireless").is_some() {
+            if s.contains_key("802-11-wireless") {
                 let ssid = s
                     .get("connection")
                     .and_then(|c| c.get("id"))
@@ -335,21 +338,13 @@ impl NetworkDbus<'_> {
                 );
             }
 
-            self.add_and_activate_connection(
-                conn_settings,
-                &ap.device_path,
-                &ap.path,
-            )
-            .await?;
+            self.add_and_activate_connection(conn_settings, &ap.device_path, &ap.path)
+                .await?;
         }
         Ok(())
     }
 
-    pub async fn set_vpn(
-        &self,
-        connection: OwnedObjectPath,
-        enable: bool,
-    ) -> anyhow::Result<()> {
+    pub async fn set_vpn(&self, connection: OwnedObjectPath, enable: bool) -> anyhow::Result<()> {
         if enable {
             self.activate_connection(
                 connection,

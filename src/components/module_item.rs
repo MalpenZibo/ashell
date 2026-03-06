@@ -1,12 +1,7 @@
 use guido::prelude::*;
 
 #[component]
-pub fn module_item(
-    #[prop(callback)]
-    on_click: (),
-    #[prop(children)]
-    children: (),
-) -> impl Widget {
+pub fn module_item(#[prop(callback)] on_click: (), #[prop(children)] children: ()) -> impl Widget {
     let on_click = on_click.clone();
 
     let mut c = container()

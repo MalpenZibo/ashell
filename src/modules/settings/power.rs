@@ -67,7 +67,7 @@ pub fn power_profile_quick_setting(
             PowerProfile::PowerSaver => "Power Saver".to_string(),
             PowerProfile::Unknown => "Unknown".to_string(),
         })
-        .subtitle(move || String::new())
+        .subtitle(String::new)
         .active(move || profile.get() != PowerProfile::Unknown)
         .on_toggle(move || svc_toggle.send(UPowerCmd::TogglePowerProfile))
 }
@@ -102,10 +102,10 @@ pub fn menu_indicator(battery: BatteryData, peripheral_icon: Option<IconKind>) -
         .child(battery_info)
         .maybe_child(match battery.get().status {
             BatteryStatus::Charging(remaining) if capacity < 95 => {
-                Some(text(format!("Full in {}", format_duration(&remaining))))
+                Some(text(format!("Full in {}", format_duration(&remaining))).color(text_color))
             }
             BatteryStatus::Discharging(remaining) if capacity < 95 && !remaining.is_zero() => {
-                Some(text(format!("Empty in {}", format_duration(&remaining))))
+                Some(text(format!("Empty in {}", format_duration(&remaining))).color(text_color))
             }
             _ => None,
         })
@@ -117,47 +117,21 @@ pub fn battery_header(data: UPowerDataSignals, submenu: Signal<Option<SubMenu>>)
     let peripherals = data.peripherals;
 
     container().child(move || -> Option<AnyWidget> {
-        battery.with(|bat| {
-            bat.map(|b| {
-                let indicator = menu_indicator().battery(b);
-                let has_peripherals = !peripherals.with(|p| p.is_empty());
+        battery
+            .with(|bat| {
+                bat.map(|b| {
+                    let indicator = menu_indicator().battery(b);
+                    let has_peripherals = !peripherals.with(|p| p.is_empty());
 
-                if has_peripherals {
-                    button()
-                        .content(indicator)
-                        .on_click(move || {
-                            submenu.set(
-                                if submenu.get() == Some(SubMenu::Peripherals) {
-                                    None
-                                } else {
-                                    Some(SubMenu::Peripherals)
-                                },
-                            );
-                        })
-                        .into_any()
-                } else {
-                    indicator.into_any()
-                }
-            })
-        })
-        .or_else(|| {
-            peripherals.with(|periphs| {
-                periphs.first().map(|p| {
-                    let indicator = menu_indicator()
-                        .battery(p.data)
-                        .peripheral_icon(Some(p.kind.get_icon().into()));
-
-                    if periphs.len() > 1 {
+                    if has_peripherals {
                         button()
                             .content(indicator)
                             .on_click(move || {
-                                submenu.set(
-                                    if submenu.get() == Some(SubMenu::Peripherals) {
-                                        None
-                                    } else {
-                                        Some(SubMenu::Peripherals)
-                                    },
-                                );
+                                submenu.set(if submenu.get() == Some(SubMenu::Peripherals) {
+                                    None
+                                } else {
+                                    Some(SubMenu::Peripherals)
+                                });
                             })
                             .into_any()
                     } else {
@@ -165,7 +139,30 @@ pub fn battery_header(data: UPowerDataSignals, submenu: Signal<Option<SubMenu>>)
                     }
                 })
             })
-        })
+            .or_else(|| {
+                peripherals.with(|periphs| {
+                    periphs.first().map(|p| {
+                        let indicator = menu_indicator()
+                            .battery(p.data)
+                            .peripheral_icon(Some(p.kind.get_icon().into()));
+
+                        if periphs.len() > 1 {
+                            button()
+                                .content(indicator)
+                                .on_click(move || {
+                                    submenu.set(if submenu.get() == Some(SubMenu::Peripherals) {
+                                        None
+                                    } else {
+                                        Some(SubMenu::Peripherals)
+                                    });
+                                })
+                                .into_any()
+                        } else {
+                            indicator.into_any()
+                        }
+                    })
+                })
+            })
     })
 }
 
@@ -278,7 +275,7 @@ fn power_action_button(
         .padding([6, 8])
         .corner_radius(8)
         .on_hover(move |h| hovered.set(h))
-        .on_click(move || on_click())
+        .on_click(on_click)
         .background(move || {
             if hovered.get() {
                 Color::rgba(1.0, 1.0, 1.0, 0.1)

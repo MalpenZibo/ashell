@@ -8,16 +8,13 @@ pub fn module_group(
         default = "{ let t = expect_context::<ThemeColors>(); Color::rgba(t.background.r, t.background.g, t.background.b, 1.0) }"
     )]
     background: Color,
-    #[prop(default = "16.0")]
-    corner_radius: f32,
-    #[prop(callback)]
-    on_click: (),
-    #[prop(children)]
-    children: (),
+    #[prop(default = "16.0")] corner_radius: f32,
+    #[prop(callback)] on_click: (),
+    #[prop(children)] children: (),
 ) -> impl Widget {
     container()
         .height(fill())
-        .background(background.clone())
+        .background(background)
         .corner_radius(corner_radius.get())
         .layout(
             Flex::row()

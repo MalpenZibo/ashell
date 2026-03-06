@@ -150,9 +150,10 @@ fn add_module(
 ) -> ModuleGroup {
     match name {
         ModuleName::Clock => group.child(module_item().child(clock::view())),
-        ModuleName::Workspaces => group.child(
-            module_item().child(workspaces::view(data.compositor_state, data.compositor_svc.clone())),
-        ),
+        ModuleName::Workspaces => group.child(module_item().child(workspaces::view(
+            data.compositor_state,
+            data.compositor_svc.clone(),
+        ))),
         ModuleName::WindowTitle => {
             let state = data.compositor_state;
             group.child(container().child(move || {
@@ -212,13 +213,13 @@ fn add_module(
 // ── Section builder ──────────────────────────────────────────────────────────
 
 /// Build a left/center/right section from config definitions.
-pub fn build_section(
-    defs: &[ModuleDef],
-    data: &ModuleData,
-    menu: MenuCtx,
-) -> impl Widget + use<> {
+pub fn build_section(defs: &[ModuleDef], data: &ModuleData, menu: MenuCtx) -> impl Widget + use<> {
     let mut section = container()
-        .layout(Flex::row().spacing(4).cross_alignment(CrossAlignment::Center))
+        .layout(
+            Flex::row()
+                .spacing(4)
+                .cross_alignment(CrossAlignment::Center),
+        )
         .height(fill());
 
     for def in defs {

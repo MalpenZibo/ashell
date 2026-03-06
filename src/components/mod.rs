@@ -14,7 +14,7 @@ pub use bar_indicator::bar_indicator;
 pub use buttons::{ButtonHierarchy, ButtonKind, ButtonSize, button};
 pub use center_box::center_box;
 pub use expandable_panel::expandable_panel;
-pub use icons::{DynamicIcon, IconKind, StaticIcon, icon};
+pub use icons::{IconKind, StaticIcon, icon};
 pub use module_group::module_group;
 pub use module_item::module_item;
 pub use quick_setting::quick_setting;

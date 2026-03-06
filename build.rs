@@ -110,10 +110,7 @@ fn chars_to_glyphs<F: FontTableProvider>(
     Ok(glyphs)
 }
 
-fn map_glyph(
-    cmap_subtable: &CmapSubtable,
-    ch: char,
-) -> Result<Option<RawGlyph<()>>, ParseError> {
+fn map_glyph(cmap_subtable: &CmapSubtable, ch: char) -> Result<Option<RawGlyph<()>>, ParseError> {
     if let Some(glyph_index) = cmap_subtable.map_glyph(ch as u32)? {
         Ok(Some(RawGlyph {
             unicodes: tiny_vec![[char; 1] => ch],

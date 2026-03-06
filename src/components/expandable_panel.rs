@@ -4,12 +4,7 @@ use super::icons::{IconKind, StaticIcon, icon};
 use crate::theme::ThemeColors;
 
 #[component]
-pub fn expandable_panel(
-    #[prop(slot)]
-    header: (),
-    #[prop(slot)]
-    body: (),
-) -> impl Widget {
+pub fn expandable_panel(#[prop(slot)] header: (), #[prop(slot)] body: ()) -> impl Widget {
     let theme = expect_context::<ThemeColors>();
     let expanded = create_signal(false);
     let header_hovered = create_signal(false);
@@ -39,16 +34,17 @@ pub fn expandable_panel(
                 )
                 .child(header.unwrap_or_else(|| Box::new(container())))
                 .child(
-                    icon().kind(move || -> IconKind {
-                        if expanded.get() {
-                            StaticIcon::MenuClosed
-                        } else {
-                            StaticIcon::MenuOpen
-                        }
-                        .into()
-                    })
-                    .color(theme.text)
-                    .font_size(14),
+                    icon()
+                        .kind(move || -> IconKind {
+                            if expanded.get() {
+                                StaticIcon::MenuClosed
+                            } else {
+                                StaticIcon::MenuOpen
+                            }
+                            .into()
+                        })
+                        .color(theme.text)
+                        .font_size(14),
                 ),
         )
         .child(

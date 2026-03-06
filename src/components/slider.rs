@@ -1,7 +1,7 @@
 use guido::prelude::*;
 
 use crate::{
-    components::{button, buttons::icon_button, icon},
+    components::{buttons::icon_button, icon},
     theme::ThemeColors,
 };
 
@@ -19,6 +19,7 @@ pub fn slider(
     #[prop(callback)] on_chevron: (),
     #[prop(default = "false")] expanded: bool,
 ) -> impl Widget {
+    let _ = muted; // TODO: use muted state for visual feedback
     let theme = expect_context::<ThemeColors>();
     let track_ref = create_widget_ref();
     let dragging = create_signal(false);
@@ -70,13 +71,13 @@ pub fn slider(
                     }
                 })
                 .on_pointer_move(move |x, _y| {
-                    if dragging.get() {
-                        if let Some(ref on_change) = on_change_move {
-                            let w = track_ref.rect().get().width;
-                            if w > 0.0 {
-                                let pct = (x / w * 100.0).clamp(0.0, 100.0).round() as i32;
-                                on_change(pct);
-                            }
+                    if dragging.get()
+                        && let Some(ref on_change) = on_change_move
+                    {
+                        let w = track_ref.rect().get().width;
+                        if w > 0.0 {
+                            let pct = (x / w * 100.0).clamp(0.0, 100.0).round() as i32;
+                            on_change(pct);
                         }
                     }
                 })

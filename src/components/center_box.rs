@@ -95,12 +95,9 @@ impl Layout for CenterBoxLayout {
 
 #[component]
 pub fn center_box(
-    #[prop(slot)]
-    left: (),
-    #[prop(slot)]
-    center: (),
-    #[prop(slot)]
-    right: (),
+    #[prop(slot)] left: (),
+    #[prop(slot)] center: (),
+    #[prop(slot)] right: (),
 ) -> impl Widget {
     container()
         .width(fill())

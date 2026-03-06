@@ -1,9 +1,6 @@
 use guido::prelude::*;
 use log::{debug, error, warn};
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
+use std::{fs, path::Path};
 use tokio::io::{Interest, unix::AsyncFd};
 use zbus::proxy;
 
@@ -22,6 +19,7 @@ impl Default for BrightnessData {
 #[derive(Clone)]
 pub enum BrightnessCmd {
     Set(u32),
+    #[allow(dead_code)]
     Refresh,
 }
 
@@ -139,11 +137,11 @@ fn start_brightness_service(writers: BrightnessDataWriters) -> Service<Brightnes
                 result = socket.writable_mut() => {
                     if let Ok(mut guard) = result {
                         for evt in guard.get_inner().iter() {
-                            if evt.device().subsystem().and_then(|s| s.to_str()) == Some("backlight") {
-                                if let udev::EventType::Change = evt.event_type() {
-                                    let new_value = get_actual_brightness(&device_path).unwrap_or(0);
-                                    writers.current.set(new_value);
-                                }
+                            if evt.device().subsystem().and_then(|s| s.to_str()) == Some("backlight")
+                                && let udev::EventType::Change = evt.event_type()
+                            {
+                                let new_value = get_actual_brightness(&device_path).unwrap_or(0);
+                                writers.current.set(new_value);
                             }
                         }
                         guard.clear_ready();

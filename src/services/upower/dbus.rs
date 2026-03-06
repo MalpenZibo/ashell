@@ -132,6 +132,7 @@ impl TryFrom<u32> for DeviceState {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u32)]
 pub enum UpDeviceKind {
@@ -210,6 +211,7 @@ impl UPowerDbus<'_> {
         .await
     }
 
+    #[allow(dead_code)]
     pub async fn get_device(
         &self,
         path: &ObjectPath<'static>,

@@ -1,7 +1,7 @@
 use guido::prelude::*;
 
 use crate::{
-    components::{ButtonHierarchy, ButtonKind, ButtonSize, button, buttons::icon_button},
+    components::{ButtonHierarchy, ButtonKind, ButtonSize, button},
     theme::ThemeColors,
 };
 

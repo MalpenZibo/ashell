@@ -45,12 +45,21 @@ pub enum KnownConnection {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ActiveConnectionInfo {
-    Wired { name: String },
-    WiFi { name: String, strength: u8 },
-    Vpn { name: String, object_path: OwnedObjectPath },
+    Wired {
+        name: String,
+    },
+    WiFi {
+        name: String,
+        strength: u8,
+    },
+    Vpn {
+        name: String,
+        object_path: OwnedObjectPath,
+    },
 }
 
 impl ActiveConnectionInfo {
+    #[allow(dead_code)]
     pub fn name(&self) -> &str {
         match self {
             Self::Wired { name, .. } => name,

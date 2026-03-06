@@ -10,19 +10,12 @@ use wayland_client::{
     },
 };
 use wayland_protocols::wp::idle_inhibit::zv1::client::{
-    zwp_idle_inhibit_manager_v1::ZwpIdleInhibitManagerV1,
-    zwp_idle_inhibitor_v1::ZwpIdleInhibitorV1,
+    zwp_idle_inhibit_manager_v1::ZwpIdleInhibitManagerV1, zwp_idle_inhibitor_v1::ZwpIdleInhibitorV1,
 };
 
-#[derive(Clone, PartialEq, guido::SignalFields)]
+#[derive(Clone, Default, PartialEq, guido::SignalFields)]
 pub struct IdleInhibitorData {
     pub inhibited: bool,
-}
-
-impl Default for IdleInhibitorData {
-    fn default() -> Self {
-        Self { inhibited: false }
-    }
 }
 
 #[derive(Clone)]

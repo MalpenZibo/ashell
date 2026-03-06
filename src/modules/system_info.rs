@@ -91,7 +91,12 @@ pub fn view(info: SystemInfoDataSignals) -> impl Widget {
                             StaticIcon::Temp,
                             move || format!("{:.0}°", temp.get().unwrap_or(0.0)),
                             move || {
-                                status_color(theme, temp.get().unwrap_or(0.0), temp_warn, temp_alert)
+                                status_color(
+                                    theme,
+                                    temp.get().unwrap_or(0.0),
+                                    temp_warn,
+                                    temp_alert,
+                                )
                             },
                         )
                     })
@@ -99,37 +104,36 @@ pub fn view(info: SystemInfoDataSignals) -> impl Widget {
             }
             SystemInfoIndicator::Disk(disk_cfg) => {
                 let path = disk_cfg.path.clone();
-                let name = disk_cfg
-                    .name
-                    .clone()
-                    .unwrap_or_else(|| path.clone());
+                let name = disk_cfg.name.clone().unwrap_or_else(|| path.clone());
                 row = row.child(move || {
                     let path = path.clone();
                     let name = name.clone();
-                    disks.with(|ds| {
-                        ds.iter()
-                            .find(|d| d.mount_point == path)
-                            .map(|d| d.usage_pct)
-                    }).map(move |usage| {
-                        indicator(
-                            StaticIcon::Drive,
-                            move || format!("{name} {usage:.0}%"),
-                            move || status_color(theme, usage, disk_warn, disk_alert),
-                        )
-                    })
+                    disks
+                        .with(|ds| {
+                            ds.iter()
+                                .find(|d| d.mount_point == path)
+                                .map(|d| d.usage_pct)
+                        })
+                        .map(move |usage| {
+                            indicator(
+                                StaticIcon::Drive,
+                                move || format!("{name} {usage:.0}%"),
+                                move || status_color(theme, usage, disk_warn, disk_alert),
+                            )
+                        })
                 });
             }
             SystemInfoIndicator::IpAddress => {
                 row = row.child(move || {
-                    network.with(|n| n.as_ref().map(|n| n.ip.clone())).map(
-                        |ip| {
+                    network
+                        .with(|n| n.as_ref().map(|n| n.ip.clone()))
+                        .map(|ip| {
                             indicator(
                                 StaticIcon::IpAddress,
                                 move || ip.clone(),
                                 move || theme.text,
                             )
-                        },
-                    )
+                        })
                 });
             }
             SystemInfoIndicator::DownloadSpeed => {

@@ -34,18 +34,19 @@ pub fn view(data: UpdatesDataSignals) -> impl Widget {
                 .cross_alignment(CrossAlignment::Center),
         )
         .child(
-            icon().kind(move || -> IconKind {
-                if is_checking.get() {
-                    StaticIcon::Refresh
-                } else if updates.with(|u| u.is_empty()) {
-                    StaticIcon::NoUpdatesAvailable
-                } else {
-                    StaticIcon::UpdatesAvailable
-                }
-                .into()
-            })
-            .color(theme.text)
-            .font_size(14),
+            icon()
+                .kind(move || -> IconKind {
+                    if is_checking.get() {
+                        StaticIcon::Refresh
+                    } else if updates.with(|u| u.is_empty()) {
+                        StaticIcon::NoUpdatesAvailable
+                    } else {
+                        StaticIcon::UpdatesAvailable
+                    }
+                    .into()
+                })
+                .color(theme.text)
+                .font_size(14),
         )
         .child(move || {
             let count = updates.with(|u| u.len());
@@ -155,7 +156,7 @@ fn menu_button(
         .width(fill())
         .padding([6, 8])
         .corner_radius(8)
-        .on_click(move || on_click())
+        .on_click(on_click)
         .on_hover(move |h| hovered.set(h))
         .background(move || {
             if hovered.get() {
@@ -178,7 +179,7 @@ fn menu_button_with_indicator(
         .width(fill())
         .padding([6, 8])
         .corner_radius(8)
-        .on_click(move || on_click())
+        .on_click(on_click)
         .on_hover(move |h| hovered.set(h))
         .background(move || {
             if hovered.get() {
@@ -195,7 +196,12 @@ fn menu_button_with_indicator(
         .child(text(label).color(theme.text).font_size(14))
         .child(move || {
             if is_checking.get() {
-                Some(icon().kind(StaticIcon::Refresh).color(theme.text).font_size(14))
+                Some(
+                    icon()
+                        .kind(StaticIcon::Refresh)
+                        .color(theme.text)
+                        .font_size(14),
+                )
             } else {
                 None
             }

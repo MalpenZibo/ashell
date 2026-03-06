@@ -7,6 +7,7 @@ pub enum ButtonHierarchy {
     Primary,
     #[default]
     Secondary,
+    #[allow(dead_code)]
     Danger,
     Custom {
         bg: Color,
@@ -156,7 +157,7 @@ pub fn icon_button(
     let theme = expect_context::<ThemeColors>();
     let size = size.get();
 
-    let (size, pad, font) = match size {
+    let (size, _pad, font) = match size {
         ButtonSize::Small => (24, 4, 10),
         ButtonSize::Normal => (32, 8, 10),
         ButtonSize::Large => (50, 10, 16),

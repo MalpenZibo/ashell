@@ -1,6 +1,9 @@
 use guido::prelude::*;
 
-use crate::components::{IconKind, StaticIcon, bar_indicator, icon, quick_setting, selectable_item, toggle_button};
+use crate::components::{
+    ButtonKind, ButtonSize, IconKind, StaticIcon, bar_indicator, buttons::icon_button,
+    quick_setting, selectable_item, toggle_button,
+};
 use crate::config::SettingsFormat;
 use crate::services::network::{
     ActiveConnectionInfo, KnownConnection, NetworkCmd, NetworkDataSignals,
@@ -32,10 +35,7 @@ pub fn wifi_indicator(data: NetworkDataSignals, format: SettingsFormat) -> impl 
         .format(format)
 }
 
-fn wifi_icon(
-    active: Signal<Vec<ActiveConnectionInfo>>,
-    wifi_enabled: Signal<bool>,
-) -> StaticIcon {
+fn wifi_icon(active: Signal<Vec<ActiveConnectionInfo>>, wifi_enabled: Signal<bool>) -> StaticIcon {
     if !wifi_enabled.get() {
         return StaticIcon::Wifi0;
     }
@@ -78,7 +78,7 @@ pub fn wifi_quick_setting(
         .title(move || "Wi-Fi".to_string())
         .subtitle(move || {
             if !wifi_enabled.get() {
-                return "Off".to_string();
+                return String::new();
             }
             active.with(|acs| {
                 acs.iter()
@@ -96,10 +96,7 @@ pub fn wifi_quick_setting(
 }
 
 /// Airplane mode quick setting
-pub fn airplane_quick_setting(
-    data: NetworkDataSignals,
-    svc: Service<NetworkCmd>,
-) -> impl Widget {
+pub fn airplane_quick_setting(data: NetworkDataSignals, svc: Service<NetworkCmd>) -> impl Widget {
     let airplane = data.airplane_mode;
     let svc_toggle = svc.clone();
 
@@ -143,17 +140,19 @@ pub fn vpn_quick_setting(
                         ActiveConnectionInfo::Vpn { name, .. } => Some(name.clone()),
                         _ => None,
                     })
-                    .unwrap_or("Off".to_string())
+                    .unwrap_or_default()
             })
         })
         .active(move || {
             active.with(|acs| {
-                acs.iter().any(|ac| matches!(ac, ActiveConnectionInfo::Vpn { .. }))
+                acs.iter()
+                    .any(|ac| matches!(ac, ActiveConnectionInfo::Vpn { .. }))
             })
         })
         .on_toggle(move || {
             let has_vpn = active.with(|acs| {
-                acs.iter().any(|ac| matches!(ac, ActiveConnectionInfo::Vpn { .. }))
+                acs.iter()
+                    .any(|ac| matches!(ac, ActiveConnectionInfo::Vpn { .. }))
             });
             if has_vpn {
                 // Active: toggle first known VPN off
@@ -166,9 +165,7 @@ pub fn vpn_quick_setting(
                 if let Some(v) = vpn {
                     let active_path = active.with(|acs| {
                         acs.iter().find_map(|ac| match ac {
-                            ActiveConnectionInfo::Vpn { name, object_path }
-                                if *name == v.name =>
-                            {
+                            ActiveConnectionInfo::Vpn { name, object_path } if *name == v.name => {
                                 Some(object_path.clone())
                             }
                             _ => None,
@@ -186,14 +183,11 @@ pub fn vpn_quick_setting(
 }
 
 /// WiFi submenu: list of known/available access points
-pub fn wifi_submenu(
-    data: NetworkDataSignals,
-    svc: Service<NetworkCmd>,
-) -> impl Widget {
+pub fn wifi_submenu(data: NetworkDataSignals, svc: Service<NetworkCmd>) -> impl Widget {
     let theme = expect_context::<ThemeColors>();
     let known = data.known_connections;
     let aps = data.wireless_access_points;
-    let scanning = data.scanning_nearby_wifi;
+    let _scanning = data.scanning_nearby_wifi;
 
     container()
         .width(fill())
@@ -209,26 +203,11 @@ pub fn wifi_submenu(
                 .child(text("WiFi Networks").color(theme.text).font_size(14))
                 .child({
                     let svc_scan = svc.clone();
-                    let hovered = create_signal(false);
-                    container()
-                        .padding([4, 8])
-                        .corner_radius(6)
-                        .on_hover(move |h| hovered.set(h))
+                    icon_button()
+                        .icon(StaticIcon::Refresh)
+                        .size(ButtonSize::Small)
+                        .kind(ButtonKind::Transparent)
                         .on_click(move || svc_scan.send(NetworkCmd::ScanNearByWiFi))
-                        .background(move || {
-                            if hovered.get() {
-                                Color::rgba(1.0, 1.0, 1.0, 0.1)
-                            } else {
-                                Color::TRANSPARENT
-                            }
-                        })
-                        .child(move || {
-                            Some(if scanning.get() {
-                                icon().kind(StaticIcon::Refresh).color(theme.text).font_size(12)
-                            } else {
-                                icon().kind(StaticIcon::Refresh).color(theme.text).font_size(12)
-                            })
-                        })
                 }),
         )
         .child(move || {
@@ -287,17 +266,12 @@ pub fn wifi_submenu(
 }
 
 /// VPN submenu: list of known VPNs with toggle switches
-pub fn vpn_submenu(
-    data: NetworkDataSignals,
-    svc: Service<NetworkCmd>,
-) -> impl Widget {
+pub fn vpn_submenu(data: NetworkDataSignals, svc: Service<NetworkCmd>) -> impl Widget {
     let theme = expect_context::<ThemeColors>();
     let known = data.known_connections;
     let active = data.active_connections;
 
-    let mut col = container()
-        .width(fill())
-        .layout(Flex::column().spacing(4));
+    let mut col = container().width(fill()).layout(Flex::column().spacing(4));
 
     // Build VPN rows from the known list (static at menu open time)
     let known_list = known.with(|k| k.clone());

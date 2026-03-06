@@ -147,25 +147,13 @@ fn compute_volume_pct(devices: &[Device], default_name: &str) -> i32 {
         * 100.) as i32
 }
 
-#[derive(Clone, PartialEq, guido::SignalFields)]
+#[derive(Clone, Default, PartialEq, guido::SignalFields)]
 pub struct AudioData {
     pub server_info: ServerInfo,
     pub sinks: Vec<Device>,
     pub sources: Vec<Device>,
     pub cur_sink_volume: i32,
     pub cur_source_volume: i32,
-}
-
-impl Default for AudioData {
-    fn default() -> Self {
-        Self {
-            server_info: ServerInfo::default(),
-            sinks: Vec::new(),
-            sources: Vec::new(),
-            cur_sink_volume: 0,
-            cur_source_volume: 0,
-        }
-    }
 }
 
 #[derive(Clone)]
@@ -768,8 +756,8 @@ fn start_audio_service(writers: AudioDataWriters) -> Service<AudioCmd> {
 fn handle_audio_cmd(
     cmd: &AudioCmd,
     sender: &UnboundedSender<PulseAudioCommand>,
-    local_sinks: &mut Vec<Device>,
-    local_sources: &mut Vec<Device>,
+    local_sinks: &mut [Device],
+    local_sources: &mut [Device],
     server_info: &ServerInfo,
 ) {
     match cmd {
@@ -799,20 +787,18 @@ fn handle_audio_cmd(
             if let Some(sink) = local_sinks
                 .iter_mut()
                 .find(|s| s.name == server_info.default_sink)
+                && let Some(vol) = sink.volume.scale_volume(*volume as f64 / 100.)
             {
-                if let Some(vol) = sink.volume.scale_volume(*volume as f64 / 100.) {
-                    let _ = sender.send(PulseAudioCommand::SinkVolume(sink.name.clone(), *vol));
-                }
+                let _ = sender.send(PulseAudioCommand::SinkVolume(sink.name.clone(), *vol));
             }
         }
         AudioCmd::SourceVolume(volume) => {
             if let Some(source) = local_sources
                 .iter_mut()
                 .find(|s| s.name == server_info.default_source)
+                && let Some(vol) = source.volume.scale_volume(*volume as f64 / 100.)
             {
-                if let Some(vol) = source.volume.scale_volume(*volume as f64 / 100.) {
-                    let _ = sender.send(PulseAudioCommand::SourceVolume(source.name.clone(), *vol));
-                }
+                let _ = sender.send(PulseAudioCommand::SourceVolume(source.name.clone(), *vol));
             }
         }
         AudioCmd::DefaultSink(name, port) => {

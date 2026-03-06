@@ -89,7 +89,7 @@ fn calculate_ui_workspaces(
             result.push(UiWorkspace {
                 id: w.id,
                 index: w.index,
-                name: w.name.split(':').last().unwrap_or("").to_owned(),
+                name: w.name.split(':').next_back().unwrap_or("").to_owned(),
 
                 monitor: w.monitor.clone(),
                 is_special: true,
@@ -156,10 +156,10 @@ fn calculate_ui_workspaces(
             .copied()
             .unwrap_or(0);
 
-        if let Some(max_cfg) = config.max_workspaces {
-            if max_cfg as i32 > max_id {
-                max_id = max_cfg as i32;
-            }
+        if let Some(max_cfg) = config.max_workspaces
+            && max_cfg as i32 > max_id
+        {
+            max_id = max_cfg as i32;
         }
 
         for id in 1..=max_id {
@@ -443,7 +443,7 @@ pub fn view(state: CompositorStateSignals, svc: Service<CompositorCommand>) -> i
 
                         if is_special {
                             // Special workspaces: shrink to content, padding varies by state
-                            pill = pill.padding(move || {
+                            pill = pill.padding(move || -> Padding {
                                 let px = match displayed.get() {
                                     Displayed::Active => 12.0,
                                     Displayed::Visible => 8.0,

@@ -5,7 +5,6 @@ use crate::config::SettingsFormat;
 use crate::services::audio::{AudioCmd, AudioDataSignals, Sinks, Sources};
 use crate::theme::ThemeColors;
 
-
 use super::SubMenu;
 
 pub fn sink_slider(
@@ -22,7 +21,11 @@ pub fn sink_slider(
 
     slider()
         .value(cur_vol)
-        .kind(move || -> IconKind { sinks.with(|s| Sinks::get_icon(s, &server_info.with(|si| si.default_sink.clone()))).into() })
+        .kind(move || -> IconKind {
+            sinks
+                .with(|s| Sinks::get_icon(s, &server_info.with(|si| si.default_sink.clone())))
+                .into()
+        })
         .muted(move || {
             let si = server_info.with(|si| si.default_sink.clone());
             sinks.with(|s| {
@@ -36,13 +39,11 @@ pub fn sink_slider(
         .on_mute_toggle(move || svc_mute.send(AudioCmd::ToggleSinkMute))
         .expanded(move || submenu.get() == Some(SubMenu::Sinks))
         .on_chevron(move || {
-            submenu.set(
-                if submenu.get() == Some(SubMenu::Sinks) {
-                    None
-                } else {
-                    Some(SubMenu::Sinks)
-                },
-            );
+            submenu.set(if submenu.get() == Some(SubMenu::Sinks) {
+                None
+            } else {
+                Some(SubMenu::Sinks)
+            });
         })
 }
 
@@ -60,7 +61,11 @@ pub fn source_slider(
 
     slider()
         .value(cur_vol)
-        .kind(move || -> IconKind { sources.with(|s| Sources::get_icon(s, &server_info.with(|si| si.default_source.clone()))).into() })
+        .kind(move || -> IconKind {
+            sources
+                .with(|s| Sources::get_icon(s, &server_info.with(|si| si.default_source.clone())))
+                .into()
+        })
         .muted(move || {
             let si = server_info.with(|si| si.default_source.clone());
             sources.with(|s| {
@@ -74,13 +79,11 @@ pub fn source_slider(
         .on_mute_toggle(move || svc_mute.send(AudioCmd::ToggleSourceMute))
         .expanded(move || submenu.get() == Some(SubMenu::Sources))
         .on_chevron(move || {
-            submenu.set(
-                if submenu.get() == Some(SubMenu::Sources) {
-                    None
-                } else {
-                    Some(SubMenu::Sources)
-                },
-            );
+            submenu.set(if submenu.get() == Some(SubMenu::Sources) {
+                None
+            } else {
+                Some(SubMenu::Sources)
+            });
         })
 }
 
@@ -93,7 +96,9 @@ pub fn sink_indicator(data: AudioDataSignals, format: SettingsFormat) -> impl Wi
 
     bar_indicator()
         .kind(move || -> IconKind {
-            sinks.with(|s| Sinks::get_icon(s, &server_info.with(|si| si.default_sink.clone()))).into()
+            sinks
+                .with(|s| Sinks::get_icon(s, &server_info.with(|si| si.default_sink.clone())))
+                .into()
         })
         .label(move || Some(format!("{}%", cur_vol.get())))
         .color(theme.text)
@@ -109,9 +114,9 @@ pub fn source_indicator(data: AudioDataSignals, format: SettingsFormat) -> impl 
 
     bar_indicator()
         .kind(move || -> IconKind {
-            sources.with(|s| {
-                Sources::get_icon(s, &server_info.with(|si| si.default_source.clone()))
-            }).into()
+            sources
+                .with(|s| Sources::get_icon(s, &server_info.with(|si| si.default_source.clone())))
+                .into()
         })
         .label(move || Some(format!("{}%", cur_vol.get())))
         .color(theme.text)
@@ -119,10 +124,7 @@ pub fn source_indicator(data: AudioDataSignals, format: SettingsFormat) -> impl 
 }
 
 /// Sinks submenu: list all sinks with active port selection
-pub fn sinks_submenu(
-    data: AudioDataSignals,
-    svc: Service<AudioCmd>,
-) -> impl Widget {
+pub fn sinks_submenu(data: AudioDataSignals, svc: Service<AudioCmd>) -> impl Widget {
     let sinks = data.sinks;
     let server_info = data.server_info;
 
@@ -132,9 +134,7 @@ pub fn sinks_submenu(
         .child(move || {
             let devices = sinks.with(|s| s.clone());
             let default = server_info.with(|si| si.default_sink.clone());
-            let mut col = container()
-                .width(fill())
-                .layout(Flex::column().spacing(2));
+            let mut col = container().width(fill()).layout(Flex::column().spacing(2));
             for device in devices {
                 for port in &device.ports {
                     let name = device.name.clone();
@@ -148,10 +148,7 @@ pub fn sinks_submenu(
                             .label(desc)
                             .selected(is_active)
                             .on_click(move || {
-                                svc.send(AudioCmd::DefaultSink(
-                                    name.clone(),
-                                    port_name.clone(),
-                                ));
+                                svc.send(AudioCmd::DefaultSink(name.clone(), port_name.clone()));
                             }),
                     );
                 }
@@ -161,10 +158,7 @@ pub fn sinks_submenu(
 }
 
 /// Sources submenu: list all sources with active port selection
-pub fn sources_submenu(
-    data: AudioDataSignals,
-    svc: Service<AudioCmd>,
-) -> impl Widget {
+pub fn sources_submenu(data: AudioDataSignals, svc: Service<AudioCmd>) -> impl Widget {
     let sources = data.sources;
     let server_info = data.server_info;
 
@@ -174,9 +168,7 @@ pub fn sources_submenu(
         .child(move || {
             let devices = sources.with(|s| s.clone());
             let default = server_info.with(|si| si.default_source.clone());
-            let mut col = container()
-                .width(fill())
-                .layout(Flex::column().spacing(2));
+            let mut col = container().width(fill()).layout(Flex::column().spacing(2));
             for device in devices {
                 for port in &device.ports {
                     let name = device.name.clone();
@@ -190,10 +182,7 @@ pub fn sources_submenu(
                             .label(desc)
                             .selected(is_active)
                             .on_click(move || {
-                                svc.send(AudioCmd::DefaultSource(
-                                    name.clone(),
-                                    port_name.clone(),
-                                ));
+                                svc.send(AudioCmd::DefaultSource(name.clone(), port_name.clone()));
                             }),
                     );
                 }

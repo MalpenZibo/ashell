@@ -1,9 +1,10 @@
 use guido::prelude::*;
 
-use crate::components::{IconKind, StaticIcon, icon, quick_setting, selectable_item};
-use crate::services::bluetooth::{
-    BluetoothCmd, BluetoothDataSignals, BluetoothState,
+use crate::components::{
+    ButtonHierarchy, ButtonKind, ButtonSize, IconKind, StaticIcon, buttons::icon_button,
+    quick_setting, selectable_item,
 };
+use crate::services::bluetooth::{BluetoothCmd, BluetoothDataSignals, BluetoothState};
 use crate::theme::ThemeColors;
 
 /// Bluetooth quick setting tile
@@ -28,13 +29,16 @@ pub fn bt_quick_setting(
         })
         .title(move || "Bluetooth".to_string())
         .subtitle(move || {
-            let connected_count = devices.with(|d| d.iter().filter(|d| d.connected).count());
-            if connected_count > 0 {
-                format!("{connected_count} connected")
-            } else if state.get() == BluetoothState::Active {
-                "On".to_string()
-            } else {
-                "Off".to_string()
+            let connected: Vec<_> = devices.with(|d| {
+                d.iter()
+                    .filter(|d| d.connected)
+                    .map(|d| d.name.clone())
+                    .collect()
+            });
+            match connected.len() {
+                0 => String::new(),
+                1 => connected[0].clone(),
+                n => format!("{n} devices"),
             }
         })
         .active(move || state.get() == BluetoothState::Active)
@@ -44,10 +48,7 @@ pub fn bt_quick_setting(
 }
 
 /// Bluetooth submenu: device list
-pub fn bt_submenu(
-    data: BluetoothDataSignals,
-    svc: Service<BluetoothCmd>,
-) -> impl Widget {
+pub fn bt_submenu(data: BluetoothDataSignals, svc: Service<BluetoothCmd>) -> impl Widget {
     let theme = expect_context::<ThemeColors>();
     let devices = data.devices;
     let discovering = data.discovering;
@@ -55,6 +56,7 @@ pub fn bt_submenu(
     container()
         .width(fill())
         .layout(Flex::column().spacing(4))
+        // Header: title + scanning status + scan button
         .child(
             container()
                 .width(fill())
@@ -63,14 +65,39 @@ pub fn bt_submenu(
                         .main_alignment(MainAlignment::SpaceBetween)
                         .cross_alignment(CrossAlignment::Center),
                 )
-                .child(text("Bluetooth Devices").color(theme.text).font_size(14))
+                .child(
+                    container()
+                        .layout(
+                            Flex::row()
+                                .spacing(8)
+                                .cross_alignment(CrossAlignment::Center),
+                        )
+                        .child(text("Bluetooth Devices").color(theme.text).font_size(14))
+                        .child(move || {
+                            if discovering.get() {
+                                Some(
+                                    text("Scanning...")
+                                        .color(Color::rgba(1.0, 1.0, 1.0, 0.5))
+                                        .font_size(11),
+                                )
+                            } else {
+                                None
+                            }
+                        }),
+                )
                 .child({
                     let svc_scan = svc.clone();
-                    let hovered = create_signal(false);
-                    container()
-                        .padding([4, 8])
-                        .corner_radius(6)
-                        .on_hover(move |h| hovered.set(h))
+                    icon_button()
+                        .icon(move || -> IconKind {
+                            if discovering.get() {
+                                StaticIcon::Close
+                            } else {
+                                StaticIcon::Refresh
+                            }
+                            .into()
+                        })
+                        .size(ButtonSize::Small)
+                        .kind(ButtonKind::Transparent)
                         .on_click(move || {
                             if discovering.get() {
                                 svc_scan.send(BluetoothCmd::StopDiscovery);
@@ -78,27 +105,9 @@ pub fn bt_submenu(
                                 svc_scan.send(BluetoothCmd::StartDiscovery);
                             }
                         })
-                        .background(move || {
-                            if hovered.get() {
-                                Color::rgba(1.0, 1.0, 1.0, 0.1)
-                            } else {
-                                Color::TRANSPARENT
-                            }
-                        })
-                        .child(
-                            icon().kind(move || -> IconKind {
-                                if discovering.get() {
-                                    StaticIcon::Close
-                                } else {
-                                    StaticIcon::Refresh
-                                }
-                                .into()
-                            })
-                            .color(theme.text)
-                            .font_size(12),
-                        )
                 }),
         )
+        // Device list
         .child(move || {
             let device_list = devices.with(|d| d.clone());
             let mut col = container()
@@ -108,57 +117,78 @@ pub fn bt_submenu(
                 .layout(Flex::column().spacing(2));
 
             if device_list.is_empty() {
-                return Some(col.child(
-                    container()
-                        .padding(8)
-                        .child(text("No devices found").color(theme.text).font_size(12)),
-                ));
+                return Some(
+                    col.child(
+                        container()
+                            .padding(8)
+                            .child(text("No devices found").color(theme.text).font_size(12)),
+                    ),
+                );
             }
 
-            // Connected devices first
-            let mut connected: Vec<_> = device_list.iter().filter(|d| d.connected).collect();
-            let mut available: Vec<_> = device_list.iter().filter(|d| !d.connected && d.paired).collect();
-            let mut discovered: Vec<_> = device_list.iter().filter(|d| !d.connected && !d.paired).collect();
+            // Sort into categories
+            let (mut connected, rest): (Vec<_>, Vec<_>) =
+                device_list.into_iter().partition(|d| d.connected);
+            let (mut paired, mut discovered): (Vec<_>, Vec<_>) =
+                rest.into_iter().partition(|d| d.paired);
 
             connected.sort_by(|a, b| a.name.cmp(&b.name));
-            available.sort_by(|a, b| a.name.cmp(&b.name));
+            paired.sort_by(|a, b| a.name.cmp(&b.name));
             discovered.sort_by(|a, b| a.name.cmp(&b.name));
 
+            // Connected devices: green text, battery info, remove button
             for device in connected {
-                let name = device.name.clone();
-                let path = device.path.clone();
-                let battery_str = device
+                let label = device
                     .battery
-                    .map(|b| format!(" ({b}%)"))
-                    .unwrap_or_default();
-                let label = format!("{name}{battery_str}");
-                let svc = svc.clone();
+                    .map(|b| format!("{} ({b}%)", device.name))
+                    .unwrap_or_else(|| device.name.clone());
+                let path = device.path.clone();
+                let remove_path = device.path.clone();
+                let svc_disconnect = svc.clone();
+                let svc_remove = svc.clone();
                 col = col.child(
-                    selectable_item()
-                        .kind(StaticIcon::BluetoothConnected)
-                        .label(label)
-                        .selected(true)
-                        .on_click(move || {
-                            svc.send(BluetoothCmd::DisconnectDevice(path.clone()));
-                        }),
+                    container()
+                        .width(fill())
+                        .layout(Flex::row().cross_alignment(CrossAlignment::Center))
+                        .child(
+                            selectable_item()
+                                .kind(StaticIcon::BluetoothConnected)
+                                .label(label)
+                                .selected(true)
+                                .on_click(move || {
+                                    svc_disconnect
+                                        .send(BluetoothCmd::DisconnectDevice(path.clone()));
+                                }),
+                        )
+                        .child(remove_button(svc_remove, remove_path, theme)),
                 );
             }
 
-            for device in available {
+            // Paired but not connected
+            for device in paired {
                 let name = device.name.clone();
                 let path = device.path.clone();
-                let svc = svc.clone();
+                let remove_path = device.path.clone();
+                let svc_connect = svc.clone();
+                let svc_remove = svc.clone();
                 col = col.child(
-                    selectable_item()
-                        .kind(StaticIcon::Bluetooth)
-                        .label(name)
-                        .selected(false)
-                        .on_click(move || {
-                            svc.send(BluetoothCmd::ConnectDevice(path.clone()));
-                        }),
+                    container()
+                        .width(fill())
+                        .layout(Flex::row().cross_alignment(CrossAlignment::Center))
+                        .child(
+                            selectable_item()
+                                .kind(StaticIcon::Bluetooth)
+                                .label(name)
+                                .selected(false)
+                                .on_click(move || {
+                                    svc_connect.send(BluetoothCmd::ConnectDevice(path.clone()));
+                                }),
+                        )
+                        .child(remove_button(svc_remove, remove_path, theme)),
                 );
             }
 
+            // Discovered (unpaired) devices
             if !discovered.is_empty() {
                 col = col.child(
                     container()
@@ -181,5 +211,24 @@ pub fn bt_submenu(
                 }
             }
             Some(col)
+        })
+}
+
+fn remove_button(
+    svc: Service<BluetoothCmd>,
+    path: zbus::zvariant::OwnedObjectPath,
+    theme: ThemeColors,
+) -> impl Widget {
+    icon_button()
+        .icon(StaticIcon::Remove)
+        .size(ButtonSize::Small)
+        .kind(ButtonKind::Transparent)
+        .hierarchy(ButtonHierarchy::Custom {
+            bg: Color::TRANSPARENT,
+            hover: Color::rgba(theme.danger.r, theme.danger.g, theme.danger.b, 0.15),
+            fg: theme.danger,
+        })
+        .on_click(move || {
+            svc.send(BluetoothCmd::RemoveDevice(path.clone()));
         })
 }

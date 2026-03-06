@@ -494,7 +494,7 @@ fn idle_inhibitor_quick_setting(
             }
         })
         .title(move || "Idle Inhibitor".to_string())
-        .subtitle(move || String::new())
+        .subtitle(String::new)
         .active(move || inhibited.get())
         .on_toggle(move || svc_toggle.send(services::idle_inhibitor::IdleInhibitorCmd::Toggle))
 }

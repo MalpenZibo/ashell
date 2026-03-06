@@ -1,13 +1,9 @@
-use crate::{
-    IndicatorState,
-    components::icons::StaticIcon,
-};
-use dbus::{DeviceProxy, PowerProfilesProxy, SystemBattery, UPowerDbus, UPowerProxy, UpDeviceKind};
+use crate::{IndicatorState, components::icons::StaticIcon};
+use dbus::{PowerProfilesProxy, UPowerDbus, UPowerProxy, UpDeviceKind};
 use futures::StreamExt;
 use guido::prelude::*;
 use log::{error, warn};
 use std::time::Duration;
-use zbus::zvariant::ObjectPath;
 
 pub mod dbus;
 
@@ -268,7 +264,7 @@ fn start_upower_service(writers: UPowerDataWriters) -> Service<UPowerCmd> {
             }
         };
 
-        let battery_paths = match &battery_result {
+        let _battery_paths = match &battery_result {
             Ok(Some((data, paths))) => {
                 writers.system_battery.set(Some(*data));
                 Some(paths.clone())
