@@ -48,44 +48,38 @@ pub struct IwdDbus<'a> {
 }
 
 /// Map IWD SignalLevelAgent discrete level (bucket index) to UI percentage.
-/// Levels correspond to RSSI thresholds: -30, -50, -60, -70, -80 dBm.
-/// These are clean round numbers that provide intuitive signal level划分.
+/// Levels correspond to NM's bar ranges: >80% (5 bars), >55% (4 bars), >30% (3 bars), >5% (2 bars), ≤5% (1 bar)
 /// Note: Wifi0 is only used for no signal (disconnected), not signal levels.
 fn map_iwd_level_to_percent(level: u8) -> u8 {
     match level {
-        0 => 95, // Wifi5: Excellent (≥ -30 dBm)
-        1 => 75, // Wifi4: Good (-30 to -50 dBm)
-        2 => 50, // Wifi3: Fair (-50 to -60 dBm)
-        3 => 32, // Wifi2: Poor (-60 to -70 dBm)
-        4 => 18, // Wifi1: Very Weak (-70 to -80 dBm)
+        0 => 90, // Wifi5: Excellent (>80%, mapped to midpoint ~90%)
+        1 => 67, // Wifi4: Good (>55% and ≤80%, mapped to midpoint ~67%)
+        2 => 42, // Wifi3: Fair (>30% and ≤55%, mapped to midpoint ~42%)
+        3 => 17, // Wifi2: Poor (>5% and ≤30%, mapped to midpoint ~17%)
+        4 => 2,  // Wifi1: Very Weak (≤5%, mapped to ~2%)
         _ => 0,  // No signal (Wifi0 - disconnected state)
     }
 }
 
 /// Map IWD RSSI (reported in hundredths of dBm, e.g. -3900 for -39 dBm) to 0..100 percent.
-/// Based on WiFi Explorer's quadratic model derived from IPW2200 driver implementation.
-/// See: https://www.intuitibits.com/2016/03/23/dbm-to-percent-conversion/
+/// Based on NetworkManager's approach: best = -40 dBm = 100%, worst = -100 dBm = 0%.
+/// This is a linear interpolation between -40 and -100 dBm.
+/// Sources:
+/// - https://gitlab.freedesktop.org/NetworkManager/NetworkManager/-/blob/main/src/core/nm-core-utils.c
+/// - https://deepwiki.com/search/i-am-trying-to-figure-out-how_32c478b9-0202-49e3-ae65-18c5cac51a62
 fn map_iwd_rssi_to_percent(rssi_hundredths: i16) -> u8 {
     let rssi_dbm = rssi_hundredths as f32 / 100.0;
 
-    // WiFi Explorer treats anything better than -20dBm as 100%
-    // and anything worse than -95dBm as a floor (usually 1%).
-    if rssi_dbm >= -20.0 {
-        return 100;
-    }
-    if rssi_dbm <= -95.0 {
-        return 1;
-    }
+    // Clamp to realistic WiFi range (-100 to -40 dBm)
+    let clamped = rssi_dbm.clamp(-100.0, -40.0);
 
-    // Quadratic model: percent = 100 - 0.0189 * (rssi + 20)^2
-    // This coefficient (0.0189) correctly maps:
-    // -40dBm ≈ 92%
-    // -60dBm ≈ 70%
-    // -80dBm ≈ 32%
-    // -92dBm ≈ 2%
-    let percent = 100.0 - 0.0189 * (rssi_dbm + 20.0).powi(2);
+    // Normalize to 0..60 range (where -40 dBm = 0, -100 dBm = 60)
+    let normalized = (clamped + 40.0).abs();
 
-    percent.clamp(1.0, 100.0).round() as u8
+    // Calculate percentage: 100% at -40 dBm, 0% at -100 dBm
+    let percent = 100.0 - (100.0 * normalized / 60.0);
+
+    percent.round() as u8
 }
 
 impl<'a> Deref for IwdDbus<'a> {
@@ -151,10 +145,6 @@ impl super::NetworkBackend for IwdDbus<'_> {
         let nets = self.reachable_networks().await?;
         let mut networks = Vec::new();
         for (n, signal_strength) in nets {
-            debug!(
-                "known_connections: signal_strength raw value = {}",
-                signal_strength
-            );
             if n.known_network().await.is_err() {
                 continue;
             }
@@ -326,39 +316,12 @@ impl Drop for SignalAgentCleanup {
             {
                 Ok(builder) => match builder.build().await {
                     Ok(station) => station,
-                    Err(err) => {
-                        debug!(
-                            "SignalAgent cleanup: failed to build station proxy for {}: {}",
-                            station_path.as_str(),
-                            err
-                        );
-                        return;
-                    }
+                    Err(_) => return,
                 },
-                Err(err) => {
-                    debug!(
-                        "SignalAgent cleanup: failed to prepare station proxy for {}: {}",
-                        station_path.as_str(),
-                        err
-                    );
-                    return;
-                }
+                Err(_) => return,
             };
 
-            if let Err(err) = station.unregister_signal_level_agent(&agent_path).await {
-                debug!(
-                    "SignalAgent cleanup: failed to unregister {} on station {}: {}",
-                    agent_path.as_str(),
-                    station_path.as_str(),
-                    err
-                );
-            } else {
-                debug!(
-                    "SignalAgent cleanup: unregistered {} on station {}",
-                    agent_path.as_str(),
-                    station_path.as_str()
-                );
-            }
+            let _ = station.unregister_signal_level_agent(&agent_path).await;
         });
     }
 }
@@ -471,11 +434,6 @@ impl IwdDbus<'_> {
         for station in stations {
             let networks_proxies = station.get_ordered_networks().await?;
             for (path, strength) in networks_proxies {
-                debug!(
-                    "reachable_networks: raw RSSI value = {} for path {}",
-                    strength,
-                    path.as_str()
-                );
                 let network = NetworkProxy::builder(self.inner().connection())
                     .destination("net.connman.iwd")?
                     .path(path.clone())?
@@ -597,7 +555,6 @@ impl IwdDbus<'_> {
             let agent_path =
                 OwnedObjectPath::try_from(format!("/com/ashell/signalagent/{station_id}"))?;
             let station_for_signal_stream = station.clone();
-            let station_for_signal_inspect = station_for_signal_stream.clone();
 
             let server = self
                 .inner()
@@ -611,13 +568,6 @@ impl IwdDbus<'_> {
                     .filter_map(move |(changed_path, level)| {
                         let station = station_for_signal_stream.clone();
                         async move {
-                            debug!(
-                                "Signal stream level={} changed_path={} station={}",
-                                level,
-                                changed_path.as_str(),
-                                station.inner().path().as_str()
-                            );
-
                             let connected_network_path = station.connected_network().await.ok()?;
                             let connected_network = NetworkProxy::builder(iwd.inner().connection())
                                 .destination("net.connman.iwd")
@@ -635,12 +585,6 @@ impl IwdDbus<'_> {
                             ))])
                         }
                     })
-                    .inspect(move |_| {
-                        debug!(
-                            "Emitting mapped signal update from station {}",
-                            station_for_signal_inspect.inner().path().as_str()
-                        );
-                    })
                     .map(move |events| {
                         if let Some(NetworkEvent::Strength((ssid, strength))) = events.first() {
                             debug!(
@@ -654,12 +598,14 @@ impl IwdDbus<'_> {
                     .boxed(),
             );
 
-            // Register signal level agent with clean round number thresholds
-            let signal_thresholds = [-30, -50, -60, -70, -80]; // Excellent, Good, Fair, Poor, Very Weak
+            // Register signal level agent with thresholds aligned to NM's bar ranges
+            // NM's bar ranges: >80% (5 bars), >55% (4 bars), >30% (3 bars), >5% (2 bars), ≤5% (1 bar)
+            // Using NM linear mapping, this translates to RSSI thresholds:
+            // 80% → -52 dBm, 55% → -67 dBm, 30% → -82 dBm, 5% → -97 dBm
+            let signal_thresholds = [-52, -67, -82, -97];
             station
                 .register_signal_level_agent(&agent_path, &signal_thresholds)
                 .await?;
-            debug!("Registered signal level agent at {agent_path}");
 
             signal_agent_cleanups.push(SignalAgentCleanup {
                 conn: self.inner().connection().clone(),
@@ -785,15 +731,7 @@ impl IwdDbus<'_> {
     pub async fn active_connections(&'_ self) -> anyhow::Result<Vec<(NetworkProxy<'_>, i16)>> {
         let mut networks = Vec::new();
         for (net, strength) in self.reachable_networks().await? {
-            debug!(
-                "active_connections: checking network with strength = {}",
-                strength
-            );
             if net.connected().await? {
-                debug!(
-                    "active_connections: network is connected, adding with strength = {}",
-                    strength
-                );
                 networks.push((net, strength));
             }
         }
@@ -807,10 +745,6 @@ impl IwdDbus<'_> {
         let nets = self.active_connections().await?;
         let mut info = Vec::new();
         for (net, signal_strength) in nets {
-            debug!(
-                "active_connections_info: signal_strength raw value = {}",
-                signal_strength
-            );
             let ssid = net.name().await?;
             // strength not directly on Network; placeholder 0
             info.push(ActiveConnectionInfo::WiFi {
@@ -839,10 +773,6 @@ impl IwdDbus<'_> {
         {
             let nets = self.reachable_networks().await?;
             for (net, signal_strength) in nets {
-                debug!(
-                    "wireless_access_points: signal_strength raw value = {}",
-                    signal_strength
-                );
                 let ssid = net.name().await?;
                 let public = net.type_().await? == "open";
                 let path = net.inner().path().clone().into();
