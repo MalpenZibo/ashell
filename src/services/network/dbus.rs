@@ -76,20 +76,24 @@ impl super::NetworkBackend for NetworkDbus<'_> {
     }
 
     async fn scan_nearby_wifi(&self) -> anyhow::Result<()> {
-        for device_path in self
-            .wireless_access_points()
-            .await?
-            .iter()
-            .map(|ap| ap.path.clone())
-        {
+        debug!("scan_nearby_wifi: Starting scan");
+
+        let device_paths = self.wireless_devices().await?;
+
+        for device_path in device_paths {
+            let device_path_str = device_path.to_string();
+            debug!("scan_nearby_wifi: Requesting scan for device {device_path_str}");
             let device = WirelessDeviceProxy::builder(self.0.inner().connection())
                 .path(device_path)?
                 .build()
                 .await?;
 
-            device.request_scan(HashMap::new()).await?;
+            if let Err(e) = device.request_scan(HashMap::new()).await {
+                warn!("Scan request failed for device {device_path_str}: {e}");
+            }
         }
 
+        debug!("scan_nearby_wifi: Scan requests sent");
         Ok(())
     }
 
@@ -99,7 +103,7 @@ impl super::NetworkBackend for NetworkDbus<'_> {
     }
 
     async fn select_access_point(
-        &mut self,
+        &self,
         access_point: &AccessPoint,
         password: Option<String>,
     ) -> anyhow::Result<()> {
@@ -344,7 +348,10 @@ impl NetworkDbus<'_> {
                                 let nm = NetworkDbus::new(&conn).await.unwrap();
                                 let wireless_access_point =
                                     nm.wireless_access_points().await.unwrap_or_default();
-                                debug!("access_points_changed {wireless_access_point:?}");
+                                debug!(
+                                    "access_points_changed event received, count: {}",
+                                    wireless_access_point.len()
+                                );
 
                                 NetworkEvent::WirelessAccessPoint(wireless_access_point)
                             }
@@ -381,6 +388,26 @@ impl NetworkDbus<'_> {
 
         let access_points = select_all(ac_changes).boxed();
 
+        // Set up LastScan change listeners on wireless devices to detect scan completion
+        let mut last_scan_changes = Vec::with_capacity(devices.len());
+        for device_path in devices.iter() {
+            let dp = WirelessDeviceProxy::builder(conn)
+                .path(device_path.clone())?
+                .build()
+                .await?;
+
+            last_scan_changes.push(
+                dp.receive_last_scan_changed()
+                    .await
+                    .then(|_| async move {
+                        debug!("LastScan changed, scan completed");
+                        NetworkEvent::ScanningNearbyWifi(false)
+                    })
+                    .boxed(),
+            );
+        }
+        let last_scan_changes = select_all(last_scan_changes).boxed();
+
         let known_connections = settings
             .receive_connections_changed()
             .await
@@ -406,6 +433,7 @@ impl NetworkDbus<'_> {
             active_connections_changes,
             access_points,
             strength_changes,
+            last_scan_changes,
             known_connections,
         ]);
 
