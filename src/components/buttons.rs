@@ -10,6 +10,7 @@ pub enum ButtonHierarchy {
     Danger,
     Custom {
         bg: Color,
+        hover: Color,
         fg: Color,
     },
 }
@@ -29,7 +30,7 @@ impl ButtonHierarchy {
             Self::Primary => theme.primary.lighter(0.1),
             Self::Secondary => theme.background.lighter(0.2),
             Self::Danger => theme.danger.lighter(0.1),
-            Self::Custom { bg, .. } => bg.lighter(0.1),
+            Self::Custom { hover, .. } => *hover,
         }
     }
 
@@ -69,9 +70,9 @@ pub fn button(
     #[prop(callback)] on_click: (),
 ) -> impl Widget {
     let theme = expect_context::<ThemeColors>();
+    let hovered = create_signal(false);
     let size = size.get();
     let fill_width = fill_width.get();
-    let hovered = create_signal(false);
 
     let (h, pad, radius, font) = match size {
         ButtonSize::Small => (24, 4, 8, 10),
@@ -135,7 +136,7 @@ pub fn button(
 
     c = c.child(
         super::icons::icon()
-            .ic(move || icon.get().unwrap_or_default())
+            .kind(move || icon.get().unwrap_or_default())
             .font_size(font)
             .mono(true)
             .color(move || hierarchy.get().fg(&theme)),
@@ -154,7 +155,6 @@ pub fn icon_button(
 ) -> impl Widget {
     let theme = expect_context::<ThemeColors>();
     let size = size.get();
-    let hovered = create_signal(false);
 
     let (size, pad, font) = match size {
         ButtonSize::Small => (24, 4, 10),
@@ -167,26 +167,14 @@ pub fn icon_button(
         .width(size)
         .corner_radius(size)
         .on_click_option(on_click.clone())
-        .on_hover(move |h| hovered.set(h))
         .pressed_state(|s| s.ripple())
+        .hover_state(|c| c.lighter(0.1))
         .background(move || {
             let k = kind.get();
             let hier = hierarchy.get();
             match k {
-                ButtonKind::Transparent => {
-                    if hovered.get() {
-                        Color::rgba(1.0, 1.0, 1.0, 0.1)
-                    } else {
-                        Color::TRANSPARENT
-                    }
-                }
-                ButtonKind::Solid => {
-                    if hovered.get() {
-                        hier.hover_bg(&theme)
-                    } else {
-                        hier.solid_bg(&theme)
-                    }
-                }
+                ButtonKind::Transparent => Color::TRANSPARENT,
+                ButtonKind::Solid => hier.solid_bg(&theme),
             }
         })
         .layout(
@@ -196,7 +184,7 @@ pub fn icon_button(
         )
         .child(
             super::icons::icon()
-                .ic(move || icon.get())
+                .kind(move || icon.get())
                 .font_size(font)
                 .mono(true)
                 .color(move || hierarchy.get().fg(&theme)),

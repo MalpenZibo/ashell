@@ -12,7 +12,7 @@ use super::icons::{IconKind, StaticIcon};
 #[component]
 pub fn slider(
     value: i32,
-    ic: IconKind,
+    kind: IconKind,
     muted: bool,
     #[prop(callback)] on_change: fn(i32),
     #[prop(callback)] on_mute_toggle: (),
@@ -39,14 +39,14 @@ pub fn slider(
         .child({
             if let Some(on_mute) = on_mute_toggle.clone() {
                 icon_button()
-                    .icon(move || ic.get())
+                    .icon(move || kind.get())
                     .on_click(move || on_mute())
                     .into_any()
             } else {
                 container()
                     .layout(Flex::column().cross_alignment(CrossAlignment::Center))
                     .width(at_least(32))
-                    .child(icon().ic(ic.get()))
+                    .child(icon().kind(kind.get()))
                     .into_any()
             }
         })
@@ -119,12 +119,13 @@ pub fn slider(
     if let Some(on_chev) = on_chevron {
         row = row.child(
             icon_button()
-                .icon(move || {
-                    IconKind::Static(if expanded.get() {
+                .icon(move || -> IconKind {
+                    if expanded.get() {
                         StaticIcon::Close
                     } else {
                         StaticIcon::RightArrow
-                    })
+                    }
+                    .into()
                 })
                 .on_click(move || on_chev()),
         );

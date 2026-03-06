@@ -34,7 +34,7 @@ pub fn view(data: UpdatesDataSignals) -> impl Widget {
                 .cross_alignment(CrossAlignment::Center),
         )
         .child(
-            icon().ic(move || -> IconKind {
+            icon().kind(move || -> IconKind {
                 if is_checking.get() {
                     StaticIcon::Refresh
                 } else if updates.with(|u| u.is_empty()) {
@@ -195,7 +195,7 @@ fn menu_button_with_indicator(
         .child(text(label).color(theme.text).font_size(14))
         .child(move || {
             if is_checking.get() {
-                Some(icon().ic(StaticIcon::Refresh).color(theme.text).font_size(14))
+                Some(icon().kind(StaticIcon::Refresh).color(theme.text).font_size(14))
             } else {
                 None
             }

@@ -6,32 +6,6 @@ use crate::services::bluetooth::{
 };
 use crate::theme::ThemeColors;
 
-/// Bar indicator: Bluetooth icon
-pub fn bt_indicator(data: BluetoothDataSignals) -> impl Widget {
-    let theme = expect_context::<ThemeColors>();
-    let state = data.state;
-    let devices = data.devices;
-
-    container()
-        .child(move || {
-            match state.get() {
-                BluetoothState::Unavailable => None,
-                _ => {
-                    let connected = devices.with(|d| d.iter().any(|d| d.connected));
-                    Some(
-                        icon().ic(if connected {
-                            StaticIcon::BluetoothConnected
-                        } else {
-                            StaticIcon::Bluetooth
-                        })
-                        .color(theme.text)
-                        .font_size(14),
-                    )
-                }
-            }
-        })
-}
-
 /// Bluetooth quick setting tile
 pub fn bt_quick_setting(
     data: BluetoothDataSignals,
@@ -44,7 +18,7 @@ pub fn bt_quick_setting(
     let svc_toggle = svc.clone();
 
     quick_setting()
-        .ic(move || {
+        .kind(move || {
             let connected = devices.with(|d| d.iter().any(|d| d.connected));
             if connected {
                 StaticIcon::BluetoothConnected
@@ -112,7 +86,7 @@ pub fn bt_submenu(
                             }
                         })
                         .child(
-                            icon().ic(move || -> IconKind {
+                            icon().kind(move || -> IconKind {
                                 if discovering.get() {
                                     StaticIcon::Close
                                 } else {
@@ -161,7 +135,7 @@ pub fn bt_submenu(
                 let svc = svc.clone();
                 col = col.child(
                     selectable_item()
-                        .ic(StaticIcon::BluetoothConnected)
+                        .kind(StaticIcon::BluetoothConnected)
                         .label(label)
                         .selected(true)
                         .on_click(move || {
@@ -176,7 +150,7 @@ pub fn bt_submenu(
                 let svc = svc.clone();
                 col = col.child(
                     selectable_item()
-                        .ic(StaticIcon::Bluetooth)
+                        .kind(StaticIcon::Bluetooth)
                         .label(name)
                         .selected(false)
                         .on_click(move || {
@@ -197,7 +171,7 @@ pub fn bt_submenu(
                     let svc = svc.clone();
                     col = col.child(
                         selectable_item()
-                            .ic(StaticIcon::Bluetooth)
+                            .kind(StaticIcon::Bluetooth)
                             .label(name)
                             .selected(false)
                             .on_click(move || {

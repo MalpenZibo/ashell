@@ -6,6 +6,7 @@ pub mod window_title;
 pub mod workspaces;
 
 use std::collections::HashSet;
+use std::time::Duration;
 
 use guido::prelude::*;
 
@@ -42,9 +43,12 @@ pub struct ModuleData {
 #[derive(Clone, Copy)]
 pub struct MenuCtx {
     pub active_menu: Signal<Option<MenuType>>,
+    pub displayed_menu: Signal<Option<MenuType>>,
     pub menu_x: Signal<f32>,
     pub menu_sid: Signal<Option<SurfaceId>>,
     pub backdrop_ref: WidgetRef,
+    /// Written from a delayed tokio task to trigger surface hide after close animation.
+    pub surface_hide_writer: WriteSignal<bool>,
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -67,12 +71,17 @@ pub fn menu_width_for(mt: MenuType) -> f32 {
     }
 }
 
+/// Duration to keep the surface visible while the close animation plays.
+const MENU_CLOSE_DELAY: Duration = Duration::from_millis(500);
+
 pub fn close_menu_fn(menu: MenuCtx) -> impl Fn() + Clone + 'static {
     move || {
         menu.active_menu.set(None);
-        if let Some(id) = menu.menu_sid.get() {
-            toggle_menu_surface(id, false);
-        }
+        let writer = menu.surface_hide_writer;
+        tokio::spawn(async move {
+            tokio::time::sleep(MENU_CLOSE_DELAY).await;
+            writer.set(true);
+        });
     }
 }
 
@@ -104,17 +113,27 @@ fn menu_toggle(mt: MenuType, wr: WidgetRef, menu: MenuCtx) -> impl Fn() + 'stati
             Some(m) if m == mt => None,
             _ => Some(mt),
         };
-        if new.is_some() {
+        if let Some(mt) = new {
+            // Opening
             let r = wr.rect().get();
             let screen_w = menu.backdrop_ref.rect().get().width;
             let w = menu_width_for(mt);
             let center = r.x + r.width / 2.0;
             menu.menu_x
                 .set((center - w / 2.0).max(8.0).min(screen_w - w - 8.0));
-        }
-        menu.active_menu.set(new);
-        if let Some(id) = menu.menu_sid.get() {
-            toggle_menu_surface(id, new.is_some());
+            menu.displayed_menu.set(Some(mt));
+            menu.active_menu.set(Some(mt));
+            if let Some(id) = menu.menu_sid.get() {
+                toggle_menu_surface(id, true);
+            }
+        } else {
+            // Closing — delay surface hide so animation plays
+            menu.active_menu.set(None);
+            let writer = menu.surface_hide_writer;
+            tokio::spawn(async move {
+                tokio::time::sleep(MENU_CLOSE_DELAY).await;
+                writer.set(true);
+            });
         }
     }
 }

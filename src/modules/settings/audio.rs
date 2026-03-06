@@ -1,6 +1,7 @@
 use guido::prelude::*;
 
-use crate::components::{IconKind, StaticIcon, icon, selectable_item, slider};
+use crate::components::{IconKind, bar_indicator, selectable_item, slider};
+use crate::config::SettingsFormat;
 use crate::services::audio::{AudioCmd, AudioDataSignals, Sinks, Sources};
 use crate::theme::ThemeColors;
 
@@ -21,7 +22,7 @@ pub fn sink_slider(
 
     slider()
         .value(cur_vol)
-        .ic(move || sinks.with(|s| Sinks::get_icon(s, &server_info.with(|si| si.default_sink.clone()))))
+        .kind(move || -> IconKind { sinks.with(|s| Sinks::get_icon(s, &server_info.with(|si| si.default_sink.clone()))).into() })
         .muted(move || {
             let si = server_info.with(|si| si.default_sink.clone());
             sinks.with(|s| {
@@ -59,7 +60,7 @@ pub fn source_slider(
 
     slider()
         .value(cur_vol)
-        .ic(move || sources.with(|s| Sources::get_icon(s, &server_info.with(|si| si.default_source.clone()))))
+        .kind(move || -> IconKind { sources.with(|s| Sources::get_icon(s, &server_info.with(|si| si.default_source.clone()))).into() })
         .muted(move || {
             let si = server_info.with(|si| si.default_source.clone());
             sources.with(|s| {
@@ -83,29 +84,38 @@ pub fn source_slider(
         })
 }
 
-/// Bar indicator: speaker icon + volume %
-pub fn sink_indicator(data: AudioDataSignals) -> impl Widget {
+/// Bar indicator: speaker icon and/or volume %
+pub fn sink_indicator(data: AudioDataSignals, format: SettingsFormat) -> impl Widget {
     let theme = expect_context::<ThemeColors>();
     let sinks = data.sinks;
     let server_info = data.server_info;
     let cur_vol = data.cur_sink_volume;
 
-    container()
-        .layout(
-            Flex::row()
-                .spacing(4)
-                .cross_alignment(CrossAlignment::Center),
-        )
-        .child(
-            icon().ic(move || IconKind::from(sinks.with(|s| Sinks::get_icon(s, &server_info.with(|si| si.default_sink.clone())))))
-                .color(theme.text)
-                .font_size(14),
-        )
-        .child(
-            text(move || format!("{}%", cur_vol.get()))
-                .color(theme.text)
-                .font_size(13),
-        )
+    bar_indicator()
+        .kind(move || -> IconKind {
+            sinks.with(|s| Sinks::get_icon(s, &server_info.with(|si| si.default_sink.clone()))).into()
+        })
+        .label(move || Some(format!("{}%", cur_vol.get())))
+        .color(theme.text)
+        .format(format)
+}
+
+/// Bar indicator: mic icon and/or volume %
+pub fn source_indicator(data: AudioDataSignals, format: SettingsFormat) -> impl Widget {
+    let theme = expect_context::<ThemeColors>();
+    let sources = data.sources;
+    let server_info = data.server_info;
+    let cur_vol = data.cur_source_volume;
+
+    bar_indicator()
+        .kind(move || -> IconKind {
+            sources.with(|s| {
+                Sources::get_icon(s, &server_info.with(|si| si.default_source.clone()))
+            }).into()
+        })
+        .label(move || Some(format!("{}%", cur_vol.get())))
+        .color(theme.text)
+        .format(format)
 }
 
 /// Sinks submenu: list all sinks with active port selection
@@ -134,7 +144,7 @@ pub fn sinks_submenu(
                     let svc = svc.clone();
                     col = col.child(
                         selectable_item()
-                            .ic(port.device_type.get_icon())
+                            .kind(port.device_type.get_icon())
                             .label(desc)
                             .selected(is_active)
                             .on_click(move || {
@@ -176,7 +186,7 @@ pub fn sources_submenu(
                     let svc = svc.clone();
                     col = col.child(
                         selectable_item()
-                            .ic(port.device_type.get_icon())
+                            .kind(port.device_type.get_icon())
                             .label(desc)
                             .selected(is_active)
                             .on_click(move || {

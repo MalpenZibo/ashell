@@ -1,36 +1,54 @@
 use guido::prelude::*;
 
 use crate::components::{IconKind, StaticIcon, button, icon, quick_setting};
+use crate::config::SettingsFormat;
 use crate::modules::settings::SubMenu;
 use crate::services::upower::{
-    BatteryData, BatteryStatus, Peripheral, PowerProfile, UPowerCmd, UPowerDataSignals,
+    BatteryData, BatteryStatus, PowerProfile, UPowerCmd, UPowerDataSignals,
 };
 use crate::theme::ThemeColors;
 use crate::{IndicatorState, format_duration};
 
-/// Bar indicator: battery icon + percentage
-pub fn battery_indicator(data: UPowerDataSignals) -> impl Widget {
-    let theme = expect_context::<ThemeColors>();
-    let battery = data.system_battery;
+fn format_time_for_battery(battery: &BatteryData) -> String {
+    match battery.status {
+        BatteryStatus::Charging(duration) => {
+            if battery.capacity >= 100 || duration.is_zero() {
+                "100%".to_string()
+            } else {
+                format_duration(&duration)
+            }
+        }
+        BatteryStatus::Discharging(duration) => {
+            if battery.capacity >= 100 {
+                "100%".to_string()
+            } else if duration.is_zero() {
+                "Calculating...".to_string()
+            } else {
+                format_duration(&duration)
+            }
+        }
+        BatteryStatus::Full => "100%".to_string(),
+    }
+}
 
-    container().child(move || {
-        battery.with(|bat| {
-            bat.map(|b| {
-                container()
-                    .layout(
-                        Flex::row()
-                            .spacing(4)
-                            .cross_alignment(CrossAlignment::Center),
-                    )
-                    .child(icon().ic(b.get_icon()).color(theme.text).font_size(14))
-                    .child(
-                        text(format!("{}%", b.capacity))
-                            .color(theme.text)
-                            .font_size(13),
-                    )
-            })
-        })
-    })
+pub(crate) fn battery_label(battery: &BatteryData, format: SettingsFormat) -> Option<String> {
+    match format {
+        SettingsFormat::Percentage | SettingsFormat::IconAndPercentage => {
+            Some(format!("{}%", battery.capacity))
+        }
+        SettingsFormat::Time | SettingsFormat::IconAndTime => {
+            Some(format_time_for_battery(battery))
+        }
+        SettingsFormat::Icon => None,
+    }
+}
+
+pub(crate) fn battery_color(battery: &BatteryData, theme: &ThemeColors) -> Color {
+    match battery.get_indicator_state() {
+        IndicatorState::Success => theme.success,
+        IndicatorState::Danger => theme.danger,
+        _ => theme.text,
+    }
 }
 
 /// Power profile quick setting
@@ -42,7 +60,7 @@ pub fn power_profile_quick_setting(
     let svc_toggle = svc.clone();
 
     quick_setting()
-        .ic(move || StaticIcon::from(profile.get()))
+        .kind(move || StaticIcon::from(profile.get()))
         .title(move || match profile.get() {
             PowerProfile::Balanced => "Balanced".to_string(),
             PowerProfile::Performance => "Performance".to_string(),
@@ -71,9 +89,9 @@ pub fn menu_indicator(battery: BatteryData, peripheral_icon: Option<IconKind>) -
         .maybe_child(
             peripheral_icon
                 .get()
-                .map(|ic| icon().ic(ic).color(text_color)),
+                .map(|ic| icon().kind(ic).color(text_color)),
         )
-        .child(icon().ic(battery.get().get_icon()).color(text_color))
+        .child(icon().kind(battery.get().get_icon()).color(text_color))
         .child(text(format!("{}%", battery.get().capacity)).color(text_color));
 
     let capacity = battery.get().capacity;
@@ -127,7 +145,7 @@ pub fn battery_header(data: UPowerDataSignals, submenu: Signal<Option<SubMenu>>)
                 periphs.first().map(|p| {
                     let indicator = menu_indicator()
                         .battery(p.data)
-                        .peripheral_icon(p.kind.get_icon());
+                        .peripheral_icon(Some(p.kind.get_icon().into()));
 
                     if periphs.len() > 1 {
                         button()
@@ -164,7 +182,7 @@ pub fn peripherals_view(data: UPowerDataSignals) -> impl Widget {
         let mut col = container().width(fill()).layout(Flex::column().spacing(4));
         for p in &periphs {
             let name = p.name.clone();
-            let ic = p.kind.get_icon();
+            let kind = p.kind.get_icon();
             let pct = p.data.capacity;
             col = col.child(
                 container()
@@ -175,7 +193,7 @@ pub fn peripherals_view(data: UPowerDataSignals) -> impl Widget {
                             .spacing(8)
                             .cross_alignment(CrossAlignment::Center),
                     )
-                    .child(icon().ic(ic).color(theme.text).font_size(14))
+                    .child(icon().kind(kind).color(theme.text).font_size(14))
                     .child(text(name).color(theme.text).font_size(12))
                     .child(text(format!("{pct}%")).color(theme.primary).font_size(12)),
             );
@@ -273,6 +291,6 @@ fn power_action_button(
                 .spacing(8)
                 .cross_alignment(CrossAlignment::Center),
         )
-        .child(icon().ic(ic).color(theme.text).font_size(14))
+        .child(icon().kind(ic).color(theme.text).font_size(14))
         .child(text(label).color(theme.text).font_size(14))
 }

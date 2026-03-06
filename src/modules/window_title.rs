@@ -6,7 +6,8 @@ use crate::theme::ThemeColors;
 
 pub fn view(state: CompositorStateSignals) -> impl Widget {
     let theme = expect_context::<ThemeColors>();
-    let max_len = with_context::<Config, _>(|c| c.window_title.truncate_title_after_length as usize).unwrap();
+    let max_len =
+        with_context::<Config, _>(|c| c.window_title.truncate_title_after_length as usize).unwrap();
 
     // Only re-renders when active_window changes (per-field signal)
     let title = create_memo(move || {
@@ -17,17 +18,20 @@ pub fn view(state: CompositorStateSignals) -> impl Widget {
         })
     });
 
-    container().child(
-        text(move || {
-            let t = title.get();
-            if t.len() > max_len {
-                format!("{}...", &t[..max_len])
-            } else {
-                t
-            }
-        })
-        .color(theme.text)
-        .font_size(13)
-        .nowrap(),
-    )
+    container()
+        .child(
+            text(move || {
+                let t = title.get();
+                if t.len() > max_len {
+                    format!("{}...", &t[..max_len])
+                } else {
+                    t
+                }
+            })
+            .color(theme.text)
+            .font_size(14)
+            .nowrap(),
+        )
+        .overflow(Overflow::Hidden)
+        .animate_width(Transition::spring(SpringConfig::SNAPPY))
 }

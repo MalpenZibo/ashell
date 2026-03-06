@@ -5,13 +5,13 @@ use crate::{
     theme::ThemeColors,
 };
 
-use super::icons::{IconKind, StaticIcon};
+use super::icons::StaticIcon;
 
 /// A list item: clickable transparent button when not selected, success-colored
 /// label when selected. Used for device lists (sinks, sources, etc.).
 #[component]
 pub fn selectable_item(
-    ic: StaticIcon,
+    kind: StaticIcon,
     label: String,
     selected: bool,
     #[prop(callback)] on_click: (),
@@ -37,7 +37,7 @@ pub fn selectable_item(
                 )
                 .child(
                     super::icons::icon()
-                        .ic(IconKind::from(ic.get()))
+                        .kind(kind.get())
                         .color(theme.success)
                         .font_size(14),
                 )
@@ -49,7 +49,7 @@ pub fn selectable_item(
             .size(ButtonSize::Normal)
             .kind(ButtonKind::Transparent)
             .fill_width(true)
-            .icon(Some(IconKind::from(ic.get())))
+            .icon(Some(kind.get().into()))
             .content(text(label.get()).color(theme.text).font_size(12));
 
         if let Some(cb) = on_click {

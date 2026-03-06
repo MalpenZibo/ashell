@@ -1,4 +1,4 @@
-use crate::components::{IconKind, icons::StaticIcon};
+use crate::components::icons::StaticIcon;
 use guido::prelude::*;
 use libpulse_binding::{
     callbacks::ListResult,
@@ -87,53 +87,49 @@ impl Volume for ChannelVolumes {
 }
 
 pub trait Sinks {
-    fn get_icon(&self, default_sink: &str) -> IconKind;
+    fn get_icon(&self, default_sink: &str) -> StaticIcon;
 }
 
 impl Sinks for Vec<Device> {
-    fn get_icon(&self, default_sink: &str) -> IconKind {
-        IconKind::Static(
-            match self.iter().find_map(|s| {
-                if s.ports.iter().any(|p| p.active) && s.name == default_sink {
-                    Some((s.is_mute, s.volume.get_volume()))
+    fn get_icon(&self, default_sink: &str) -> StaticIcon {
+        match self.iter().find_map(|s| {
+            if s.ports.iter().any(|p| p.active) && s.name == default_sink {
+                Some((s.is_mute, s.volume.get_volume()))
+            } else {
+                None
+            }
+        }) {
+            Some((true, _)) => StaticIcon::Speaker0,
+            Some((false, volume)) => {
+                if volume > 0.66 {
+                    StaticIcon::Speaker3
+                } else if volume > 0.33 {
+                    StaticIcon::Speaker2
                 } else {
-                    None
+                    StaticIcon::Speaker1
                 }
-            }) {
-                Some((true, _)) => StaticIcon::Speaker0,
-                Some((false, volume)) => {
-                    if volume > 0.66 {
-                        StaticIcon::Speaker3
-                    } else if volume > 0.33 {
-                        StaticIcon::Speaker2
-                    } else {
-                        StaticIcon::Speaker1
-                    }
-                }
-                None => StaticIcon::Speaker0,
-            },
-        )
+            }
+            None => StaticIcon::Speaker0,
+        }
     }
 }
 
 pub trait Sources {
-    fn get_icon(&self, default_source: &str) -> IconKind;
+    fn get_icon(&self, default_source: &str) -> StaticIcon;
 }
 
 impl Sources for Vec<Device> {
-    fn get_icon(&self, default_source: &str) -> IconKind {
-        IconKind::Static(
-            match self.iter().find_map(|s| {
-                if s.ports.iter().any(|p| p.active) && s.name == default_source {
-                    Some(s.is_mute)
-                } else {
-                    None
-                }
-            }) {
-                Some(false) => StaticIcon::Mic1,
-                _ => StaticIcon::Mic0,
-            },
-        )
+    fn get_icon(&self, default_source: &str) -> StaticIcon {
+        match self.iter().find_map(|s| {
+            if s.ports.iter().any(|p| p.active) && s.name == default_source {
+                Some(s.is_mute)
+            } else {
+                None
+            }
+        }) {
+            Some(false) => StaticIcon::Mic1,
+            _ => StaticIcon::Mic0,
+        }
     }
 }
 

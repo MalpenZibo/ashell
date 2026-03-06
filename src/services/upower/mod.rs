@@ -1,6 +1,6 @@
 use crate::{
     IndicatorState,
-    components::{IconKind, icons::StaticIcon},
+    components::icons::StaticIcon,
 };
 use dbus::{DeviceProxy, PowerProfilesProxy, SystemBattery, UPowerDbus, UPowerProxy, UpDeviceKind};
 use futures::StreamExt;
@@ -32,8 +32,8 @@ impl BatteryData {
         }
     }
 
-    pub fn get_icon(&self) -> IconKind {
-        IconKind::Static(match self {
+    pub fn get_icon(&self) -> StaticIcon {
+        match self {
             BatteryData {
                 status: BatteryStatus::Charging(_),
                 ..
@@ -55,7 +55,7 @@ impl BatteryData {
                 capacity,
             } if *capacity < 80 => StaticIcon::Battery3,
             _ => StaticIcon::Battery4,
-        })
+        }
     }
 }
 
@@ -76,13 +76,13 @@ pub enum PeripheralDeviceKind {
 }
 
 impl PeripheralDeviceKind {
-    pub fn get_icon(&self) -> IconKind {
-        IconKind::Static(match self {
+    pub fn get_icon(&self) -> StaticIcon {
+        match self {
             PeripheralDeviceKind::Keyboard => StaticIcon::Keyboard,
             PeripheralDeviceKind::Mouse => StaticIcon::Mouse,
             PeripheralDeviceKind::Headphones => StaticIcon::Headphones1,
             PeripheralDeviceKind::Gamepad => StaticIcon::Gamepad,
-        })
+        }
     }
 }
 

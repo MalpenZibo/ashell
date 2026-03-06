@@ -12,7 +12,7 @@ use super::icons::{IconKind, StaticIcon};
 /// Chevron is inside the button (unified tile) matching ashell layout.
 #[component]
 pub fn quick_setting(
-    ic: StaticIcon,
+    kind: StaticIcon,
     title: String,
     subtitle: String,
     active: bool,
@@ -83,57 +83,66 @@ pub fn quick_setting(
                 }),
         );
 
-    // Add chevron button if there's a submenu action
+    // Add chevron button if there's a submenu action (only visible when active)
     if let Some(on_sub) = on_submenu {
-        inner = inner.child(
-            icon_button()
-                .size(ButtonSize::Small)
-                .kind(move || {
-                    if expanded.get() {
-                        ButtonKind::Solid
-                    } else {
-                        ButtonKind::Transparent
-                    }
-                })
-                .hierarchy(move || {
-                    if expanded.get() {
-                        // Expanded (close button): inverted colors on tile
-                        if active.get() {
-                            ButtonHierarchy::Custom {
-                                bg: theme.background,
-                                fg: theme.text,
+        let on_sub = on_sub.clone();
+        inner = inner.child(move || {
+            let on_sub = on_sub.clone();
+            if !active.get() {
+                return None;
+            }
+            {
+                let hovered = create_signal(false);
+                Some(
+                    container()
+                        .width(24)
+                        .height(24)
+                        .corner_radius(24)
+                        .on_hover(move |h| hovered.set(h))
+                        .on_click(move || on_sub())
+                        .pressed_state(|s| s.ripple())
+                        .background(move || {
+                            if hovered.get() {
+                                theme.background
+                            } else {
+                                Color::TRANSPARENT
                             }
-                        } else {
-                            ButtonHierarchy::Secondary
-                        }
-                    } else {
-                        // Collapsed chevron
-                        if active.get() {
-                            ButtonHierarchy::Custom {
-                                bg: Color::TRANSPARENT,
-                                fg: theme.background,
-                            }
-                        } else {
-                            ButtonHierarchy::Secondary
-                        }
-                    }
-                })
-                .icon(move || {
-                    IconKind::Static(if expanded.get() {
-                        StaticIcon::Close
-                    } else {
-                        StaticIcon::RightChevron
-                    })
-                })
-                .on_click(move || on_sub()),
-        );
+                        })
+                        .layout(
+                            Flex::row()
+                                .cross_alignment(CrossAlignment::Center)
+                                .main_alignment(MainAlignment::Center),
+                        )
+                        .child(
+                            super::icons::icon()
+                                .kind(move || -> IconKind {
+                                    if expanded.get() {
+                                        StaticIcon::Close
+                                    } else {
+                                        StaticIcon::RightChevron
+                                    }
+                                    .into()
+                                })
+                                .font_size(10)
+                                .mono(true)
+                                .color(move || {
+                                    if hovered.get() {
+                                        theme.text
+                                    } else {
+                                        theme.background
+                                    }
+                                }),
+                        ),
+                )
+            }
+        });
     }
 
     // Wrap in a Large Solid button with reactive hierarchy + icon
     let mut btn = button()
         .size(ButtonSize::Large)
         .kind(ButtonKind::Solid)
-        .icon(move || Some(IconKind::from(ic.get())))
+        .icon(move || Some(kind.get().into()))
         .hierarchy(move || {
             if active.get() {
                 ButtonHierarchy::Primary

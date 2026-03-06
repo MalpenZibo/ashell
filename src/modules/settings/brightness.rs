@@ -1,7 +1,27 @@
 use guido::prelude::*;
 
-use crate::components::{StaticIcon, slider};
+use crate::components::{StaticIcon, bar_indicator, slider};
+use crate::config::SettingsFormat;
 use crate::services::brightness::{BrightnessCmd, BrightnessDataSignals};
+use crate::theme::ThemeColors;
+
+/// Bar indicator: brightness icon and/or percentage
+pub fn brightness_indicator(data: BrightnessDataSignals, format: SettingsFormat) -> impl Widget {
+    let theme = expect_context::<ThemeColors>();
+    let current = data.current;
+    let max = data.max;
+
+    bar_indicator()
+        .kind(StaticIcon::Brightness)
+        .label(move || {
+            let c = current.get() as f32;
+            let m = max.get() as f32;
+            let pct = if m > 0.0 { (c / m * 100.0).round() as i32 } else { 0 };
+            Some(format!("{pct}%"))
+        })
+        .color(theme.text)
+        .format(format)
+}
 
 pub fn slider_view(
     data: BrightnessDataSignals,
@@ -23,7 +43,7 @@ pub fn slider_view(
     let svc_change = svc.clone();
     slider()
         .value(pct)
-        .ic(StaticIcon::Brightness)
+        .kind(StaticIcon::Brightness)
         .muted(false)
         .on_change(move |new_pct| {
             let m = max.get();

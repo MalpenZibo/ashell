@@ -421,12 +421,25 @@ pub fn view(state: CompositorStateSignals, svc: Service<CompositorCommand>) -> i
                                     svc.send(CompositorCommand::FocusWorkspace(id));
                                 }
                             })
-                            .hover_state(|s| s.lighter(0.1).alpha(0.7))
+                            .hover_state(|s| {
+                                s.lighter(0.1).alpha(0.7).transform(Transform::scale(1.1))
+                            })
+                            .animate_border_width(Transition {
+                                duration_ms: 150.0,
+                                timing: TimingFunction::EaseInOut,
+                                delay_ms: 0.0,
+                            })
+                            .animate_border_color(Transition {
+                                duration_ms: 150.0,
+                                timing: TimingFunction::EaseInOut,
+                                delay_ms: 0.0,
+                            })
                             .animate_background(Transition {
                                 duration_ms: 150.0,
                                 timing: TimingFunction::EaseInOut,
                                 delay_ms: 0.0,
-                            });
+                            })
+                            .animate_transform(Transition::spring(SpringConfig::SNAPPY));
 
                         if is_special {
                             // Special workspaces: shrink to content, padding varies by state
@@ -445,13 +458,9 @@ pub fn view(state: CompositorStateSignals, svc: Service<CompositorCommand>) -> i
                             });
                         } else {
                             // Normal workspaces: fixed width based on state
-                            pill = pill.width(move || displayed.get().width()).animate_width(
-                                Transition {
-                                    duration_ms: 150.0,
-                                    timing: TimingFunction::EaseInOut,
-                                    delay_ms: 0.0,
-                                },
-                            );
+                            pill = pill
+                                .width(move || displayed.get().width())
+                                .animate_width(Transition::spring(SpringConfig::BOUNCY));
                         }
 
                         pill

@@ -39,7 +39,7 @@ pub fn expandable_panel(
                 )
                 .child(header.unwrap_or_else(|| Box::new(container())))
                 .child(
-                    icon().ic(move || -> IconKind {
+                    icon().kind(move || -> IconKind {
                         if expanded.get() {
                             StaticIcon::MenuClosed
                         } else {

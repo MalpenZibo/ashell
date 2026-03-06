@@ -329,7 +329,7 @@ impl IntoVal<Option<IconKind>> for StaticIcon {
 
 #[component]
 pub fn icon(
-    ic: IconKind,
+    kind: IconKind,
     #[prop(default = "false")]
     mono: bool,
     #[prop(default = "Color::WHITE")]
@@ -337,9 +337,9 @@ pub fn icon(
     #[prop(default = "14.0")]
     font_size: f32,
 ) -> impl Widget {
-    text(move || ic.get().get_str().to_string())
+    text(move || kind.get().get_str().to_string())
         .font_family(move || {
-            let i = ic.get();
+            let i = kind.get();
             if mono.get() {
                 i.font_family_mono()
             } else {

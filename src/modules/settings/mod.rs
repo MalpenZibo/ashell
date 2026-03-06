@@ -7,9 +7,12 @@ pub mod power;
 use guido::prelude::*;
 
 use crate::components::buttons::icon_button;
-use crate::components::{IconKind, StaticIcon, button, icon, quick_setting};
-use crate::config::Config;
+use crate::components::{StaticIcon, bar_indicator, quick_setting};
+use crate::config::{Config, SettingsFormat, SettingsIndicator};
 use crate::services;
+use crate::services::bluetooth::BluetoothState;
+use crate::services::network::ActiveConnectionInfo;
+use crate::services::upower::PowerProfile;
 use crate::theme::ThemeColors;
 
 #[derive(Clone, Copy, PartialEq)]
@@ -85,18 +88,168 @@ pub fn create() -> SettingsSignals {
     }
 }
 
-/// Bar view: [Speaker% | Wifi | BT | Battery%]
+/// Bar view: indicators row driven by config.settings.indicators order & format
 pub fn view(settings: SettingsSignals) -> impl Widget {
-    container()
-        .layout(
-            Flex::row()
-                .spacing(10)
-                .cross_alignment(CrossAlignment::Center),
-        )
-        .child(audio::sink_indicator(settings.audio_data))
-        .child(network::wifi_indicator(settings.network_data))
-        .child(bluetooth::bt_indicator(settings.bluetooth_data))
-        .child(power::battery_indicator(settings.upower_data))
+    let cfg = expect_context::<Config>();
+    let theme = expect_context::<ThemeColors>();
+
+    let mut row = container().layout(
+        Flex::row()
+            .spacing(10)
+            .cross_alignment(CrossAlignment::Center),
+    );
+
+    for indicator in &cfg.settings.indicators {
+        match indicator {
+            SettingsIndicator::IdleInhibitor => {
+                let inhibited = settings.idle_inhibitor_data.inhibited;
+                row = row.child(move || {
+                    if inhibited.get() {
+                        Some(
+                            bar_indicator()
+                                .kind(StaticIcon::EyeOpened)
+                                .color(theme.danger)
+                                .format(SettingsFormat::Icon),
+                        )
+                    } else {
+                        None
+                    }
+                });
+            }
+            SettingsIndicator::PowerProfile => {
+                let profile = settings.upower_data.power_profile;
+                row = row.child(move || match profile.get() {
+                    PowerProfile::Performance => Some(
+                        bar_indicator()
+                            .kind(StaticIcon::Performance)
+                            .color(theme.danger)
+                            .format(SettingsFormat::Icon),
+                    ),
+                    PowerProfile::PowerSaver => Some(
+                        bar_indicator()
+                            .kind(StaticIcon::PowerSaver)
+                            .color(theme.success)
+                            .format(SettingsFormat::Icon),
+                    ),
+                    _ => None,
+                });
+            }
+            SettingsIndicator::Audio => {
+                row = row.child(audio::sink_indicator(
+                    settings.audio_data,
+                    cfg.settings.audio_indicator_format,
+                ));
+            }
+            SettingsIndicator::Microphone => {
+                row = row.child(audio::source_indicator(
+                    settings.audio_data,
+                    cfg.settings.microphone_indicator_format,
+                ));
+            }
+            SettingsIndicator::Network => {
+                row = row.child(network::wifi_indicator(
+                    settings.network_data,
+                    cfg.settings.network_indicator_format,
+                ));
+            }
+            SettingsIndicator::Vpn => {
+                let active = settings.network_data.active_connections;
+                row = row.child(move || {
+                    let has_vpn = active.with(|acs| {
+                        acs.iter()
+                            .any(|ac| matches!(ac, ActiveConnectionInfo::Vpn { .. }))
+                    });
+                    if has_vpn {
+                        Some(
+                            bar_indicator()
+                                .kind(StaticIcon::Vpn)
+                                .color(theme.warning)
+                                .format(SettingsFormat::Icon),
+                        )
+                    } else {
+                        None
+                    }
+                });
+            }
+            SettingsIndicator::Bluetooth => {
+                let state = settings.bluetooth_data.state;
+                let devices = settings.bluetooth_data.devices;
+                let format = cfg.settings.bluetooth_indicator_format;
+                row = row.child(move || match state.get() {
+                    BluetoothState::Unavailable => None,
+                    _ => {
+                        let connected_count =
+                            devices.with(|d| d.iter().filter(|d| d.connected).count());
+                        let ic = if connected_count > 0 {
+                            StaticIcon::BluetoothConnected
+                        } else {
+                            StaticIcon::Bluetooth
+                        };
+                        let label = if connected_count > 0 {
+                            Some(format!("{connected_count}"))
+                        } else {
+                            None
+                        };
+                        Some(
+                            bar_indicator()
+                                .kind(ic)
+                                .label(label)
+                                .color(theme.text)
+                                .format(format),
+                        )
+                    }
+                });
+            }
+            SettingsIndicator::Battery => {
+                let battery = settings.upower_data.system_battery;
+                let format = cfg.settings.battery_format;
+                row = row.child(move || {
+                    battery.with(|bat| {
+                        bat.map(|b| {
+                            bar_indicator()
+                                .kind(b.get_icon())
+                                .label(power::battery_label(&b, format))
+                                .color(power::battery_color(&b, &theme))
+                                .format(format)
+                        })
+                    })
+                });
+            }
+            SettingsIndicator::PeripheralBattery => {
+                let peripherals = settings.upower_data.peripherals;
+                row = row.child(move || {
+                    let periphs = peripherals.with(|p| p.clone());
+                    if periphs.is_empty() {
+                        return None;
+                    }
+                    let mut periph_row = container().layout(
+                        Flex::row()
+                            .spacing(8)
+                            .cross_alignment(CrossAlignment::Center),
+                    );
+                    for p in &periphs {
+                        let color = power::battery_color(&p.data, &theme);
+                        periph_row = periph_row.child(
+                            bar_indicator()
+                                .kind(p.kind.get_icon())
+                                .label(Some(format!("{}%", p.data.capacity)))
+                                .color(color)
+                                .format(SettingsFormat::IconAndPercentage),
+                        );
+                    }
+                    Some(periph_row)
+                });
+            }
+            SettingsIndicator::Brightness => {
+                row = row.child(brightness::brightness_indicator(
+                    settings.brightness_data,
+                    cfg.settings.brightness_indicator_format,
+                ));
+            }
+        }
+    }
+
+    row
 }
 
 /// Menu view: full settings panel content
@@ -139,49 +292,32 @@ pub fn menu_view(
                                 .spacing(4)
                                 .cross_alignment(CrossAlignment::Center),
                         )
-                        .child(
-                            icon_button()
-                                .icon(IconKind::Static(StaticIcon::Lock))
-                                .on_click(move || {
-                                    let _ = std::process::Command::new("bash")
-                                        .arg("-c")
-                                        .arg(&lock_cmd)
-                                        .spawn();
-                                    close();
-                                }),
-                        )
-                        .child(
-                            icon_button()
-                                .icon(IconKind::Static(StaticIcon::Power))
-                                .on_click(move || {
-                                    submenu.set(if submenu.get() == Some(SubMenu::Power) {
-                                        None
-                                    } else {
-                                        Some(SubMenu::Power)
-                                    });
-                                }),
-                        )
+                        .child(icon_button().icon(StaticIcon::Lock).on_click(move || {
+                            let _ = std::process::Command::new("bash")
+                                .arg("-c")
+                                .arg(&lock_cmd)
+                                .spawn();
+                            close();
+                        }))
+                        .child(icon_button().icon(StaticIcon::Power).on_click(move || {
+                            submenu.set(if submenu.get() == Some(SubMenu::Power) {
+                                None
+                            } else {
+                                Some(SubMenu::Power)
+                            });
+                        }))
                 })
         })
         // Power submenu (conditionally shown)
-        .child(move || {
-            if submenu.get() == Some(SubMenu::Power) {
-                Some(submenu_wrapper(power::power_actions(close_menu2.clone())))
-            } else {
-                None
-            }
-        })
+        .child(submenu_wrapper(
+            move || submenu.get() == Some(SubMenu::Power),
+            power::power_actions(close_menu2.clone()),
+        ))
         // Peripherals submenu (conditionally shown)
-        .child({
-            let upower_data = settings.upower_data;
-            move || {
-                if submenu.get() == Some(SubMenu::Peripherals) {
-                    Some(submenu_wrapper(power::peripherals_view(upower_data)))
-                } else {
-                    None
-                }
-            }
-        })
+        .child(submenu_wrapper(
+            move || submenu.get() == Some(SubMenu::Peripherals),
+            power::peripherals_view(settings.upower_data),
+        ))
         // Audio: sink slider (with chevron for device selection)
         .child(audio::sink_slider(
             settings.audio_data,
@@ -189,20 +325,10 @@ pub fn menu_view(
             submenu,
         ))
         // Sinks submenu
-        .child({
-            let audio_data = settings.audio_data;
-            let audio_svc = settings.audio_svc.clone();
-            move || {
-                if submenu.get() == Some(SubMenu::Sinks) {
-                    Some(submenu_wrapper(audio::sinks_submenu(
-                        audio_data,
-                        audio_svc.clone(),
-                    )))
-                } else {
-                    None
-                }
-            }
-        })
+        .child(submenu_wrapper(
+            move || submenu.get() == Some(SubMenu::Sinks),
+            audio::sinks_submenu(settings.audio_data, settings.audio_svc.clone()),
+        ))
         // Audio: source slider (with chevron for device selection)
         .child(audio::source_slider(
             settings.audio_data,
@@ -210,20 +336,10 @@ pub fn menu_view(
             submenu,
         ))
         // Sources submenu
-        .child({
-            let audio_data = settings.audio_data;
-            let audio_svc = settings.audio_svc.clone();
-            move || {
-                if submenu.get() == Some(SubMenu::Sources) {
-                    Some(submenu_wrapper(audio::sources_submenu(
-                        audio_data,
-                        audio_svc.clone(),
-                    )))
-                } else {
-                    None
-                }
-            }
-        })
+        .child(submenu_wrapper(
+            move || submenu.get() == Some(SubMenu::Sources),
+            audio::sources_submenu(settings.audio_data, settings.audio_svc.clone()),
+        ))
         // Brightness slider
         .child(brightness::slider_view(
             settings.brightness_data,
@@ -269,35 +385,15 @@ pub fn menu_view(
             )
         })
         // WiFi submenu
-        .child({
-            let net_data = settings3.network_data;
-            let net_svc = settings3.network_svc.clone();
-            move || {
-                if submenu.get() == Some(SubMenu::WiFi) {
-                    Some(submenu_wrapper(network::wifi_submenu(
-                        net_data,
-                        net_svc.clone(),
-                    )))
-                } else {
-                    None
-                }
-            }
-        })
+        .child(submenu_wrapper(
+            move || submenu.get() == Some(SubMenu::WiFi),
+            network::wifi_submenu(settings3.network_data, settings3.network_svc.clone()),
+        ))
         // Bluetooth submenu
-        .child({
-            let bt_data = settings3.bluetooth_data;
-            let bt_svc = settings3.bluetooth_svc.clone();
-            move || {
-                if submenu.get() == Some(SubMenu::Bluetooth) {
-                    Some(submenu_wrapper(bluetooth::bt_submenu(
-                        bt_data,
-                        bt_svc.clone(),
-                    )))
-                } else {
-                    None
-                }
-            }
-        })
+        .child(submenu_wrapper(
+            move || submenu.get() == Some(SubMenu::Bluetooth),
+            bluetooth::bt_submenu(settings3.bluetooth_data, settings3.bluetooth_svc.clone()),
+        ))
         // Row 2: VPN | Airplane
         .child({
             let net_data = settings3.network_data;
@@ -324,20 +420,10 @@ pub fn menu_view(
             }
         })
         // VPN submenu
-        .child({
-            let net_data = settings3.network_data;
-            let net_svc = settings3.network_svc.clone();
-            move || {
-                if submenu.get() == Some(SubMenu::Vpn) {
-                    Some(submenu_wrapper(network::vpn_submenu(
-                        net_data,
-                        net_svc.clone(),
-                    )))
-                } else {
-                    None
-                }
-            }
-        })
+        .child(submenu_wrapper(
+            move || submenu.get() == Some(SubMenu::Vpn),
+            network::vpn_submenu(settings3.network_data, settings3.network_svc.clone()),
+        ))
         // Row 3: Idle Inhibitor | Power Profile
         .child({
             let inhibitor_data = settings3.idle_inhibitor_data;
@@ -357,13 +443,32 @@ pub fn menu_view(
         })
 }
 
-fn submenu_wrapper(content: impl Widget + 'static) -> impl Widget {
+fn submenu_wrapper(
+    visible: impl Fn() -> bool + 'static,
+    content: impl Widget + 'static,
+) -> impl Widget {
     container()
         .width(fill())
-        .padding(12)
-        .corner_radius(16)
-        .background(Color::rgba(1.0, 1.0, 1.0, 0.06))
-        .child(content)
+        .height(move || {
+            if visible() {
+                Length::default()
+            } else {
+                Length::from(0)
+            }
+        })
+        .overflow(Overflow::Hidden)
+        .animate_height(
+            Transition::spring(SpringConfig::SNAPPY)
+                .reverse(Transition::new(200, TimingFunction::EaseOut)),
+        )
+        .child(
+            container()
+                .width(fill())
+                .padding(12)
+                .corner_radius(16)
+                .background(Color::rgba(1.0, 1.0, 1.0, 0.06))
+                .child(content),
+        )
 }
 
 fn divider() -> impl Widget {
@@ -381,7 +486,7 @@ fn idle_inhibitor_quick_setting(
     let svc_toggle = svc.clone();
 
     quick_setting()
-        .ic(move || {
+        .kind(move || {
             if inhibited.get() {
                 StaticIcon::EyeOpened
             } else {

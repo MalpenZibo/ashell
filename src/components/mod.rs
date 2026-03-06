@@ -1,3 +1,4 @@
+pub mod bar_indicator;
 pub mod buttons;
 pub mod center_box;
 pub mod expandable_panel;
@@ -9,6 +10,7 @@ pub mod selectable_item;
 pub mod slider;
 pub mod toggle_button;
 
+pub use bar_indicator::bar_indicator;
 pub use buttons::{ButtonHierarchy, ButtonKind, ButtonSize, button};
 pub use center_box::center_box;
 pub use expandable_panel::expandable_panel;

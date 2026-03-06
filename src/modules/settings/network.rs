@@ -1,28 +1,35 @@
 use guido::prelude::*;
 
-use crate::components::{IconKind, StaticIcon, icon, quick_setting, selectable_item, toggle_button};
+use crate::components::{IconKind, StaticIcon, bar_indicator, icon, quick_setting, selectable_item, toggle_button};
+use crate::config::SettingsFormat;
 use crate::services::network::{
     ActiveConnectionInfo, KnownConnection, NetworkCmd, NetworkDataSignals,
 };
 use crate::theme::ThemeColors;
 
-/// Bar indicator: WiFi icon + SSID
-pub fn wifi_indicator(data: NetworkDataSignals) -> impl Widget {
+/// Bar indicator: WiFi icon and/or signal strength %
+pub fn wifi_indicator(data: NetworkDataSignals, format: SettingsFormat) -> impl Widget {
     let theme = expect_context::<ThemeColors>();
     let active = data.active_connections;
     let wifi_enabled = data.wifi_enabled;
 
-    container()
-        .layout(
-            Flex::row()
-                .spacing(4)
-                .cross_alignment(CrossAlignment::Center),
-        )
-        .child(
-            icon().ic(move || IconKind::from(wifi_icon(active, wifi_enabled)))
-                .color(theme.text)
-                .font_size(14),
-        )
+    bar_indicator()
+        .kind(move || -> IconKind { wifi_icon(active, wifi_enabled).into() })
+        .label(move || {
+            Some(
+                active
+                    .with(|acs| {
+                        acs.iter().find_map(|ac| match ac {
+                            ActiveConnectionInfo::WiFi { strength, .. } => Some(*strength),
+                            _ => None,
+                        })
+                    })
+                    .map(|s| format!("{s}%"))
+                    .unwrap_or_else(|| "0%".to_string()),
+            )
+        })
+        .color(theme.text)
+        .format(format)
 }
 
 fn wifi_icon(
@@ -61,7 +68,7 @@ pub fn wifi_quick_setting(
     let svc_toggle = svc.clone();
 
     quick_setting()
-        .ic(move || {
+        .kind(move || {
             if wifi_enabled.get() {
                 wifi_icon(active, wifi_enabled)
             } else {
@@ -97,7 +104,7 @@ pub fn airplane_quick_setting(
     let svc_toggle = svc.clone();
 
     quick_setting()
-        .ic(move || StaticIcon::Airplane)
+        .kind(move || StaticIcon::Airplane)
         .title(move || "Airplane".to_string())
         .subtitle(move || {
             if airplane.get() {
@@ -111,18 +118,23 @@ pub fn airplane_quick_setting(
 }
 
 /// VPN quick setting
+///
+/// Mimics ashell behavior:
+/// - Inactive: clicking the tile opens the VPN submenu (no chevron shown)
+/// - Active: clicking the tile toggles VPN off, chevron opens submenu
 pub fn vpn_quick_setting(
     data: NetworkDataSignals,
     svc: Service<NetworkCmd>,
-    on_submenu: impl Fn() + 'static,
+    on_submenu: impl Fn() + 'static + Clone,
     expanded: impl Fn() -> bool + 'static,
 ) -> impl Widget {
     let active = data.active_connections;
     let known = data.known_connections;
     let svc_toggle = svc.clone();
+    let on_submenu_for_toggle = on_submenu.clone();
 
     quick_setting()
-        .ic(move || StaticIcon::Vpn)
+        .kind(move || StaticIcon::Vpn)
         .title(move || "VPN".to_string())
         .subtitle(move || {
             active.with(|acs| {
@@ -140,23 +152,33 @@ pub fn vpn_quick_setting(
             })
         })
         .on_toggle(move || {
-            // Toggle first known VPN — read state on main thread
-            let vpn = known.with(|kc| {
-                kc.iter().find_map(|k| match k {
-                    KnownConnection::Vpn(v) => Some(v.clone()),
-                    _ => None,
-                })
+            let has_vpn = active.with(|acs| {
+                acs.iter().any(|ac| matches!(ac, ActiveConnectionInfo::Vpn { .. }))
             });
-            if let Some(v) = vpn {
-                let active_path = active.with(|acs| {
-                    acs.iter().find_map(|ac| match ac {
-                        ActiveConnectionInfo::Vpn { name, object_path } if *name == v.name => {
-                            Some(object_path.clone())
-                        }
+            if has_vpn {
+                // Active: toggle first known VPN off
+                let vpn = known.with(|kc| {
+                    kc.iter().find_map(|k| match k {
+                        KnownConnection::Vpn(v) => Some(v.clone()),
                         _ => None,
                     })
                 });
-                svc_toggle.send(NetworkCmd::ToggleVpn(v, active_path));
+                if let Some(v) = vpn {
+                    let active_path = active.with(|acs| {
+                        acs.iter().find_map(|ac| match ac {
+                            ActiveConnectionInfo::Vpn { name, object_path }
+                                if *name == v.name =>
+                            {
+                                Some(object_path.clone())
+                            }
+                            _ => None,
+                        })
+                    });
+                    svc_toggle.send(NetworkCmd::ToggleVpn(v, active_path));
+                }
+            } else {
+                // Inactive: open the submenu
+                on_submenu_for_toggle();
             }
         })
         .on_submenu(on_submenu)
@@ -202,9 +224,9 @@ pub fn wifi_submenu(
                         })
                         .child(move || {
                             Some(if scanning.get() {
-                                icon().ic(StaticIcon::Refresh).color(theme.text).font_size(12)
+                                icon().kind(StaticIcon::Refresh).color(theme.text).font_size(12)
                             } else {
-                                icon().ic(StaticIcon::Refresh).color(theme.text).font_size(12)
+                                icon().kind(StaticIcon::Refresh).color(theme.text).font_size(12)
                             })
                         })
                 }),
@@ -228,7 +250,7 @@ pub fn wifi_submenu(
                     let is_connected = ap.state == crate::services::network::DeviceState::Activated;
                     col = col.child(
                         selectable_item()
-                            .ic(strength_to_icon(strength, true))
+                            .kind(strength_to_icon(strength, true))
                             .label(ssid)
                             .selected(is_connected)
                             .on_click(move || {
@@ -255,7 +277,7 @@ pub fn wifi_submenu(
                 let is_public = ap.public;
                 col = col.child(
                     selectable_item()
-                        .ic(strength_to_icon(strength, is_public))
+                        .kind(strength_to_icon(strength, is_public))
                         .label(ssid)
                         .selected(false),
                 );
