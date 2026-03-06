@@ -23,6 +23,7 @@ Tempo combines a highly configurable clock with an optional weather summary in t
 | `formats`          | `array`  | `[]`          | Multiple datetime formats that can be cycled through by right-clicking the clock. When provided, clicking cycles through each format in sequence.                                                     |
 | `timezones`        | `array`  | `[]`          | Timezone identifiers that can be cycled through by scrolling. Supports both IANA names (e.g., `"UTC"`, `"America/New_York"`) and fixed offsets (e.g., `"+00:00"`, `"-05:00"`).                        |
 | `weather_location` | `enum`   | `None`        | Determines which coordinates are queried when requesting weather data. `Current` geo-locates via IP using `ip-api.com`. Use the `City` variant to pin the module to a specific place.                 |
+| `weather_indicator`| `enum`   | `IconAndTemperature`| Determines what information about the weather is shown in the bar, valid options are `None`, `Icon`, and `IconAndTemperature`.           |
 
 ### City-based weather
 
@@ -30,6 +31,7 @@ Tempo combines a highly configurable clock with an optional weather summary in t
 [tempo]
 clock_format = "%a %d %b %R"
 weather_location = { City = "Rome" }
+weather_indicator = "Icon"
 ```
 
 ### Clock-only mode
