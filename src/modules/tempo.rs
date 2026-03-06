@@ -30,6 +30,7 @@ pub enum Message {
     ChangeSelectDate(Option<NaiveDate>),
     UpdateWeather(Box<WeatherData>),
     UpdateLocation(Location),
+    ConfigReloaded(TempoModuleConfig),
 }
 
 pub enum Action {
@@ -75,6 +76,19 @@ impl Tempo {
             Message::UpdateLocation(location) => {
                 self.location = Some(location);
 
+                Action::None
+            }
+            Message::ConfigReloaded(new_config) => {
+                let weather_config_changed = self.config.weather_location
+                    != new_config.weather_location
+                    || self.config.weather_indicator != new_config.weather_indicator;
+
+                self.config = new_config;
+
+                if weather_config_changed {
+                    self.weather_data = None;
+                    self.location = None;
+                }
                 Action::None
             }
         }
@@ -544,18 +558,21 @@ impl Tempo {
             Duration::from_secs(5)
         };
 
-        let weather_sub = self.config.weather_location.clone().map(|location| {
-            Subscription::run_with_id(
-                (
-                    TypeId::of::<Self>(),
-                    format!("{:?}", self.config.weather_location),
-                    "weather",
-                ),
-                channel(100, async move |mut output| {
+        let tempo_config_for_sub = self.config.clone();
+
+        let weather_sub = Subscription::run_with_id(
+            (
+                TypeId::of::<Self>(),
+                format!("{:?}", tempo_config_for_sub.weather_location),
+                format!("{:?}", tempo_config_for_sub.weather_indicator),
+                "weather",
+            ),
+            channel(100, async move |mut output| {
+                if let Some(location_config) = tempo_config_for_sub.weather_location {
                     let mut failed_attempt = 0;
 
                     loop {
-                        let location = fetch_location(&location).await;
+                        let location = fetch_location(&location_config).await;
 
                         match location {
                             Ok(loc) => {
@@ -604,15 +621,14 @@ impl Tempo {
                             }
                         }
                     }
-                }),
-            )
-        });
+                } else {
+                    // If weather_location is None, just sleep indefinitely
+                    let () = std::future::pending().await;
+                }
+            }),
+        );
 
-        if let Some(weather_sub) = weather_sub {
-            Subscription::batch(vec![every(interval).map(|_| Message::Update), weather_sub])
-        } else {
-            every(interval).map(|_| Message::Update)
-        }
+        Subscription::batch(vec![every(interval).map(|_| Message::Update), weather_sub])
     }
 }
 

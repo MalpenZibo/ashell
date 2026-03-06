@@ -274,7 +274,7 @@ pub enum WeatherIndicator {
     IconAndTemperature,
 }
 
-#[derive(Deserialize, Default, Clone, Debug)]
+#[derive(Deserialize, Default, Clone, Debug, PartialEq)]
 pub enum WeatherLocation {
     #[default]
     Current,
