@@ -45,12 +45,8 @@ fn lookup_icon(icon_name: &str) -> Option<XdgIcon> {
         return icon_from_path(path);
     }
 
-    if let Some(candidates) = similar_icon_names(icon_name) {
-        for candidate in candidates {
-            if let Some(path) = find_icon_path(&candidate) {
-                return icon_from_path(path);
-            }
-        }
+    if let Some(path) = find_similar_icon(icon_name) {
+        return icon_from_path(path);
     }
 
     if let Some(prefix_candidate) = prefix_match_icon(icon_name)
@@ -86,13 +82,13 @@ fn find_icon_path(icon_name: &str) -> Option<PathBuf> {
     }
 }
 
-fn similar_icon_names(icon_name: &str) -> Option<Vec<String>> {
+fn find_similar_icon(icon_name: &str) -> Option<PathBuf> {
     if SYSTEM_ICON_NAMES.is_empty() {
         return None;
     }
 
     let normalized = normalize_icon_name(icon_name);
-    let mut matches = Vec::new();
+    let normalized_no_dash = normalized.replace('-', "");
 
     for candidate in SYSTEM_ICON_NAMES.iter() {
         let candidate_normalized = normalize_icon_name(candidate);
@@ -101,22 +97,16 @@ fn similar_icon_names(icon_name: &str) -> Option<Vec<String>> {
             continue;
         }
 
-        if candidate_normalized.contains(&normalized)
+        if (candidate_normalized.contains(&normalized)
             || normalized.contains(&candidate_normalized)
-            || candidate_normalized.contains(&normalized.replace('-', ""))
+            || candidate_normalized.contains(&normalized_no_dash))
+            && let Some(path) = find_icon_path(candidate)
         {
-            matches.push(candidate.clone());
-            if matches.len() >= 5 {
-                break;
-            }
+            return Some(path);
         }
     }
 
-    if matches.is_empty() {
-        None
-    } else {
-        Some(matches)
-    }
+    None
 }
 
 fn normalize_icon_name(name: &str) -> String {
