@@ -33,6 +33,9 @@ pub fn fallback_icon() -> XdgIcon {
 }
 
 pub fn get_icon_from_name(icon_name: &str) -> Option<XdgIcon> {
+    if icon_name.is_empty() {
+        return None;
+    }
     let mut cache = ICON_CACHE.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(cached) = cache.get(icon_name) {
         return cached.clone();
@@ -44,22 +47,30 @@ pub fn get_icon_from_name(icon_name: &str) -> Option<XdgIcon> {
 
 fn lookup_icon(icon_name: &str) -> Option<XdgIcon> {
     if let Some(path) = find_icon_path(icon_name) {
+        debug!("icon '{icon_name}': direct match at {path:?}");
         return icon_from_path(path);
     }
+    debug!("icon '{icon_name}': no direct match");
 
     if let Some(path) = find_similar_icon(icon_name) {
+        debug!("icon '{icon_name}': similar match at {path:?}");
         return icon_from_path(path);
     }
+    debug!("icon '{icon_name}': no similar match");
 
     if let Some(path) = find_desktop_icon(icon_name) {
+        debug!("icon '{icon_name}': desktop index match at {path:?}");
         return icon_from_path(path);
     }
+    debug!("icon '{icon_name}': no desktop index match");
 
     if let Some(prefix_candidate) = prefix_match_icon(icon_name)
         && let Some(path) = find_icon_path(&prefix_candidate)
     {
+        debug!("icon '{icon_name}': prefix match '{prefix_candidate}' at {path:?}");
         return icon_from_path(path);
     }
+    debug!("icon '{icon_name}': no prefix match — unresolved");
 
     None
 }
@@ -94,6 +105,9 @@ fn find_similar_icon(icon_name: &str) -> Option<PathBuf> {
     }
 
     let normalized = normalize_icon_name(icon_name);
+    if normalized.is_empty() {
+        return None;
+    }
     let normalized_no_dash = normalized.replace('-', "");
 
     for candidate in SYSTEM_ICON_NAMES.iter() {
@@ -103,12 +117,14 @@ fn find_similar_icon(icon_name: &str) -> Option<PathBuf> {
             continue;
         }
 
-        if (candidate_normalized.contains(&normalized)
+        if candidate_normalized.contains(&normalized)
             || normalized.contains(&candidate_normalized)
-            || candidate_normalized.contains(&normalized_no_dash))
-            && let Some(path) = find_icon_path(candidate)
+            || candidate_normalized.contains(&normalized_no_dash)
         {
-            return Some(path);
+            debug!("icon '{icon_name}': similar candidate '{candidate}'");
+            if let Some(path) = find_icon_path(candidate) {
+                return Some(path);
+            }
         }
     }
 
@@ -148,11 +164,20 @@ fn prefix_match_icon(icon_name: &str) -> Option<String> {
 
 fn find_desktop_icon(icon_name: &str) -> Option<PathBuf> {
     let normalized = normalize_icon_name(icon_name);
-    let icon_value = DESKTOP_ICON_INDEX.get(&normalized)?;
+    let Some(icon_value) = DESKTOP_ICON_INDEX.get(&normalized) else {
+        debug!("icon '{icon_name}': normalized '{normalized}' not in desktop index");
+        return None;
+    };
+    debug!("icon '{icon_name}': desktop index '{normalized}' → '{icon_value}'");
 
     if icon_value.starts_with('/') {
         let path = PathBuf::from(icon_value);
-        path.exists().then_some(path)
+        if path.exists() {
+            Some(path)
+        } else {
+            debug!("icon '{icon_name}': absolute path '{icon_value}' does not exist");
+            None
+        }
     } else {
         find_icon_path(icon_value)
     }
@@ -208,8 +233,13 @@ fn parse_desktop_file(path: &Path, map: &mut HashMap<String, String>) {
         map.entry(normalize_icon_name(&wm))
             .or_insert_with(|| icon.clone());
     }
-    map.entry(normalize_icon_name(stem))
-        .or_insert(icon);
+    // Index the full stem, plus each dot-suffix for reverse-DNS names like
+    // "com.ultimaker.cura" → also insert "ultimaker.cura" and "cura".
+    let parts: Vec<&str> = stem.split('.').collect();
+    for start in 0..parts.len() {
+        let key = normalize_icon_name(&parts[start..].join("."));
+        map.entry(key).or_insert_with(|| icon.clone());
+    }
 }
 
 fn desktop_application_dirs() -> Vec<PathBuf> {
