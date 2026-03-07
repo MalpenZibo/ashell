@@ -341,6 +341,7 @@ dependencies = [
  "linicon-theme",
  "log",
  "niri-ipc",
+ "num-traits",
  "parking_lot 0.12.5",
  "pin-project-lite",
  "pipewire",

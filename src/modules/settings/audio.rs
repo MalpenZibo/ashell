@@ -2,6 +2,7 @@ use super::SubMenu;
 use crate::{
     components::icons::{StaticIcon, icon, icon_button, icon_mono},
     config::SettingsFormat,
+    remote_value::{self, Remote},
     services::{
         ReadOnlyService, Service, ServiceEvent,
         audio::{AudioCommand, AudioService, DevicePortType, Port},
@@ -9,10 +10,8 @@ use crate::{
     theme::AshellTheme,
 };
 use iced::{
-    Alignment, Element, Length, Subscription, Theme,
-    widget::{
-        Column, MouseArea, Row, button, column, container, horizontal_rule, row, slider, text,
-    },
+    Alignment, Element, Length, Subscription, Task, Theme,
+    widget::{Column, MouseArea, Row, button, column, container, horizontal_rule, row, text},
     window::Id,
 };
 
@@ -22,9 +21,9 @@ pub enum Message {
     DefaultSinkChanged(String, Option<String>),
     DefaultSourceChanged(String, Option<String>),
     ToggleSinkMute,
-    SinkVolumeChanged(i32),
+    SinkSlider(remote_value::Message<i32>),
     ToggleSourceMute,
-    SourceVolumeChanged(i32),
+    SourceSlider(remote_value::Message<i32>),
     SinksMore(Id),
     SourcesMore(Id),
     OpenMore,
@@ -36,6 +35,7 @@ pub enum Message {
 
 pub enum Action {
     None,
+    Task(Task<Message>),
     ToggleSinksMenu,
     ToggleSourcesMenu,
     CloseMenu(Id),
@@ -122,9 +122,14 @@ impl AudioSettings {
                 }
                 Action::None
             }
-            Message::SinkVolumeChanged(value) => {
+            Message::SinkSlider(message) => {
                 if let Some(service) = self.service.as_mut() {
-                    let _ = service.command(AudioCommand::SinkVolume(value));
+                    if let Some(value) = message.value() {
+                        let _ = service.command(AudioCommand::SinkVolume(value));
+                    }
+                    return Action::Task(
+                        service.sink_slider.update(message).map(Message::SinkSlider),
+                    );
                 }
                 Action::None
             }
@@ -140,9 +145,17 @@ impl AudioSettings {
                 }
                 Action::None
             }
-            Message::SourceVolumeChanged(value) => {
+            Message::SourceSlider(message) => {
                 if let Some(service) = self.service.as_mut() {
-                    let _ = service.command(AudioCommand::SourceVolume(value));
+                    if let Some(value) = message.value() {
+                        let _ = service.command(AudioCommand::SourceVolume(value));
+                    }
+                    return Action::Task(
+                        service
+                            .source_slider
+                            .update(message)
+                            .map(Message::SourceSlider),
+                    );
                 }
                 Action::None
             }
@@ -199,7 +212,7 @@ impl AudioSettings {
                         if sink.is_mute {
                             StaticIcon::Speaker0
                         } else {
-                            match service.cur_sink_volume {
+                            match service.sink_slider.value() {
                                 0..=33 => StaticIcon::Speaker1,
                                 34..=66 => StaticIcon::Speaker2,
                                 _ => StaticIcon::Speaker3,
@@ -209,7 +222,7 @@ impl AudioSettings {
                 })
             })
             .map(|(service, icon_type)| {
-                let volume = service.cur_sink_volume;
+                let volume = service.sink_slider.value();
 
                 let make_scroll_handler = |cur_volume: i32| {
                     move |delta| {
@@ -222,7 +235,7 @@ impl AudioSettings {
                         } else {
                             (cur_volume - 5).max(0)
                         };
-                        Message::SinkVolumeChanged(new_volume)
+                        Message::SinkSlider(remote_value::Message::RequestAndTimeout(new_volume))
                     }
                 };
 
@@ -271,8 +284,7 @@ impl AudioSettings {
                 })
             })
             .map(|(service, icon_type)| {
-                let volume = service.cur_source_volume;
-
+                let volume = service.source_slider.value();
                 let make_scroll_handler = |cur_volume: i32| {
                     move |delta| {
                         let delta = match delta {
@@ -284,7 +296,7 @@ impl AudioSettings {
                         } else {
                             (cur_volume - 5).max(0)
                         };
-                        Message::SourceVolumeChanged(new_volume)
+                        Message::SourceSlider(remote_value::Message::RequestAndTimeout(new_volume))
                     }
                 };
 
@@ -329,8 +341,8 @@ impl AudioSettings {
                     SliderType::Sink,
                     s.is_mute,
                     Message::ToggleSinkMute,
-                    service.cur_sink_volume,
-                    &Message::SinkVolumeChanged,
+                    &service.sink_slider,
+                    &Message::SinkSlider,
                     if service.has_multiple_sinks() {
                         Some((sub_menu, Message::ToggleSinksMenu))
                     } else {
@@ -345,8 +357,8 @@ impl AudioSettings {
                     SliderType::Source,
                     s.is_mute,
                     Message::ToggleSourceMute,
-                    service.cur_source_volume,
-                    &Message::SourceVolumeChanged,
+                    &service.source_slider,
+                    &Message::SourceSlider,
                     if service.has_multiple_sources() {
                         Some((sub_menu, Message::ToggleSourcesMenu))
                     } else {
@@ -460,8 +472,8 @@ impl AudioSettings {
         slider_type: SliderType,
         is_mute: bool,
         toggle_mute: Message,
-        volume: i32,
-        volume_changed: &'a dyn Fn(i32) -> Message,
+        volume: &'a Remote<i32>,
+        volume_changed: &'a dyn Fn(remote_value::Message<i32>) -> Message,
         with_submenu: Option<(Option<SubMenu>, Message)>,
     ) -> Element<'a, Message> {
         Row::new()
@@ -486,24 +498,22 @@ impl AudioSettings {
                 .on_right_press(Message::OpenMore),
             )
             .push(
-                MouseArea::new(
-                    slider(0..=100, volume, volume_changed)
-                        .step(1)
-                        .width(Length::Fill),
-                )
-                .on_scroll(move |delta| {
-                    let delta = match delta {
-                        iced::mouse::ScrollDelta::Lines { y, .. } => y,
-                        iced::mouse::ScrollDelta::Pixels { y, .. } => y,
-                    };
-                    // volume is always changed by one less than expected
-                    let new_volume = if delta > 0.0 {
-                        (volume + 5 + 1).min(100)
-                    } else {
-                        (volume - 5 + 1).max(0)
-                    };
-                    volume_changed(new_volume)
-                }),
+                MouseArea::new(volume.slider(0..=100).map(volume_changed)).on_scroll(
+                    move |delta| {
+                        let delta = match delta {
+                            iced::mouse::ScrollDelta::Lines { y, .. } => y,
+                            iced::mouse::ScrollDelta::Pixels { y, .. } => y,
+                        };
+                        // volume is always changed by one less than expected
+                        let volume = volume.value();
+                        let new_volume = if delta > 0.0 {
+                            (volume + 5 + 1).min(100)
+                        } else {
+                            (volume - 5 + 1).max(0)
+                        };
+                        volume_changed(remote_value::Message::RequestAndTimeout(new_volume))
+                    },
+                ),
             )
             .push_maybe(with_submenu.map(|(submenu, msg)| {
                 icon_button(

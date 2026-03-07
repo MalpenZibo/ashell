@@ -1,3 +1,5 @@
+use crate::remote_value::Remote;
+
 use super::{ReadOnlyService, Service, ServiceEvent};
 use iced::{
     Subscription, Task,
@@ -103,13 +105,13 @@ impl Volume for ChannelVolumes {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct AudioData {
     pub server_info: ServerInfo,
     sinks: Vec<Device>,
     sources: Vec<Device>,
-    pub cur_sink_volume: i32,
-    pub cur_source_volume: i32,
+    pub sink_slider: Remote<i32>,
+    pub source_slider: Remote<i32>,
 }
 
 #[derive(Debug, Clone)]
@@ -150,13 +152,7 @@ impl AudioService {
                 Ok(handle) => {
                     let _ = output
                         .send(ServiceEvent::Init(AudioService {
-                            data: AudioData {
-                                server_info: ServerInfo::default(),
-                                sinks: Vec::new(),
-                                sources: Vec::new(),
-                                cur_sink_volume: 0,
-                                cur_source_volume: 0,
-                            },
+                            data: AudioData::default(),
                             commander: handle.sender.clone(),
                         }))
                         .await;
@@ -205,7 +201,7 @@ impl AudioService {
     }
 
     pub fn update_source_volume(&mut self) {
-        self.cur_source_volume = self
+        let volume = self
             .active_source()
             .map(|source| {
                 if source.is_mute {
@@ -215,10 +211,11 @@ impl AudioService {
                 }
             })
             .unwrap_or_default();
+        self.source_slider.receive(volume);
     }
 
     pub fn update_sink_volume(&mut self) {
-        self.cur_sink_volume = self
+        let volume = self
             .active_sink()
             .map(|sink| {
                 if sink.is_mute {
@@ -228,6 +225,7 @@ impl AudioService {
                 }
             })
             .unwrap_or_default();
+        self.sink_slider.receive(volume);
     }
 
     pub fn active_sink(&self) -> Option<&Device> {
