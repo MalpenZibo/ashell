@@ -35,6 +35,7 @@ pub enum Message {
     UpdateLocation(Location),
     CycleFormat,
     CycleTimezone(TimezoneDirection),
+    SetTimezone(usize),
     ConfigReloaded(TempoModuleConfig),
 }
 
@@ -125,6 +126,15 @@ impl Tempo {
                 }
                 Action::None
             }
+            Message::SetTimezone(index) => {
+                if !self.config.timezones.is_empty() {
+                    let len = self.config.timezones.len();
+                    if index <= len {
+                        self.current_timezone_index = index;
+                    }
+                }
+                Action::None
+            }
             Message::ConfigReloaded(new_config) => {
                 // Reset indices if they would be out of bounds or if config is empty
                 if new_config.formats.is_empty()
@@ -153,38 +163,7 @@ impl Tempo {
     }
 
     pub fn view(&'_ self, theme: &AshellTheme) -> Element<'_, Message> {
-        let format = self.current_format();
-
-        let display_text = {
-            // %Z prints timezone abbreviations; other specifiers (e.g., %z/%:z) only need numeric offsets https://docs.rs/chrono/latest/chrono/format/strftime/index.html#fn6
-            let format_requests_name = format.contains("%Z");
-            let utc_now = self.date.with_timezone(&Utc);
-
-            self.config
-                .timezones
-                .get(self.current_timezone_index)
-                .and_then(|tz_name| {
-                    if !format_requests_name && let Ok(offset) = tz_name.parse::<FixedOffset>() {
-                        return Some(
-                            offset
-                                .from_utc_datetime(&utc_now.naive_utc())
-                                .format(format)
-                                .to_string(),
-                        );
-                    }
-
-                    if let Ok(tz) = tz_name.parse::<Tz>() {
-                        return Some(
-                            tz.from_utc_datetime(&utc_now.naive_utc())
-                                .format(format)
-                                .to_string(),
-                        );
-                    }
-
-                    None
-                })
-                .unwrap_or_else(|| self.date.format(format).to_string())
-        };
+        let display_text = self.time_str(self.current_format(), self.current_timezone_index);
 
         Row::with_capacity(2)
             .push_maybe(self.weather_indicator(theme))
@@ -192,6 +171,38 @@ impl Tempo {
             .align_y(Vertical::Center)
             .spacing(theme.space.sm)
             .into()
+    }
+
+    fn time_str(&'_ self, format: &str, timezone_index: usize) -> String {
+        // %Z prints timezone abbreviations; other specifiers (e.g., %z/%:z) only need numeric offsets https://docs.rs/chrono/latest/chrono/format/strftime/index.html#fn6
+        let format_requests_name = format.contains("%Z");
+        let utc_now = self.date.with_timezone(&Utc);
+
+        self.config
+            .timezones
+            .get(timezone_index)
+            .and_then(|tz_name| {
+                if !format_requests_name && let Ok(offset) = tz_name.parse::<FixedOffset>() {
+                    return Some(
+                        offset
+                            .from_utc_datetime(&utc_now.naive_utc())
+                            .format(format)
+                            .to_string(),
+                    );
+                }
+
+                if let Ok(tz) = tz_name.parse::<Tz>() {
+                    return Some(
+                        tz.from_utc_datetime(&utc_now.naive_utc())
+                            .format(format)
+                            .to_string(),
+
+                    );
+                }
+
+                None
+            })
+            .unwrap_or_else(|| self.date.format(format).to_string())
     }
 
     pub fn weather_indicator(&'_ self, theme: &AshellTheme) -> Option<Element<'_, Message>> {
@@ -351,6 +362,25 @@ impl Tempo {
         .spacing(theme.space.md)
         .width(Length::Fixed(225.));
 
+        // let timezones = Column::new().push(button(text("cycle timezone")).on_press(Message::CycleTimezone(TimezoneDirection::Forward)))
+        //     .spacing(theme.space.md)
+        //     .width(Length::Fixed(225.));
+
+        let timezones = Column::with_children(
+            self.config.timezones.iter().enumerate().map(|(index, tz_name)| {
+                button(text(format!("{}: {}", tz_name, self.time_str("%d %h %R", index))))
+                    .on_press_maybe(if self.current_timezone_index != index {
+                            Some(Message::SetTimezone(index))
+                        } else {
+                            None
+                        }
+                    )
+                    .padding([theme.space.xs, theme.space.sm])
+                    .style(theme.outline_button_style())
+                    .into()
+            }).collect::<Vec<Element<'a, Message>>>(),
+        );
+
         column!(
             button(
                 column!(
@@ -366,7 +396,8 @@ impl Tempo {
                 None
             })
             .style(theme.outline_button_style()),
-            calendar
+            calendar,
+            timezones,
         )
         .spacing(theme.space.lg)
         .into()
