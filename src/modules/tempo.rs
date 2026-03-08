@@ -196,7 +196,6 @@ impl Tempo {
                         tz.from_utc_datetime(&utc_now.naive_utc())
                             .format(format)
                             .to_string(),
-
                     );
                 }
 
@@ -367,18 +366,26 @@ impl Tempo {
         //     .width(Length::Fixed(225.));
 
         let timezones = Column::with_children(
-            self.config.timezones.iter().enumerate().map(|(index, tz_name)| {
-                button(text(format!("{}: {}", tz_name, self.time_str("%d %h %R", index))))
+            self.config
+                .timezones
+                .iter()
+                .enumerate()
+                .map(|(index, tz_name)| {
+                    button(text(format!(
+                        "{}: {}",
+                        tz_name,
+                        self.time_str("%d %h %R", index)
+                    )))
                     .on_press_maybe(if self.current_timezone_index != index {
-                            Some(Message::SetTimezone(index))
-                        } else {
-                            None
-                        }
-                    )
+                        Some(Message::SetTimezone(index))
+                    } else {
+                        None
+                    })
                     .padding([theme.space.xs, theme.space.sm])
                     .style(theme.outline_button_style())
                     .into()
-            }).collect::<Vec<Element<'a, Message>>>(),
+                })
+                .collect::<Vec<Element<'a, Message>>>(),
         );
 
         column!(
