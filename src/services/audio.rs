@@ -3,7 +3,7 @@ use crate::remote_value::Remote;
 use super::{ReadOnlyService, Service, ServiceEvent};
 use iced::{
     Subscription, Task,
-    futures::{SinkExt, StreamExt, channel::mpsc::Sender, executor::block_on, stream::pending},
+    futures::{SinkExt, StreamExt, channel::mpsc::Sender, stream::pending},
     stream::channel,
 };
 use itertools::Either;
@@ -29,6 +29,7 @@ use std::{
     ops::{Deref, DerefMut},
     rc::Rc,
     thread::{self, JoinHandle},
+    time::Duration,
 };
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
@@ -118,6 +119,7 @@ pub struct AudioData {
 pub struct AudioService {
     data: AudioData,
     commander: UnboundedSender<PulseAudioCommand>,
+    commander_throttled: UnboundedSender<PulseAudioCommand>,
 }
 
 impl Deref for AudioService {
@@ -139,6 +141,7 @@ struct PulseAudioServerHandle {
     _commander: JoinHandle<()>,
     receiver: UnboundedReceiver<PulseAudioServerEvent>,
     sender: UnboundedSender<PulseAudioCommand>,
+    sender_throttled: UnboundedSender<PulseAudioCommand>,
 }
 
 impl AudioService {
@@ -154,6 +157,7 @@ impl AudioService {
                         .send(ServiceEvent::Init(AudioService {
                             data: AudioData::default(),
                             commander: handle.sender.clone(),
+                            commander_throttled: handle.sender_throttled.clone(),
                         }))
                         .await;
                     State::Active(handle)
@@ -363,7 +367,7 @@ impl Service for AudioService {
                     && let Some(volume) = sink.volume.scaled(volume as f64 / 100.)
                 {
                     let _ = self
-                        .commander
+                        .commander_throttled
                         .send(PulseAudioCommand::SinkVolume(sink.name.clone(), volume));
                 }
             }
@@ -372,7 +376,7 @@ impl Service for AudioService {
                     && let Some(volume) = source.volume.scaled(volume as f64 / 100.)
                 {
                     let _ = self
-                        .commander
+                        .commander_throttled
                         .send(PulseAudioCommand::SourceVolume(source.name.clone(), volume));
                 }
             }
@@ -461,15 +465,20 @@ impl PulseAudioServer {
     async fn start() -> anyhow::Result<PulseAudioServerHandle> {
         let (from_server_tx, from_server_rx) = tokio::sync::mpsc::unbounded_channel();
         let (to_server_tx, to_server_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (to_server_throttled_tx, to_server_throttled_rx) =
+            tokio::sync::mpsc::unbounded_channel();
 
         let listener = Self::start_listener(from_server_tx.clone()).await?;
-        let commander = Self::start_commander(from_server_tx.clone(), to_server_rx).await?;
+        let commander =
+            Self::start_commander(from_server_tx.clone(), to_server_rx, to_server_throttled_rx)
+                .await?;
 
         Ok(PulseAudioServerHandle {
             _listener: listener,
             _commander: commander,
             receiver: from_server_rx,
             sender: to_server_tx,
+            sender_throttled: to_server_throttled_tx,
         })
     }
 
@@ -599,45 +608,56 @@ impl PulseAudioServer {
 
     async fn start_commander(
         from_server_tx: UnboundedSender<PulseAudioServerEvent>,
-        mut to_sever_tx: UnboundedReceiver<PulseAudioCommand>,
+        to_server_rx: UnboundedReceiver<PulseAudioCommand>,
+        to_server_throttled_rx: UnboundedReceiver<PulseAudioCommand>,
     ) -> anyhow::Result<JoinHandle<()>> {
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
 
         let handle = thread::spawn(move || {
-            block_on(async move {
-                match Self::new() {
-                    Ok(mut server) => {
-                        let _ = tx.send(true);
-                        loop {
-                            match to_sever_tx.recv().await {
-                                Some(PulseAudioCommand::SinkMute(name, mute)) => {
-                                    let _ = server.set_sink_mute(&name, mute);
+            tokio::runtime::Builder::new_current_thread()
+                .enable_time()
+                .build()
+                .unwrap()
+                .block_on(async move {
+                    match Self::new() {
+                        Ok(mut server) => {
+                            use crate::services::throttle::ThrottleExt;
+                            use tokio_stream::{StreamExt, wrappers::UnboundedReceiverStream};
+                            let _ = tx.send(true);
+                            let mut stream = ThrottleExt::throttle(
+                                UnboundedReceiverStream::new(to_server_throttled_rx),
+                                Duration::from_millis(100),
+                            )
+                            .merge(UnboundedReceiverStream::new(to_server_rx));
+                            while let Some(cmd) = StreamExt::next(&mut stream).await {
+                                match cmd {
+                                    PulseAudioCommand::SinkMute(name, mute) => {
+                                        let _ = server.set_sink_mute(&name, mute);
+                                    }
+                                    PulseAudioCommand::SourceMute(name, mute) => {
+                                        let _ = server.set_source_mute(&name, mute);
+                                    }
+                                    PulseAudioCommand::SinkVolume(name, volume) => {
+                                        let _ = server.set_sink_volume(&name, &volume);
+                                    }
+                                    PulseAudioCommand::SourceVolume(name, volume) => {
+                                        let _ = server.set_source_volume(&name, &volume);
+                                    }
+                                    PulseAudioCommand::DefaultSink(name, port) => {
+                                        let _ = server.set_default_sink(&name, port.as_deref());
+                                    }
+                                    PulseAudioCommand::DefaultSource(name, port) => {
+                                        let _ = server.set_default_source(&name, port.as_deref());
+                                    }
                                 }
-                                Some(PulseAudioCommand::SourceMute(name, mute)) => {
-                                    let _ = server.set_source_mute(&name, mute);
-                                }
-                                Some(PulseAudioCommand::SinkVolume(name, volume)) => {
-                                    let _ = server.set_sink_volume(&name, &volume);
-                                }
-                                Some(PulseAudioCommand::SourceVolume(name, volume)) => {
-                                    let _ = server.set_source_volume(&name, &volume);
-                                }
-                                Some(PulseAudioCommand::DefaultSink(name, port)) => {
-                                    let _ = server.set_default_sink(&name, port.as_deref());
-                                }
-                                Some(PulseAudioCommand::DefaultSource(name, port)) => {
-                                    let _ = server.set_default_source(&name, port.as_deref());
-                                }
-                                None => {}
                             }
                         }
+                        Err(e) => {
+                            error!("Failed to start PulseAudio server: {e}");
+                            let _ = from_server_tx.send(PulseAudioServerEvent::Error);
+                        }
                     }
-                    Err(e) => {
-                        error!("Failed to start PulseAudio server: {e}");
-                        let _ = from_server_tx.send(PulseAudioServerEvent::Error);
-                    }
-                }
-            })
+                })
         });
 
         match rx.recv().await {
