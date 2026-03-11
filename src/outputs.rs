@@ -247,7 +247,10 @@ impl Outputs {
 
             Task::batch(vec![destroy_task, destroy_fallback_task, task])
         } else {
-            debug!("Output {:?} does not match configured output target {:?}",name,request_outputs);
+            debug!(
+                "Output {:?} does not match configured output target {:?}",
+                name, request_outputs
+            );
 
             self.0.push((name.to_owned(), None, Some(wl_output)));
 
