@@ -42,10 +42,10 @@ pub struct ModuleData {
 /// Menu infrastructure signals (all Copy).
 #[derive(Clone, Copy)]
 pub struct MenuCtx {
-    pub active_menu: Signal<Option<MenuType>>,
-    pub displayed_menu: Signal<Option<MenuType>>,
-    pub menu_x: Signal<f32>,
-    pub menu_sid: Signal<Option<SurfaceId>>,
+    pub active_menu: RwSignal<Option<MenuType>>,
+    pub displayed_menu: RwSignal<Option<MenuType>>,
+    pub menu_x: RwSignal<f32>,
+    pub menu_sid: RwSignal<Option<SurfaceId>>,
     pub backdrop_ref: WidgetRef,
     /// Written from a delayed tokio task to trigger surface hide after close animation.
     pub surface_hide_writer: WriteSignal<bool>,

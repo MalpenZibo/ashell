@@ -1,6 +1,6 @@
 use guido::prelude::*;
 
-use crate::components::{IconKind, StaticIcon, expandable_panel, icon};
+use crate::components::{ButtonKind, IconKind, StaticIcon, button, expandable_panel, icon};
 use crate::config::{Config, UpdatesModuleConfig};
 use crate::services::updates::{
     UpdatesCmd, UpdatesData, UpdatesDataSignals, start_updates_service,
@@ -122,88 +122,49 @@ pub fn menu_view(
             )
         })
         // Divider
-        .child(
-            container()
-                .width(fill())
-                .height(1)
-                .background(Color::rgba(1.0, 1.0, 1.0, 0.15)),
-        )
+        .child(crate::components::divider())
         // Action buttons
         .child({
             let svc_update = svc_update.clone();
             let close_menu_update = close_menu_update.clone();
-            menu_button("Update", None, move || {
-                svc_update.send(UpdatesCmd::RunUpdate);
-                close_menu_update();
-            })
+            button()
+                .kind(ButtonKind::Transparent)
+                .fill_width(true)
+                .content(text("Update").color(theme.text).font_size(14))
+                .on_click(move || {
+                    svc_update.send(UpdatesCmd::RunUpdate);
+                    close_menu_update();
+                })
         })
         .child({
             let svc_check = svc.clone();
-            menu_button_with_indicator("Check now", is_checking, move || {
-                svc_check.send(UpdatesCmd::CheckNow);
-            })
-        })
-}
-
-fn menu_button(
-    label: &'static str,
-    _icon: Option<StaticIcon>,
-    on_click: impl Fn() + 'static,
-) -> impl Widget {
-    let theme = expect_context::<ThemeColors>();
-    let hovered = create_signal(false);
-    container()
-        .width(fill())
-        .padding([6, 8])
-        .corner_radius(8)
-        .on_click(on_click)
-        .on_hover(move |h| hovered.set(h))
-        .background(move || {
-            if hovered.get() {
-                Color::rgba(1.0, 1.0, 1.0, 0.1)
-            } else {
-                Color::TRANSPARENT
-            }
-        })
-        .child(text(label).color(theme.text).font_size(14))
-}
-
-fn menu_button_with_indicator(
-    label: &'static str,
-    is_checking: Signal<bool>,
-    on_click: impl Fn() + 'static,
-) -> impl Widget {
-    let theme = expect_context::<ThemeColors>();
-    let hovered = create_signal(false);
-    container()
-        .width(fill())
-        .padding([6, 8])
-        .corner_radius(8)
-        .on_click(on_click)
-        .on_hover(move |h| hovered.set(h))
-        .background(move || {
-            if hovered.get() {
-                Color::rgba(1.0, 1.0, 1.0, 0.1)
-            } else {
-                Color::TRANSPARENT
-            }
-        })
-        .layout(
-            Flex::row()
-                .main_alignment(MainAlignment::SpaceBetween)
-                .cross_alignment(CrossAlignment::Center),
-        )
-        .child(text(label).color(theme.text).font_size(14))
-        .child(move || {
-            if is_checking.get() {
-                Some(
-                    icon()
-                        .kind(StaticIcon::Refresh)
-                        .color(theme.text)
-                        .font_size(14),
+            button()
+                .kind(ButtonKind::Transparent)
+                .fill_width(true)
+                .content(
+                    container()
+                        .width(fill())
+                        .layout(
+                            Flex::row()
+                                .main_alignment(MainAlignment::SpaceBetween)
+                                .cross_alignment(CrossAlignment::Center),
+                        )
+                        .child(text("Check now").color(theme.text).font_size(14))
+                        .child(move || {
+                            if is_checking.get() {
+                                Some(
+                                    icon()
+                                        .kind(StaticIcon::Refresh)
+                                        .color(theme.text)
+                                        .font_size(14),
+                                )
+                            } else {
+                                None
+                            }
+                        }),
                 )
-            } else {
-                None
-            }
+                .on_click(move || {
+                    svc_check.send(UpdatesCmd::CheckNow);
+                })
         })
 }

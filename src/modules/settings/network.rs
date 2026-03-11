@@ -17,7 +17,7 @@ pub fn wifi_indicator(data: NetworkDataSignals, format: SettingsFormat) -> impl 
     let wifi_enabled = data.wifi_enabled;
 
     bar_indicator()
-        .kind(move || -> IconKind { wifi_icon(active, wifi_enabled).into() })
+        .kind(move || -> IconKind { wifi_icon(active.into(), wifi_enabled.into()).into() })
         .label(move || {
             Some(
                 active
@@ -70,7 +70,7 @@ pub fn wifi_quick_setting(
     quick_setting()
         .kind(move || {
             if wifi_enabled.get() {
-                wifi_icon(active, wifi_enabled)
+                wifi_icon(active.into(), wifi_enabled.into())
             } else {
                 StaticIcon::Wifi0
             }
@@ -321,7 +321,7 @@ pub fn vpn_submenu(data: NetworkDataSignals, svc: Service<NetworkCmd>) -> impl W
         }
     }
 
-    col.child(super::divider())
+    col.child(crate::components::divider())
 }
 
 fn strength_to_icon(strength: u8, public: bool) -> StaticIcon {

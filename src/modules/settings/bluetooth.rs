@@ -97,7 +97,7 @@ pub fn bt_submenu(data: BluetoothDataSignals, svc: Service<BluetoothCmd>) -> imp
                             .into()
                         })
                         .size(ButtonSize::Small)
-                        .kind(ButtonKind::Transparent)
+                        .kind(ButtonKind::Solid)
                         .on_click(move || {
                             if discovering.get() {
                                 svc_scan.send(BluetoothCmd::StopDiscovery);
@@ -147,20 +147,14 @@ pub fn bt_submenu(data: BluetoothDataSignals, svc: Service<BluetoothCmd>) -> imp
                 let svc_disconnect = svc.clone();
                 let svc_remove = svc.clone();
                 col = col.child(
-                    container()
-                        .width(fill())
-                        .layout(Flex::row().cross_alignment(CrossAlignment::Center))
-                        .child(
-                            selectable_item()
-                                .kind(StaticIcon::BluetoothConnected)
-                                .label(label)
-                                .selected(true)
-                                .on_click(move || {
-                                    svc_disconnect
-                                        .send(BluetoothCmd::DisconnectDevice(path.clone()));
-                                }),
-                        )
-                        .child(remove_button(svc_remove, remove_path, theme)),
+                    selectable_item()
+                        .kind(StaticIcon::BluetoothConnected)
+                        .label(label)
+                        .selected(true)
+                        .on_click(move || {
+                            svc_disconnect.send(BluetoothCmd::DisconnectDevice(path.clone()));
+                        })
+                        .trailing(remove_button(svc_remove, remove_path)),
                 );
             }
 
@@ -172,19 +166,14 @@ pub fn bt_submenu(data: BluetoothDataSignals, svc: Service<BluetoothCmd>) -> imp
                 let svc_connect = svc.clone();
                 let svc_remove = svc.clone();
                 col = col.child(
-                    container()
-                        .width(fill())
-                        .layout(Flex::row().cross_alignment(CrossAlignment::Center))
-                        .child(
-                            selectable_item()
-                                .kind(StaticIcon::Bluetooth)
-                                .label(name)
-                                .selected(false)
-                                .on_click(move || {
-                                    svc_connect.send(BluetoothCmd::ConnectDevice(path.clone()));
-                                }),
-                        )
-                        .child(remove_button(svc_remove, remove_path, theme)),
+                    selectable_item()
+                        .kind(StaticIcon::Bluetooth)
+                        .label(name)
+                        .selected(false)
+                        .on_click(move || {
+                            svc_connect.send(BluetoothCmd::ConnectDevice(path.clone()));
+                        })
+                        .trailing(remove_button(svc_remove, remove_path)),
                 );
             }
 
@@ -214,20 +203,12 @@ pub fn bt_submenu(data: BluetoothDataSignals, svc: Service<BluetoothCmd>) -> imp
         })
 }
 
-fn remove_button(
-    svc: Service<BluetoothCmd>,
-    path: zbus::zvariant::OwnedObjectPath,
-    theme: ThemeColors,
-) -> impl Widget {
+fn remove_button(svc: Service<BluetoothCmd>, path: zbus::zvariant::OwnedObjectPath) -> impl Widget {
     icon_button()
         .icon(StaticIcon::Remove)
         .size(ButtonSize::Small)
         .kind(ButtonKind::Transparent)
-        .hierarchy(ButtonHierarchy::Custom {
-            bg: Color::TRANSPARENT,
-            hover: Color::rgba(theme.danger.r, theme.danger.g, theme.danger.b, 0.15),
-            fg: theme.danger,
-        })
+        .hierarchy(ButtonHierarchy::Danger)
         .on_click(move || {
             svc.send(BluetoothCmd::RemoveDevice(path.clone()));
         })

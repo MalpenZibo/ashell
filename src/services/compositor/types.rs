@@ -93,7 +93,6 @@ pub enum CompositorCommand {
     FocusSpecialWorkspace(String),
     FocusMonitor(i128),
     ToggleSpecialWorkspace(String),
-    ScrollWorkspace(i32),           // +1 or -1
     CustomDispatch(String, String), // For "vdesk"
     NextLayout,
 }

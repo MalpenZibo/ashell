@@ -39,7 +39,7 @@ pub struct SettingsSignals {
     pub upower_svc: Service<services::upower::UPowerCmd>,
     pub idle_inhibitor_data: services::idle_inhibitor::IdleInhibitorDataSignals,
     pub idle_inhibitor_svc: Service<services::idle_inhibitor::IdleInhibitorCmd>,
-    pub submenu: Signal<Option<SubMenu>>,
+    pub submenu: RwSignal<Option<SubMenu>>,
 }
 
 impl Clone for SettingsSignals {
@@ -447,6 +447,8 @@ fn submenu_wrapper(
     visible: impl Fn() -> bool + 'static,
     content: impl Widget + 'static,
 ) -> impl Widget {
+    let theme = expect_context::<ThemeColors>();
+
     container()
         .width(fill())
         .height(move || {
@@ -466,16 +468,10 @@ fn submenu_wrapper(
                 .width(fill())
                 .padding(12)
                 .corner_radius(16)
-                .background(Color::rgba(1.0, 1.0, 1.0, 0.06))
+                .background(theme.background.lighter(0.05))
+                .border(1, theme.background.darker(0.2))
                 .child(content),
         )
-}
-
-fn divider() -> impl Widget {
-    container()
-        .width(fill())
-        .height(1)
-        .background(Color::rgba(1.0, 1.0, 1.0, 0.15))
 }
 
 fn idle_inhibitor_quick_setting(

@@ -30,12 +30,6 @@ pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
         CompositorCommand::FocusMonitor(id) => {
             Dispatch::call(DispatchType::FocusMonitor(MonitorIdentifier::Id(id)))?;
         }
-        CompositorCommand::ScrollWorkspace(dir) => {
-            let d = if dir > 0 { "+1" } else { "-1" };
-            Dispatch::call(DispatchType::Workspace(
-                WorkspaceIdentifierWithSpecial::Relative(d.to_string().parse()?),
-            ))?;
-        }
         CompositorCommand::NextLayout => {
             hyprland::ctl::switch_xkb_layout::call(
                 "all",

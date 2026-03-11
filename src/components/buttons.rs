@@ -135,13 +135,13 @@ pub fn button(
         ),
     };
 
-    c = c.child(
+    c = c.maybe_child(icon.get().map(|_| {
         super::icons::icon()
             .kind(move || icon.get().unwrap_or_default())
             .font_size(font)
             .mono(true)
-            .color(move || hierarchy.get().fg(&theme)),
-    );
+            .color(move || hierarchy.get().fg(&theme))
+    }));
 
     c.maybe_child(content)
 }
@@ -188,6 +188,13 @@ pub fn icon_button(
                 .kind(move || icon.get())
                 .font_size(font)
                 .mono(true)
-                .color(move || hierarchy.get().fg(&theme)),
+                .color(move || {
+                    let k = kind.get();
+                    let hier = hierarchy.get();
+                    match k {
+                        ButtonKind::Transparent => hier.solid_bg(&theme),
+                        ButtonKind::Solid => hier.fg(&theme),
+                    }
+                }),
         )
 }

@@ -303,9 +303,30 @@ pub fn view(state: CompositorStateSignals, svc: Service<CompositorCommand>) -> i
                 .spacing(4)
                 .cross_alignment(CrossAlignment::Center),
         )
-        .on_scroll(move |_dx, dy, _source| {
-            let dir = if dy > 0.0 { -1 } else { 1 };
-            svc_scroll.send(CompositorCommand::ScrollWorkspace(dir));
+        .on_scroll({
+            let config = config.clone();
+            move |_dx, dy, _source| {
+                let ws_raw = workspaces.get();
+                let mons = monitors.get();
+                let ui_ws = calculate_ui_workspaces(&config, &ws_raw, &mons);
+                let current_id = active_ws_id.get();
+
+                let next = if dy > 0.0 {
+                    // Scroll up → previous workspace (lower id)
+                    current_id.and_then(|cur| {
+                        ui_ws.iter().filter(|w| w.id < cur).max_by_key(|w| w.id)
+                    })
+                } else {
+                    // Scroll down → next workspace (higher id)
+                    current_id.and_then(|cur| {
+                        ui_ws.iter().filter(|w| w.id > cur).min_by_key(|w| w.id)
+                    })
+                };
+
+                if let Some(next) = next {
+                    svc_scroll.send(CompositorCommand::FocusWorkspace(next.id));
+                }
+            }
         })
         .children(move || {
             let ws_raw = workspaces.get();

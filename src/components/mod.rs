@@ -21,3 +21,11 @@ pub use quick_setting::quick_setting;
 pub use selectable_item::selectable_item;
 pub use slider::slider;
 pub use toggle_button::toggle_button;
+
+pub fn divider() -> impl guido::prelude::Widget {
+    use guido::prelude::*;
+    container()
+        .width(fill())
+        .height(1)
+        .background(Color::rgba(1.0, 1.0, 1.0, 0.15))
+}

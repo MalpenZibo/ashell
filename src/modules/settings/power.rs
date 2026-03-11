@@ -1,6 +1,6 @@
 use guido::prelude::*;
 
-use crate::components::{IconKind, StaticIcon, button, icon, quick_setting};
+use crate::components::{ButtonKind, IconKind, StaticIcon, button, icon, quick_setting};
 use crate::config::SettingsFormat;
 use crate::modules::settings::SubMenu;
 use crate::services::upower::{
@@ -112,7 +112,7 @@ pub fn menu_indicator(battery: BatteryData, peripheral_icon: Option<IconKind>) -
 }
 
 /// Battery/peripheral indicator in menu header.
-pub fn battery_header(data: UPowerDataSignals, submenu: Signal<Option<SubMenu>>) -> impl Widget {
+pub fn battery_header(data: UPowerDataSignals, submenu: RwSignal<Option<SubMenu>>) -> impl Widget {
     let battery = data.system_battery;
     let peripherals = data.peripherals;
 
@@ -201,6 +201,7 @@ pub fn peripherals_view(data: UPowerDataSignals) -> impl Widget {
 
 /// Power actions menu
 pub fn power_actions(close_menu: impl Fn() + 'static + Clone) -> impl Widget {
+    let theme = expect_context::<ThemeColors>();
     let close1 = close_menu.clone();
     let close2 = close_menu.clone();
     let close3 = close_menu.clone();
@@ -210,7 +211,8 @@ pub fn power_actions(close_menu: impl Fn() + 'static + Clone) -> impl Widget {
     container()
         .width(fill())
         .layout(Flex::column().spacing(2))
-        .child(power_action_button(
+        .child(power_action_btn(
+            theme,
             StaticIcon::Suspend,
             "Suspend",
             move || {
@@ -220,7 +222,8 @@ pub fn power_actions(close_menu: impl Fn() + 'static + Clone) -> impl Widget {
                 close1();
             },
         ))
-        .child(power_action_button(
+        .child(power_action_btn(
+            theme,
             StaticIcon::Hibernate,
             "Hibernate",
             move || {
@@ -230,7 +233,8 @@ pub fn power_actions(close_menu: impl Fn() + 'static + Clone) -> impl Widget {
                 close2();
             },
         ))
-        .child(power_action_button(
+        .child(power_action_btn(
+            theme,
             StaticIcon::Reboot,
             "Reboot",
             move || {
@@ -240,7 +244,8 @@ pub fn power_actions(close_menu: impl Fn() + 'static + Clone) -> impl Widget {
                 close3();
             },
         ))
-        .child(power_action_button(
+        .child(power_action_btn(
+            theme,
             StaticIcon::Power,
             "Shutdown",
             move || {
@@ -250,7 +255,8 @@ pub fn power_actions(close_menu: impl Fn() + 'static + Clone) -> impl Widget {
                 close4();
             },
         ))
-        .child(power_action_button(
+        .child(power_action_btn(
+            theme,
             StaticIcon::Logout,
             "Logout",
             move || {
@@ -263,31 +269,24 @@ pub fn power_actions(close_menu: impl Fn() + 'static + Clone) -> impl Widget {
         ))
 }
 
-fn power_action_button(
+fn power_action_btn(
+    theme: ThemeColors,
     ic: StaticIcon,
     label: &'static str,
     on_click: impl Fn() + 'static,
 ) -> impl Widget {
-    let theme = expect_context::<ThemeColors>();
-    let hovered = create_signal(false);
-    container()
-        .width(fill())
-        .padding([6, 8])
-        .corner_radius(8)
-        .on_hover(move |h| hovered.set(h))
-        .on_click(on_click)
-        .background(move || {
-            if hovered.get() {
-                Color::rgba(1.0, 1.0, 1.0, 0.1)
-            } else {
-                Color::TRANSPARENT
-            }
-        })
-        .layout(
-            Flex::row()
-                .spacing(8)
-                .cross_alignment(CrossAlignment::Center),
+    button()
+        .kind(ButtonKind::Transparent)
+        .fill_width(true)
+        .content(
+            container()
+                .layout(
+                    Flex::row()
+                        .spacing(8)
+                        .cross_alignment(CrossAlignment::Center),
+                )
+                .child(icon().kind(ic).color(theme.text).font_size(14))
+                .child(text(label).color(theme.text).font_size(14)),
         )
-        .child(icon().kind(ic).color(theme.text).font_size(14))
-        .child(text(label).color(theme.text).font_size(14))
+        .on_click(on_click)
 }

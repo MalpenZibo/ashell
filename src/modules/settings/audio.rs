@@ -10,7 +10,7 @@ use super::SubMenu;
 pub fn sink_slider(
     data: AudioDataSignals,
     svc: Service<AudioCmd>,
-    submenu: Signal<Option<SubMenu>>,
+    submenu: RwSignal<Option<SubMenu>>,
 ) -> impl Widget {
     let sinks = data.sinks;
     let server_info = data.server_info;
@@ -50,7 +50,7 @@ pub fn sink_slider(
 pub fn source_slider(
     data: AudioDataSignals,
     svc: Service<AudioCmd>,
-    submenu: Signal<Option<SubMenu>>,
+    submenu: RwSignal<Option<SubMenu>>,
 ) -> impl Widget {
     let sources = data.sources;
     let server_info = data.server_info;
