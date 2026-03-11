@@ -19,7 +19,7 @@ use libpulse_binding::{
     mainloop::standard::{IterateResult, Mainloop},
     operation::{self, Operation},
     proplist::{Proplist, properties::APPLICATION_NAME},
-    volume::ChannelVolumes,
+    volume::{ChannelVolumes, Volume},
 };
 use log::{debug, error, trace, warn};
 use std::{
@@ -78,26 +78,20 @@ pub struct ServerInfo {
     pub default_source: String,
 }
 
-pub trait Volume {
-    fn get_volume(&self) -> f64;
+pub trait ChannelVolumesExt {
+    fn get_volume(&self) -> u32;
 
-    fn scaled(&self, max: f64) -> Option<ChannelVolumes>;
+    fn scaled(&self, max: u32) -> Option<ChannelVolumes>;
 }
 
-impl Volume for ChannelVolumes {
-    fn get_volume(&self) -> f64 {
-        self.avg().0 as f64 / libpulse_binding::volume::Volume::NORMAL.0 as f64
+impl ChannelVolumesExt for ChannelVolumes {
+    fn get_volume(&self) -> u32 {
+        self.max().0
     }
 
-    fn scaled(&self, max: f64) -> Option<ChannelVolumes> {
-        let max = max.clamp(0.0, 1.0);
+    fn scaled(&self, max: u32) -> Option<ChannelVolumes> {
         let mut cv = *self; // Implicit copy
-        if cv
-            .scale(libpulse_binding::volume::Volume(
-                (libpulse_binding::volume::Volume::NORMAL.0 as f64 * max) as u32,
-            ))
-            .is_some()
-        {
+        if cv.scale(Volume(max).min(Volume::NORMAL)).is_some() {
             Some(cv)
         } else {
             error!("Failed scaling volume: {cv}");
@@ -111,8 +105,8 @@ pub struct AudioData {
     pub server_info: ServerInfo,
     sinks: Vec<Device>,
     sources: Vec<Device>,
-    pub sink_slider: Remote<i32>,
-    pub source_slider: Remote<i32>,
+    pub sink_slider: Remote<u32>,
+    pub source_slider: Remote<u32>,
 }
 
 #[derive(Debug, Clone)]
@@ -211,7 +205,7 @@ impl AudioService {
                 if source.is_mute {
                     0
                 } else {
-                    (source.volume.get_volume() * 100.) as i32
+                    source.volume.get_volume()
                 }
             })
             .unwrap_or_default();
@@ -225,7 +219,7 @@ impl AudioService {
                 if sink.is_mute {
                     0
                 } else {
-                    (sink.volume.get_volume() * 100.) as i32
+                    sink.volume.get_volume()
                 }
             })
             .unwrap_or_default();
@@ -335,8 +329,8 @@ impl ReadOnlyService for AudioService {
 pub enum AudioCommand {
     ToggleSinkMute,
     ToggleSourceMute,
-    SinkVolume(i32),
-    SourceVolume(i32),
+    SinkVolume(u32),
+    SourceVolume(u32),
     DefaultSink(String, Option<String>),
     DefaultSource(String, Option<String>),
 }
@@ -364,7 +358,7 @@ impl Service for AudioService {
             }
             AudioCommand::SinkVolume(volume) => {
                 if let Some(sink) = self.active_sink()
-                    && let Some(volume) = sink.volume.scaled(volume as f64 / 100.)
+                    && let Some(volume) = sink.volume.scaled(volume)
                 {
                     let _ = self
                         .commander_throttled
@@ -373,7 +367,7 @@ impl Service for AudioService {
             }
             AudioCommand::SourceVolume(volume) => {
                 if let Some(source) = self.active_source()
-                    && let Some(volume) = source.volume.scaled(volume as f64 / 100.)
+                    && let Some(volume) = source.volume.scaled(volume)
                 {
                     let _ = self
                         .commander_throttled
