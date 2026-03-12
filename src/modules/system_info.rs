@@ -79,6 +79,7 @@ fn get_system_info(
                 || name.contains("eth")
                 || name.contains("wl")
                 || name.contains("wlan")
+                || name.contains("br")
         })
         .sorted_by_key(|(name, _)| {
             if name.contains("en") {
@@ -95,6 +96,9 @@ fn get_system_info(
 
             if name.contains("wlan") {
                 return 3;
+            }
+            if name.contains("br") {
+                return 4;
             }
 
             99
