@@ -1,6 +1,5 @@
-use crate::remote_value::Remote;
-
 use super::{ReadOnlyService, Service, ServiceEvent};
+use crate::{services::throttle::ThrottleExt, utils::remote_value::Remote};
 use iced::{
     Subscription, Task,
     futures::{SinkExt, StreamExt, channel::mpsc::Sender, stream::pending},
@@ -32,6 +31,7 @@ use std::{
     time::Duration,
 };
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio_stream::wrappers::UnboundedReceiverStream;
 
 #[derive(Debug, Clone)]
 pub struct Device {
@@ -113,7 +113,6 @@ pub struct AudioData {
 pub struct AudioService {
     data: AudioData,
     commander: UnboundedSender<PulseAudioCommand>,
-    commander_throttled: UnboundedSender<PulseAudioCommand>,
 }
 
 impl Deref for AudioService {
@@ -135,7 +134,6 @@ struct PulseAudioServerHandle {
     _commander: JoinHandle<()>,
     receiver: UnboundedReceiver<PulseAudioServerEvent>,
     sender: UnboundedSender<PulseAudioCommand>,
-    sender_throttled: UnboundedSender<PulseAudioCommand>,
 }
 
 impl AudioService {
@@ -151,7 +149,6 @@ impl AudioService {
                         .send(ServiceEvent::Init(AudioService {
                             data: AudioData::default(),
                             commander: handle.sender.clone(),
-                            commander_throttled: handle.sender_throttled.clone(),
                         }))
                         .await;
                     State::Active(handle)
@@ -361,7 +358,7 @@ impl Service for AudioService {
                     && let Some(volume) = sink.volume.scaled(volume)
                 {
                     let _ = self
-                        .commander_throttled
+                        .commander
                         .send(PulseAudioCommand::SinkVolume(sink.name.clone(), volume));
                 }
             }
@@ -370,7 +367,7 @@ impl Service for AudioService {
                     && let Some(volume) = source.volume.scaled(volume)
                 {
                     let _ = self
-                        .commander_throttled
+                        .commander
                         .send(PulseAudioCommand::SourceVolume(source.name.clone(), volume));
                 }
             }
@@ -459,20 +456,15 @@ impl PulseAudioServer {
     async fn start() -> anyhow::Result<PulseAudioServerHandle> {
         let (from_server_tx, from_server_rx) = tokio::sync::mpsc::unbounded_channel();
         let (to_server_tx, to_server_rx) = tokio::sync::mpsc::unbounded_channel();
-        let (to_server_throttled_tx, to_server_throttled_rx) =
-            tokio::sync::mpsc::unbounded_channel();
 
         let listener = Self::start_listener(from_server_tx.clone()).await?;
-        let commander =
-            Self::start_commander(from_server_tx.clone(), to_server_rx, to_server_throttled_rx)
-                .await?;
+        let commander = Self::start_commander(from_server_tx.clone(), to_server_rx).await?;
 
         Ok(PulseAudioServerHandle {
             _listener: listener,
             _commander: commander,
             receiver: from_server_rx,
             sender: to_server_tx,
-            sender_throttled: to_server_throttled_tx,
         })
     }
 
@@ -603,7 +595,6 @@ impl PulseAudioServer {
     async fn start_commander(
         from_server_tx: UnboundedSender<PulseAudioServerEvent>,
         to_server_rx: UnboundedReceiver<PulseAudioCommand>,
-        to_server_throttled_rx: UnboundedReceiver<PulseAudioCommand>,
     ) -> anyhow::Result<JoinHandle<()>> {
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
 
@@ -615,15 +606,10 @@ impl PulseAudioServer {
                 .block_on(async move {
                     match Self::new() {
                         Ok(mut server) => {
-                            use crate::services::throttle::ThrottleExt;
-                            use tokio_stream::{StreamExt, wrappers::UnboundedReceiverStream};
                             let _ = tx.send(true);
-                            let mut stream = ThrottleExt::throttle(
-                                UnboundedReceiverStream::new(to_server_throttled_rx),
-                                Duration::from_millis(100),
-                            )
-                            .merge(UnboundedReceiverStream::new(to_server_rx));
-                            while let Some(cmd) = StreamExt::next(&mut stream).await {
+                            let mut stream = UnboundedReceiverStream::new(to_server_rx)
+                                .throttle(Duration::from_millis(100));
+                            while let Some(cmd) = stream.next().await {
                                 match cmd {
                                     PulseAudioCommand::SinkMute(name, mute) => {
                                         let _ = server.set_sink_mute(&name, mute);

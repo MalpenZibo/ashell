@@ -2,12 +2,12 @@ use super::SubMenu;
 use crate::{
     components::icons::{StaticIcon, icon, icon_button, icon_mono},
     config::SettingsFormat,
-    remote_value::{self, Remote},
     services::{
         ReadOnlyService, Service, ServiceEvent,
         audio::{AudioCommand, AudioService, DevicePortType, Port},
     },
     theme::AshellTheme,
+    utils::remote_value::{self, Remote},
 };
 use iced::{
     Alignment, Element, Length, Subscription, Task, Theme,
