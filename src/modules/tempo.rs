@@ -139,6 +139,13 @@ impl Tempo {
                     self.current_timezone_index = 0;
                 }
 
+                let location_changed = self.config.weather_location != new_config.weather_location;
+
+                if location_changed {
+                    self.weather_data = None;
+                    self.location = None;
+                }
+
                 self.config = new_config;
                 Action::None
             }
