@@ -361,29 +361,36 @@ impl Tempo {
         .spacing(theme.space.md)
         .width(Length::Fixed(225.));
 
-        // let timezones = Column::new().push(button(text("cycle timezone")).on_press(Message::CycleTimezone(TimezoneDirection::Forward)))
-        //     .spacing(theme.space.md)
-        //     .width(Length::Fixed(225.));
-
         let timezones = Column::with_children(
             self.config
                 .timezones
                 .iter()
                 .enumerate()
                 .map(|(index, tz_name)| {
-                    button(text(format!(
-                        "{}: {}",
-                        tz_name,
-                        self.time_str("%d %h %R", index)
-                    )))
-                    .on_press_maybe(if self.current_timezone_index != index {
-                        Some(Message::SetTimezone(index))
+                    if self.current_timezone_index == index {
+                        container(text(format!(
+                            "{}: {}",
+                            tz_name,
+                            self.time_str("%d %h %R", index)
+                        )))
+                        .padding([theme.space.xxs, theme.space.sm])
+                        .style(|theme: &Theme| container::Style {
+                            text_color: Some(theme.palette().success),
+                            ..Default::default()
+                        })
+                        .into()
                     } else {
-                        None
-                    })
-                    .padding([theme.space.xs, theme.space.sm])
-                    .style(theme.outline_button_style())
-                    .into()
+                        button(text(format!(
+                            "{}: {}",
+                            tz_name,
+                            self.time_str("%d %h %R", index)
+                        )))
+                        .on_press(Message::SetTimezone(index))
+                        .padding([theme.space.xxs, theme.space.sm])
+                        .width(Length::Fixed(225.))
+                        .style(theme.ghost_button_style())
+                        .into()
+                    }
                 })
                 .collect::<Vec<Element<'a, Message>>>(),
         );
