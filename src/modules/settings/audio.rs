@@ -12,7 +12,9 @@ use crate::{
 use iced::{
     Alignment, Element, Length, Subscription, Task, Theme,
     mouse::ScrollDelta,
-    widget::{Column, MouseArea, Row, Text, button, column, container, horizontal_rule, row, text},
+    widget::{
+        Column, MouseArea, Row, Text, button, column, container, horizontal_rule, row, slider, text,
+    },
     window::Id,
 };
 use libpulse_binding::volume::Volume;
@@ -25,9 +27,9 @@ pub enum Message {
     DefaultSinkChanged(String, Option<String>),
     DefaultSourceChanged(String, Option<String>),
     ToggleSinkMute,
-    SinkSlider(remote_value::Message<u32>),
+    SinkVolumeChanged(remote_value::Message<u32>),
     ToggleSourceMute,
-    SourceSlider(remote_value::Message<u32>),
+    SourceVolumeChanged(remote_value::Message<u32>),
     SinksMore(Id),
     SourcesMore(Id),
     OpenMore,
@@ -126,13 +128,16 @@ impl AudioSettings {
                 }
                 Action::None
             }
-            Message::SinkSlider(message) => {
+            Message::SinkVolumeChanged(message) => {
                 if let Some(service) = self.service.as_mut() {
                     if let Some(value) = message.value() {
                         let _ = service.command(AudioCommand::SinkVolume(value));
                     }
                     return Action::Task(
-                        service.sink_slider.update(message).map(Message::SinkSlider),
+                        service
+                            .sink_slider
+                            .update(message)
+                            .map(Message::SinkVolumeChanged),
                     );
                 }
                 Action::None
@@ -149,7 +154,7 @@ impl AudioSettings {
                 }
                 Action::None
             }
-            Message::SourceSlider(message) => {
+            Message::SourceVolumeChanged(message) => {
                 if let Some(service) = self.service.as_mut() {
                     if let Some(value) = message.value() {
                         let _ = service.command(AudioCommand::SourceVolume(value));
@@ -158,7 +163,7 @@ impl AudioSettings {
                         service
                             .source_slider
                             .update(message)
-                            .map(Message::SourceSlider),
+                            .map(Message::SourceVolumeChanged),
                     );
                 }
                 Action::None
@@ -232,13 +237,13 @@ impl AudioSettings {
                         let icon = icon(icon_type);
                         MouseArea::new(icon)
                             .on_right_press(Message::OpenMore)
-                            .on_scroll(Self::on_scroll(volume, Message::SinkSlider))
+                            .on_scroll(Self::on_scroll(volume, Message::SinkVolumeChanged))
                             .into()
                     }
                     SettingsFormat::Percentage | SettingsFormat::Time => {
                         MouseArea::new(Self::vol_text(volume))
                             .on_right_press(Message::OpenMore)
-                            .on_scroll(Self::on_scroll(volume, Message::SinkSlider))
+                            .on_scroll(Self::on_scroll(volume, Message::SinkVolumeChanged))
                             .into()
                     }
                     SettingsFormat::IconAndPercentage | SettingsFormat::IconAndTime => {
@@ -249,7 +254,7 @@ impl AudioSettings {
                                 .align_y(Alignment::Center),
                         )
                         .on_right_press(Message::OpenMore)
-                        .on_scroll(Self::on_scroll(volume, Message::SinkSlider))
+                        .on_scroll(Self::on_scroll(volume, Message::SinkVolumeChanged))
                         .into()
                     }
                 }
@@ -278,13 +283,13 @@ impl AudioSettings {
                         let icon = icon(icon_type);
                         MouseArea::new(icon)
                             .on_right_press(Message::OpenSourceMore)
-                            .on_scroll(Self::on_scroll(volume, Message::SourceSlider))
+                            .on_scroll(Self::on_scroll(volume, Message::SourceVolumeChanged))
                             .into()
                     }
                     SettingsFormat::Percentage | SettingsFormat::Time => {
                         MouseArea::new(Self::vol_text(volume))
                             .on_right_press(Message::OpenSourceMore)
-                            .on_scroll(Self::on_scroll(volume, Message::SourceSlider))
+                            .on_scroll(Self::on_scroll(volume, Message::SourceVolumeChanged))
                             .into()
                     }
                     SettingsFormat::IconAndPercentage | SettingsFormat::IconAndTime => {
@@ -295,7 +300,7 @@ impl AudioSettings {
                                 .align_y(Alignment::Center),
                         )
                         .on_right_press(Message::OpenSourceMore)
-                        .on_scroll(Self::on_scroll(volume, Message::SourceSlider))
+                        .on_scroll(Self::on_scroll(volume, Message::SourceVolumeChanged))
                         .into()
                     }
                 }
@@ -315,7 +320,7 @@ impl AudioSettings {
                     s.is_mute,
                     Message::ToggleSinkMute,
                     &service.sink_slider,
-                    &Message::SinkSlider,
+                    &Message::SinkVolumeChanged,
                     if service.has_multiple_sinks() {
                         Some((sub_menu, Message::ToggleSinksMenu))
                     } else {
@@ -331,7 +336,7 @@ impl AudioSettings {
                     s.is_mute,
                     Message::ToggleSourceMute,
                     &service.source_slider,
-                    &Message::SourceSlider,
+                    &Message::SourceVolumeChanged,
                     if service.has_multiple_sources() {
                         Some((sub_menu, Message::ToggleSourcesMenu))
                     } else {
@@ -475,9 +480,15 @@ impl AudioSettings {
             )
             .push(
                 MouseArea::new(
-                    volume
-                        .slider(Volume::MUTED.0..=Volume::NORMAL.0)
-                        .map(volume_changed),
+                    Element::<'a, remote_value::Message<u32>>::from(
+                        slider(
+                            Volume::MUTED.0..=Volume::NORMAL.0,
+                            volume.value(),
+                            remote_value::Message::Request,
+                        )
+                        .on_release(remote_value::Message::Timeout),
+                    )
+                    .map(volume_changed),
                 )
                 .on_scroll(Self::on_scroll(volume.value(), volume_changed)),
             )

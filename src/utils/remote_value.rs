@@ -1,6 +1,4 @@
-use iced::{Element, Task, task::Handle, widget::slider};
-use num_traits::FromPrimitive;
-use std::{ops::RangeInclusive, time::Duration};
+use std::time::Duration;
 use tokio::time::sleep;
 
 /// A helper for ensuring responsive user interface,
@@ -12,7 +10,7 @@ pub struct Remote<Value> {
     /// Source of truth. Displayed shortly after the end of the user interaction
     received: Value,
     /// A handle for aborting the timeout task
-    timeout: Option<Handle>,
+    timeout: Option<iced::task::Handle>,
 }
 
 impl<Value> Remote<Value>
@@ -27,14 +25,14 @@ where
         self.requested.unwrap_or(self.received)
     }
 
-    pub fn update(&mut self, message: Message<Value>) -> Task<Message<Value>> {
+    pub fn update(&mut self, message: Message<Value>) -> iced::Task<Message<Value>> {
         if let Some(handle) = self.timeout.take() {
             handle.abort();
         }
         match message {
             Message::Request(value) => {
                 self.requested = Some(value);
-                Task::none()
+                iced::Task::none()
             }
             Message::Timeout => self.start_timeout(),
             Message::RequestAndTimeout(value) => {
@@ -43,13 +41,13 @@ where
             }
             Message::ShowReceived => {
                 self.requested = None;
-                Task::none()
+                iced::Task::none()
             }
         }
     }
 
-    fn start_timeout(&mut self) -> Task<Message<Value>> {
-        let (task, handle) = Task::perform(
+    fn start_timeout(&mut self) -> iced::Task<Message<Value>> {
+        let (task, handle) = iced::Task::perform(
             async {
                 sleep(Duration::from_secs(1)).await;
             },
@@ -58,18 +56,6 @@ where
         .abortable();
         self.timeout = Some(handle);
         task
-    }
-}
-
-impl<Value> Remote<Value>
-where
-    Value: Copy + Send + From<u8> + PartialOrd + FromPrimitive + 'static,
-    f64: From<Value>,
-{
-    pub fn slider(&self, range: RangeInclusive<Value>) -> Element<'_, Message<Value>> {
-        slider(range, self.value(), Message::Request)
-            .on_release(Message::Timeout)
-            .into()
     }
 }
 
