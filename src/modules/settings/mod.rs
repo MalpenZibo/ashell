@@ -185,6 +185,7 @@ impl Settings {
                     Action::None
                 }
                 audio::Action::CloseMenu(id) => Action::CloseMenu(id),
+                audio::Action::Task(task) => Action::Command(task.map(Message::Audio)),
             },
             Message::Network(msg) => match self.network.update(msg) {
                 network::Action::None => Action::None,

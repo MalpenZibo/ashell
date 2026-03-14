@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 pub mod launcher;
+pub mod remote_value;
 
 #[derive(Debug, Clone, Copy)]
 pub enum IndicatorState {

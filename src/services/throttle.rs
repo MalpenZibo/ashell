@@ -12,6 +12,7 @@ pin_project! {
         inner: S,
         duration: Duration,
         sleep: Option<Pin<Box<Sleep>>>,
+        pending: Option<S::Item>,
     }
 }
 
@@ -21,6 +22,7 @@ impl<S: Stream> Throttle<S> {
             inner,
             duration,
             sleep: None,
+            pending: None,
         }
     }
 }
@@ -34,6 +36,17 @@ where
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
 
+        // Always drain the inner stream, keeping only the latest value
+        loop {
+            match this.inner.as_mut().poll_next(cx) {
+                Poll::Ready(Some(item)) => *this.pending = Some(item),
+                Poll::Ready(None) => {
+                    return Poll::Ready(this.pending.take());
+                }
+                Poll::Pending => break,
+            }
+        }
+
         // If we're in the throttling period, poll the sleep
         if let Some(sleep) = &mut this.sleep {
             match sleep.as_mut().poll(cx) {
@@ -42,14 +55,13 @@ where
             }
         }
 
-        match this.inner.as_mut().poll_next(cx) {
-            Poll::Ready(Some(item)) => {
-                *this.sleep = Some(Box::pin(time::sleep(*this.duration)));
-                Poll::Ready(Some(item))
-            }
-            Poll::Ready(None) => Poll::Ready(None),
-            Poll::Pending => Poll::Pending,
+        // Emit pending value if we have one
+        if let Some(item) = this.pending.take() {
+            *this.sleep = Some(Box::pin(time::sleep(*this.duration)));
+            return Poll::Ready(Some(item));
         }
+
+        Poll::Pending
     }
 }
 
