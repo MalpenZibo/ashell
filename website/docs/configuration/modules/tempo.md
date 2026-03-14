@@ -17,12 +17,12 @@ Tempo combines a highly configurable clock with an optional weather summary in t
 
 ## Configuration
 
-| Option             | Type     | Default       | Description                                                                                                                                                                                           |
-| ------------------ | -------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `clock_format`     | `string` | `%a %d %b %R` | Strftime-compatible format used for the clock in the bar and in the menu header. See the [chrono formatting guide](https://docs.rs/chrono/latest/chrono/format/strftime/index.html) for placeholders. |
-| `formats`          | `array`  | `[]`          | Multiple datetime formats that can be cycled through by right-clicking the clock. When provided, clicking cycles through each format in sequence.                                                     |
-| `timezones`        | `array`  | `[]`          | Timezone identifiers that can be cycled through by scrolling. Supports both IANA names (e.g., `"UTC"`, `"America/New_York"`) and fixed offsets (e.g., `"+00:00"`, `"-05:00"`).                        |
-| `weather_location` | `enum`   | `None`        | Determines which coordinates are queried when requesting weather data. `Current` geo-locates via IP using `ip-api.com`. Use the `City` variant to pin the module to a specific place.                 |
+| Option             | Type     | Default       | Description                                                                                                                                                                                                                                      |
+| ------------------ | -------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `clock_format`     | `string` | `%a %d %b %R` | Strftime-compatible format used for the clock in the bar and in the menu header. See the [chrono formatting guide](https://docs.rs/chrono/latest/chrono/format/strftime/index.html) for placeholders.                                            |
+| `formats`          | `array`  | `[]`          | Multiple datetime formats that can be cycled through by right-clicking the clock. When provided, clicking cycles through each format in sequence.                                                                                                |
+| `timezones`        | `array`  | `[]`          | Timezone identifiers that can be cycled through by scrolling. Supports both IANA names (e.g., `"UTC"`, `"America/New_York"`) and fixed offsets (e.g., `"+00:00"`, `"-05:00"`).                                                                   |
+| `weather_location` | `enum`   | `None`        | Determines which coordinates are queried when requesting weather data. `Current` geo-locates via IP using `ip-api.com`. Use the `City` variant to pin the module to a specific place. Use `Coordinates` to specify exact latitude and longitude. |
 
 ### City-based weather
 
@@ -30,6 +30,14 @@ Tempo combines a highly configurable clock with an optional weather summary in t
 [tempo]
 clock_format = "%a %d %b %R"
 weather_location = { City = "Rome" }
+```
+
+### Coordinates-based weather
+
+```toml
+[tempo]
+clock_format = "%a %d %b %R"
+weather_location = { Coordinates = [40.7128, -74.0060] }  # New York City
 ```
 
 ### Clock-only mode
@@ -123,7 +131,7 @@ weather_location = "Current"
 
 ## Networking & privacy
 
-- Tempo fetches location data either from `ip-api.com` (for `Current`) or from Open-Meteo's geocoding endpoint (for `City`).
+- Tempo fetches location data either from `ip-api.com` (for `Current`), from Open-Meteo's geocoding endpoint (for `City`), or uses reverse geocoding from Nominatim (OpenStreetMap) to get location names for `Coordinates`.
 - Weather observations and forecasts are requested from the Open-Meteo API every 30 minutes. Ensure `ashell` has network access.
 - If an API call fails the module keeps showing the last successful reading and logs a warning.
 
@@ -131,4 +139,4 @@ weather_location = "Current"
 
 1. Include seconds in `clock_format` (e.g., `%T`) only if you need them—the module automatically increases the refresh rate when second specifiers are present.
 2. Use `City` when running behind VPNs or privacy relays, so the weather is tied to a predictable location.
-3. Combine Tempo with the dynamic menu wrapper branch to get a spacious layout for the weather panel.
+3. Use `Coordinates` when you need precise weather data for a specific location that doesn't correspond to a well-known city.
