@@ -268,9 +268,18 @@ pub struct TempoModuleConfig {
     pub timezones: Vec<String>,
     #[serde(default)]
     pub weather_location: Option<WeatherLocation>,
+    pub weather_indicator: WeatherIndicator,
 }
 
-#[derive(Deserialize, Default, Clone, Debug)]
+#[derive(Deserialize, Default, Clone, Debug, PartialEq, Eq)]
+pub enum WeatherIndicator {
+    #[default]
+    IconAndTemperature,
+    Icon,
+    None,
+}
+
+#[derive(Deserialize, Default, Clone, Debug, PartialEq)]
 pub enum WeatherLocation {
     #[default]
     Current,
@@ -284,6 +293,7 @@ impl Default for TempoModuleConfig {
             formats: vec![],
             timezones: vec![],
             weather_location: None,
+            weather_indicator: WeatherIndicator::IconAndTemperature,
         }
     }
 }

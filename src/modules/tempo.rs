@@ -1,6 +1,6 @@
 use crate::{
     components::icons::{StaticIcon, icon},
-    config::{TempoModuleConfig, WeatherLocation},
+    config::{TempoModuleConfig, WeatherIndicator, WeatherLocation},
     menu::MenuSize,
     theme::AshellTheme,
 };
@@ -139,6 +139,13 @@ impl Tempo {
                     self.current_timezone_index = 0;
                 }
 
+                let location_changed = self.config.weather_location != new_config.weather_location;
+
+                if location_changed {
+                    self.weather_data = None;
+                    self.location = None;
+                }
+
                 self.config = new_config;
                 Action::None
             }
@@ -188,20 +195,31 @@ impl Tempo {
     }
 
     pub fn weather_indicator(&'_ self, theme: &AshellTheme) -> Option<Element<'_, Message>> {
+        if self.config.weather_location.is_none()
+            || self.config.weather_indicator == WeatherIndicator::None
+        {
+            return None;
+        }
         self.weather_data
             .as_ref()
             .zip(self.location.as_ref())
             .map(|(data, _)| {
-                row!(
-                    weather_icon(data.current.weather_code, data.current.is_day > 0)
-                        .width(Length::Fixed(theme.font_size.sm as f32)),
-                    text(format!("{}°C", data.current.temperature_2m))
-                        .align_y(Vertical::Center)
-                        .size(theme.font_size.sm)
-                )
-                .align_y(Vertical::Center)
-                .spacing(theme.space.xxs)
-                .into()
+                Row::new()
+                    .push(
+                        weather_icon(data.current.weather_code, data.current.is_day > 0)
+                            .width(Length::Fixed(theme.font_size.sm as f32)),
+                    )
+                    .push_maybe(
+                        (self.config.weather_indicator == WeatherIndicator::IconAndTemperature)
+                            .then(|| {
+                                text(format!("{}°C", data.current.temperature_2m))
+                                    .align_y(Vertical::Center)
+                                    .size(theme.font_size.sm)
+                            }),
+                    )
+                    .align_y(Vertical::Center)
+                    .spacing(theme.space.xxs)
+                    .into()
             })
     }
 
