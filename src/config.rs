@@ -275,6 +275,7 @@ pub enum WeatherLocation {
     #[default]
     Current,
     City(String),
+    Coordinates(f32, f32),
 }
 
 impl Default for TempoModuleConfig {
