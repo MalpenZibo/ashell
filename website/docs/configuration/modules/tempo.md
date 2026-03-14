@@ -4,26 +4,29 @@ sidebar_position: 9
 
 # Tempo
 
-Tempo combines a highly configurable clock with an optional weather summary in the status bar—you can run it as a clock-only module or pair it with live conditions. Clicking the module opens a rich menu with a calendar, hourly forecast, and a seven-day outlook.
+Tempo combines a highly configurable clock with an optional weather summary in the status bar—you can run it as a
+clock-only module or pair it with live conditions. Clicking the module opens a rich menu with a calendar, hourly
+forecast, and a seven-day outlook.
 
 ## What Tempo shows
 
-- **Status bar** – current time (using your preferred `clock_format`) and, when weather data is available, an icon + temperature badge that match the current conditions.
+- **Status bar** – current time (using your preferred `clock_format`) and, when weather data is available, an icon +
+  temperature badge that match the current conditions.
 - **Menu** – a resizable panel containing:
-  - A calendar with month navigation and highlighted selections.
-  - Current city, timestamp, weather description, feels-like temperature, humidity, and wind information.
-  - A horizontally scrollable hourly forecast.
-  - A vertically stacked seven-day forecast with dominant wind direction and speeds.
+    - A calendar with month navigation and highlighted selections.
+    - Current city, timestamp, weather description, feels-like temperature, humidity, and wind information.
+    - A horizontally scrollable hourly forecast.
+    - A vertically stacked seven-day forecast with dominant wind direction and speeds.
 
 ## Configuration
 
-| Option             | Type     | Default       | Description                                                                                                                                                                                           |
-| ------------------ | -------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `clock_format`     | `string` | `%a %d %b %R` | Strftime-compatible format used for the clock in the bar and in the menu header. See the [chrono formatting guide](https://docs.rs/chrono/latest/chrono/format/strftime/index.html) for placeholders. |
-| `formats`          | `array`  | `[]`          | Multiple datetime formats that can be cycled through by right-clicking the clock. When provided, clicking cycles through each format in sequence.                                                     |
-| `timezones`        | `array`  | `[]`          | Timezone identifiers that can be cycled through by scrolling. Supports both IANA names (e.g., `"UTC"`, `"America/New_York"`) and fixed offsets (e.g., `"+00:00"`, `"-05:00"`).                        |
-| `weather_location` | `enum`   | `None`        | Determines which coordinates are queried when requesting weather data. `Current` geo-locates via IP using `ip-api.com`. Use the `City` variant to pin the module to a specific place.                 |
-| `weather_indicator`| `enum`   | `IconAndTemperature`| Determines what information about the weather is shown in the bar, valid options are `None`, `Icon`, and `IconAndTemperature`.           |
+| Option              | Type     | Default              | Description                                                                                                                                                                                                                                      |
+|---------------------|----------|----------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `clock_format`      | `string` | `%a %d %b %R`        | Strftime-compatible format used for the clock in the bar and in the menu header. See the [chrono formatting guide](https://docs.rs/chrono/latest/chrono/format/strftime/index.html) for placeholders.                                            |
+| `formats`           | `array`  | `[]`                 | Multiple datetime formats that can be cycled through by right-clicking the clock. When provided, clicking cycles through each format in sequence.                                                                                                |
+| `timezones`         | `array`  | `[]`                 | Timezone identifiers that can be cycled through by scrolling. Supports both IANA names (e.g., `"UTC"`, `"America/New_York"`) and fixed offsets (e.g., `"+00:00"`, `"-05:00"`).                                                                   |
+| `weather_location`  | `enum`   | `None`               | Determines which coordinates are queried when requesting weather data. `Current` geo-locates via IP using `ip-api.com`. Use the `City` variant to pin the module to a specific place. Use `Coordinates` to specify exact latitude and longitude. |
+| `weather_indicator` | `enum`   | `IconAndTemperature` | Determines what information about the weather is shown in the bar, valid options are `None`, `Icon`, and `IconAndTemperature`.                                                                                                                   |
 
 ### City-based weather
 
@@ -32,6 +35,14 @@ Tempo combines a highly configurable clock with an optional weather summary in t
 clock_format = "%a %d %b %R"
 weather_location = { City = "Rome" }
 weather_indicator = "Icon"
+```
+
+### Coordinates-based weather
+
+```toml
+[tempo]
+clock_format = "%a %d %b %R"
+weather_location = { Coordinates = [40.7128, -74.0060] }  # New York City
 ```
 
 ### Clock-only mode
@@ -46,7 +57,8 @@ clock_format = "%a %d %b %R"
 
 ### Format Cycling
 
-The Tempo module supports multiple datetime formats that can be cycled through by right-clicking on the clock. When the `formats` array is provided, right-clicking the clock will cycle through each format in sequence.
+The Tempo module supports multiple datetime formats that can be cycled through by right-clicking on the clock. When the
+`formats` array is provided, right-clicking the clock will cycle through each format in sequence.
 
 - If `formats` is empty or not provided, the clock uses the single `clock_format` string
 - If `formats` contains entries, right-clicking cycles through them and the single `clock_format` is ignored
@@ -73,7 +85,8 @@ formats = [
 
 ### Timezone Support
 
-Tempo supports cycling through multiple timezones by scrolling on the clock widget. The `timezones` array accepts both IANA timezone names and fixed offset strings.
+Tempo supports cycling through multiple timezones by scrolling on the clock widget. The `timezones` array accepts both
+IANA timezone names and fixed offset strings.
 
 - IANA names (e.g., `"UTC"`, `"America/New_York"`) are used when the format contains `%Z` to show timezone abbreviations
 - Fixed offsets (e.g., `"+00:00"`, `"-05:00"`) are used for numeric offset display with `%z`, `%:z`, etc.
@@ -125,12 +138,16 @@ weather_location = "Current"
 
 ## Networking & privacy
 
-- Tempo fetches location data either from `ip-api.com` (for `Current`) or from Open-Meteo's geocoding endpoint (for `City`).
-- Weather observations and forecasts are requested from the Open-Meteo API every 30 minutes. Ensure `ashell` has network access.
+- Tempo fetches location data either from `ip-api.com` (for `Current`), from Open-Meteo's geocoding endpoint (for
+  `City`), or uses reverse geocoding from Nominatim (OpenStreetMap) to get location names for `Coordinates`.
+- Weather observations and forecasts are requested from the Open-Meteo API every 30 minutes. Ensure `ashell` has network
+  access.
 - If an API call fails the module keeps showing the last successful reading and logs a warning.
 
 ## Tips
 
-1. Include seconds in `clock_format` (e.g., `%T`) only if you need them—the module automatically increases the refresh rate when second specifiers are present.
+1. Include seconds in `clock_format` (e.g., `%T`) only if you need them—the module automatically increases the refresh
+   rate when second specifiers are present.
 2. Use `City` when running behind VPNs or privacy relays, so the weather is tied to a predictable location.
-3. Combine Tempo with the dynamic menu wrapper branch to get a spacious layout for the weather panel.
+3. Use `Coordinates` when you need precise weather data for a specific location that doesn't correspond to a well-known
+   city.
