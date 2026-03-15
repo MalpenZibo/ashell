@@ -149,6 +149,7 @@ impl TrayModule {
                                 layout
                                     .2
                                     .iter()
+                                    .filter(|menu| menu.1.visible != Some(false))
                                     .map(|menu| self.menu_voice(theme, name, menu))
                                     .collect::<Vec<_>>(),
                             )
@@ -222,6 +223,7 @@ impl TrayModule {
                     item.menu
                         .2
                         .iter()
+                        .filter(|menu| menu.1.visible != Some(false))
                         .map(|menu| self.menu_voice(theme, name, menu)),
                 )
                 .spacing(theme.space.xs),
