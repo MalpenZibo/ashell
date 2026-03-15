@@ -163,7 +163,7 @@ impl TrayModule {
             }
             LayoutProps {
                 label: Some(label), ..
-            } => button(text(label.replace("_", "")))
+            } if !label.is_empty() => button(text(label.replace("_", "")))
                 .style(theme.ghost_button_style())
                 .on_press(Message::MenuSelected(name.to_owned(), layout.0))
                 .width(Length::Fill)
