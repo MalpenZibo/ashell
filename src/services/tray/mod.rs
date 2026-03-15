@@ -1,9 +1,9 @@
+use super::xdg_icons;
 use super::{ReadOnlyService, Service, ServiceEvent};
 use dbus::{
     DBusMenuProxy, Layout, StatusNotifierItemProxy, StatusNotifierWatcher,
     StatusNotifierWatcherProxy,
 };
-use freedesktop_icons::lookup;
 use iced::{
     Subscription, Task,
     futures::{
@@ -13,209 +13,14 @@ use iced::{
         stream_select,
     },
     stream::channel,
-    widget::{image, svg},
+    widget::image,
 };
-use linicon_theme::get_icon_theme;
 use log::{debug, error, info, trace};
-use std::{
-    any::TypeId,
-    collections::BTreeSet,
-    env, fs,
-    ops::Deref,
-    path::{Path, PathBuf},
-    sync::LazyLock,
-};
+use std::{any::TypeId, ops::Deref};
 
 pub mod dbus;
 
-static SYSTEM_ICON_NAMES: LazyLock<BTreeSet<String>> = LazyLock::new(load_system_icon_names);
-static SYSTEM_ICON_ENTRIES: LazyLock<Vec<(String, String)>> = LazyLock::new(|| {
-    SYSTEM_ICON_NAMES
-        .iter()
-        .map(|name| (name.clone(), normalize_icon_name(name)))
-        .collect()
-});
-
-fn get_icon_from_name(icon_name: &str) -> Option<TrayIcon> {
-    if let Some(path) = find_icon_path(icon_name) {
-        return tray_icon_from_path(path);
-    }
-
-    if let Some(candidates) = similar_icon_names(icon_name) {
-        for candidate in candidates {
-            if let Some(path) = find_icon_path(&candidate) {
-                return tray_icon_from_path(path);
-            }
-        }
-    }
-
-    if let Some(prefix_candidate) = prefix_match_icon(icon_name)
-        && let Some(path) = find_icon_path(&prefix_candidate)
-    {
-        return tray_icon_from_path(path);
-    }
-
-    None
-}
-
-fn tray_icon_from_path(path: PathBuf) -> Option<TrayIcon> {
-    if path.extension().is_some_and(|ext| ext == "svg") {
-        debug!("svg icon found. Path: {path:?}");
-
-        Some(TrayIcon::Svg(svg::Handle::from_path(path)))
-    } else {
-        debug!("raster icon found. Path: {path:?}");
-
-        Some(TrayIcon::Image(image::Handle::from_path(path)))
-    }
-}
-
-fn find_icon_path(icon_name: &str) -> Option<PathBuf> {
-    let base_lookup = lookup(icon_name).with_cache();
-
-    match get_icon_theme() {
-        Some(theme) => base_lookup.with_theme(&theme).find().or_else(|| {
-            let fallback_lookup = lookup(icon_name).with_cache();
-            fallback_lookup.find()
-        }),
-        None => base_lookup.find(),
-    }
-}
-
-fn similar_icon_names(icon_name: &str) -> Option<Vec<String>> {
-    if SYSTEM_ICON_NAMES.is_empty() {
-        return None;
-    }
-
-    let normalized = normalize_icon_name(icon_name);
-    let mut matches = Vec::new();
-
-    for candidate in SYSTEM_ICON_NAMES.iter() {
-        let candidate_normalized = normalize_icon_name(candidate);
-
-        if candidate_normalized == normalized {
-            continue;
-        }
-
-        if candidate_normalized.contains(&normalized)
-            || normalized.contains(&candidate_normalized)
-            || candidate_normalized.contains(&normalized.replace('-', ""))
-        {
-            matches.push(candidate.clone());
-            if matches.len() >= 5 {
-                break;
-            }
-        }
-    }
-
-    if matches.is_empty() {
-        None
-    } else {
-        Some(matches)
-    }
-}
-
-fn normalize_icon_name(name: &str) -> String {
-    name.to_lowercase()
-        .chars()
-        .filter(|c| c.is_ascii_alphanumeric())
-        .collect()
-}
-
-fn prefix_match_icon(icon_name: &str) -> Option<String> {
-    if SYSTEM_ICON_ENTRIES.is_empty() {
-        return None;
-    }
-
-    let normalized = normalize_icon_name(icon_name);
-    let mut candidates: Vec<&(String, String)> = SYSTEM_ICON_ENTRIES.iter().collect();
-    let chars: Vec<char> = normalized.chars().collect();
-
-    for (idx, ch) in chars.iter().enumerate() {
-        candidates.retain(|(_, name)| name.chars().nth(idx) == Some(*ch));
-
-        if candidates.len() == 1 {
-            return Some(candidates[0].0.clone());
-        }
-
-        if candidates.is_empty() {
-            break;
-        }
-    }
-
-    candidates.first().map(|(name, _)| name.clone())
-}
-
-fn load_system_icon_names() -> BTreeSet<String> {
-    let mut names = BTreeSet::new();
-
-    for dir in icon_directories() {
-        if !dir.is_dir() {
-            continue;
-        }
-
-        collect_icon_names_recursive(&dir, &mut names);
-    }
-
-    names
-}
-
-fn collect_icon_names_recursive(dir: &Path, names: &mut BTreeSet<String>) {
-    if let Ok(entries) = fs::read_dir(dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if let Ok(file_type) = entry.file_type() {
-                if file_type.is_dir() {
-                    collect_icon_names_recursive(&path, names);
-                } else if file_type.is_file()
-                    && let Some(stem) = path.file_stem().and_then(|s| s.to_str())
-                {
-                    names.insert(stem.to_string());
-                }
-            }
-        }
-    }
-}
-
-fn icon_directories() -> Vec<PathBuf> {
-    let mut dirs = Vec::new();
-
-    if let Ok(data_home) = env::var("XDG_DATA_HOME") {
-        let base = PathBuf::from(data_home);
-        dirs.push(base.join("icons"));
-        dirs.push(base.join("pixmaps"));
-    }
-
-    if let Ok(home) = env::var("HOME") {
-        let base = PathBuf::from(home);
-        dirs.push(base.join(".local/share/icons"));
-        dirs.push(base.join(".local/share/pixmaps"));
-    }
-
-    let data_dirs =
-        env::var("XDG_DATA_DIRS").unwrap_or_else(|_| "/usr/local/share:/usr/share".into());
-    for dir in data_dirs.split(':') {
-        if dir.is_empty() {
-            continue;
-        }
-        let base = PathBuf::from(dir);
-        dirs.push(base.join("icons"));
-        dirs.push(base.join("pixmaps"));
-    }
-
-    dirs.push(PathBuf::from("/usr/share/icons"));
-    dirs.push(PathBuf::from("/usr/share/pixmaps"));
-
-    dirs.sort();
-    dirs.dedup();
-    dirs
-}
-
-#[derive(Debug, Clone)]
-pub enum TrayIcon {
-    Image(image::Handle),
-    Svg(svg::Handle),
-}
+pub type TrayIcon = super::xdg_icons::XdgIcon;
 
 #[derive(Debug, Clone)]
 pub enum TrayEvent {
@@ -278,7 +83,7 @@ impl StatusNotifierItem {
                 .await
                 .ok()
                 .as_deref()
-                .and_then(get_icon_from_name),
+                .and_then(xdg_icons::get_icon_from_name),
         };
 
         let menu_path = item_proxy.menu().await?;
@@ -444,7 +249,7 @@ impl TrayService {
                                     .await
                                     .ok()
                                     .as_deref()
-                                    .and_then(get_icon_from_name)
+                                    .and_then(xdg_icons::get_icon_from_name)
                                     .map(|icon| TrayEvent::IconChanged(name.to_owned(), icon))
                             }
                         }
