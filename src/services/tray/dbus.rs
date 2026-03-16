@@ -261,6 +261,7 @@ pub struct LayoutProps {
     pub toggle_type: Option<String>,
     #[zvariant(rename = "toggle-state")]
     pub toggle_state: Option<i32>,
+    pub visible: Option<bool>,
 }
 
 #[proxy(interface = "com.canonical.dbusmenu")]
