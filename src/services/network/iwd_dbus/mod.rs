@@ -29,6 +29,7 @@ use iced::futures::stream::select_all;
 use iced::futures::{Stream, StreamExt};
 
 use log::{debug, info, warn};
+use std::collections::HashMap;
 use std::ops::Deref;
 use tokio::process::Command;
 use zbus::fdo::ObjectManagerProxy;
@@ -143,7 +144,7 @@ impl super::NetworkBackend for IwdDbus<'_> {
     /// List known (provisioned) SSIDs.
     async fn known_connections(&self) -> anyhow::Result<Vec<KnownConnection>> {
         let nets = self.reachable_networks().await?;
-        let mut networks = Vec::new();
+        let mut networks = HashMap::<String, AccessPoint>::new();
         for (n, signal_strength) in nets {
             if n.known_network().await.is_err() {
                 continue;
@@ -151,17 +152,38 @@ impl super::NetworkBackend for IwdDbus<'_> {
             let ssid = n.name().await?;
             let path = n.inner().path().clone().into();
             let device_path = n.device().await?.clone();
-            networks.push(KnownConnection::AccessPoint(AccessPoint {
-                ssid,
+            let access_point = AccessPoint {
+                ssid: ssid.clone(),
                 path,
                 device_path,
                 strength: map_iwd_rssi_to_percent(signal_strength),
+                max_bitrate: 0,
+                frequency: 0,
                 state: DeviceState::Unknown, // TODO:
                 public: n.type_().await? == "open",
                 working: false, // TODO:
-            }));
+            };
+
+            // maybe IWD will provide frequency and bitrate in the future
+            if let Some(existing) = networks.get(&ssid)
+                && AccessPoint::is_better(
+                    existing.max_bitrate,
+                    existing.frequency,
+                    existing.strength,
+                    access_point.max_bitrate,
+                    access_point.frequency,
+                    access_point.strength,
+                )
+            {
+                continue;
+            }
+
+            networks.insert(ssid, access_point);
         }
-        Ok(networks)
+        Ok(networks
+            .into_values()
+            .map(KnownConnection::AccessPoint)
+            .collect())
     }
 
     async fn scan_nearby_wifi(&self) -> anyhow::Result<()> {
@@ -184,7 +206,7 @@ impl super::NetworkBackend for IwdDbus<'_> {
     }
 
     async fn select_access_point(
-        &mut self,
+        &self,
         ap: &AccessPoint,
         password: Option<String>,
     ) -> anyhow::Result<()> {
@@ -523,11 +545,12 @@ impl IwdDbus<'_> {
                         ];
                         if is_scanning {
                             debug!("Scanning wifi");
-                            events.push(NetworkEvent::ScanningNearbyWifi);
+                            events.push(NetworkEvent::ScanningNearbyWifi(true));
                             // to update list, if scanning stopped use device
                             events.push(NetworkEvent::WirelessAccessPoint(aps));
                         } else {
                             debug!("Stopped scanning wifi");
+                            events.push(NetworkEvent::ScanningNearbyWifi(false));
                             events.push(NetworkEvent::WirelessDevice {
                                 // TODO: can we reasonably assume this is true here?
                                 wifi_present: iwd.wireless_enabled().await.unwrap_or(false),
@@ -580,13 +603,14 @@ impl IwdDbus<'_> {
                             let ssid = connected_network.name().await.ok()?;
 
                             Some(vec![NetworkEvent::Strength((
-                                ssid.clone(),
+                                Some(changed_path),
+                                ssid,
                                 map_iwd_level_to_percent(level),
                             ))])
                         }
                     })
-                    .map(move |events| {
-                        if let Some(NetworkEvent::Strength((ssid, strength))) = events.first() {
+                    .map(|events| {
+                        if let Some(NetworkEvent::Strength((_, ssid, strength))) = events.first() {
                             debug!(
                                 "Emitting strength update for connected ssid='{}' mapped_percent={}",
                                 ssid,
@@ -783,6 +807,8 @@ impl IwdDbus<'_> {
                     // _s is between 0 and -10000
                     // should be between 0 and 100
                     strength: map_iwd_rssi_to_percent(signal_strength),
+                    max_bitrate: 0,
+                    frequency: 0,
                     public,
                     working: false, // TODO:
                     path,
@@ -790,6 +816,30 @@ impl IwdDbus<'_> {
                 });
             }
         }
+
+        let aps = aps
+            .into_iter()
+            .fold(HashMap::<String, AccessPoint>::new(), |mut acc, ap| {
+                if let Some(existing) = acc.get(&ap.ssid)
+                    && AccessPoint::is_better(
+                        existing.max_bitrate,
+                        existing.frequency,
+                        existing.strength,
+                        ap.max_bitrate,
+                        ap.frequency,
+                        ap.strength,
+                    )
+                {
+                    return acc;
+                }
+
+                acc.insert(ap.ssid.clone(), ap);
+                acc
+            })
+            .into_values()
+            .collect::<Vec<_>>();
+
+        let mut aps = aps;
         aps.sort_by(|a, b| b.strength.cmp(&a.strength));
         Ok(aps)
     }

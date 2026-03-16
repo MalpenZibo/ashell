@@ -76,20 +76,7 @@ impl super::NetworkBackend for NetworkDbus<'_> {
     }
 
     async fn scan_nearby_wifi(&self) -> anyhow::Result<()> {
-        for device_path in self
-            .wireless_access_points()
-            .await?
-            .iter()
-            .map(|ap| ap.path.clone())
-        {
-            let device = WirelessDeviceProxy::builder(self.0.inner().connection())
-                .path(device_path)?
-                .build()
-                .await?;
-
-            device.request_scan(HashMap::new()).await?;
-        }
-
+        self.scan_nearby_wifi_with_devices().await?;
         Ok(())
     }
 
@@ -99,7 +86,7 @@ impl super::NetworkBackend for NetworkDbus<'_> {
     }
 
     async fn select_access_point(
-        &mut self,
+        &self,
         access_point: &AccessPoint,
         password: Option<String>,
     ) -> anyhow::Result<()> {
@@ -209,6 +196,26 @@ impl NetworkDbus<'_> {
         let nm = NetworkManagerProxy::new(conn).await?;
 
         Ok(Self(nm))
+    }
+
+    pub async fn scan_nearby_wifi_with_devices(&self) -> anyhow::Result<Vec<OwnedObjectPath>> {
+        let device_paths = self.wireless_devices().await?;
+        let mut requested_devices = Vec::with_capacity(device_paths.len());
+
+        for device_path in device_paths {
+            let device_path_str = device_path.to_string();
+            let device = WirelessDeviceProxy::builder(self.0.inner().connection())
+                .path(device_path.clone())?
+                .build()
+                .await?;
+
+            match device.request_scan(HashMap::new()).await {
+                Ok(()) => requested_devices.push(device_path),
+                Err(e) => warn!("Scan request failed for device {device_path_str}: {e}"),
+            }
+        }
+
+        Ok(requested_devices)
     }
 
     pub async fn subscribe_events(
@@ -344,7 +351,10 @@ impl NetworkDbus<'_> {
                                 let nm = NetworkDbus::new(&conn).await.unwrap();
                                 let wireless_access_point =
                                     nm.wireless_access_points().await.unwrap_or_default();
-                                debug!("access_points_changed {wireless_access_point:?}");
+                                debug!(
+                                    "access_points_changed event received, count: {}",
+                                    wireless_access_point.len()
+                                );
 
                                 NetworkEvent::WirelessAccessPoint(wireless_access_point)
                             }
@@ -358,6 +368,7 @@ impl NetworkDbus<'_> {
         let mut strength_changes = Vec::with_capacity(wireless_ac.len());
         for ap in wireless_ac {
             let ssid = ap.ssid.clone();
+            let path = ap.path.clone();
             let app = AccessPointProxy::builder(conn)
                 .path(ap.path.clone())?
                 .build()
@@ -368,10 +379,11 @@ impl NetworkDbus<'_> {
                     .await
                     .then(move |val| {
                         let ssid = ssid.clone();
+                        let path = path.clone();
                         async move {
                             let value = val.get().await.unwrap_or_default();
                             debug!("Strength changed value: {}, {}", &ssid, value);
-                            NetworkEvent::Strength((ssid.clone(), value))
+                            NetworkEvent::Strength((Some(path.clone()), ssid.clone(), value))
                         }
                     })
                     .boxed(),
@@ -380,6 +392,29 @@ impl NetworkDbus<'_> {
         let strength_changes = select_all(strength_changes).boxed();
 
         let access_points = select_all(ac_changes).boxed();
+
+        // Set up LastScan change listeners on wireless devices to detect scan completion
+        let mut last_scan_changes = Vec::with_capacity(devices.len());
+        for device_path in devices.iter() {
+            let dp = WirelessDeviceProxy::builder(conn)
+                .path(device_path.clone())?
+                .build()
+                .await?;
+
+            last_scan_changes.push(
+                dp.receive_last_scan_changed()
+                    .await
+                    .then({
+                        let device_path = device_path.clone();
+                        move |_| {
+                            let device_path = device_path.clone();
+                            async move { NetworkEvent::ScanCompleted(device_path) }
+                        }
+                    })
+                    .boxed(),
+            );
+        }
+        let last_scan_changes = select_all(last_scan_changes).boxed();
 
         let known_connections = settings
             .receive_connections_changed()
@@ -406,6 +441,7 @@ impl NetworkDbus<'_> {
             active_connections_changes,
             access_points,
             strength_changes,
+            last_scan_changes,
             known_connections,
         ]);
 
@@ -639,8 +675,17 @@ impl NetworkDbus<'_> {
                     let ssid = String::from_utf8_lossy(&ap.ssid().await?.clone()).into_owned();
                     let public = ap.flags().await.unwrap_or_default() == 0;
                     let strength = ap.strength().await?;
+                    let max_bitrate = ap.max_bitrate().await.unwrap_or_default();
+                    let frequency = ap.frequency().await.unwrap_or_default();
                     if let Some(access_point) = aps.get(&ssid)
-                        && access_point.strength > strength
+                        && AccessPoint::is_better(
+                            access_point.max_bitrate,
+                            access_point.frequency,
+                            access_point.strength,
+                            max_bitrate,
+                            frequency,
+                            strength,
+                        )
                     {
                         continue;
                     }
@@ -650,6 +695,8 @@ impl NetworkDbus<'_> {
                         AccessPoint {
                             ssid,
                             strength,
+                            max_bitrate,
+                            frequency,
                             state,
                             public,
                             working: false,
@@ -676,7 +723,28 @@ impl NetworkDbus<'_> {
             }
         }
 
-        wireless_access_points.sort_by(|a, b| b.strength.cmp(&a.strength));
+        let wireless_access_points = wireless_access_points
+            .into_iter()
+            .fold(HashMap::<String, AccessPoint>::new(), |mut acc, ap| {
+                if let Some(existing) = acc.get(&ap.ssid)
+                    && AccessPoint::is_better(
+                        existing.max_bitrate,
+                        existing.frequency,
+                        existing.strength,
+                        ap.max_bitrate,
+                        ap.frequency,
+                        ap.strength,
+                    )
+                {
+                    return acc;
+                }
+
+                acc.insert(ap.ssid.clone(), ap);
+                acc
+            })
+            .into_values()
+            .sorted_by(|a, b| b.strength.cmp(&a.strength))
+            .collect();
 
         Ok(wireless_access_points)
     }
@@ -1019,6 +1087,12 @@ pub trait WirelessDevice {
 pub trait AccessPoint {
     #[zbus(property)]
     fn ssid(&self) -> Result<Vec<u8>>;
+
+    #[zbus(property)]
+    fn max_bitrate(&self) -> Result<u32>;
+
+    #[zbus(property)]
+    fn frequency(&self) -> Result<u32>;
 
     #[zbus(property)]
     fn strength(&self) -> Result<u8>;
