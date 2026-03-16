@@ -316,6 +316,51 @@ impl Notifications {
             .cloned()
     }
 
+    fn clear_toasts(&mut self) -> bool {
+        let had_toasts = !self.toasts.is_empty();
+        self.toasts.clear();
+        had_toasts
+    }
+
+    fn remove_toast(&mut self, id: u32) -> bool {
+        let had_toasts = !self.toasts.is_empty();
+        self.toasts.retain(|&toast_id| toast_id != id);
+        had_toasts
+    }
+
+    fn remove_toasts(&mut self, ids: &[u32]) -> bool {
+        let had_toasts = !self.toasts.is_empty();
+        let ids: HashSet<u32> = ids.iter().copied().collect();
+        self.toasts.retain(|toast_id| !ids.contains(toast_id));
+        had_toasts
+    }
+
+    fn notification_ids_for_app(&self, app_name: &str) -> Vec<u32> {
+        self.notifications
+            .iter()
+            .filter(|notification| notification.app_name == app_name)
+            .map(|notification| notification.id)
+            .collect()
+    }
+
+    fn grouped_notifications_by_app(&self) -> Vec<(String, Vec<&Notification>)> {
+        let mut grouped: HashMap<String, Vec<&Notification>> = HashMap::new();
+        for notification in &self.notifications {
+            grouped
+                .entry(notification.app_name.clone())
+                .or_default()
+                .push(notification);
+        }
+
+        let mut grouped: Vec<(String, Vec<&Notification>)> = grouped.into_iter().collect();
+        grouped.sort_by(|(left, _), (right, _)| left.cmp(right));
+        grouped
+    }
+
+    fn icon_for_notification(&self, id: u32) -> &NotificationIcon {
+        self.icons.get(&id).unwrap_or(&NotificationIcon::Bell)
+    }
+
     fn hide_toasts_if_empty(&self, had_toasts: bool) -> Action {
         if had_toasts && self.toasts.is_empty() {
             Action::Hide(Task::none())
@@ -371,8 +416,7 @@ impl Notifications {
             }
             NotificationEvent::Closed(id) => {
                 let id = *id;
-                let was_showing = !self.toasts.is_empty();
-                self.toasts.retain(|&t| t != id);
+                let was_showing = self.remove_toast(id);
                 self.hide_toasts_if_empty(was_showing)
             }
         }
@@ -437,19 +481,13 @@ impl Notifications {
                 ))
             }
             Message::NotificationsCleared => {
-                let had_toasts = !self.toasts.is_empty();
-                self.toasts.clear();
+                let had_toasts = self.clear_toasts();
                 self.icons.clear();
                 self.hide_toasts_if_empty(had_toasts)
             }
             Message::ClearGroup(app_name) => {
                 let connection = self.connection.clone();
-                let notification_ids: Vec<u32> = self
-                    .notifications
-                    .iter()
-                    .filter(|n| n.app_name == app_name)
-                    .map(|n| n.id)
-                    .collect();
+                let notification_ids = self.notification_ids_for_app(&app_name);
 
                 Action::Task(Task::perform(
                     async move {
@@ -464,8 +502,7 @@ impl Notifications {
                 for id in &group_ids {
                     self.icons.remove(id);
                 }
-                let had_toasts = !self.toasts.is_empty();
-                self.toasts.retain(|t| !group_ids.contains(t));
+                let had_toasts = self.remove_toasts(&group_ids);
                 self.hide_toasts_if_empty(had_toasts)
             }
             Message::ToggleGroup(app_name) => {
@@ -475,14 +512,12 @@ impl Notifications {
                 Action::None
             }
             Message::ExpireToast(id) => {
-                let had_toasts = !self.toasts.is_empty();
-                self.toasts.retain(|&t| t != id);
+                let had_toasts = self.remove_toast(id);
                 self.hide_toasts_if_empty(had_toasts)
             }
             Message::CloseNotificationById(id) => {
                 let connection = self.connection.clone();
-                let had_toasts = !self.toasts.is_empty();
-                self.toasts.retain(|&t| t != id);
+                let had_toasts = self.remove_toast(id);
 
                 let task = close_notification_by_id_task(connection, id);
                 self.hide_toasts_if_empty_with_task(had_toasts, task)
@@ -490,8 +525,7 @@ impl Notifications {
             Message::DismissToast(id) => {
                 let connection = self.connection.clone();
                 let action_key = self.find_first_action_key(id);
-                let had_toasts = !self.toasts.is_empty();
-                self.toasts.retain(|&t| t != id);
+                let had_toasts = self.remove_toast(id);
                 let task = invoke_and_close_task(connection, id, action_key);
                 self.hide_toasts_if_empty_with_task(had_toasts, task)
             }
@@ -618,10 +652,7 @@ impl Notifications {
         };
 
         let notification_id = notification.id;
-        let icon = self
-            .icons
-            .get(&notification_id)
-            .unwrap_or(&NotificationIcon::Bell);
+        let icon = self.icon_for_notification(notification_id);
         let app_icon_button = button(notification_icon_with_frame(icon))
             .on_press(Message::CloseNotificationById(notification_id))
             .style(icon_button_style)
@@ -718,23 +749,12 @@ impl Notifications {
     }
 
     fn grouped_notifications<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
-        let mut grouped: HashMap<String, Vec<&Notification>> = HashMap::new();
-        for notification in &self.notifications {
-            grouped
-                .entry(notification.app_name.clone())
-                .or_default()
-                .push(notification);
-        }
-
-        let mut grouped: Vec<(String, Vec<&Notification>)> = grouped.into_iter().collect();
-        grouped.sort_by(|(left, _), (right, _)| left.cmp(right));
-
         let mut content = column!().spacing(theme.space.sm);
-        for (app_name, notifications) in grouped {
+        for (app_name, notifications) in self.grouped_notifications_by_app() {
             let is_expanded = self.expanded_groups.contains(&app_name);
             let app_icon: Element<'a, Message> = notifications
                 .first()
-                .and_then(|n| self.icons.get(&n.id))
+                .map(|notification| self.icon_for_notification(notification.id))
                 .map(notification_icon_with_frame)
                 .unwrap_or_else(|| icon(StaticIcon::Bell).size(ICON_SIZE).into());
 
