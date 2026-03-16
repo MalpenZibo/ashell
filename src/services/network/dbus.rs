@@ -678,11 +678,14 @@ impl NetworkDbus<'_> {
                     let max_bitrate = ap.max_bitrate().await.unwrap_or_default();
                     let frequency = ap.frequency().await.unwrap_or_default();
                     if let Some(access_point) = aps.get(&ssid)
-                        && (access_point.max_bitrate > max_bitrate
-                            || (access_point.max_bitrate == max_bitrate
-                                && (access_point.frequency > frequency
-                                    || (access_point.frequency == frequency
-                                        && access_point.strength > strength))))
+                        && AccessPoint::is_better(
+                            access_point.max_bitrate,
+                            access_point.frequency,
+                            access_point.strength,
+                            max_bitrate,
+                            frequency,
+                            strength,
+                        )
                     {
                         continue;
                     }
@@ -724,11 +727,14 @@ impl NetworkDbus<'_> {
             .into_iter()
             .fold(HashMap::<String, AccessPoint>::new(), |mut acc, ap| {
                 if let Some(existing) = acc.get(&ap.ssid)
-                    && (existing.max_bitrate > ap.max_bitrate
-                        || (existing.max_bitrate == ap.max_bitrate
-                            && (existing.frequency > ap.frequency
-                                || (existing.frequency == ap.frequency
-                                    && existing.strength > ap.strength))))
+                    && AccessPoint::is_better(
+                        existing.max_bitrate,
+                        existing.frequency,
+                        existing.strength,
+                        ap.max_bitrate,
+                        ap.frequency,
+                        ap.strength,
+                    )
                 {
                     return acc;
                 }

@@ -97,6 +97,24 @@ pub struct AccessPoint {
     pub device_path: OwnedObjectPath,
 }
 
+impl AccessPoint {
+    /// Returns true if the first access point (by max_bitrate, frequency, strength) is better than the second.
+    /// Comparison order: max_bitrate > frequency > strength (higher values are better)
+    #[inline]
+    pub fn is_better(
+        max_bitrate1: u32,
+        frequency1: u32,
+        strength1: u8,
+        max_bitrate2: u32,
+        frequency2: u32,
+        strength2: u8,
+    ) -> bool {
+        max_bitrate1 > max_bitrate2
+            || (max_bitrate1 == max_bitrate2
+                && (frequency1 > frequency2 || (frequency1 == frequency2 && strength1 > strength2)))
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Vpn {
     pub name: String,

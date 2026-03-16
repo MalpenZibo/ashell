@@ -166,11 +166,14 @@ impl super::NetworkBackend for IwdDbus<'_> {
 
             // maybe IWD will provide frequency and bitrate in the future
             if let Some(existing) = networks.get(&ssid)
-                && (existing.max_bitrate > access_point.max_bitrate
-                    || (existing.max_bitrate == access_point.max_bitrate
-                        && (existing.frequency > access_point.frequency
-                            || (existing.frequency == access_point.frequency
-                                && existing.strength > access_point.strength))))
+                && AccessPoint::is_better(
+                    existing.max_bitrate,
+                    existing.frequency,
+                    existing.strength,
+                    access_point.max_bitrate,
+                    access_point.frequency,
+                    access_point.strength,
+                )
             {
                 continue;
             }
@@ -818,11 +821,14 @@ impl IwdDbus<'_> {
             .into_iter()
             .fold(HashMap::<String, AccessPoint>::new(), |mut acc, ap| {
                 if let Some(existing) = acc.get(&ap.ssid)
-                    && (existing.max_bitrate > ap.max_bitrate
-                        || (existing.max_bitrate == ap.max_bitrate
-                            && (existing.frequency > ap.frequency
-                                || (existing.frequency == ap.frequency
-                                    && existing.strength > ap.strength))))
+                    && AccessPoint::is_better(
+                        existing.max_bitrate,
+                        existing.frequency,
+                        existing.strength,
+                        ap.max_bitrate,
+                        ap.frequency,
+                        ap.strength,
+                    )
                 {
                     return acc;
                 }
