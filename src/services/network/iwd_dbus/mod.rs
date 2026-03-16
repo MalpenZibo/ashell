@@ -790,7 +790,7 @@ impl IwdDbus<'_> {
                 });
             }
         }
-        aps.sort_by(|a, b| b.strength.cmp(&a.strength));
+        aps.sort_by_key(|b| std::cmp::Reverse(b.strength));
         Ok(aps)
     }
 
