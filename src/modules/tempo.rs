@@ -175,14 +175,13 @@ impl Tempo {
 
     fn time_str(&'_ self, format: &str, timezone_index: usize) -> String {
         // %Z prints timezone abbreviations; other specifiers (e.g., %z/%:z) only need numeric offsets https://docs.rs/chrono/latest/chrono/format/strftime/index.html#fn6
-        let format_requests_name = format.contains("%Z");
         let utc_now = self.date.with_timezone(&Utc);
 
         self.config
             .timezones
             .get(timezone_index)
             .and_then(|tz_name| {
-                if !format_requests_name && let Ok(offset) = tz_name.parse::<FixedOffset>() {
+                if let Ok(offset) = tz_name.parse::<FixedOffset>() {
                     return Some(
                         offset
                             .from_utc_datetime(&utc_now.naive_utc())
@@ -244,8 +243,30 @@ impl Tempo {
         .into()
     }
 
+    fn naive_date(&'_ self, timezone_index: usize) -> NaiveDate {
+        let utc_now = self.date.with_timezone(&Utc);
+
+        self.config
+            .timezones
+            .get(timezone_index)
+            .and_then(|tz_name| {
+                if let Ok(offset) = tz_name.parse::<FixedOffset>() {
+                    return Some(offset.from_utc_datetime(&utc_now.naive_utc()).date_naive());
+                }
+
+                if let Ok(tz) = tz_name.parse::<Tz>() {
+                    return Some(tz.from_utc_datetime(&utc_now.naive_utc()).date_naive());
+                }
+
+                None
+            })
+            .unwrap_or_else(|| self.date.date_naive())
+    }
+
     fn calendar<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
-        let selected_date = self.selected_date.unwrap_or(self.date.date_naive());
+        let selected_date = self
+            .selected_date
+            .unwrap_or(self.naive_date(self.current_timezone_index));
 
         let current_month = selected_date.month0();
         let first_day_month = selected_date.with_day0(0).unwrap_or_default();
@@ -323,7 +344,9 @@ impl Tempo {
                                         text(day.format("%d").to_string())
                                             .align_x(Horizontal::Center)
                                             .color_maybe({
-                                                if day == self.date.date_naive() {
+                                                if day
+                                                    == self.naive_date(self.current_timezone_index)
+                                                {
                                                     Some(theme.iced_theme.palette().success)
                                                 } else if day == selected_date {
                                                     Some(theme.iced_theme.palette().primary)
@@ -340,11 +363,13 @@ impl Tempo {
                                                 }
                                             }),
                                     )
-                                    .on_press_maybe(if day != self.date.date_naive() {
-                                        Some(Message::ChangeSelectDate(Some(day)))
-                                    } else {
-                                        None
-                                    })
+                                    .on_press_maybe(
+                                        if day != self.naive_date(self.current_timezone_index) {
+                                            Some(Message::ChangeSelectDate(Some(day)))
+                                        } else {
+                                            None
+                                        },
+                                    )
                                     .width(Length::Fill)
                                     .style(theme.ghost_button_style())
                                     .into()
