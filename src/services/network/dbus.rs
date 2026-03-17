@@ -676,7 +676,7 @@ impl NetworkDbus<'_> {
             }
         }
 
-        wireless_access_points.sort_by(|a, b| b.strength.cmp(&a.strength));
+        wireless_access_points.sort_by_key(|b| std::cmp::Reverse(b.strength));
 
         Ok(wireless_access_points)
     }
