@@ -13,6 +13,15 @@ pub struct Remote<Value> {
     timeout: Option<iced::task::Handle>,
 }
 
+impl<Value: Default> Remote<Value> {
+    pub fn new(value: Value) -> Self {
+        Self {
+            received: value,
+            ..Default::default()
+        }
+    }
+}
+
 impl<Value> Remote<Value>
 where
     Value: Copy + Send + 'static,
