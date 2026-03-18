@@ -153,6 +153,7 @@ impl Default for SystemInfoCpu {
 pub struct SystemInfoMemory {
     pub warn_threshold: u32,
     pub alert_threshold: u32,
+    pub display_mode: MemoryDisplayMode
 }
 
 impl Default for SystemInfoMemory {
@@ -160,6 +161,7 @@ impl Default for SystemInfoMemory {
         Self {
             warn_threshold: 70,
             alert_threshold: 85,
+            display_mode: MemoryDisplayMode::Percentage
         }
     }
 }
@@ -224,7 +226,7 @@ pub struct MemoryIndicatorConfig {
 #[derive(Clone, Debug, Deserialize)]
 pub enum SystemInfoIndicator {
     Cpu,
-    Memory(MemoryIndicatorConfig),
+    Memory,
     MemorySwap,
     Temperature,
     IpAddress,
@@ -249,7 +251,7 @@ impl Default for SystemInfoModuleConfig {
         Self {
             indicators: vec![
                 SystemInfoIndicator::Cpu,
-                SystemInfoIndicator::Memory(MemoryIndicatorConfig::default()),
+                SystemInfoIndicator::Memory,
                 SystemInfoIndicator::Temperature,
             ],
             cpu: SystemInfoCpu::default(),

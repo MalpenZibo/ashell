@@ -372,7 +372,7 @@ impl SystemInfo {
                 )),
                 None,
             )),
-            SystemInfoIndicator::Memory(memory_indicator) => match memory_indicator.mode {
+            SystemInfoIndicator::Memory => match self.config.memory.display_mode {
                 MemoryDisplayMode::Percentage => Some(Self::indicator_info_element(
                     theme,
                     StaticIcon::Mem,
@@ -387,7 +387,7 @@ impl SystemInfo {
                 MemoryDisplayMode::Fraction => Some(Self::indicator_info_element(
                     theme,
                     StaticIcon::Mem,
-                   &self.data.memory_usage.fraction,
+                    &self.data.memory_usage.fraction,
                     "",
                     None,
                     None,
