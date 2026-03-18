@@ -133,10 +133,10 @@ pub struct KeyboardLayoutModuleConfig {
 #[derive(Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct SystemInfoCpu {
-    #[serde(default)]
     pub warn_threshold: u32,
-    #[serde(default)]
     pub alert_threshold: u32,
+
+    pub display_mode: CpuDisplayMode
 }
 
 impl Default for SystemInfoCpu {
@@ -144,6 +144,7 @@ impl Default for SystemInfoCpu {
         Self {
             warn_threshold: 60,
             alert_threshold: 80,
+            display_mode: CpuDisplayMode::Percentage
         }
     }
 }
@@ -217,9 +218,10 @@ pub enum MemoryDisplayMode {
 }
 
 #[derive(Clone, Debug, Deserialize, Default)]
-pub struct MemoryIndicatorConfig {
-    #[serde(default)]
-    pub mode: MemoryDisplayMode
+pub enum CpuDisplayMode {
+    #[default]
+    Percentage,
+    Frequency
 }
 
 
