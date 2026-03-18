@@ -1,6 +1,6 @@
 use crate::{
     components::icons::{StaticIcon, icon},
-    config::{SystemInfoIndicator, SystemInfoModuleConfig},
+    config::{MemoryDisplayMode, SystemInfoIndicator, SystemInfoModuleConfig},
     menu::MenuSize,
     theme::AshellTheme,
 };
@@ -20,9 +20,14 @@ struct NetworkData {
     last_check: Instant,
 }
 
+struct MemoryUsage {
+    percentage: u32,
+    fraction: String
+}
+
 struct SystemInfoData {
     pub cpu_usage: u32,
-    pub memory_usage: u32,
+    pub memory_usage: MemoryUsage,
     pub memory_swap_usage: u32,
     pub temperature: Option<i32>,
     pub disks: Vec<(String, u32)>,
@@ -44,10 +49,19 @@ fn get_system_info(
     networks.refresh(true);
 
     let cpu_usage = system.global_cpu_usage().floor() as u32;
-    let memory_usage = ((system.total_memory() - system.available_memory()) as f32
-        / system.total_memory() as f32
-        * 100.) as u32;
+    let total_mem = system.total_memory();
+    let avail_mem = system.available_memory();
+    let used_mem = system.used_memory();
 
+    let to_gib = |bytes: u64| bytes as f32 / 1_073_741_824.0;
+
+    let memory_usage = MemoryUsage {
+        percentage: ((total_mem - avail_mem) as f32
+        / total_mem as f32
+        * 100.) as u32,
+
+        fraction: format!("{:.2}/{:.2} GiB", to_gib(used_mem), to_gib(total_mem))
+    };
     let memory_swap_usage = ((system.total_swap() - system.free_swap()) as f32
         / system.total_swap() as f32
         * 100.) as u32;
@@ -273,7 +287,7 @@ impl SystemInfo {
                         theme,
                         StaticIcon::Mem,
                         "Memory Usage".to_string(),
-                        format!("{}%", self.data.memory_usage),
+                        format!("{}", self.data.memory_usage.fraction),
                     ))
                     .push(Self::info_element(
                         theme,
@@ -358,17 +372,27 @@ impl SystemInfo {
                 )),
                 None,
             )),
-            SystemInfoIndicator::Memory => Some(Self::indicator_info_element(
-                theme,
-                StaticIcon::Mem,
-                self.data.memory_usage,
-                "%",
-                Some((
-                    self.config.memory.warn_threshold,
-                    self.config.memory.alert_threshold,
+            SystemInfoIndicator::Memory(memory_indicator) => match memory_indicator.mode {
+                MemoryDisplayMode::Percentage => Some(Self::indicator_info_element(
+                    theme,
+                    StaticIcon::Mem,
+                    self.data.memory_usage.percentage,
+                    "%",
+                    Some((
+                        self.config.memory.warn_threshold,
+                        self.config.memory.alert_threshold,
+                    )),
+                    None,
                 )),
-                None,
-            )),
+                MemoryDisplayMode::Fraction => Some(Self::indicator_info_element(
+                    theme,
+                    StaticIcon::Mem,
+                   &self.data.memory_usage.fraction,
+                    "",
+                    None,
+                    None,
+                )),
+            },
             SystemInfoIndicator::MemorySwap => Some(Self::indicator_info_element(
                 theme,
                 StaticIcon::Mem,

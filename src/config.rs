@@ -206,10 +206,25 @@ pub struct SystemInfoDiskIndicatorConfig {
     pub name: Option<String>,
 }
 
+
+#[derive(Clone, Debug, Deserialize, Default)]
+pub enum MemoryDisplayMode {
+    #[default]
+    Percentage,
+    Fraction
+}
+
+#[derive(Clone, Debug, Deserialize, Default)]
+pub struct MemoryIndicatorConfig {
+    #[serde(default)]
+    pub mode: MemoryDisplayMode
+}
+
+
 #[derive(Clone, Debug, Deserialize)]
 pub enum SystemInfoIndicator {
     Cpu,
-    Memory,
+    Memory(MemoryIndicatorConfig),
     MemorySwap,
     Temperature,
     IpAddress,
@@ -234,7 +249,7 @@ impl Default for SystemInfoModuleConfig {
         Self {
             indicators: vec![
                 SystemInfoIndicator::Cpu,
-                SystemInfoIndicator::Memory,
+                SystemInfoIndicator::Memory(MemoryIndicatorConfig::default()),
                 SystemInfoIndicator::Temperature,
             ],
             cpu: SystemInfoCpu::default(),
