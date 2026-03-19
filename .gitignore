@@ -15,3 +15,5 @@ vendor
 
 .worktrees
 
+.idea
+.vscode
