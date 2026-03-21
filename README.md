@@ -6,7 +6,7 @@
 
 ## What is ashell?
 
-ashell is a ready to go Wayland status bar for Hyprland and Niri.
+ashell is a ready to go Wayland status bar for Hyprland, Niri, and MangoWC.
 
 Feel free to fork this project and customize it for your needs or just open an
 issue to request a particular feature.
@@ -21,11 +21,11 @@ page on website
 - App Launcher button
 - Сlipboard button
 - OS Updates indicator
-- Hyprland/Niri Active Window
-- Hyprland/Niri Workspaces
+- Hyprland/Niri/MangoWC Active Window
+- Hyprland/Niri/MangoWC Workspaces
 - System Information (CPU, RAM, Temperature)
-- Hyprland/Niri Keyboard Layout
-- Hyprland Keyboard Submap
+- Hyprland/Niri/MangoWC Keyboard Layout
+- Hyprland/MangoWC Keyboard Submap
 - Tray
 - Date time
 - Privacy (check microphone, camera and screenshare usage)
