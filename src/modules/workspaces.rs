@@ -486,11 +486,11 @@ impl Workspaces {
                             let dynamic_width = w.id < 0 || has_icons;
 
                             let content: Element<'a, Message> = if has_icons {
-                                let children: Vec<Element<'a, Message>> =
-                                    std::iter::once(
-                                        text(w.name.as_str()).size(theme.font_size.xs).into(),
-                                    )
-                                    .chain(icons.iter().map(|i| match i {
+                                let children: Vec<Element<'a, Message>> = std::iter::once(
+                                    text(w.name.as_str()).size(theme.font_size.xs).into(),
+                                )
+                                .chain(icons.iter().map(|i| {
+                                    match i {
                                         XdgIcon::Svg(handle) => Svg::new(handle.clone())
                                             .height(Length::Fixed(theme.font_size.xs as f32))
                                             .width(Length::Shrink)
@@ -503,8 +503,9 @@ impl Workspaces {
                                             .size(theme.font_size.xs)
                                             .font(Font::with_name("Symbols Nerd Font"))
                                             .into(),
-                                    }))
-                                    .collect();
+                                    }
+                                }))
+                                .collect();
                                 Row::with_children(children)
                                     .spacing(theme.space.xxs)
                                     .align_y(alignment::Vertical::Center)
