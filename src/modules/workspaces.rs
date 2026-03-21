@@ -91,6 +91,7 @@ fn calculate_ui_workspaces(
         .unique_by(|w| w.id)
         .collect_vec();
 
+    let collect_icons = config.indicator_format == WorkspaceIndicatorFormat::NameAndIcons;
     let mut result: Vec<UiWorkspace> = Vec::with_capacity(workspaces.len());
     let (special, normal): (Vec<_>, Vec<_>) = workspaces.into_iter().partition(|w| w.id < 0);
 
@@ -116,8 +117,7 @@ fn calculate_ui_workspaces(
                     Displayed::Hidden
                 },
                 windows: w.windows,
-                icons: (config.indicator_format == WorkspaceIndicatorFormat::NameAndIcons)
-                    .then(|| resolve_workspace_icons(&w.window_classes)),
+                icons: collect_icons.then(|| resolve_workspace_icons(&w.window_classes)),
             });
         }
     }
@@ -166,8 +166,7 @@ fn calculate_ui_workspaces(
                     Displayed::Hidden
                 },
                 windows: vdesk.windows,
-                icons: (config.indicator_format == WorkspaceIndicatorFormat::NameAndIcons)
-                    .then(|| resolve_workspace_icons(&vdesk.window_classes)),
+                icons: collect_icons.then(|| resolve_workspace_icons(&vdesk.window_classes)),
             });
         });
     } else {
@@ -199,8 +198,7 @@ fn calculate_ui_workspaces(
                     (false, false) => Displayed::Hidden,
                 },
                 windows: w.windows,
-                icons: (config.indicator_format == WorkspaceIndicatorFormat::NameAndIcons)
-                    .then(|| resolve_workspace_icons(&w.window_classes)),
+                icons: collect_icons.then(|| resolve_workspace_icons(&w.window_classes)),
             });
         }
     }
