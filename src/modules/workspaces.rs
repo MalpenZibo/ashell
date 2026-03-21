@@ -1,15 +1,18 @@
 use crate::{
-    config::{WorkspaceVisibilityMode, WorkspacesModuleConfig},
+    config::{WorkspaceIndicatorFormat, WorkspaceVisibilityMode, WorkspacesModuleConfig},
     outputs::Outputs,
     services::{
         ReadOnlyService, Service, ServiceEvent,
-        compositor::{CompositorCommand, CompositorService, CompositorState},
+        compositor::{
+            CompositorCommand, CompositorService, CompositorState, set_collect_window_classes,
+        },
+        xdg_icons::{self, XdgIcon},
     },
     theme::AshellTheme,
 };
 use iced::{
-    Element, Length, Subscription, alignment,
-    widget::{MouseArea, Row, button, container, text},
+    Element, Font, Length, Subscription, alignment,
+    widget::{Image, MouseArea, Row, Svg, button, container, text},
     window::Id,
 };
 use itertools::Itertools;
@@ -31,12 +34,25 @@ pub struct UiWorkspace {
     pub monitor: String,
     pub displayed: Displayed,
     pub windows: u16,
+    pub icons: Option<Vec<XdgIcon>>,
 }
 
 #[derive(Debug, Clone)]
 struct VirtualDesktop {
     pub active: bool,
     pub windows: u16,
+    pub window_classes: Vec<String>,
+}
+
+fn resolve_workspace_icons(window_classes: &[String]) -> Vec<XdgIcon> {
+    window_classes
+        .iter()
+        .map(|class| class.to_lowercase())
+        .unique()
+        .map(|class_lower| {
+            xdg_icons::get_icon_from_name(&class_lower).unwrap_or_else(xdg_icons::fallback_icon)
+        })
+        .collect()
 }
 
 #[derive(Debug, Clone)]
@@ -75,6 +91,7 @@ fn calculate_ui_workspaces(
         .unique_by(|w| w.id)
         .collect_vec();
 
+    let collect_icons = config.indicator_format == WorkspaceIndicatorFormat::NameAndIcons;
     let mut result: Vec<UiWorkspace> = Vec::with_capacity(workspaces.len());
     let (special, normal): (Vec<_>, Vec<_>) = workspaces.into_iter().partition(|w| w.id < 0);
 
@@ -100,6 +117,7 @@ fn calculate_ui_workspaces(
                     Displayed::Hidden
                 },
                 windows: w.windows,
+                icons: collect_icons.then(|| resolve_workspace_icons(&w.window_classes)),
             });
         }
     }
@@ -115,12 +133,14 @@ fn calculate_ui_workspaces(
             if let Some(vdesk) = virtual_desktops.get_mut(&vdesk_id) {
                 vdesk.windows += w.windows;
                 vdesk.active = vdesk.active || is_active;
+                vdesk.window_classes.extend(w.window_classes.clone());
             } else {
                 virtual_desktops.insert(
                     vdesk_id,
                     VirtualDesktop {
                         active: is_active,
                         windows: w.windows,
+                        window_classes: w.window_classes.clone(),
                     },
                 );
             }
@@ -146,6 +166,7 @@ fn calculate_ui_workspaces(
                     Displayed::Hidden
                 },
                 windows: vdesk.windows,
+                icons: collect_icons.then(|| resolve_workspace_icons(&vdesk.window_classes)),
             });
         });
     } else {
@@ -177,6 +198,7 @@ fn calculate_ui_workspaces(
                     (false, false) => Displayed::Hidden,
                 },
                 windows: w.windows,
+                icons: collect_icons.then(|| resolve_workspace_icons(&w.window_classes)),
             });
         }
     }
@@ -219,6 +241,7 @@ fn calculate_ui_workspaces(
                 monitor: "".to_string(),
                 displayed: Displayed::Hidden,
                 windows: 0,
+                icons: None,
             });
         }
     }
@@ -242,6 +265,9 @@ fn calculate_ui_workspaces(
 
 impl Workspaces {
     pub fn new(config: WorkspacesModuleConfig) -> Self {
+        set_collect_window_classes(
+            config.indicator_format == WorkspaceIndicatorFormat::NameAndIcons,
+        );
         Self {
             config,
             service: None,
@@ -377,6 +403,9 @@ impl Workspaces {
                 iced::Task::none()
             }
             Message::ConfigReloaded(cfg) => {
+                set_collect_window_classes(
+                    cfg.indicator_format == WorkspaceIndicatorFormat::NameAndIcons,
+                );
                 self.config = cfg;
                 self.recalculate_ui_workspaces();
                 iced::Task::none()
@@ -433,48 +462,95 @@ impl Workspaces {
                                 w.monitor_id
                             };
 
+                            let is_active = w.displayed == Displayed::Active;
+
                             let color = color_index.map(|i| {
-                                if w.id > 0 {
-                                    theme.workspace_colors.get(i as usize).copied()
-                                } else {
+                                let colors = if is_active {
+                                    theme
+                                        .active_workspace_colors
+                                        .as_ref()
+                                        .unwrap_or(&theme.workspace_colors)
+                                } else if w.id < 0 {
                                     theme
                                         .special_workspace_colors
                                         .as_ref()
                                         .unwrap_or(&theme.workspace_colors)
-                                        .get(i as usize)
-                                        .copied()
-                                }
+                                } else {
+                                    &theme.workspace_colors
+                                };
+                                colors.get(i as usize).copied()
                             });
 
-                            Some(
-                                button(
-                                    container(text(w.name.as_str()).size(theme.font_size.xs))
-                                        .align_x(alignment::Horizontal::Center)
-                                        .align_y(alignment::Vertical::Center),
+                            let icons = w.icons.as_deref().unwrap_or(&[]);
+                            let has_icons = !icons.is_empty();
+                            let dynamic_width = w.id < 0 || has_icons;
+
+                            let content: Element<'a, Message> = if has_icons {
+                                let children: Vec<Element<'a, Message>> = std::iter::once(
+                                    text(w.name.as_str()).size(theme.font_size.xs).into(),
                                 )
-                                .style(theme.workspace_button_style(empty, color))
-                                .padding(if w.id < 0 {
-                                    match w.displayed {
-                                        Displayed::Active => [0, theme.space.md],
-                                        Displayed::Visible => [0, theme.space.sm],
-                                        Displayed::Hidden => [0, theme.space.xs],
+                                .chain(icons.iter().map(|i| {
+                                    match i {
+                                        XdgIcon::Svg(handle) => Svg::new(handle.clone())
+                                            .height(Length::Fixed(theme.font_size.xs as f32))
+                                            .width(Length::Shrink)
+                                            .into(),
+                                        XdgIcon::Image(handle) => Image::new(handle.clone())
+                                            .height(Length::Fixed(theme.font_size.xs as f32))
+                                            .width(Length::Shrink)
+                                            .into(),
+                                        XdgIcon::NerdFont(glyph) => text(*glyph)
+                                            .size(theme.font_size.xs)
+                                            .font(Font::with_name("Symbols Nerd Font"))
+                                            .into(),
                                     }
-                                } else {
-                                    [0, 0]
-                                })
-                                .on_press(if w.id > 0 {
-                                    Message::ChangeWorkspace(w.id)
-                                } else {
-                                    Message::ToggleSpecialWorkspace(w.id)
-                                })
-                                .width(match (w.id < 0, &w.displayed) {
-                                    (true, _) => Length::Shrink,
-                                    (_, Displayed::Active) => Length::Fixed(theme.space.xl as f32),
-                                    (_, Displayed::Visible) => Length::Fixed(theme.space.lg as f32),
-                                    (_, Displayed::Hidden) => Length::Fixed(theme.space.md as f32),
-                                })
-                                .height(theme.space.md)
-                                .into(),
+                                }))
+                                .collect();
+                                Row::with_children(children)
+                                    .spacing(theme.space.xxs)
+                                    .align_y(alignment::Vertical::Center)
+                                    .into()
+                            } else {
+                                container(text(w.name.as_str()).size(theme.font_size.xs))
+                                    .align_x(alignment::Horizontal::Center)
+                                    .align_y(alignment::Vertical::Center)
+                                    .into()
+                            };
+
+                            Some(
+                                button(content)
+                                    .style(theme.workspace_button_style(empty, color))
+                                    .padding(if dynamic_width {
+                                        match w.displayed {
+                                            Displayed::Active => [0, theme.space.md],
+                                            Displayed::Visible => [0, theme.space.sm],
+                                            Displayed::Hidden => [0, theme.space.xs],
+                                        }
+                                    } else {
+                                        [0, 0]
+                                    })
+                                    .on_press(if w.id > 0 {
+                                        Message::ChangeWorkspace(w.id)
+                                    } else {
+                                        Message::ToggleSpecialWorkspace(w.id)
+                                    })
+                                    .width(if dynamic_width {
+                                        Length::Shrink
+                                    } else {
+                                        match w.displayed {
+                                            Displayed::Active => {
+                                                Length::Fixed(theme.space.xl as f32)
+                                            }
+                                            Displayed::Visible => {
+                                                Length::Fixed(theme.space.lg as f32)
+                                            }
+                                            Displayed::Hidden => {
+                                                Length::Fixed(theme.space.md as f32)
+                                            }
+                                        }
+                                    })
+                                    .height(theme.space.md)
+                                    .into(),
                             )
                         } else {
                             None
