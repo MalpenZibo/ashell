@@ -3,7 +3,9 @@ use crate::{
     outputs::Outputs,
     services::{
         ReadOnlyService, Service, ServiceEvent,
-        compositor::{CompositorCommand, CompositorService, CompositorState},
+        compositor::{
+            CompositorCommand, CompositorService, CompositorState, set_collect_window_classes,
+        },
         xdg_icons::{self, XdgIcon},
     },
     theme::AshellTheme,
@@ -14,7 +16,7 @@ use iced::{
     window::Id,
 };
 use itertools::Itertools;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum Displayed {
@@ -32,7 +34,7 @@ pub struct UiWorkspace {
     pub monitor: String,
     pub displayed: Displayed,
     pub windows: u16,
-    pub icons: Vec<XdgIcon>,
+    pub icons: Option<Vec<XdgIcon>>,
 }
 
 #[derive(Debug, Clone)]
@@ -42,28 +44,15 @@ struct VirtualDesktop {
     pub window_classes: Vec<String>,
 }
 
-fn resolve_workspace_icons(
-    window_classes: &[String],
-    config: &WorkspacesModuleConfig,
-) -> Vec<XdgIcon> {
-    if config.indicator_format != WorkspaceIndicatorFormat::NameAndIcons {
-        return Vec::new();
-    }
-
-    let mut icons = Vec::new();
-    let mut seen = HashSet::new();
-
-    for class in window_classes {
-        let class_lower = class.to_lowercase();
-        if !seen.insert(class_lower.clone()) {
-            continue;
-        }
-        icons.push(
-            xdg_icons::get_icon_from_name(&class_lower).unwrap_or_else(xdg_icons::fallback_icon),
-        );
-    }
-
-    icons
+fn resolve_workspace_icons(window_classes: &[String]) -> Vec<XdgIcon> {
+    window_classes
+        .iter()
+        .map(|class| class.to_lowercase())
+        .unique()
+        .map(|class_lower| {
+            xdg_icons::get_icon_from_name(&class_lower).unwrap_or_else(xdg_icons::fallback_icon)
+        })
+        .collect()
 }
 
 #[derive(Debug, Clone)]
@@ -127,7 +116,8 @@ fn calculate_ui_workspaces(
                     Displayed::Hidden
                 },
                 windows: w.windows,
-                icons: resolve_workspace_icons(&w.window_classes, config),
+                icons: (config.indicator_format == WorkspaceIndicatorFormat::NameAndIcons)
+                    .then(|| resolve_workspace_icons(&w.window_classes)),
             });
         }
     }
@@ -176,7 +166,8 @@ fn calculate_ui_workspaces(
                     Displayed::Hidden
                 },
                 windows: vdesk.windows,
-                icons: resolve_workspace_icons(&vdesk.window_classes, config),
+                icons: (config.indicator_format == WorkspaceIndicatorFormat::NameAndIcons)
+                    .then(|| resolve_workspace_icons(&vdesk.window_classes)),
             });
         });
     } else {
@@ -208,7 +199,8 @@ fn calculate_ui_workspaces(
                     (false, false) => Displayed::Hidden,
                 },
                 windows: w.windows,
-                icons: resolve_workspace_icons(&w.window_classes, config),
+                icons: (config.indicator_format == WorkspaceIndicatorFormat::NameAndIcons)
+                    .then(|| resolve_workspace_icons(&w.window_classes)),
             });
         }
     }
@@ -251,7 +243,7 @@ fn calculate_ui_workspaces(
                 monitor: "".to_string(),
                 displayed: Displayed::Hidden,
                 windows: 0,
-                icons: Vec::new(),
+                icons: None,
             });
         }
     }
@@ -273,13 +265,11 @@ fn calculate_ui_workspaces(
     result
 }
 
-fn needs_window_classes(config: &WorkspacesModuleConfig) -> bool {
-    config.indicator_format == WorkspaceIndicatorFormat::NameAndIcons
-}
-
 impl Workspaces {
     pub fn new(config: WorkspacesModuleConfig) -> Self {
-        crate::services::compositor::set_collect_window_classes(needs_window_classes(&config));
+        set_collect_window_classes(
+            config.indicator_format == WorkspaceIndicatorFormat::NameAndIcons,
+        );
         Self {
             config,
             service: None,
@@ -415,7 +405,9 @@ impl Workspaces {
                 iced::Task::none()
             }
             Message::ConfigReloaded(cfg) => {
-                crate::services::compositor::set_collect_window_classes(needs_window_classes(&cfg));
+                set_collect_window_classes(
+                    cfg.indicator_format == WorkspaceIndicatorFormat::NameAndIcons,
+                );
                 self.config = cfg;
                 self.recalculate_ui_workspaces();
                 iced::Task::none()
@@ -475,7 +467,6 @@ impl Workspaces {
                             let is_active = w.displayed == Displayed::Active;
 
                             let color = color_index.map(|i| {
-                                let i = i as usize;
                                 let colors = if is_active {
                                     theme
                                         .active_workspace_colors
@@ -489,17 +480,19 @@ impl Workspaces {
                                 } else {
                                     &theme.workspace_colors
                                 };
-                                colors.get(i).copied()
+                                colors.get(i as usize).copied()
                             });
 
-                            let has_icons = !w.icons.is_empty();
+                            let icons = w.icons.as_deref().unwrap_or(&[]);
+                            let has_icons = !icons.is_empty();
                             let dynamic_width = w.id < 0 || has_icons;
 
                             let content: Element<'a, Message> = if has_icons {
-                                let mut children: Vec<Element<'a, Message>> =
-                                    vec![text(w.name.as_str()).size(theme.font_size.xs).into()];
-                                children.extend(w.icons.iter().map(|i| {
-                                    match i {
+                                let children: Vec<Element<'a, Message>> =
+                                    std::iter::once(
+                                        text(w.name.as_str()).size(theme.font_size.xs).into(),
+                                    )
+                                    .chain(icons.iter().map(|i| match i {
                                         XdgIcon::Svg(handle) => Svg::new(handle.clone())
                                             .height(Length::Fixed(theme.font_size.xs as f32))
                                             .width(Length::Shrink)
@@ -512,8 +505,8 @@ impl Workspaces {
                                             .size(theme.font_size.xs)
                                             .font(Font::with_name("Symbols Nerd Font"))
                                             .into(),
-                                    }
-                                }));
+                                    }))
+                                    .collect();
                                 Row::with_children(children)
                                     .spacing(theme.space.xxs)
                                     .align_y(alignment::Vertical::Center)
