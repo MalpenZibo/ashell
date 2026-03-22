@@ -182,7 +182,7 @@ impl Default for SystemInfoTemperature {
             warn_threshold: 60,
             alert_threshold: 80,
             sensor: "acpitz temp1".to_string(),
-            display_mode: TemperatureDisplayMode::Celcius,
+            display_mode: TemperatureDisplayMode::Celsius,
         }
     }
 }
@@ -229,8 +229,8 @@ pub enum CpuDisplayMode {
 #[derive(Clone, Debug, Deserialize, Default, PartialEq)]
 pub enum TemperatureDisplayMode {
     #[default]
-    Celcius,
-    Farenheit
+    Celsius,
+    Fahrenheit
 }
 
 #[derive(Clone, Debug, Deserialize)]

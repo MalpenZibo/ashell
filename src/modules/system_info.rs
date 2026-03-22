@@ -336,8 +336,8 @@ impl SystemInfo {
                                 StaticIcon::Temp,
                                 "Temperature".to_string(),
                                 match self.config.temperature.display_mode {
-                                    TemperatureDisplayMode::Celcius => format!("{cel}°C"),
-                                    TemperatureDisplayMode::Farenheit => format!("{}°F", self.data.temperature.fahrenheit)
+                                    TemperatureDisplayMode::Celsius => format!("{cel}°C"),
+                                    TemperatureDisplayMode::Fahrenheit => format!("{}°F", self.data.temperature.fahrenheit)
                                 }
                             )
                         })
@@ -462,8 +462,8 @@ impl SystemInfo {
                     theme,
                     StaticIcon::Temp,
                     match self.config.temperature.display_mode {
-                        TemperatureDisplayMode::Celcius => ( cel, "°C" ),
-                        TemperatureDisplayMode::Farenheit => ( self.data.temperature.fahrenheit, "°F" )
+                        TemperatureDisplayMode::Celsius => ( cel, "°C" ),
+                        TemperatureDisplayMode::Fahrenheit => ( self.data.temperature.fahrenheit, "°F" )
                     },
                     Some((
                         cel,
