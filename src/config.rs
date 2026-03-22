@@ -173,6 +173,7 @@ pub struct SystemInfoTemperature {
     pub warn_threshold: i32,
     pub alert_threshold: i32,
     pub sensor: String,
+    pub display_mode: TemperatureDisplayMode,
 }
 
 impl Default for SystemInfoTemperature {
@@ -181,6 +182,7 @@ impl Default for SystemInfoTemperature {
             warn_threshold: 60,
             alert_threshold: 80,
             sensor: "acpitz temp1".to_string(),
+            display_mode: TemperatureDisplayMode::Celcius,
         }
     }
 }
@@ -224,6 +226,12 @@ pub enum CpuDisplayMode {
     Frequency
 }
 
+#[derive(Clone, Debug, Deserialize, Default, PartialEq)]
+pub enum TemperatureDisplayMode {
+    #[default]
+    Celcius,
+    Farenheit
+}
 
 #[derive(Clone, Debug, Deserialize)]
 pub enum SystemInfoIndicator {

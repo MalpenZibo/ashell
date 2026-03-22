@@ -1,8 +1,8 @@
 use crate::{
     components::icons::{StaticIcon, icon},
-    config::{CpuDisplayMode, MemoryDisplayMode, SystemInfoIndicator, SystemInfoModuleConfig},
+    config::{CpuDisplayMode, MemoryDisplayMode, TemperatureDisplayMode, SystemInfoIndicator, SystemInfoModuleConfig},
     menu::MenuSize,
-    theme::AshellTheme,
+    theme::AshellTheme, utils,
 };
 use iced::{
     Alignment, Element, Length, Subscription, Theme,
@@ -29,11 +29,16 @@ struct CpuUsage {
     frequency: f32
 }
 
+struct Temperature {
+    celsius: Option<i32>,
+    fahrenheit: i32
+}
+
 struct SystemInfoData {
     pub cpu_usage: CpuUsage,
     pub memory_usage: MemoryUsage,
     pub memory_swap_usage: u32,
-    pub temperature: Option<i32>,
+    pub temperature: Temperature,
     pub disks: Vec<(String, u32)>,
     pub network: Option<NetworkData>,
 }
@@ -52,36 +57,39 @@ fn get_system_info(
     disks.refresh(true);
     networks.refresh(true);
 
-    let floor = |num: f32, dp: i32| (num * 10_f32.powi(dp)).floor() / 10_f32.powi(dp);
-
     let cpu_freq_mhz = system.cpus()[0].frequency() as f32;
 
     let cpu_usage = CpuUsage {
         percentage: system.global_cpu_usage() as u32,
-        frequency: floor(cpu_freq_mhz / 1000.0, 2),
+        frequency: utils::floor_dp(cpu_freq_mhz / 1000.0, 2),
     };
 
     let total_mem = system.total_memory();
     let avail_mem = system.available_memory();
     let used_mem = system.used_memory();
 
-    let to_gib = |bytes: u64| bytes as f32 / 1_073_741_824.0;
 
     let memory_usage = MemoryUsage {
         percentage: ((total_mem - avail_mem) as f32
         / total_mem as f32
         * 100.) as u32,
 
-        fraction: format!("{:.2}/{:.2}", to_gib(used_mem), to_gib(total_mem))
+        fraction: format!("{:.2}/{:.2}", utils::bytes_to_gib(used_mem), utils::bytes_to_gib(total_mem))
     };
+
     let memory_swap_usage = ((system.total_swap() - system.free_swap()) as f32
         / system.total_swap() as f32
         * 100.) as u32;
 
-    let temperature = components
+    let temperature_cel = components
         .iter()
         .find(|c| c.label() == temperature_sensor)
         .and_then(|c| c.temperature().map(|t| t as i32));
+    
+    let temperature = Temperature {
+        celsius: temperature_cel,
+        fahrenheit: temperature_cel.map(utils::celsius_to_fahrenheit).unwrap_or(0)
+    };
 
     let disks = disks
         .into_iter()
@@ -314,14 +322,19 @@ impl SystemInfo {
                         "Swap memory Usage".to_string(),
                         format!("{}%", self.data.memory_swap_usage),
                     ))
-                    .push_maybe(self.data.temperature.map(|temp| {
-                        Self::info_element(
-                            theme,
-                            StaticIcon::Temp,
-                            "Temperature".to_string(),
-                            format!("{temp}°C"),
-                        )
-                    }))
+                    .push_maybe(
+                        self.data.temperature.celsius.map(|cel| {
+                            Self::info_element(
+                                theme,
+                                StaticIcon::Temp,
+                                "Temperature".to_string(),
+                                match self.config.temperature.display_mode {
+                                    TemperatureDisplayMode::Celcius => format!("{cel}°C"),
+                                    TemperatureDisplayMode::Farenheit => format!("{}°F", self.data.temperature.fahrenheit)
+                                }
+                            )
+                        })
+                    )
                     .push(
                         Column::with_children(
                             self.data
@@ -429,13 +442,17 @@ impl SystemInfo {
                 )),
                 Some("swap"),
             )),
-            SystemInfoIndicator::Temperature => self.data.temperature.map(|temperature| {
+
+            SystemInfoIndicator::Temperature => self.data.temperature.celsius.map(|cel| {
                 Self::indicator_info_element(
                     theme,
                     StaticIcon::Temp,
-                    ( temperature, "°C" ),
+                    match self.config.temperature.display_mode {
+                        TemperatureDisplayMode::Celcius => ( cel, "°C" ),
+                        TemperatureDisplayMode::Farenheit => ( self.data.temperature.fahrenheit, "°F" )
+                    },
                     Some((
-                        temperature,
+                        cel,
                         self.config.temperature.warn_threshold,
                         self.config.temperature.alert_threshold,
                     )),
