@@ -37,7 +37,7 @@ struct Temperature {
 struct SystemInfoData {
     pub cpu_usage: CpuUsage,
     pub memory_usage: MemoryUsage,
-    pub memory_swap_usage: u32,
+    pub memory_swap_usage: MemoryUsage,
     pub temperature: Temperature,
     pub disks: Vec<(String, u32)>,
     pub network: Option<NetworkData>,
@@ -77,9 +77,13 @@ fn get_system_info(
         fraction: format!("{:.2}/{:.2}", utils::bytes_to_gib(used_mem), utils::bytes_to_gib(total_mem))
     };
 
-    let memory_swap_usage = ((system.total_swap() - system.free_swap()) as f32
-        / system.total_swap() as f32
-        * 100.) as u32;
+    let total_swap = system.total_swap();
+    let free_swap = system.free_swap();
+
+    let memory_swap_usage = MemoryUsage {
+        percentage: ((total_swap - free_swap) as f32 / total_swap as f32 * 100.) as u32,
+        fraction: format!("{:.2}/{:.2}", utils::bytes_to_gib(total_swap - free_swap), utils::bytes_to_gib(total_swap))
+    };
 
     let temperature_cel = components
         .iter()
@@ -320,7 +324,10 @@ impl SystemInfo {
                         theme,
                         StaticIcon::Mem,
                         "Swap memory Usage".to_string(),
-                        format!("{}%", self.data.memory_swap_usage),
+                        match self.config.memory.display_mode {
+                            MemoryDisplayMode::Percentage => format!("{}%", self.data.memory_swap_usage.percentage),
+                            MemoryDisplayMode::Fraction => format!("{} GiB", self.data.memory_swap_usage.fraction),
+                        }
                     ))
                     .push_maybe(
                         self.data.temperature.celsius.map(|cel| {
@@ -434,12 +441,19 @@ impl SystemInfo {
             SystemInfoIndicator::MemorySwap => Some(Self::indicator_info_element(
                 theme,
                 StaticIcon::Mem,
-                ( self.data.memory_swap_usage, "%" ),
-                Some((
-                    self.data.memory_swap_usage,
-                    self.config.memory.warn_threshold,
-                    self.config.memory.alert_threshold,
-                )),
+                match self.config.memory.display_mode {
+                    MemoryDisplayMode::Percentage => ( self.data.memory_swap_usage.percentage.to_string(), "%" ),
+                    MemoryDisplayMode::Fraction => ( self.data.memory_swap_usage.fraction.to_string(), "" ),
+                },
+                match self.config.memory.display_mode {
+                    MemoryDisplayMode::Percentage => Some((
+                        self.data.memory_usage.percentage,
+                        
+                        self.config.memory.warn_threshold,
+                        self.config.memory.alert_threshold,
+                    )),
+                    MemoryDisplayMode::Fraction => None
+                },
                 Some("swap"),
             )),
 
