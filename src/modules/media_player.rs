@@ -41,6 +41,18 @@ where
     Subscription::run_with_id(
         id,
         channel(16, async move |mut output| {
+            if tokio::process::Command::new("cava")
+                .arg("--version")
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status()
+                .await
+                .is_err()
+            {
+                log::warn!("cava: not found, visualizer disabled");
+                return;
+            }
+
             let mono_opt = match mono_option {
                 VisualizerMonoOption::Average => "average",
                 VisualizerMonoOption::Left => "left",
