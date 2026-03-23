@@ -1,6 +1,9 @@
 use crate::{
     components::icons::{IconButtonSize, StaticIcon, icon, icon_button},
-    config::{MediaPlayerFormat, MediaPlayerModuleConfig, VisualizerChannels, VisualizerColor, VisualizerMonoOption},
+    config::{
+        MediaPlayerFormat, MediaPlayerModuleConfig, VisualizerChannels, VisualizerColor,
+        VisualizerMonoOption,
+    },
     menu::MenuSize,
     services::{
         ReadOnlyService, Service, ServiceEvent,
@@ -106,7 +109,11 @@ where
 
 enum VisualizerFill {
     Flat(Color),
-    Gradient { low: Color, mid: Option<Color>, high: Color },
+    Gradient {
+        low: Color,
+        mid: Option<Color>,
+        high: Color,
+    },
 }
 
 struct VisualizerCanvas {
@@ -150,13 +157,28 @@ impl<M> canvas::Program<M> for VisualizerCanvas {
                     use iced::gradient::ColorStop;
                     let stops: &[ColorStop] = match mid {
                         Some(mid) => &[
-                            ColorStop { offset: 0.0, color: *high },
-                            ColorStop { offset: 0.5, color: *mid },
-                            ColorStop { offset: 1.0, color: *low },
+                            ColorStop {
+                                offset: 0.0,
+                                color: *high,
+                            },
+                            ColorStop {
+                                offset: 0.5,
+                                color: *mid,
+                            },
+                            ColorStop {
+                                offset: 1.0,
+                                color: *low,
+                            },
                         ],
                         None => &[
-                            ColorStop { offset: 0.0, color: *high },
-                            ColorStop { offset: 1.0, color: *low },
+                            ColorStop {
+                                offset: 0.0,
+                                color: *high,
+                            },
+                            ColorStop {
+                                offset: 1.0,
+                                color: *low,
+                            },
                         ],
                     };
                     let grad = canvas::gradient::Linear::new(
@@ -234,7 +256,11 @@ impl MediaPlayer {
                     let is_playing = self
                         .service
                         .as_ref()
-                        .and_then(|s| s.players().first().map(|p| p.state == PlaybackStatus::Playing))
+                        .and_then(|s| {
+                            s.players()
+                                .first()
+                                .map(|p| p.state == PlaybackStatus::Playing)
+                        })
                         .unwrap_or(false);
                     if !is_playing {
                         self.bars.clear();
@@ -434,7 +460,9 @@ impl MediaPlayer {
                         VisualizerColor::Primary => VisualizerFill::Flat(palette.primary),
                         VisualizerColor::Success => VisualizerFill::Flat(palette.success),
                         VisualizerColor::Danger => VisualizerFill::Flat(palette.danger),
-                        VisualizerColor::Hex(h) => VisualizerFill::Flat(Color::from_rgb8(h.r, h.g, h.b)),
+                        VisualizerColor::Hex(h) => {
+                            VisualizerFill::Flat(Color::from_rgb8(h.r, h.g, h.b))
+                        }
                         VisualizerColor::Gradient { low, mid, high } => VisualizerFill::Gradient {
                             low: Color::from_rgb8(low.r, low.g, low.b),
                             mid: mid.map(|m| Color::from_rgb8(m.r, m.g, m.b)),
@@ -481,12 +509,14 @@ impl MediaPlayer {
                 Message::Bars,
             )
         });
-        Subscription::batch([
-            Some(MprisPlayerService::subscribe().map(Message::Event)),
-            cava,
-        ]
-        .into_iter()
-        .flatten())
+        Subscription::batch(
+            [
+                Some(MprisPlayerService::subscribe().map(Message::Event)),
+                cava,
+            ]
+            .into_iter()
+            .flatten(),
+        )
     }
 
     fn sync_cover_handles(&mut self) {

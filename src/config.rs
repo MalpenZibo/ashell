@@ -409,7 +409,6 @@ pub struct SettingsCustomButton {
     pub tooltip: Option<String>,
 }
 
-
 #[derive(Deserialize, Copy, Clone, Default, PartialEq, Eq, Debug)]
 pub enum MediaPlayerFormat {
     Icon,
