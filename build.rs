@@ -88,7 +88,7 @@ fn subset_text(input: &str, text: &str, output_path: &str) -> Result<(), Box<dyn
     glyphs.insert(0, Some(notdef));
 
     let mut glyphs: Vec<RawGlyph<()>> = glyphs.into_iter().flatten().collect();
-    glyphs.sort_by(|a, b| a.glyph_index.cmp(&b.glyph_index));
+    glyphs.sort_by_key(|a| a.glyph_index);
     let mut glyph_ids = glyphs
         .iter()
         .map(|glyph| glyph.glyph_index)

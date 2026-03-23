@@ -415,14 +415,7 @@ impl Settings {
                     )
                 };
 
-                // Batch both tasks to run in parallel
-                let brightness_task = match self.brightness.update(brightness::Message::MenuOpened)
-                {
-                    brightness::Action::None => Task::none(),
-                    brightness::Action::Command(task) => task.map(Message::Brightness),
-                };
-
-                Action::Command(Task::batch([custom_buttons_task, brightness_task]))
+                Action::Command(custom_buttons_task)
             }
             Message::ConfigReloaded(config) => {
                 self.lock_cmd = config.lock_cmd;
