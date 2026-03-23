@@ -1,6 +1,6 @@
 use crate::{
     components::icons::{IconButtonSize, StaticIcon, icon, icon_button},
-    config::{MediaPlayerFormat, MediaPlayerModuleConfig},
+    config::{MediaPlayerFormat, MediaPlayerModuleConfig, VisualizerChannels, VisualizerColor, VisualizerMonoOption},
     menu::MenuSize,
     services::{
         ReadOnlyService, Service, ServiceEvent,
@@ -12,11 +12,171 @@ use crate::{
     utils::truncate_text,
 };
 use iced::{
-    Background, Border, Element, Length, Subscription, Task, Theme,
+    Background, Border, Color, Element, Length, Subscription, Task, Theme,
     alignment::Vertical,
-    widget::{column, container, horizontal_rule, horizontal_space, image, row, slider, text},
+    futures::SinkExt,
+    stream::channel,
+    widget::{
+        canvas::{self, Canvas, Fill, Frame, Geometry, Path},
+        column, container, horizontal_rule, horizontal_space, image, row, slider, text,
+    },
 };
 use std::collections::{HashMap, HashSet};
+
+fn cava_subscription<M, F>(
+    id: impl std::hash::Hash + 'static,
+    bar_count: u32,
+    framerate: u32,
+    channels: VisualizerChannels,
+    mono_option: VisualizerMonoOption,
+    make_msg: F,
+) -> Subscription<M>
+where
+    M: Send + 'static,
+    F: Fn(Vec<f32>) -> M + Send + 'static,
+{
+    Subscription::run_with_id(
+        id,
+        channel(16, async move |mut output| {
+            let mono_opt = match mono_option {
+                VisualizerMonoOption::Average => "average",
+                VisualizerMonoOption::Left => "left",
+                VisualizerMonoOption::Right => "right",
+            };
+            let channels_str = match channels {
+                VisualizerChannels::Stereo => "stereo",
+                VisualizerChannels::Mono => "mono",
+            };
+            let cava_config = format!(
+                "[general]\nbars = {bar_count}\nframerate = {framerate}\n\n\
+                 [output]\nmethod = raw\nraw_target = /dev/stdout\ndata_format = ascii\nascii_max_range = 1000\n\
+                 channels = {channels_str}\nmono_option = {mono_opt}\n\n\
+                 [smoothing]\nmonstercat = 1\n"
+            );
+
+            let config_path = std::env::temp_dir().join("ashell_cava.cfg");
+            if let Err(e) = tokio::fs::write(&config_path, &cava_config).await {
+                log::error!("cava: failed to write config: {e}");
+                return;
+            }
+
+            let mut child = match tokio::process::Command::new("cava")
+                .arg("-p")
+                .arg(&config_path)
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::null())
+                .spawn()
+            {
+                Ok(c) => c,
+                Err(e) => {
+                    log::error!("cava: failed to spawn process: {e}");
+                    return;
+                }
+            };
+
+            let stdout = match child.stdout.take() {
+                Some(s) => s,
+                None => {
+                    log::error!("cava: no stdout");
+                    return;
+                }
+            };
+
+            use tokio::io::{AsyncBufReadExt, BufReader};
+            let reader = BufReader::new(stdout);
+            let mut lines = reader.lines();
+
+            while let Ok(Some(line)) = lines.next_line().await {
+                let bars: Vec<f32> = line
+                    .split(';')
+                    .filter(|s| !s.is_empty())
+                    .filter_map(|s| s.trim().parse::<f32>().ok())
+                    .map(|v| v / 1000.0)
+                    .collect();
+
+                if !bars.is_empty() {
+                    let _ = output.send(make_msg(bars)).await;
+                }
+            }
+
+            let _ = child.kill().await;
+        }),
+    )
+}
+
+enum VisualizerFill {
+    Flat(Color),
+    Gradient { low: Color, mid: Option<Color>, high: Color },
+}
+
+struct VisualizerCanvas {
+    bars: Vec<f32>,
+    bar_count: usize,
+    fill: VisualizerFill,
+}
+
+impl<M> canvas::Program<M> for VisualizerCanvas {
+    type State = ();
+
+    fn draw(
+        &self,
+        _state: &Self::State,
+        renderer: &iced::Renderer,
+        _theme: &iced::Theme,
+        bounds: iced::Rectangle,
+        _cursor: iced::mouse::Cursor,
+    ) -> Vec<Geometry> {
+        let mut frame = Frame::new(renderer, bounds.size());
+
+        if self.bars.is_empty() {
+            return vec![frame.into_geometry()];
+        }
+
+        let n = self.bar_count.min(self.bars.len());
+        let bar_width = (bounds.width / (n as f32 * 4.0 / 3.0)).max(1.0);
+        let gap = (bar_width / 3.0).max(1.0);
+        let step = bar_width + gap;
+
+        for i in 0..n {
+            let height = self.bars[i] * bounds.height;
+            let x = i as f32 * step;
+            let y = bounds.height - height;
+
+            let rect = Path::rectangle(iced::Point::new(x, y), iced::Size::new(bar_width, height));
+
+            let fill: Fill = match &self.fill {
+                VisualizerFill::Flat(color) => (*color).into(),
+                VisualizerFill::Gradient { low, mid, high } => {
+                    use iced::gradient::ColorStop;
+                    let stops: &[ColorStop] = match mid {
+                        Some(mid) => &[
+                            ColorStop { offset: 0.0, color: *high },
+                            ColorStop { offset: 0.5, color: *mid },
+                            ColorStop { offset: 1.0, color: *low },
+                        ],
+                        None => &[
+                            ColorStop { offset: 0.0, color: *high },
+                            ColorStop { offset: 1.0, color: *low },
+                        ],
+                    };
+                    let grad = canvas::gradient::Linear::new(
+                        iced::Point::new(x, 0.0),
+                        iced::Point::new(x, bounds.height),
+                    )
+                    .add_stops(stops.iter().copied());
+                    Fill {
+                        style: canvas::Style::Gradient(canvas::Gradient::Linear(grad)),
+                        ..Fill::default()
+                    }
+                }
+            };
+
+            frame.fill(&rect, fill);
+        }
+
+        vec![frame.into_geometry()]
+    }
+}
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -26,6 +186,7 @@ pub enum Message {
     SetVolume(String, f64),
     Event(ServiceEvent<MprisPlayerService>),
     ConfigReloaded(MediaPlayerModuleConfig),
+    Bars(Vec<f32>),
 }
 
 pub enum Action {
@@ -37,6 +198,7 @@ pub struct MediaPlayer {
     config: MediaPlayerModuleConfig,
     service: Option<MprisPlayerService>,
     covers: HashMap<String, image::Handle>,
+    bars: Vec<f32>,
 }
 
 impl MediaPlayer {
@@ -45,6 +207,7 @@ impl MediaPlayer {
             config,
             service: None,
             covers: HashMap::new(),
+            bars: vec![],
         }
     }
 
@@ -68,12 +231,24 @@ impl MediaPlayer {
                         service.update(d);
                     }
                     self.sync_cover_handles();
+                    let is_playing = self
+                        .service
+                        .as_ref()
+                        .and_then(|s| s.players().first().map(|p| p.state == PlaybackStatus::Playing))
+                        .unwrap_or(false);
+                    if !is_playing {
+                        self.bars.clear();
+                    }
                     Action::None
                 }
                 ServiceEvent::Error(_) => Action::None,
             },
             Message::ConfigReloaded(c) => {
                 self.config = c;
+                Action::None
+            }
+            Message::Bars(bars) => {
+                self.bars = bars;
                 Action::None
             }
         }
@@ -247,8 +422,41 @@ impl MediaPlayer {
                         .clip(true)
                     });
 
+                let visualizer = (self.config.show_visualizer
+                    && player.state == PlaybackStatus::Playing
+                    && !self.bars.is_empty())
+                .then(|| {
+                    let bar_count = self.config.visualizer_bar_count as usize;
+                    let padding = self.config.visualizer_padding;
+                    let palette = theme.get_theme().palette();
+                    let fill = match &self.config.visualizer_color {
+                        VisualizerColor::Text => VisualizerFill::Flat(palette.text),
+                        VisualizerColor::Primary => VisualizerFill::Flat(palette.primary),
+                        VisualizerColor::Success => VisualizerFill::Flat(palette.success),
+                        VisualizerColor::Danger => VisualizerFill::Flat(palette.danger),
+                        VisualizerColor::Hex(h) => VisualizerFill::Flat(Color::from_rgb8(h.r, h.g, h.b)),
+                        VisualizerColor::Gradient { low, mid, high } => VisualizerFill::Gradient {
+                            low: Color::from_rgb8(low.r, low.g, low.b),
+                            mid: mid.map(|m| Color::from_rgb8(m.r, m.g, m.b)),
+                            high: Color::from_rgb8(high.r, high.g, high.b),
+                        },
+                    };
+                    container(
+                        Canvas::new(VisualizerCanvas {
+                            bars: self.bars.clone(),
+                            bar_count,
+                            fill,
+                        })
+                        .width(Length::Fixed((bar_count * 4).max(20) as f32))
+                        .height(Length::Fill),
+                    )
+                    .padding([padding, 0])
+                    .height(Length::Fill)
+                });
+
                 row![icon(StaticIcon::MusicNote)]
                     .push_maybe(title)
+                    .push_maybe(visualizer)
                     .align_y(Vertical::Center)
                     .spacing(theme.space.xs)
                     .into()
@@ -257,7 +465,28 @@ impl MediaPlayer {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        MprisPlayerService::subscribe().map(Message::Event)
+        let cava = self.config.show_visualizer.then(|| {
+            cava_subscription(
+                (
+                    "media_player_cava",
+                    self.config.visualizer_bar_count,
+                    self.config.visualizer_framerate,
+                    self.config.visualizer_channels,
+                    self.config.visualizer_mono_option,
+                ),
+                self.config.visualizer_bar_count,
+                self.config.visualizer_framerate,
+                self.config.visualizer_channels,
+                self.config.visualizer_mono_option,
+                Message::Bars,
+            )
+        });
+        Subscription::batch([
+            Some(MprisPlayerService::subscribe().map(Message::Event)),
+            cava,
+        ]
+        .into_iter()
+        .flatten())
     }
 
     fn sync_cover_handles(&mut self) {
