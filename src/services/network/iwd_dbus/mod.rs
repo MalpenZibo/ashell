@@ -13,6 +13,7 @@ pub mod simple_configuration;
 pub mod station;
 pub mod station_diagnostic;
 
+use std::cmp::Reverse;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 
 // source for dbus: https://git.kernel.org/pub/scm/network/wireless/iwd.git/tree/doc
@@ -840,7 +841,7 @@ impl IwdDbus<'_> {
             .collect::<Vec<_>>();
 
         let mut aps = aps;
-        aps.sort_by(|a, b| b.strength.cmp(&a.strength));
+        aps.sort_by_key(|b| Reverse(b.strength));
         Ok(aps)
     }
 
