@@ -1,13 +1,13 @@
 use crate::{
-    components::icons::{StaticIcon, icon},
+    components::icons::{icon, StaticIcon},
     config::{SystemInfoIndicator, SystemInfoModuleConfig},
     menu::MenuSize,
     theme::AshellTheme,
 };
 use iced::{
-    Alignment, Element, Length, Subscription, Theme,
     time::every,
-    widget::{Column, Row, column, container, horizontal_rule, row, text},
+    widget::{column, container, horizontal_rule, row, text, Column, Row},
+    Alignment, Element, Length, Subscription, Theme,
 };
 use itertools::Itertools;
 use std::time::{Duration, Instant};
@@ -35,6 +35,7 @@ fn get_system_info(
     disks: &mut Disks,
     (networks, last_check): (&mut Networks, Option<Instant>),
     temperature_sensor: &str,
+    sensor_index: Option<usize>,
 ) -> SystemInfoData {
     system.refresh_memory();
     system.refresh_cpu_specifics(sysinfo::CpuRefreshKind::everything());
@@ -52,10 +53,15 @@ fn get_system_info(
         / system.total_swap() as f32
         * 100.) as u32;
 
-    let temperature = components
-        .iter()
-        .find(|c| c.label() == temperature_sensor)
-        .and_then(|c| c.temperature().map(|t| t as i32));
+    let temperature = sensor_index
+        .and_then(|i| components.get(i))
+        .and_then(|c| c.temperature().map(|t| t as i32))
+        .or_else(|| {
+            components
+                .iter()
+                .find(|c| c.label() == temperature_sensor)
+                .and_then(|c| c.temperature().map(|t| t as i32))
+        });
 
     let disks = disks
         .into_iter()
@@ -159,6 +165,7 @@ pub struct SystemInfo {
     disks: Disks,
     networks: Networks,
     data: SystemInfoData,
+    cached_sensor_index: Option<usize>,
 }
 
 impl SystemInfo {
@@ -167,12 +174,18 @@ impl SystemInfo {
         let mut components = Components::new_with_refreshed_list();
         let mut disks = Disks::new_with_refreshed_list();
         let mut networks = Networks::new_with_refreshed_list();
+
+        let cached_sensor_index = components
+            .iter()
+            .position(|c| c.label() == config.temperature.sensor);
+
         let data = get_system_info(
             &mut system,
             &mut components,
             &mut disks,
             (&mut networks, None),
-            &config.temperature.sensor,
+            config.temperature.sensor.as_str(),
+            cached_sensor_index,
         );
 
         Self {
@@ -182,6 +195,7 @@ impl SystemInfo {
             disks,
             data,
             networks,
+            cached_sensor_index,
         }
     }
 
@@ -197,6 +211,7 @@ impl SystemInfo {
                         self.data.network.as_ref().map(|n| n.last_check),
                     ),
                     &self.config.temperature.sensor,
+                    self.cached_sensor_index,
                 );
             }
         }
