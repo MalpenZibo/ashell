@@ -64,6 +64,17 @@ impl SystemBattery {
     }
 
     pub async fn percentage(&self) -> anyhow::Result<f64> {
+        // For single battery systems, use UPower's Percentage property directly.
+        // This avoids issues where some hardware (e.g. Framework 13 AMD AI) reports
+        // energy/energy_full as 0 via ACPI, while UPower's own percentage is correct.
+        if self.0.len() == 1
+            && let Ok(pct) = self.0[0].percentage().await
+        {
+            return Ok(pct);
+        }
+
+        // For multiple batteries, calculate from energy values to correctly
+        // weight batteries by capacity (fixes e.g. ThinkPad T480 dual battery).
         let mut energy = 0.0;
         let mut energy_full = 0.0;
 
