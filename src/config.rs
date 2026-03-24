@@ -133,10 +133,10 @@ pub struct KeyboardLayoutModuleConfig {
 #[derive(Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct SystemInfoCpu {
-    #[serde(default)]
     pub warn_threshold: u32,
-    #[serde(default)]
     pub alert_threshold: u32,
+
+    pub display_mode: CpuDisplayMode
 }
 
 impl Default for SystemInfoCpu {
@@ -144,6 +144,7 @@ impl Default for SystemInfoCpu {
         Self {
             warn_threshold: 60,
             alert_threshold: 80,
+            display_mode: CpuDisplayMode::Percentage
         }
     }
 }
@@ -153,6 +154,7 @@ impl Default for SystemInfoCpu {
 pub struct SystemInfoMemory {
     pub warn_threshold: u32,
     pub alert_threshold: u32,
+    pub display_mode: MemoryDisplayMode
 }
 
 impl Default for SystemInfoMemory {
@@ -160,6 +162,7 @@ impl Default for SystemInfoMemory {
         Self {
             warn_threshold: 70,
             alert_threshold: 85,
+            display_mode: MemoryDisplayMode::Percentage
         }
     }
 }
@@ -170,6 +173,7 @@ pub struct SystemInfoTemperature {
     pub warn_threshold: i32,
     pub alert_threshold: i32,
     pub sensor: String,
+    pub display_mode: TemperatureDisplayMode,
 }
 
 impl Default for SystemInfoTemperature {
@@ -178,6 +182,7 @@ impl Default for SystemInfoTemperature {
             warn_threshold: 60,
             alert_threshold: 80,
             sensor: "acpitz temp1".to_string(),
+            display_mode: TemperatureDisplayMode::Celsius,
         }
     }
 }
@@ -204,6 +209,28 @@ pub struct SystemInfoDiskIndicatorConfig {
     pub path: String,
     #[serde(rename = "Name")]
     pub name: Option<String>,
+}
+
+
+#[derive(Clone, Debug, Deserialize, Default)]
+pub enum MemoryDisplayMode {
+    #[default]
+    Percentage,
+    Fraction
+}
+
+#[derive(Clone, Debug, Deserialize, Default)]
+pub enum CpuDisplayMode {
+    #[default]
+    Percentage,
+    Frequency
+}
+
+#[derive(Clone, Debug, Deserialize, Default, PartialEq)]
+pub enum TemperatureDisplayMode {
+    #[default]
+    Celsius,
+    Fahrenheit
 }
 
 #[derive(Clone, Debug, Deserialize)]

@@ -1,8 +1,8 @@
 use crate::{
     components::icons::{StaticIcon, icon},
-    config::{SystemInfoIndicator, SystemInfoModuleConfig},
+    config::{CpuDisplayMode, MemoryDisplayMode, TemperatureDisplayMode, SystemInfoIndicator, SystemInfoModuleConfig},
     menu::MenuSize,
-    theme::AshellTheme,
+    theme::AshellTheme, utils,
 };
 use iced::{
     Alignment, Element, Length, Subscription, Theme,
@@ -20,11 +20,25 @@ struct NetworkData {
     last_check: Instant,
 }
 
+struct MemoryUsage {
+    percentage: u32,
+    fraction: String
+}
+struct CpuUsage {
+    percentage: u32,
+    frequency: f32
+}
+
+struct Temperature {
+    celsius: Option<i32>,
+    fahrenheit: i32
+}
+
 struct SystemInfoData {
-    pub cpu_usage: u32,
-    pub memory_usage: u32,
-    pub memory_swap_usage: u32,
-    pub temperature: Option<i32>,
+    pub cpu_usage: CpuUsage,
+    pub memory_usage: MemoryUsage,
+    pub memory_swap_usage: MemoryUsage,
+    pub temperature: Temperature,
     pub disks: Vec<(String, u32)>,
     pub network: Option<NetworkData>,
 }
@@ -37,25 +51,49 @@ fn get_system_info(
     temperature_sensor: &str,
 ) -> SystemInfoData {
     system.refresh_memory();
-    system.refresh_cpu_specifics(sysinfo::CpuRefreshKind::everything());
+    system.refresh_cpu_all();
 
     components.refresh(true);
     disks.refresh(true);
     networks.refresh(true);
 
-    let cpu_usage = system.global_cpu_usage().floor() as u32;
-    let memory_usage = ((system.total_memory() - system.available_memory()) as f32
-        / system.total_memory() as f32
-        * 100.) as u32;
+    let cpu_freq_mhz = system.cpus()[0].frequency() as f32;
 
-    let memory_swap_usage = ((system.total_swap() - system.free_swap()) as f32
-        / system.total_swap() as f32
-        * 100.) as u32;
+    let cpu_usage = CpuUsage {
+        percentage: system.global_cpu_usage() as u32,
+        frequency: utils::floor_dp(cpu_freq_mhz / 1000.0, 2),
+    };
 
-    let temperature = components
+    let total_mem = system.total_memory();
+    let avail_mem = system.available_memory();
+    let used_mem = system.used_memory();
+
+
+    let memory_usage = MemoryUsage {
+        percentage: ((total_mem - avail_mem) as f32
+        / total_mem as f32
+        * 100.) as u32,
+
+        fraction: format!("{:.2}/{:.2}", utils::bytes_to_gib(used_mem), utils::bytes_to_gib(total_mem))
+    };
+
+    let total_swap = system.total_swap();
+    let free_swap = system.free_swap();
+
+    let memory_swap_usage = MemoryUsage {
+        percentage: ((total_swap - free_swap) as f32 / total_swap as f32 * 100.) as u32,
+        fraction: format!("{:.2}/{:.2}", utils::bytes_to_gib(total_swap - free_swap), utils::bytes_to_gib(total_swap))
+    };
+
+    let temperature_cel = components
         .iter()
         .find(|c| c.label() == temperature_sensor)
         .and_then(|c| c.temperature().map(|t| t as i32));
+    
+    let temperature = Temperature {
+        celsius: temperature_cel,
+        fahrenheit: temperature_cel.map(utils::celsius_to_fahrenheit).unwrap_or(0)
+    };
 
     let disks = disks
         .into_iter()
@@ -219,27 +257,28 @@ impl SystemInfo {
         .into()
     }
 
-    fn indicator_info_element<'a, V: std::fmt::Display + PartialOrd + 'a>(
+    fn indicator_info_element<'a, V: PartialOrd + 'a>(
         theme: &AshellTheme,
         info_icon: StaticIcon,
-        value: V,
-        unit: &str,
-        threshold: Option<(V, V)>,
+        (display, unit): (impl std::fmt::Display + 'a, &str),
+        // value: V,
+        // unit: &str,
+        threshold: Option<(V, V, V)>,
         prefix: Option<&str>,
     ) -> Element<'a, Message> {
         let element = container(
             row!(
                 icon(info_icon),
                 if let Some(prefix) = prefix {
-                    text(format!("{prefix} {value}{unit}"))
+                    text(format!("{prefix} {display}{unit}"))
                 } else {
-                    text(format!("{value}{unit}"))
+                    text(format!("{display}{unit}"))
                 }
             )
             .spacing(theme.space.xxs),
         );
 
-        if let Some((warn_threshold, alert_threshold)) = threshold {
+        if let Some((value, warn_threshold, alert_threshold)) = threshold {
             element
                 .style(move |theme: &Theme| container::Style {
                     text_color: if value > warn_threshold && value < alert_threshold {
@@ -267,28 +306,42 @@ impl SystemInfo {
                         theme,
                         StaticIcon::Cpu,
                         "CPU Usage".to_string(),
-                        format!("{}%", self.data.cpu_usage),
+                        match self.config.cpu.display_mode {
+                            CpuDisplayMode::Percentage => format!("{}%", self.data.cpu_usage.percentage),
+                            CpuDisplayMode::Frequency => format!("{} GHz", self.data.cpu_usage.frequency)
+                        }
                     ))
                     .push(Self::info_element(
                         theme,
                         StaticIcon::Mem,
                         "Memory Usage".to_string(),
-                        format!("{}%", self.data.memory_usage),
+                        match self.config.memory.display_mode {
+                            MemoryDisplayMode::Percentage => format!("{}%", self.data.memory_usage.percentage),
+                            MemoryDisplayMode::Fraction => format!("{} GiB", self.data.memory_usage.fraction),
+                        }
                     ))
                     .push(Self::info_element(
                         theme,
                         StaticIcon::Mem,
                         "Swap memory Usage".to_string(),
-                        format!("{}%", self.data.memory_swap_usage),
+                        match self.config.memory.display_mode {
+                            MemoryDisplayMode::Percentage => format!("{}%", self.data.memory_swap_usage.percentage),
+                            MemoryDisplayMode::Fraction => format!("{} GiB", self.data.memory_swap_usage.fraction),
+                        }
                     ))
-                    .push_maybe(self.data.temperature.map(|temp| {
-                        Self::info_element(
-                            theme,
-                            StaticIcon::Temp,
-                            "Temperature".to_string(),
-                            format!("{temp}°C"),
-                        )
-                    }))
+                    .push_maybe(
+                        self.data.temperature.celsius.map(|cel| {
+                            Self::info_element(
+                                theme,
+                                StaticIcon::Temp,
+                                "Temperature".to_string(),
+                                match self.config.temperature.display_mode {
+                                    TemperatureDisplayMode::Celsius => format!("{cel}°C"),
+                                    TemperatureDisplayMode::Fahrenheit => format!("{}°F", self.data.temperature.fahrenheit)
+                                }
+                            )
+                        })
+                    )
                     .push(
                         Column::with_children(
                             self.data
@@ -350,43 +403,70 @@ impl SystemInfo {
             SystemInfoIndicator::Cpu => Some(Self::indicator_info_element(
                 theme,
                 StaticIcon::Cpu,
-                self.data.cpu_usage,
-                "%",
-                Some((
-                    self.config.cpu.warn_threshold,
-                    self.config.cpu.alert_threshold,
-                )),
-                None,
+                match self.config.cpu.display_mode {
+                    CpuDisplayMode::Percentage => ( self.data.cpu_usage.percentage.to_string(), "%" ),
+                    CpuDisplayMode::Frequency => ( self.data.cpu_usage.frequency.to_string(), " GHz" )
+                },
+                match self.config.cpu.display_mode { // note quite sure on how to interpret thresholds with other types of display values yet.
+                    CpuDisplayMode::Percentage => Some((
+                        self.data.cpu_usage.percentage,
+
+                        self.config.cpu.warn_threshold,
+                        self.config.cpu.alert_threshold,
+                    )),
+                    CpuDisplayMode::Frequency => None
+                },
+                None
             )),
+
             SystemInfoIndicator::Memory => Some(Self::indicator_info_element(
                 theme,
                 StaticIcon::Mem,
-                self.data.memory_usage,
-                "%",
-                Some((
-                    self.config.memory.warn_threshold,
-                    self.config.memory.alert_threshold,
-                )),
-                None,
+                match self.config.memory.display_mode {
+                    MemoryDisplayMode::Percentage => ( self.data.memory_usage.percentage.to_string(), "%" ),
+                    MemoryDisplayMode::Fraction => ( self.data.memory_usage.fraction.to_string(), "" ),
+                },
+                match self.config.memory.display_mode {
+                    MemoryDisplayMode::Percentage => Some((
+                        self.data.memory_usage.percentage,
+                        
+                        self.config.memory.warn_threshold,
+                        self.config.memory.alert_threshold,
+                    )),
+                    MemoryDisplayMode::Fraction => None
+                },
+                None
             )),
+
             SystemInfoIndicator::MemorySwap => Some(Self::indicator_info_element(
                 theme,
                 StaticIcon::Mem,
-                self.data.memory_swap_usage,
-                "%",
-                Some((
-                    self.config.memory.warn_threshold,
-                    self.config.memory.alert_threshold,
-                )),
+                match self.config.memory.display_mode {
+                    MemoryDisplayMode::Percentage => ( self.data.memory_swap_usage.percentage.to_string(), "%" ),
+                    MemoryDisplayMode::Fraction => ( self.data.memory_swap_usage.fraction.to_string(), "" ),
+                },
+                match self.config.memory.display_mode {
+                    MemoryDisplayMode::Percentage => Some((
+                        self.data.memory_usage.percentage,
+                        
+                        self.config.memory.warn_threshold,
+                        self.config.memory.alert_threshold,
+                    )),
+                    MemoryDisplayMode::Fraction => None
+                },
                 Some("swap"),
             )),
-            SystemInfoIndicator::Temperature => self.data.temperature.map(|temperature| {
+
+            SystemInfoIndicator::Temperature => self.data.temperature.celsius.map(|cel| {
                 Self::indicator_info_element(
                     theme,
                     StaticIcon::Temp,
-                    temperature,
-                    "°C",
+                    match self.config.temperature.display_mode {
+                        TemperatureDisplayMode::Celsius => ( cel, "°C" ),
+                        TemperatureDisplayMode::Fahrenheit => ( self.data.temperature.fahrenheit, "°F" )
+                    },
                     Some((
+                        cel,
                         self.config.temperature.warn_threshold,
                         self.config.temperature.alert_threshold,
                     )),
@@ -399,9 +479,9 @@ impl SystemInfo {
                         Some(Self::indicator_info_element(
                             theme,
                             StaticIcon::Drive,
-                            *disk,
-                            "%",
+                            ( *disk, "%" ),
                             Some((
+                                *disk,
                                 self.config.disk.warn_threshold,
                                 self.config.disk.alert_threshold,
                             )),
@@ -416,9 +496,8 @@ impl SystemInfo {
                 Self::indicator_info_element(
                     theme,
                     StaticIcon::IpAddress,
-                    network.ip.to_string(),
-                    "",
-                    None,
+                    ( network.ip.to_string(), ""),
+                    None::<(u32, u32, u32)>,
                     None,
                 )
             }),
@@ -426,35 +505,39 @@ impl SystemInfo {
                 Self::indicator_info_element(
                     theme,
                     StaticIcon::DownloadSpeed,
-                    if network.download_speed > 1000 {
-                        network.download_speed / 1000
-                    } else {
-                        network.download_speed
-                    },
-                    if network.download_speed > 1000 {
-                        "MB/s"
-                    } else {
-                        "KB/s"
-                    },
+                    (
+                        if network.download_speed > 1000 {
+                            network.download_speed / 1000
+                        } else {
+                            network.download_speed
+                        },
+                        if network.download_speed > 1000 {
+                            "MB/s"
+                        } else {
+                            "KB/s"
+                        },
+                    ),
+                    None::<(u32, u32, u32)>,
                     None,
-                    None,
-                )
+               )
             }),
             SystemInfoIndicator::UploadSpeed => self.data.network.as_ref().map(|network| {
                 Self::indicator_info_element(
                     theme,
                     StaticIcon::UploadSpeed,
-                    if network.upload_speed > 1000 {
-                        network.upload_speed / 1000
-                    } else {
-                        network.upload_speed
-                    },
-                    if network.upload_speed > 1000 {
-                        "MB/s"
-                    } else {
-                        "KB/s"
-                    },
-                    None,
+                    (
+                        if network.upload_speed > 1000 {
+                            network.upload_speed / 1000
+                        } else {
+                            network.upload_speed
+                        },
+                        if network.upload_speed > 1000 {
+                            "MB/s"
+                        } else {
+                            "KB/s"
+                        },
+                    ),
+                    None::<(u32, u32, u32)>,
                     None,
                 )
             }),
