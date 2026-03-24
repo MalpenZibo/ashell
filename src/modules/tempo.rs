@@ -455,9 +455,13 @@ impl Tempo {
                                 .width(Length::Shrink),
                             column!(
                                 text(format!(
-                                    "{}, {} - {}",
+                                    "{}{} - {}",
                                     location.city,
-                                    location.region_name,
+                                    if location.region_name.is_empty() {
+                                        String::new()
+                                    } else {
+                                        format!(", {}", location.region_name)
+                                    },
                                     data.current.time.format("%R")
                                 ))
                                 .size(theme.font_size.sm),
@@ -822,7 +826,79 @@ async fn fetch_location(location: &WeatherLocation) -> anyhow::Result<Location> 
 
             Ok(data.into())
         }
+        WeatherLocation::Coordinates(lat, lon) => {
+            let (city, region_name) = match try_reverse_geocode(&client, *lat, *lon).await {
+                Ok(Some((city, region))) => (city, region),
+                _ => (format!("Lat: {}, Lon: {}", lat, lon), String::new()),
+            };
+
+            Ok(Location {
+                latitude: *lat,
+                longitude: *lon,
+                city,
+                region_name,
+            })
+        }
     }
+}
+
+async fn try_reverse_geocode(
+    client: &reqwest::Client,
+    lat: f32,
+    lon: f32,
+) -> anyhow::Result<Option<(String, String)>> {
+    let url = format!(
+        "https://nominatim.openstreetmap.org/reverse?format=json&lat={}&lon={}&accept-language=en",
+        lat, lon
+    );
+
+    // Nominatim requires a custom User-Agent header per their usage policy
+    let response = client
+        .get(&url)
+        .header("User-Agent", "ashell")
+        .send()
+        .await?;
+
+    if response.status().is_success() {
+        let raw_data = response.text().await?;
+
+        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&raw_data)
+            && let Some(address) = json.get("address")
+        {
+            let mut city = None;
+
+            if let Some(c) = address.get("city").and_then(|v| v.as_str()) {
+                city = Some(c);
+            } else if let Some(t) = address.get("town").and_then(|v| v.as_str()) {
+                city = Some(t);
+            } else if let Some(v) = address.get("village").and_then(|v| v.as_str()) {
+                city = Some(v);
+            } else if let Some(h) = address.get("hamlet").and_then(|v| v.as_str()) {
+                city = Some(h);
+            }
+
+            // Return city and country if both available and different
+            if let Some(country) = address.get("country").and_then(|v| v.as_str())
+                && let Some(city_name) = city
+            {
+                return Ok(Some((
+                    city_name.to_string(),
+                    if city_name != country {
+                        country.to_string()
+                    } else {
+                        String::new() // Don't repeat city name as region i.e. Singapore, Singapore
+                    },
+                )));
+            }
+
+            // Return just the city if no country found
+            if let Some(city_name) = city {
+                return Ok(Some((city_name.to_string(), String::new())));
+            }
+        }
+    }
+
+    Ok(None)
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -844,11 +920,26 @@ pub struct GeoLocation {
 
 impl From<GeoLocation> for Location {
     fn from(value: GeoLocation) -> Self {
+        // Prefer country over admin1 if they're the same (avoids "Stockholm, Stockholm")
+        let region_name = if let Some(admin1) = &value.admin1 {
+            if let Some(country) = &value.country {
+                if admin1 == country || admin1 == &value.name {
+                    country.clone()
+                } else {
+                    admin1.clone()
+                }
+            } else {
+                admin1.clone()
+            }
+        } else {
+            value.country.unwrap_or_default()
+        };
+
         Location {
             latitude: value.latitude,
             longitude: value.longitude,
             city: value.name,
-            region_name: value.admin1.or(value.country).unwrap_or_default(),
+            region_name,
         }
     }
 }
