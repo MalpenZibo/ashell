@@ -90,8 +90,8 @@ fn get_system_info(
                 .and_then(|c| c.temperature().map(|t| t as i32))
         });
 
-    let disks = disks
-        .into_iter()
+    let disks: Vec<(String, u32)> = disks
+        .iter()
         .filter(|d| !d.is_removable() && d.total_space() != 0)
         .map(|d| {
             (
@@ -101,7 +101,7 @@ fn get_system_info(
             )
         })
         .sorted_by(|a, b| a.0.cmp(&b.0))
-        .collect::<Vec<_>>();
+        .collect();
 
     let elapsed = last_check.map(|v| v.elapsed().as_secs());
 
