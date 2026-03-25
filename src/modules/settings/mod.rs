@@ -421,6 +421,8 @@ impl Settings {
                     )
                 };
 
+                self.brightness.update(brightness::Message::MenuOpened);
+
                 Action::Command(custom_buttons_task)
             }
             Message::ConfigReloaded(config) => {

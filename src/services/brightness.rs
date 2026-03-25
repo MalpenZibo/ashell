@@ -24,6 +24,7 @@ use zbus::proxy;
 pub struct BrightnessData {
     pub current: Remote<u32>,
     pub max: u32,
+    device_path: PathBuf,
 }
 
 #[derive(Debug, Clone)]
@@ -66,7 +67,17 @@ impl BrightnessService {
         Ok(BrightnessData {
             current: Remote::new(actual_brightness),
             max: max_brightness,
+            device_path: device_path.to_path_buf(),
         })
+    }
+
+    pub fn sync_brightness(&mut self) {
+        if let Ok(value) = fs::read_to_string(self.data.device_path.join("brightness"))
+            .map_err(anyhow::Error::from)
+            .and_then(|s| Ok(s.trim().parse::<u32>()?))
+        {
+            self.data.current.receive(value);
+        }
     }
 
     async fn init_service() -> anyhow::Result<(zbus::Connection, PathBuf)> {
@@ -156,7 +167,8 @@ impl BrightnessService {
             },
             State::Active(device_path) => {
                 info!("Listening for brightness events");
-                let current_value = Self::get_brightness(&device_path).await.unwrap_or_default();
+                let mut current_value =
+                    Self::get_brightness(&device_path).await.unwrap_or_default();
 
                 match BrightnessService::backlight_monitor_listener().await {
                     Ok(mut socket) => {
@@ -177,17 +189,17 @@ impl BrightnessService {
                                                         "Changed backlight device: {:?}",
                                                         evt.syspath()
                                                     );
-                                                    let new_value =
-                                                        Self::get_brightness(&device_path)
-                                                            .await
-                                                            .unwrap_or_default();
-
-                                                    if new_value != current_value {
-                                                        let _ = output
-                                                            .send(ServiceEvent::Update(
-                                                                BrightnessEvent(new_value),
-                                                            ))
-                                                            .await;
+                                                    if let Ok(new_value) =
+                                                        Self::get_brightness(&device_path).await
+                                                    {
+                                                        if new_value != current_value {
+                                                            current_value = new_value;
+                                                            let _ = output
+                                                                .send(ServiceEvent::Update(
+                                                                    BrightnessEvent(new_value),
+                                                                ))
+                                                                .await;
+                                                        }
                                                     }
 
                                                     break;
