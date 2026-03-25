@@ -420,40 +420,6 @@ impl Tempo {
                 .collect::<Vec<Element<'a, Message>>>(),
         );
 
-        let timezones = Column::with_children(
-            self.config
-                .timezones
-                .iter()
-                .enumerate()
-                .map(|(index, tz_name)| {
-                    if self.current_timezone_index == index {
-                        container(text(format!(
-                            "{}: {}",
-                            tz_name,
-                            self.time_str("%d %h %R", index)
-                        )))
-                        .padding([theme.space.xxs, theme.space.sm])
-                        .style(|theme: &Theme| container::Style {
-                            text_color: Some(theme.palette().success),
-                            ..Default::default()
-                        })
-                        .into()
-                    } else {
-                        button(text(format!(
-                            "{}: {}",
-                            tz_name,
-                            self.time_str("%d %h %R", index)
-                        )))
-                        .on_press(Message::SetTimezone(index))
-                        .padding([theme.space.xxs, theme.space.sm])
-                        .width(Length::Fixed(225.))
-                        .style(theme.ghost_button_style())
-                        .into()
-                    }
-                })
-                .collect::<Vec<Element<'a, Message>>>(),
-        );
-
         column!(
             button(
                 column!(
