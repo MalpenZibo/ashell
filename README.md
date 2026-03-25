@@ -18,24 +18,22 @@ page on website
 
 ## ✨ Features
 
-- App Launcher button
-- Сlipboard button
 - OS Updates indicator
 - Hyprland/Niri Active Window
 - Hyprland/Niri Workspaces
-- System Information (CPU, RAM, Temperature)
+- System Information (CPU, RAM, Disk, Network, Temperature)
 - Hyprland/Niri Keyboard Layout
 - Hyprland Keyboard Submap
 - Tray
-- Date time
+- Clock with calendar, weather, timezone cycling, and format cycling (Tempo)
 - Privacy (check microphone, camera and screenshare usage)
-- Media Player
+- Media Player with album art
 - Settings panel
   - Power menu
   - Battery information
-  - Audio sources and sinks
+  - Audio sources and sinks (with microphone)
   - Screen brightness
-  - Network stuff
+  - Network
   - VPN
   - Bluetooth
   - Power profiles
