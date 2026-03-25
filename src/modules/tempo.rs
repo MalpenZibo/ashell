@@ -175,13 +175,14 @@ impl Tempo {
 
     fn time_str(&'_ self, format: &str, timezone_index: usize) -> String {
         // %Z prints timezone abbreviations; other specifiers (e.g., %z/%:z) only need numeric offsets https://docs.rs/chrono/latest/chrono/format/strftime/index.html#fn6
+        let format_requests_name = format.contains("%Z");
         let utc_now = self.date.with_timezone(&Utc);
 
         self.config
             .timezones
             .get(timezone_index)
             .and_then(|tz_name| {
-                if let Ok(offset) = tz_name.parse::<FixedOffset>() {
+                if !format_requests_name && let Ok(offset) = tz_name.parse::<FixedOffset>() {
                     return Some(
                         offset
                             .from_utc_datetime(&utc_now.naive_utc())
@@ -383,8 +384,7 @@ impl Tempo {
                     .collect::<Vec<Element<'a, Message>>>(),
             ),
         ]
-        .spacing(theme.space.md)
-        .width(Length::Fixed(225.));
+        .spacing(theme.space.md);
 
         let timezones = Column::with_children(
             self.config
@@ -393,12 +393,12 @@ impl Tempo {
                 .enumerate()
                 .map(|(index, tz_name)| {
                     if self.current_timezone_index == index {
-                        container(text(format!(
-                            "{}: {}",
-                            tz_name,
-                            self.time_str("%d %h %R", index)
-                        )))
+                        container(
+                            text(format!("{}: {}", tz_name, self.time_str("%d %h %R", index)))
+                                .wrapping(text::Wrapping::Word),
+                        )
                         .padding([theme.space.xxs, theme.space.sm])
+                        .width(Length::Fill)
                         .style(|theme: &Theme| container::Style {
                             text_color: Some(theme.palette().success),
                             ..Default::default()
@@ -410,9 +410,9 @@ impl Tempo {
                             tz_name,
                             self.time_str("%d %h %R", index)
                         )))
+                        .width(Length::Fill)
                         .on_press(Message::SetTimezone(index))
                         .padding([theme.space.xxs, theme.space.sm])
-                        .width(Length::Fixed(225.))
                         .style(theme.ghost_button_style())
                         .into()
                     }
@@ -439,6 +439,7 @@ impl Tempo {
             timezones,
         )
         .spacing(theme.space.lg)
+        .width(225)
         .into()
     }
 
