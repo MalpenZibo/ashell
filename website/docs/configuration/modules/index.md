@@ -20,7 +20,7 @@ Modules can be used on their own or organized into groups.
 [modules]
 left = [ "Workspaces" ]
 center = [ "WindowTitle" ]
-right = [ [ "Clock", "Privacy", "Settings" ] ]
+right = [ [ "Tempo", "Privacy", "Settings" ] ]
 ```
 
 ### Example
