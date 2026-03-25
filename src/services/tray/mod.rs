@@ -19,8 +19,11 @@ use linicon_theme::get_icon_theme;
 use log::{debug, error, info, trace};
 use std::{
     any::TypeId,
+    borrow::Cow,
     collections::BTreeSet,
-    env, fs,
+    env,
+    ffi::OsString,
+    fs,
     ops::Deref,
     path::{Path, PathBuf},
     sync::LazyLock,
@@ -28,13 +31,27 @@ use std::{
 
 pub mod dbus;
 
-static SYSTEM_ICON_NAMES: LazyLock<BTreeSet<String>> = LazyLock::new(load_system_icon_names);
-static SYSTEM_ICON_ENTRIES: LazyLock<Vec<(String, String)>> = LazyLock::new(|| {
-    SYSTEM_ICON_NAMES
-        .iter()
-        .map(|name| (name.clone(), normalize_icon_name(name)))
-        .collect()
-});
+static SYSTEM_ICON_NAMES: LazyLock<BTreeSet<OsString>> = LazyLock::new(load_system_icon_names);
+static SYSTEM_ICON_ENTRIES: LazyLock<Vec<(Cow<'static, str>, Cow<'static, str>)>> =
+    LazyLock::new(|| {
+        let capacity = SYSTEM_ICON_NAMES.len();
+        let mut entries = Vec::with_capacity(capacity);
+        for name in SYSTEM_ICON_NAMES.iter() {
+            if let Some(name_str) = name.to_str() {
+                let normalized = normalize_icon_name(name_str);
+                let normalized_cow = if normalized.as_ref() == name_str {
+                    Cow::Borrowed(name_str)
+                } else {
+                    match normalized {
+                        Cow::Borrowed(s) => Cow::Owned(s.to_string()),
+                        Cow::Owned(s) => Cow::Owned(s),
+                    }
+                };
+                entries.push((Cow::Owned(name_str.to_string()), normalized_cow));
+            }
+        }
+        entries
+    });
 
 fn get_icon_from_name(icon_name: &str) -> Option<TrayIcon> {
     if let Some(path) = find_icon_path(icon_name) {
@@ -82,26 +99,27 @@ fn find_icon_path(icon_name: &str) -> Option<PathBuf> {
     }
 }
 
-fn similar_icon_names(icon_name: &str) -> Option<Vec<String>> {
-    if SYSTEM_ICON_NAMES.is_empty() {
+fn similar_icon_names(icon_name: &str) -> Option<Vec<Cow<'static, str>>> {
+    if SYSTEM_ICON_ENTRIES.is_empty() {
         return None;
     }
 
     let normalized = normalize_icon_name(icon_name);
-    let mut matches = Vec::new();
+    let normalized_no_separators = strip_icon_separators(normalized.as_ref());
+    let mut matches: Vec<Cow<'static, str>> = Vec::with_capacity(5);
 
-    for candidate in SYSTEM_ICON_NAMES.iter() {
-        let candidate_normalized = normalize_icon_name(candidate);
-
-        if candidate_normalized == normalized {
+    for (candidate_name, candidate_normalized) in SYSTEM_ICON_ENTRIES.iter() {
+        if candidate_normalized.as_ref() == normalized.as_ref() {
             continue;
         }
 
-        if candidate_normalized.contains(&normalized)
-            || normalized.contains(&candidate_normalized)
-            || candidate_normalized.contains(&normalized.replace('-', ""))
+        if candidate_normalized.as_ref().contains(normalized.as_ref())
+            || normalized.as_ref().contains(candidate_normalized.as_ref())
+            || candidate_normalized
+                .as_ref()
+                .contains(normalized_no_separators.as_ref())
         {
-            matches.push(candidate.clone());
+            matches.push(Cow::Borrowed(candidate_name.as_ref()));
             if matches.len() >= 5 {
                 break;
             }
@@ -115,38 +133,65 @@ fn similar_icon_names(icon_name: &str) -> Option<Vec<String>> {
     }
 }
 
-fn normalize_icon_name(name: &str) -> String {
-    name.to_lowercase()
+fn normalize_icon_name(name: &str) -> Cow<'_, str> {
+    // Fast path: if name is already normalized (only lowercase alphanumeric, no separators)
+    if name
         .chars()
-        .filter(|c| c.is_ascii_alphanumeric())
-        .collect()
+        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
+    {
+        return Cow::Borrowed(name);
+    }
+
+    // Slow path: normalize the name (lowercase and strip non-alphanumeric characters including separators)
+    Cow::Owned(
+        name.to_lowercase()
+            .chars()
+            .filter(|c| c.is_ascii_alphanumeric())
+            .collect(),
+    )
 }
 
-fn prefix_match_icon(icon_name: &str) -> Option<String> {
+fn strip_icon_separators(name: &str) -> Cow<'_, str> {
+    if name.bytes().all(|byte| byte != b'-' && byte != b'_') {
+        return Cow::Borrowed(name);
+    }
+
+    Cow::Owned(name.chars().filter(|ch| *ch != '-' && *ch != '_').collect())
+}
+
+fn prefix_match_icon(icon_name: &str) -> Option<Cow<'static, str>> {
     if SYSTEM_ICON_ENTRIES.is_empty() {
         return None;
     }
 
     let normalized = normalize_icon_name(icon_name);
-    let mut candidates: Vec<&(String, String)> = SYSTEM_ICON_ENTRIES.iter().collect();
-    let chars: Vec<char> = normalized.chars().collect();
 
-    for (idx, ch) in chars.iter().enumerate() {
-        candidates.retain(|(_, name)| name.chars().nth(idx) == Some(*ch));
+    // Early exit: check for exact match first
+    if let Some(exact) = SYSTEM_ICON_ENTRIES
+        .iter()
+        .find(|(_, norm)| norm.as_ref() == normalized.as_ref())
+    {
+        return Some(Cow::Borrowed(exact.0.as_ref()));
+    }
 
-        if candidates.len() == 1 {
-            return Some(candidates[0].0.clone());
-        }
+    // Iterate directly over chars to avoid Vec allocation
+    let mut candidates: Vec<_> = SYSTEM_ICON_ENTRIES.iter().collect();
+    for (idx, ch) in normalized.chars().enumerate() {
+        candidates.retain(|(_, name)| name.chars().nth(idx) == Some(ch));
 
-        if candidates.is_empty() {
-            break;
+        match candidates.len() {
+            0 => break,
+            1 => return Some(Cow::Borrowed(candidates[0].0.as_ref())),
+            _ => continue,
         }
     }
 
-    candidates.first().map(|(name, _)| name.clone())
+    candidates
+        .first()
+        .map(|(name, _)| Cow::Borrowed(name.as_ref()))
 }
 
-fn load_system_icon_names() -> BTreeSet<String> {
+fn load_system_icon_names() -> BTreeSet<OsString> {
     let mut names = BTreeSet::new();
 
     for dir in icon_directories() {
@@ -160,7 +205,7 @@ fn load_system_icon_names() -> BTreeSet<String> {
     names
 }
 
-fn collect_icon_names_recursive(dir: &Path, names: &mut BTreeSet<String>) {
+fn collect_icon_names_recursive(dir: &Path, names: &mut BTreeSet<OsString>) {
     if let Ok(entries) = fs::read_dir(dir) {
         for entry in entries.flatten() {
             let path = entry.path();
@@ -168,9 +213,9 @@ fn collect_icon_names_recursive(dir: &Path, names: &mut BTreeSet<String>) {
                 if file_type.is_dir() {
                     collect_icon_names_recursive(&path, names);
                 } else if file_type.is_file()
-                    && let Some(stem) = path.file_stem().and_then(|s| s.to_str())
+                    && let Some(stem) = path.file_stem()
                 {
-                    names.insert(stem.to_string());
+                    names.insert(stem.to_os_string());
                 }
             }
         }

@@ -40,7 +40,7 @@ pub trait NetworkBackend: Send + Sync {
     /// Connects to a specific access point, potentially with a password.
     /// Returns the updated list of known connections.
     async fn select_access_point(
-        &mut self,
+        &self,
         ap: &AccessPoint,
         password: Option<String>,
     ) -> anyhow::Result<()>;
@@ -68,9 +68,11 @@ pub enum NetworkEvent {
     ActiveConnections(Vec<ActiveConnectionInfo>),
     KnownConnections(Vec<KnownConnection>),
     WirelessAccessPoint(Vec<AccessPoint>),
-    Strength((String, u8)),
+    Strength((Option<OwnedObjectPath>, String, u8)),
     RequestPasswordForSSID(String),
-    ScanningNearbyWifi,
+    ScanRequested(Vec<OwnedObjectPath>),
+    ScanCompleted(OwnedObjectPath),
+    ScanningNearbyWifi(bool),
 }
 
 #[derive(Debug, Clone)]
@@ -86,11 +88,31 @@ pub enum NetworkCommand {
 pub struct AccessPoint {
     pub ssid: String,
     pub strength: u8,
+    pub max_bitrate: u32,
+    pub frequency: u32,
     pub state: dbus::DeviceState,
     pub public: bool,
     pub working: bool,
     pub path: OwnedObjectPath,
     pub device_path: OwnedObjectPath,
+}
+
+impl AccessPoint {
+    /// Returns true if the first access point (by max_bitrate, frequency, strength) is better than the second.
+    /// Comparison order: max_bitrate > frequency > strength (higher values are better)
+    #[inline]
+    pub fn is_better(
+        max_bitrate1: u32,
+        frequency1: u32,
+        strength1: u8,
+        max_bitrate2: u32,
+        frequency2: u32,
+        strength2: u8,
+    ) -> bool {
+        max_bitrate1 > max_bitrate2
+            || (max_bitrate1 == max_bitrate2
+                && (frequency1 > frequency2 || (frequency1 == frequency2 && strength1 > strength2)))
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -147,6 +169,7 @@ pub struct NetworkService {
     data: NetworkData,
     conn: zbus::Connection,
     backend_choice: BackendChoice,
+    pending_scan_devices: Vec<OwnedObjectPath>,
 }
 
 impl Deref for NetworkService {
@@ -176,15 +199,40 @@ impl ReadOnlyService for NetworkService {
                 debug!("WiFi enabled: {wifi_enabled}");
                 self.data.wifi_enabled = wifi_enabled;
             }
-            NetworkEvent::ScanningNearbyWifi => {
-                self.data.scanning_nearby_wifi = true;
+            NetworkEvent::ScanningNearbyWifi(scanning) => {
+                debug!(
+                    "ScanningNearbyWifi event received, setting scanning_nearby_wifi to {scanning}"
+                );
+                self.data.scanning_nearby_wifi = scanning;
+            }
+            NetworkEvent::ScanRequested(device_paths) => {
+                self.pending_scan_devices = device_paths;
+                self.data.scanning_nearby_wifi = !self.pending_scan_devices.is_empty();
+            }
+            NetworkEvent::ScanCompleted(device_path) => {
+                if !self
+                    .pending_scan_devices
+                    .iter()
+                    .any(|path| path == &device_path)
+                {
+                    return;
+                }
+
+                self.pending_scan_devices
+                    .retain(|path| path != &device_path);
+                self.data.scanning_nearby_wifi = !self.pending_scan_devices.is_empty();
             }
             NetworkEvent::WirelessDevice {
                 wifi_present,
                 wireless_access_points,
             } => {
+                debug!(
+                    "WirelessDevice event received, setting scanning_nearby_wifi to false, wifi_present: {wifi_present}, access_points count: {}",
+                    wireless_access_points.len()
+                );
                 self.data.wifi_present = wifi_present;
                 self.data.scanning_nearby_wifi = false;
+                self.pending_scan_devices.clear();
                 self.data.wireless_access_points = wireless_access_points;
             }
             NetworkEvent::ActiveConnections(active_connections) => {
@@ -193,13 +241,21 @@ impl ReadOnlyService for NetworkService {
             NetworkEvent::KnownConnections(known_connections) => {
                 self.data.known_connections = known_connections;
             }
-            NetworkEvent::Strength((ssid, new_strength)) => {
-                if let Some(ap) = self
-                    .data
-                    .wireless_access_points
-                    .iter_mut()
-                    .find(|ap| ap.ssid == ssid)
-                {
+            NetworkEvent::Strength((path, ssid, new_strength)) => {
+                let matching_ap = match path {
+                    Some(path) => self
+                        .data
+                        .wireless_access_points
+                        .iter_mut()
+                        .find(|ap| ap.path == path),
+                    None => self
+                        .data
+                        .wireless_access_points
+                        .iter_mut()
+                        .find(|ap| ap.ssid == ssid),
+                };
+
+                if let Some(ap) = matching_ap {
                     ap.strength = new_strength;
 
                     if let Some(ActiveConnectionInfo::WiFi { strength, .. }) = self
@@ -309,7 +365,7 @@ impl NetworkBackend for BackendChoiceWithConnection {
     }
 
     async fn select_access_point(
-        &mut self,
+        &self,
         ap: &AccessPoint,
         password: Option<String>,
     ) -> anyhow::Result<()> {
@@ -404,6 +460,7 @@ impl NetworkService {
                                     data,
                                     conn: conn.clone(),
                                     backend_choice: choice,
+                                    pending_scan_devices: Vec::new(),
                                 }))
                                 .await;
                             State::Active(conn, choice)
@@ -512,7 +569,7 @@ impl Service for NetworkService {
     fn command(&mut self, command: Self::Command) -> Task<ServiceEvent<Self>> {
         debug!("Command: {command:?}");
         let conn = self.conn.clone();
-        let mut bc = self.backend_choice.with_connection(conn);
+        let bc = self.backend_choice.with_connection(conn);
         match command {
             NetworkCommand::ToggleAirplaneMode => {
                 let airplane_mode = self.airplane_mode;
@@ -531,12 +588,42 @@ impl Service for NetworkService {
                     |airplane_mode| ServiceEvent::Update(NetworkEvent::AirplaneMode(airplane_mode)),
                 )
             }
-            NetworkCommand::ScanNearByWiFi => Task::perform(
-                async move {
-                    let _ = bc.scan_nearby_wifi().await;
-                },
-                |_| ServiceEvent::Update(NetworkEvent::ScanningNearbyWifi),
-            ),
+            NetworkCommand::ScanNearByWiFi => match self.backend_choice {
+                BackendChoice::NetworkManager => {
+                    let conn = self.conn.clone();
+                    Task::perform(
+                        async move {
+                            match NetworkDbus::new(&conn).await {
+                                Ok(nm) => match nm.scan_nearby_wifi_with_devices().await {
+                                    Ok(device_paths) => device_paths,
+                                    Err(err) => {
+                                        error!(
+                                            "ScanNearByWiFi command: NetworkManager scan request failed: {err}"
+                                        );
+                                        Vec::new()
+                                    }
+                                },
+                                Err(err) => {
+                                    error!(
+                                        "ScanNearByWiFi command: Failed to create NetworkDbus: {err}"
+                                    );
+                                    Vec::new()
+                                }
+                            }
+                        },
+                        |device_paths| {
+                            ServiceEvent::Update(NetworkEvent::ScanRequested(device_paths))
+                        },
+                    )
+                }
+                BackendChoice::Iwd => Task::perform(
+                    async move {
+                        let result = bc.scan_nearby_wifi().await;
+                        result.is_ok()
+                    },
+                    |scanning| ServiceEvent::Update(NetworkEvent::ScanningNearbyWifi(scanning)),
+                ),
+            },
             NetworkCommand::ToggleWiFi => {
                 let wifi_enabled = self.wifi_enabled;
 

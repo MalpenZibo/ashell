@@ -62,6 +62,24 @@ struct NetworkDialogState {
     kind: NetworkDialogKind,
 }
 
+impl NetworkDialogState {
+    fn new_password_dialog(ssid: String) -> Self {
+        Self {
+            ssid,
+            password: Some(String::new()),
+            kind: NetworkDialogKind::Password,
+        }
+    }
+
+    fn new_warning_dialog(ssid: String) -> Self {
+        Self {
+            ssid,
+            password: None,
+            kind: NetworkDialogKind::OpenNetworkWarning,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Message {
     Network(network::Message),
@@ -190,29 +208,17 @@ impl Settings {
             Message::Network(msg) => match self.network.update(msg) {
                 network::Action::None => Action::None,
                 network::Action::RequestPasswordForSSID(ssid) => {
-                    self.network_dialog = Some(NetworkDialogState {
-                        ssid,
-                        password: Some(String::new()),
-                        kind: NetworkDialogKind::Password,
-                    });
+                    self.network_dialog = Some(NetworkDialogState::new_password_dialog(ssid));
                     self.network_dialog_show_password = false;
                     Action::None
                 }
                 network::Action::RequestPassword(id, ssid) => {
-                    self.network_dialog = Some(NetworkDialogState {
-                        ssid,
-                        password: Some(String::new()),
-                        kind: NetworkDialogKind::Password,
-                    });
+                    self.network_dialog = Some(NetworkDialogState::new_password_dialog(ssid));
                     self.network_dialog_show_password = false;
                     Action::RequestKeyboard(id)
                 }
                 network::Action::ConfirmOpenNetwork(ssid) => {
-                    self.network_dialog = Some(NetworkDialogState {
-                        ssid,
-                        password: None,
-                        kind: NetworkDialogKind::OpenNetworkWarning,
-                    });
+                    self.network_dialog = Some(NetworkDialogState::new_warning_dialog(ssid));
                     self.network_dialog_show_password = false;
                     Action::None
                 }
@@ -415,14 +421,7 @@ impl Settings {
                     )
                 };
 
-                // Batch both tasks to run in parallel
-                let brightness_task = match self.brightness.update(brightness::Message::MenuOpened)
-                {
-                    brightness::Action::None => Task::none(),
-                    brightness::Action::Command(task) => task.map(Message::Brightness),
-                };
-
-                Action::Command(Task::batch([custom_buttons_task, brightness_task]))
+                Action::Command(custom_buttons_task)
             }
             Message::ConfigReloaded(config) => {
                 self.lock_cmd = config.lock_cmd;
@@ -779,7 +778,7 @@ impl Settings {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        Subscription::batch(vec![
+        Subscription::batch([
             self.power.subscription().map(Message::Power),
             self.audio.subscription().map(Message::Audio),
             self.brightness.subscription().map(Message::Brightness),
