@@ -9,13 +9,15 @@ pub use self::types::{
 use crate::services::{ReadOnlyService, Service, ServiceEvent};
 use iced::futures::SinkExt;
 use iced::{Subscription, Task, stream::channel};
-use std::{any::TypeId, ops::Deref};
+use std::{any::TypeId, ops::Deref, sync::OnceLock};
 use tokio::sync::{OnceCell, broadcast};
 
 const BROADCAST_CAPACITY: usize = 64;
 
 static BROADCASTER: OnceCell<broadcast::Sender<ServiceEvent<CompositorService>>> =
     OnceCell::const_new();
+
+static BACKEND: OnceLock<Option<CompositorChoice>> = OnceLock::new();
 
 /// Subscribe to compositor events.  Initializes the broadcaster on first call.
 async fn broadcaster_subscribe() -> broadcast::Receiver<ServiceEvent<CompositorService>> {
@@ -52,13 +54,15 @@ async fn broadcaster_event_loop(tx: broadcast::Sender<ServiceEvent<CompositorSer
 }
 
 fn detect_backend() -> Option<CompositorChoice> {
-    if hyprland::is_available() {
-        Some(CompositorChoice::Hyprland)
-    } else if niri::is_available() {
-        Some(CompositorChoice::Niri)
-    } else {
-        None
-    }
+    *BACKEND.get_or_init(|| {
+        if hyprland::is_available() {
+            Some(CompositorChoice::Hyprland)
+        } else if niri::is_available() {
+            Some(CompositorChoice::Niri)
+        } else {
+            None
+        }
+    })
 }
 
 impl Deref for CompositorService {
