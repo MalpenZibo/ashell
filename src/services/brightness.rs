@@ -191,15 +191,14 @@ impl BrightnessService {
                                                     );
                                                     if let Ok(new_value) =
                                                         Self::get_brightness(&device_path).await
+                                                        && new_value != current_value
                                                     {
-                                                        if new_value != current_value {
-                                                            current_value = new_value;
-                                                            let _ = output
-                                                                .send(ServiceEvent::Update(
-                                                                    BrightnessEvent(new_value),
-                                                                ))
-                                                                .await;
-                                                        }
+                                                        current_value = new_value;
+                                                        let _ = output
+                                                            .send(ServiceEvent::Update(
+                                                                BrightnessEvent(new_value),
+                                                            ))
+                                                            .await;
                                                     }
 
                                                     break;
