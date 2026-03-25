@@ -116,6 +116,18 @@ Common sensor labels include:
 - `amdgpu edge` - AMD GPU temperature
 - `nvme Composite MODEL_NAME` - NVMe SSD temperature (use model from `lsblk` output)
 
+## Polling Interval
+
+You can configure how often the system information is refreshed using the `interval` option (in seconds). The default is `5` seconds.
+
+```toml
+[system_info]
+indicators = [ "Cpu", "Memory", "Temperature" ]
+interval = 10
+```
+
+Higher values reduce CPU usage at the cost of less frequent updates.
+
 ## Warning and Alert Thresholds
 
 You can also configure the warning and alert thresholds for the following indicators:
@@ -146,6 +158,7 @@ configure and can be one of:
 ```toml
 [system_info]
 indicators = [ "Cpu", "Memory", "Temperature" ]
+interval = 5
 
 [system_info.cpu]
 warn_threshold = 60

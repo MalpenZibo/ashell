@@ -35,6 +35,7 @@ truncate_title_after_length = 100
 
 [system_info]
 indicators = [ "Cpu", "Memory", "Temperature" ]
+interval = 5
 
 [system_info.cpu]
 warn_threshold = 60

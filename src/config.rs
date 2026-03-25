@@ -223,10 +223,18 @@ pub enum SystemInfoIndicator {
 #[serde(default)]
 pub struct SystemInfoModuleConfig {
     pub indicators: Vec<SystemInfoIndicator>,
+    #[serde(default = "SystemInfoModuleConfig::default_interval")]
+    pub interval: u64,
     pub cpu: SystemInfoCpu,
     pub memory: SystemInfoMemory,
     pub temperature: SystemInfoTemperature,
     pub disk: SystemInfoDisk,
+}
+
+impl SystemInfoModuleConfig {
+    const fn default_interval() -> u64 {
+        5
+    }
 }
 
 impl Default for SystemInfoModuleConfig {
@@ -237,6 +245,7 @@ impl Default for SystemInfoModuleConfig {
                 SystemInfoIndicator::Memory,
                 SystemInfoIndicator::Temperature,
             ],
+            interval: Self::default_interval(),
             cpu: SystemInfoCpu::default(),
             memory: SystemInfoMemory::default(),
             temperature: SystemInfoTemperature::default(),
