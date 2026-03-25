@@ -124,7 +124,8 @@ The default configuration is:
 ```toml
 [workspaces]
 visibility_mode = "All"
-enable_workspace_filling = true
+group_by_monitor = false
+enable_workspace_filling = false
 disable_special_workspaces = false
 ```
 

@@ -134,3 +134,14 @@ the keyboard when the menu is open.
 ```toml
 enable_esc_key = true
 ```
+
+## Visibility Toggle
+
+You can toggle the visibility of the status bar by sending a `SIGUSR1` signal to the ashell process.
+
+This is useful for keybind-based toggling or scripting.
+
+```bash
+# Toggle ashell visibility
+kill -SIGUSR1 $(pidof ashell)
+```
