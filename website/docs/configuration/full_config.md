@@ -8,18 +8,20 @@ sidebar_position: 4
 log_level = "warn"
 #outputs = { Targets = ["eDP-1"] }
 position = "Top"
-app_launcher_cmd = "walker"
 
 [modules]
 left = [ [ "appLauncher", "Updates", "Workspaces" ] ]
 center = [ "WindowTitle" ]
-right = [ "SystemInfo", "MediaPlayer", [ "Tray", "Clock", "Privacy", "Settings" ] ]
+right = [ "SystemInfo", "MediaPlayer", [ "Tray", "Tempo", "Privacy", "Settings" ] ]
 
 [updates]
 check_cmd = "checkupdates; paru -Qua"
 update_cmd = 'alacritty -e bash -c "paru; echo Done - Press enter to exit; read" &'
+interval = 3600
 
 [workspaces]
+visibility_mode = "All"
+group_by_monitor = false
 enable_workspace_filling = true
 
 [[CustomModule]]
@@ -28,6 +30,7 @@ icon = "󱗼"
 command = "walker"
 
 [window_title]
+mode = "Title"
 truncate_title_after_length = 100
 
 [system_info]
@@ -48,7 +51,12 @@ sensor = "acpitz temp1"
 
 [tempo]
 clock_format = "%a %d %b %R"
+# formats = [ "%a %d %b %R", "%Y-%m-%d %H:%M:%S", "%H:%M:%S" ]
+# timezones = [ "UTC", "America/New_York", "Europe/London" ]
 weather_location = { City = "Rome" }
+# weather_location = { Coordinates = [40.7128, -74.0060] }
+# weather_location = "Current"
+weather_indicator = "IconAndTemperature"
 
 [settings]
 lock_cmd = "playerctl --all-players pause; nixGL hyprlock &"
@@ -57,6 +65,21 @@ audio_sources_more_cmd = "pavucontrol -t 4"
 wifi_more_cmd = "nm-connection-editor"
 vpn_more_cmd = "nm-connection-editor"
 bluetooth_more_cmd = "blueberry"
+battery_format = "IconAndPercentage"
+peripheral_battery_format = "Icon"
+audio_indicator_format = "Icon"
+microphone_indicator_format = "Icon"
+network_indicator_format = "Icon"
+bluetooth_indicator_format = "Icon"
+brightness_indicator_format = "Icon"
+indicators = [ "IdleInhibitor", "PowerProfile", "Audio", "Microphone", "Bluetooth", "Network", "Vpn", "Battery", "Brightness" ]
+
+[[settings.CustomButton]]
+name = "Virtual Keyboard"
+icon = "⌨️"
+command = "/path/to/toggle-keyboard.sh"
+status_command = "/path/to/check-keyboard-status.sh"
+tooltip = "Toggle On-Screen Keyboard"
 
 [appearance]
 style = "Islands"

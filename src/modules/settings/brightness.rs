@@ -18,6 +18,7 @@ use iced::{
 pub enum Message {
     Event(ServiceEvent<BrightnessService>),
     Changed(remote_value::Message<u32>),
+    MenuOpened,
     ConfigReloaded(SettingsFormat),
 }
 
@@ -76,6 +77,12 @@ impl BrightnessSettings {
                         let _ = service.command(BrightnessCommand(value));
                     }
                     return Action::Command(service.current.update(message).map(Message::Changed));
+                }
+                Action::None
+            }
+            Message::MenuOpened => {
+                if let Some(service) = self.service.as_mut() {
+                    service.sync_brightness();
                 }
                 Action::None
             }
