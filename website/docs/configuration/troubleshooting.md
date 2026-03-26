@@ -8,14 +8,17 @@ Common issues and quick fixes for ashell.
 
 ## NVIDIA Driver Issues
 
-**Problem:** ashell freezes on startup with NVIDIA graphics.
+**Problem:** ashell freezes on startup when using NVIDIA graphics on Linux.
 
-**Solution:** Add to your ashell config:
+**Cause:** The default Vulkan backend may have compatibility issues with NVIDIA drivers.
 
-```toml
-[renderer]
-backend = "gl"
+**Solution:** Force the use of OpenGL by setting the `WGPU_BACKEND` environment variable:
+
+```bash
+WGPU_BACKEND=gl ashell
 ```
+
+This uses EGL as the context creation API, bypassing Vulkan entirely.
 
 **If the issue persists:** Try different NVIDIA drivers or use a different compositor.
 
