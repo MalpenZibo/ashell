@@ -26,11 +26,11 @@ right = [ [ "Tempo", "Privacy", "Settings" ] ]
 ### Example
 
 If we want to add the `SystemInfo` module to the right side of
-the status bar but not in the same group as the `Clock`, `Privacy`,
+the status bar but not in the same group as the `Tempo`, `Privacy`,
 and `Settings` modules, we can do it like this:
 
 ```toml
-right = [ "SystemInfo", [ "Clock", "Privacy", "Settings" ] ]
+right = [ "SystemInfo", [ "Tempo", "Privacy", "Settings" ] ]
 ```
 
 ## Available modules
@@ -75,7 +75,7 @@ See the [custom module documentation](./custom_module.md) for details.
 
 Displays system tray icons and menus for applications.
 
-### Clock
+### Clock (deprecated - use [Tempo](./tempo.md) instead)
 
 Displays the current time and date.
 

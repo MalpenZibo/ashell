@@ -123,10 +123,10 @@ You can enable the use of the `Esc` key to close the menu.
 
 :::warning
 
-With these features enabled ashell will use the keyboard
+With these features enabled, ashell will use the keyboard
 in an exclusive way when a menu is open.
 
-That means other applications will not be able to use
+This means other applications will not be able to use
 the keyboard when the menu is open.
 
 :::

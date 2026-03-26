@@ -18,7 +18,7 @@ It displays in the status bar indicators about:
 - Idle inhibitor status
 - VPN connection status
 
-And let you interact with these settings:
+And lets you interact with these settings:
 
 - Change audio and microphone volume
 - Change audio output and input devices

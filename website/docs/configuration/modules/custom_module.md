@@ -242,5 +242,5 @@ Then add the custom modules to your modules configuration:
 
 ```toml
 [modules]
-right = [ [ "Clock", "Privacy", "Settings", "AppLauncher", "Clipboard" ] ]
+right = [ [ "Tempo", "Privacy", "Settings", "AppLauncher", "Clipboard" ] ]
 ```
