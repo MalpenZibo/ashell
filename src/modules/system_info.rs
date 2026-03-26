@@ -95,7 +95,7 @@ fn get_system_info(
         .filter(|d| !d.is_removable() && d.total_space() != 0)
         .map(|d| {
             (
-                d.mount_point().to_string_lossy().to_string(),
+                d.mount_point().display().to_string(),
                 (((d.total_space() - d.available_space()) as f32) / d.total_space() as f32 * 100.)
                     as u32,
             )
