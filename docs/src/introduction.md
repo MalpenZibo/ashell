@@ -1,0 +1,41 @@
+# Introduction
+
+**ashell** is a ready-to-go Wayland status bar for [Hyprland](https://hyprland.org/) and [Niri](https://github.com/YaLTeR/niri) window managers. It is written in Rust using the [iced](https://iced.rs/) GUI framework and provides a modern, feature-rich taskbar experience for Wayland-based Linux desktops.
+
+## Who This Book Is For
+
+This developer guide is written for:
+
+- **New contributors** who want to understand the codebase and start contributing.
+- **Existing developers** who need a reference for architecture decisions, patterns, and subsystems.
+- **Anyone** interested in learning how a real-world iced + Wayland application is built.
+
+This is **not** a user guide. For end-user documentation (installation, configuration, usage), visit the [ashell website](https://malpenzibo.github.io/ashell/).
+
+## How to Navigate This Book
+
+If you're new to the project, read the sections in order:
+
+1. **Getting Started** — Set up your development environment and build the project.
+2. **Architecture** — Understand the high-level design, the Elm architecture, and data flow.
+3. **Core Systems** — Learn about the App struct, configuration, theming, and output management.
+4. **Modules** and **Services** — Understand how UI modules and backend services are structured.
+
+If you're an existing developer looking for a reference:
+
+- Jump directly to the specific chapter you need (e.g., [Writing a New Module](modules/writing-a-new-module.md) or [D-Bus Services Pattern](services/dbus-services.md)).
+- Use the search feature (top of the page) to find specific topics.
+- Check the [Reference](reference/config-reference.md) section for configuration details, environment variables, and D-Bus interfaces.
+
+## Project Identity
+
+ashell is designed around two core principles:
+
+- **"Ready to go"** — It works out of the box with sensible defaults and minimal configuration.
+- **"Everything built in"** — All features are integrated directly rather than relying on external scripts or tools.
+
+The project uses a full Rust stack intentionally, prioritizing consistency, type safety, and a unified development experience.
+
+## About This Book
+
+This developer guide was initially generated with the assistance of AI (Claude) by analyzing the ashell source code, GitHub issues, pull requests, and project discussions. While the content has been derived from the actual codebase and real project history, it may contain inaccuracies or become outdated as the project evolves. Contributions to improve and maintain this documentation are welcome.

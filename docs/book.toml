@@ -1,0 +1,16 @@
+[book]
+authors = ["ashell contributors"]
+language = "en"
+multilingual = false
+src = "src"
+title = "ashell Developer Guide"
+description = "Developer onboarding and architecture reference for the ashell Wayland status bar"
+
+[output.html]
+default-theme = "coal"
+preferred-dark-theme = "coal"
+git-repository-url = "https://github.com/MalpenZibo/ashell"
+edit-url-template = "https://github.com/MalpenZibo/ashell/edit/main/docs/src/{path}"
+
+[output.html.search]
+enable = true
