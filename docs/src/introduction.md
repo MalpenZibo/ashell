@@ -1,5 +1,7 @@
 # Introduction
 
+> **Note:** This developer guide was initially generated with the assistance of AI (Claude) by analyzing the ashell source code, GitHub issues, pull requests, and project discussions. While the content has been derived from the actual codebase and real project history, it may contain inaccuracies or become outdated as the project evolves. Contributions to improve and maintain this documentation are welcome.
+
 **ashell** is a ready-to-go Wayland status bar for [Hyprland](https://hyprland.org/) and [Niri](https://github.com/YaLTeR/niri) window managers. It is written in Rust using the [iced](https://iced.rs/) GUI framework and provides a modern, feature-rich taskbar experience for Wayland-based Linux desktops.
 
 ## Who This Book Is For
@@ -36,6 +38,3 @@ ashell is designed around two core principles:
 
 The project uses a full Rust stack intentionally, prioritizing consistency, type safety, and a unified development experience.
 
-## About This Book
-
-This developer guide was initially generated with the assistance of AI (Claude) by analyzing the ashell source code, GitHub issues, pull requests, and project discussions. While the content has been derived from the actual codebase and real project history, it may contain inaccuracies or become outdated as the project evolves. Contributions to improve and maintain this documentation are welcome.
