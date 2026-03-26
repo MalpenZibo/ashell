@@ -21,7 +21,7 @@ monitors are shown using different colors.
 This mode displays only the workspaces associated with the monitor
 where `ashell` is displayed.
 If `ashell` is not displayed on a specific monitor, the monitor
-where `ashell` is displayed will contain also the workspaces
+where `ashell` is displayed will also contain the workspaces
 from the other monitor.
 
 ### MonitorSpecificExclusive
@@ -48,7 +48,7 @@ group_by_monitor = true
 ## Showing special workspaces
 
 If you would like to make the special workspaces invisible, set the `disable_special_workspaces` to `true`.
-By default special workspaces will be visible.
+By default, special workspaces will be visible.
 
 ## Workspace Filling And Maximum Workspaces
 
@@ -81,8 +81,8 @@ By default, `max_workspaces` is None, which disables this feature.
 
 You can also assign **custom names** to your workspaces using
 the `workspace_names` option.  
-This lets you display alternative numerals (e.g., roman numerals, chinese numerals)
-instead of typical arabic numerals.  
+This lets you display alternative numerals (e.g., Roman numerals, Chinese numerals)
+instead of typical Arabic numerals.  
 If a name is missing for a given workspace index, the numeric ID will be used
 as a fallback.
 
@@ -99,7 +99,7 @@ For example you can use [Nerd Fonts](https://www.nerdfonts.com/)
 
 ```toml
 [workspaces]
-workspace_names = ["一","二","三","四","五","六","七","八","九","十",]
+workspace_names = ["一","二","三","四","五","六","七","八","九","十"]
 ```
 
 ## Virtual Desktop Plugin Support

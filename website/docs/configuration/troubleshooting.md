@@ -17,7 +17,7 @@ Common issues and quick fixes for ashell.
 backend = "egl"
 ```
 
-**If still broken:** Try different NVIDIA drivers or use a different compositor.
+**If the issue persists:** Try different NVIDIA drivers or use a different compositor.
 
 ## Idle Inhibitor Issues
 

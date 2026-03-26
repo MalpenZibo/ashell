@@ -18,7 +18,7 @@ font_name = "Comic Sans MS"
 
 :::warning
 
-Changing the font requires to kill and restart ashell process. The font configuration does not support hot-reloading
+Changing the font requires killing and restarting ashell process. The font configuration does not support hot-reloading
 
 :::
 
