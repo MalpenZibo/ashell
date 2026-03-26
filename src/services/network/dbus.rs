@@ -672,7 +672,7 @@ impl NetworkDbus<'_> {
                         .build()
                         .await?;
 
-                    let ssid = String::from_utf8_lossy(&ap.ssid().await?.clone()).into_owned();
+                    let ssid = String::from_utf8_lossy(&ap.ssid().await?).into_owned();
                     let public = ap.flags().await.unwrap_or_default() == 0;
                     let strength = ap.strength().await?;
                     let max_bitrate = ap.max_bitrate().await.unwrap_or_default();
