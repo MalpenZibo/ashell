@@ -14,7 +14,7 @@ Common issues and quick fixes for ashell.
 
 ```toml
 [renderer]
-backend = "egl"
+backend = "gl"
 ```
 
 **If the issue persists:** Try different NVIDIA drivers or use a different compositor.
