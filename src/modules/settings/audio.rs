@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use super::SubMenu;
 use crate::{
     components::icons::{StaticIcon, icon, icon_button, icon_mono},
@@ -7,7 +9,10 @@ use crate::{
         audio::{AudioCommand, AudioService, DevicePortType, Port},
     },
     theme::AshellTheme,
-    utils::remote_value::{self, Remote},
+    utils::{
+        audio_feedback::AudioFeedback,
+        remote_value::{self, Remote},
+    },
 };
 use iced::{
     Alignment, Element, Length, Subscription, Task, Theme,
@@ -18,6 +23,7 @@ use iced::{
     window::Id,
 };
 use libpulse_binding::volume::Volume;
+use log::warn;
 
 const VOL_PERCENT: u32 = Volume::NORMAL.0 / 100;
 
@@ -54,6 +60,8 @@ pub struct AudioSettingsConfig {
     pub sources_more_cmd: Option<String>,
     pub indicator_format: SettingsFormat,
     pub microphone_indicator_format: SettingsFormat,
+    pub audio_feedback: bool,
+    pub audio_feedback_sound: Option<String>,
 }
 
 impl AudioSettingsConfig {
@@ -62,12 +70,16 @@ impl AudioSettingsConfig {
         sources_more_cmd: Option<String>,
         indicator_format: SettingsFormat,
         microphone_indicator_format: SettingsFormat,
+        audio_feedback: bool,
+        audio_feedback_sound: Option<String>,
     ) -> Self {
         Self {
             sinks_more_cmd,
             sources_more_cmd,
             indicator_format,
             microphone_indicator_format,
+            audio_feedback,
+            audio_feedback_sound,
         }
     }
 }
@@ -75,6 +87,7 @@ impl AudioSettingsConfig {
 pub struct AudioSettings {
     config: AudioSettingsConfig,
     service: Option<AudioService>,
+    audio_feedback: AudioFeedback,
 }
 
 pub struct SubmenuEntry<RMessage> {
@@ -90,9 +103,43 @@ pub enum SliderType {
     Source,
 }
 
+fn build_audio_feedback(config: &AudioSettingsConfig) -> AudioFeedback {
+    if !config.audio_feedback {
+        return AudioFeedback::disabled();
+    }
+
+    let has_pw_cat = std::process::Command::new("pw-cat")
+        .arg("--version")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success());
+
+    if !has_pw_cat {
+        warn!("Audio feedback enabled but 'pw-cat' is not available. Install PipeWire.");
+        return AudioFeedback::disabled();
+    }
+
+    let sound_path = config
+        .audio_feedback_sound
+        .clone()
+        .unwrap_or_else(|| "/usr/share/sounds/freedesktop/stereo/bell.oga".to_string());
+
+    if !Path::new(&sound_path).exists() {
+        warn!(
+            "Audio feedback sound file not found: {sound_path}. \
+             Install 'sound-theme-freedesktop' or set 'audio_feedback_sound' in config."
+        );
+        return AudioFeedback::disabled();
+    }
+
+    AudioFeedback::with_sound_path(sound_path)
+}
+
 impl AudioSettings {
     pub fn new(config: AudioSettingsConfig) -> Self {
         Self {
+            audio_feedback: build_audio_feedback(&config),
             config,
             service: None,
         }
@@ -125,6 +172,7 @@ impl AudioSettings {
             Message::ToggleSinkMute => {
                 if let Some(service) = self.service.as_mut() {
                     let _ = service.command(AudioCommand::ToggleSinkMute);
+                    self.audio_feedback.play_mute_toggle();
                 }
                 Action::None
             }
@@ -132,6 +180,7 @@ impl AudioSettings {
                 if let Some(service) = self.service.as_mut() {
                     if let Some(value) = message.value() {
                         let _ = service.command(AudioCommand::SinkVolume(value));
+                        self.audio_feedback.play(value);
                     }
                     return Action::Task(
                         service
@@ -151,6 +200,7 @@ impl AudioSettings {
             Message::ToggleSourceMute => {
                 if let Some(service) = self.service.as_mut() {
                     let _ = service.command(AudioCommand::ToggleSourceMute);
+                    self.audio_feedback.play_mute_toggle();
                 }
                 Action::None
             }
@@ -158,6 +208,7 @@ impl AudioSettings {
                 if let Some(service) = self.service.as_mut() {
                     if let Some(value) = message.value() {
                         let _ = service.command(AudioCommand::SourceVolume(value));
+                        self.audio_feedback.play(value);
                     }
                     return Action::Task(
                         service
@@ -205,6 +256,7 @@ impl AudioSettings {
             Message::ToggleSinksMenu => Action::ToggleSinksMenu,
             Message::ToggleSourcesMenu => Action::ToggleSourcesMenu,
             Message::ConfigReloaded(config) => {
+                self.audio_feedback = build_audio_feedback(&config);
                 self.config = config;
                 Action::None
             }

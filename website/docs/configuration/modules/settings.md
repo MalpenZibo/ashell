@@ -65,6 +65,22 @@ With the `remove_airplane_btn` option you can remove the airplane mode button.
 
 With the `remove_idle_btn` option you can remove the idle inhibitor button.
 
+## Audio Feedback
+
+With the `audio_feedback` option you can enable or disable the audible beep played when adjusting the volume (default: `true`). The beep triggers on slider drags, scroll wheel, mute toggles, and keyboard volume keys.
+
+With the `audio_feedback_sound` option you can set a custom sound file path. Any format that `pw-cat` supports (ogg, wav, flac) works.
+
+The default sound file is `/usr/share/sounds/freedesktop/stereo/bell.oga`, which requires the `sound-theme-freedesktop` package to be installed. If you don't have this package, either install it or provide a path to another sound file.
+
+Sounds are rate-limited: a beep only plays if the volume has changed by at least 5% **and** at least 150ms have passed since the last beep, preventing rapid overlapping sounds (with the default sound).
+
+```toml
+[settings]
+audio_feedback = true
+audio_feedback_sound = "/usr/share/sounds/freedesktop/stereo/message.oga"
+```
+
 ## Indicator Format Options
 
 With the format options you can customize how different indicators are displayed in the status bar.
