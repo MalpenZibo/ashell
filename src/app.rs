@@ -185,7 +185,9 @@ impl App {
         self.tempo
             .update(modules::tempo::Message::ConfigReloaded(config.tempo));
         self.settings
-            .update(modules::settings::Message::ConfigReloaded(config.settings));
+            .update(modules::settings::Message::ConfigReloaded(Box::new(
+                config.settings,
+            )));
         self.media_player
             .update(modules::media_player::Message::ConfigReloaded(
                 config.media_player,

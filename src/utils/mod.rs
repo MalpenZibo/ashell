@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+pub mod audio_feedback;
 pub mod launcher;
 pub mod remote_value;
 
