@@ -15,11 +15,12 @@ jobs:
     env:
       TAG: ${{ github.event.release.tag_name }}
       REPO: ${{ github.repository }}
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_TOKEN: ${{ secrets.RELEASE_PAT }}
     steps:
       - uses: actions/checkout@v6
         with:
           ref: main
+          token: ${{ secrets.RELEASE_PAT }}
 
       - name: Extract version (strip leading v)
         run: |
@@ -131,7 +132,7 @@ jobs:
     env:
       TAG: ${{ github.event.release.tag_name }}
       REPO: ${{ github.repository }}
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_TOKEN: ${{ secrets.RELEASE_PAT }}
     steps:
       - uses: actions/checkout@v6
 
