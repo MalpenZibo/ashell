@@ -29,6 +29,8 @@ post-announce-jobs = ["./remove-manifest-assets", "./update-arch-package"]
 install-path = "CARGO_HOME"
 # Whether to install an updater program
 install-updater = false
+# Skip checking if the CI config is up to date
+allow-dirty = ["ci"]
 
 [dist.github-custom-runners]
 global = "ubuntu-24.04"
