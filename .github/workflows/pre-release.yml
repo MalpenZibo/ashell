@@ -32,9 +32,11 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Prepend release notes to CHANGELOG.md
+        env:
+          RELEASE_BODY: ${{ github.event.release.body }}
         run: |
           DATE=$(date -d "${{ github.event.release.published_at }}" +'%Y-%m-%d')
-          BODY="${{ github.event.release.body }}"
+          BODY="$RELEASE_BODY"
 
           # Demote all headings in the release body (## -> ###, ### -> ####, etc.)
           echo "$BODY" | sed -E '
