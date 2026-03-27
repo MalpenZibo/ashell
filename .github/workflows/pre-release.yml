@@ -135,6 +135,8 @@ jobs:
       GH_TOKEN: ${{ secrets.RELEASE_PAT }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: main
 
       - name: Trigger Release workflow
         run: |
