@@ -36,6 +36,17 @@ jobs:
       - name: Build website
         run: pnpm build
 
+      - name: Install mdbook
+        uses: peaceiris/actions-mdbook@v2
+        with:
+          mdbook-version: latest
+
+      - name: Build developer guide
+        run: mdbook build docs/
+
+      - name: Copy developer guide into website build
+        run: cp -r docs/book website/build/dev-guide
+
       - name: Deploy
         id: deployment
         uses: peaceiris/actions-gh-pages@v4
