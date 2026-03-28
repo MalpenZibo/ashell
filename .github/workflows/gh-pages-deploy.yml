@@ -4,15 +4,23 @@ on:
   push:
     branches:
       - main
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
 jobs:
-  deploy:
-    name: Deploy Docusaurus
+  build:
+    name: Build
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: website
-    permissions:
-      contents: write
 
     steps:
       - uses: actions/checkout@v6
@@ -43,14 +51,25 @@ jobs:
 
       - name: Build developer guide
         run: mdbook build docs/
+        working-directory: ..
 
       - name: Copy developer guide into website build
-        run: cp -r docs/book website/build/dev-guide
+        run: cp -r ../docs/book build/dev-guide
 
-      - name: Deploy
-        id: deployment
-        uses: peaceiris/actions-gh-pages@v4
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          enable_jekyll: false
-          publish_dir: ./website/build
+          path: ./website/build
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
