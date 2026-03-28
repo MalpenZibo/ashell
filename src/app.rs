@@ -146,7 +146,7 @@ impl App {
         }
     }
 
-    fn refesh_config(&mut self, config: Box<Config>) {
+    fn refresh_config(&mut self, config: Box<Config>) {
         self.general_config = GeneralConfig {
             outputs: config.outputs,
             modules: config.modules,
@@ -243,7 +243,7 @@ impl App {
                 }
 
                 self.logger.set_new_spec(get_log_spec(&config.log_level));
-                self.refesh_config(config);
+                self.refresh_config(config);
 
                 Task::batch(tasks)
             }
