@@ -44,3 +44,4 @@ jobs:
 
       - name: Build developer guide
         run: mdbook build docs/
+        working-directory: .
