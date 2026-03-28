@@ -4,7 +4,7 @@ edition = "2024"
 version = "0.1.0"
 
 [dependencies]
-guido = { path = "../guido" }
+guido = "0.5.0"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 hyprland = "0.4.0-beta.2"
 niri-ipc = "25.11.0"
