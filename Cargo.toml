@@ -67,7 +67,6 @@ serde_with = { version = "3.12", default-features = false, features = [
   "macros",
 ] }
 tokio-stream = { version = "0.1", default-features = false }
-uuid = { version = "1", default-features = false, features = ["v4"] }
 clap = { version = "4.5", default-features = false, features = [
   "std",
   "derive",
@@ -78,7 +77,6 @@ inotify = { version = "0.11.0", default-features = false, features = [
 ] }
 pin-project-lite = "0.2.16"
 niri-ipc = "25.11.0"
-parking_lot = "0.12.5"
 reqwest = { version = "0.13", default-features = false, features = [
   "json",
   "rustls",
