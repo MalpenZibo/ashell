@@ -460,7 +460,7 @@ impl App {
                     .height(if self.theme.bar_style == AppearanceStyle::Islands {
                         HEIGHT
                     } else {
-                        HEIGHT - 8.
+                        HEIGHT - self.theme.space.xs as f64
                     } as f32)
                     .padding(if self.theme.bar_style == AppearanceStyle::Islands {
                         [self.theme.space.xxs, self.theme.space.xxs]
