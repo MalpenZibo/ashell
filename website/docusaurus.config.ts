@@ -4,6 +4,8 @@ import type * as Preset from "@docusaurus/preset-classic";
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
+const baseUrl = process.env.CI === "true" ? "/ashell/" : "/";
+
 const config: Config = {
   title: "Ashell",
   tagline: "A ready to go Wayland status bar for Hyprland and Niri",
@@ -18,7 +20,7 @@ const config: Config = {
   url: "https://malpenzibo.github.io",
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
-  baseUrl: process.env.CI === "true" ? "/ashell/" : "/",
+  baseUrl,
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
@@ -94,6 +96,11 @@ const config: Config = {
           position: "left",
         },
         {
+          href: `${baseUrl}dev-guide/`,
+          label: "Developer Guide",
+          position: "left",
+        },
+        {
           type: "docsVersionDropdown",
           position: "right",
         },
@@ -118,6 +125,10 @@ const config: Config = {
             {
               label: "Configuration",
               to: "/docs/configuration",
+            },
+            {
+              label: "Developer Guide",
+              href: `${baseUrl}dev-guide/`,
             },
           ],
         },
