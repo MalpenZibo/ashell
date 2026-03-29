@@ -94,7 +94,7 @@ pub enum Message {
     CustomButton(String),
     CustomButtonsStatus(Vec<(String, Option<bool>)>),
     MenuOpened,
-    ConfigReloaded(SettingsModuleConfig),
+    ConfigReloaded(Box<SettingsModuleConfig>),
 }
 
 pub enum Action {
@@ -136,6 +136,8 @@ impl Settings {
                 config.audio_sources_more_cmd,
                 config.audio_indicator_format,
                 config.microphone_indicator_format,
+                config.audio_feedback,
+                config.audio_feedback_sound,
             )),
             brightness: BrightnessSettings::new(config.brightness_indicator_format),
             network: NetworkSettings::new(NetworkSettingsConfig::new(
@@ -444,6 +446,8 @@ impl Settings {
                         config.audio_sources_more_cmd,
                         config.audio_indicator_format,
                         config.microphone_indicator_format,
+                        config.audio_feedback,
+                        config.audio_feedback_sound,
                     )));
                 self.network.update(network::Message::ConfigReloaded(
                     NetworkSettingsConfig::new(
