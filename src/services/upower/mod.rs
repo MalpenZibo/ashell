@@ -686,9 +686,9 @@ impl Service for UPowerService {
                 let conn = self.conn.clone();
                 let power_profile = self.power_profile;
                 async move {
-                    let powerprofiles = PowerProfilesProxy::new(&conn)
-                        .await
-                        .expect("Failed to create PowerProfilesProxy");
+                    let Some(powerprofiles) = PowerProfilesProxy::new(&conn).await.ok() else {
+                        return power_profile;
+                    };
 
                     match command {
                         PowerProfileCommand::Toggle => {

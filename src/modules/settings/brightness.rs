@@ -6,19 +6,19 @@ use crate::{
         brightness::{BrightnessCommand, BrightnessService},
     },
     theme::AshellTheme,
+    utils::remote_value,
 };
 use iced::{
-    Alignment, Element, Length, Subscription, Task,
-    futures::stream,
-    widget::{MouseArea, container, row, slider, text},
+    Alignment, Element, Subscription, Task,
+    mouse::ScrollDelta,
+    widget::{MouseArea, Text, container, row, slider, text},
 };
 
 #[derive(Debug, Clone)]
 pub enum Message {
     Event(ServiceEvent<BrightnessService>),
-    Change(u32),
+    Changed(remote_value::Message<u32>),
     MenuOpened,
-    ResetUserAdjusting,
     ConfigReloaded(SettingsFormat),
 }
 
@@ -30,9 +30,6 @@ pub enum Action {
 pub struct BrightnessSettings {
     config: SettingsFormat,
     service: Option<BrightnessService>,
-    ui_percentage: u32,
-    is_user_adjusting: bool,
-    reset_timer_active: bool,
 }
 
 impl BrightnessSettings {
@@ -40,86 +37,53 @@ impl BrightnessSettings {
         Self {
             config,
             service: None,
-            ui_percentage: 50,
-            is_user_adjusting: false,
-            reset_timer_active: false,
         }
     }
 
-    fn calculate_scroll_brightness(
-        current_percentage: u32,
-        max_value: u32,
-        delta: iced::mouse::ScrollDelta,
-    ) -> Message {
-        let delta = match delta {
-            iced::mouse::ScrollDelta::Lines { y, .. } => y,
-            iced::mouse::ScrollDelta::Pixels { y, .. } => y,
-        };
-        // brightness is always changed by one less than expected
-        let new_percentage = if delta > 0.0 {
-            (current_percentage + 5 + 1).min(100)
-        } else {
-            current_percentage.saturating_sub(5 + 1)
-        };
-        let new_brightness = new_percentage * max_value / 100;
-        Message::Change(new_brightness)
+    fn on_scroll(current: u32, max: u32) -> impl Fn(ScrollDelta) -> Message {
+        move |delta| {
+            let y = match delta {
+                ScrollDelta::Lines { y, .. } => y,
+                ScrollDelta::Pixels { y, .. } => y,
+            };
+            let step = (5 * max / 100).max(1);
+            let new = if y > 0.0 {
+                (current + step).min(max)
+            } else {
+                current.saturating_sub(step)
+            };
+            Message::Changed(remote_value::Message::RequestAndTimeout(new))
+        }
     }
 
     pub fn update(&mut self, message: Message) -> Action {
         match message {
             Message::Event(event) => match event {
                 ServiceEvent::Init(service) => {
-                    self.ui_percentage = service.current * 100 / service.max;
                     self.service = Some(service);
                     Action::None
                 }
                 ServiceEvent::Update(data) => {
                     if let Some(service) = self.service.as_mut() {
                         service.update(data);
-                        // Only update UI if the difference is significant and user isn't actively adjusting
-                        if !self.is_user_adjusting {
-                            let new_percentage = service.current * 100 / service.max;
-                            if (new_percentage as i32 - self.ui_percentage as i32).abs() > 2 {
-                                self.ui_percentage = new_percentage;
-                            }
-                        }
                     }
                     Action::None
                 }
                 _ => Action::None,
             },
-            Message::Change(value) => {
-                self.is_user_adjusting = true;
-                self.reset_timer_active = true;
-                self.ui_percentage = value * 100
-                    / if let Some(service) = &self.service {
-                        service.max
-                    } else {
-                        100
-                    };
-                match self.service.as_mut() {
-                    Some(service) => Action::Command(
-                        service
-                            .command(BrightnessCommand::Set(value))
-                            .map(Message::Event),
-                    ),
-                    _ => Action::None,
+            Message::Changed(message) => {
+                if let Some(service) = self.service.as_mut() {
+                    if let Some(value) = message.value() {
+                        let _ = service.command(BrightnessCommand(value));
+                    }
+                    return Action::Command(service.current.update(message).map(Message::Changed));
                 }
+                Action::None
             }
             Message::MenuOpened => {
                 if let Some(service) = self.service.as_mut() {
-                    Action::Command(
-                        service
-                            .command(BrightnessCommand::Refresh)
-                            .map(Message::Event),
-                    )
-                } else {
-                    Action::None
+                    service.sync_brightness();
                 }
-            }
-            Message::ResetUserAdjusting => {
-                self.is_user_adjusting = false;
-                self.reset_timer_active = false;
                 Action::None
             }
             Message::ConfigReloaded(format) => {
@@ -129,27 +93,25 @@ impl BrightnessSettings {
         }
     }
 
-    pub fn slider(&'_ self, theme: &AshellTheme) -> Option<Element<'_, Message>> {
+    pub fn slider<'a>(&'a self, theme: &AshellTheme) -> Option<Element<'a, Message>> {
         self.service.as_ref().map(|service| {
-            let max = service.max;
-            let current_percentage = self.ui_percentage;
             row!(
                 container(icon_mono(StaticIcon::Brightness))
                     .center_x(32.)
                     .center_y(32.)
                     .clip(true),
                 MouseArea::new(
-                    slider(0..=100, current_percentage, move |v| {
-                        Message::Change(v * max / 100)
-                    })
-                    .step(1_u32)
-                    .width(Length::Fill),
+                    Element::<'a, remote_value::Message<u32>>::from(
+                        slider(
+                            0..=service.max,
+                            service.current.value(),
+                            remote_value::Message::Request,
+                        )
+                        .on_release(remote_value::Message::Timeout),
+                    )
+                    .map(Message::Changed)
                 )
-                .on_scroll(move |delta| Self::calculate_scroll_brightness(
-                    current_percentage,
-                    max,
-                    delta
-                )),
+                .on_scroll(Self::on_scroll(service.current.value(), service.max))
             )
             .align_y(Alignment::Center)
             .spacing(theme.space.xs)
@@ -162,11 +124,7 @@ impl BrightnessSettings {
         theme: &'a AshellTheme,
     ) -> Option<Element<'a, Message>> {
         self.service.as_ref().map(|service| {
-            let percentage = self.ui_percentage;
-            let max_value = service.max;
-
-            let scroll_handler =
-                move |delta| Self::calculate_scroll_brightness(percentage, max_value, delta);
+            let scroll_handler = Self::on_scroll(service.current.value(), service.max);
 
             match self.config {
                 SettingsFormat::Icon => {
@@ -174,14 +132,14 @@ impl BrightnessSettings {
                     MouseArea::new(icon).on_scroll(scroll_handler).into()
                 }
                 SettingsFormat::Percentage | SettingsFormat::Time => {
-                    MouseArea::new(text(format!("{}%", percentage)))
+                    MouseArea::new(Self::percent_text(service))
                         .on_scroll(scroll_handler)
                         .into()
                 }
                 SettingsFormat::IconAndPercentage | SettingsFormat::IconAndTime => {
                     let icon = icon_mono(StaticIcon::Brightness);
                     MouseArea::new(
-                        row!(icon, text(format!("{}%", percentage)))
+                        row!(icon, Self::percent_text(service))
                             .spacing(theme.space.xxs)
                             .align_y(Alignment::Center),
                     )
@@ -193,19 +151,13 @@ impl BrightnessSettings {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        Subscription::batch([
-            BrightnessService::subscribe().map(Message::Event),
-            if self.reset_timer_active {
-                Subscription::run_with_id(
-                    0,
-                    stream::once(async {
-                        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-                        Message::ResetUserAdjusting
-                    }),
-                )
-            } else {
-                Subscription::none()
-            },
-        ])
+        BrightnessService::subscribe().map(Message::Event)
+    }
+
+    pub fn percent_text<'a>(service: &BrightnessService) -> Text<'a> {
+        let percent = (service.current.value() * 100)
+            .checked_div(service.max)
+            .unwrap_or(0); // Always show 0%, if max_brightness happens to be 0
+        text(format!("{percent}%"))
     }
 }

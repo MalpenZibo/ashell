@@ -23,9 +23,7 @@ use crate::{
 };
 use iced::{
     Alignment, Background, Border, Element, Length, Padding, Subscription, Task, Theme,
-    widget::{
-        Column, MouseArea, Row, Space, button, column, container, horizontal_space, row, text,
-    },
+    widget::{Column, MouseArea, Row, Space, button, container, horizontal_space, row, text},
     window::Id,
 };
 
@@ -62,6 +60,24 @@ struct NetworkDialogState {
     ssid: String,
     password: Option<String>,
     kind: NetworkDialogKind,
+}
+
+impl NetworkDialogState {
+    fn new_password_dialog(ssid: String) -> Self {
+        Self {
+            ssid,
+            password: Some(String::new()),
+            kind: NetworkDialogKind::Password,
+        }
+    }
+
+    fn new_warning_dialog(ssid: String) -> Self {
+        Self {
+            ssid,
+            password: None,
+            kind: NetworkDialogKind::OpenNetworkWarning,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -187,33 +203,22 @@ impl Settings {
                     Action::None
                 }
                 audio::Action::CloseMenu(id) => Action::CloseMenu(id),
+                audio::Action::Task(task) => Action::Command(task.map(Message::Audio)),
             },
             Message::Network(msg) => match self.network.update(msg) {
                 network::Action::None => Action::None,
                 network::Action::RequestPasswordForSSID(ssid) => {
-                    self.network_dialog = Some(NetworkDialogState {
-                        ssid,
-                        password: Some(String::new()),
-                        kind: NetworkDialogKind::Password,
-                    });
+                    self.network_dialog = Some(NetworkDialogState::new_password_dialog(ssid));
                     self.network_dialog_show_password = false;
                     Action::None
                 }
                 network::Action::RequestPassword(id, ssid) => {
-                    self.network_dialog = Some(NetworkDialogState {
-                        ssid,
-                        password: Some(String::new()),
-                        kind: NetworkDialogKind::Password,
-                    });
+                    self.network_dialog = Some(NetworkDialogState::new_password_dialog(ssid));
                     self.network_dialog_show_password = false;
                     Action::RequestKeyboard(id)
                 }
                 network::Action::ConfirmOpenNetwork(ssid) => {
-                    self.network_dialog = Some(NetworkDialogState {
-                        ssid,
-                        password: None,
-                        kind: NetworkDialogKind::OpenNetworkWarning,
-                    });
+                    self.network_dialog = Some(NetworkDialogState::new_warning_dialog(ssid));
                     self.network_dialog_show_password = false;
                     Action::None
                 }
@@ -416,14 +421,9 @@ impl Settings {
                     )
                 };
 
-                // Batch both tasks to run in parallel
-                let brightness_task = match self.brightness.update(brightness::Message::MenuOpened)
-                {
-                    brightness::Action::None => Task::none(),
-                    brightness::Action::Command(task) => task.map(Message::Brightness),
-                };
+                self.brightness.update(brightness::Message::MenuOpened);
 
-                Action::Command(Task::batch([custom_buttons_task, brightness_task]))
+                Action::Command(custom_buttons_task)
             }
             Message::ConfigReloaded(config) => {
                 self.lock_cmd = config.lock_cmd;
@@ -495,7 +495,7 @@ impl Settings {
                 .power
                 .battery_menu_indicator(theme)
                 .map(|e| e.map(Message::Power));
-            let right_buttons = Row::new()
+            let right_buttons = Row::with_capacity(2)
                 .push_maybe(
                     self.lock_cmd
                         .as_ref()
@@ -514,7 +514,7 @@ impl Settings {
                 )
                 .spacing(theme.space.xs);
 
-            let header = Row::new()
+            let header = Row::with_capacity(3)
                 .push_maybe(battery_data)
                 .push(Space::with_width(Length::Fill))
                 .push(right_buttons)
@@ -617,7 +617,7 @@ impl Settings {
                 Position::Bottom => (None, source_slider.map(|e| e.map(Message::Audio))),
             };
 
-            Column::new()
+            Column::with_capacity(11)
                 .push(header)
                 .push_maybe(
                     self.sub_menu
@@ -671,7 +671,7 @@ impl Settings {
     }
 
     pub fn view<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
-        let mut row = Row::new();
+        let mut row = Row::with_capacity(self.indicators.len());
 
         for indicator in &self.indicators {
             match indicator {
@@ -780,7 +780,7 @@ impl Settings {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        Subscription::batch(vec![
+        Subscription::batch([
             self.power.subscription().map(Message::Power),
             self.audio.subscription().map(Message::Audio),
             self.brightness.subscription().map(Message::Brightness),
@@ -794,7 +794,10 @@ fn quick_settings_section<'a>(
     theme: &'a AshellTheme,
     buttons: Vec<(Element<'a, Message>, Option<Element<'a, Message>>)>,
 ) -> Element<'a, Message> {
-    let mut section = column!().spacing(theme.space.xs);
+    // TODO trying to read this function gives me a headache; there's surely
+    // a better way to do this, maybe with Iterator::chunks or something?
+    // I might be way off though, I still don't fully understand how this works.
+    let mut section = Column::with_capacity(buttons.len() * 3).spacing(theme.space.xs);
 
     let mut before: Option<(Element<'a, Message>, Option<Element<'a, Message>>)> = None;
 
@@ -873,7 +876,7 @@ fn quick_setting_button<'a, Msg: Clone + 'static, I: Icon>(
     let main_content = row!(
         icon(icon_type).size(theme.font_size.lg),
         container(
-            Column::new()
+            Column::with_capacity(2)
                 .push(text(title).size(theme.font_size.sm))
                 .push_maybe(subtitle.map(|s| {
                     text(s)
@@ -890,7 +893,7 @@ fn quick_setting_button<'a, Msg: Clone + 'static, I: Icon>(
     .align_y(Alignment::Center);
 
     let btn = button(
-        Row::new()
+        Row::with_capacity(2)
             .push(main_content)
             .push_maybe(with_submenu.map(|(menu_type, submenu, msg)| {
                 icon_button(

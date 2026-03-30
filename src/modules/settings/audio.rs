@@ -7,14 +7,19 @@ use crate::{
         audio::{AudioCommand, AudioService, DevicePortType, Port},
     },
     theme::AshellTheme,
+    utils::remote_value::{self, Remote},
 };
 use iced::{
-    Alignment, Element, Length, Subscription, Theme,
+    Alignment, Element, Length, Subscription, Task, Theme,
+    mouse::ScrollDelta,
     widget::{
-        Column, MouseArea, Row, button, column, container, horizontal_rule, row, slider, text,
+        Column, MouseArea, Row, Text, button, column, container, horizontal_rule, row, slider, text,
     },
     window::Id,
 };
+use libpulse_binding::volume::Volume;
+
+const VOL_PERCENT: u32 = Volume::NORMAL.0 / 100;
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -22,9 +27,9 @@ pub enum Message {
     DefaultSinkChanged(String, Option<String>),
     DefaultSourceChanged(String, Option<String>),
     ToggleSinkMute,
-    SinkVolumeChanged(i32),
+    SinkVolumeChanged(remote_value::Message<u32>),
     ToggleSourceMute,
-    SourceVolumeChanged(i32),
+    SourceVolumeChanged(remote_value::Message<u32>),
     SinksMore(Id),
     SourcesMore(Id),
     OpenMore,
@@ -36,6 +41,7 @@ pub enum Message {
 
 pub enum Action {
     None,
+    Task(Task<Message>),
     ToggleSinksMenu,
     ToggleSourcesMenu,
     CloseMenu(Id),
@@ -122,9 +128,17 @@ impl AudioSettings {
                 }
                 Action::None
             }
-            Message::SinkVolumeChanged(value) => {
+            Message::SinkVolumeChanged(message) => {
                 if let Some(service) = self.service.as_mut() {
-                    let _ = service.command(AudioCommand::SinkVolume(value));
+                    if let Some(value) = message.value() {
+                        let _ = service.command(AudioCommand::SinkVolume(value));
+                    }
+                    return Action::Task(
+                        service
+                            .sink_slider
+                            .update(message)
+                            .map(Message::SinkVolumeChanged),
+                    );
                 }
                 Action::None
             }
@@ -140,9 +154,17 @@ impl AudioSettings {
                 }
                 Action::None
             }
-            Message::SourceVolumeChanged(value) => {
+            Message::SourceVolumeChanged(message) => {
                 if let Some(service) = self.service.as_mut() {
-                    let _ = service.command(AudioCommand::SourceVolume(value));
+                    if let Some(value) = message.value() {
+                        let _ = service.command(AudioCommand::SourceVolume(value));
+                    }
+                    return Action::Task(
+                        service
+                            .source_slider
+                            .update(message)
+                            .map(Message::SourceVolumeChanged),
+                    );
                 }
                 Action::None
             }
@@ -199,9 +221,9 @@ impl AudioSettings {
                         if sink.is_mute {
                             StaticIcon::Speaker0
                         } else {
-                            match service.cur_sink_volume {
-                                0..=33 => StaticIcon::Speaker1,
-                                34..=66 => StaticIcon::Speaker2,
+                            match service.sink_slider.value() {
+                                v if v <= 33 * VOL_PERCENT => StaticIcon::Speaker1,
+                                v if v <= 66 * VOL_PERCENT => StaticIcon::Speaker2,
                                 _ => StaticIcon::Speaker3,
                             }
                         },
@@ -209,46 +231,30 @@ impl AudioSettings {
                 })
             })
             .map(|(service, icon_type)| {
-                let volume = service.cur_sink_volume;
-
-                let make_scroll_handler = |cur_volume: i32| {
-                    move |delta| {
-                        let delta = match delta {
-                            iced::mouse::ScrollDelta::Lines { y, .. } => y,
-                            iced::mouse::ScrollDelta::Pixels { y, .. } => y,
-                        };
-                        let new_volume = if delta > 0.0 {
-                            (cur_volume + 5).min(100)
-                        } else {
-                            (cur_volume - 5).max(0)
-                        };
-                        Message::SinkVolumeChanged(new_volume)
-                    }
-                };
-
+                let volume = service.sink_slider.value();
                 match self.config.indicator_format {
                     SettingsFormat::Icon => {
                         let icon = icon(icon_type);
                         MouseArea::new(icon)
                             .on_right_press(Message::OpenMore)
-                            .on_scroll(make_scroll_handler(volume))
+                            .on_scroll(Self::on_scroll(volume, Message::SinkVolumeChanged))
                             .into()
                     }
                     SettingsFormat::Percentage | SettingsFormat::Time => {
-                        MouseArea::new(text(format!("{}%", volume)))
+                        MouseArea::new(Self::vol_text(volume))
                             .on_right_press(Message::OpenMore)
-                            .on_scroll(make_scroll_handler(volume))
+                            .on_scroll(Self::on_scroll(volume, Message::SinkVolumeChanged))
                             .into()
                     }
                     SettingsFormat::IconAndPercentage | SettingsFormat::IconAndTime => {
                         let icon = icon(icon_type);
                         MouseArea::new(
-                            row!(icon, text(format!("{}%", volume)))
+                            row!(icon, Self::vol_text(volume))
                                 .spacing(theme.space.xxs)
                                 .align_y(Alignment::Center),
                         )
                         .on_right_press(Message::OpenMore)
-                        .on_scroll(make_scroll_handler(volume))
+                        .on_scroll(Self::on_scroll(volume, Message::SinkVolumeChanged))
                         .into()
                     }
                 }
@@ -271,46 +277,30 @@ impl AudioSettings {
                 })
             })
             .map(|(service, icon_type)| {
-                let volume = service.cur_source_volume;
-
-                let make_scroll_handler = |cur_volume: i32| {
-                    move |delta| {
-                        let delta = match delta {
-                            iced::mouse::ScrollDelta::Lines { y, .. } => y,
-                            iced::mouse::ScrollDelta::Pixels { y, .. } => y,
-                        };
-                        let new_volume = if delta > 0.0 {
-                            (cur_volume + 5).min(100)
-                        } else {
-                            (cur_volume - 5).max(0)
-                        };
-                        Message::SourceVolumeChanged(new_volume)
-                    }
-                };
-
+                let volume = service.source_slider.value();
                 match self.config.microphone_indicator_format {
                     SettingsFormat::Icon => {
                         let icon = icon(icon_type);
                         MouseArea::new(icon)
                             .on_right_press(Message::OpenSourceMore)
-                            .on_scroll(make_scroll_handler(volume))
+                            .on_scroll(Self::on_scroll(volume, Message::SourceVolumeChanged))
                             .into()
                     }
                     SettingsFormat::Percentage | SettingsFormat::Time => {
-                        MouseArea::new(text(format!("{}%", volume)))
+                        MouseArea::new(Self::vol_text(volume))
                             .on_right_press(Message::OpenSourceMore)
-                            .on_scroll(make_scroll_handler(volume))
+                            .on_scroll(Self::on_scroll(volume, Message::SourceVolumeChanged))
                             .into()
                     }
                     SettingsFormat::IconAndPercentage | SettingsFormat::IconAndTime => {
                         let icon = icon(icon_type);
                         MouseArea::new(
-                            row!(icon, text(format!("{}%", volume)))
+                            row!(icon, Self::vol_text(volume))
                                 .spacing(theme.space.xxs)
                                 .align_y(Alignment::Center),
                         )
                         .on_right_press(Message::OpenSourceMore)
-                        .on_scroll(make_scroll_handler(volume))
+                        .on_scroll(Self::on_scroll(volume, Message::SourceVolumeChanged))
                         .into()
                     }
                 }
@@ -329,7 +319,7 @@ impl AudioSettings {
                     SliderType::Sink,
                     s.is_mute,
                     Message::ToggleSinkMute,
-                    service.cur_sink_volume,
+                    &service.sink_slider,
                     &Message::SinkVolumeChanged,
                     if service.has_multiple_sinks() {
                         Some((sub_menu, Message::ToggleSinksMenu))
@@ -345,7 +335,7 @@ impl AudioSettings {
                     SliderType::Source,
                     s.is_mute,
                     Message::ToggleSourceMute,
-                    service.cur_source_volume,
+                    &service.source_slider,
                     &Message::SourceVolumeChanged,
                     if service.has_multiple_sources() {
                         Some((sub_menu, Message::ToggleSourcesMenu))
@@ -460,11 +450,11 @@ impl AudioSettings {
         slider_type: SliderType,
         is_mute: bool,
         toggle_mute: Message,
-        volume: i32,
-        volume_changed: &'a dyn Fn(i32) -> Message,
+        volume: &'a Remote<u32>,
+        volume_changed: &'a dyn Fn(remote_value::Message<u32>) -> Message,
         with_submenu: Option<(Option<SubMenu>, Message)>,
     ) -> Element<'a, Message> {
-        Row::new()
+        Row::with_capacity(3)
             .push(
                 MouseArea::new(
                     icon_button(
@@ -483,27 +473,24 @@ impl AudioSettings {
                     )
                     .on_press(toggle_mute),
                 )
-                .on_right_press(Message::OpenMore),
+                .on_right_press(match slider_type {
+                    SliderType::Sink => Message::OpenMore,
+                    SliderType::Source => Message::OpenSourceMore,
+                }),
             )
             .push(
                 MouseArea::new(
-                    slider(0..=100, volume, volume_changed)
-                        .step(1)
-                        .width(Length::Fill),
+                    Element::<'a, remote_value::Message<u32>>::from(
+                        slider(
+                            Volume::MUTED.0..=Volume::NORMAL.0,
+                            volume.value(),
+                            remote_value::Message::Request,
+                        )
+                        .on_release(remote_value::Message::Timeout),
+                    )
+                    .map(volume_changed),
                 )
-                .on_scroll(move |delta| {
-                    let delta = match delta {
-                        iced::mouse::ScrollDelta::Lines { y, .. } => y,
-                        iced::mouse::ScrollDelta::Pixels { y, .. } => y,
-                    };
-                    // volume is always changed by one less than expected
-                    let new_volume = if delta > 0.0 {
-                        (volume + 5 + 1).min(100)
-                    } else {
-                        (volume - 5 + 1).max(0)
-                    };
-                    volume_changed(new_volume)
-                }),
+                .on_scroll(Self::on_scroll(volume.value(), volume_changed)),
             )
             .push_maybe(with_submenu.map(|(submenu, msg)| {
                 icon_button(
@@ -519,6 +506,29 @@ impl AudioSettings {
             .align_y(Alignment::Center)
             .spacing(theme.space.xs)
             .into()
+    }
+
+    fn on_scroll<F>(cur_volume: u32, make_msg: F) -> impl Fn(ScrollDelta) -> Message
+    where
+        F: Fn(remote_value::Message<u32>) -> Message,
+    {
+        move |delta| {
+            let y = match delta {
+                ScrollDelta::Lines { y, .. } => y,
+                ScrollDelta::Pixels { y, .. } => y,
+            };
+            let step = 5 * VOL_PERCENT;
+            let new_volume = if y > 0.0 {
+                (cur_volume + step).min(Volume::NORMAL.0)
+            } else {
+                cur_volume.saturating_sub(step)
+            };
+            make_msg(remote_value::Message::RequestAndTimeout(new_volume))
+        }
+    }
+
+    fn vol_text<'a>(volume: u32) -> Text<'a> {
+        text(format!("{}%", volume / VOL_PERCENT))
     }
 
     fn submenu<'a>(

@@ -225,10 +225,18 @@ pub enum SystemInfoIndicator {
 #[serde(default)]
 pub struct SystemInfoModuleConfig {
     pub indicators: Vec<SystemInfoIndicator>,
+    #[serde(default = "SystemInfoModuleConfig::default_interval")]
+    pub interval: u64,
     pub cpu: SystemInfoCpu,
     pub memory: SystemInfoMemory,
     pub temperature: SystemInfoTemperature,
     pub disk: SystemInfoDisk,
+}
+
+impl SystemInfoModuleConfig {
+    const fn default_interval() -> u64 {
+        5
+    }
 }
 
 impl Default for SystemInfoModuleConfig {
@@ -239,6 +247,7 @@ impl Default for SystemInfoModuleConfig {
                 SystemInfoIndicator::Memory,
                 SystemInfoIndicator::Temperature,
             ],
+            interval: Self::default_interval(),
             cpu: SystemInfoCpu::default(),
             memory: SystemInfoMemory::default(),
             temperature: SystemInfoTemperature::default(),
@@ -316,13 +325,23 @@ pub struct TempoModuleConfig {
     pub timezones: Vec<String>,
     #[serde(default)]
     pub weather_location: Option<WeatherLocation>,
+    pub weather_indicator: WeatherIndicator,
 }
 
-#[derive(Deserialize, Default, Clone, Debug)]
+#[derive(Deserialize, Default, Clone, Debug, PartialEq, Eq)]
+pub enum WeatherIndicator {
+    #[default]
+    IconAndTemperature,
+    Icon,
+    None,
+}
+
+#[derive(Deserialize, Default, Clone, Debug, PartialEq)]
 pub enum WeatherLocation {
     #[default]
     Current,
     City(String),
+    Coordinates(f32, f32),
 }
 
 impl Default for TempoModuleConfig {
@@ -332,6 +351,7 @@ impl Default for TempoModuleConfig {
             formats: vec![],
             timezones: vec![],
             weather_location: None,
+            weather_indicator: WeatherIndicator::IconAndTemperature,
         }
     }
 }

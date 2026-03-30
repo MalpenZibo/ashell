@@ -128,7 +128,7 @@ impl TrayModule {
                 ..
             } if display == "submenu" => {
                 let is_open = self.submenus.contains(&layout.0);
-                Column::new()
+                Column::with_capacity(2)
                     .push(
                         button(row!(
                             text(label.replace("_", "").to_owned()).width(Length::Fill),
@@ -149,6 +149,7 @@ impl TrayModule {
                                 layout
                                     .2
                                     .iter()
+                                    .filter(|menu| menu.1.visible != Some(false))
                                     .map(|menu| self.menu_voice(theme, name, menu))
                                     .collect::<Vec<_>>(),
                             )
@@ -162,7 +163,7 @@ impl TrayModule {
             }
             LayoutProps {
                 label: Some(label), ..
-            } => button(text(label.replace("_", "")))
+            } if !label.is_empty() => button(text(label.replace("_", "")))
                 .style(theme.ghost_button_style())
                 .on_press(Message::MenuSelected(name.to_owned(), layout.0))
                 .width(Length::Fill)
@@ -222,6 +223,7 @@ impl TrayModule {
                     item.menu
                         .2
                         .iter()
+                        .filter(|menu| menu.1.visible != Some(false))
                         .map(|menu| self.menu_voice(theme, name, menu)),
                 )
                 .spacing(theme.space.xs),
