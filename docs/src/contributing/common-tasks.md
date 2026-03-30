@@ -53,16 +53,6 @@
 
 3. Subscribe from a module. See [Writing a New Service](../services/writing-a-new-service.md).
 
-## Updating the iced Fork
-
-1. In the MalpenZibo/iced repository, check for the desired commit.
-2. Update the `rev` in `Cargo.toml`:
-   ```toml
-   iced = { git = "https://github.com/MalpenZibo/iced", rev = "new_commit_hash", ... }
-   ```
-3. Run `cargo update` to refresh the lock file.
-4. Build and test — API changes may require code updates.
-
 ## Working with the Theme
 
 To add a new style or modify existing styles, edit `src/theme.rs`:

@@ -30,10 +30,10 @@ ashell uses GitHub Actions for continuous integration. All workflow files are in
 
 Verifies that the Nix flake builds correctly.
 
-## Website CI
+## Website and Developer Guide CI
 
-- **`gh-pages-test.yml`**: Tests the Docusaurus website build on PRs.
-- **`gh-pages-deploy.yml`**: Deploys the website to GitHub Pages on push to main.
+- **`gh-pages-test.yml`**: Tests both the Docusaurus website and the mdbook developer guide build on PRs.
+- **`gh-pages-deploy.yml`**: Builds the website and developer guide, then deploys them together to GitHub Pages on push to main. The developer guide is built with `mdbook build` and copied into the website output at `/dev-guide/`.
 
 ## Dependency Management (`dependabot.yml`)
 
@@ -53,7 +53,6 @@ Dependabot is configured to:
 | `generate-installers.yml` | Called by release | Build .deb/.rpm packages |
 | `gh-pages-deploy.yml` | Push to main | Deploy website |
 | `gh-pages-test.yml` | PR | Test website build |
-| `copr-build.yml` | Release | Fedora COPR package |
 | `update-arch-package.yml` | Release | Update AUR package |
 | `release-drafter.yml` | Push/PR | Auto-draft release notes |
 | `remove-manifest-assets.yml` | Post-release | Clean up dist manifests |

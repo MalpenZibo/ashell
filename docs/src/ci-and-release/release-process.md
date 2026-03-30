@@ -2,11 +2,13 @@
 
 ashell uses [cargo-dist](https://github.com/axodotdev/cargo-dist) (v0.30.0) for automated release builds and GitHub Releases.
 
-## How to Create a Release
+> **Note:** Releases are managed by the project maintainer (@MalpenZibo). This page documents the process for reference.
 
-1. **Draft release notes**: The `release-drafter.yml` workflow automatically drafts release notes based on merged PRs. Review and edit the draft in GitHub Releases.
+## How a Release Works
 
-2. **Trigger the release**: Go to Actions → Release → Run workflow. Enter the version tag (e.g., `v0.8.0`).
+1. **Draft release notes**: The `release-drafter.yml` workflow automatically drafts release notes based on merged PRs. The maintainer reviews and edits the draft in GitHub Releases.
+
+2. **Trigger the release**: The maintainer goes to Actions → Release → Run workflow and enters the version tag (e.g., `v0.8.0`).
 
 3. **Automated pipeline**: The release workflow:
    - Runs `dist plan` to determine build matrix
@@ -18,7 +20,6 @@ ashell uses [cargo-dist](https://github.com/axodotdev/cargo-dist) (v0.30.0) for 
 
 4. **Post-release**: Downstream packaging jobs run automatically:
    - `update-arch-package.yml` updates the AUR package
-   - `copr-build.yml` builds the Fedora COPR package
    - `remove-manifest-assets.yml` cleans up dist manifests from the release
 
 ## cargo-dist Configuration
@@ -38,7 +39,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 ## Dry Run
 
-To test the release process without actually publishing:
+To test the release process without actually publishing, the maintainer can:
 
 1. Go to Actions → Release → Run workflow
 2. Enter `dry-run` as the tag
