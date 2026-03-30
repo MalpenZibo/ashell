@@ -386,7 +386,7 @@ impl SystemInfo {
             )
             .spacing(theme.space.xs),
         )
-        .max_width(MenuSize::Medium)
+        .width(MenuSize::Medium)
         .into()
     }
 

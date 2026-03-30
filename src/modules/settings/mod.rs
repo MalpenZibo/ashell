@@ -666,7 +666,7 @@ impl Settings {
                 .spacing(theme.space.md)
                 .into()
         })
-        .max_width(MenuSize::Medium)
+        .width(MenuSize::Medium)
         .into()
     }
 

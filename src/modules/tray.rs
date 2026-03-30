@@ -230,7 +230,7 @@ impl TrayModule {
                 _ => Column::new(),
             },
         )
-        .max_width(MenuSize::Medium)
+        .width(MenuSize::Medium)
         .into()
     }
 

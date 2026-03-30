@@ -211,7 +211,7 @@ impl MediaPlayer {
             .spacing(theme.space.xs)
             .into(),
         })
-        .max_width(MenuSize::Large)
+        .width(MenuSize::Large)
         .into()
     }
 
