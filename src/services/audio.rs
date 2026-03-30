@@ -27,6 +27,7 @@ use std::{
     fmt,
     ops::{Deref, DerefMut},
     rc::Rc,
+    sync::{Arc, atomic::{AtomicBool, Ordering}},
     thread::{self, JoinHandle},
     time::Duration,
 };
@@ -134,6 +135,13 @@ struct PulseAudioServerHandle {
     _commander: JoinHandle<()>,
     receiver: UnboundedReceiver<PulseAudioServerEvent>,
     sender: UnboundedSender<PulseAudioCommand>,
+    shutdown: Arc<AtomicBool>,
+}
+
+impl Drop for PulseAudioServerHandle {
+    fn drop(&mut self) {
+        self.shutdown.store(true, Ordering::Relaxed);
+    }
 }
 
 impl AudioService {
@@ -310,16 +318,15 @@ impl ReadOnlyService for AudioService {
     fn subscribe() -> iced::Subscription<super::ServiceEvent<Self>> {
         let id = TypeId::of::<Self>();
 
-        Subscription::run_with_id(
-            id,
+        Subscription::run_with(id, |_| {
             channel(100, async |mut output| {
                 let mut state = State::Init;
 
                 loop {
                     state = AudioService::start_listening(state, &mut output).await;
                 }
-            }),
-        )
+            })
+        })
     }
 }
 
@@ -456,8 +463,10 @@ impl PulseAudioServer {
     async fn start() -> anyhow::Result<PulseAudioServerHandle> {
         let (from_server_tx, from_server_rx) = tokio::sync::mpsc::unbounded_channel();
         let (to_server_tx, to_server_rx) = tokio::sync::mpsc::unbounded_channel();
+        let shutdown = Arc::new(AtomicBool::new(false));
 
-        let listener = Self::start_listener(from_server_tx.clone()).await?;
+        let listener =
+            Self::start_listener(from_server_tx.clone(), shutdown.clone()).await?;
         let commander = Self::start_commander(from_server_tx.clone(), to_server_rx).await?;
 
         Ok(PulseAudioServerHandle {
@@ -465,11 +474,13 @@ impl PulseAudioServer {
             _commander: commander,
             receiver: from_server_rx,
             sender: to_server_tx,
+            shutdown,
         })
     }
 
     async fn start_listener(
         from_server_tx: UnboundedSender<PulseAudioServerEvent>,
+        shutdown: Arc<AtomicBool>,
     ) -> anyhow::Result<JoinHandle<()>> {
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
 
@@ -572,8 +583,13 @@ impl PulseAudioServer {
 
                     loop {
                         let data = server.mainloop.iterate(true);
+                        if shutdown.load(Ordering::Relaxed) {
+                            debug!("PulseAudio listener shutting down");
+                            break;
+                        }
                         if let IterateResult::Quit(_) | IterateResult::Err(_) = data {
                             error!("PulseAudio mainloop error");
+                            break;
                         }
                     }
                 }
@@ -598,12 +614,18 @@ impl PulseAudioServer {
     ) -> anyhow::Result<JoinHandle<()>> {
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
 
-        let handle = thread::spawn(move || {
-            tokio::runtime::Builder::new_current_thread()
-                .enable_time()
-                .build()
-                .unwrap()
-                .block_on(async move {
+        // Use tokio::task::spawn_blocking + a fresh runtime to avoid
+        // "Cannot start a runtime from within a runtime" when iced manages the tokio context.
+        let handle = std::thread::Builder::new()
+            .name("pulseaudio-commander".into())
+            .spawn(move || {
+                // Create a completely independent runtime on this fresh OS thread.
+                // PulseAudio's blocking API needs its own event loop.
+                let rt = tokio::runtime::Builder::new_current_thread()
+                    .enable_time()
+                    .build()
+                    .expect("failed to create commander runtime");
+                rt.block_on(async move {
                     match Self::new() {
                         Ok(mut server) => {
                             let _ = tx.send(true);
@@ -638,7 +660,8 @@ impl PulseAudioServer {
                         }
                     }
                 })
-        });
+            })
+            .expect("failed to spawn commander thread");
 
         match rx.recv().await {
             Some(true) => Ok(handle),

@@ -5,7 +5,7 @@ use crate::{
 use iced::{
     Alignment, Element, Length,
     alignment::Vertical,
-    widget::{button, column, container, horizontal_space, row, text, text_input},
+    widget::{button, column, container, row, space, text, text_input},
     window::Id,
 };
 
@@ -89,7 +89,7 @@ Do you want to connect anyway?",
     )
     .push(
         row!(
-            horizontal_space(),
+            space::horizontal(),
             button(text("Cancel").align_y(Vertical::Center))
                 .padding([theme.space.xxs, theme.space.xl])
                 .style(theme.outline_button_style())

@@ -17,7 +17,7 @@ use crate::{
 use iced::{
     Alignment, Element, Length, Subscription, Task, Theme,
     alignment::Vertical,
-    widget::{Column, Row, button, column, container, horizontal_rule, row, text},
+    widget::{Column, Row, button, column, container, row, rule, text},
 };
 
 fn format_time_for_battery(battery: &BatteryData) -> String {
@@ -184,7 +184,7 @@ impl PowerSettings {
                 .on_press(Message::Shutdown)
                 .width(Length::Fill)
                 .style(theme.ghost_button_style()),
-            horizontal_rule(1),
+            rule::horizontal(1),
             button(row!(icon(StaticIcon::Logout), text("Logout")).spacing(theme.space.md))
                 .padding([theme.space.xxs, theme.space.sm])
                 .on_press(Message::Logout)

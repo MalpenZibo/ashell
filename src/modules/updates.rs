@@ -8,7 +8,7 @@ use iced::{
     Alignment, Element, Length, Subscription, Task,
     alignment::Horizontal,
     stream::channel,
-    widget::{Column, button, column, container, horizontal_rule, row, scrollable, text},
+    widget::{Column, button, column, container, row, rule, scrollable, text},
     window::Id,
 };
 use log::error;
@@ -248,7 +248,7 @@ impl Updates {
                 }
                 elements.into()
             },
-            horizontal_rule(1),
+            rule::horizontal(1),
             self.update_buttons(id, theme),
         )
         .width(MenuSize::Small)
@@ -287,17 +287,21 @@ impl Updates {
         let interval = Duration::from_secs(self.config.interval.max(60));
         let id = TypeId::of::<Self>();
 
-        Subscription::run_with_id(
-            (id, check_cmd.clone()),
-            channel(10, async move |mut output| {
-                loop {
-                    let updates = check_update_now(&check_cmd).await;
+        Subscription::run_with(
+            (id, check_cmd.clone(), interval),
+            |data: &(TypeId, String, Duration)| {
+                let check_cmd = data.1.clone();
+                let interval = data.2;
+                channel(10, async move |mut output| {
+                    loop {
+                        let updates = check_update_now(&check_cmd).await;
 
-                    let _ = output.try_send(Message::UpdatesCheckCompleted(updates));
+                        let _ = output.try_send(Message::UpdatesCheckCompleted(updates));
 
-                    sleep(interval).await;
-                }
-            }),
+                        sleep(interval).await;
+                    }
+                })
+            },
         )
     }
 }

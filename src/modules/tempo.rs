@@ -726,29 +726,30 @@ impl Tempo {
             Duration::from_secs(5)
         };
 
-        let time_sub = Subscription::run_with_id(
-            TypeId::of::<Self>(),
-            channel(100, move |mut output| async move {
-                let mut interval = tokio::time::interval(interval);
-                loop {
-                    interval.tick().await;
-                    output.send(Message::Update).await.ok();
-                }
-            }),
+        let time_sub = Subscription::run_with(
+            (TypeId::of::<Self>(), interval),
+            |data: &(TypeId, Duration)| {
+                let interval = data.1;
+                channel(100, async move |mut output| {
+                    let mut interval = tokio::time::interval(interval);
+                    loop {
+                        interval.tick().await;
+                        output.send(Message::Update).await.ok();
+                    }
+                })
+            },
         );
 
         let weather_sub = self.config.weather_location.clone().map(|location| {
-            Subscription::run_with_id(
-                (
-                    TypeId::of::<Self>(),
-                    format!("{:?}", self.config.weather_location),
-                    "weather",
-                ),
-                channel(100, async move |mut output| {
-                    let mut failed_attempt: u64 = 0;
+            Subscription::run_with(
+                (TypeId::of::<Self>(), location.clone()),
+                |data: &(TypeId, WeatherLocation)| {
+                    let location = data.1.clone();
+                    channel(100, async move |mut output| {
+                        let mut failed_attempt: u64 = 0;
 
-                    loop {
-                        let loc = match fetch_location(&location).await {
+                        loop {
+                            let loc = match fetch_location(&location).await {
                             Ok(loc) => {
                                 debug!("Location fetched successfully: {:?}", loc);
                                 let (lat, lon) = (loc.latitude, loc.longitude);
@@ -783,7 +784,8 @@ impl Tempo {
                         failed_attempt += 1;
                         tokio::time::sleep(Duration::from_secs(60 * failed_attempt)).await;
                     }
-                }),
+                    })
+                },
             )
         });
 

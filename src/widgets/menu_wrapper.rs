@@ -6,7 +6,7 @@ use iced::core::widget::tree;
 use iced::id::Id;
 use iced::{
     Background, Border, Color, Element, Event, Length, Padding, Point, Rectangle, Shadow, Size,
-    Vector, alignment, event, overlay, touch,
+    Vector, alignment, overlay, touch,
 };
 
 #[allow(missing_debug_implementations)]
@@ -87,7 +87,7 @@ where
     }
 
     fn layout(
-        &self,
+        &mut self,
         tree: &mut Tree,
         renderer: &Renderer,
         limits: &layout::Limits,
@@ -99,7 +99,7 @@ where
             self.padding,
             |limits| {
                 self.content
-                    .as_widget()
+                    .as_widget_mut()
                     .layout(&mut tree.children[0], renderer, limits)
             },
             |node, size| {
@@ -120,14 +120,15 @@ where
     }
 
     fn operate(
-        &self,
+        &mut self,
         tree: &mut Tree,
         layout: Layout<'_>,
         renderer: &Renderer,
         operation: &mut dyn Operation,
     ) {
-        operation.container(None, layout.bounds(), &mut |operation| {
-            self.content.as_widget().operate(
+        operation.container(None, layout.bounds());
+        operation.traverse(&mut |operation| {
+            self.content.as_widget_mut().operate(
                 &mut tree.children[0],
                 layout.children().next().unwrap(),
                 renderer,
@@ -136,29 +137,27 @@ where
         });
     }
 
-    fn on_event(
+    fn update(
         &mut self,
         tree: &mut Tree,
-        event: Event,
+        event: &Event,
         layout: Layout<'_>,
         cursor: mouse::Cursor,
         renderer: &Renderer,
         clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
-    ) -> event::Status {
-        if let event::Status::Captured = self.content.as_widget_mut().on_event(
+    ) {
+        self.content.as_widget_mut().update(
             &mut tree.children[0],
-            event.clone(),
+            event,
             layout.children().next().unwrap(),
             cursor,
             renderer,
             clipboard,
             shell,
             viewport,
-        ) {
-            return event::Status::Captured;
-        }
+        );
 
         if let Some(on_click_outside) = &self.on_click_outside
             && let Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left))
@@ -168,12 +167,8 @@ where
             let cursor_over_scrollable = cursor.is_over(bounds);
             if !cursor_over_scrollable {
                 shell.publish(on_click_outside.clone());
-
-                return event::Status::Captured;
             }
         }
-
-        event::Status::Ignored
     }
 
     fn mouse_interaction(
@@ -203,6 +198,7 @@ where
                     bounds: layout.bounds(),
                     border: Border::default(),
                     shadow: Shadow::default(),
+                    snap: false,
                 },
                 Background::Color(backdrop),
             );
@@ -223,14 +219,16 @@ where
     fn overlay<'b>(
         &'b mut self,
         tree: &'b mut Tree,
-        layout: Layout<'_>,
+        layout: Layout<'b>,
         renderer: &Renderer,
+        _viewport: &Rectangle,
         translation: Vector,
     ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
         self.content.as_widget_mut().overlay(
             &mut tree.children[0],
             layout.children().next().unwrap(),
             renderer,
+            _viewport,
             translation,
         )
     }

@@ -7,7 +7,7 @@ use crate::{
 use iced::{
     Alignment, Element, Length, Subscription, Theme,
     time::every,
-    widget::{Column, Row, column, container, horizontal_rule, row, text},
+    widget::{Column, Row, column, container, row, rule, text},
 };
 use itertools::Itertools;
 use std::time::{Duration, Instant};
@@ -306,7 +306,7 @@ impl SystemInfo {
         container(
             column!(
                 text("System Info").size(theme.font_size.lg),
-                horizontal_rule(1),
+                rule::horizontal(1),
                 Column::with_capacity(6)
                     .push(Self::info_element(
                         theme,

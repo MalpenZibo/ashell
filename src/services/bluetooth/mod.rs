@@ -294,16 +294,15 @@ impl ReadOnlyService for BluetoothService {
     fn subscribe() -> Subscription<ServiceEvent<Self>> {
         let id = TypeId::of::<Self>();
 
-        Subscription::run_with_id(
-            id,
+        Subscription::run_with(id, |_| {
             channel(100, async |mut output| {
                 let mut state = State::Init;
 
                 loop {
                     state = BluetoothService::start_listening(state, &mut output).await;
                 }
-            }),
-        )
+            })
+        })
     }
 }
 

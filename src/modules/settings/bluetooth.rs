@@ -12,7 +12,7 @@ use iced::{
     Element, Length, Subscription, Task, Theme,
     alignment::{Alignment, Horizontal, Vertical},
     widget::{
-        Column, MouseArea, Row, button, column, container, horizontal_rule, row, scrollable, text,
+        Column, MouseArea, Row, button, column, container, row, rule, scrollable, text,
     },
     window::Id,
 };
@@ -310,7 +310,7 @@ impl BluetoothSettings {
                                         .align_x(Horizontal::Right)
                                 )
                                 .padding([0, theme.space.sm]),
-                                horizontal_rule(1),
+                                rule::horizontal(1),
                             ),
                             container(scrollable(
                                 Column::with_children(known_devices.map(known_device_entry),)
@@ -334,7 +334,7 @@ impl BluetoothSettings {
                                         .size(theme.font_size.xs),
                                 )
                                 .padding([0, theme.space.sm]),
-                                horizontal_rule(1),
+                                rule::horizontal(1),
                             ),
                             container(scrollable(
                                 Column::with_children(available_devices.map(|d| {
@@ -371,7 +371,7 @@ impl BluetoothSettings {
                 } else {
                     None
                 })
-                .push_maybe(self.config.more_cmd.as_ref().map(|_| horizontal_rule(1)))
+                .push_maybe(self.config.more_cmd.as_ref().map(|_| rule::horizontal(1)))
                 .push_maybe(self.config.more_cmd.as_ref().map(|_| {
                     button("More")
                         .on_press(Message::More(id))

@@ -22,8 +22,7 @@ impl ReadOnlyService for LogindService {
     fn subscribe() -> Subscription<ServiceEvent<Self>> {
         let id = TypeId::of::<Self>();
 
-        Subscription::run_with_id(
-            id,
+        Subscription::run_with(id, |_| {
             channel(100, async move |mut output| {
                 let connection = match Connection::system().await {
                     Ok(conn) => conn,
@@ -61,8 +60,8 @@ impl ReadOnlyService for LogindService {
                         let _ = output.send(ServiceEvent::Update(ResumeEvent)).await;
                     }
                 }
-            }),
-        )
+            })
+        })
     }
 }
 

@@ -178,14 +178,17 @@ impl Custom {
         let id = TypeId::of::<Self>();
         let name = self.config.name.clone();
         if let Some(listen_cmd) = self.config.listen_cmd.clone() {
-            Subscription::run_with_id(
+            Subscription::run_with(
                 (id, name.clone(), listen_cmd.clone()),
-                channel(10, async move |mut output| {
-                    let command = Command::new("bash")
-                        .arg("-c")
-                        .arg(&listen_cmd)
-                        .stdout(Stdio::piped())
-                        .spawn();
+                |data| {
+                    let name = data.1.clone();
+                    let listen_cmd = data.2.clone();
+                    channel(10, async move |mut output| {
+                        let command = Command::new("bash")
+                            .arg("-c")
+                            .arg(&listen_cmd)
+                            .stdout(Stdio::piped())
+                            .spawn();
 
                     match command {
                         Ok(mut child) => {
@@ -229,7 +232,8 @@ impl Custom {
                             error!("Failed to execute command: {error}");
                         }
                     }
-                }),
+                    })
+                },
             )
         } else {
             Subscription::none()

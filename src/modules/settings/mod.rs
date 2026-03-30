@@ -23,7 +23,7 @@ use crate::{
 };
 use iced::{
     Alignment, Background, Border, Element, Length, Padding, Subscription, Task, Theme,
-    widget::{Column, MouseArea, Row, Space, button, container, horizontal_space, row, text},
+    widget::{Column, MouseArea, Row, Space, button, container, row, space, text},
     window::Id,
 };
 
@@ -516,7 +516,7 @@ impl Settings {
 
             let header = Row::with_capacity(3)
                 .push_maybe(battery_data)
-                .push(Space::with_width(Length::Fill))
+                .push(Space::new().width(Length::Fill))
                 .push(right_buttons)
                 .spacing(theme.space.xs)
                 .width(Length::Fill);
@@ -826,7 +826,7 @@ fn quick_settings_section<'a>(
 
     if let Some((before_button, before_menu)) = before.take() {
         section = section.push(
-            row![before_button, horizontal_space()]
+            row![before_button, space::horizontal()]
                 .width(Length::Fill)
                 .spacing(theme.space.xs),
         );

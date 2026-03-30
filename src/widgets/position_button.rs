@@ -2,7 +2,7 @@ use iced::{
     Background, Color, Element, Length, Padding, Point, Rectangle, Size, Vector,
     core::{
         Clipboard, Layout, Shell, Widget,
-        event::{self, Event},
+        event::Event,
         keyboard, layout, mouse, overlay, renderer, touch,
         widget::{Operation, Tree, tree},
     },
@@ -141,14 +141,12 @@ where
         layout: Layout<'_>,
         viewport: &Rectangle,
         shell: &mut Shell<'_, Message>,
-    ) -> event::Status
-    where
+    ) where
         Message: Clone,
     {
         match on_press {
             OnPress::Message(message) => {
                 shell.publish(message.clone());
-                event::Status::Captured
             }
             OnPress::MessageWithPosition(on_press_with_position) => {
                 let ui_data = ButtonUIRef {
@@ -159,9 +157,9 @@ where
                     viewport: (viewport.width, viewport.height),
                 };
                 shell.publish(on_press_with_position(ui_data));
-                event::Status::Captured
             }
         }
+        shell.capture_event();
     }
 }
 
@@ -204,27 +202,28 @@ where
     }
 
     fn layout(
-        &self,
+        &mut self,
         tree: &mut Tree,
         renderer: &Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
         layout::padded(limits, self.width, self.height, self.padding, |limits| {
             self.content
-                .as_widget()
+                .as_widget_mut()
                 .layout(&mut tree.children[0], renderer, limits)
         })
     }
 
     fn operate(
-        &self,
+        &mut self,
         tree: &mut Tree,
         layout: Layout<'_>,
         renderer: &Renderer,
         operation: &mut dyn Operation,
     ) {
-        operation.container(None, layout.bounds(), &mut |operation| {
-            self.content.as_widget().operate(
+        operation.container(None, layout.bounds());
+        operation.traverse(&mut |operation| {
+            self.content.as_widget_mut().operate(
                 &mut tree.children[0],
                 layout.children().next().unwrap(),
                 renderer,
@@ -233,29 +232,27 @@ where
         });
     }
 
-    fn on_event(
+    fn update(
         &mut self,
         tree: &mut Tree,
-        event: Event,
+        event: &Event,
         layout: Layout<'_>,
         cursor: mouse::Cursor,
         renderer: &Renderer,
         clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
-    ) -> event::Status {
-        if let event::Status::Captured = self.content.as_widget_mut().on_event(
+    ) {
+        self.content.as_widget_mut().update(
             &mut tree.children[0],
-            event.clone(),
+            event,
             layout.children().next().unwrap(),
             cursor,
             renderer,
             clipboard,
             shell,
             viewport,
-        ) {
-            return event::Status::Captured;
-        }
+        );
 
         match event {
             Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
@@ -269,7 +266,8 @@ where
 
                     state.is_pressed = true;
 
-                    return event::Status::Captured;
+                    shell.capture_event();
+                    return;
                 }
             }
             Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Right))
@@ -280,7 +278,8 @@ where
                 if cursor.is_over(bounds) {
                     let state = tree.state.downcast_mut::<State>();
                     state.is_right_pressed = true;
-                    return event::Status::Captured;
+                    shell.capture_event();
+                    return;
                 }
             }
             Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left))
@@ -294,10 +293,12 @@ where
                         let bounds = layout.bounds();
 
                         if cursor.is_over(bounds) {
-                            return self.publish_on_press(on_press, layout, viewport, shell);
+                            self.publish_on_press(on_press, layout, viewport, shell);
+                            return;
                         }
 
-                        return event::Status::Captured;
+                        shell.capture_event();
+                        return;
                     }
                 }
             }
@@ -311,10 +312,12 @@ where
                         let bounds = layout.bounds();
 
                         if cursor.is_over(bounds) {
-                            return self.publish_on_press(on_right_press, layout, viewport, shell);
+                            self.publish_on_press(on_right_press, layout, viewport, shell);
+                            return;
                         }
 
-                        return event::Status::Captured;
+                        shell.capture_event();
+                        return;
                     }
                 }
             }
@@ -323,16 +326,17 @@ where
                 if cursor.is_over(bounds)
                     && let mouse::ScrollDelta::Lines { y, .. } = delta
                 {
-                    let target = if y > 0.0 {
+                    let target = if *y > 0.0 {
                         self.on_scroll_up.as_ref()
-                    } else if y < 0.0 {
+                    } else if *y < 0.0 {
                         self.on_scroll_down.as_ref()
                     } else {
                         None
                     };
 
                     if let Some(on_scroll) = target {
-                        return self.publish_on_press(on_scroll, layout, viewport, shell);
+                        self.publish_on_press(on_scroll, layout, viewport, shell);
+                        return;
                     }
                 }
             }
@@ -358,7 +362,8 @@ where
                                 shell.publish(on_press(ui_data));
                             }
                         }
-                        return event::Status::Captured;
+                        shell.capture_event();
+                        return;
                     }
                 }
             }
@@ -370,8 +375,6 @@ where
             }
             _ => {}
         }
-
-        event::Status::Ignored
     }
 
     fn draw(
@@ -410,6 +413,7 @@ where
                     bounds,
                     border: style.border,
                     shadow: style.shadow,
+                    snap: false,
                 },
                 style
                     .background
@@ -458,14 +462,16 @@ where
     fn overlay<'b>(
         &'b mut self,
         tree: &'b mut Tree,
-        layout: Layout<'_>,
+        layout: Layout<'b>,
         renderer: &Renderer,
+        _viewport: &Rectangle,
         translation: Vector,
     ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
         self.content.as_widget_mut().overlay(
             &mut tree.children[0],
             layout.children().next()?,
             renderer,
+            _viewport,
             translation,
         )
     }

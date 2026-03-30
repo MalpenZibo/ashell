@@ -27,13 +27,12 @@ use crate::{
 use flexi_logger::LoggerHandle;
 use iced::{
     Alignment, Color, Element, Gradient, Length, Radians, Subscription, Task, Theme,
-    daemon::Appearance,
     event::{
         listen_with,
         wayland::{Event as WaylandEvent, OutputEvent},
     },
     gradient::Linear,
-    keyboard,
+    keyboard, theme,
     widget::{Row, container, mouse_area},
     window::Id,
 };
@@ -98,52 +97,50 @@ pub enum Message {
 impl App {
     pub fn new(
         (logger, config, config_path): (LoggerHandle, Config, PathBuf),
-    ) -> impl FnOnce() -> (Self, Task<Message>) {
-        move || {
-            let (outputs, task) = Outputs::new(
-                config.appearance.style,
-                config.position,
-                config.layer,
-                config.appearance.scale_factor,
-            );
+    ) -> (Self, Task<Message>) {
+        let (outputs, task) = Outputs::new(
+            config.appearance.style,
+            config.position,
+            config.layer,
+            config.appearance.scale_factor,
+        );
 
-            let custom = config
-                .custom_modules
-                .clone()
-                .into_iter()
-                .map(|o| (o.name.clone(), Custom::new(o)))
-                .collect();
+        let custom = config
+            .custom_modules
+            .clone()
+            .into_iter()
+            .map(|o| (o.name.clone(), Custom::new(o)))
+            .collect();
 
-            (
-                App {
-                    config_path,
-                    theme: AshellTheme::new(config.position, &config.appearance),
-                    logger,
-                    general_config: GeneralConfig {
-                        outputs: config.outputs,
-                        modules: config.modules,
-                        layer: config.layer,
-                        enable_esc_key: config.enable_esc_key,
-                    },
-                    outputs,
-                    custom,
-                    updates: config.updates.map(Updates::new),
-                    workspaces: Workspaces::new(config.workspaces),
-                    window_title: WindowTitle::new(config.window_title),
-                    system_info: SystemInfo::new(config.system_info),
-                    keyboard_layout: KeyboardLayout::new(config.keyboard_layout),
-                    keyboard_submap: KeyboardSubmap::default(),
-                    tray: TrayModule::default(),
-                    clock: Clock::new(config.clock),
-                    tempo: Tempo::new(config.tempo),
-                    privacy: Privacy::default(),
-                    settings: Settings::new(config.settings),
-                    media_player: MediaPlayer::new(config.media_player),
-                    visible: true,
+        (
+            App {
+                config_path,
+                theme: AshellTheme::new(config.position, &config.appearance),
+                logger,
+                general_config: GeneralConfig {
+                    outputs: config.outputs,
+                    modules: config.modules,
+                    layer: config.layer,
+                    enable_esc_key: config.enable_esc_key,
                 },
-                task,
-            )
-        }
+                outputs,
+                custom,
+                updates: config.updates.map(Updates::new),
+                workspaces: Workspaces::new(config.workspaces),
+                window_title: WindowTitle::new(config.window_title),
+                system_info: SystemInfo::new(config.system_info),
+                keyboard_layout: KeyboardLayout::new(config.keyboard_layout),
+                keyboard_submap: KeyboardSubmap::default(),
+                tray: TrayModule::default(),
+                clock: Clock::new(config.clock),
+                tempo: Tempo::new(config.tempo),
+                privacy: Privacy::default(),
+                settings: Settings::new(config.settings),
+                media_player: MediaPlayer::new(config.media_player),
+                visible: true,
+            },
+            task,
+        )
     }
 
     fn refresh_config(&mut self, config: Box<Config>) {
@@ -205,8 +202,8 @@ impl App {
         self.theme.get_theme().clone()
     }
 
-    pub fn style(&self, theme: &Theme) -> Appearance {
-        Appearance {
+    pub fn style(&self, theme: &Theme) -> theme::Style {
+        theme::Style {
             background_color: Color::TRANSPARENT,
             text_color: theme.palette().text,
             icon_color: theme.palette().text,

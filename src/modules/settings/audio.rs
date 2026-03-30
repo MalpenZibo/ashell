@@ -13,7 +13,7 @@ use iced::{
     Alignment, Element, Length, Subscription, Task, Theme,
     mouse::ScrollDelta,
     widget::{
-        Column, MouseArea, Row, Text, button, column, container, horizontal_rule, row, slider, text,
+        Column, MouseArea, Row, Text, button, column, container, row, rule, slider, text,
     },
     window::Id,
 };
@@ -573,7 +573,7 @@ impl AudioSettings {
         match more_msg {
             Some(more_msg) => column!(
                 entries,
-                horizontal_rule(1),
+                rule::horizontal(1),
                 button("More")
                     .on_press(more_msg)
                     .padding([theme.space.xxs, theme.space.sm])

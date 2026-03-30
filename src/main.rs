@@ -51,8 +51,7 @@ fn get_log_spec(log_level: &str) -> LogSpecification {
     }
 }
 
-#[tokio::main]
-async fn main() -> iced::Result {
+fn main() -> iced::Result {
     let args = Args::parse();
     debug!("args: {args:?}");
 
@@ -93,7 +92,13 @@ async fn main() -> iced::Result {
         Font::DEFAULT
     };
 
-    iced::daemon(App::title, App::update, App::view)
+    let boot = {
+        use std::cell::Cell;
+        let data = Cell::new(Some(App::new((logger, config, config_path))));
+        move || data.take().expect("boot called more than once")
+    };
+    iced::daemon(boot, App::update, App::view)
+        .title(App::title)
         .subscription(App::subscription)
         .theme(App::theme)
         .style(App::style)
@@ -102,5 +107,5 @@ async fn main() -> iced::Result {
         .font(Cow::from(NERD_FONT_MONO))
         .font(Cow::from(CUSTOM_FONT))
         .default_font(font)
-        .run_with(App::new((logger, config, config_path)))
+        .run()
 }

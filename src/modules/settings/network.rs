@@ -15,7 +15,7 @@ use crate::{
 use iced::{
     Alignment, Element, Length, Subscription, Task, Theme,
     widget::{
-        Column, MouseArea, button, column, container, horizontal_rule, row, scrollable, text,
+        Column, MouseArea, button, column, container, row, rule, scrollable, text,
         toggler,
     },
     window::Id,
@@ -585,7 +585,7 @@ impl NetworkSettings {
             .spacing(theme.space.xs)
             .width(Length::Fill)
             .align_y(Alignment::Center),
-            horizontal_rule(1),
+            rule::horizontal(1),
             container(scrollable(
                 Column::with_children({
                     let (active_networks, inactive_networks): (Vec<_>, Vec<_>) = service
@@ -657,7 +657,7 @@ impl NetworkSettings {
         if show_more_button {
             column!(
                 main,
-                horizontal_rule(1),
+                rule::horizontal(1),
                 button("More")
                     .on_press(Message::WiFiMore(id))
                     .padding([theme.space.xxs, theme.space.sm])
@@ -725,7 +725,7 @@ impl NetworkSettings {
         if show_more_button {
             column!(
                 main,
-                horizontal_rule(1),
+                rule::horizontal(1),
                 button("More")
                     .on_press(Message::VpnMore(id))
                     .padding([theme.space.xxs, theme.space.sm])

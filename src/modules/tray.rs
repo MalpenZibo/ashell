@@ -13,7 +13,7 @@ use crate::{
 };
 use iced::{
     Alignment, Element, Length, Subscription, Task,
-    widget::{Column, Image, Row, Svg, button, container, horizontal_rule, row, text, toggler},
+    widget::{Column, Image, Row, Svg, button, container, row, rule, text, toggler},
     window::Id,
 };
 use log::debug;
@@ -169,7 +169,7 @@ impl TrayModule {
                 .width(Length::Fill)
                 .padding(theme.space.xs)
                 .into(),
-            LayoutProps { type_: Some(t), .. } if t == "separator" => horizontal_rule(1).into(),
+            LayoutProps { type_: Some(t), .. } if t == "separator" => rule::horizontal(1).into(),
             _ => Row::new().into(),
         }
     }
