@@ -12,9 +12,7 @@ use crate::{
 use iced::{
     Alignment, Element, Length, Subscription, Task, Theme,
     mouse::ScrollDelta,
-    widget::{
-        Column, MouseArea, Row, Text, button, column, container, row, rule, slider, text,
-    },
+    widget::{Column, MouseArea, Row, Text, button, column, container, row, rule, slider, text},
     window::Id,
 };
 use libpulse_binding::volume::Volume;

@@ -4,9 +4,7 @@ use iced::advanced::overlay;
 use iced::advanced::renderer;
 use iced::advanced::widget::{Operation, Tree};
 use iced::advanced::{Clipboard, Shell, Widget, mouse};
-use iced::{
-    Alignment, Element, Event, Length, Padding, Pixels, Point, Rectangle, Size, Vector,
-};
+use iced::{Alignment, Element, Event, Length, Padding, Pixels, Point, Rectangle, Size, Vector};
 
 /// A container that distributes its contents horizontally.
 #[allow(missing_debug_implementations)]
@@ -230,14 +228,7 @@ where
             .zip(layout.children())
             .for_each(|((child, state), layout)| {
                 child.as_widget_mut().update(
-                    state,
-                    event,
-                    layout,
-                    cursor,
-                    renderer,
-                    clipboard,
-                    shell,
-                    viewport,
+                    state, event, layout, cursor, renderer, clipboard, shell, viewport,
                 );
             });
     }
@@ -295,7 +286,14 @@ where
         _viewport: &Rectangle,
         translation: Vector,
     ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
-        overlay::from_children(&mut self.children, tree, layout, renderer, _viewport, translation)
+        overlay::from_children(
+            &mut self.children,
+            tree,
+            layout,
+            renderer,
+            _viewport,
+            translation,
+        )
     }
 }
 

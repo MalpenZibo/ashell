@@ -27,7 +27,10 @@ use std::{
     fmt,
     ops::{Deref, DerefMut},
     rc::Rc,
-    sync::{Arc, atomic::{AtomicBool, Ordering}},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
     thread::{self, JoinHandle},
     time::Duration,
 };
@@ -465,8 +468,7 @@ impl PulseAudioServer {
         let (to_server_tx, to_server_rx) = tokio::sync::mpsc::unbounded_channel();
         let shutdown = Arc::new(AtomicBool::new(false));
 
-        let listener =
-            Self::start_listener(from_server_tx.clone(), shutdown.clone()).await?;
+        let listener = Self::start_listener(from_server_tx.clone(), shutdown.clone()).await?;
         let commander = Self::start_commander(from_server_tx.clone(), to_server_rx).await?;
 
         Ok(PulseAudioServerHandle {

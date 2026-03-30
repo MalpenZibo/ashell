@@ -11,9 +11,7 @@ use crate::{
 use iced::{
     Element, Length, Subscription, Task, Theme,
     alignment::{Alignment, Horizontal, Vertical},
-    widget::{
-        Column, MouseArea, Row, button, column, container, row, rule, scrollable, text,
-    },
+    widget::{Column, MouseArea, Row, button, column, container, row, rule, scrollable, text},
     window::Id,
 };
 use itertools::Itertools;

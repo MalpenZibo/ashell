@@ -14,10 +14,7 @@ use crate::{
 };
 use iced::{
     Alignment, Element, Length, Subscription, Task, Theme,
-    widget::{
-        Column, MouseArea, button, column, container, row, rule, scrollable, text,
-        toggler,
-    },
+    widget::{Column, MouseArea, button, column, container, row, rule, scrollable, text, toggler},
     window::Id,
 };
 use log::{info, warn};

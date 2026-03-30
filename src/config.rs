@@ -555,11 +555,7 @@ impl BackgroundAppearanceColor {
         }
     }
 
-    pub fn get_pair(
-        &self,
-        level: BackgroundLevel,
-        text_fallback: Color,
-    ) -> Option<palette::Pair> {
+    pub fn get_pair(&self, level: BackgroundLevel, text_fallback: Color) -> Option<palette::Pair> {
         match self {
             BackgroundAppearanceColor::Simple(_) => None,
             BackgroundAppearanceColor::Complete {
