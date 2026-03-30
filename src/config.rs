@@ -512,89 +512,6 @@ impl AppearanceColor {
     }
 }
 
-#[derive(Deserialize, Clone, Copy, Debug)]
-#[serde(untagged)]
-pub enum BackgroundAppearanceColor {
-    Simple(HexColor),
-    Complete {
-        base: HexColor,
-        weakest: Option<HexColor>,
-        weaker: Option<HexColor>,
-        weak: Option<HexColor>,
-        neutral: Option<HexColor>,
-        strong: Option<HexColor>,
-        stronger: Option<HexColor>,
-        strongest: Option<HexColor>,
-        text: Option<HexColor>,
-    },
-}
-
-fn hex_to_color(hex: HexColor) -> Color {
-    Color::from_rgb8(hex.r, hex.g, hex.b)
-}
-
-fn hex_to_pair(hex: HexColor, text: Option<HexColor>, text_fallback: Color) -> palette::Pair {
-    palette::Pair::new(
-        hex_to_color(hex),
-        text.map(hex_to_color).unwrap_or(text_fallback),
-    )
-}
-
-impl BackgroundAppearanceColor {
-    pub fn get_base(&self) -> Color {
-        match self {
-            BackgroundAppearanceColor::Simple(color) => hex_to_color(*color),
-            BackgroundAppearanceColor::Complete { base, .. } => hex_to_color(*base),
-        }
-    }
-
-    pub fn get_text(&self) -> Option<Color> {
-        match self {
-            BackgroundAppearanceColor::Simple(_) => None,
-            BackgroundAppearanceColor::Complete { text, .. } => text.map(hex_to_color),
-        }
-    }
-
-    pub fn get_pair(&self, level: BackgroundLevel, text_fallback: Color) -> Option<palette::Pair> {
-        match self {
-            BackgroundAppearanceColor::Simple(_) => None,
-            BackgroundAppearanceColor::Complete {
-                weakest,
-                weaker,
-                weak,
-                neutral,
-                strong,
-                stronger,
-                strongest,
-                text,
-                ..
-            } => {
-                let hex = match level {
-                    BackgroundLevel::Weakest => *weakest,
-                    BackgroundLevel::Weaker => *weaker,
-                    BackgroundLevel::Weak => *weak,
-                    BackgroundLevel::Neutral => *neutral,
-                    BackgroundLevel::Strong => *strong,
-                    BackgroundLevel::Stronger => *stronger,
-                    BackgroundLevel::Strongest => *strongest,
-                };
-                hex.map(|h| hex_to_pair(h, *text, text_fallback))
-            }
-        }
-    }
-}
-
-#[derive(Clone, Copy)]
-pub enum BackgroundLevel {
-    Weakest,
-    Weaker,
-    Weak,
-    Neutral,
-    Strong,
-    Stronger,
-    Strongest,
-}
-
 #[derive(Deserialize, Default, Copy, Clone, Eq, PartialEq, Debug)]
 pub enum AppearanceStyle {
     #[default]
@@ -630,10 +547,10 @@ pub struct Appearance {
     #[serde(deserialize_with = "opacity_deserializer")]
     pub opacity: f32,
     pub menu: MenuAppearance,
-    pub background_color: BackgroundAppearanceColor,
+    pub background_color: AppearanceColor,
     pub primary_color: AppearanceColor,
+    pub secondary_color: AppearanceColor,
     pub success_color: AppearanceColor,
-    pub warning_color: AppearanceColor,
     pub danger_color: AppearanceColor,
     pub text_color: AppearanceColor,
     pub workspace_colors: Vec<AppearanceColor>,
@@ -694,15 +611,10 @@ impl Default for Appearance {
             style: AppearanceStyle::default(),
             opacity: default_opacity(),
             menu: MenuAppearance::default(),
-            background_color: BackgroundAppearanceColor::Complete {
+            background_color: AppearanceColor::Complete {
                 base: HexColor::rgb(30, 30, 46),
-                weakest: None,
-                weaker: None,
-                weak: Some(HexColor::rgb(49, 50, 68)),
-                neutral: None,
                 strong: Some(HexColor::rgb(69, 71, 90)),
-                stronger: None,
-                strongest: None,
+                weak: Some(HexColor::rgb(49, 50, 68)),
                 text: None,
             },
             primary_color: AppearanceColor::Complete {
@@ -711,9 +623,19 @@ impl Default for Appearance {
                 weak: None,
                 text: Some(HexColor::rgb(30, 30, 46)),
             },
+            secondary_color: AppearanceColor::Complete {
+                base: HexColor::rgb(17, 17, 27),
+                strong: Some(HexColor::rgb(24, 24, 37)),
+                weak: None,
+                text: None,
+            },
             success_color: AppearanceColor::Simple(HexColor::rgb(166, 227, 161)),
-            warning_color: AppearanceColor::Simple(HexColor::rgb(249, 226, 175)),
-            danger_color: AppearanceColor::Simple(HexColor::rgb(243, 139, 168)),
+            danger_color: AppearanceColor::Complete {
+                base: HexColor::rgb(243, 139, 168),
+                weak: Some(HexColor::rgb(249, 226, 175)),
+                strong: None,
+                text: None,
+            },
             text_color: AppearanceColor::Simple(HexColor::rgb(205, 214, 244)),
             workspace_colors: vec![
                 AppearanceColor::Simple(PRIMARY),
