@@ -1221,6 +1221,29 @@ dependencies = [
 [[package]]
 name = "cosmic-text"
 version = "0.18.2"
+source = "git+https://github.com/pop-os/cosmic-text.git?rev=e5926ae#e5926aec749c6828e3ee7bf35ffe06e459cb8537"
+dependencies = [
+ "bitflags 2.11.0",
+ "fontdb",
+ "harfrust",
+ "linebender_resource_handle",
+ "log",
+ "rangemap",
+ "rustc-hash 2.1.2",
+ "self_cell",
+ "skrifa",
+ "smol_str",
+ "swash",
+ "sys-locale",
+ "unicode-bidi",
+ "unicode-linebreak",
+ "unicode-script",
+ "unicode-segmentation",
+]
+
+[[package]]
+name = "cosmic-text"
+version = "0.18.2"
 source = "git+https://github.com/pop-os/cosmic-text.git#5651c2d96727749f8b19df4fda332bd8a2e6d823"
 dependencies = [
  "bitflags 2.11.0",
@@ -1286,7 +1309,7 @@ name = "cryoglyph"
 version = "0.1.0"
 source = "git+https://github.com/pop-os/glyphon.git?tag=cosmic-0.14#c49de15bce4d8254ac136d1be9911960cc85ce12"
 dependencies = [
- "cosmic-text",
+ "cosmic-text 0.18.2 (git+https://github.com/pop-os/cosmic-text.git)",
  "etagere",
  "lru",
  "rustc-hash 2.1.2",
@@ -1407,7 +1430,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users 0.5.2",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -1601,7 +1624,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -2394,7 +2417,7 @@ dependencies = [
 [[package]]
 name = "iced"
 version = "0.14.0"
-source = "git+https://github.com/MalpenZibo/iced?branch=develop#25e6479fd601b346170a54d6a785c1e082ffa49d"
+source = "git+https://github.com/MalpenZibo/iced?branch=develop#df78dcf1412a3ec0fac6694ecb470c49a47b33c9"
 dependencies = [
  "dnd",
  "iced_accessibility",
@@ -2415,7 +2438,7 @@ dependencies = [
 [[package]]
 name = "iced_accessibility"
 version = "0.1.0"
-source = "git+https://github.com/MalpenZibo/iced?branch=develop#25e6479fd601b346170a54d6a785c1e082ffa49d"
+source = "git+https://github.com/MalpenZibo/iced?branch=develop#df78dcf1412a3ec0fac6694ecb470c49a47b33c9"
 dependencies = [
  "accesskit",
  "accesskit_winit",
@@ -2424,7 +2447,7 @@ dependencies = [
 [[package]]
 name = "iced_core"
 version = "0.14.0"
-source = "git+https://github.com/MalpenZibo/iced?branch=develop#25e6479fd601b346170a54d6a785c1e082ffa49d"
+source = "git+https://github.com/MalpenZibo/iced?branch=develop#df78dcf1412a3ec0fac6694ecb470c49a47b33c9"
 dependencies = [
  "bitflags 2.11.0",
  "bytes",
@@ -2448,7 +2471,7 @@ dependencies = [
 [[package]]
 name = "iced_debug"
 version = "0.14.0"
-source = "git+https://github.com/MalpenZibo/iced?branch=develop#25e6479fd601b346170a54d6a785c1e082ffa49d"
+source = "git+https://github.com/MalpenZibo/iced?branch=develop#df78dcf1412a3ec0fac6694ecb470c49a47b33c9"
 dependencies = [
  "iced_core",
  "iced_futures",
@@ -2458,7 +2481,7 @@ dependencies = [
 [[package]]
 name = "iced_futures"
 version = "0.14.0"
-source = "git+https://github.com/MalpenZibo/iced?branch=develop#25e6479fd601b346170a54d6a785c1e082ffa49d"
+source = "git+https://github.com/MalpenZibo/iced?branch=develop#df78dcf1412a3ec0fac6694ecb470c49a47b33c9"
 dependencies = [
  "futures",
  "iced_core",
@@ -2472,11 +2495,11 @@ dependencies = [
 [[package]]
 name = "iced_graphics"
 version = "0.14.0"
-source = "git+https://github.com/MalpenZibo/iced?branch=develop#25e6479fd601b346170a54d6a785c1e082ffa49d"
+source = "git+https://github.com/MalpenZibo/iced?branch=develop#df78dcf1412a3ec0fac6694ecb470c49a47b33c9"
 dependencies = [
  "bitflags 2.11.0",
  "bytemuck",
- "cosmic-text",
+ "cosmic-text 0.18.2 (git+https://github.com/pop-os/cosmic-text.git?rev=e5926ae)",
  "half",
  "iced_core",
  "iced_futures",
@@ -2493,7 +2516,7 @@ dependencies = [
 [[package]]
 name = "iced_program"
 version = "0.14.0"
-source = "git+https://github.com/MalpenZibo/iced?branch=develop#25e6479fd601b346170a54d6a785c1e082ffa49d"
+source = "git+https://github.com/MalpenZibo/iced?branch=develop#df78dcf1412a3ec0fac6694ecb470c49a47b33c9"
 dependencies = [
  "iced_graphics",
  "iced_runtime",
@@ -2502,7 +2525,7 @@ dependencies = [
 [[package]]
 name = "iced_renderer"
 version = "0.14.0"
-source = "git+https://github.com/MalpenZibo/iced?branch=develop#25e6479fd601b346170a54d6a785c1e082ffa49d"
+source = "git+https://github.com/MalpenZibo/iced?branch=develop#df78dcf1412a3ec0fac6694ecb470c49a47b33c9"
 dependencies = [
  "iced_graphics",
  "iced_tiny_skia",
@@ -2514,7 +2537,7 @@ dependencies = [
 [[package]]
 name = "iced_runtime"
 version = "0.14.0"
-source = "git+https://github.com/MalpenZibo/iced?branch=develop#25e6479fd601b346170a54d6a785c1e082ffa49d"
+source = "git+https://github.com/MalpenZibo/iced?branch=develop#df78dcf1412a3ec0fac6694ecb470c49a47b33c9"
 dependencies = [
  "bytes",
  "cosmic-client-toolkit",
@@ -2530,10 +2553,10 @@ dependencies = [
 [[package]]
 name = "iced_tiny_skia"
 version = "0.14.0"
-source = "git+https://github.com/MalpenZibo/iced?branch=develop#25e6479fd601b346170a54d6a785c1e082ffa49d"
+source = "git+https://github.com/MalpenZibo/iced?branch=develop#df78dcf1412a3ec0fac6694ecb470c49a47b33c9"
 dependencies = [
  "bytemuck",
- "cosmic-text",
+ "cosmic-text 0.18.2 (git+https://github.com/pop-os/cosmic-text.git?rev=e5926ae)",
  "iced_debug",
  "iced_graphics",
  "kurbo 0.10.4",
@@ -2547,7 +2570,7 @@ dependencies = [
 [[package]]
 name = "iced_wgpu"
 version = "0.14.0"
-source = "git+https://github.com/MalpenZibo/iced?branch=develop#25e6479fd601b346170a54d6a785c1e082ffa49d"
+source = "git+https://github.com/MalpenZibo/iced?branch=develop#df78dcf1412a3ec0fac6694ecb470c49a47b33c9"
 dependencies = [
  "as-raw-xcb-connection",
  "bitflags 2.11.0",
@@ -2578,7 +2601,7 @@ dependencies = [
 [[package]]
 name = "iced_widget"
 version = "0.14.2"
-source = "git+https://github.com/MalpenZibo/iced?branch=develop#25e6479fd601b346170a54d6a785c1e082ffa49d"
+source = "git+https://github.com/MalpenZibo/iced?branch=develop#df78dcf1412a3ec0fac6694ecb470c49a47b33c9"
 dependencies = [
  "cosmic-client-toolkit",
  "dnd",
@@ -2596,7 +2619,7 @@ dependencies = [
 [[package]]
 name = "iced_winit"
 version = "0.14.0"
-source = "git+https://github.com/MalpenZibo/iced?branch=develop#25e6479fd601b346170a54d6a785c1e082ffa49d"
+source = "git+https://github.com/MalpenZibo/iced?branch=develop#df78dcf1412a3ec0fac6694ecb470c49a47b33c9"
 dependencies = [
  "cosmic-client-toolkit",
  "cursor-icon",
@@ -3576,7 +3599,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -4844,7 +4867,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -4901,7 +4924,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -5293,7 +5316,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a766e1110788c36f4fa1c2b71b387a7815aa65f88ce0229841826633d93723e"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -5488,7 +5511,7 @@ dependencies = [
  "getrandom 0.4.2",
  "once_cell",
  "rustix 1.1.4",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -5845,7 +5868,7 @@ checksum = "f2f6fb2847f6742cd76af783a2a2c49e9375d0a111c7bef6f71cd9e738c72d6e"
 dependencies = [
  "memoffset",
  "tempfile",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -6527,7 +6550,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
