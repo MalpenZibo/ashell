@@ -74,7 +74,19 @@ Scope examples: `fix(brightness)`, `feat(system_info)`, `fix(network)`
 
 - **User docs:** `website/` (Docusaurus) → https://malpenzibo.github.io/ashell/
 - **Developer guide:** `docs/` (mdbook) → https://malpenzibo.github.io/ashell/dev-guide/
-- The developer guide is AI-generated. AI contributions are welcome but should use frontier-class models.
+- The developer guide is AI-generated but primarily written for human readers.
+- **Most useful docs for AI agents:** architecture overview, build.rs font subsetting, anatomy-of-a-module. These capture patterns that aren't obvious from the code alone.
+- **Less useful for AI agents:** most other doc files. Prefer targeted codebase exploration (grep, read) over reading docs verbatim. Config-reference is more useful during review than during implementation.
+
+## AI contribution guidelines
+
+- AI contributions are accepted. Frontier-class models are strongly recommended but not mandatory.
+- **You own your code:** regardless of tools used, be able to explain every change. Run `make check` before pushing.
+- **Discuss before implementing:** open an issue or comment before working on features or large changes.
+- **Small incremental PRs:** code review is manual and done in maintainers' free time — big diffs take much longer to review.
+- **After review feedback:** focus AI narrowly on commented elements only — don't let it modify already-reviewed code.
+- **Keep docs in sync:** when a PR changes behavior that impacts documentation (README, mdbook, CLAUDE.md, website), update the relevant docs in the same PR.
+- Full policy: `docs/src/contributing/ai-assisted-contributions.md`
 
 ## Architecture patterns
 

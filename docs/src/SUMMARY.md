@@ -88,6 +88,7 @@
 - [Code Style and Conventions](contributing/code-style.md)
 - [Testing and Debugging](contributing/testing-and-debugging.md)
 - [Common Development Tasks](contributing/common-tasks.md)
+- [AI-Assisted Contributions](contributing/ai-assisted-contributions.md)
 
 ---
 

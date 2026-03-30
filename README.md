@@ -70,6 +70,19 @@ page for more details.
 If you want to contribute or understand the codebase, check out the
 [Developer Guide](https://malpenzibo.github.io/ashell/dev-guide/).
 
+## 🤖 AI-Assisted Contributions
+
+AI-assisted contributions are accepted — the same quality standards apply regardless of how
+the code was written. Frontier-class models (e.g., Claude Opus or equivalent) are strongly
+recommended. **You are responsible for the code you submit**: review AI output carefully,
+ensure `make check` passes, and be prepared to explain your changes.
+
+Before working on a feature or large change, **discuss it with maintainers first**.
+Small, incremental PRs are preferred — code review is manual and remains the bottleneck.
+
+For the full AI contribution guide, see the
+[Developer Guide](https://malpenzibo.github.io/ashell/dev-guide/contributing/ai-assisted-contributions.html).
+
 ## 📷 Screenshots
 
 I will try my best to keep these screenshots as updated as possible but some details
