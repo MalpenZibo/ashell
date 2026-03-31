@@ -537,7 +537,7 @@ impl Tempo {
                                             .size(theme.font_size.xs)
                                             .align_x(Horizontal::Right)
                                             .width(Length::Fill),
-                                        text(format!("{} Km/h", data.current.wind_speed_10m))
+                                        text(format!("{} km/h", data.current.wind_speed_10m))
                                             .align_x(Horizontal::Right)
                                             .size(theme.font_size.xs)
                                             .width(Length::Fill),
@@ -670,7 +670,7 @@ impl Tempo {
                                                     .rotation(Rotation::Floating(
                                                         Degrees(*wind_dir as f32 + 90.).into()
                                                     )),
-                                                    text(format!("{} Km/h", wind_speed))
+                                                    text(format!("{} km/h", wind_speed))
                                                 )
                                                 .spacing(theme.space.xxs)
                                             )
