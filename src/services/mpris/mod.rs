@@ -1,8 +1,8 @@
 use super::{ReadOnlyService, Service, ServiceEvent};
 use dbus::MprisPlayerProxy;
-use iced::{
+use iced_layershell::{
     Subscription,
-    core::image::Bytes,
+    core::Bytes,
     futures::{
         FutureExt, SinkExt, Stream, StreamExt,
         channel::mpsc::Sender,
@@ -167,18 +167,15 @@ impl ReadOnlyService for MprisPlayerService {
     }
 
     fn subscribe() -> Subscription<ServiceEvent<Self>> {
-        let id = TypeId::of::<Self>();
-
-        Subscription::run_with_id(
-            id,
+        Subscription::run_with(TypeId::of::<Self>(), |_| {
             channel(10, async |mut output| {
                 let mut state = State::Init;
 
                 loop {
-                    state = Self::start_listening(state, &mut output).await;
+                    state = MprisPlayerService::start_listening(state, &mut output).await;
                 }
-            }),
-        )
+            })
+        })
     }
 }
 
@@ -514,7 +511,7 @@ pub enum PlayerCommand {
 impl Service for MprisPlayerService {
     type Command = MprisPlayerCommand;
 
-    fn command(&mut self, command: Self::Command) -> iced::Task<ServiceEvent<Self>> {
+    fn command(&mut self, command: Self::Command) -> iced_layershell::Task<ServiceEvent<Self>> {
         {
             let names: Vec<String> = self.data.iter().map(|d| d.service.clone()).collect();
             let s = self.data.iter().find(|d| d.service == command.service_name);
@@ -522,7 +519,7 @@ impl Service for MprisPlayerService {
             if let Some(s) = s {
                 let mpris_player_proxy = s.proxy.clone();
                 let conn = self.conn.clone();
-                iced::Task::perform(
+                iced_layershell::Task::perform(
                     async move {
                         match command.command {
                             PlayerCommand::Prev => {
@@ -555,7 +552,7 @@ impl Service for MprisPlayerService {
                     ServiceEvent::Update,
                 )
             } else {
-                iced::Task::none()
+                iced_layershell::Task::none()
             }
         }
     }

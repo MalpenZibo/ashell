@@ -1,5 +1,5 @@
 use super::{ReadOnlyService, ServiceEvent};
-use iced::{
+use iced_layershell::{
     Subscription,
     futures::{
         FutureExt, SinkExt, Stream, StreamExt, channel::mpsc::Sender, select, stream::pending,
@@ -286,18 +286,15 @@ impl ReadOnlyService for PrivacyService {
     }
 
     fn subscribe() -> Subscription<ServiceEvent<Self>> {
-        let id = TypeId::of::<Self>();
-
-        Subscription::run_with_id(
-            id,
+        Subscription::run_with(TypeId::of::<Self>(), |_| {
             channel(100, async |mut output| {
                 let mut state = State::Init;
 
                 loop {
                     state = PrivacyService::start_listening(state, &mut output).await;
                 }
-            }),
-        )
+            })
+        })
     }
 }
 

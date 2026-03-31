@@ -1,13 +1,18 @@
 use crate::{
     components::icons::{StaticIcon, icon},
-    config::{DiskFormat, CpuFormat, MemoryFormat, TemperatureFormat, SystemInfoIndicator, SystemInfoModuleConfig},
+    config::{
+        CpuFormat, DiskFormat, MemoryFormat, SystemInfoIndicator, SystemInfoModuleConfig,
+        TemperatureFormat,
+    },
     menu::MenuSize,
-    theme::AshellTheme, utils,
+    theme::AshellTheme,
+    theme::AshellTheme,
+    utils,
 };
-use iced::{
+use iced_layershell::{
     Alignment, Element, Length, Subscription, Theme,
     time::every,
-    widget::{Column, Row, column, container, horizontal_rule, row, text},
+    widget::{Column, Row, column, container, row, rule, text},
 };
 use itertools::Itertools;
 use std::time::{Duration, Instant};
@@ -49,21 +54,21 @@ struct NetworkData {
 
 struct MemoryUsage {
     percentage: u32,
-    fraction: String
+    fraction: String,
 }
 struct CpuUsage {
     percentage: u32,
-    frequency: f32
+    frequency: f32,
 }
 
 struct Temperature {
     celsius: Option<i32>,
-    fahrenheit: i32
+    fahrenheit: i32,
 }
 
 struct DiskView {
     percentage: u32,
-    fraction: String
+    fraction: String,
 }
 
 struct SystemInfoData {
@@ -103,11 +108,13 @@ fn get_system_info(
     let used_mem = system.used_memory();
 
     let memory_usage = MemoryUsage {
-        percentage: ((total_mem - avail_mem) as f32
-        / total_mem as f32
-        * 100.) as u32,
+        percentage: ((total_mem - avail_mem) as f32 / total_mem as f32 * 100.) as u32,
 
-        fraction: format!("{:.2}/{:.2}", utils::bytes_to_gib(used_mem), utils::bytes_to_gib(total_mem))
+        fraction: format!(
+            "{:.2}/{:.2}",
+            utils::bytes_to_gib(used_mem),
+            utils::bytes_to_gib(total_mem)
+        ),
     };
 
     let total_swap = system.total_swap();
@@ -115,7 +122,11 @@ fn get_system_info(
 
     let memory_swap_usage = MemoryUsage {
         percentage: ((total_swap - free_swap) as f32 / total_swap as f32 * 100.) as u32,
-        fraction: format!("{:.2}/{:.2}", utils::bytes_to_gib(total_swap - free_swap), utils::bytes_to_gib(total_swap))
+        fraction: format!(
+            "{:.2}/{:.2}",
+            utils::bytes_to_gib(total_swap - free_swap),
+            utils::bytes_to_gib(total_swap)
+        ),
     };
 
     let temperature_cel = sensor_index
@@ -127,10 +138,12 @@ fn get_system_info(
                 .find(|c| c.label() == temperature_sensor)
                 .and_then(|c| c.temperature().map(|t| t as i32))
         });
-    
+
     let temperature = Temperature {
         celsius: temperature_cel,
-        fahrenheit: temperature_cel.map(utils::celsius_to_fahrenheit).unwrap_or(0)
+        fahrenheit: temperature_cel
+            .map(utils::celsius_to_fahrenheit)
+            .unwrap_or(0),
     };
 
     let disks: Vec<(String, DiskView)> = disks
@@ -146,8 +159,12 @@ fn get_system_info(
                 d.mount_point().display().to_string(),
                 DiskView {
                     percentage: space_per as u32,
-                    fraction: format!("{:.2}/{:.2}", utils::bytes_to_gb(total_space - avail_space), utils::bytes_to_gb(total_space))
-                }
+                    fraction: format!(
+                        "{:.2}/{:.2}",
+                        utils::bytes_to_gb(total_space - avail_space),
+                        utils::bytes_to_gb(total_space)
+                    ),
+                },
             )
         })
         .sorted_by(|a, b| a.0.cmp(&b.0))
@@ -357,7 +374,7 @@ impl SystemInfo {
         container(
             column!(
                 text("System Info").size(theme.font_size.lg),
-                horizontal_rule(1),
+                rule::horizontal(1),
                 Column::with_capacity(6)
                     .push(Self::info_element(
                         theme,
@@ -365,7 +382,8 @@ impl SystemInfo {
                         "CPU Usage".to_string(),
                         match self.config.cpu.format {
                             CpuFormat::Percentage => format!("{}%", self.data.cpu_usage.percentage),
-                            CpuFormat::Frequency => format!("{} GHz", self.data.cpu_usage.frequency)
+                            CpuFormat::Frequency =>
+                                format!("{} GHz", self.data.cpu_usage.frequency),
                         }
                     ))
                     .push(Self::info_element(
@@ -373,8 +391,10 @@ impl SystemInfo {
                         StaticIcon::Mem,
                         "Memory Usage".to_string(),
                         match self.config.memory.format {
-                            MemoryFormat::Percentage => format!("{}%", self.data.memory_usage.percentage),
-                            MemoryFormat::Fraction => format!("{} GiB", self.data.memory_usage.fraction),
+                            MemoryFormat::Percentage =>
+                                format!("{}%", self.data.memory_usage.percentage),
+                            MemoryFormat::Fraction =>
+                                format!("{} GiB", self.data.memory_usage.fraction),
                         }
                     ))
                     .push(Self::info_element(
@@ -382,23 +402,25 @@ impl SystemInfo {
                         StaticIcon::Mem,
                         "Swap memory Usage".to_string(),
                         match self.config.memory.format {
-                            MemoryFormat::Percentage => format!("{}%", self.data.memory_swap_usage.percentage),
-                            MemoryFormat::Fraction => format!("{} GiB", self.data.memory_swap_usage.fraction),
+                            MemoryFormat::Percentage =>
+                                format!("{}%", self.data.memory_swap_usage.percentage),
+                            MemoryFormat::Fraction =>
+                                format!("{} GiB", self.data.memory_swap_usage.fraction),
                         }
                     ))
-                    .push_maybe(
-                        self.data.temperature.celsius.map(|cel| {
-                            Self::info_element(
-                                theme,
-                                StaticIcon::Temp,
-                                "Temperature".to_string(),
-                                match self.config.temperature.format {
-                                    TemperatureFormat::Celsius => format!("{cel}°C"),
-                                    TemperatureFormat::Fahrenheit => format!("{}°F", self.data.temperature.fahrenheit)
+                    .push_maybe(self.data.temperature.celsius.map(|cel| {
+                        Self::info_element(
+                            theme,
+                            StaticIcon::Temp,
+                            "Temperature".to_string(),
+                            match self.config.temperature.format {
+                                TemperatureFormat::Celsius => format!("{cel}°C"),
+                                TemperatureFormat::Fahrenheit => {
+                                    format!("{}°F", self.data.temperature.fahrenheit)
                                 }
-                            )
-                        })
-                    )
+                            },
+                        )
+                    }))
                     .push(
                         Column::with_children(
                             self.data
@@ -410,9 +432,13 @@ impl SystemInfo {
                                         StaticIcon::Drive,
                                         format!("Disk Usage {mount_point}"),
                                         match self.config.disk.format {
-                                            DiskFormat::Percentage => format!("{}%", usage.percentage),
-                                            DiskFormat::Fraction => format!("{} GB", usage.fraction)
-                                        }
+                                            DiskFormat::Percentage => {
+                                                format!("{}%", usage.percentage)
+                                            }
+                                            DiskFormat::Fraction => {
+                                                format!("{} GB", usage.fraction)
+                                            }
+                                        },
                                     )
                                 })
                                 .collect::<Vec<Element<_>>>(),
@@ -450,11 +476,11 @@ impl SystemInfo {
                         ])
                     }))
                     .spacing(theme.space.xxs)
-                    .padding([0, theme.space.xs])
+                    .padding([0.0, theme.space.xs])
             )
             .spacing(theme.space.xs),
         )
-        .max_width(MenuSize::Medium)
+        .width(MenuSize::Medium)
         .into()
     }
 
@@ -464,55 +490,59 @@ impl SystemInfo {
                 theme,
                 StaticIcon::Cpu,
                 match self.config.cpu.format {
-                    CpuFormat::Percentage => ( self.data.cpu_usage.percentage.to_string(), "%" ),
-                    CpuFormat::Frequency => ( self.data.cpu_usage.frequency.to_string(), " GHz" )
+                    CpuFormat::Percentage => (self.data.cpu_usage.percentage.to_string(), "%"),
+                    CpuFormat::Frequency => (self.data.cpu_usage.frequency.to_string(), " GHz"),
                 },
-                match self.config.cpu.format { // note quite sure on how to interpret thresholds with other types of display values yet.
+                match self.config.cpu.format {
+                    // note quite sure on how to interpret thresholds with other types of display values yet.
                     CpuFormat::Percentage => Some((
                         self.data.cpu_usage.percentage,
-
                         self.config.cpu.warn_threshold,
                         self.config.cpu.alert_threshold,
                     )),
-                    CpuFormat::Frequency => None
+                    CpuFormat::Frequency => None,
                 },
-                None
+                None,
             )),
 
             SystemInfoIndicator::Memory => Some(Self::indicator_info_element(
                 theme,
                 StaticIcon::Mem,
                 match self.config.memory.format {
-                    MemoryFormat::Percentage => ( self.data.memory_usage.percentage.to_string(), "%" ),
-                    MemoryFormat::Fraction => ( self.data.memory_usage.fraction.clone(), " GiB" ),
+                    MemoryFormat::Percentage => {
+                        (self.data.memory_usage.percentage.to_string(), "%")
+                    }
+                    MemoryFormat::Fraction => (self.data.memory_usage.fraction.clone(), " GiB"),
                 },
                 match self.config.memory.format {
                     MemoryFormat::Percentage => Some((
                         self.data.memory_usage.percentage,
-                        
                         self.config.memory.warn_threshold,
                         self.config.memory.alert_threshold,
                     )),
-                    MemoryFormat::Fraction => None
+                    MemoryFormat::Fraction => None,
                 },
-                None
+                None,
             )),
 
             SystemInfoIndicator::MemorySwap => Some(Self::indicator_info_element(
                 theme,
                 StaticIcon::Mem,
                 match self.config.memory.format {
-                    MemoryFormat::Percentage => ( self.data.memory_swap_usage.percentage.to_string(), "%" ),
-                    MemoryFormat::Fraction => ( self.data.memory_swap_usage.fraction.clone(), " GiB" ),
+                    MemoryFormat::Percentage => {
+                        (self.data.memory_swap_usage.percentage.to_string(), "%")
+                    }
+                    MemoryFormat::Fraction => {
+                        (self.data.memory_swap_usage.fraction.clone(), " GiB")
+                    }
                 },
                 match self.config.memory.format {
                     MemoryFormat::Percentage => Some((
                         self.data.memory_usage.percentage,
-                        
                         self.config.memory.warn_threshold,
                         self.config.memory.alert_threshold,
                     )),
-                    MemoryFormat::Fraction => None
+                    MemoryFormat::Fraction => None,
                 },
                 Some("swap"),
             )),
@@ -522,8 +552,8 @@ impl SystemInfo {
                     theme,
                     StaticIcon::Temp,
                     match self.config.temperature.format {
-                        TemperatureFormat::Celsius => ( cel, "°C" ),
-                        TemperatureFormat::Fahrenheit => ( self.data.temperature.fahrenheit, "°F" )
+                        TemperatureFormat::Celsius => (cel, "°C"),
+                        TemperatureFormat::Fahrenheit => (self.data.temperature.fahrenheit, "°F"),
                     },
                     Some((
                         cel,
@@ -540,8 +570,8 @@ impl SystemInfo {
                             theme,
                             StaticIcon::Drive,
                             match self.config.disk.format {
-                                DiskFormat::Fraction => ( disk.percentage.to_string(), "%" ),
-                                DiskFormat::Percentage => ( disk.fraction.clone(), " GB" )
+                                DiskFormat::Fraction => (disk.percentage.to_string(), "%"),
+                                DiskFormat::Percentage => (disk.fraction.clone(), " GB"),
                             },
                             Some((
                                 disk.percentage,
@@ -559,7 +589,7 @@ impl SystemInfo {
                 Self::indicator_info_element(
                     theme,
                     StaticIcon::IpAddress,
-                    ( network.ip.to_string(), ""),
+                    (network.ip.to_string(), ""),
                     None::<(u32, u32, u32)>,
                     None,
                 )
@@ -582,7 +612,7 @@ impl SystemInfo {
                     ),
                     None::<(u32, u32, u32)>,
                     None,
-               )
+                )
             }),
             SystemInfoIndicator::UploadSpeed => self.data.network.as_ref().map(|network| {
                 Self::indicator_info_element(

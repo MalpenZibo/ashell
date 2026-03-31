@@ -1,16 +1,19 @@
 //! Distribute content horizontally.
-use iced::advanced::layout::{self, Layout, Limits, Node};
-use iced::advanced::overlay;
-use iced::advanced::renderer;
-use iced::advanced::widget::{Operation, Tree};
-use iced::advanced::{Clipboard, Shell, Widget, mouse};
-use iced::{
-    Alignment, Element, Event, Length, Padding, Pixels, Point, Rectangle, Size, Vector, event,
+use iced_layershell::advanced::layout::{self, Layout, Limits, Node};
+use iced_layershell::advanced::overlay;
+use iced_layershell::advanced::renderer;
+use iced_layershell::advanced::widget::{Operation, Tree};
+use iced_layershell::advanced::{Clipboard, Shell, Widget, mouse};
+use iced_layershell::{
+    Alignment, Length, Padding, Pixels, Point, Rectangle, Size, Vector, event,
 };
+
+type Element<'a, Message, Theme, Renderer> =
+    iced_layershell::core::Element<'a, Message, Theme, Renderer>;
 
 /// A container that distributes its contents horizontally.
 #[allow(missing_debug_implementations)]
-pub struct Centerbox<'a, Message, Theme = iced::Theme, Renderer = iced::Renderer> {
+pub struct Centerbox<'a, Message, Theme = iced_layershell::Theme, Renderer = iced_layershell::Renderer> {
     spacing: f32,
     padding: Padding,
     width: Length,
@@ -21,7 +24,7 @@ pub struct Centerbox<'a, Message, Theme = iced::Theme, Renderer = iced::Renderer
 
 impl<'a, Message, Theme, Renderer> Centerbox<'a, Message, Theme, Renderer>
 where
-    Renderer: iced::advanced::Renderer,
+    Renderer: iced_layershell::advanced::Renderer,
 {
     /// Creates an empty [`Centerbox`].
     pub fn new(children: [Element<'a, Message, Theme, Renderer>; 3]) -> Self {
@@ -73,14 +76,14 @@ where
 impl<'a, Message, Theme, Renderer> Widget<Message, Theme, Renderer>
     for Centerbox<'a, Message, Theme, Renderer>
 where
-    Renderer: iced::advanced::Renderer,
+    Renderer: iced_layershell::advanced::Renderer,
 {
     fn children(&self) -> Vec<Tree> {
         self.children.iter().map(Tree::new).collect()
     }
 
-    fn diff(&mut self, tree: &mut Tree) {
-        tree.diff_children(&mut self.children)
+    fn diff(&self, tree: &mut Tree) {
+        tree.diff_children(&self.children)
     }
 
     fn size(&self) -> Size<Length> {
@@ -91,7 +94,7 @@ where
     }
 
     fn layout(
-        &self,
+        &mut self,
         tree: &mut Tree,
         renderer: &Renderer,
         limits: &layout::Limits,
@@ -119,7 +122,7 @@ where
         };
 
         let mut calculate_edge_layout =
-            |i: usize, (child, tree): (&Element<'a, Message, Theme, Renderer>, &mut Tree)| {
+            |i: usize, (child, tree): (&mut Element<'a, Message, Theme, Renderer>, &mut Tree)| {
                 let fill_cross_factor = {
                     let size = child.as_widget().size();
 
@@ -137,7 +140,7 @@ where
 
                 let child_limits = Limits::new(Size::ZERO, Size::new(max_width, max_height));
 
-                let layout = child.as_widget().layout(tree, renderer, &child_limits);
+                let layout = child.as_widget_mut().layout(tree, renderer, &child_limits);
                 let size = layout.size();
 
                 remaining -= size.width;
@@ -146,9 +149,9 @@ where
                 nodes[i] = layout;
             };
 
-        calculate_edge_layout(0, (&self.children[0], &mut tree.children[0]));
-        calculate_edge_layout(2, (&self.children[2], &mut tree.children[2]));
-        calculate_edge_layout(1, (&self.children[1], &mut tree.children[1]));
+        calculate_edge_layout(0, (&mut self.children[0], &mut tree.children[0]));
+        calculate_edge_layout(2, (&mut self.children[2], &mut tree.children[2]));
+        calculate_edge_layout(1, (&mut self.children[1], &mut tree.children[1]));
 
         nodes[0].move_to_mut(Point::new(self.padding.left, self.padding.top));
         nodes[0].align_mut(Alignment::Start, self.align_items, Size::new(0.0, cross));
@@ -173,7 +176,7 @@ where
             ));
         } else {
             nodes[1].move_to_mut(Point::new(
-                limits.max().width / 2. + self.padding.horizontal() / 2.0,
+                limits.max().width / 2. + (self.padding.left + self.padding.right) / 2.0,
                 self.padding.top,
             ));
         }
@@ -193,53 +196,54 @@ where
     }
 
     fn operate(
-        &self,
+        &mut self,
         tree: &mut Tree,
         layout: Layout<'_>,
         renderer: &Renderer,
         operation: &mut dyn Operation,
     ) {
-        operation.container(None, layout.bounds(), &mut |operation| {
+        operation.container(None, layout.bounds());
+        operation.traverse(&mut |operation| {
             self.children
-                .iter()
+                .iter_mut()
                 .zip(&mut tree.children)
                 .zip(layout.children())
                 .for_each(|((child, state), layout)| {
                     child
-                        .as_widget()
+                        .as_widget_mut()
                         .operate(state, layout, renderer, operation);
                 });
         });
     }
 
-    fn on_event(
+    fn update(
         &mut self,
         tree: &mut Tree,
-        event: Event,
+        event: &event::Event,
         layout: Layout<'_>,
         cursor: mouse::Cursor,
         renderer: &Renderer,
         clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
-    ) -> event::Status {
-        self.children
+    ) {
+        for ((child, state), layout) in self
+            .children
             .iter_mut()
             .zip(&mut tree.children)
             .zip(layout.children())
-            .map(|((child, state), layout)| {
-                child.as_widget_mut().on_event(
-                    state,
-                    event.clone(),
-                    layout,
-                    cursor,
-                    renderer,
-                    clipboard,
-                    shell,
-                    viewport,
-                )
-            })
-            .fold(event::Status::Ignored, event::Status::merge)
+        {
+            child.as_widget_mut().update(
+                state,
+                event,
+                layout,
+                cursor,
+                renderer,
+                clipboard,
+                shell,
+                viewport,
+            );
+        }
     }
 
     fn mouse_interaction(
@@ -290,11 +294,12 @@ where
     fn overlay<'b>(
         &'b mut self,
         tree: &'b mut Tree,
-        layout: Layout<'_>,
+        layout: Layout<'b>,
         renderer: &Renderer,
+        viewport: &Rectangle,
         translation: Vector,
     ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
-        overlay::from_children(&mut self.children, tree, layout, renderer, translation)
+        overlay::from_children(&mut self.children, tree, layout, renderer, viewport, translation)
     }
 }
 
@@ -303,7 +308,7 @@ impl<'a, Message, Theme, Renderer> From<Centerbox<'a, Message, Theme, Renderer>>
 where
     Message: 'a,
     Theme: 'a,
-    Renderer: iced::advanced::Renderer + 'a,
+    Renderer: iced_layershell::advanced::Renderer + 'a,
 {
     #[inline]
     fn from(row: Centerbox<'a, Message, Theme, Renderer>) -> Self {

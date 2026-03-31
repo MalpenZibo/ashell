@@ -4,7 +4,7 @@ use crate::services::{
 };
 
 use super::{AccessPoint, ActiveConnectionInfo, KnownConnection, Vpn};
-use iced::futures::{Stream, StreamExt, stream::select_all};
+use iced_layershell::futures::{Stream, StreamExt, stream::select_all};
 use itertools::Itertools;
 use log::{debug, warn};
 use std::{collections::HashMap, ops::Deref};

@@ -25,9 +25,9 @@ use zbus::interface;
 
 use super::dbus::DeviceState;
 use super::{AccessPoint, ActiveConnectionInfo, KnownConnection, NetworkBackend, NetworkEvent};
-use iced::futures::future::join_all;
-use iced::futures::stream::select_all;
-use iced::futures::{Stream, StreamExt};
+use iced_layershell::futures::future::join_all;
+use iced_layershell::futures::stream::select_all;
+use iced_layershell::futures::{Stream, StreamExt};
 
 use log::{debug, info, warn};
 use std::collections::HashMap;

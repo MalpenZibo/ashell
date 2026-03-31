@@ -4,7 +4,7 @@ use crate::{
     theme::AshellTheme,
     utils::truncate_text,
 };
-use iced::{
+use iced_layershell::{
     Element, Subscription,
     widget::{container, text},
 };

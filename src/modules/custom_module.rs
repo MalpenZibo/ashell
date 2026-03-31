@@ -4,13 +4,13 @@ use crate::{
     theme::AshellTheme,
     utils::launcher::execute_command,
 };
-use iced::widget::canvas;
-use iced::{
+use iced_layershell::widget::canvas;
+use iced_layershell::{
     Element, Length, Subscription, Theme,
     stream::channel,
     widget::{Stack, row, text},
 };
-use iced::{
+use iced_layershell::{
     mouse::Cursor,
     widget::{
         canvas::{Cache, Geometry, Path, Program},
@@ -19,7 +19,7 @@ use iced::{
 };
 use log::{error, info};
 use serde::Deserialize;
-use std::{any::TypeId, process::Stdio};
+use std::process::Stdio;
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
     process::Command,
@@ -53,9 +53,9 @@ impl<Message> Program<Message> for AlertIndicator {
     fn draw(
         &self,
         cache: &Self::State,
-        renderer: &iced::Renderer,
+        renderer: &iced_layershell::Renderer,
         theme: &Theme,
-        bounds: iced::Rectangle,
+        bounds: iced_layershell::Rectangle,
         _cursor: Cursor,
     ) -> Vec<Geometry> {
         let geometry = cache.draw(renderer, bounds.size(), |frame| {
@@ -144,8 +144,8 @@ impl Custom {
                     let alert_indicator_container = container(alert_canvas)
                         .width(Length::Fill) // Take full width of the stack item
                         .height(Length::Fill) // Take full height
-                        .align_x(iced::alignment::Horizontal::Right)
-                        .align_y(iced::alignment::Vertical::Top);
+                        .align_x(iced_layershell::alignment::Horizontal::Right)
+                        .align_y(iced_layershell::alignment::Vertical::Top);
 
                     Stack::new()
                         .push(padded_icon_container) // Padded icon is the base layer
@@ -175,11 +175,10 @@ impl Custom {
     }
 
     pub fn subscription(&self) -> Subscription<(String, Message)> {
-        let id = TypeId::of::<Self>();
         let name = self.config.name.clone();
         if let Some(listen_cmd) = self.config.listen_cmd.clone() {
-            Subscription::run_with_id(
-                (id, name.clone(), listen_cmd.clone()),
+            Subscription::run_with((name, listen_cmd), |data| {
+                let (name, listen_cmd) = data.clone();
                 channel(10, async move |mut output| {
                     let command = Command::new("bash")
                         .arg("-c")
@@ -229,8 +228,8 @@ impl Custom {
                             error!("Failed to execute command: {error}");
                         }
                     }
-                }),
-            )
+                })
+            })
         } else {
             Subscription::none()
         }

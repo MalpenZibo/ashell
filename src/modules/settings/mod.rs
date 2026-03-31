@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
-use iced::futures::future::join_all;
+use iced_layershell::futures::future::join_all;
 use log::{debug, error};
 use tokio::process::Command;
 use tokio::time::timeout;
@@ -10,6 +10,7 @@ use crate::{
     components::icons::{DynamicIcon, Icon, IconButtonSize, StaticIcon, icon, icon_button},
     config::{Position, SettingsCustomButton, SettingsIndicator, SettingsModuleConfig},
     menu::MenuSize,
+    utils::PushMaybe,
     modules::settings::{
         audio::{AudioSettings, AudioSettingsConfig},
         bluetooth::{BluetoothSettings, BluetoothSettingsConfig},
@@ -21,10 +22,9 @@ use crate::{
     services::idle_inhibitor::IdleInhibitorManager,
     theme::AshellTheme,
 };
-use iced::{
-    Alignment, Background, Border, Element, Length, Padding, Subscription, Task, Theme,
-    widget::{Column, MouseArea, Row, Space, button, container, horizontal_space, row, text},
-    window::Id,
+use iced_layershell::{
+    Alignment, Background, Border, Element, Length, Padding, Subscription, SurfaceId, Task, Theme,
+    widget::{Column, MouseArea, Row, Space, button, container, row, space, text},
 };
 
 mod audio;
@@ -100,10 +100,10 @@ pub enum Message {
 pub enum Action {
     None,
     Command(Task<Message>),
-    CloseMenu(Id),
-    RequestKeyboard(Id),
-    ReleaseKeyboard(Id),
-    ReleaseKeyboardWithCommand(Id, Task<Message>),
+    CloseMenu(SurfaceId),
+    RequestKeyboard(SurfaceId),
+    ReleaseKeyboard(SurfaceId),
+    ReleaseKeyboardWithCommand(SurfaceId, Task<Message>),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -476,7 +476,7 @@ impl Settings {
 
     pub fn menu_view<'a>(
         &'a self,
-        id: Id,
+        id: SurfaceId,
         theme: &'a AshellTheme,
         position: Position,
     ) -> Element<'a, Message> {
@@ -516,7 +516,7 @@ impl Settings {
 
             let header = Row::with_capacity(3)
                 .push_maybe(battery_data)
-                .push(Space::with_width(Length::Fill))
+                .push(Space::new().width(Length::Fill))
                 .push(right_buttons)
                 .spacing(theme.space.xs)
                 .width(Length::Fill);
@@ -666,7 +666,7 @@ impl Settings {
                 .spacing(theme.space.md)
                 .into()
         })
-        .max_width(MenuSize::Medium)
+        .width(MenuSize::Medium)
         .into()
     }
 
@@ -826,7 +826,7 @@ fn quick_settings_section<'a>(
 
     if let Some((before_button, before_menu)) = before.take() {
         section = section.push(
-            row![before_button, horizontal_space()]
+            row![before_button, space::horizontal()]
                 .width(Length::Fill)
                 .spacing(theme.space.xs),
         );

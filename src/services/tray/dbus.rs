@@ -1,4 +1,4 @@
-use iced::futures::StreamExt;
+use iced_layershell::futures::StreamExt;
 use log::{info, warn};
 use std::time::Duration;
 use zbus::{

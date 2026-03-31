@@ -4,16 +4,15 @@ use crate::{
     menu::MenuSize,
     theme::AshellTheme,
 };
-use iced::{
-    Alignment, Element, Length, Subscription, Task,
+use iced_layershell::{
+    Alignment, Element, Length, Padding, Subscription, SurfaceId, Task,
     alignment::Horizontal,
     stream::channel,
-    widget::{Column, button, column, container, horizontal_rule, row, scrollable, text},
-    window::Id,
+    widget::{Column, button, column, container, row, rule, scrollable, text},
 };
 use log::error;
 use serde::Deserialize;
-use std::{any::TypeId, convert, process::Stdio, time::Duration};
+use std::{convert, process::Stdio, time::Duration};
 use tokio::{process, time::sleep};
 
 #[derive(Deserialize, Debug, Clone)]
@@ -75,13 +74,13 @@ pub enum Message {
     MenuOpened,
     ToggleUpdatesList,
     CheckNow,
-    Update(Id),
+    Update(SurfaceId),
 }
 
 pub enum Action {
     None,
     CheckForUpdates(Task<Message>),
-    CloseMenu(Id, Task<Message>),
+    CloseMenu(SurfaceId, Task<Message>),
 }
 
 #[derive(Debug, Default, Clone, Eq, PartialEq)]
@@ -177,10 +176,10 @@ impl Updates {
         content.into()
     }
 
-    pub fn menu_view<'a>(&'a self, id: Id, theme: &'a AshellTheme) -> Element<'a, Message> {
+    pub fn menu_view<'a>(&'a self, id: SurfaceId, theme: &'a AshellTheme) -> Element<'a, Message> {
         column!(
             if self.updates.is_empty() {
-                convert::Into::<Element<'_, _, _>>::into(
+                convert::Into::<Element<'_, _>>::into(
                     container(text("Up to date ;)")).padding(theme.space.xs),
                 )
             } else {
@@ -233,22 +232,17 @@ impl Updates {
                                         )
                                         .into()
                                     })
-                                    .collect::<Vec<Element<'_, _, _>>>(),
+                                    .collect::<Vec<Element<'_, _>>>(),
                             )
                             .spacing(theme.space.xs)
-                            .padding([
-                                0,
-                                theme.space.md,
-                                0,
-                                theme.space.xs,
-                            ]),
+                            .padding(Padding::default().right(theme.space.md).left(theme.space.xs)),
                         ))
                         .max_height(300),
                     );
                 }
                 elements.into()
             },
-            horizontal_rule(1),
+            rule::horizontal(1),
             self.update_buttons(id, theme),
         )
         .width(MenuSize::Small)
@@ -256,7 +250,7 @@ impl Updates {
         .into()
     }
 
-    fn update_buttons<'a>(&'a self, id: Id, theme: &'a AshellTheme) -> Element<'a, Message> {
+    fn update_buttons<'a>(&'a self, id: SurfaceId, theme: &'a AshellTheme) -> Element<'a, Message> {
         let mut buttons = column!().spacing(theme.space.xs);
 
         if !self.updates.is_empty() {
@@ -284,11 +278,11 @@ impl Updates {
 
     pub fn subscription(&self) -> Subscription<Message> {
         let check_cmd = self.config.check_cmd.clone();
-        let interval = Duration::from_secs(self.config.interval.max(60));
-        let id = TypeId::of::<Self>();
+        let interval_secs = self.config.interval.max(60);
 
-        Subscription::run_with_id(
-            (id, check_cmd.clone()),
+        Subscription::run_with((check_cmd, interval_secs), |data| {
+            let (check_cmd, interval_secs) = data.clone();
+            let interval = Duration::from_secs(interval_secs);
             channel(10, async move |mut output| {
                 loop {
                     let updates = check_update_now(&check_cmd).await;
@@ -297,7 +291,7 @@ impl Updates {
 
                     sleep(interval).await;
                 }
-            }),
-        )
+            })
+        })
     }
 }

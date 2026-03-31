@@ -1,6 +1,6 @@
 use crate::{config::ClockModuleConfig, theme::AshellTheme};
 use chrono::{DateTime, Local};
-use iced::{Element, Subscription, time::every, widget::text};
+use iced_layershell::{Element, Subscription, time::every, widget::text};
 use log::warn;
 use std::time::Duration;
 

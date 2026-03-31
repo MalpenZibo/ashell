@@ -1,6 +1,6 @@
 use super::{ReadOnlyService, Service, ServiceEvent};
-use crate::{services::throttle::ThrottleExt, utils::remote_value::Remote};
-use iced::{
+use crate::utils::remote_value::Remote;
+use iced_layershell::{
     Subscription, Task,
     futures::{SinkExt, StreamExt, channel::mpsc::Sender, stream::pending},
     stream::channel,
@@ -31,7 +31,6 @@ use std::{
     time::Duration,
 };
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
-use tokio_stream::wrappers::UnboundedReceiverStream;
 
 #[derive(Debug, Clone)]
 pub struct Device {
@@ -131,7 +130,6 @@ impl DerefMut for AudioService {
 
 struct PulseAudioServerHandle {
     _listener: JoinHandle<()>,
-    _commander: JoinHandle<()>,
     receiver: UnboundedReceiver<PulseAudioServerEvent>,
     sender: UnboundedSender<PulseAudioCommand>,
 }
@@ -307,19 +305,16 @@ impl ReadOnlyService for AudioService {
         }
     }
 
-    fn subscribe() -> iced::Subscription<super::ServiceEvent<Self>> {
-        let id = TypeId::of::<Self>();
-
-        Subscription::run_with_id(
-            id,
+    fn subscribe() -> iced_layershell::Subscription<super::ServiceEvent<Self>> {
+        Subscription::run_with(TypeId::of::<Self>(), |_| {
             channel(100, async |mut output| {
                 let mut state = State::Init;
 
                 loop {
                     state = AudioService::start_listening(state, &mut output).await;
                 }
-            }),
-        )
+            })
+        })
     }
 }
 
@@ -383,7 +378,7 @@ impl Service for AudioService {
             }
         }
 
-        iced::Task::none()
+        iced_layershell::Task::none()
     }
 }
 
@@ -457,27 +452,16 @@ impl PulseAudioServer {
         let (from_server_tx, from_server_rx) = tokio::sync::mpsc::unbounded_channel();
         let (to_server_tx, to_server_rx) = tokio::sync::mpsc::unbounded_channel();
 
-        let listener = Self::start_listener(from_server_tx.clone()).await?;
-        let commander = Self::start_commander(from_server_tx.clone(), to_server_rx).await?;
+        let (init_tx, mut init_rx) = tokio::sync::mpsc::unbounded_channel();
 
-        Ok(PulseAudioServerHandle {
-            _listener: listener,
-            _commander: commander,
-            receiver: from_server_rx,
-            sender: to_server_tx,
-        })
-    }
-
-    async fn start_listener(
-        from_server_tx: UnboundedSender<PulseAudioServerEvent>,
-    ) -> anyhow::Result<JoinHandle<()>> {
-        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-
+        // Single thread for both listening and commanding — avoids PulseAudio
+        // mainloop assertion failures from concurrent connections.
         let handle = thread::spawn({
             let from_server_tx = from_server_tx.clone();
+            let mut to_server_rx = to_server_rx;
             move || match Self::new() {
                 Ok(mut server) => {
-                    let _ = tx.send(true);
+                    let _ = init_tx.send(true);
 
                     server.context.subscribe(
                         InterestMaskSet::SERVER
@@ -570,80 +554,65 @@ impl PulseAudioServer {
                         },
                     )));
 
+                    // Main loop: iterate PulseAudio and process commands on the same thread
+                    let mut cmd_introspector = server.context.introspect();
                     loop {
-                        let data = server.mainloop.iterate(true);
+                        // Non-blocking iterate to allow processing commands
+                        let data = server.mainloop.iterate(false);
                         if let IterateResult::Quit(_) | IterateResult::Err(_) = data {
                             error!("PulseAudio mainloop error");
+                            break;
                         }
-                    }
-                }
-                Err(e) => {
-                    error!("Failed to start PulseAudio listener thread: {e}");
-                    let _ = tx.send(false);
-                }
-            }
-        });
 
-        match rx.recv().await {
-            Some(true) => Ok(handle),
-            _ => Err(anyhow::anyhow!(
-                "Failed to start PulseAudio listener thread"
-            )),
-        }
-    }
-
-    async fn start_commander(
-        from_server_tx: UnboundedSender<PulseAudioServerEvent>,
-        to_server_rx: UnboundedReceiver<PulseAudioCommand>,
-    ) -> anyhow::Result<JoinHandle<()>> {
-        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-
-        let handle = thread::spawn(move || {
-            tokio::runtime::Builder::new_current_thread()
-                .enable_time()
-                .build()
-                .unwrap()
-                .block_on(async move {
-                    match Self::new() {
-                        Ok(mut server) => {
-                            let _ = tx.send(true);
-                            let mut stream = UnboundedReceiverStream::new(to_server_rx)
-                                .throttle(Duration::from_millis(100));
-                            while let Some(cmd) = stream.next().await {
-                                match cmd {
-                                    PulseAudioCommand::SinkMute(name, mute) => {
-                                        let _ = server.set_sink_mute(&name, mute);
+                        // Process any pending commands
+                        while let Ok(cmd) = to_server_rx.try_recv() {
+                            match cmd {
+                                PulseAudioCommand::SinkMute(name, mute) => {
+                                    cmd_introspector.set_sink_mute_by_name(&name, mute, None);
+                                }
+                                PulseAudioCommand::SourceMute(name, mute) => {
+                                    cmd_introspector.set_source_mute_by_name(&name, mute, None);
+                                }
+                                PulseAudioCommand::SinkVolume(name, volume) => {
+                                    cmd_introspector.set_sink_volume_by_name(&name, &volume, None);
+                                }
+                                PulseAudioCommand::SourceVolume(name, volume) => {
+                                    cmd_introspector.set_source_volume_by_name(&name, &volume, None);
+                                }
+                                PulseAudioCommand::DefaultSink(name, port) => {
+                                    server.context.set_default_sink(&name, |_| {});
+                                    if let Some(port) = port {
+                                        cmd_introspector.set_sink_port_by_name(&name, &port, None);
                                     }
-                                    PulseAudioCommand::SourceMute(name, mute) => {
-                                        let _ = server.set_source_mute(&name, mute);
-                                    }
-                                    PulseAudioCommand::SinkVolume(name, volume) => {
-                                        let _ = server.set_sink_volume(&name, &volume);
-                                    }
-                                    PulseAudioCommand::SourceVolume(name, volume) => {
-                                        let _ = server.set_source_volume(&name, &volume);
-                                    }
-                                    PulseAudioCommand::DefaultSink(name, port) => {
-                                        let _ = server.set_default_sink(&name, port.as_deref());
-                                    }
-                                    PulseAudioCommand::DefaultSource(name, port) => {
-                                        let _ = server.set_default_source(&name, port.as_deref());
+                                }
+                                PulseAudioCommand::DefaultSource(name, port) => {
+                                    server.context.set_default_source(&name, |_| {});
+                                    if let Some(port) = port {
+                                        cmd_introspector.set_source_port_by_name(&name, &port, None);
                                     }
                                 }
                             }
                         }
-                        Err(e) => {
-                            error!("Failed to start PulseAudio server: {e}");
-                            let _ = from_server_tx.send(PulseAudioServerEvent::Error);
-                        }
+
+                        // Brief sleep to avoid busy-spinning
+                        std::thread::sleep(Duration::from_millis(10));
                     }
-                })
+                }
+                Err(e) => {
+                    error!("Failed to start PulseAudio thread: {e}");
+                    let _ = init_tx.send(false);
+                }
+            }
         });
 
-        match rx.recv().await {
-            Some(true) => Ok(handle),
+        match init_rx.recv().await {
+            Some(true) => Ok(PulseAudioServerHandle {
+                _listener: handle,
+                receiver: from_server_rx,
+                sender: to_server_tx,
+            }),
             _ => Err(anyhow::anyhow!(
-                "Failed to start PulseAudio commander thread"
+                "Failed to start PulseAudio thread"
             )),
         }
     }

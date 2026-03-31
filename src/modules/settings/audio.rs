@@ -7,15 +7,13 @@ use crate::{
         audio::{AudioCommand, AudioService, DevicePortType, Port},
     },
     theme::AshellTheme,
+    utils::PushMaybe,
     utils::remote_value::{self, Remote},
 };
-use iced::{
-    Alignment, Element, Length, Subscription, Task, Theme,
+use iced_layershell::{
+    Alignment, Element, Length, Subscription, SurfaceId, Task, Theme,
     mouse::ScrollDelta,
-    widget::{
-        Column, MouseArea, Row, Text, button, column, container, horizontal_rule, row, slider, text,
-    },
-    window::Id,
+    widget::{Column, MouseArea, Row, Text, button, column, container, row, rule, slider, text},
 };
 use libpulse_binding::volume::Volume;
 
@@ -30,8 +28,8 @@ pub enum Message {
     SinkVolumeChanged(remote_value::Message<u32>),
     ToggleSourceMute,
     SourceVolumeChanged(remote_value::Message<u32>),
-    SinksMore(Id),
-    SourcesMore(Id),
+    SinksMore(SurfaceId),
+    SourcesMore(SurfaceId),
     OpenMore,
     OpenSourceMore,
     ToggleSinksMenu,
@@ -44,7 +42,7 @@ pub enum Action {
     Task(Task<Message>),
     ToggleSinksMenu,
     ToggleSourcesMenu,
-    CloseMenu(Id),
+    CloseMenu(SurfaceId),
     CloseSubMenu,
 }
 
@@ -353,7 +351,7 @@ impl AudioSettings {
 
     pub fn sinks_submenu<'a>(
         &'a self,
-        id: Id,
+        id: SurfaceId,
         theme: &'a AshellTheme,
     ) -> Option<Element<'a, Message>> {
         self.service.as_ref().map(|service| {
@@ -386,7 +384,7 @@ impl AudioSettings {
 
     pub fn sources_submenu<'a>(
         &'a self,
-        id: Id,
+        id: SurfaceId,
         theme: &'a AshellTheme,
     ) -> Option<Element<'a, Message>> {
         self.service.as_ref().map(|service| {
@@ -573,7 +571,7 @@ impl AudioSettings {
         match more_msg {
             Some(more_msg) => column!(
                 entries,
-                horizontal_rule(1),
+                rule::horizontal(1),
                 button("More")
                     .on_press(more_msg)
                     .padding([theme.space.xxs, theme.space.sm])

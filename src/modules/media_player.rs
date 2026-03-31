@@ -2,6 +2,7 @@ use crate::{
     components::icons::{IconButtonSize, StaticIcon, icon, icon_button},
     config::{MediaPlayerFormat, MediaPlayerModuleConfig},
     menu::MenuSize,
+    utils::PushMaybe,
     services::{
         ReadOnlyService, Service, ServiceEvent,
         mpris::{
@@ -11,10 +12,10 @@ use crate::{
     theme::AshellTheme,
     utils::truncate_text,
 };
-use iced::{
+use iced_layershell::{
     Background, Border, Element, Length, Subscription, Task, Theme,
     alignment::Vertical,
-    widget::{column, container, horizontal_rule, horizontal_space, image, row, slider, text},
+    widget::{column, container, image, row, rule, slider, space, text},
 };
 use std::collections::{HashMap, HashSet};
 
@@ -84,7 +85,7 @@ impl MediaPlayer {
             None => Into::<Element<'a, Message>>::into(text("Not connected to MPRIS service")),
             Some(service) => column!(
                 text("Players").size(theme.font_size.lg),
-                horizontal_rule(1),
+                rule::horizontal(1),
                 column(service.players().iter().map(|d| {
                     const LEFT_COLUMN_WIDTH: Length = Length::FillPortion(3);
                     const RIGHT_COLUMN_WIDTH: Length = Length::FillPortion(2);
@@ -180,7 +181,7 @@ impl MediaPlayer {
                         }
                         (None, cover) => {
                             let controls =
-                                row![horizontal_space().width(LEFT_COLUMN_WIDTH), buttons]
+                                row![space::horizontal().width(LEFT_COLUMN_WIDTH), buttons]
                                     .spacing(theme.space.md)
                                     .align_y(Vertical::Center);
                             column![metadata(description, cover), controls]
@@ -211,7 +212,7 @@ impl MediaPlayer {
             .spacing(theme.space.xs)
             .into(),
         })
-        .max_width(MenuSize::Large)
+        .width(MenuSize::Large)
         .into()
     }
 

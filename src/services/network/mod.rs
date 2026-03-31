@@ -2,9 +2,9 @@ use super::{Service, ServiceEvent};
 use crate::services::ReadOnlyService;
 use dbus::ConnectivityState;
 use dbus::NetworkDbus;
-use iced::futures::TryFutureExt;
-use iced::futures::stream::pending;
-use iced::{
+use iced_layershell::futures::TryFutureExt;
+use iced_layershell::futures::stream::pending;
+use iced_layershell::{
     Subscription, Task,
     futures::{SinkExt, StreamExt, channel::mpsc::Sender},
     stream::channel,
@@ -279,18 +279,15 @@ impl ReadOnlyService for NetworkService {
     }
 
     fn subscribe() -> Subscription<ServiceEvent<Self>> {
-        let id = TypeId::of::<Self>();
-
-        Subscription::run_with_id(
-            id,
+        Subscription::run_with(TypeId::of::<Self>(), |_| {
             channel(50, async |mut output| {
                 let mut state = State::Init;
 
                 loop {
                     state = NetworkService::start_listening(state, &mut output).await;
                 }
-            }),
-        )
+            })
+        })
     }
 }
 
