@@ -3,6 +3,7 @@ use std::convert;
 use crate::{
     components::icons::{StaticIcon, icon},
     config::{PeripheralIndicators, SettingsFormat},
+    utils::PushMaybe,
     modules::settings::quick_setting_button,
     services::{
         ReadOnlyService, Service, ServiceEvent,
@@ -14,10 +15,10 @@ use crate::{
     theme::AshellTheme,
     utils::{self, IndicatorState, format_duration},
 };
-use iced::{
+use iced_layershell::{
     Alignment, Element, Length, Subscription, Task, Theme,
     alignment::Vertical,
-    widget::{Column, Row, button, column, container, horizontal_rule, row, text},
+    widget::{Column, Row, button, column, container, row, rule, text},
 };
 
 fn format_time_for_battery(battery: &BatteryData) -> String {
@@ -184,7 +185,7 @@ impl PowerSettings {
                 .on_press(Message::Shutdown)
                 .width(Length::Fill)
                 .style(theme.ghost_button_style()),
-            horizontal_rule(1),
+            rule::horizontal(1),
             button(row!(icon(StaticIcon::Logout), text("Logout")).spacing(theme.space.md))
                 .padding([theme.space.xxs, theme.space.sm])
                 .on_press(Message::Logout)
@@ -407,7 +408,7 @@ impl PowerSettings {
 
                     if !service.peripherals.is_empty() {
                         button(indicator)
-                            .padding([0, ashell_theme.space.sm])
+                            .padding([0.0, ashell_theme.space.sm])
                             .on_press(Message::TogglePeripheralMenu)
                             .style(ashell_theme.settings_button_style())
                             .into()
@@ -425,7 +426,7 @@ impl PowerSettings {
 
                         Some(if service.peripherals.len() > 1 {
                             button(indicator)
-                                .padding([0, ashell_theme.space.sm])
+                                .padding([0.0, ashell_theme.space.sm])
                                 .on_press(Message::TogglePeripheralMenu)
                                 .style(ashell_theme.settings_button_style())
                                 .into()

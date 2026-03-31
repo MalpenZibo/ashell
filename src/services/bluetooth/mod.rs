@@ -1,6 +1,6 @@
 use super::{ReadOnlyService, Service, ServiceEvent};
 use dbus::{BatteryProxy, BluetoothDbus, DeviceProxy};
-use iced::{
+use iced_layershell::{
     Subscription, Task,
     futures::{SinkExt, Stream, StreamExt, channel::mpsc::Sender, stream::pending, stream_select},
     stream::channel,
@@ -145,15 +145,15 @@ impl BluetoothService {
                 }
 
                 let battery_events = if batteries.is_empty() {
-                    iced::futures::stream::pending().boxed()
+                    iced_layershell::futures::stream::pending().boxed()
                 } else {
-                    iced::futures::stream::select_all(batteries).boxed()
+                    iced_layershell::futures::stream::select_all(batteries).boxed()
                 };
 
                 let device_property_events = if device_properties.is_empty() {
-                    iced::futures::stream::pending().boxed()
+                    iced_layershell::futures::stream::pending().boxed()
                 } else {
-                    iced::futures::stream::select_all(device_properties).boxed()
+                    iced_layershell::futures::stream::select_all(device_properties).boxed()
                 };
 
                 Box::pin(stream_select!(
@@ -292,18 +292,15 @@ impl ReadOnlyService for BluetoothService {
     }
 
     fn subscribe() -> Subscription<ServiceEvent<Self>> {
-        let id = TypeId::of::<Self>();
-
-        Subscription::run_with_id(
-            id,
+        Subscription::run_with(TypeId::of::<Self>(), |_| {
             channel(100, async |mut output| {
                 let mut state = State::Init;
 
                 loop {
                     state = BluetoothService::start_listening(state, &mut output).await;
                 }
-            }),
-        )
+            })
+        })
     }
 }
 

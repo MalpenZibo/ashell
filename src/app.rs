@@ -25,21 +25,16 @@ use crate::{
     widgets::{ButtonUIRef, Centerbox},
 };
 use flexi_logger::LoggerHandle;
-use iced::{
-    Alignment, Color, Element, Gradient, Length, Radians, Subscription, Task, Theme,
-    daemon::Appearance,
-    event::{
-        listen_with,
-        wayland::{Event as WaylandEvent, OutputEvent},
-    },
+use iced_layershell::{
+    Alignment, Color, Element, Gradient, Length, OutputEvent, Radians, Subscription, SurfaceId,
+    Task, Theme,
+    event::listen_with,
     gradient::Linear,
-    keyboard,
+    keyboard, set_exclusive_zone,
     widget::{Row, container, mouse_area},
-    window::Id,
 };
 use log::{debug, info, warn};
 use std::{collections::HashMap, f32::consts::PI, path::PathBuf};
-use wayland_client::protocol::wl_output::WlOutput;
 
 pub struct GeneralConfig {
     outputs: config::Outputs,
@@ -73,8 +68,8 @@ pub struct App {
 #[derive(Debug, Clone)]
 pub enum Message {
     ConfigChanged(Box<Config>),
-    ToggleMenu(MenuType, Id, ButtonUIRef),
-    CloseMenu(Id),
+    ToggleMenu(MenuType, SurfaceId, ButtonUIRef),
+    CloseMenu(SurfaceId),
     Custom(String, custom_module::Message),
     Updates(modules::updates::Message),
     Workspaces(modules::workspaces::Message),
@@ -88,7 +83,7 @@ pub enum Message {
     Privacy(modules::privacy::Message),
     Settings(modules::settings::Message),
     MediaPlayer(modules::media_player::Message),
-    OutputEvent((OutputEvent, WlOutput)),
+    OutputEvent(OutputEvent),
     CloseAllMenus,
     ResumeFromSleep,
     None,
@@ -197,23 +192,11 @@ impl App {
             ));
     }
 
-    pub fn title(&self, _id: Id) -> String {
-        String::from("ashell")
-    }
-
-    pub fn theme(&self, _id: Id) -> Theme {
+    pub fn theme(&self) -> Theme {
         self.theme.get_theme().clone()
     }
 
-    pub fn style(&self, theme: &Theme) -> Appearance {
-        Appearance {
-            background_color: Color::TRANSPARENT,
-            text_color: theme.palette().text,
-            icon_color: theme.palette().text,
-        }
-    }
-
-    pub fn scale_factor(&self, _id: Id) -> f64 {
+    pub fn scale_factor(&self) -> f64 {
         self.theme.scale_factor
     }
 
@@ -372,13 +355,10 @@ impl App {
                     ])
                 }
             },
-            Message::OutputEvent((event, wl_output)) => match event {
-                iced::event::wayland::OutputEvent::Created(info) => {
+            Message::OutputEvent(event) => match event {
+                OutputEvent::Added(info) => {
                     info!("Output created: {info:?}");
-                    let name = info
-                        .as_ref()
-                        .and_then(|info| info.description.as_deref())
-                        .unwrap_or("");
+                    let name = &info.name;
 
                     self.outputs.add(
                         self.theme.bar_style,
@@ -386,21 +366,21 @@ impl App {
                         self.theme.bar_position,
                         self.general_config.layer,
                         name,
-                        wl_output,
+                        info.id,
                         self.theme.scale_factor,
                     )
                 }
-                iced::event::wayland::OutputEvent::Removed => {
+                OutputEvent::Removed(output_id) => {
                     info!("Output destroyed");
                     self.outputs.remove(
                         self.theme.bar_style,
                         self.theme.bar_position,
                         self.general_config.layer,
-                        wl_output,
+                        output_id,
                         self.theme.scale_factor,
                     )
                 }
-                _ => Task::none(),
+                OutputEvent::InfoChanged(_) => Task::none(),
             },
             Message::MediaPlayer(msg) => match self.media_player.update(msg) {
                 modules::media_player::Action::None => Task::none(),
@@ -435,16 +415,21 @@ impl App {
                     0.0
                 };
 
-                Task::batch(self.outputs.iter().filter_map(|(_, shell_info, _)| {
-                    shell_info.as_ref().map(|info| {
-                        iced::platform_specific::shell::commands::layer_surface::set_exclusive_zone(info.id, height as i32)
-                    })
-                }).collect::<Vec<_>>())
+                Task::batch(
+                    self.outputs
+                        .iter()
+                        .filter_map(|(_, shell_info, _)| {
+                            shell_info
+                                .as_ref()
+                                .map(|info| set_exclusive_zone(info.id, height as i32))
+                        })
+                        .collect::<Vec<_>>(),
+                )
             }
         }
     }
 
-    pub fn view(&'_ self, id: Id) -> Element<'_, Message> {
+    pub fn view(&'_ self, id: SurfaceId) -> Element<'_, Message> {
         match self.outputs.has(id) {
             Some(HasOutput::Main) => {
                 if !self.visible {
@@ -465,7 +450,7 @@ impl App {
                     .padding(if self.theme.bar_style == AppearanceStyle::Islands {
                         [self.theme.space.xxs, self.theme.space.xxs]
                     } else {
-                        [0, 0]
+                        [0.0, 0.0]
                     });
 
                 let status_bar = container(centerbox).style(|t: &Theme| container::Style {
@@ -593,14 +578,12 @@ impl App {
                 crate::services::ServiceEvent::Update(_) => Message::ResumeFromSleep,
                 _ => Message::None,
             }),
+            // iced_layershell::output_events().map(Message::OutputEvent),
             listen_with(move |evt, _, _| match evt {
-                iced::Event::PlatformSpecific(iced::event::PlatformSpecific::Wayland(
-                    WaylandEvent::Output(event, wl_output),
-                )) => {
-                    debug!("Wayland event: {event:?}");
-                    Some(Message::OutputEvent((event, wl_output)))
-                }
-                iced::Event::Keyboard(keyboard::Event::KeyPressed { key, .. }) => {
+                iced_layershell::event::Event::Keyboard(keyboard::Event::KeyPressed {
+                    key,
+                    ..
+                }) => {
                     debug!("Keyboard event received: {key:?}");
                     if matches!(key, keyboard::Key::Named(keyboard::key::Named::Escape)) {
                         debug!("ESC key pressed, closing all menus");
@@ -612,14 +595,14 @@ impl App {
                 _ => None,
             }),
             Subscription::run(|| {
-                use iced::futures::StreamExt;
+                use iced_layershell::futures::StreamExt;
                 signal_hook_tokio::Signals::new([libc::SIGUSR1])
                     .expect("Failed to create signal stream")
                     .filter_map(|sig| {
                         if sig == libc::SIGUSR1 {
-                            iced::futures::future::ready(Some(Message::ToggleVisibility))
+                            iced_layershell::futures::future::ready(Some(Message::ToggleVisibility))
                         } else {
-                            iced::futures::future::ready(None)
+                            iced_layershell::futures::future::ready(None)
                         }
                     })
             }),

@@ -3,11 +3,12 @@ use crate::{
     config::{SystemInfoIndicator, SystemInfoModuleConfig},
     menu::MenuSize,
     theme::AshellTheme,
+    utils::PushMaybe,
 };
-use iced::{
+use iced_layershell::{
     Alignment, Element, Length, Subscription, Theme,
     time::every,
-    widget::{Column, Row, column, container, horizontal_rule, row, text},
+    widget::{Column, Row, column, container, row, rule, text},
 };
 use itertools::Itertools;
 use std::time::{Duration, Instant};
@@ -306,7 +307,7 @@ impl SystemInfo {
         container(
             column!(
                 text("System Info").size(theme.font_size.lg),
-                horizontal_rule(1),
+                rule::horizontal(1),
                 Column::with_capacity(6)
                     .push(Self::info_element(
                         theme,
@@ -382,11 +383,11 @@ impl SystemInfo {
                         ])
                     }))
                     .spacing(theme.space.xxs)
-                    .padding([0, theme.space.xs])
+                    .padding([0.0, theme.space.xs])
             )
             .spacing(theme.space.xs),
         )
-        .max_width(MenuSize::Medium)
+        .width(MenuSize::Medium)
         .into()
     }
 

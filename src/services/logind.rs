@@ -1,5 +1,5 @@
 use super::{ReadOnlyService, ServiceEvent};
-use iced::{
+use iced_layershell::{
     Subscription,
     futures::{SinkExt, StreamExt},
     stream::channel,
@@ -20,10 +20,7 @@ impl ReadOnlyService for LogindService {
     fn update(&mut self, _event: Self::UpdateEvent) {}
 
     fn subscribe() -> Subscription<ServiceEvent<Self>> {
-        let id = TypeId::of::<Self>();
-
-        Subscription::run_with_id(
-            id,
+        Subscription::run_with(TypeId::of::<Self>(), |_| {
             channel(100, async move |mut output| {
                 let connection = match Connection::system().await {
                     Ok(conn) => conn,
@@ -61,8 +58,8 @@ impl ReadOnlyService for LogindService {
                         let _ = output.send(ServiceEvent::Update(ResumeEvent)).await;
                     }
                 }
-            }),
-        )
+            })
+        })
     }
 }
 

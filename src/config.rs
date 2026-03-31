@@ -1,8 +1,8 @@
 use crate::app::Message;
 use crate::services::upower::PeripheralDeviceKind;
 use hex_color::HexColor;
-use iced::futures::StreamExt;
-use iced::{Color, Subscription, futures::SinkExt, stream::channel, theme::palette};
+use iced_layershell::futures::StreamExt;
+use iced_layershell::{Color, Subscription, futures::SinkExt, stream::channel, theme::palette};
 use inotify::EventMask;
 use inotify::Inotify;
 use inotify::WatchMask;
@@ -13,7 +13,7 @@ use serde_with::DisplayFromStr;
 use serde_with::serde_as;
 use std::path::PathBuf;
 use std::time::Duration;
-use std::{any::TypeId, collections::HashMap, error::Error, ops::Deref, path::Path};
+use std::{collections::HashMap, error::Error, ops::Deref, path::Path};
 use tokio::time::sleep;
 
 pub const DEFAULT_CONFIG_FILE_PATH: &str = "~/.config/ashell/config.toml";
@@ -294,6 +294,20 @@ pub enum WeatherLocation {
     Current,
     City(String),
     Coordinates(f32, f32),
+}
+
+impl std::hash::Hash for WeatherLocation {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        std::mem::discriminant(self).hash(state);
+        match self {
+            WeatherLocation::Current => {}
+            WeatherLocation::City(city) => city.hash(state),
+            WeatherLocation::Coordinates(lat, lon) => {
+                lat.to_bits().hash(state);
+                lon.to_bits().hash(state);
+            }
+        }
+    }
 }
 
 impl Default for TempoModuleConfig {
@@ -876,11 +890,10 @@ enum Event {
 }
 
 pub fn subscription(path: &Path) -> Subscription<Message> {
-    let id = TypeId::of::<Config>();
     let path = path.to_path_buf();
 
-    Subscription::run_with_id(
-        id,
+    Subscription::run_with(path, |path| {
+        let path = path.clone();
         channel(100, async move |mut output| {
             match (path.parent(), path.file_name(), Inotify::init()) {
                 (Some(folder), Some(file_name), Ok(inotify)) => {
@@ -980,6 +993,6 @@ pub fn subscription(path: &Path) -> Subscription<Message> {
                     error!("Failed to initialize inotify: {e}");
                 }
             }
-        }),
-    )
+        })
+    })
 }

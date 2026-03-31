@@ -3,7 +3,7 @@ use crate::{
     components::icons::StaticIcon, services::throttle::ThrottleExt, utils::IndicatorState,
 };
 use dbus::{DeviceProxy, PowerProfilesProxy, SystemBattery, UPowerDbus, UPowerProxy, UpDeviceKind};
-use iced::{
+use iced_layershell::{
     Subscription,
     futures::{
         SinkExt, Stream, StreamExt,
@@ -278,18 +278,15 @@ impl ReadOnlyService for UPowerService {
     }
 
     fn subscribe() -> Subscription<ServiceEvent<Self>> {
-        let id = TypeId::of::<Self>();
-
-        Subscription::run_with_id(
-            id,
+        Subscription::run_with(TypeId::of::<Self>(), |_| {
             channel(100, async |mut output| {
                 let mut state = State::Init;
 
                 loop {
                     state = UPowerService::start_listening(state, &mut output).await;
                 }
-            }),
-        )
+            })
+        })
     }
 }
 
@@ -680,8 +677,8 @@ pub enum PowerProfileCommand {
 impl Service for UPowerService {
     type Command = PowerProfileCommand;
 
-    fn command(&mut self, command: Self::Command) -> iced::Task<ServiceEvent<Self>> {
-        iced::Task::perform(
+    fn command(&mut self, command: Self::Command) -> iced_layershell::Task<ServiceEvent<Self>> {
+        iced_layershell::Task::perform(
             {
                 let conn = self.conn.clone();
                 let power_profile = self.power_profile;

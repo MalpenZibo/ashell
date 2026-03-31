@@ -3,16 +3,17 @@ use crate::{
     config::{TempoModuleConfig, WeatherIndicator, WeatherLocation},
     menu::MenuSize,
     theme::AshellTheme,
+    utils::PushMaybe,
 };
 use chrono::{
     DateTime, Datelike, Days, FixedOffset, Local, Months, NaiveDate, NaiveDateTime, TimeZone, Utc,
     Weekday,
 };
 use chrono_tz::Tz;
-use iced::{
+use iced_layershell::{
     Background, Border, Degrees, Element,
     Length::{self, FillPortion},
-    Rotation, Subscription, Theme,
+    Padding, Rotation, Subscription, Theme,
     alignment::{Horizontal, Vertical},
     core::svg::Handle,
     futures::SinkExt,
@@ -25,7 +26,7 @@ use iced::{
 use itertools::izip;
 use log::{debug, warn};
 use serde::{Deserialize, Deserializer};
-use std::{any::TypeId, time::Duration};
+use std::time::Duration;
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -240,7 +241,7 @@ impl Tempo {
                 .push_maybe(self.weather(theme))
                 .spacing(theme.space.lg),
         )
-        .max_width(MenuSize::XLarge)
+        .width(MenuSize::XLarge)
         .into()
     }
 
@@ -589,7 +590,7 @@ impl Tempo {
                                 })
                                 .collect::<Vec<_>>()
                             })
-                            .padding([0, 0, theme.space.md, 0,])
+                            .padding(Padding::default().bottom(theme.space.md))
                             .spacing(theme.space.sm)
                         )
                         .direction(scrollable::Direction::Horizontal(Scrollbar::new()))
@@ -670,28 +671,28 @@ impl Tempo {
                                             .scale_alpha(theme.opacity),
                                     )
                                     .into(),
-                                    border: Border::default().rounded([
-                                        if index == 0 {
+                                    border: Border::default().rounded(iced_layershell::border::Radius {
+                                        top_left: if index == 0 {
                                             theme.radius.lg
                                         } else {
                                             theme.radius.sm
                                         },
-                                        if index == 0 {
+                                        top_right: if index == 0 {
                                             theme.radius.lg
                                         } else {
                                             theme.radius.sm
                                         },
-                                        if index == data.daily.time.len() - 2 {
+                                        bottom_right: if index == data.daily.time.len() - 2 {
                                             theme.radius.lg
                                         } else {
                                             theme.radius.sm
                                         },
-                                        if index == data.daily.time.len() - 2 {
+                                        bottom_left: if index == data.daily.time.len() - 2 {
                                             theme.radius.lg
                                         } else {
                                             theme.radius.sm
                                         },
-                                    ]),
+                                    }),
                                     ..container::Style::default()
                                 })
                                 .into()
@@ -726,24 +727,20 @@ impl Tempo {
             Duration::from_secs(5)
         };
 
-        let time_sub = Subscription::run_with_id(
-            TypeId::of::<Self>(),
-            channel(100, move |mut output| async move {
+        let time_sub = Subscription::run_with(interval, |interval| {
+            let interval = *interval;
+            channel(100, async move |mut output: iced_layershell::futures::channel::mpsc::Sender<Message>| {
                 let mut interval = tokio::time::interval(interval);
                 loop {
                     interval.tick().await;
                     output.send(Message::Update).await.ok();
                 }
-            }),
-        );
+            })
+        });
 
         let weather_sub = self.config.weather_location.clone().map(|location| {
-            Subscription::run_with_id(
-                (
-                    TypeId::of::<Self>(),
-                    format!("{:?}", self.config.weather_location),
-                    "weather",
-                ),
+            Subscription::run_with(location, |location| {
+                let location = location.clone();
                 channel(100, async move |mut output| {
                     let mut failed_attempt: u64 = 0;
 
@@ -783,8 +780,8 @@ impl Tempo {
                         failed_attempt += 1;
                         tokio::time::sleep(Duration::from_secs(60 * failed_attempt)).await;
                     }
-                }),
-            )
+                })
+            })
         });
 
         if let Some(weather_sub) = weather_sub {
