@@ -5,8 +5,8 @@ use crate::{
     theme::AshellTheme,
 };
 use chrono::{
-    DateTime, Datelike, Days, FixedOffset, Local, Months, NaiveDate, NaiveDateTime, TimeZone, Utc,
-    Weekday,
+    DateTime, Datelike, Days, FixedOffset, Local, Locale, Months, NaiveDate, NaiveDateTime,
+    TimeZone, Utc, Weekday,
 };
 use chrono_tz::Tz;
 use iced::{
@@ -161,7 +161,7 @@ impl Tempo {
                         return Some(
                             offset
                                 .from_utc_datetime(&utc_now.naive_utc())
-                                .format(format)
+                                .format_localized(format, Locale::fr_FR)
                                 .to_string(),
                         );
                     }
@@ -169,14 +169,18 @@ impl Tempo {
                     if let Ok(tz) = tz_name.parse::<Tz>() {
                         return Some(
                             tz.from_utc_datetime(&utc_now.naive_utc())
-                                .format(format)
+                                .format_localized(format, Locale::fr_FR)
                                 .to_string(),
                         );
                     }
 
                     None
                 })
-                .unwrap_or_else(|| self.date.format(format).to_string())
+                .unwrap_or_else(|| {
+                    self.date
+                        .format_localized(format, Locale::fr_FR)
+                        .to_string()
+                })
         };
 
         Row::with_capacity(2)
