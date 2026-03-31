@@ -485,7 +485,7 @@ impl Workspaces {
         )
         .on_scroll(move |direction| match direction {
             iced_layershell::mouse::ScrollDelta::Lines { y, .. } => {
-                if y < 0. {
+                if y > 0. {
                     Message::Scroll(-1)
                 } else {
                     Message::Scroll(1)
@@ -497,9 +497,9 @@ impl Workspaces {
                 if self.scroll_accumulator.abs() < sensibility {
                     Message::ScrollAccumulator(y)
                 } else if self.scroll_accumulator.is_sign_positive() {
-                    Message::Scroll(-1)
-                } else {
                     Message::Scroll(1)
+                } else {
+                    Message::Scroll(-1)
                 }
             }
         })

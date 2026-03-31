@@ -317,12 +317,14 @@ where
             }
             event::Event::Mouse(mouse::Event::WheelScrolled { delta }) => {
                 let bounds = layout.bounds();
-                if cursor.is_over(bounds)
-                    && let mouse::ScrollDelta::Lines { y, .. } = delta
-                {
-                    let target = if *y > 0.0 {
+                let y = match delta {
+                    mouse::ScrollDelta::Lines { y, .. } => Some(*y),
+                    mouse::ScrollDelta::Pixels { y, .. } => Some(*y),
+                };
+                if cursor.is_over(bounds) && let Some(y) = y {
+                    let target = if y > 0.0 {
                         self.on_scroll_up.as_ref()
-                    } else if *y < 0.0 {
+                    } else if y < 0.0 {
                         self.on_scroll_down.as_ref()
                     } else {
                         None
