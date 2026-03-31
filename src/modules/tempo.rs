@@ -241,7 +241,7 @@ impl Tempo {
                 .push_maybe(self.weather(theme))
                 .spacing(theme.space.lg),
         )
-        .width(MenuSize::XLarge)
+        .max_width(MenuSize::XLarge)
         .into()
     }
 
