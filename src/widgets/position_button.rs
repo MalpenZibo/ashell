@@ -259,28 +259,28 @@ where
 
         match event {
             Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
-            | Event::Touch(touch::Event::FingerPressed { .. }) => {
-                if self.on_press.is_some() {
-                    let bounds = layout.bounds();
+            | Event::Touch(touch::Event::FingerPressed { .. })
+                if self.on_press.is_some() =>
+            {
+                let bounds = layout.bounds();
 
-                    if cursor.is_over(bounds) {
-                        let state = tree.state.downcast_mut::<State>();
+                if cursor.is_over(bounds) {
+                    let state = tree.state.downcast_mut::<State>();
 
-                        state.is_pressed = true;
+                    state.is_pressed = true;
 
-                        return event::Status::Captured;
-                    }
+                    return event::Status::Captured;
                 }
             }
-            Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Right)) => {
-                if self.on_right_press.is_some() {
-                    let bounds = layout.bounds();
+            Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Right))
+                if self.on_right_press.is_some() =>
+            {
+                let bounds = layout.bounds();
 
-                    if cursor.is_over(bounds) {
-                        let state = tree.state.downcast_mut::<State>();
-                        state.is_right_pressed = true;
-                        return event::Status::Captured;
-                    }
+                if cursor.is_over(bounds) {
+                    let state = tree.state.downcast_mut::<State>();
+                    state.is_right_pressed = true;
+                    return event::Status::Captured;
                 }
             }
             Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left))

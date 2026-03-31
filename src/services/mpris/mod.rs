@@ -264,6 +264,7 @@ impl MprisPlayerService {
         .await
         .into_iter()
         .flatten()
+        .filter(|player| player.state != PlaybackStatus::Stopped)
         .collect()
     }
 

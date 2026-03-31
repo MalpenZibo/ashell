@@ -15,11 +15,12 @@ jobs:
     env:
       TAG: ${{ github.event.release.tag_name }}
       REPO: ${{ github.repository }}
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_TOKEN: ${{ secrets.RELEASE_PAT }}
     steps:
       - uses: actions/checkout@v6
         with:
           ref: main
+          token: ${{ secrets.RELEASE_PAT }}
 
       - name: Extract version (strip leading v)
         run: |
@@ -32,9 +33,11 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Prepend release notes to CHANGELOG.md
+        env:
+          RELEASE_BODY: ${{ github.event.release.body }}
         run: |
           DATE=$(date -d "${{ github.event.release.published_at }}" +'%Y-%m-%d')
-          BODY="${{ github.event.release.body }}"
+          BODY="$RELEASE_BODY"
 
           # Demote all headings in the release body (## -> ###, ### -> ####, etc.)
           echo "$BODY" | sed -E '
@@ -129,9 +132,11 @@ jobs:
     env:
       TAG: ${{ github.event.release.tag_name }}
       REPO: ${{ github.repository }}
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_TOKEN: ${{ secrets.RELEASE_PAT }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: main
 
       - name: Trigger Release workflow
         run: |

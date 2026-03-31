@@ -1,4 +1,5 @@
 use super::{ReadOnlyService, Service, ServiceEvent};
+use crate::{services::throttle::ThrottleExt, utils::remote_value::Remote};
 use iced::{
     Subscription, Task,
     futures::{SinkExt, StreamExt, channel::mpsc::Sender, stream::pending},
@@ -8,23 +9,28 @@ use log::{debug, error, info, warn};
 use std::{
     any::TypeId,
     fs,
-    ops::Deref,
+    ops::{Deref, DerefMut},
     path::{Path, PathBuf},
+    time::Duration,
 };
-use tokio::io::{Interest, unix::AsyncFd};
+use tokio::{
+    io::{Interest, unix::AsyncFd},
+    sync::mpsc::{UnboundedReceiver, UnboundedSender},
+};
+use tokio_stream::wrappers::UnboundedReceiverStream;
 use zbus::proxy;
 
 #[derive(Debug, Clone, Default)]
 pub struct BrightnessData {
-    pub current: u32,
+    pub current: Remote<u32>,
     pub max: u32,
+    device_path: PathBuf,
 }
 
 #[derive(Debug, Clone)]
 pub struct BrightnessService {
     data: BrightnessData,
-    device_path: PathBuf,
-    conn: zbus::Connection,
+    commander: UnboundedSender<BrightnessCommand>,
 }
 
 impl Deref for BrightnessService {
@@ -32,6 +38,12 @@ impl Deref for BrightnessService {
 
     fn deref(&self) -> &Self::Target {
         &self.data
+    }
+}
+
+impl DerefMut for BrightnessService {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.data
     }
 }
 
@@ -43,23 +55,29 @@ impl BrightnessService {
         Ok(max_brightness)
     }
 
-    async fn get_actual_brightness(device_path: &Path) -> anyhow::Result<u32> {
-        let actual_brightness = fs::read_to_string(device_path.join("actual_brightness"))?;
-        let actual_brightness = actual_brightness.trim().parse::<u32>()?;
-
-        Ok(actual_brightness)
+    async fn get_brightness(device_path: &Path) -> anyhow::Result<u32> {
+        let brightness = fs::read_to_string(device_path.join("brightness"))?;
+        let brightness = brightness.trim().parse::<u32>()?;
+        Ok(brightness)
     }
 
     async fn initialize_data(device_path: &Path) -> anyhow::Result<BrightnessData> {
         let max_brightness = Self::get_max_brightness(device_path).await?;
-        let actual_brightness = Self::get_actual_brightness(device_path).await?;
-
-        debug!("Max brightness: {max_brightness}, current brightness: {actual_brightness}");
-
+        let actual_brightness = Self::get_brightness(device_path).await?;
         Ok(BrightnessData {
-            current: actual_brightness,
+            current: Remote::new(actual_brightness),
             max: max_brightness,
+            device_path: device_path.to_path_buf(),
         })
+    }
+
+    pub fn sync_brightness(&mut self) {
+        if let Ok(value) = fs::read_to_string(self.data.device_path.join("brightness"))
+            .map_err(anyhow::Error::from)
+            .and_then(|s| Ok(s.trim().parse::<u32>()?))
+        {
+            self.data.current.receive(value);
+        }
     }
 
     async fn init_service() -> anyhow::Result<(zbus::Connection, PathBuf)> {
@@ -101,6 +119,20 @@ impl BrightnessService {
         Ok(enumerator.scan_devices()?.collect())
     }
 
+    fn start_commander(
+        conn: zbus::Connection,
+        device_path: PathBuf,
+        to_server_rx: UnboundedReceiver<BrightnessCommand>,
+    ) {
+        tokio::spawn(async move {
+            let mut stream =
+                UnboundedReceiverStream::new(to_server_rx).throttle(Duration::from_millis(100));
+            while let Some(cmd) = stream.next().await {
+                let _ = BrightnessService::set_brightness(&conn, &device_path, cmd.0).await;
+            }
+        });
+    }
+
     async fn start_listening(state: State, output: &mut Sender<ServiceEvent<Self>>) -> State {
         match state {
             State::Init => match Self::init_service().await {
@@ -109,11 +141,12 @@ impl BrightnessService {
 
                     match data {
                         Ok(data) => {
+                            let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+                            Self::start_commander(conn.clone(), device_path.clone(), rx);
                             let _ = output
                                 .send(ServiceEvent::Init(BrightnessService {
                                     data,
-                                    device_path: device_path.to_path_buf(),
-                                    conn,
+                                    commander: tx,
                                 }))
                                 .await;
 
@@ -134,9 +167,8 @@ impl BrightnessService {
             },
             State::Active(device_path) => {
                 info!("Listening for brightness events");
-                let current_value = Self::get_actual_brightness(&device_path)
-                    .await
-                    .unwrap_or_default();
+                let mut current_value =
+                    Self::get_brightness(&device_path).await.unwrap_or_default();
 
                 match BrightnessService::backlight_monitor_listener().await {
                     Ok(mut socket) => {
@@ -157,12 +189,11 @@ impl BrightnessService {
                                                         "Changed backlight device: {:?}",
                                                         evt.syspath()
                                                     );
-                                                    let new_value =
-                                                        Self::get_actual_brightness(&device_path)
-                                                            .await
-                                                            .unwrap_or_default();
-
-                                                    if new_value != current_value {
+                                                    if let Ok(new_value) =
+                                                        Self::get_brightness(&device_path).await
+                                                        && new_value != current_value
+                                                    {
+                                                        current_value = new_value;
                                                         let _ = output
                                                             .send(ServiceEvent::Update(
                                                                 BrightnessEvent(new_value),
@@ -241,7 +272,7 @@ impl ReadOnlyService for BrightnessService {
     type Error = ();
 
     fn update(&mut self, event: Self::UpdateEvent) {
-        self.data.current = event.0;
+        self.data.current.receive(event.0);
     }
 
     fn subscribe() -> Subscription<ServiceEvent<Self>> {
@@ -261,39 +292,14 @@ impl ReadOnlyService for BrightnessService {
 }
 
 #[derive(Debug, Clone)]
-pub enum BrightnessCommand {
-    Set(u32),
-    Refresh,
-}
+pub struct BrightnessCommand(pub u32);
 
 impl Service for BrightnessService {
     type Command = BrightnessCommand;
 
     fn command(&mut self, command: Self::Command) -> Task<ServiceEvent<Self>> {
-        Task::perform(
-            {
-                let conn = self.conn.clone();
-                let device_path = self.device_path.clone();
-
-                async move {
-                    match command {
-                        BrightnessCommand::Set(v) => {
-                            debug!("Setting brightness to {v}");
-                            let _ = BrightnessService::set_brightness(&conn, &device_path, v).await;
-
-                            v
-                        }
-                        BrightnessCommand::Refresh => {
-                            debug!("Refreshing brightness data");
-                            BrightnessService::get_actual_brightness(&device_path)
-                                .await
-                                .unwrap_or_default()
-                        }
-                    }
-                }
-            },
-            |v| ServiceEvent::Update(BrightnessEvent(v)),
-        )
+        let _ = self.commander.send(command);
+        Task::none()
     }
 }
 
