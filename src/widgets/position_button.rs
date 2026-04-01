@@ -1,8 +1,7 @@
 use iced_layershell::{
     Background, Color, Length, Padding, Point, Rectangle, Size, Vector,
     core::{
-        Clipboard, Layout, Shell, Widget,
-        event, keyboard, layout, mouse, overlay, renderer, touch,
+        Clipboard, Layout, Shell, Widget, event, keyboard, layout, mouse, overlay, renderer, touch,
         widget::{Operation, Tree, tree},
     },
     widget::button::{Catalog, Status, Style, StyleFn},
@@ -22,8 +21,12 @@ enum OnPress<'a, Message> {
     MessageWithPosition(Box<dyn Fn(ButtonUIRef) -> Message + 'a>),
 }
 
-pub struct PositionButton<'a, Message, Theme = iced_layershell::Theme, Renderer = iced_layershell::Renderer>
-where
+pub struct PositionButton<
+    'a,
+    Message,
+    Theme = iced_layershell::Theme,
+    Renderer = iced_layershell::Renderer,
+> where
     Renderer: iced_layershell::core::Renderer,
     Theme: Catalog,
 {
@@ -321,7 +324,9 @@ where
                     mouse::ScrollDelta::Lines { y, .. } => Some(*y),
                     mouse::ScrollDelta::Pixels { y, .. } => Some(*y),
                 };
-                if cursor.is_over(bounds) && let Some(y) = y {
+                if cursor.is_over(bounds)
+                    && let Some(y) = y
+                {
                     let target = if y > 0.0 {
                         self.on_scroll_up.as_ref()
                     } else if y < 0.0 {

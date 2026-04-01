@@ -178,13 +178,8 @@ impl Outputs {
         if target {
             debug!("Found target output, creating a new layer surface");
 
-            let (id, menu_id, task) = Self::create_output_layers(
-                style,
-                Some(output_id),
-                position,
-                layer,
-                scale_factor,
-            );
+            let (id, menu_id, task) =
+                Self::create_output_layers(style, Some(output_id), position, layer, scale_factor);
 
             let destroy_task = match self.0.iter().position(|(key, _, _)| key.as_str() == name) {
                 Some(index) => {
@@ -398,13 +393,8 @@ impl Outputs {
                 let destroy_main_task = destroy_layer_surface(shell_info.id);
                 let destroy_menu_task = destroy_layer_surface(shell_info.menu.id);
 
-                let (id, menu_id, task) = Self::create_output_layers(
-                    style,
-                    *output_id,
-                    position,
-                    layer,
-                    scale_factor,
-                );
+                let (id, menu_id, task) =
+                    Self::create_output_layers(style, *output_id, position, layer, scale_factor);
 
                 shell_info.id = id;
                 shell_info.menu = Menu::new(menu_id);

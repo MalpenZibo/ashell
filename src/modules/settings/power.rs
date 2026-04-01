@@ -3,7 +3,6 @@ use std::convert;
 use crate::{
     components::icons::{StaticIcon, icon},
     config::{PeripheralIndicators, SettingsFormat},
-    utils::PushMaybe,
     modules::settings::quick_setting_button,
     services::{
         ReadOnlyService, Service, ServiceEvent,
@@ -13,6 +12,7 @@ use crate::{
         },
     },
     theme::AshellTheme,
+    utils::PushMaybe,
     utils::{self, IndicatorState, format_duration},
 };
 use iced_layershell::{

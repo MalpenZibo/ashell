@@ -1,4 +1,4 @@
-use crate::config::{get_config, Position};
+use crate::config::{Position, get_config};
 use crate::outputs::Outputs;
 use app::App;
 use clap::Parser;
@@ -7,9 +7,9 @@ use flexi_logger::{
 };
 use iced_layershell::{Anchor, Font, KeyboardInteractivity, Layer, LayerShellSettings};
 use log::{debug, error, warn};
+use std::backtrace::Backtrace;
 use std::panic;
 use std::path::PathBuf;
-use std::backtrace::Backtrace;
 
 mod app;
 mod components;

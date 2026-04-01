@@ -10,7 +10,6 @@ use crate::{
     components::icons::{DynamicIcon, Icon, IconButtonSize, StaticIcon, icon, icon_button},
     config::{Position, SettingsCustomButton, SettingsIndicator, SettingsModuleConfig},
     menu::MenuSize,
-    utils::PushMaybe,
     modules::settings::{
         audio::{AudioSettings, AudioSettingsConfig},
         bluetooth::{BluetoothSettings, BluetoothSettingsConfig},
@@ -21,6 +20,7 @@ use crate::{
     password_dialog,
     services::idle_inhibitor::IdleInhibitorManager,
     theme::AshellTheme,
+    utils::PushMaybe,
 };
 use iced_layershell::{
     Alignment, Background, Border, Element, Length, Padding, Subscription, SurfaceId, Task, Theme,

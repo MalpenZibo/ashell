@@ -3,12 +3,11 @@ use crate::config::{AppearanceStyle, Position};
 use crate::theme::backdrop_color;
 use crate::widgets::{self, ButtonUIRef};
 use iced_layershell::alignment::Vertical;
+use iced_layershell::widget::container::Style;
 use iced_layershell::{
     Border, Element, KeyboardInteractivity, Layer, Length, Padding, Pixels, SurfaceId, Task, Theme,
-    set_keyboard_interactivity, set_layer,
-    widget::container,
+    set_keyboard_interactivity, set_layer, widget::container,
 };
-use iced_layershell::widget::container::Style;
 
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub enum MenuType {

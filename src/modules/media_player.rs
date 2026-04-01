@@ -2,7 +2,6 @@ use crate::{
     components::icons::{IconButtonSize, StaticIcon, icon, icon_button},
     config::{MediaPlayerFormat, MediaPlayerModuleConfig},
     menu::MenuSize,
-    utils::PushMaybe,
     services::{
         ReadOnlyService, Service, ServiceEvent,
         mpris::{
@@ -10,6 +9,7 @@ use crate::{
         },
     },
     theme::AshellTheme,
+    utils::PushMaybe,
     utils::truncate_text,
 };
 use iced_layershell::{

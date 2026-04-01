@@ -235,7 +235,11 @@ impl Updates {
                                     .collect::<Vec<Element<'_, _>>>(),
                             )
                             .spacing(theme.space.xs)
-                            .padding(Padding::default().right(theme.space.md).left(theme.space.xs)),
+                            .padding(
+                                Padding::default()
+                                    .right(theme.space.md)
+                                    .left(theme.space.xs),
+                            ),
                         ))
                         .max_height(300),
                     );
