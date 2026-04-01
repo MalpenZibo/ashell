@@ -256,7 +256,7 @@ impl SystemInfo {
     ) -> Element<'a, Message> {
         row!(
             container(icon(info_icon).size(theme.font_size.xl))
-                .center_x(Length::Fixed(theme.space.xl as f32)),
+                .center_x(Length::Fixed(theme.space.xl)),
             text(label).width(Length::Fill),
             text(value)
         )
