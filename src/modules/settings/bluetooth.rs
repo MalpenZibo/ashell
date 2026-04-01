@@ -2,19 +2,17 @@ use super::{SubMenu, quick_setting_button};
 use crate::{
     components::icons::{IconButtonSize, StaticIcon, icon, icon_button},
     config::SettingsFormat,
-    utils::PushMaybe,
     services::{
         ReadOnlyService, Service, ServiceEvent,
         bluetooth::{BluetoothCommand, BluetoothDevice, BluetoothService, BluetoothState},
     },
     theme::AshellTheme,
+    utils::PushMaybe,
 };
 use iced_layershell::{
     Element, Length, Padding, Subscription, SurfaceId, Task, Theme,
     alignment::{Alignment, Horizontal, Vertical},
-    widget::{
-        Column, MouseArea, Row, button, column, container, row, rule, scrollable, text,
-    },
+    widget::{Column, MouseArea, Row, button, column, container, row, rule, scrollable, text},
 };
 use itertools::Itertools;
 use zbus::zvariant::OwnedObjectPath;

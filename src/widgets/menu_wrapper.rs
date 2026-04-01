@@ -4,15 +4,20 @@ use iced_layershell::advanced::widget::{Operation, Tree};
 use iced_layershell::advanced::{Clipboard, Shell, Widget, mouse};
 use iced_layershell::core::widget::tree;
 use iced_layershell::{
-    Background, Border, Color, Length, Padding, Point, Rectangle, Shadow, Size,
-    Vector, alignment, event, overlay, touch,
+    Background, Border, Color, Length, Padding, Point, Rectangle, Shadow, Size, Vector, alignment,
+    event, overlay, touch,
 };
 
 type Element<'a, Message, Theme, Renderer> =
     iced_layershell::core::Element<'a, Message, Theme, Renderer>;
 
 #[allow(missing_debug_implementations)]
-pub struct MenuWrapper<'a, Message, Theme = iced_layershell::Theme, Renderer = iced_layershell::Renderer> {
+pub struct MenuWrapper<
+    'a,
+    Message,
+    Theme = iced_layershell::Theme,
+    Renderer = iced_layershell::Renderer,
+> {
     x: f32,
     content: Element<'a, Message, Theme, Renderer>,
     on_click_outside: Option<Message>,

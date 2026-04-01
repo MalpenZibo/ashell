@@ -4,16 +4,19 @@ use iced_layershell::advanced::overlay;
 use iced_layershell::advanced::renderer;
 use iced_layershell::advanced::widget::{Operation, Tree};
 use iced_layershell::advanced::{Clipboard, Shell, Widget, mouse};
-use iced_layershell::{
-    Alignment, Length, Padding, Pixels, Point, Rectangle, Size, Vector, event,
-};
+use iced_layershell::{Alignment, Length, Padding, Pixels, Point, Rectangle, Size, Vector, event};
 
 type Element<'a, Message, Theme, Renderer> =
     iced_layershell::core::Element<'a, Message, Theme, Renderer>;
 
 /// A container that distributes its contents horizontally.
 #[allow(missing_debug_implementations)]
-pub struct Centerbox<'a, Message, Theme = iced_layershell::Theme, Renderer = iced_layershell::Renderer> {
+pub struct Centerbox<
+    'a,
+    Message,
+    Theme = iced_layershell::Theme,
+    Renderer = iced_layershell::Renderer,
+> {
     spacing: f32,
     padding: Padding,
     width: Length,
@@ -234,14 +237,7 @@ where
             .zip(layout.children())
         {
             child.as_widget_mut().update(
-                state,
-                event,
-                layout,
-                cursor,
-                renderer,
-                clipboard,
-                shell,
-                viewport,
+                state, event, layout, cursor, renderer, clipboard, shell, viewport,
             );
         }
     }
@@ -299,7 +295,14 @@ where
         viewport: &Rectangle,
         translation: Vector,
     ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
-        overlay::from_children(&mut self.children, tree, layout, renderer, viewport, translation)
+        overlay::from_children(
+            &mut self.children,
+            tree,
+            layout,
+            renderer,
+            viewport,
+            translation,
+        )
     }
 }
 

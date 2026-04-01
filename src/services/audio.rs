@@ -577,7 +577,8 @@ impl PulseAudioServer {
                                     cmd_introspector.set_sink_volume_by_name(&name, &volume, None);
                                 }
                                 PulseAudioCommand::SourceVolume(name, volume) => {
-                                    cmd_introspector.set_source_volume_by_name(&name, &volume, None);
+                                    cmd_introspector
+                                        .set_source_volume_by_name(&name, &volume, None);
                                 }
                                 PulseAudioCommand::DefaultSink(name, port) => {
                                     server.context.set_default_sink(&name, |_| {});
@@ -588,7 +589,8 @@ impl PulseAudioServer {
                                 PulseAudioCommand::DefaultSource(name, port) => {
                                     server.context.set_default_source(&name, |_| {});
                                     if let Some(port) = port {
-                                        cmd_introspector.set_source_port_by_name(&name, &port, None);
+                                        cmd_introspector
+                                            .set_source_port_by_name(&name, &port, None);
                                     }
                                 }
                             }
@@ -611,9 +613,7 @@ impl PulseAudioServer {
                 receiver: from_server_rx,
                 sender: to_server_tx,
             }),
-            _ => Err(anyhow::anyhow!(
-                "Failed to start PulseAudio thread"
-            )),
+            _ => Err(anyhow::anyhow!("Failed to start PulseAudio thread")),
         }
     }
 

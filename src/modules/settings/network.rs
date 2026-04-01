@@ -14,10 +14,7 @@ use crate::{
 };
 use iced_layershell::{
     Alignment, Element, Length, Padding, Subscription, SurfaceId, Task, Theme,
-    widget::{
-        Column, MouseArea, button, column, container, row, rule, scrollable, text,
-        toggler,
-    },
+    widget::{Column, MouseArea, button, column, container, row, rule, scrollable, text, toggler},
 };
 use log::{info, warn};
 
@@ -715,7 +712,11 @@ impl NetworkSettings {
                 .collect::<Vec<Element<'a, Message>>>(),
         )
         .spacing(theme.space.xs)
-        .padding(Padding::default().right(theme.space.md).left(theme.space.xs));
+        .padding(
+            Padding::default()
+                .right(theme.space.md)
+                .left(theme.space.xs),
+        );
 
         let main = container(scrollable(vpn_list))
             .height(Length::Shrink)

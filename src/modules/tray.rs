@@ -1,7 +1,6 @@
 use crate::{
     components::icons::{StaticIcon, icon},
     menu::MenuSize,
-    utils::PushMaybe,
     services::{
         ReadOnlyService, Service, ServiceEvent,
         tray::{
@@ -10,6 +9,7 @@ use crate::{
         },
     },
     theme::AshellTheme,
+    utils::PushMaybe,
     widgets::{ButtonUIRef, position_button},
 };
 use iced_layershell::{
@@ -174,7 +174,11 @@ impl TrayModule {
         }
     }
 
-    pub fn view<'a>(&'a self, id: SurfaceId, theme: &'a AshellTheme) -> Option<Element<'a, Message>> {
+    pub fn view<'a>(
+        &'a self,
+        id: SurfaceId,
+        theme: &'a AshellTheme,
+    ) -> Option<Element<'a, Message>> {
         self.service
             .as_ref()
             .filter(|s| !s.data.is_empty())
