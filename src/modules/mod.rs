@@ -6,7 +6,7 @@ use crate::{
     utils::PushMaybe,
     widgets::position_button,
 };
-use iced_layershell::{
+use iced::{
     Alignment, Border, Color, Element, Length, Subscription, SurfaceId,
     widget::{Row, container},
 };

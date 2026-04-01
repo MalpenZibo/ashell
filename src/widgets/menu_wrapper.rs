@@ -1,22 +1,22 @@
-use iced_layershell::advanced::layout::{self, Layout};
-use iced_layershell::advanced::renderer;
-use iced_layershell::advanced::widget::{Operation, Tree};
-use iced_layershell::advanced::{Clipboard, Shell, Widget, mouse};
-use iced_layershell::core::widget::tree;
-use iced_layershell::{
+use iced::advanced::layout::{self, Layout};
+use iced::advanced::renderer;
+use iced::advanced::widget::{Operation, Tree};
+use iced::advanced::{Clipboard, Shell, Widget, mouse};
+use iced::core::widget::tree;
+use iced::{
     Background, Border, Color, Length, Padding, Point, Rectangle, Shadow, Size, Vector, alignment,
     event, overlay, touch,
 };
 
 type Element<'a, Message, Theme, Renderer> =
-    iced_layershell::core::Element<'a, Message, Theme, Renderer>;
+    iced::core::Element<'a, Message, Theme, Renderer>;
 
 #[allow(missing_debug_implementations)]
 pub struct MenuWrapper<
     'a,
     Message,
-    Theme = iced_layershell::Theme,
-    Renderer = iced_layershell::Renderer,
+    Theme = iced::Theme,
+    Renderer = iced::Renderer,
 > {
     x: f32,
     content: Element<'a, Message, Theme, Renderer>,
@@ -28,7 +28,7 @@ pub struct MenuWrapper<
 
 impl<'a, Message, Theme, Renderer> MenuWrapper<'a, Message, Theme, Renderer>
 where
-    Renderer: iced_layershell::advanced::Renderer,
+    Renderer: iced::advanced::Renderer,
 {
     pub fn new(x: f32, content: Element<'a, Message, Theme, Renderer>) -> Self {
         MenuWrapper {
@@ -66,7 +66,7 @@ impl<'a, Message, Theme, Renderer> Widget<Message, Theme, Renderer>
     for MenuWrapper<'a, Message, Theme, Renderer>
 where
     Message: Clone,
-    Renderer: iced_layershell::advanced::Renderer,
+    Renderer: iced::advanced::Renderer,
 {
     fn tag(&self) -> tree::Tag {
         tree::Tag::of::<()>()
@@ -114,7 +114,7 @@ where
                     size.width - content_size.width - 8.,
                 );
                 let node = node.align(
-                    iced_layershell::Alignment::Center,
+                    iced::Alignment::Center,
                     self.vertical_alignment.into(),
                     size,
                 );
@@ -244,7 +244,7 @@ impl<'a, Message, Theme, Renderer> From<MenuWrapper<'a, Message, Theme, Renderer
 where
     Message: 'a + Clone,
     Theme: 'a,
-    Renderer: iced_layershell::advanced::Renderer + 'a,
+    Renderer: iced::advanced::Renderer + 'a,
 {
     fn from(menu_wrapper: MenuWrapper<'a, Message, Theme, Renderer>) -> Self {
         Self::new(menu_wrapper)

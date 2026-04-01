@@ -1,6 +1,6 @@
 use super::{ReadOnlyService, Service, ServiceEvent};
 use dbus::{BatteryProxy, BluetoothDbus, DeviceProxy};
-use iced_layershell::{
+use iced::{
     Subscription, Task,
     futures::{SinkExt, Stream, StreamExt, channel::mpsc::Sender, stream::pending, stream_select},
     stream::channel,
@@ -145,15 +145,15 @@ impl BluetoothService {
                 }
 
                 let battery_events = if batteries.is_empty() {
-                    iced_layershell::futures::stream::pending().boxed()
+                    iced::futures::stream::pending().boxed()
                 } else {
-                    iced_layershell::futures::stream::select_all(batteries).boxed()
+                    iced::futures::stream::select_all(batteries).boxed()
                 };
 
                 let device_property_events = if device_properties.is_empty() {
-                    iced_layershell::futures::stream::pending().boxed()
+                    iced::futures::stream::pending().boxed()
                 } else {
-                    iced_layershell::futures::stream::select_all(device_properties).boxed()
+                    iced::futures::stream::select_all(device_properties).boxed()
                 };
 
                 Box::pin(stream_select!(

@@ -3,7 +3,7 @@ use crate::{
     theme::AshellTheme,
     utils::PushMaybe,
 };
-use iced_layershell::{
+use iced::{
     Alignment, Element, Length, SurfaceId,
     alignment::Vertical,
     widget::{button, column, container, row, space, text, text_input},

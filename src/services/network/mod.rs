@@ -2,9 +2,9 @@ use super::{Service, ServiceEvent};
 use crate::services::ReadOnlyService;
 use dbus::ConnectivityState;
 use dbus::NetworkDbus;
-use iced_layershell::futures::TryFutureExt;
-use iced_layershell::futures::stream::pending;
-use iced_layershell::{
+use iced::futures::TryFutureExt;
+use iced::futures::stream::pending;
+use iced::{
     Subscription, Task,
     futures::{SinkExt, StreamExt, channel::mpsc::Sender},
     stream::channel,

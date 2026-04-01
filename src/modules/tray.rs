@@ -12,7 +12,7 @@ use crate::{
     utils::PushMaybe,
     widgets::{ButtonUIRef, position_button},
 };
-use iced_layershell::{
+use iced::{
     Alignment, Element, Length, Padding, Subscription, SurfaceId, Task,
     widget::{Column, Image, Row, Svg, button, container, row, rule, text, toggler},
 };
@@ -198,7 +198,7 @@ impl TrayModule {
                                         Svg::new(handle.clone())
                                             .height(Length::Fixed(theme.font_size.md + 2.))
                                             .width(Length::Fixed(theme.font_size.md + 2.))
-                                            .content_fit(iced_layershell::ContentFit::Cover),
+                                            .content_fit(iced::ContentFit::Cover),
                                     ),
                                     _ => icon(StaticIcon::Point).into(),
                                 })

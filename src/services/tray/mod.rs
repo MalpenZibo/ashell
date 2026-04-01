@@ -4,7 +4,7 @@ use dbus::{
     StatusNotifierWatcherProxy,
 };
 use freedesktop_icons::lookup;
-use iced_layershell::{
+use iced::{
     Subscription, Task,
     futures::{
         SinkExt, Stream, StreamExt,
@@ -658,7 +658,7 @@ impl ReadOnlyService for TrayService {
         }
     }
 
-    fn subscribe() -> iced_layershell::Subscription<ServiceEvent<Self>> {
+    fn subscribe() -> iced::Subscription<ServiceEvent<Self>> {
         Subscription::run_with(TypeId::of::<Self>(), |_| {
             channel(100, async |mut output| {
                 let mut state = State::Init;

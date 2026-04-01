@@ -7,7 +7,7 @@ use crate::{
     },
     theme::AshellTheme,
 };
-use iced_layershell::{
+use iced::{
     Element, Length, Subscription, SurfaceId, alignment,
     widget::{MouseArea, Row, button, container, text},
 };
@@ -249,7 +249,7 @@ impl Workspaces {
         }
     }
 
-    pub fn update(&mut self, message: Message) -> iced_layershell::Task<Message> {
+    pub fn update(&mut self, message: Message) -> iced::Task<Message> {
         match message {
             Message::ServiceEvent(event) => {
                 match event {
@@ -265,7 +265,7 @@ impl Workspaces {
                     }
                     _ => {}
                 }
-                iced_layershell::Task::none()
+                iced::Task::none()
             }
             Message::ChangeWorkspace(id) => {
                 if let Some(service) = &mut self.service {
@@ -289,7 +289,7 @@ impl Workspaces {
                         }
                     }
                 }
-                iced_layershell::Task::none()
+                iced::Task::none()
             }
             Message::ToggleSpecialWorkspace(id) => {
                 if let Some(service) = &mut self.service
@@ -305,7 +305,7 @@ impl Workspaces {
                         ))
                         .map(Message::ServiceEvent);
                 }
-                iced_layershell::Task::none()
+                iced::Task::none()
             }
             Message::Scroll(direction) => {
                 self.scroll_accumulator = 0.;
@@ -316,14 +316,14 @@ impl Workspaces {
                         .command(CompositorCommand::ScrollWorkspace(direction))
                         .map(Message::ServiceEvent);
                 }
-                return iced_layershell::Task::none();*/
+                return iced::Task::none();*/
                 let current_workspace = self
                     .ui_workspaces
                     .iter()
                     .find(|w| w.displayed == Displayed::Active);
 
                 let Some(current_workspace_id) = current_workspace.map(|w| w.id) else {
-                    return iced_layershell::Task::none();
+                    return iced::Task::none();
                 };
 
                 let current_monitor = current_workspace
@@ -373,12 +373,12 @@ impl Workspaces {
                 if let Some(next) = next_workspace {
                     return self.update(Message::ChangeWorkspace(next.id));
                 }
-                iced_layershell::Task::none()
+                iced::Task::none()
             }
             Message::ConfigReloaded(cfg) => {
                 self.config = cfg;
                 self.recalculate_ui_workspaces();
-                iced_layershell::Task::none()
+                iced::Task::none()
             }
             Message::ScrollAccumulator(value) => {
                 if value == 0. {
@@ -387,7 +387,7 @@ impl Workspaces {
                     self.scroll_accumulator += value;
                 }
 
-                iced_layershell::Task::none()
+                iced::Task::none()
             }
         }
     }
@@ -484,14 +484,14 @@ impl Workspaces {
             .spacing(theme.space.xxs),
         )
         .on_scroll(move |direction| match direction {
-            iced_layershell::mouse::ScrollDelta::Lines { y, .. } => {
+            iced::mouse::ScrollDelta::Lines { y, .. } => {
                 if y > 0. {
                     Message::Scroll(-1)
                 } else {
                     Message::Scroll(1)
                 }
             }
-            iced_layershell::mouse::ScrollDelta::Pixels { y, .. } => {
+            iced::mouse::ScrollDelta::Pixels { y, .. } => {
                 let sensibility = 3.;
 
                 if self.scroll_accumulator.abs() < sensibility {

@@ -1,4 +1,4 @@
-use iced_layershell::{
+use iced::{
     Anchor, KeyboardInteractivity, Layer, LayerShellSettings, OutputId, SurfaceId, Task,
     destroy_layer_surface, new_layer_surface, set_anchor, set_exclusive_zone,
     set_keyboard_interactivity, set_size,

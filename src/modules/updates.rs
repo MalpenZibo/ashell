@@ -4,7 +4,7 @@ use crate::{
     menu::MenuSize,
     theme::AshellTheme,
 };
-use iced_layershell::{
+use iced::{
     Alignment, Element, Length, Padding, Subscription, SurfaceId, Task,
     alignment::Horizontal,
     stream::channel,

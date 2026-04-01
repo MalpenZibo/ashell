@@ -5,7 +5,7 @@ use clap::Parser;
 use flexi_logger::{
     Age, Cleanup, Criterion, FileSpec, LogSpecBuilder, LogSpecification, Logger, Naming,
 };
-use iced_layershell::{Anchor, Font, KeyboardInteractivity, Layer, LayerShellSettings};
+use iced::{Anchor, Font, KeyboardInteractivity, Layer, LayerShellSettings};
 use log::{debug, error, warn};
 use std::backtrace::Backtrace;
 use std::panic;
@@ -52,7 +52,7 @@ fn get_log_spec(log_level: &str) -> LogSpecification {
     }
 }
 
-fn main() -> iced_layershell::Result {
+fn main() -> iced::Result {
     let args = Args::parse();
     debug!("args: {args:?}");
 
@@ -101,7 +101,7 @@ fn main() -> iced_layershell::Result {
         config::Layer::Overlay => Layer::Overlay,
     };
 
-    iced_layershell::application(
+    iced::application(
         App::new((logger, config.clone(), config_path)),
         App::update,
         App::view,

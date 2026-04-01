@@ -9,7 +9,7 @@ use crate::{
     theme::AshellTheme,
     utils::PushMaybe,
 };
-use iced_layershell::{
+use iced::{
     Element, Length, Padding, Subscription, SurfaceId, Task, Theme,
     alignment::{Alignment, Horizontal, Vertical},
     widget::{Column, MouseArea, Row, button, column, container, row, rule, scrollable, text},

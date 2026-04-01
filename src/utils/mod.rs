@@ -8,18 +8,18 @@ pub mod remote_value;
 pub trait PushMaybe<'a, Message, Theme, Renderer> {
     fn push_maybe(
         self,
-        child: Option<impl Into<iced_layershell::core::Element<'a, Message, Theme, Renderer>>>,
+        child: Option<impl Into<iced::core::Element<'a, Message, Theme, Renderer>>>,
     ) -> Self;
 }
 
 impl<'a, Message, Theme, Renderer> PushMaybe<'a, Message, Theme, Renderer>
-    for iced_layershell::widget::Row<'a, Message, Theme, Renderer>
+    for iced::widget::Row<'a, Message, Theme, Renderer>
 where
-    Renderer: iced_layershell::core::Renderer,
+    Renderer: iced::core::Renderer,
 {
     fn push_maybe(
         self,
-        child: Option<impl Into<iced_layershell::core::Element<'a, Message, Theme, Renderer>>>,
+        child: Option<impl Into<iced::core::Element<'a, Message, Theme, Renderer>>>,
     ) -> Self {
         match child {
             Some(child) => self.push(child),
@@ -29,13 +29,13 @@ where
 }
 
 impl<'a, Message, Theme, Renderer> PushMaybe<'a, Message, Theme, Renderer>
-    for iced_layershell::widget::Column<'a, Message, Theme, Renderer>
+    for iced::widget::Column<'a, Message, Theme, Renderer>
 where
-    Renderer: iced_layershell::core::Renderer,
+    Renderer: iced::core::Renderer,
 {
     fn push_maybe(
         self,
-        child: Option<impl Into<iced_layershell::core::Element<'a, Message, Theme, Renderer>>>,
+        child: Option<impl Into<iced::core::Element<'a, Message, Theme, Renderer>>>,
     ) -> Self {
         match child {
             Some(child) => self.push(child),

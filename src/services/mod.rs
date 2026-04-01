@@ -1,4 +1,4 @@
-use iced_layershell::{Subscription, Task};
+use iced::{Subscription, Task};
 
 pub mod audio;
 pub mod bluetooth;

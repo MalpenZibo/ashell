@@ -1,21 +1,21 @@
 //! Distribute content horizontally.
-use iced_layershell::advanced::layout::{self, Layout, Limits, Node};
-use iced_layershell::advanced::overlay;
-use iced_layershell::advanced::renderer;
-use iced_layershell::advanced::widget::{Operation, Tree};
-use iced_layershell::advanced::{Clipboard, Shell, Widget, mouse};
-use iced_layershell::{Alignment, Length, Padding, Pixels, Point, Rectangle, Size, Vector, event};
+use iced::advanced::layout::{self, Layout, Limits, Node};
+use iced::advanced::overlay;
+use iced::advanced::renderer;
+use iced::advanced::widget::{Operation, Tree};
+use iced::advanced::{Clipboard, Shell, Widget, mouse};
+use iced::{Alignment, Length, Padding, Pixels, Point, Rectangle, Size, Vector, event};
 
 type Element<'a, Message, Theme, Renderer> =
-    iced_layershell::core::Element<'a, Message, Theme, Renderer>;
+    iced::core::Element<'a, Message, Theme, Renderer>;
 
 /// A container that distributes its contents horizontally.
 #[allow(missing_debug_implementations)]
 pub struct Centerbox<
     'a,
     Message,
-    Theme = iced_layershell::Theme,
-    Renderer = iced_layershell::Renderer,
+    Theme = iced::Theme,
+    Renderer = iced::Renderer,
 > {
     spacing: f32,
     padding: Padding,
@@ -27,7 +27,7 @@ pub struct Centerbox<
 
 impl<'a, Message, Theme, Renderer> Centerbox<'a, Message, Theme, Renderer>
 where
-    Renderer: iced_layershell::advanced::Renderer,
+    Renderer: iced::advanced::Renderer,
 {
     /// Creates an empty [`Centerbox`].
     pub fn new(children: [Element<'a, Message, Theme, Renderer>; 3]) -> Self {
@@ -79,7 +79,7 @@ where
 impl<'a, Message, Theme, Renderer> Widget<Message, Theme, Renderer>
     for Centerbox<'a, Message, Theme, Renderer>
 where
-    Renderer: iced_layershell::advanced::Renderer,
+    Renderer: iced::advanced::Renderer,
 {
     fn children(&self) -> Vec<Tree> {
         self.children.iter().map(Tree::new).collect()
@@ -311,7 +311,7 @@ impl<'a, Message, Theme, Renderer> From<Centerbox<'a, Message, Theme, Renderer>>
 where
     Message: 'a,
     Theme: 'a,
-    Renderer: iced_layershell::advanced::Renderer + 'a,
+    Renderer: iced::advanced::Renderer + 'a,
 {
     #[inline]
     fn from(row: Centerbox<'a, Message, Theme, Renderer>) -> Self {

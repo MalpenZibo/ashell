@@ -8,7 +8,7 @@ use crate::{
     theme::AshellTheme,
     utils::remote_value,
 };
-use iced_layershell::{
+use iced::{
     Alignment, Element, Subscription, Task,
     mouse::ScrollDelta,
     widget::{MouseArea, Text, container, row, slider, text},

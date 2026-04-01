@@ -4,7 +4,7 @@ use crate::{
     theme::AshellTheme,
     utils::PushMaybe,
 };
-use iced_layershell::{
+use iced::{
     Alignment, Element, Subscription,
     widget::{Row, container},
 };

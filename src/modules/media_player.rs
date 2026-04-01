@@ -12,7 +12,7 @@ use crate::{
     utils::PushMaybe,
     utils::truncate_text,
 };
-use iced_layershell::{
+use iced::{
     Background, Border, Element, Length, Subscription, Task, Theme,
     alignment::Vertical,
     widget::{column, container, image, row, rule, slider, space, text},

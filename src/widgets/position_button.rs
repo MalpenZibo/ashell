@@ -1,4 +1,4 @@
-use iced_layershell::{
+use iced::{
     Background, Color, Length, Padding, Point, Rectangle, Size, Vector,
     core::{
         Clipboard, Layout, Shell, Widget, event, keyboard, layout, mouse, overlay, renderer, touch,
@@ -8,7 +8,7 @@ use iced_layershell::{
 };
 
 type Element<'a, Message, Theme, Renderer> =
-    iced_layershell::core::Element<'a, Message, Theme, Renderer>;
+    iced::core::Element<'a, Message, Theme, Renderer>;
 
 #[derive(Debug, Clone, Copy)]
 pub struct ButtonUIRef {
@@ -24,10 +24,10 @@ enum OnPress<'a, Message> {
 pub struct PositionButton<
     'a,
     Message,
-    Theme = iced_layershell::Theme,
-    Renderer = iced_layershell::Renderer,
+    Theme = iced::Theme,
+    Renderer = iced::Renderer,
 > where
-    Renderer: iced_layershell::core::Renderer,
+    Renderer: iced::core::Renderer,
     Theme: Catalog,
 {
     content: Element<'a, Message, Theme, Renderer>,
@@ -44,7 +44,7 @@ pub struct PositionButton<
 
 impl<'a, Message, Theme, Renderer> PositionButton<'a, Message, Theme, Renderer>
 where
-    Renderer: iced_layershell::core::Renderer,
+    Renderer: iced::core::Renderer,
     Theme: Catalog,
 {
     pub fn new(content: impl Into<Element<'a, Message, Theme, Renderer>>) -> Self {
@@ -170,7 +170,7 @@ impl<'a, Message, Theme, Renderer> Widget<Message, Theme, Renderer>
     for PositionButton<'a, Message, Theme, Renderer>
 where
     Message: 'a + Clone,
-    Renderer: 'a + iced_layershell::core::Renderer,
+    Renderer: 'a + iced::core::Renderer,
     Theme: Catalog,
 {
     fn tag(&self) -> tree::Tag {
@@ -488,7 +488,7 @@ impl<'a, Message, Theme, Renderer> From<PositionButton<'a, Message, Theme, Rende
 where
     Message: Clone + 'a,
     Theme: Catalog + 'a,
-    Renderer: iced_layershell::core::Renderer + 'a,
+    Renderer: iced::core::Renderer + 'a,
 {
     #[inline]
     fn from(button: PositionButton<'a, Message, Theme, Renderer>) -> Self {
@@ -501,7 +501,7 @@ pub fn position_button<'a, Message, Theme, Renderer>(
 ) -> PositionButton<'a, Message, Theme, Renderer>
 where
     Theme: Catalog + 'a,
-    Renderer: iced_layershell::core::Renderer,
+    Renderer: iced::core::Renderer,
 {
     PositionButton::new(content)
 }

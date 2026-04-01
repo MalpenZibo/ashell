@@ -10,7 +10,7 @@ use chrono::{
     Weekday,
 };
 use chrono_tz::Tz;
-use iced_layershell::{
+use iced::{
     Background, Border, Degrees, Element,
     Length::{self, FillPortion},
     Padding, Rotation, Subscription, Theme,
@@ -672,7 +672,7 @@ impl Tempo {
                                     )
                                     .into(),
                                     border: Border::default().rounded(
-                                        iced_layershell::border::Radius {
+                                        iced::border::Radius {
                                             top_left: if index == 0 {
                                                 theme.radius.lg
                                             } else {
@@ -733,7 +733,7 @@ impl Tempo {
             let interval = *interval;
             channel(
                 100,
-                async move |mut output: iced_layershell::futures::channel::mpsc::Sender<
+                async move |mut output: iced::futures::channel::mpsc::Sender<
                     Message,
                 >| {
                     let mut interval = tokio::time::interval(interval);
