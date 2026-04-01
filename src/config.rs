@@ -1,8 +1,8 @@
 use crate::app::Message;
 use crate::services::upower::PeripheralDeviceKind;
 use hex_color::HexColor;
-use iced_layershell::futures::StreamExt;
-use iced_layershell::{Color, Subscription, futures::SinkExt, stream::channel, theme::palette};
+use iced::futures::StreamExt;
+use iced::{Color, Subscription, futures::SinkExt, stream::channel, theme::palette};
 use inotify::EventMask;
 use inotify::Inotify;
 use inotify::WatchMask;

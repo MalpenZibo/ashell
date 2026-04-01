@@ -1,6 +1,6 @@
 use super::{ReadOnlyService, Service, ServiceEvent};
 use crate::utils::remote_value::Remote;
-use iced_layershell::{
+use iced::{
     Subscription, Task,
     futures::{SinkExt, StreamExt, channel::mpsc::Sender, stream::pending},
     stream::channel,
@@ -334,7 +334,7 @@ impl ReadOnlyService for AudioService {
         }
     }
 
-    fn subscribe() -> iced_layershell::Subscription<super::ServiceEvent<Self>> {
+    fn subscribe() -> iced::Subscription<super::ServiceEvent<Self>> {
         Subscription::run_with(TypeId::of::<Self>(), |_| {
             channel(100, async |mut output| {
                 let mut state = State::Init;
@@ -421,7 +421,7 @@ impl Service for AudioService {
             self.wake.wake();
         }
 
-        iced_layershell::Task::none()
+        iced::Task::none()
     }
 }
 

@@ -7,8 +7,8 @@ pub use self::types::{
 };
 
 use crate::services::{ReadOnlyService, Service, ServiceEvent};
-use iced_layershell::futures::SinkExt;
-use iced_layershell::{Subscription, Task, stream::channel};
+use iced::futures::SinkExt;
+use iced::{Subscription, Task, stream::channel};
 use std::{any::TypeId, ops::Deref, sync::OnceLock};
 use tokio::sync::{OnceCell, broadcast};
 

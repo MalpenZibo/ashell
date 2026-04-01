@@ -1,6 +1,6 @@
 use super::{ReadOnlyService, Service, ServiceEvent};
 use dbus::MprisPlayerProxy;
-use iced_layershell::{
+use iced::{
     Subscription,
     core::Bytes,
     futures::{
@@ -511,7 +511,7 @@ pub enum PlayerCommand {
 impl Service for MprisPlayerService {
     type Command = MprisPlayerCommand;
 
-    fn command(&mut self, command: Self::Command) -> iced_layershell::Task<ServiceEvent<Self>> {
+    fn command(&mut self, command: Self::Command) -> iced::Task<ServiceEvent<Self>> {
         {
             let names: Vec<String> = self.data.iter().map(|d| d.service.clone()).collect();
             let s = self.data.iter().find(|d| d.service == command.service_name);
@@ -519,7 +519,7 @@ impl Service for MprisPlayerService {
             if let Some(s) = s {
                 let mpris_player_proxy = s.proxy.clone();
                 let conn = self.conn.clone();
-                iced_layershell::Task::perform(
+                iced::Task::perform(
                     async move {
                         match command.command {
                             PlayerCommand::Prev => {
@@ -552,7 +552,7 @@ impl Service for MprisPlayerService {
                     ServiceEvent::Update,
                 )
             } else {
-                iced_layershell::Task::none()
+                iced::Task::none()
             }
         }
     }

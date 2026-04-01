@@ -6,7 +6,7 @@ use crate::{
     },
     theme::AshellTheme,
 };
-use iced_layershell::{Element, Subscription, Task, widget::text};
+use iced::{Element, Subscription, Task, widget::text};
 
 #[derive(Debug, Clone)]
 pub enum Message {

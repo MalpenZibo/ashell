@@ -10,7 +10,7 @@ pub struct Remote<Value> {
     /// Source of truth. Displayed shortly after the end of the user interaction
     received: Value,
     /// A handle for aborting the timeout task
-    timeout: Option<iced_layershell::task::Handle>,
+    timeout: Option<iced::task::Handle>,
 }
 
 impl<Value: Default> Remote<Value> {
@@ -34,14 +34,14 @@ where
         self.requested.unwrap_or(self.received)
     }
 
-    pub fn update(&mut self, message: Message<Value>) -> iced_layershell::Task<Message<Value>> {
+    pub fn update(&mut self, message: Message<Value>) -> iced::Task<Message<Value>> {
         if let Some(handle) = self.timeout.take() {
             handle.abort();
         }
         match message {
             Message::Request(value) => {
                 self.requested = Some(value);
-                iced_layershell::Task::none()
+                iced::Task::none()
             }
             Message::Timeout => self.start_timeout(),
             Message::RequestAndTimeout(value) => {
@@ -50,13 +50,13 @@ where
             }
             Message::ShowReceived => {
                 self.requested = None;
-                iced_layershell::Task::none()
+                iced::Task::none()
             }
         }
     }
 
-    fn start_timeout(&mut self) -> iced_layershell::Task<Message<Value>> {
-        let (task, handle) = iced_layershell::Task::perform(
+    fn start_timeout(&mut self) -> iced::Task<Message<Value>> {
+        let (task, handle) = iced::Task::perform(
             async {
                 sleep(Duration::from_secs(1)).await;
             },

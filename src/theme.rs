@@ -1,5 +1,5 @@
 use crate::config::{Appearance, AppearanceColor, AppearanceStyle, MenuAppearance, Position};
-use iced_layershell::{
+use iced::{
     Background, Border, Color, Theme,
     theme::{Palette, palette},
     widget::{

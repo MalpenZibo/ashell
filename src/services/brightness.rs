@@ -1,6 +1,6 @@
 use super::{ReadOnlyService, Service, ServiceEvent};
 use crate::{services::throttle::ThrottleExt, utils::remote_value::Remote};
-use iced_layershell::{
+use iced::{
     Subscription, Task,
     futures::{SinkExt, StreamExt, channel::mpsc::Sender, stream::pending},
     stream::channel,

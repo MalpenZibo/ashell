@@ -12,7 +12,7 @@ use crate::{
     theme::AshellTheme,
     utils::IndicatorState,
 };
-use iced_layershell::{
+use iced::{
     Alignment, Element, Length, Padding, Subscription, SurfaceId, Task, Theme,
     widget::{Column, MouseArea, button, column, container, row, rule, scrollable, text, toggler},
 };
@@ -39,7 +39,7 @@ fn get_connectivity_color(
     connectivity: ConnectivityState,
     indicator_state: IndicatorState,
     theme: &Theme,
-) -> Option<iced_layershell::Color> {
+) -> Option<iced::Color> {
     match (connectivity, indicator_state) {
         (ConnectivityState::Full, IndicatorState::Warning) => {
             Some(theme.extended_palette().danger.weak.color)

@@ -2,7 +2,7 @@ use crate::{
     services::{ReadOnlyService, ServiceEvent, compositor::CompositorService},
     theme::AshellTheme,
 };
-use iced_layershell::{Element, Subscription, widget::text};
+use iced::{Element, Subscription, widget::text};
 
 #[derive(Debug, Clone)]
 pub enum Message {

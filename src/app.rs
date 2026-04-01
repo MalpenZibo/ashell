@@ -25,7 +25,7 @@ use crate::{
     widgets::{ButtonUIRef, Centerbox},
 };
 use flexi_logger::LoggerHandle;
-use iced_layershell::{
+use iced::{
     Alignment, Color, Element, Gradient, Length, OutputEvent, Radians, Subscription, SurfaceId,
     Task, Theme,
     event::listen_with,
@@ -578,9 +578,9 @@ impl App {
                 crate::services::ServiceEvent::Update(_) => Message::ResumeFromSleep,
                 _ => Message::None,
             }),
-            iced_layershell::output_events().map(Message::OutputEvent),
+            iced::output_events().map(Message::OutputEvent),
             listen_with(move |evt, _, _| match evt {
-                iced_layershell::event::Event::Keyboard(keyboard::Event::KeyPressed {
+                iced::event::Event::Keyboard(keyboard::Event::KeyPressed {
                     key,
                     ..
                 }) => {
@@ -595,14 +595,14 @@ impl App {
                 _ => None,
             }),
             Subscription::run(|| {
-                use iced_layershell::futures::StreamExt;
+                use iced::futures::StreamExt;
                 signal_hook_tokio::Signals::new([libc::SIGUSR1])
                     .expect("Failed to create signal stream")
                     .filter_map(|sig| {
                         if sig == libc::SIGUSR1 {
-                            iced_layershell::futures::future::ready(Some(Message::ToggleVisibility))
+                            iced::futures::future::ready(Some(Message::ToggleVisibility))
                         } else {
-                            iced_layershell::futures::future::ready(None)
+                            iced::futures::future::ready(None)
                         }
                     })
             }),

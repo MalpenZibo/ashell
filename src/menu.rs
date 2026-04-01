@@ -2,9 +2,9 @@ use crate::app::{self, App};
 use crate::config::{AppearanceStyle, Position};
 use crate::theme::backdrop_color;
 use crate::widgets::{self, ButtonUIRef};
-use iced_layershell::alignment::Vertical;
-use iced_layershell::widget::container::Style;
-use iced_layershell::{
+use iced::alignment::Vertical;
+use iced::widget::container::Style;
+use iced::{
     Border, Element, KeyboardInteractivity, Layer, Length, Padding, Pixels, SurfaceId, Task, Theme,
     set_keyboard_interactivity, set_layer, widget::container,
 };

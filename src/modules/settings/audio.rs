@@ -10,7 +10,7 @@ use crate::{
     utils::PushMaybe,
     utils::remote_value::{self, Remote},
 };
-use iced_layershell::{
+use iced::{
     Alignment, Element, Length, Subscription, SurfaceId, Task, Theme,
     mouse::ScrollDelta,
     widget::{Column, MouseArea, Row, Text, button, column, container, row, rule, slider, text},

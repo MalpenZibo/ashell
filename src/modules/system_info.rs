@@ -9,7 +9,7 @@ use crate::{
     theme::AshellTheme,
     utils,
 };
-use iced_layershell::{
+use iced::{
     Alignment, Element, Length, Subscription, Theme,
     time::every,
     widget::{Column, Row, column, container, row, rule, text},

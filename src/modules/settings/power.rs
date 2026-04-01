@@ -15,7 +15,7 @@ use crate::{
     utils::PushMaybe,
     utils::{self, IndicatorState, format_duration},
 };
-use iced_layershell::{
+use iced::{
     Alignment, Element, Length, Subscription, Task, Theme,
     alignment::Vertical,
     widget::{Column, Row, button, column, container, row, rule, text},

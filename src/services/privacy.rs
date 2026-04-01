@@ -1,5 +1,5 @@
 use super::{ReadOnlyService, ServiceEvent};
-use iced_layershell::{
+use iced::{
     Subscription,
     futures::{
         FutureExt, SinkExt, Stream, StreamExt, channel::mpsc::Sender, select, stream::pending,

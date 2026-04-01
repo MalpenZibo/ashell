@@ -4,13 +4,13 @@ use crate::{
     theme::AshellTheme,
     utils::launcher::execute_command,
 };
-use iced_layershell::widget::canvas;
-use iced_layershell::{
+use iced::widget::canvas;
+use iced::{
     Element, Length, Subscription, Theme,
     stream::channel,
     widget::{Stack, row, text},
 };
-use iced_layershell::{
+use iced::{
     mouse::Cursor,
     widget::{
         canvas::{Cache, Geometry, Path, Program},
@@ -53,9 +53,9 @@ impl<Message> Program<Message> for AlertIndicator {
     fn draw(
         &self,
         cache: &Self::State,
-        renderer: &iced_layershell::Renderer,
+        renderer: &iced::Renderer,
         theme: &Theme,
-        bounds: iced_layershell::Rectangle,
+        bounds: iced::Rectangle,
         _cursor: Cursor,
     ) -> Vec<Geometry> {
         let geometry = cache.draw(renderer, bounds.size(), |frame| {
@@ -144,8 +144,8 @@ impl Custom {
                     let alert_indicator_container = container(alert_canvas)
                         .width(Length::Fill) // Take full width of the stack item
                         .height(Length::Fill) // Take full height
-                        .align_x(iced_layershell::alignment::Horizontal::Right)
-                        .align_y(iced_layershell::alignment::Vertical::Top);
+                        .align_x(iced::alignment::Horizontal::Right)
+                        .align_y(iced::alignment::Vertical::Top);
 
                     Stack::new()
                         .push(padded_icon_container) // Padded icon is the base layer

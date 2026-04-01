@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
-use iced_layershell::futures::future::join_all;
+use iced::futures::future::join_all;
 use log::{debug, error};
 use tokio::process::Command;
 use tokio::time::timeout;
@@ -22,7 +22,7 @@ use crate::{
     theme::AshellTheme,
     utils::PushMaybe,
 };
-use iced_layershell::{
+use iced::{
     Alignment, Background, Border, Element, Length, Padding, Subscription, SurfaceId, Task, Theme,
     widget::{Column, MouseArea, Row, Space, button, container, row, space, text},
 };
