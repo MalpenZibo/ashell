@@ -218,7 +218,7 @@ impl Tempo {
                 Row::new()
                     .push(
                         weather_icon(data.current.weather_code, data.current.is_day > 0)
-                            .width(Length::Fixed(theme.font_size.sm as f32)),
+                            .width(Length::Fixed(theme.font_size.sm)),
                     )
                     .push_maybe(
                         (self.config.weather_indicator == WeatherIndicator::IconAndTemperature)

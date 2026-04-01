@@ -192,12 +192,12 @@ impl TrayModule {
                                 position_button(match &item.icon {
                                     Some(TrayIcon::Image(handle)) => Into::<Element<_>>::into(
                                         Image::new(handle.clone())
-                                            .height(Length::Fixed(theme.font_size.md as f32 - 2.0)),
+                                            .height(Length::Fixed(theme.font_size.md - 2.0)),
                                     ),
                                     Some(TrayIcon::Svg(handle)) => Into::<Element<_>>::into(
                                         Svg::new(handle.clone())
-                                            .height(Length::Fixed(theme.font_size.md as f32 + 2.))
-                                            .width(Length::Fixed(theme.font_size.md as f32 + 2.))
+                                            .height(Length::Fixed(theme.font_size.md + 2.))
+                                            .width(Length::Fixed(theme.font_size.md + 2.))
                                             .content_fit(iced_layershell::ContentFit::Cover),
                                     ),
                                     _ => icon(StaticIcon::Point).into(),

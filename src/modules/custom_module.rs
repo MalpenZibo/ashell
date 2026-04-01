@@ -137,8 +137,8 @@ impl Custom {
 
                 let icon_with_alert = if show_alert {
                     let alert_canvas = canvas(AlertIndicator)
-                        .width(Length::Fixed(theme.space.xs as f32)) // Size of the dot
-                        .height(Length::Fixed(theme.space.xs as f32));
+                        .width(Length::Fixed(theme.space.xs)) // Size of the dot
+                        .height(Length::Fixed(theme.space.xs));
 
                     // Container to position the dot at the top-right
                     let alert_indicator_container = container(alert_canvas)

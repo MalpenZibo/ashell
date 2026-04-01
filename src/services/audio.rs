@@ -695,58 +695,6 @@ impl PulseAudioServer {
             ListResult::Error => error!("Error during sources list population"),
         }
     }
-
-    fn set_sink_mute(&mut self, name: &str, mute: bool) -> anyhow::Result<()> {
-        let op = self.introspector.set_sink_mute_by_name(name, mute, None);
-
-        self.wait_for_response(op)
-    }
-
-    fn set_source_mute(&mut self, name: &str, mute: bool) -> anyhow::Result<()> {
-        let op = self.introspector.set_source_mute_by_name(name, mute, None);
-
-        self.wait_for_response(op)
-    }
-
-    fn set_sink_volume(&mut self, name: &str, volume: &ChannelVolumes) -> anyhow::Result<()> {
-        let op = self
-            .introspector
-            .set_sink_volume_by_name(name, volume, None);
-
-        self.wait_for_response(op)
-    }
-
-    fn set_source_volume(&mut self, name: &str, volume: &ChannelVolumes) -> anyhow::Result<()> {
-        let op = self
-            .introspector
-            .set_source_volume_by_name(name, volume, None);
-
-        self.wait_for_response(op)
-    }
-
-    fn set_default_sink(&mut self, name: &str, port: Option<&str>) -> anyhow::Result<()> {
-        let op = self.context.set_default_sink(name, |_| {});
-        self.wait_for_response(op)?;
-
-        if let Some(port) = port {
-            let op = self.introspector.set_sink_port_by_name(name, port, None);
-            self.wait_for_response(op)
-        } else {
-            Ok(())
-        }
-    }
-
-    fn set_default_source(&mut self, name: &str, port: Option<&str>) -> anyhow::Result<()> {
-        let op = self.context.set_default_source(name, |_| {});
-        self.wait_for_response(op)?;
-
-        if let Some(port) = port {
-            let op = self.introspector.set_source_port_by_name(name, port, None);
-            self.wait_for_response(op)
-        } else {
-            Ok(())
-        }
-    }
 }
 
 impl<'a> From<&'a libpulse_binding::context::introspect::ServerInfo<'a>> for ServerInfo {

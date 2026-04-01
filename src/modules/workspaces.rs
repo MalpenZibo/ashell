@@ -468,9 +468,9 @@ impl Workspaces {
                                 })
                                 .width(match (w.id < 0, &w.displayed) {
                                     (true, _) => Length::Shrink,
-                                    (_, Displayed::Active) => Length::Fixed(theme.space.xl as f32),
-                                    (_, Displayed::Visible) => Length::Fixed(theme.space.lg as f32),
-                                    (_, Displayed::Hidden) => Length::Fixed(theme.space.md as f32),
+                                    (_, Displayed::Active) => Length::Fixed(theme.space.xl),
+                                    (_, Displayed::Visible) => Length::Fixed(theme.space.lg),
+                                    (_, Displayed::Hidden) => Length::Fixed(theme.space.md),
                                 })
                                 .height(theme.space.md)
                                 .into(),

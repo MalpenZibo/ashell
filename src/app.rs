@@ -578,7 +578,7 @@ impl App {
                 crate::services::ServiceEvent::Update(_) => Message::ResumeFromSleep,
                 _ => Message::None,
             }),
-            // iced_layershell::output_events().map(Message::OutputEvent),
+            iced_layershell::output_events().map(Message::OutputEvent),
             listen_with(move |evt, _, _| match evt {
                 iced_layershell::event::Event::Keyboard(keyboard::Event::KeyPressed {
                     key,
