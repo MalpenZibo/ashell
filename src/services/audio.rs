@@ -15,7 +15,11 @@ use libpulse_binding::{
         subscribe::InterestMaskSet,
     },
     def::PortAvailable,
-    mainloop::standard::{IterateResult, Mainloop},
+    mainloop::{
+        api::Mainloop as MainloopTrait,
+        events::io::FlagSet as IoFlagSet,
+        standard::{IterateResult, Mainloop},
+    },
     operation::{self, Operation},
     proplist::{Proplist, properties::APPLICATION_NAME},
     volume::{ChannelVolumes, Volume},
@@ -26,9 +30,10 @@ use std::{
     cell::RefCell,
     fmt,
     ops::{Deref, DerefMut},
+    os::fd::{AsRawFd, FromRawFd, OwnedFd},
     rc::Rc,
+    sync::Arc,
     thread::{self, JoinHandle},
-    time::Duration,
 };
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
@@ -108,10 +113,32 @@ pub struct AudioData {
     pub source_slider: Remote<u32>,
 }
 
+/// Write end of a pipe used to wake the PulseAudio mainloop when commands arrive.
+#[derive(Clone)]
+struct WakePipe(Arc<OwnedFd>);
+
+impl fmt::Debug for WakePipe {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("WakePipe")
+            .field(&self.0.as_raw_fd())
+            .finish()
+    }
+}
+
+impl WakePipe {
+    fn wake(&self) {
+        // Write a single byte to unblock the mainloop's poll().
+        // Safe to ignore errors — if the pipe is full, the mainloop is already awake.
+        let fd = self.0.as_raw_fd();
+        unsafe { libc::write(fd, [1u8].as_ptr() as *const _, 1) };
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct AudioService {
     data: AudioData,
     commander: UnboundedSender<PulseAudioCommand>,
+    wake: WakePipe,
 }
 
 impl Deref for AudioService {
@@ -132,6 +159,7 @@ struct PulseAudioServerHandle {
     _listener: JoinHandle<()>,
     receiver: UnboundedReceiver<PulseAudioServerEvent>,
     sender: UnboundedSender<PulseAudioCommand>,
+    wake: WakePipe,
 }
 
 impl AudioService {
@@ -147,6 +175,7 @@ impl AudioService {
                         .send(ServiceEvent::Init(AudioService {
                             data: AudioData::default(),
                             commander: handle.sender.clone(),
+                            wake: handle.wake.clone(),
                         }))
                         .await;
                     State::Active(handle)
@@ -331,51 +360,65 @@ impl Service for AudioService {
     type Command = AudioCommand;
 
     fn command(&mut self, command: Self::Command) -> Task<ServiceEvent<Self>> {
-        match command {
+        let sent = match command {
             AudioCommand::ToggleSinkMute => {
                 if let Some(sink) = self.active_sink() {
-                    let _ = self.commander.send(PulseAudioCommand::SinkMute(
-                        sink.name.clone(),
-                        !sink.is_mute,
-                    ));
+                    self.commander
+                        .send(PulseAudioCommand::SinkMute(
+                            sink.name.clone(),
+                            !sink.is_mute,
+                        ))
+                        .is_ok()
+                } else {
+                    false
                 }
             }
             AudioCommand::ToggleSourceMute => {
                 if let Some(source) = self.active_source() {
-                    let _ = self.commander.send(PulseAudioCommand::SourceMute(
-                        source.name.clone(),
-                        !source.is_mute,
-                    ));
+                    self.commander
+                        .send(PulseAudioCommand::SourceMute(
+                            source.name.clone(),
+                            !source.is_mute,
+                        ))
+                        .is_ok()
+                } else {
+                    false
                 }
             }
             AudioCommand::SinkVolume(volume) => {
                 if let Some(sink) = self.active_sink()
                     && let Some(volume) = sink.volume.scaled(volume)
                 {
-                    let _ = self
-                        .commander
-                        .send(PulseAudioCommand::SinkVolume(sink.name.clone(), volume));
+                    self.commander
+                        .send(PulseAudioCommand::SinkVolume(sink.name.clone(), volume))
+                        .is_ok()
+                } else {
+                    false
                 }
             }
             AudioCommand::SourceVolume(volume) => {
                 if let Some(source) = self.active_source()
                     && let Some(volume) = source.volume.scaled(volume)
                 {
-                    let _ = self
-                        .commander
-                        .send(PulseAudioCommand::SourceVolume(source.name.clone(), volume));
+                    self.commander
+                        .send(PulseAudioCommand::SourceVolume(source.name.clone(), volume))
+                        .is_ok()
+                } else {
+                    false
                 }
             }
-            AudioCommand::DefaultSink(name, port) => {
-                let _ = self
-                    .commander
-                    .send(PulseAudioCommand::DefaultSink(name, port));
-            }
-            AudioCommand::DefaultSource(name, port) => {
-                let _ = self
-                    .commander
-                    .send(PulseAudioCommand::DefaultSource(name, port));
-            }
+            AudioCommand::DefaultSink(name, port) => self
+                .commander
+                .send(PulseAudioCommand::DefaultSink(name, port))
+                .is_ok(),
+            AudioCommand::DefaultSource(name, port) => self
+                .commander
+                .send(PulseAudioCommand::DefaultSource(name, port))
+                .is_ok(),
+        };
+
+        if sent {
+            self.wake.wake();
         }
 
         iced_layershell::Task::none()
@@ -453,6 +496,16 @@ impl PulseAudioServer {
         let (to_server_tx, to_server_rx) = tokio::sync::mpsc::unbounded_channel();
 
         let (init_tx, mut init_rx) = tokio::sync::mpsc::unbounded_channel();
+
+        // Create a pipe to wake the PulseAudio mainloop when commands arrive.
+        let (wake_read, wake_write) = {
+            let mut fds = [0i32; 2];
+            if unsafe { libc::pipe2(fds.as_mut_ptr(), libc::O_CLOEXEC | libc::O_NONBLOCK) } != 0 {
+                return Err(anyhow::anyhow!("failed to create wake pipe"));
+            }
+            unsafe { (OwnedFd::from_raw_fd(fds[0]), OwnedFd::from_raw_fd(fds[1])) }
+        };
+        let wake = WakePipe(Arc::new(wake_write));
 
         // Single thread for both listening and commanding — avoids PulseAudio
         // mainloop assertion failures from concurrent connections.
@@ -554,11 +607,23 @@ impl PulseAudioServer {
                         },
                     )));
 
-                    // Main loop: iterate PulseAudio and process commands on the same thread
+                    // Register the wake pipe on the mainloop so that iterate(true)
+                    // unblocks when a command is sent from another thread.
+                    let wake_fd = wake_read.as_raw_fd();
+                    let _wake_io = server.mainloop.new_io_event(
+                        wake_fd,
+                        IoFlagSet::INPUT,
+                        Box::new(move |_event, _fd, _flags| {
+                            // Drain the pipe so it doesn't keep firing
+                            let mut buf = [0u8; 64];
+                            unsafe { libc::read(wake_fd, buf.as_mut_ptr() as *mut _, buf.len()) };
+                        }),
+                    );
+
+                    // Main loop: blocks until PulseAudio events OR wake pipe signal
                     let mut cmd_introspector = server.context.introspect();
                     loop {
-                        // Non-blocking iterate to allow processing commands
-                        let data = server.mainloop.iterate(false);
+                        let data = server.mainloop.iterate(true);
                         if let IterateResult::Quit(_) | IterateResult::Err(_) = data {
                             error!("PulseAudio mainloop error");
                             break;
@@ -595,9 +660,6 @@ impl PulseAudioServer {
                                 }
                             }
                         }
-
-                        // Brief sleep to avoid busy-spinning
-                        std::thread::sleep(Duration::from_millis(10));
                     }
                 }
                 Err(e) => {
@@ -612,6 +674,7 @@ impl PulseAudioServer {
                 _listener: handle,
                 receiver: from_server_rx,
                 sender: to_server_tx,
+                wake,
             }),
             _ => Err(anyhow::anyhow!("Failed to start PulseAudio thread")),
         }
