@@ -1,11 +1,12 @@
 use crate::config::{Appearance, AppearanceColor, AppearanceStyle, MenuAppearance, Position};
 use iced::{
-    Background, Border, Color, Theme,
-    theme::{Palette, palette},
+    theme::{palette, Palette},
     widget::{
         button::{self, Status},
+        slider::{self, Status as SliderStatus},
         text_input::{self},
     },
+    Background, Border, Color, Theme,
 };
 
 #[allow(unused)]
@@ -667,6 +668,29 @@ impl AshellTheme {
                     base
                 }
                 _ => base,
+            }
+        }
+    }
+
+    pub fn slider_style(&self) -> fn(&Theme, SliderStatus) -> slider::Style {
+        |theme: &Theme, _status: SliderStatus| {
+            let palette = theme.extended_palette();
+
+            slider::Style {
+                rail: slider::Rail {
+                    backgrounds: (
+                        Background::Color(palette.primary.base.color),
+                        Background::Color(palette.secondary.base.color),
+                    ),
+                    width: 4.0,
+                    border: Border::default(),
+                },
+                handle: slider::Handle {
+                    shape: slider::HandleShape::Circle { radius: 7.0 },
+                    background: Background::Color(palette.primary.base.color),
+                    border_width: 0.0,
+                    border_color: palette.background.base.color,
+                },
             }
         }
     }

@@ -139,6 +139,7 @@ impl MediaPlayer {
                         slider(0.0..=100.0, v, move |v| {
                             Message::SetVolume(d.service.clone(), v)
                         })
+                        .style(theme.slider_style())
                         .width(LEFT_COLUMN_WIDTH)
                         .into()
                     });

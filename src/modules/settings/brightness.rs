@@ -107,6 +107,7 @@ impl BrightnessSettings {
                             service.current.value(),
                             remote_value::Message::Request,
                         )
+                        .style(theme.slider_style())
                         .on_release(remote_value::Message::Timeout),
                     )
                     .map(Message::Changed)
