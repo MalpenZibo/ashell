@@ -331,10 +331,15 @@ impl Tempo {
                 ]
                 .into_iter()
                 .map(|i| {
-                    text(i.to_string())
-                        .align_x(Horizontal::Center)
-                        .width(Length::Fill)
-                        .into()
+                    text(
+                        NaiveDate::from_isoywd_opt(2000, 20, i)
+                            .expect("valid NaiveDate")
+                            .format_localized("%a", self.config.locale)
+                            .to_string(),
+                    )
+                    .align_x(Horizontal::Center)
+                    .width(Length::Fill)
+                    .into()
                 })
                 .collect::<Vec<Element<'a, Message>>>(),
             )
