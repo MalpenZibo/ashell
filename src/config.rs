@@ -136,7 +136,7 @@ pub struct SystemInfoCpu {
     pub warn_threshold: u32,
     pub alert_threshold: u32,
 
-    pub display_mode: CpuDisplayMode
+    pub format: CpuFormat
 }
 
 impl Default for SystemInfoCpu {
@@ -144,7 +144,7 @@ impl Default for SystemInfoCpu {
         Self {
             warn_threshold: 60,
             alert_threshold: 80,
-            display_mode: CpuDisplayMode::Percentage
+            format: CpuFormat::Percentage
         }
     }
 }
@@ -154,7 +154,7 @@ impl Default for SystemInfoCpu {
 pub struct SystemInfoMemory {
     pub warn_threshold: u32,
     pub alert_threshold: u32,
-    pub display_mode: MemoryDisplayMode
+    pub format: MemoryFormat
 }
 
 impl Default for SystemInfoMemory {
@@ -162,7 +162,7 @@ impl Default for SystemInfoMemory {
         Self {
             warn_threshold: 70,
             alert_threshold: 85,
-            display_mode: MemoryDisplayMode::Percentage
+            format: MemoryFormat::Percentage
         }
     }
 }
@@ -173,7 +173,7 @@ pub struct SystemInfoTemperature {
     pub warn_threshold: i32,
     pub alert_threshold: i32,
     pub sensor: String,
-    pub display_mode: TemperatureDisplayMode,
+    pub format: TemperatureFormat,
 }
 
 impl Default for SystemInfoTemperature {
@@ -182,7 +182,7 @@ impl Default for SystemInfoTemperature {
             warn_threshold: 60,
             alert_threshold: 80,
             sensor: "acpitz temp1".to_string(),
-            display_mode: TemperatureDisplayMode::Celsius,
+            format: TemperatureFormat::Celsius,
         }
     }
 }
@@ -213,21 +213,21 @@ pub struct SystemInfoDiskIndicatorConfig {
 
 
 #[derive(Clone, Debug, Deserialize, Default)]
-pub enum MemoryDisplayMode {
+pub enum MemoryFormat {
     #[default]
     Percentage,
     Fraction
 }
 
 #[derive(Clone, Debug, Deserialize, Default)]
-pub enum CpuDisplayMode {
+pub enum CpuFormat {
     #[default]
     Percentage,
     Frequency
 }
 
 #[derive(Clone, Debug, Deserialize, Default, PartialEq)]
-pub enum TemperatureDisplayMode {
+pub enum TemperatureFormat {
     #[default]
     Celsius,
     Fahrenheit

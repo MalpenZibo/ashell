@@ -1,6 +1,6 @@
 use crate::{
     components::icons::{StaticIcon, icon},
-    config::{CpuDisplayMode, MemoryDisplayMode, TemperatureDisplayMode, SystemInfoIndicator, SystemInfoModuleConfig},
+    config::{CpuFormat, MemoryFormat, TemperatureFormat, SystemInfoIndicator, SystemInfoModuleConfig},
     menu::MenuSize,
     theme::AshellTheme, utils,
 };
@@ -307,27 +307,27 @@ impl SystemInfo {
                         theme,
                         StaticIcon::Cpu,
                         "CPU Usage".to_string(),
-                        match self.config.cpu.display_mode {
-                            CpuDisplayMode::Percentage => format!("{}%", self.data.cpu_usage.percentage),
-                            CpuDisplayMode::Frequency => format!("{} GHz", self.data.cpu_usage.frequency)
+                        match self.config.cpu.format {
+                            CpuFormat::Percentage => format!("{}%", self.data.cpu_usage.percentage),
+                            CpuFormat::Frequency => format!("{} GHz", self.data.cpu_usage.frequency)
                         }
                     ))
                     .push(Self::info_element(
                         theme,
                         StaticIcon::Mem,
                         "Memory Usage".to_string(),
-                        match self.config.memory.display_mode {
-                            MemoryDisplayMode::Percentage => format!("{}%", self.data.memory_usage.percentage),
-                            MemoryDisplayMode::Fraction => format!("{} GiB", self.data.memory_usage.fraction),
+                        match self.config.memory.format {
+                            MemoryFormat::Percentage => format!("{}%", self.data.memory_usage.percentage),
+                            MemoryFormat::Fraction => format!("{} GiB", self.data.memory_usage.fraction),
                         }
                     ))
                     .push(Self::info_element(
                         theme,
                         StaticIcon::Mem,
                         "Swap memory Usage".to_string(),
-                        match self.config.memory.display_mode {
-                            MemoryDisplayMode::Percentage => format!("{}%", self.data.memory_swap_usage.percentage),
-                            MemoryDisplayMode::Fraction => format!("{} GiB", self.data.memory_swap_usage.fraction),
+                        match self.config.memory.format {
+                            MemoryFormat::Percentage => format!("{}%", self.data.memory_swap_usage.percentage),
+                            MemoryFormat::Fraction => format!("{} GiB", self.data.memory_swap_usage.fraction),
                         }
                     ))
                     .push_maybe(
@@ -336,9 +336,9 @@ impl SystemInfo {
                                 theme,
                                 StaticIcon::Temp,
                                 "Temperature".to_string(),
-                                match self.config.temperature.display_mode {
-                                    TemperatureDisplayMode::Celsius => format!("{cel}°C"),
-                                    TemperatureDisplayMode::Fahrenheit => format!("{}°F", self.data.temperature.fahrenheit)
+                                match self.config.temperature.format {
+                                    TemperatureFormat::Celsius => format!("{cel}°C"),
+                                    TemperatureFormat::Fahrenheit => format!("{}°F", self.data.temperature.fahrenheit)
                                 }
                             )
                         })
@@ -404,18 +404,18 @@ impl SystemInfo {
             SystemInfoIndicator::Cpu => Some(Self::indicator_info_element(
                 theme,
                 StaticIcon::Cpu,
-                match self.config.cpu.display_mode {
-                    CpuDisplayMode::Percentage => ( self.data.cpu_usage.percentage.to_string(), "%" ),
-                    CpuDisplayMode::Frequency => ( self.data.cpu_usage.frequency.to_string(), " GHz" )
+                match self.config.cpu.format {
+                    CpuFormat::Percentage => ( self.data.cpu_usage.percentage.to_string(), "%" ),
+                    CpuFormat::Frequency => ( self.data.cpu_usage.frequency.to_string(), " GHz" )
                 },
-                match self.config.cpu.display_mode { // note quite sure on how to interpret thresholds with other types of display values yet.
-                    CpuDisplayMode::Percentage => Some((
+                match self.config.cpu.format { // note quite sure on how to interpret thresholds with other types of display values yet.
+                    CpuFormat::Percentage => Some((
                         self.data.cpu_usage.percentage,
 
                         self.config.cpu.warn_threshold,
                         self.config.cpu.alert_threshold,
                     )),
-                    CpuDisplayMode::Frequency => None
+                    CpuFormat::Frequency => None
                 },
                 None
             )),
@@ -423,18 +423,18 @@ impl SystemInfo {
             SystemInfoIndicator::Memory => Some(Self::indicator_info_element(
                 theme,
                 StaticIcon::Mem,
-                match self.config.memory.display_mode {
-                    MemoryDisplayMode::Percentage => ( self.data.memory_usage.percentage.to_string(), "%" ),
-                    MemoryDisplayMode::Fraction => ( self.data.memory_usage.fraction.to_string(), "" ),
+                match self.config.memory.format {
+                    MemoryFormat::Percentage => ( self.data.memory_usage.percentage.to_string(), "%" ),
+                    MemoryFormat::Fraction => ( self.data.memory_usage.fraction.to_string(), "" ),
                 },
-                match self.config.memory.display_mode {
-                    MemoryDisplayMode::Percentage => Some((
+                match self.config.memory.format {
+                    MemoryFormat::Percentage => Some((
                         self.data.memory_usage.percentage,
                         
                         self.config.memory.warn_threshold,
                         self.config.memory.alert_threshold,
                     )),
-                    MemoryDisplayMode::Fraction => None
+                    MemoryFormat::Fraction => None
                 },
                 None
             )),
@@ -442,18 +442,18 @@ impl SystemInfo {
             SystemInfoIndicator::MemorySwap => Some(Self::indicator_info_element(
                 theme,
                 StaticIcon::Mem,
-                match self.config.memory.display_mode {
-                    MemoryDisplayMode::Percentage => ( self.data.memory_swap_usage.percentage.to_string(), "%" ),
-                    MemoryDisplayMode::Fraction => ( self.data.memory_swap_usage.fraction.to_string(), "" ),
+                match self.config.memory.format {
+                    MemoryFormat::Percentage => ( self.data.memory_swap_usage.percentage.to_string(), "%" ),
+                    MemoryFormat::Fraction => ( self.data.memory_swap_usage.fraction.to_string(), "" ),
                 },
-                match self.config.memory.display_mode {
-                    MemoryDisplayMode::Percentage => Some((
+                match self.config.memory.format {
+                    MemoryFormat::Percentage => Some((
                         self.data.memory_usage.percentage,
                         
                         self.config.memory.warn_threshold,
                         self.config.memory.alert_threshold,
                     )),
-                    MemoryDisplayMode::Fraction => None
+                    MemoryFormat::Fraction => None
                 },
                 Some("swap"),
             )),
@@ -462,9 +462,9 @@ impl SystemInfo {
                 Self::indicator_info_element(
                     theme,
                     StaticIcon::Temp,
-                    match self.config.temperature.display_mode {
-                        TemperatureDisplayMode::Celsius => ( cel, "°C" ),
-                        TemperatureDisplayMode::Fahrenheit => ( self.data.temperature.fahrenheit, "°F" )
+                    match self.config.temperature.format {
+                        TemperatureFormat::Celsius => ( cel, "°C" ),
+                        TemperatureFormat::Fahrenheit => ( self.data.temperature.fahrenheit, "°F" )
                     },
                     Some((
                         cel,
