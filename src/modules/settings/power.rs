@@ -12,7 +12,6 @@ use crate::{
         },
     },
     theme::AshellTheme,
-    utils::PushMaybe,
     utils::{self, IndicatorState, format_duration},
 };
 use iced::{
@@ -243,7 +242,7 @@ impl PowerSettings {
                         .align_y(Alignment::Center);
 
                     for p in service.peripherals.iter() {
-                        row = row.push_maybe({
+                        row = row.push({
                             if kinds.as_ref().is_none_or(|kinds| kinds.contains(&p.kind)) {
                                 let state = p.data.get_indicator_state();
 
@@ -360,7 +359,7 @@ impl PowerSettings {
         container({
             let battery_info = container(
                 Row::with_capacity(3)
-                    .push_maybe(peripheral_icon.map(icon))
+                    .push(peripheral_icon.map(icon))
                     .push(icon(battery.get_icon()))
                     .push(text(format!("{}%", battery.capacity)))
                     .spacing(ashell_theme.space.xxs),

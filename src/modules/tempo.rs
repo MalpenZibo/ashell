@@ -3,7 +3,6 @@ use crate::{
     config::{TempoModuleConfig, WeatherIndicator, WeatherLocation},
     menu::MenuSize,
     theme::AshellTheme,
-    utils::PushMaybe,
 };
 use chrono::{
     DateTime, Datelike, Days, FixedOffset, Local, Months, NaiveDate, NaiveDateTime, TimeZone, Utc,
@@ -167,7 +166,7 @@ impl Tempo {
         let display_text = self.time_str(self.current_format(), self.current_timezone_index);
 
         Row::with_capacity(2)
-            .push_maybe(self.weather_indicator(theme))
+            .push(self.weather_indicator(theme))
             .push(text(display_text))
             .align_y(Vertical::Center)
             .spacing(theme.space.sm)
@@ -220,7 +219,7 @@ impl Tempo {
                         weather_icon(data.current.weather_code, data.current.is_day > 0)
                             .width(Length::Fixed(theme.font_size.sm)),
                     )
-                    .push_maybe(
+                    .push(
                         (self.config.weather_indicator == WeatherIndicator::IconAndTemperature)
                             .then(|| {
                                 text(format!("{}°C", data.current.temperature_2m))
@@ -238,7 +237,7 @@ impl Tempo {
         container(
             Row::with_capacity(2)
                 .push(self.calendar(theme))
-                .push_maybe(self.weather(theme))
+                .push(self.weather(theme))
                 .spacing(theme.space.lg),
         )
         .max_width(MenuSize::XLarge)

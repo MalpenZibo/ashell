@@ -9,7 +9,6 @@ use crate::{
         },
     },
     theme::AshellTheme,
-    utils::PushMaybe,
     widgets::{ButtonUIRef, position_button},
 };
 use iced::{
@@ -143,7 +142,7 @@ impl TrayModule {
                         .on_press(Message::ToggleSubmenu(layout.0))
                         .width(Length::Fill),
                     )
-                    .push_maybe(if is_open {
+                    .push(if is_open {
                         Some(
                             Column::with_children(
                                 layout

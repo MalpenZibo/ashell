@@ -3,47 +3,6 @@ use std::time::Duration;
 pub mod launcher;
 pub mod remote_value;
 
-/// Extension trait to add `push_maybe` to `Row` and `Column` in iced 0.14,
-/// which removed the built-in method.
-pub trait PushMaybe<'a, Message, Theme, Renderer> {
-    fn push_maybe(
-        self,
-        child: Option<impl Into<iced::core::Element<'a, Message, Theme, Renderer>>>,
-    ) -> Self;
-}
-
-impl<'a, Message, Theme, Renderer> PushMaybe<'a, Message, Theme, Renderer>
-    for iced::widget::Row<'a, Message, Theme, Renderer>
-where
-    Renderer: iced::core::Renderer,
-{
-    fn push_maybe(
-        self,
-        child: Option<impl Into<iced::core::Element<'a, Message, Theme, Renderer>>>,
-    ) -> Self {
-        match child {
-            Some(child) => self.push(child),
-            None => self,
-        }
-    }
-}
-
-impl<'a, Message, Theme, Renderer> PushMaybe<'a, Message, Theme, Renderer>
-    for iced::widget::Column<'a, Message, Theme, Renderer>
-where
-    Renderer: iced::core::Renderer,
-{
-    fn push_maybe(
-        self,
-        child: Option<impl Into<iced::core::Element<'a, Message, Theme, Renderer>>>,
-    ) -> Self {
-        match child {
-            Some(child) => self.push(child),
-            None => self,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy)]
 pub enum IndicatorState {
     Normal,

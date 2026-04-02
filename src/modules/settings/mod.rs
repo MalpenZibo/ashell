@@ -20,7 +20,6 @@ use crate::{
     password_dialog,
     services::idle_inhibitor::IdleInhibitorManager,
     theme::AshellTheme,
-    utils::PushMaybe,
 };
 use iced::{
     Alignment, Background, Border, Element, Length, Padding, Subscription, SurfaceId, Task, Theme,
@@ -496,7 +495,7 @@ impl Settings {
                 .battery_menu_indicator(theme)
                 .map(|e| e.map(Message::Power));
             let right_buttons = Row::with_capacity(2)
-                .push_maybe(
+                .push(
                     self.lock_cmd
                         .as_ref()
                         .map(|_| icon_button(theme, StaticIcon::Lock).on_press(Message::Lock)),
@@ -515,7 +514,7 @@ impl Settings {
                 .spacing(theme.space.xs);
 
             let header = Row::with_capacity(3)
-                .push_maybe(battery_data)
+                .push(battery_data)
                 .push(Space::new().width(Length::Fill))
                 .push(right_buttons)
                 .spacing(theme.space.xs)
@@ -619,7 +618,7 @@ impl Settings {
 
             Column::with_capacity(11)
                 .push(header)
-                .push_maybe(
+                .push(
                     self.sub_menu
                         .filter(|menu_type| *menu_type == SubMenu::PeripheralMenu)
                         .and_then(|_| {
@@ -628,15 +627,15 @@ impl Settings {
                                 .map(|e| sub_menu_wrapper(theme, e.map(Message::Power)))
                         }),
                 )
-                .push_maybe(
+                .push(
                     self.sub_menu
                         .filter(|menu_type| *menu_type == SubMenu::Power)
                         .map(|_| {
                             sub_menu_wrapper(theme, self.power.menu(theme).map(Message::Power))
                         }),
                 )
-                .push_maybe(top_sink_slider)
-                .push_maybe(
+                .push(top_sink_slider)
+                .push(
                     self.sub_menu
                         .filter(|menu_type| *menu_type == SubMenu::Sinks)
                         .and_then(|_| {
@@ -645,9 +644,9 @@ impl Settings {
                                 .map(|submenu| sub_menu_wrapper(theme, submenu.map(Message::Audio)))
                         }),
                 )
-                .push_maybe(bottom_sink_slider)
-                .push_maybe(top_source_slider)
-                .push_maybe(
+                .push(bottom_sink_slider)
+                .push(top_source_slider)
+                .push(
                     self.sub_menu
                         .filter(|menu_type| *menu_type == SubMenu::Sources)
                         .and_then(|_| {
@@ -656,8 +655,8 @@ impl Settings {
                                 .map(|submenu| sub_menu_wrapper(theme, submenu.map(Message::Audio)))
                         }),
                 )
-                .push_maybe(bottom_source_slider)
-                .push_maybe(
+                .push(bottom_source_slider)
+                .push(
                     self.brightness
                         .slider(theme)
                         .map(|e| e.map(Message::Brightness)),
@@ -878,7 +877,7 @@ fn quick_setting_button<'a, Msg: Clone + 'static, I: Icon>(
         container(
             Column::with_capacity(2)
                 .push(text(title).size(theme.font_size.sm))
-                .push_maybe(subtitle.map(|s| {
+                .push(subtitle.map(|s| {
                     text(s)
                         .wrapping(text::Wrapping::None)
                         .size(theme.font_size.xs)
@@ -895,7 +894,7 @@ fn quick_setting_button<'a, Msg: Clone + 'static, I: Icon>(
     let btn = button(
         Row::with_capacity(2)
             .push(main_content)
-            .push_maybe(with_submenu.map(|(menu_type, submenu, msg)| {
+            .push(with_submenu.map(|(menu_type, submenu, msg)| {
                 icon_button(
                     theme,
                     if Some(menu_type) == submenu {

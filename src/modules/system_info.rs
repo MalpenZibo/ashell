@@ -3,7 +3,6 @@ use crate::{
     config::{SystemInfoIndicator, SystemInfoModuleConfig},
     menu::MenuSize,
     theme::AshellTheme,
-    utils::PushMaybe,
 };
 use iced::{
     Alignment, Element, Length, Subscription, Theme,
@@ -327,7 +326,7 @@ impl SystemInfo {
                         "Swap memory Usage".to_string(),
                         format!("{}%", self.data.memory_swap_usage),
                     ))
-                    .push_maybe(self.data.temperature.map(|temp| {
+                    .push(self.data.temperature.map(|temp| {
                         Self::info_element(
                             theme,
                             StaticIcon::Temp,
@@ -352,7 +351,7 @@ impl SystemInfo {
                         )
                         .spacing(theme.space.xxs),
                     )
-                    .push_maybe(self.data.network.as_ref().map(|network| {
+                    .push(self.data.network.as_ref().map(|network| {
                         Column::with_children(vec![
                             Self::info_element(
                                 theme,

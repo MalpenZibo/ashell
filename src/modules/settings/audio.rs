@@ -7,7 +7,6 @@ use crate::{
         audio::{AudioCommand, AudioService, DevicePortType, Port},
     },
     theme::AshellTheme,
-    utils::PushMaybe,
     utils::remote_value::{self, Remote},
 };
 use iced::{
@@ -490,7 +489,7 @@ impl AudioSettings {
                 )
                 .on_scroll(Self::on_scroll(volume.value(), volume_changed)),
             )
-            .push_maybe(with_submenu.map(|(submenu, msg)| {
+            .push(with_submenu.map(|(submenu, msg)| {
                 icon_button(
                     theme,
                     match (slider_type, submenu) {

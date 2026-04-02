@@ -9,7 +9,6 @@ use crate::{
         },
     },
     theme::AshellTheme,
-    utils::PushMaybe,
     utils::truncate_text,
 };
 use iced::{
@@ -161,7 +160,7 @@ impl MediaPlayer {
                         });
                     let metadata = |description, cover| -> Element<'_, _> {
                         row![description]
-                            .push_maybe(cover)
+                            .push(cover)
                             .spacing(theme.space.md)
                             .align_y(Vertical::Center)
                             .into()
@@ -249,7 +248,7 @@ impl MediaPlayer {
                     });
 
                 row![icon(StaticIcon::MusicNote)]
-                    .push_maybe(title)
+                    .push(title)
                     .align_y(Vertical::Center)
                     .spacing(theme.space.xs)
                     .into()

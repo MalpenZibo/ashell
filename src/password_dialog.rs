@@ -1,7 +1,6 @@
 use crate::{
     components::icons::{StaticIcon, icon},
     theme::AshellTheme,
-    utils::PushMaybe,
 };
 use iced::{
     Alignment, Element, Length, SurfaceId,
@@ -55,7 +54,7 @@ Do you want to connect anyway?",
         .align_y(Alignment::Center),
         text(description),
     )
-    .push_maybe(
+    .push(
         (!warning_only).then_some(
             row!(
                 text_input("", current_password)
