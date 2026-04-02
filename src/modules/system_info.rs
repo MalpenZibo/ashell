@@ -57,11 +57,12 @@ fn get_system_info(
     disks.refresh(true);
     networks.refresh(true);
 
-    let cpu_freq_mhz = system.cpus()[0].frequency() as f32;
+    let cpus = system.cpus();
+    let avg_freq = cpus.iter().map(|cpu| cpu.frequency() as f32).sum::<f32>() / cpus.len() as f32;
 
     let cpu_usage = CpuUsage {
         percentage: system.global_cpu_usage() as u32,
-        frequency: utils::floor_dp(cpu_freq_mhz / 1000.0, 2),
+        frequency: utils::floor_dp(avg_freq / 1000.0, 2),
     };
 
     let total_mem = system.total_memory();
