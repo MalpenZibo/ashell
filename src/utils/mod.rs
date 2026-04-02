@@ -33,3 +33,18 @@ pub fn truncate_text(value: &str, max_length: u32) -> String {
         value.to_string()
     }
 }
+
+pub fn floor_dp(num: f32, dp: i32) -> f32 {
+    (num * 10_f32.powi(dp)).floor() / 10_f32.powi(dp)
+}
+
+pub fn bytes_to_gib(bytes: u64) -> f32 {
+    bytes as f32 / 1_073_741_824_f32
+}
+pub fn bytes_to_gb(bytes: u64) -> f32 {
+    bytes as f32 / 1_000_000_000_f32
+}
+
+pub fn celsius_to_fahrenheit(cel: i32) -> i32 {
+    cel * 9 / 5 + 32
+}

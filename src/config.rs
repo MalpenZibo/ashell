@@ -133,10 +133,10 @@ pub struct KeyboardLayoutModuleConfig {
 #[derive(Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct SystemInfoCpu {
-    #[serde(default)]
     pub warn_threshold: u32,
-    #[serde(default)]
     pub alert_threshold: u32,
+
+    pub format: CpuFormat
 }
 
 impl Default for SystemInfoCpu {
@@ -144,6 +144,7 @@ impl Default for SystemInfoCpu {
         Self {
             warn_threshold: 60,
             alert_threshold: 80,
+            format: CpuFormat::Percentage
         }
     }
 }
@@ -153,6 +154,7 @@ impl Default for SystemInfoCpu {
 pub struct SystemInfoMemory {
     pub warn_threshold: u32,
     pub alert_threshold: u32,
+    pub format: MemoryFormat
 }
 
 impl Default for SystemInfoMemory {
@@ -160,6 +162,7 @@ impl Default for SystemInfoMemory {
         Self {
             warn_threshold: 70,
             alert_threshold: 85,
+            format: MemoryFormat::Percentage
         }
     }
 }
@@ -170,6 +173,7 @@ pub struct SystemInfoTemperature {
     pub warn_threshold: i32,
     pub alert_threshold: i32,
     pub sensor: String,
+    pub format: TemperatureFormat,
 }
 
 impl Default for SystemInfoTemperature {
@@ -178,8 +182,37 @@ impl Default for SystemInfoTemperature {
             warn_threshold: 60,
             alert_threshold: 80,
             sensor: "acpitz temp1".to_string(),
+            format: TemperatureFormat::Celsius,
         }
     }
+}
+
+#[derive(Clone, Debug, Deserialize, Default)]
+pub enum DiskFormat {
+    #[default]
+    Percentage,
+    Fraction
+}
+
+#[derive(Clone, Debug, Deserialize, Default)]
+pub enum MemoryFormat {
+    #[default]
+    Percentage,
+    Fraction
+}
+
+#[derive(Clone, Debug, Deserialize, Default)]
+pub enum CpuFormat {
+    #[default]
+    Percentage,
+    Frequency
+}
+
+#[derive(Clone, Debug, Deserialize, Default, PartialEq)]
+pub enum TemperatureFormat {
+    #[default]
+    Celsius,
+    Fahrenheit
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -187,6 +220,7 @@ impl Default for SystemInfoTemperature {
 pub struct SystemInfoDisk {
     pub warn_threshold: u32,
     pub alert_threshold: u32,
+    pub format: DiskFormat
 }
 
 impl Default for SystemInfoDisk {
@@ -194,6 +228,7 @@ impl Default for SystemInfoDisk {
         Self {
             warn_threshold: 80,
             alert_threshold: 90,
+            format: DiskFormat::Percentage
         }
     }
 }
@@ -205,6 +240,8 @@ pub struct SystemInfoDiskIndicatorConfig {
     #[serde(rename = "Name")]
     pub name: Option<String>,
 }
+
+
 
 #[derive(Clone, Debug, Deserialize)]
 pub enum SystemInfoIndicator {
