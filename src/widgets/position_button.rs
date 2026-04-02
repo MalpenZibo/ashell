@@ -1,14 +1,13 @@
 use iced::{
-    Background, Color, Element, Length, Padding, Point, Rectangle, Size, Vector,
+    Background, Color, Length, Padding, Point, Rectangle, Size, Vector,
     core::{
-        Clipboard, Layout, Shell, Widget,
-        event::{self, Event},
-        keyboard, layout, mouse, overlay, renderer, touch,
+        Clipboard, Layout, Shell, Widget, event, keyboard, layout, mouse, overlay, renderer, touch,
         widget::{Operation, Tree, tree},
     },
-    id::Id,
     widget::button::{Catalog, Status, Style, StyleFn},
 };
+
+type Element<'a, Message, Theme, Renderer> = iced::core::Element<'a, Message, Theme, Renderer>;
 
 #[derive(Debug, Clone, Copy)]
 pub struct ButtonUIRef {
@@ -31,7 +30,6 @@ where
     on_right_press: Option<OnPress<'a, Message>>,
     on_scroll_up: Option<OnPress<'a, Message>>,
     on_scroll_down: Option<OnPress<'a, Message>>,
-    id: Id,
     width: Length,
     height: Length,
     padding: Padding,
@@ -50,7 +48,6 @@ where
 
         PositionButton {
             content,
-            id: Id::unique(),
             on_press: None,
             on_right_press: None,
             on_scroll_up: None,
@@ -129,26 +126,18 @@ where
         self
     }
 
-    /// Sets the [`Id`] of the [`Button`].
-    pub fn id(mut self, id: Id) -> Self {
-        self.id = id;
-        self
-    }
-
     fn publish_on_press(
         &self,
         on_press: &OnPress<'a, Message>,
         layout: Layout<'_>,
         viewport: &Rectangle,
         shell: &mut Shell<'_, Message>,
-    ) -> event::Status
-    where
+    ) where
         Message: Clone,
     {
         match on_press {
             OnPress::Message(message) => {
                 shell.publish(message.clone());
-                event::Status::Captured
             }
             OnPress::MessageWithPosition(on_press_with_position) => {
                 let ui_data = ButtonUIRef {
@@ -159,7 +148,6 @@ where
                     viewport: (viewport.width, viewport.height),
                 };
                 shell.publish(on_press_with_position(ui_data));
-                event::Status::Captured
             }
         }
     }
@@ -192,8 +180,8 @@ where
         vec![Tree::new(&self.content)]
     }
 
-    fn diff(&mut self, tree: &mut Tree) {
-        tree.diff_children(std::slice::from_mut(&mut self.content));
+    fn diff(&self, tree: &mut Tree) {
+        tree.diff_children(std::slice::from_ref(&self.content));
     }
 
     fn size(&self) -> Size<Length> {
@@ -204,27 +192,28 @@ where
     }
 
     fn layout(
-        &self,
+        &mut self,
         tree: &mut Tree,
         renderer: &Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
         layout::padded(limits, self.width, self.height, self.padding, |limits| {
             self.content
-                .as_widget()
+                .as_widget_mut()
                 .layout(&mut tree.children[0], renderer, limits)
         })
     }
 
     fn operate(
-        &self,
+        &mut self,
         tree: &mut Tree,
         layout: Layout<'_>,
         renderer: &Renderer,
         operation: &mut dyn Operation,
     ) {
-        operation.container(None, layout.bounds(), &mut |operation| {
-            self.content.as_widget().operate(
+        operation.container(None, layout.bounds());
+        operation.traverse(&mut |operation| {
+            self.content.as_widget_mut().operate(
                 &mut tree.children[0],
                 layout.children().next().unwrap(),
                 renderer,
@@ -233,33 +222,35 @@ where
         });
     }
 
-    fn on_event(
+    fn update(
         &mut self,
         tree: &mut Tree,
-        event: Event,
+        event: &event::Event,
         layout: Layout<'_>,
         cursor: mouse::Cursor,
         renderer: &Renderer,
         clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
-    ) -> event::Status {
-        if let event::Status::Captured = self.content.as_widget_mut().on_event(
+    ) {
+        self.content.as_widget_mut().update(
             &mut tree.children[0],
-            event.clone(),
+            event,
             layout.children().next().unwrap(),
             cursor,
             renderer,
             clipboard,
             shell,
             viewport,
-        ) {
-            return event::Status::Captured;
+        );
+
+        if shell.is_event_captured() {
+            return;
         }
 
         match event {
-            Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
-            | Event::Touch(touch::Event::FingerPressed { .. })
+            event::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
+            | event::Event::Touch(touch::Event::FingerPressed { .. })
                 if self.on_press.is_some() =>
             {
                 let bounds = layout.bounds();
@@ -269,10 +260,11 @@ where
 
                     state.is_pressed = true;
 
-                    return event::Status::Captured;
+                    shell.capture_event();
+                    return;
                 }
             }
-            Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Right))
+            event::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Right))
                 if self.on_right_press.is_some() =>
             {
                 let bounds = layout.bounds();
@@ -280,11 +272,12 @@ where
                 if cursor.is_over(bounds) {
                     let state = tree.state.downcast_mut::<State>();
                     state.is_right_pressed = true;
-                    return event::Status::Captured;
+                    shell.capture_event();
+                    return;
                 }
             }
-            Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left))
-            | Event::Touch(touch::Event::FingerLifted { .. }) => {
+            event::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left))
+            | event::Event::Touch(touch::Event::FingerLifted { .. }) => {
                 if let Some(on_press) = self.on_press.as_ref() {
                     let state = tree.state.downcast_mut::<State>();
 
@@ -294,14 +287,15 @@ where
                         let bounds = layout.bounds();
 
                         if cursor.is_over(bounds) {
-                            return self.publish_on_press(on_press, layout, viewport, shell);
+                            self.publish_on_press(on_press, layout, viewport, shell);
                         }
 
-                        return event::Status::Captured;
+                        shell.capture_event();
+                        return;
                     }
                 }
             }
-            Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Right)) => {
+            event::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Right)) => {
                 if let Some(on_right_press) = self.on_right_press.as_ref() {
                     let state = tree.state.downcast_mut::<State>();
 
@@ -311,17 +305,22 @@ where
                         let bounds = layout.bounds();
 
                         if cursor.is_over(bounds) {
-                            return self.publish_on_press(on_right_press, layout, viewport, shell);
+                            self.publish_on_press(on_right_press, layout, viewport, shell);
                         }
 
-                        return event::Status::Captured;
+                        shell.capture_event();
+                        return;
                     }
                 }
             }
-            Event::Mouse(mouse::Event::WheelScrolled { delta }) => {
+            event::Event::Mouse(mouse::Event::WheelScrolled { delta }) => {
                 let bounds = layout.bounds();
+                let y = match delta {
+                    mouse::ScrollDelta::Lines { y, .. } => Some(*y),
+                    mouse::ScrollDelta::Pixels { y, .. } => Some(*y),
+                };
                 if cursor.is_over(bounds)
-                    && let mouse::ScrollDelta::Lines { y, .. } = delta
+                    && let Some(y) = y
                 {
                     let target = if y > 0.0 {
                         self.on_scroll_up.as_ref()
@@ -332,11 +331,13 @@ where
                     };
 
                     if let Some(on_scroll) = target {
-                        return self.publish_on_press(on_scroll, layout, viewport, shell);
+                        self.publish_on_press(on_scroll, layout, viewport, shell);
+                        shell.capture_event();
+                        return;
                     }
                 }
             }
-            Event::Keyboard(keyboard::Event::KeyPressed { key, .. }) => {
+            event::Event::Keyboard(keyboard::Event::KeyPressed { key, .. }) => {
                 if let Some(on_press) = self.on_press.as_ref() {
                     let state = tree.state.downcast_mut::<State>();
                     if state.is_focused
@@ -358,12 +359,13 @@ where
                                 shell.publish(on_press(ui_data));
                             }
                         }
-                        return event::Status::Captured;
+                        shell.capture_event();
+                        return;
                     }
                 }
             }
-            Event::Touch(touch::Event::FingerLost { .. })
-            | Event::Mouse(mouse::Event::CursorLeft) => {
+            event::Event::Touch(touch::Event::FingerLost { .. })
+            | event::Event::Mouse(mouse::Event::CursorLeft) => {
                 let state = tree.state.downcast_mut::<State>();
                 state.is_hovered = false;
                 state.is_pressed = false;
@@ -371,7 +373,13 @@ where
             _ => {}
         }
 
-        event::Status::Ignored
+        // Reactive rendering: track hover state and request redraw on change
+        let state = tree.state.downcast_mut::<State>();
+        let is_hovered = self.on_press.is_some() && cursor.is_over(layout.bounds());
+        if is_hovered != state.is_hovered {
+            state.is_hovered = is_hovered;
+            shell.request_redraw();
+        }
     }
 
     fn draw(
@@ -379,20 +387,18 @@ where
         tree: &Tree,
         renderer: &mut Renderer,
         theme: &Theme,
-        renderer_style: &renderer::Style,
+        _renderer_style: &renderer::Style,
         layout: Layout<'_>,
         cursor: mouse::Cursor,
         viewport: &Rectangle,
     ) {
         let bounds = layout.bounds();
         let content_layout = layout.children().next().unwrap();
-        let is_mouse_over = cursor.is_over(bounds);
+        let state = tree.state.downcast_ref::<State>();
 
         let status = if self.on_press.is_none() {
             Status::Disabled
-        } else if is_mouse_over {
-            let state = tree.state.downcast_ref::<State>();
-
+        } else if state.is_hovered {
             if state.is_pressed {
                 Status::Pressed
             } else {
@@ -410,6 +416,7 @@ where
                     bounds,
                     border: style.border,
                     shadow: style.shadow,
+                    snap: true,
                 },
                 style
                     .background
@@ -429,8 +436,6 @@ where
             theme,
             &renderer::Style {
                 text_color: style.text_color,
-                icon_color: style.icon_color.unwrap_or(renderer_style.icon_color),
-                scale_factor: renderer_style.scale_factor,
             },
             content_layout,
             cursor,
@@ -458,24 +463,18 @@ where
     fn overlay<'b>(
         &'b mut self,
         tree: &'b mut Tree,
-        layout: Layout<'_>,
+        layout: Layout<'b>,
         renderer: &Renderer,
+        viewport: &Rectangle,
         translation: Vector,
     ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
         self.content.as_widget_mut().overlay(
             &mut tree.children[0],
             layout.children().next()?,
             renderer,
+            viewport,
             translation,
         )
-    }
-
-    fn id(&self) -> Option<Id> {
-        Some(self.id.clone())
-    }
-
-    fn set_id(&mut self, id: Id) {
-        self.id = id;
     }
 }
 

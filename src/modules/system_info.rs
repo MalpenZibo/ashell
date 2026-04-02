@@ -7,7 +7,7 @@ use crate::{
 use iced::{
     Alignment, Element, Length, Subscription, Theme,
     time::every,
-    widget::{Column, Row, column, container, horizontal_rule, row, text},
+    widget::{Column, Row, column, container, row, rule, text},
 };
 use itertools::Itertools;
 use std::time::{Duration, Instant};
@@ -255,7 +255,7 @@ impl SystemInfo {
     ) -> Element<'a, Message> {
         row!(
             container(icon(info_icon).size(theme.font_size.xl))
-                .center_x(Length::Fixed(theme.space.xl as f32)),
+                .center_x(Length::Fixed(theme.space.xl)),
             text(label).width(Length::Fill),
             text(value)
         )
@@ -306,7 +306,7 @@ impl SystemInfo {
         container(
             column!(
                 text("System Info").size(theme.font_size.lg),
-                horizontal_rule(1),
+                rule::horizontal(1),
                 Column::with_capacity(6)
                     .push(Self::info_element(
                         theme,
@@ -326,7 +326,7 @@ impl SystemInfo {
                         "Swap memory Usage".to_string(),
                         format!("{}%", self.data.memory_swap_usage),
                     ))
-                    .push_maybe(self.data.temperature.map(|temp| {
+                    .push(self.data.temperature.map(|temp| {
                         Self::info_element(
                             theme,
                             StaticIcon::Temp,
@@ -351,7 +351,7 @@ impl SystemInfo {
                         )
                         .spacing(theme.space.xxs),
                     )
-                    .push_maybe(self.data.network.as_ref().map(|network| {
+                    .push(self.data.network.as_ref().map(|network| {
                         Column::with_children(vec![
                             Self::info_element(
                                 theme,
@@ -382,11 +382,11 @@ impl SystemInfo {
                         ])
                     }))
                     .spacing(theme.space.xxs)
-                    .padding([0, theme.space.xs])
+                    .padding([0.0, theme.space.xs])
             )
             .spacing(theme.space.xs),
         )
-        .max_width(MenuSize::Medium)
+        .width(MenuSize::Medium)
         .into()
     }
 

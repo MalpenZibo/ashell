@@ -28,13 +28,10 @@ depends = ["libwayland-client0", "libpipewire-0.3-0t64", "libpulse0"]
 depends = ["libwayland-client", "pipewire-libs", "pulseaudio-libs"]
 
 [dependencies]
-iced = { git = "https://github.com/MalpenZibo/iced", rev = "ba37674a834b0c9fe67a09a96b80a3a3d0dd75ef", features = [
+iced = { package = "iced_layershell", git = "https://github.com/MalpenZibo/iced_layershell", branch = "main", features = [
   "tokio",
-  "multi-window",
   "advanced",
   "wgpu",
-  "winit",
-  "wayland",
   "image",
   "svg",
   "canvas",
@@ -52,8 +49,6 @@ libpulse-binding = { version = "2.28", features = ["pa_v15"] }
 log = { version = "0.4", features = [] }
 flexi_logger = "0.31"
 pipewire = "0.9"
-wayland-client = "0.31.12"
-wayland-protocols = { version = "0.32.10", features = ["client", "unstable"] }
 itertools = "0.14"
 hex_color = { version = "3", features = ["serde"] }
 anyhow = "1"
@@ -86,6 +81,8 @@ signal-hook = "0.4.3"
 signal-hook-tokio = { version = "0.4", features = ["futures-v0_3"] }
 libc = "0.2.182"
 chrono-tz = "0.10.4"
+wayland-client = "0.31"
+wayland-protocols = { version = "0.32", features = ["client"] }
 
 [build-dependencies]
 allsorts = "0.15"

@@ -42,13 +42,13 @@ impl Privacy {
             Some(
                 container(
                     Row::with_capacity(3)
-                        .push_maybe(
+                        .push(
                             service
                                 .screenshare_access()
                                 .then(|| icon(StaticIcon::ScreenShare)),
                         )
-                        .push_maybe(service.webcam_access().then(|| icon(StaticIcon::Webcam)))
-                        .push_maybe(service.microphone_access().then(|| icon(StaticIcon::Mic1)))
+                        .push(service.webcam_access().then(|| icon(StaticIcon::Webcam)))
+                        .push(service.microphone_access().then(|| icon(StaticIcon::Mic1)))
                         .align_y(Alignment::Center)
                         .spacing(theme.space.xs),
                 )

@@ -2,7 +2,7 @@ use super::{ReadOnlyService, Service, ServiceEvent};
 use dbus::MprisPlayerProxy;
 use iced::{
     Subscription,
-    core::image::Bytes,
+    core::Bytes,
     futures::{
         FutureExt, SinkExt, Stream, StreamExt,
         channel::mpsc::Sender,
@@ -167,18 +167,15 @@ impl ReadOnlyService for MprisPlayerService {
     }
 
     fn subscribe() -> Subscription<ServiceEvent<Self>> {
-        let id = TypeId::of::<Self>();
-
-        Subscription::run_with_id(
-            id,
+        Subscription::run_with(TypeId::of::<Self>(), |_| {
             channel(10, async |mut output| {
                 let mut state = State::Init;
 
                 loop {
-                    state = Self::start_listening(state, &mut output).await;
+                    state = MprisPlayerService::start_listening(state, &mut output).await;
                 }
-            }),
-        )
+            })
+        })
     }
 }
 
