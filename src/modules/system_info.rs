@@ -13,8 +13,35 @@ use itertools::Itertools;
 use std::time::{Duration, Instant};
 use sysinfo::{Components, Disks, Networks, System};
 
+const MAX_IP_LEN: usize = 45;
+
+#[derive(Clone, Copy)]
+struct FixedIp([u8; MAX_IP_LEN], usize);
+
+impl FixedIp {
+    fn from_str(s: &str) -> Option<Self> {
+        if s.len() < MAX_IP_LEN {
+            let mut arr = [0u8; MAX_IP_LEN];
+            arr[..s.len()].copy_from_slice(s.as_bytes());
+            Some(Self(arr, s.len()))
+        } else {
+            None
+        }
+    }
+}
+
+impl std::fmt::Display for FixedIp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            std::str::from_utf8(&self.0[..self.1]).unwrap_or("")
+        )
+    }
+}
+
 struct NetworkData {
-    ip: String,
+    ip: FixedIp,
     download_speed: u32,
     upload_speed: u32,
     last_check: Instant,
@@ -54,6 +81,7 @@ fn get_system_info(
     disks: &mut Disks,
     (networks, last_check): (&mut Networks, Option<Instant>),
     temperature_sensor: &str,
+    sensor_index: Option<usize>,
 ) -> SystemInfoData {
     system.refresh_memory();
     system.refresh_cpu_all();
@@ -90,18 +118,23 @@ fn get_system_info(
         fraction: format!("{:.2}/{:.2}", utils::bytes_to_gib(total_swap - free_swap), utils::bytes_to_gib(total_swap))
     };
 
-    let temperature_cel = components
-        .iter()
-        .find(|c| c.label() == temperature_sensor)
-        .and_then(|c| c.temperature().map(|t| t as i32));
+    let temperature_cel = sensor_index
+        .and_then(|i| components.get(i))
+        .and_then(|c| c.temperature().map(|t| t as i32))
+        .or_else(|| {
+            components
+                .iter()
+                .find(|c| c.label() == temperature_sensor)
+                .and_then(|c| c.temperature().map(|t| t as i32))
+        });
     
     let temperature = Temperature {
         celsius: temperature_cel,
         fahrenheit: temperature_cel.map(utils::celsius_to_fahrenheit).unwrap_or(0)
     };
 
-    let disks = disks
-        .into_iter()
+    let disks: Vec<(String, DiskView)> = disks
+        .iter()
         .filter(|d| !d.is_removable() && d.total_space() != 0)
         .map(|d| {
             let total_space = d.total_space();
@@ -110,7 +143,7 @@ fn get_system_info(
             let space_per = (total_space - avail_space) as f32 / total_space as f32 * 100.;
 
             (
-                d.mount_point().to_string_lossy().to_string(),
+                d.mount_point().display().to_string(),
                 DiskView {
                     percentage: space_per as u32,
                     fraction: format!("{:.2}/{:.2}", utils::bytes_to_gb(total_space - avail_space), utils::bytes_to_gb(total_space))
@@ -118,7 +151,7 @@ fn get_system_info(
             )
         })
         .sorted_by(|a, b| a.0.cmp(&b.0))
-        .collect::<Vec<_>>();
+        .collect();
 
     let elapsed = last_check.map(|v| v.elapsed().as_secs());
 
@@ -188,11 +221,14 @@ fn get_system_info(
         memory_swap_usage,
         temperature,
         disks,
-        network: network.0.map(|ip| NetworkData {
-            ip: ip.to_string(),
-            download_speed: network_speed(network.1),
-            upload_speed: network_speed(network.2),
-            last_check: Instant::now(),
+        network: network.0.and_then(|ip| {
+            let ip_str = ip.to_string();
+            FixedIp::from_str(&ip_str).map(|ip| NetworkData {
+                ip,
+                download_speed: network_speed(network.1),
+                upload_speed: network_speed(network.2),
+                last_check: Instant::now(),
+            })
         }),
     }
 }
@@ -209,6 +245,7 @@ pub struct SystemInfo {
     disks: Disks,
     networks: Networks,
     data: SystemInfoData,
+    cached_sensor_index: Option<usize>,
 }
 
 impl SystemInfo {
@@ -217,12 +254,18 @@ impl SystemInfo {
         let mut components = Components::new_with_refreshed_list();
         let mut disks = Disks::new_with_refreshed_list();
         let mut networks = Networks::new_with_refreshed_list();
+
+        let cached_sensor_index = components
+            .iter()
+            .position(|c| c.label() == config.temperature.sensor);
+
         let data = get_system_info(
             &mut system,
             &mut components,
             &mut disks,
             (&mut networks, None),
-            &config.temperature.sensor,
+            config.temperature.sensor.as_str(),
+            cached_sensor_index,
         );
 
         Self {
@@ -232,6 +275,7 @@ impl SystemInfo {
             disks,
             data,
             networks,
+            cached_sensor_index,
         }
     }
 
@@ -247,6 +291,7 @@ impl SystemInfo {
                         self.data.network.as_ref().map(|n| n.last_check),
                     ),
                     &self.config.temperature.sensor,
+                    self.cached_sensor_index,
                 );
             }
         }
@@ -380,7 +425,7 @@ impl SystemInfo {
                                 theme,
                                 StaticIcon::IpAddress,
                                 "IP Address".to_string(),
-                                network.ip.clone(),
+                                network.ip.to_string(),
                             ),
                             Self::info_element(
                                 theme,
@@ -568,6 +613,6 @@ impl SystemInfo {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        every(Duration::from_secs(5)).map(|_| Message::Update)
+        every(Duration::from_secs(self.config.interval)).map(|_| Message::Update)
     }
 }

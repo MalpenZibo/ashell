@@ -31,10 +31,14 @@ jobs:
           echo "targets=$targets" >> "$GITHUB_OUTPUT"
 
       - name: Download built tarballs
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           pattern: artifacts-build-local-* # matches all uploaded tarballs
           path: target/distrib
+          merge-multiple: true
+
+      - name: Debug list downloaded artifacts
+        run: find target/distrib -type f | head -20
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -64,7 +68,7 @@ jobs:
             mkdir -p "$dest_dir"
 
             # extract into dest (strip top-level folder if present)
-            tar -xf "target/distrib/artifacts-build-local-$target_triple/$archive" -C "$dest_dir" --strip-components=1
+            tar -xf "target/distrib/$archive" -C "$dest_dir" --strip-components=1
 
             # Confirm the binary is where expected (optional debug)
             echo "Contents of $dest_dir:"
@@ -83,7 +87,7 @@ jobs:
           done
 
       - name: Upload generated installers
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: artifacts-installers
           path: artifacts

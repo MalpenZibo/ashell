@@ -18,7 +18,7 @@ categories:
       - "documentation"
       - "docs"
   - title: "🧰 Maintenance"
-    label:
+    labels:
       - "chore"
   - title: "🔧 Dependency updates"
     labels:

@@ -36,3 +36,12 @@ jobs:
       - name: Build website
         run: pnpm build
         working-directory: ./website
+
+      - name: Install mdbook
+        uses: peaceiris/actions-mdbook@v2
+        with:
+          mdbook-version: latest
+
+      - name: Build developer guide
+        run: mdbook build docs/
+        working-directory: .

@@ -35,6 +35,7 @@ pub enum Message {
     UpdateLocation(Location),
     CycleFormat,
     CycleTimezone(TimezoneDirection),
+    SetTimezone(usize),
     ConfigReloaded(TempoModuleConfig),
 }
 
@@ -125,6 +126,15 @@ impl Tempo {
                 }
                 Action::None
             }
+            Message::SetTimezone(index) => {
+                if !self.config.timezones.is_empty() {
+                    let len = self.config.timezones.len();
+                    if index <= len {
+                        self.current_timezone_index = index;
+                    }
+                }
+                Action::None
+            }
             Message::ConfigReloaded(new_config) => {
                 // Reset indices if they would be out of bounds or if config is empty
                 if new_config.formats.is_empty()
@@ -153,38 +163,7 @@ impl Tempo {
     }
 
     pub fn view(&'_ self, theme: &AshellTheme) -> Element<'_, Message> {
-        let format = self.current_format();
-
-        let display_text = {
-            // %Z prints timezone abbreviations; other specifiers (e.g., %z/%:z) only need numeric offsets https://docs.rs/chrono/latest/chrono/format/strftime/index.html#fn6
-            let format_requests_name = format.contains("%Z");
-            let utc_now = self.date.with_timezone(&Utc);
-
-            self.config
-                .timezones
-                .get(self.current_timezone_index)
-                .and_then(|tz_name| {
-                    if !format_requests_name && let Ok(offset) = tz_name.parse::<FixedOffset>() {
-                        return Some(
-                            offset
-                                .from_utc_datetime(&utc_now.naive_utc())
-                                .format(format)
-                                .to_string(),
-                        );
-                    }
-
-                    if let Ok(tz) = tz_name.parse::<Tz>() {
-                        return Some(
-                            tz.from_utc_datetime(&utc_now.naive_utc())
-                                .format(format)
-                                .to_string(),
-                        );
-                    }
-
-                    None
-                })
-                .unwrap_or_else(|| self.date.format(format).to_string())
-        };
+        let display_text = self.time_str(self.current_format(), self.current_timezone_index);
 
         Row::with_capacity(2)
             .push_maybe(self.weather_indicator(theme))
@@ -192,6 +171,37 @@ impl Tempo {
             .align_y(Vertical::Center)
             .spacing(theme.space.sm)
             .into()
+    }
+
+    fn time_str(&'_ self, format: &str, timezone_index: usize) -> String {
+        // %Z prints timezone abbreviations; other specifiers (e.g., %z/%:z) only need numeric offsets https://docs.rs/chrono/latest/chrono/format/strftime/index.html#fn6
+        let format_requests_name = format.contains("%Z");
+        let utc_now = self.date.with_timezone(&Utc);
+
+        self.config
+            .timezones
+            .get(timezone_index)
+            .and_then(|tz_name| {
+                if !format_requests_name && let Ok(offset) = tz_name.parse::<FixedOffset>() {
+                    return Some(
+                        offset
+                            .from_utc_datetime(&utc_now.naive_utc())
+                            .format(format)
+                            .to_string(),
+                    );
+                }
+
+                if let Ok(tz) = tz_name.parse::<Tz>() {
+                    return Some(
+                        tz.from_utc_datetime(&utc_now.naive_utc())
+                            .format(format)
+                            .to_string(),
+                    );
+                }
+
+                None
+            })
+            .unwrap_or_else(|| self.date.format(format).to_string())
     }
 
     pub fn weather_indicator(&'_ self, theme: &AshellTheme) -> Option<Element<'_, Message>> {
@@ -234,8 +244,30 @@ impl Tempo {
         .into()
     }
 
+    fn naive_date(&'_ self, timezone_index: usize) -> NaiveDate {
+        let utc_now = self.date.with_timezone(&Utc);
+
+        self.config
+            .timezones
+            .get(timezone_index)
+            .and_then(|tz_name| {
+                if let Ok(offset) = tz_name.parse::<FixedOffset>() {
+                    return Some(offset.from_utc_datetime(&utc_now.naive_utc()).date_naive());
+                }
+
+                if let Ok(tz) = tz_name.parse::<Tz>() {
+                    return Some(tz.from_utc_datetime(&utc_now.naive_utc()).date_naive());
+                }
+
+                None
+            })
+            .unwrap_or_else(|| self.date.date_naive())
+    }
+
     fn calendar<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
-        let selected_date = self.selected_date.unwrap_or(self.date.date_naive());
+        let selected_date = self
+            .selected_date
+            .unwrap_or(self.naive_date(self.current_timezone_index));
 
         let current_month = selected_date.month0();
         let first_day_month = selected_date.with_day0(0).unwrap_or_default();
@@ -313,7 +345,9 @@ impl Tempo {
                                         text(day.format("%d").to_string())
                                             .align_x(Horizontal::Center)
                                             .color_maybe({
-                                                if day == self.date.date_naive() {
+                                                if day
+                                                    == self.naive_date(self.current_timezone_index)
+                                                {
                                                     Some(theme.iced_theme.palette().success)
                                                 } else if day == selected_date {
                                                     Some(theme.iced_theme.palette().primary)
@@ -330,11 +364,13 @@ impl Tempo {
                                                 }
                                             }),
                                     )
-                                    .on_press_maybe(if day != self.date.date_naive() {
-                                        Some(Message::ChangeSelectDate(Some(day)))
-                                    } else {
-                                        None
-                                    })
+                                    .on_press_maybe(
+                                        if day != self.naive_date(self.current_timezone_index) {
+                                            Some(Message::ChangeSelectDate(Some(day)))
+                                        } else {
+                                            None
+                                        },
+                                    )
                                     .width(Length::Fill)
                                     .style(theme.ghost_button_style())
                                     .into()
@@ -348,8 +384,41 @@ impl Tempo {
                     .collect::<Vec<Element<'a, Message>>>(),
             ),
         ]
-        .spacing(theme.space.md)
-        .width(Length::Fixed(225.));
+        .spacing(theme.space.md);
+
+        let timezones = Column::with_children(
+            self.config
+                .timezones
+                .iter()
+                .enumerate()
+                .map(|(index, tz_name)| {
+                    if self.current_timezone_index == index {
+                        container(
+                            text(format!("{}: {}", tz_name, self.time_str("%d %h %R", index)))
+                                .wrapping(text::Wrapping::Word),
+                        )
+                        .padding([theme.space.xxs, theme.space.sm])
+                        .width(Length::Fill)
+                        .style(|theme: &Theme| container::Style {
+                            text_color: Some(theme.palette().success),
+                            ..Default::default()
+                        })
+                        .into()
+                    } else {
+                        button(text(format!(
+                            "{}: {}",
+                            tz_name,
+                            self.time_str("%d %h %R", index)
+                        )))
+                        .width(Length::Fill)
+                        .on_press(Message::SetTimezone(index))
+                        .padding([theme.space.xxs, theme.space.sm])
+                        .style(theme.ghost_button_style())
+                        .into()
+                    }
+                })
+                .collect::<Vec<Element<'a, Message>>>(),
+        );
 
         column!(
             button(
@@ -366,9 +435,11 @@ impl Tempo {
                 None
             })
             .style(theme.outline_button_style()),
-            calendar
+            calendar,
+            timezones,
         )
         .spacing(theme.space.lg)
+        .width(225)
         .into()
     }
 
@@ -385,9 +456,13 @@ impl Tempo {
                                 .width(Length::Shrink),
                             column!(
                                 text(format!(
-                                    "{}, {} - {}",
+                                    "{}{} - {}",
                                     location.city,
-                                    location.region_name,
+                                    if location.region_name.is_empty() {
+                                        String::new()
+                                    } else {
+                                        format!(", {}", location.region_name)
+                                    },
                                     data.current.time.format("%R")
                                 ))
                                 .size(theme.font_size.sm),
@@ -752,7 +827,79 @@ async fn fetch_location(location: &WeatherLocation) -> anyhow::Result<Location> 
 
             Ok(data.into())
         }
+        WeatherLocation::Coordinates(lat, lon) => {
+            let (city, region_name) = match try_reverse_geocode(&client, *lat, *lon).await {
+                Ok(Some((city, region))) => (city, region),
+                _ => (format!("Lat: {}, Lon: {}", lat, lon), String::new()),
+            };
+
+            Ok(Location {
+                latitude: *lat,
+                longitude: *lon,
+                city,
+                region_name,
+            })
+        }
     }
+}
+
+async fn try_reverse_geocode(
+    client: &reqwest::Client,
+    lat: f32,
+    lon: f32,
+) -> anyhow::Result<Option<(String, String)>> {
+    let url = format!(
+        "https://nominatim.openstreetmap.org/reverse?format=json&lat={}&lon={}&accept-language=en",
+        lat, lon
+    );
+
+    // Nominatim requires a custom User-Agent header per their usage policy
+    let response = client
+        .get(&url)
+        .header("User-Agent", "ashell")
+        .send()
+        .await?;
+
+    if response.status().is_success() {
+        let raw_data = response.text().await?;
+
+        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&raw_data)
+            && let Some(address) = json.get("address")
+        {
+            let mut city = None;
+
+            if let Some(c) = address.get("city").and_then(|v| v.as_str()) {
+                city = Some(c);
+            } else if let Some(t) = address.get("town").and_then(|v| v.as_str()) {
+                city = Some(t);
+            } else if let Some(v) = address.get("village").and_then(|v| v.as_str()) {
+                city = Some(v);
+            } else if let Some(h) = address.get("hamlet").and_then(|v| v.as_str()) {
+                city = Some(h);
+            }
+
+            // Return city and country if both available and different
+            if let Some(country) = address.get("country").and_then(|v| v.as_str())
+                && let Some(city_name) = city
+            {
+                return Ok(Some((
+                    city_name.to_string(),
+                    if city_name != country {
+                        country.to_string()
+                    } else {
+                        String::new() // Don't repeat city name as region i.e. Singapore, Singapore
+                    },
+                )));
+            }
+
+            // Return just the city if no country found
+            if let Some(city_name) = city {
+                return Ok(Some((city_name.to_string(), String::new())));
+            }
+        }
+    }
+
+    Ok(None)
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -774,11 +921,26 @@ pub struct GeoLocation {
 
 impl From<GeoLocation> for Location {
     fn from(value: GeoLocation) -> Self {
+        // Prefer country over admin1 if they're the same (avoids "Stockholm, Stockholm")
+        let region_name = if let Some(admin1) = &value.admin1 {
+            if let Some(country) = &value.country {
+                if admin1 == country || admin1 == &value.name {
+                    country.clone()
+                } else {
+                    admin1.clone()
+                }
+            } else {
+                admin1.clone()
+            }
+        } else {
+            value.country.unwrap_or_default()
+        };
+
         Location {
             latitude: value.latitude,
             longitude: value.longitude,
             city: value.name,
-            region_name: value.admin1.or(value.country).unwrap_or_default(),
+            region_name,
         }
     }
 }
