@@ -1,6 +1,6 @@
 use crate::{
     components::icons::{StaticIcon, icon},
-    config::{CpuFormat, MemoryFormat, TemperatureFormat, SystemInfoIndicator, SystemInfoModuleConfig},
+    config::{DiskFormat, CpuFormat, MemoryFormat, TemperatureFormat, SystemInfoIndicator, SystemInfoModuleConfig},
     menu::MenuSize,
     theme::AshellTheme, utils,
 };
@@ -34,12 +34,17 @@ struct Temperature {
     fahrenheit: i32
 }
 
+struct DiskView {
+    percentage: u32,
+    fraction: String
+}
+
 struct SystemInfoData {
     pub cpu_usage: CpuUsage,
     pub memory_usage: MemoryUsage,
     pub memory_swap_usage: MemoryUsage,
     pub temperature: Temperature,
-    pub disks: Vec<(String, u32)>,
+    pub disks: Vec<(String, DiskView)>,
     pub network: Option<NetworkData>,
 }
 
@@ -68,7 +73,6 @@ fn get_system_info(
     let total_mem = system.total_memory();
     let avail_mem = system.available_memory();
     let used_mem = system.used_memory();
-
 
     let memory_usage = MemoryUsage {
         percentage: ((total_mem - avail_mem) as f32
@@ -100,10 +104,17 @@ fn get_system_info(
         .into_iter()
         .filter(|d| !d.is_removable() && d.total_space() != 0)
         .map(|d| {
+            let total_space = d.total_space();
+            let avail_space = d.available_space();
+
+            let space_per = (total_space - avail_space) as f32 / total_space as f32 * 100.;
+
             (
                 d.mount_point().to_string_lossy().to_string(),
-                (((d.total_space() - d.available_space()) as f32) / d.total_space() as f32 * 100.)
-                    as u32,
+                DiskView {
+                    percentage: space_per as u32,
+                    fraction: format!("{:.2}/{:.2}", utils::bytes_to_gb(total_space - avail_space), utils::bytes_to_gb(total_space))
+                }
             )
         })
         .sorted_by(|a, b| a.0.cmp(&b.0))
@@ -353,7 +364,10 @@ impl SystemInfo {
                                         theme,
                                         StaticIcon::Drive,
                                         format!("Disk Usage {mount_point}"),
-                                        format!("{usage}%"),
+                                        match self.config.disk.format {
+                                            DiskFormat::Percentage => format!("{}%", usage.percentage),
+                                            DiskFormat::Fraction => format!("{} GiB", usage.fraction)
+                                        }
                                     )
                                 })
                                 .collect::<Vec<Element<_>>>(),
@@ -425,7 +439,7 @@ impl SystemInfo {
                 StaticIcon::Mem,
                 match self.config.memory.format {
                     MemoryFormat::Percentage => ( self.data.memory_usage.percentage.to_string(), "%" ),
-                    MemoryFormat::Fraction => ( self.data.memory_usage.fraction.to_string(), "" ),
+                    MemoryFormat::Fraction => ( self.data.memory_usage.fraction.clone(), "" ),
                 },
                 match self.config.memory.format {
                     MemoryFormat::Percentage => Some((
@@ -444,7 +458,7 @@ impl SystemInfo {
                 StaticIcon::Mem,
                 match self.config.memory.format {
                     MemoryFormat::Percentage => ( self.data.memory_swap_usage.percentage.to_string(), "%" ),
-                    MemoryFormat::Fraction => ( self.data.memory_swap_usage.fraction.to_string(), "" ),
+                    MemoryFormat::Fraction => ( self.data.memory_swap_usage.fraction.clone(), "" ),
                 },
                 match self.config.memory.format {
                     MemoryFormat::Percentage => Some((
@@ -480,9 +494,12 @@ impl SystemInfo {
                         Some(Self::indicator_info_element(
                             theme,
                             StaticIcon::Drive,
-                            ( *disk, "%" ),
+                            match self.config.disk.format {
+                                DiskFormat::Fraction => ( disk.percentage.to_string(), "%" ),
+                                DiskFormat::Percentage => ( disk.fraction.clone(), "GiB" )
+                            },
                             Some((
-                                *disk,
+                                disk.percentage,
                                 self.config.disk.warn_threshold,
                                 self.config.disk.alert_threshold,
                             )),

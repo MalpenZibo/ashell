@@ -187,30 +187,12 @@ impl Default for SystemInfoTemperature {
     }
 }
 
-#[derive(Deserialize, Clone, Debug)]
-#[serde(default)]
-pub struct SystemInfoDisk {
-    pub warn_threshold: u32,
-    pub alert_threshold: u32,
+#[derive(Clone, Debug, Deserialize, Default)]
+pub enum DiskFormat {
+    #[default]
+    Percentage,
+    Fraction
 }
-
-impl Default for SystemInfoDisk {
-    fn default() -> Self {
-        Self {
-            warn_threshold: 80,
-            alert_threshold: 90,
-        }
-    }
-}
-
-#[derive(Deserialize, Clone, Debug, PartialEq, Eq)]
-pub struct SystemInfoDiskIndicatorConfig {
-    #[serde(rename = "Disk")]
-    pub path: String,
-    #[serde(rename = "Name")]
-    pub name: Option<String>,
-}
-
 
 #[derive(Clone, Debug, Deserialize, Default)]
 pub enum MemoryFormat {
@@ -232,6 +214,34 @@ pub enum TemperatureFormat {
     Celsius,
     Fahrenheit
 }
+
+#[derive(Deserialize, Clone, Debug)]
+#[serde(default)]
+pub struct SystemInfoDisk {
+    pub warn_threshold: u32,
+    pub alert_threshold: u32,
+    pub format: DiskFormat
+}
+
+impl Default for SystemInfoDisk {
+    fn default() -> Self {
+        Self {
+            warn_threshold: 80,
+            alert_threshold: 90,
+            format: DiskFormat::Percentage
+        }
+    }
+}
+
+#[derive(Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct SystemInfoDiskIndicatorConfig {
+    #[serde(rename = "Disk")]
+    pub path: String,
+    #[serde(rename = "Name")]
+    pub name: Option<String>,
+}
+
+
 
 #[derive(Clone, Debug, Deserialize)]
 pub enum SystemInfoIndicator {
