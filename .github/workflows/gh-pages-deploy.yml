@@ -51,10 +51,11 @@ jobs:
 
       - name: Build developer guide
         run: mdbook build docs/
-        working-directory: ..
+        working-directory: .
 
       - name: Copy developer guide into website build
-        run: cp -r ../docs/book build/dev-guide
+        run: cp -r docs/book website/build/dev-guide
+        working-directory: .
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
