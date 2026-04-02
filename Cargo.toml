@@ -88,7 +88,7 @@ libc = "0.2.182"
 chrono-tz = "0.10.4"
 
 [build-dependencies]
-allsorts = "0.15"
+allsorts = "0.16"
 
 [package.metadata.rpm]
 package = "ashell"
