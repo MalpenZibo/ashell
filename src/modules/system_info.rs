@@ -411,7 +411,7 @@ impl SystemInfo {
                                         format!("Disk Usage {mount_point}"),
                                         match self.config.disk.format {
                                             DiskFormat::Percentage => format!("{}%", usage.percentage),
-                                            DiskFormat::Fraction => format!("{} GiB", usage.fraction)
+                                            DiskFormat::Fraction => format!("{} GB", usage.fraction)
                                         }
                                     )
                                 })
@@ -484,7 +484,7 @@ impl SystemInfo {
                 StaticIcon::Mem,
                 match self.config.memory.format {
                     MemoryFormat::Percentage => ( self.data.memory_usage.percentage.to_string(), "%" ),
-                    MemoryFormat::Fraction => ( self.data.memory_usage.fraction.clone(), "" ),
+                    MemoryFormat::Fraction => ( self.data.memory_usage.fraction.clone(), " GiB" ),
                 },
                 match self.config.memory.format {
                     MemoryFormat::Percentage => Some((
@@ -503,7 +503,7 @@ impl SystemInfo {
                 StaticIcon::Mem,
                 match self.config.memory.format {
                     MemoryFormat::Percentage => ( self.data.memory_swap_usage.percentage.to_string(), "%" ),
-                    MemoryFormat::Fraction => ( self.data.memory_swap_usage.fraction.clone(), "" ),
+                    MemoryFormat::Fraction => ( self.data.memory_swap_usage.fraction.clone(), " GiB" ),
                 },
                 match self.config.memory.format {
                     MemoryFormat::Percentage => Some((
@@ -541,7 +541,7 @@ impl SystemInfo {
                             StaticIcon::Drive,
                             match self.config.disk.format {
                                 DiskFormat::Fraction => ( disk.percentage.to_string(), "%" ),
-                                DiskFormat::Percentage => ( disk.fraction.clone(), "GiB" )
+                                DiskFormat::Percentage => ( disk.fraction.clone(), " GB" )
                             },
                             Some((
                                 disk.percentage,
