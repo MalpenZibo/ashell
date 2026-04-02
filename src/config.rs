@@ -426,11 +426,33 @@ pub enum MediaPlayerFormat {
     IconAndTitle,
 }
 
+#[derive(Deserialize, Copy, Clone, Default, PartialEq, Eq, Hash, Debug)]
+pub enum VisualizerChannels {
+    #[default]
+    Stereo,
+    Mono,
+}
+
+#[derive(Deserialize, Copy, Clone, Default, PartialEq, Eq, Hash, Debug)]
+pub enum VisualizerMonoOption {
+    #[default]
+    Average,
+    Left,
+    Right,
+}
+
 #[derive(Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct MediaPlayerModuleConfig {
     pub max_title_length: u32,
     pub indicator_format: MediaPlayerFormat,
+    pub show_visualizer: bool,
+    pub visualizer_bar_count: u32,
+    pub visualizer_framerate: u32,
+    pub visualizer_padding: u16,
+    pub visualizer_color: VisualizerColor,
+    pub visualizer_channels: VisualizerChannels,
+    pub visualizer_mono_option: VisualizerMonoOption,
 }
 
 impl Default for MediaPlayerModuleConfig {
@@ -438,6 +460,67 @@ impl Default for MediaPlayerModuleConfig {
         MediaPlayerModuleConfig {
             max_title_length: 100,
             indicator_format: MediaPlayerFormat::default(),
+            show_visualizer: false,
+            visualizer_bar_count: 8,
+            visualizer_framerate: 60,
+            visualizer_padding: 3,
+            visualizer_color: VisualizerColor::default(),
+            visualizer_channels: VisualizerChannels::default(),
+            visualizer_mono_option: VisualizerMonoOption::default(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+pub enum VisualizerColor {
+    #[default]
+    Text,
+    Primary,
+    Success,
+    Danger,
+    Hex(HexColor),
+    Gradient {
+        low: HexColor,
+        mid: Option<HexColor>,
+        high: HexColor,
+    },
+}
+
+impl<'de> Deserialize<'de> for VisualizerColor {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Raw {
+            Str(String),
+            Gradient {
+                low: HexColor,
+                mid: Option<HexColor>,
+                high: HexColor,
+            },
+        }
+
+        match Raw::deserialize(deserializer)? {
+            Raw::Gradient { low, mid, high } => Ok(VisualizerColor::Gradient { low, mid, high }),
+            Raw::Str(s) => {
+                if s.starts_with('#') {
+                    HexColor::parse(&s)
+                        .map(VisualizerColor::Hex)
+                        .map_err(serde::de::Error::custom)
+                } else {
+                    match s.as_str() {
+                        "Text" => Ok(VisualizerColor::Text),
+                        "Primary" => Ok(VisualizerColor::Primary),
+                        "Success" => Ok(VisualizerColor::Success),
+                        "Danger" => Ok(VisualizerColor::Danger),
+                        other => Err(serde::de::Error::custom(format!(
+                            "unknown visualizer color '{other}', expected Text, Primary, Success, Danger, a hex code like #rrggbb, or a gradient table"
+                        ))),
+                    }
+                }
+            }
         }
     }
 }
