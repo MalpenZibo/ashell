@@ -6,17 +6,11 @@ use iced::advanced::widget::{Operation, Tree};
 use iced::advanced::{Clipboard, Shell, Widget, mouse};
 use iced::{Alignment, Length, Padding, Pixels, Point, Rectangle, Size, Vector, event};
 
-type Element<'a, Message, Theme, Renderer> =
-    iced::core::Element<'a, Message, Theme, Renderer>;
+type Element<'a, Message, Theme, Renderer> = iced::core::Element<'a, Message, Theme, Renderer>;
 
 /// A container that distributes its contents horizontally.
 #[allow(missing_debug_implementations)]
-pub struct Centerbox<
-    'a,
-    Message,
-    Theme = iced::Theme,
-    Renderer = iced::Renderer,
-> {
+pub struct Centerbox<'a, Message, Theme = iced::Theme, Renderer = iced::Renderer> {
     spacing: f32,
     padding: Padding,
     width: Length,

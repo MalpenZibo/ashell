@@ -7,8 +7,7 @@ use iced::{
     widget::button::{Catalog, Status, Style, StyleFn},
 };
 
-type Element<'a, Message, Theme, Renderer> =
-    iced::core::Element<'a, Message, Theme, Renderer>;
+type Element<'a, Message, Theme, Renderer> = iced::core::Element<'a, Message, Theme, Renderer>;
 
 #[derive(Debug, Clone, Copy)]
 pub struct ButtonUIRef {
@@ -21,12 +20,8 @@ enum OnPress<'a, Message> {
     MessageWithPosition(Box<dyn Fn(ButtonUIRef) -> Message + 'a>),
 }
 
-pub struct PositionButton<
-    'a,
-    Message,
-    Theme = iced::Theme,
-    Renderer = iced::Renderer,
-> where
+pub struct PositionButton<'a, Message, Theme = iced::Theme, Renderer = iced::Renderer>
+where
     Renderer: iced::core::Renderer,
     Theme: Catalog,
 {

@@ -274,9 +274,7 @@ impl BluetoothSettings {
                                         })
                                         .width(Length::Fill),
                                 )
-                                .push(
-                                    d.battery.map(|battery| Self::battery_level(theme, battery)),
-                                )
+                                .push(d.battery.map(|battery| Self::battery_level(theme, battery)))
                                 .push(
                                     icon_button(theme, StaticIcon::Remove)
                                         .on_press(Message::RemoveDevice(d.path.clone()))

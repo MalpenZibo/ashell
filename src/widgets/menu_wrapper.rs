@@ -8,16 +8,10 @@ use iced::{
     event, overlay, touch,
 };
 
-type Element<'a, Message, Theme, Renderer> =
-    iced::core::Element<'a, Message, Theme, Renderer>;
+type Element<'a, Message, Theme, Renderer> = iced::core::Element<'a, Message, Theme, Renderer>;
 
 #[allow(missing_debug_implementations)]
-pub struct MenuWrapper<
-    'a,
-    Message,
-    Theme = iced::Theme,
-    Renderer = iced::Renderer,
-> {
+pub struct MenuWrapper<'a, Message, Theme = iced::Theme, Renderer = iced::Renderer> {
     x: f32,
     content: Element<'a, Message, Theme, Renderer>,
     on_click_outside: Option<Message>,

@@ -670,30 +670,28 @@ impl Tempo {
                                             .scale_alpha(theme.opacity),
                                     )
                                     .into(),
-                                    border: Border::default().rounded(
-                                        iced::border::Radius {
-                                            top_left: if index == 0 {
-                                                theme.radius.lg
-                                            } else {
-                                                theme.radius.sm
-                                            },
-                                            top_right: if index == 0 {
-                                                theme.radius.lg
-                                            } else {
-                                                theme.radius.sm
-                                            },
-                                            bottom_right: if index == data.daily.time.len() - 2 {
-                                                theme.radius.lg
-                                            } else {
-                                                theme.radius.sm
-                                            },
-                                            bottom_left: if index == data.daily.time.len() - 2 {
-                                                theme.radius.lg
-                                            } else {
-                                                theme.radius.sm
-                                            },
+                                    border: Border::default().rounded(iced::border::Radius {
+                                        top_left: if index == 0 {
+                                            theme.radius.lg
+                                        } else {
+                                            theme.radius.sm
                                         },
-                                    ),
+                                        top_right: if index == 0 {
+                                            theme.radius.lg
+                                        } else {
+                                            theme.radius.sm
+                                        },
+                                        bottom_right: if index == data.daily.time.len() - 2 {
+                                            theme.radius.lg
+                                        } else {
+                                            theme.radius.sm
+                                        },
+                                        bottom_left: if index == data.daily.time.len() - 2 {
+                                            theme.radius.lg
+                                        } else {
+                                            theme.radius.sm
+                                        },
+                                    }),
                                     ..container::Style::default()
                                 })
                                 .into()
@@ -732,9 +730,7 @@ impl Tempo {
             let interval = *interval;
             channel(
                 100,
-                async move |mut output: iced::futures::channel::mpsc::Sender<
-                    Message,
-                >| {
+                async move |mut output: iced::futures::channel::mpsc::Sender<Message>| {
                     let mut interval = tokio::time::interval(interval);
                     loop {
                         interval.tick().await;

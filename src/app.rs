@@ -580,10 +580,7 @@ impl App {
             }),
             iced::output_events().map(Message::OutputEvent),
             listen_with(move |evt, _, _| match evt {
-                iced::event::Event::Keyboard(keyboard::Event::KeyPressed {
-                    key,
-                    ..
-                }) => {
+                iced::event::Event::Keyboard(keyboard::Event::KeyPressed { key, .. }) => {
                     debug!("Keyboard event received: {key:?}");
                     if matches!(key, keyboard::Key::Named(keyboard::key::Named::Escape)) {
                         debug!("ESC key pressed, closing all menus");
