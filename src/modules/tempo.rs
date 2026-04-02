@@ -186,7 +186,7 @@ impl Tempo {
                     return Some(
                         offset
                             .from_utc_datetime(&utc_now.naive_utc())
-                            .format(format)
+                            .format_localized(format, self.config.locale)
                             .to_string(),
                     );
                 }
@@ -194,14 +194,18 @@ impl Tempo {
                 if let Ok(tz) = tz_name.parse::<Tz>() {
                     return Some(
                         tz.from_utc_datetime(&utc_now.naive_utc())
-                            .format(format)
+                            .format_localized(format, self.config.locale)
                             .to_string(),
                     );
                 }
 
                 None
             })
-            .unwrap_or_else(|| self.date.format(format).to_string())
+            .unwrap_or_else(|| {
+                self.date
+                    .format_localized(format, self.config.locale)
+                    .to_string()
+            })
     }
 
     pub fn weather_indicator(&'_ self, theme: &AshellTheme) -> Option<Element<'_, Message>> {
@@ -298,10 +302,14 @@ impl Tempo {
                     ))
                     .padding([theme.space.xs, theme.space.md])
                     .style(theme.settings_button_style()),
-                text(selected_date.format("%B").to_string())
-                    .size(theme.font_size.md)
-                    .width(Length::Fill)
-                    .align_x(Horizontal::Center),
+                text(
+                    selected_date
+                        .format_localized("%B", self.config.locale)
+                        .to_string()
+                )
+                .size(theme.font_size.md)
+                .width(Length::Fill)
+                .align_x(Horizontal::Center),
                 button(icon(StaticIcon::RightChevron))
                     .on_press(Message::ChangeSelectDate(
                         selected_date.checked_add_months(Months::new(1))
@@ -323,10 +331,15 @@ impl Tempo {
                 ]
                 .into_iter()
                 .map(|i| {
-                    text(i.to_string())
-                        .align_x(Horizontal::Center)
-                        .width(Length::Fill)
-                        .into()
+                    text(
+                        NaiveDate::from_isoywd_opt(2000, 20, i)
+                            .expect("valid NaiveDate")
+                            .format_localized("%a", self.config.locale)
+                            .to_string(),
+                    )
+                    .align_x(Horizontal::Center)
+                    .width(Length::Fill)
+                    .into()
                 })
                 .collect::<Vec<Element<'a, Message>>>(),
             )
@@ -342,27 +355,28 @@ impl Tempo {
                                     current = current.succ_opt().unwrap_or(current);
 
                                     button(
-                                        text(day.format("%d").to_string())
-                                            .align_x(Horizontal::Center)
-                                            .color_maybe({
-                                                if day
-                                                    == self.naive_date(self.current_timezone_index)
-                                                {
-                                                    Some(theme.iced_theme.palette().success)
-                                                } else if day == selected_date {
-                                                    Some(theme.iced_theme.palette().primary)
-                                                } else if day.month0() != current_month {
-                                                    Some(
-                                                        theme
-                                                            .iced_theme
-                                                            .palette()
-                                                            .text
-                                                            .scale_alpha(0.2),
-                                                    )
-                                                } else {
-                                                    None
-                                                }
-                                            }),
+                                        text(
+                                            day.format_localized("%d", self.config.locale)
+                                                .to_string(),
+                                        )
+                                        .align_x(Horizontal::Center)
+                                        .color_maybe({
+                                            if day == self.naive_date(self.current_timezone_index) {
+                                                Some(theme.iced_theme.palette().success)
+                                            } else if day == selected_date {
+                                                Some(theme.iced_theme.palette().primary)
+                                            } else if day.month0() != current_month {
+                                                Some(
+                                                    theme
+                                                        .iced_theme
+                                                        .palette()
+                                                        .text
+                                                        .scale_alpha(0.2),
+                                                )
+                                            } else {
+                                                None
+                                            }
+                                        }),
                                     )
                                     .on_press_maybe(
                                         if day != self.naive_date(self.current_timezone_index) {
@@ -423,8 +437,18 @@ impl Tempo {
         column!(
             button(
                 column!(
-                    text(self.date.format("%A").to_string()).size(theme.font_size.sm),
-                    text(self.date.format("%d %B %Y").to_string()).size(theme.font_size.md),
+                    text(
+                        self.date
+                            .format_localized("%A", self.config.locale)
+                            .to_string()
+                    )
+                    .size(theme.font_size.sm),
+                    text(
+                        self.date
+                            .format_localized("%d %B %Y", self.config.locale)
+                            .to_string()
+                    )
+                    .size(theme.font_size.md),
                 )
                 .spacing(theme.space.xs)
             )
@@ -518,7 +542,7 @@ impl Tempo {
                                             .size(theme.font_size.xs)
                                             .align_x(Horizontal::Right)
                                             .width(Length::Fill),
-                                        text(format!("{} Km/h", data.current.wind_speed_10m))
+                                        text(format!("{} km/h", data.current.wind_speed_10m))
                                             .align_x(Horizontal::Right)
                                             .size(theme.font_size.xs)
                                             .width(Length::Fill),
@@ -626,8 +650,11 @@ impl Tempo {
                             )| {
                                 container(
                                     row!(
-                                        text(time.format("%a, %d %b").to_string())
-                                            .width(Length::Fill),
+                                        text(
+                                            time.format_localized("%a, %d %b", self.config.locale)
+                                                .to_string()
+                                        )
+                                        .width(Length::Fill),
                                         weather_icon(*weather_code, true)
                                             .height(theme.font_size.md)
                                             .width(Length::Shrink),
@@ -648,7 +675,7 @@ impl Tempo {
                                                     .rotation(Rotation::Floating(
                                                         Degrees(*wind_dir as f32 + 90.).into()
                                                     )),
-                                                    text(format!("{} Km/h", wind_speed))
+                                                    text(format!("{} km/h", wind_speed))
                                                 )
                                                 .spacing(theme.space.xxs)
                                             )
