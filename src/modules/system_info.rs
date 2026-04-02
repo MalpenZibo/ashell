@@ -6,7 +6,6 @@ use crate::{
     },
     menu::MenuSize,
     theme::AshellTheme,
-    theme::AshellTheme,
     utils,
 };
 use iced::{
@@ -408,7 +407,7 @@ impl SystemInfo {
                                 format!("{} GiB", self.data.memory_swap_usage.fraction),
                         }
                     ))
-                    .push_maybe(self.data.temperature.celsius.map(|cel| {
+                    .push(self.data.temperature.celsius.map(|cel| {
                         Self::info_element(
                             theme,
                             StaticIcon::Temp,
@@ -445,7 +444,7 @@ impl SystemInfo {
                         )
                         .spacing(theme.space.xxs),
                     )
-                    .push_maybe(self.data.network.as_ref().map(|network| {
+                    .push(self.data.network.as_ref().map(|network| {
                         Column::with_children(vec![
                             Self::info_element(
                                 theme,

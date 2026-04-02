@@ -7,7 +7,6 @@ use crate::{
         bluetooth::{BluetoothCommand, BluetoothDevice, BluetoothService, BluetoothState},
     },
     theme::AshellTheme,
-    utils::PushMaybe,
 };
 use iced::{
     Element, Length, Padding, Subscription, SurfaceId, Task, Theme,
@@ -262,7 +261,7 @@ impl BluetoothSettings {
                     .spacing(theme.space.xs)
                     .width(Length::Fill),
                 )
-                .push_maybe(if some_known {
+                .push(if some_known {
                     let known_device_entry = |d: &BluetoothDevice| {
                         button(
                             Row::with_capacity(3)
@@ -275,7 +274,7 @@ impl BluetoothSettings {
                                         })
                                         .width(Length::Fill),
                                 )
-                                .push_maybe(
+                                .push(
                                     d.battery.map(|battery| Self::battery_level(theme, battery)),
                                 )
                                 .push(
@@ -321,7 +320,7 @@ impl BluetoothSettings {
                 } else {
                     None
                 })
-                .push_maybe(if some_available {
+                .push(if some_available {
                     Some(
                         column!(
                             column!(
@@ -359,13 +358,13 @@ impl BluetoothSettings {
                 } else {
                     None
                 })
-                .push_maybe(if !some_known && !some_available {
+                .push(if !some_known && !some_available {
                     Some(text("No devices found"))
                 } else {
                     None
                 })
-                .push_maybe(self.config.more_cmd.as_ref().map(|_| rule::horizontal(1)))
-                .push_maybe(self.config.more_cmd.as_ref().map(|_| {
+                .push(self.config.more_cmd.as_ref().map(|_| rule::horizontal(1)))
+                .push(self.config.more_cmd.as_ref().map(|_| {
                     button("More")
                         .on_press(Message::More(id))
                         .padding([theme.space.xxs, theme.space.sm])

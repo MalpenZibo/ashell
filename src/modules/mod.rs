@@ -3,7 +3,6 @@ use crate::{
     config::{AppearanceStyle, ModuleDef, ModuleName},
     menu::MenuType,
     theme::AshellTheme,
-    utils::PushMaybe,
     widgets::position_button,
 };
 use iced::{
@@ -55,7 +54,7 @@ impl App {
                 .spacing(self.theme.space.xxs);
 
             for module_def in modules_def {
-                row = row.push_maybe(match module_def {
+                row = row.push(match module_def {
                     // life parsing of string to module
                     ModuleDef::Single(module) => self.single_module_wrapper(id, theme, module),
                     ModuleDef::Group(group) => self.group_module_wrapper(id, theme, group),
