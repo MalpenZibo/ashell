@@ -87,6 +87,32 @@ fn main() -> iced::Result {
 
     logger.set_new_spec(get_log_spec(&config.log_level));
 
+    // Set renderer backend BEFORE any wgpu/iced initialization
+    // Safe: we are single-threaded at this point, no other threads exist yet
+    if std::env::var("WGPU_BACKEND").is_err() {
+        match config.renderer_backend {
+            crate::config::RendererBackend::Vulkan => unsafe {
+                std::env::set_var("WGPU_BACKEND", "vulkan");
+            },
+            crate::config::RendererBackend::OpenGL => unsafe {
+                std::env::set_var("WGPU_BACKEND", "gl");
+            },
+            crate::config::RendererBackend::Auto => {
+                // Auto-detect: default proprietary NVIDIA driver to OpenGL for better stability
+                if std::env::var("__NV_PRIME_RENDER_OFFLOAD").is_ok()
+                    || std::env::var("__GLX_VENDOR_LIBRARY_NAME")
+                        .map(|v| v.contains("nvidia"))
+                        .unwrap_or(false)
+                {
+                    // Proprietary nvidia driver is loaded
+                    unsafe {
+                        std::env::set_var("WGPU_BACKEND", "gl");
+                    }
+                }
+            }
+        }
+    }
+
     let font = if let Some(font_name) = &config.appearance.font_name {
         Font::with_name(Box::leak(font_name.clone().into_boxed_str()))
     } else {
