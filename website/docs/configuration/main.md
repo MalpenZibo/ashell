@@ -145,3 +145,41 @@ This is useful for keybind-based toggling or scripting.
 # Toggle ashell visibility
 kill -SIGUSR1 $(pidof ashell)
 ```
+
+## Renderer Backend
+
+Selects the graphics rendering backend to use.
+
+:::warning
+This configuration **requires** restarting Ashell to take effect.
+:::
+
+### Valid Options
+
+| Value | Description |
+|---|---|
+| `"auto"` | **(Default)** Automatically selects the best backend. Automatically uses OpenGL for proprietary NVIDIA driver users, Vulkan for all other hardware (AMD/Intel/nouveau). |
+| `"vulkan"` | Force use Vulkan renderer. |
+| `"opengl"` | Force use OpenGL renderer. |
+
+:::note Environment Variable Precedence
+If the `WGPU_BACKEND` environment variable is already set when starting ashell, this configuration option will be ignored entirely and the environment variable value will be used instead.
+:::
+
+### Examples
+
+```toml
+renderer_backend = "auto"
+```
+
+```toml
+renderer_backend = "vulkan"
+```
+
+```toml
+renderer_backend = "opengl"
+```
+
+:::tip NVIDIA Users
+Automatic mode will default to OpenGL for systems running the proprietary NVIDIA driver for best stability and performance. You can still explicitly select Vulkan if you prefer.
+:::
