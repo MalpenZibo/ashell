@@ -73,7 +73,16 @@ async fn main() -> iced::Result {
     } else {
         logger
     };
-    let logger = logger.start().unwrap();
+    let logger = logger.start().unwrap_or_else(|e| {
+        eprintln!("Failed to initialize file logger: {e}, falling back to stderr-only");
+        Logger::with(
+            LogSpecBuilder::new()
+                .default(log::LevelFilter::Info)
+                .build(),
+        )
+        .start()
+        .expect("critical: cannot initialize any logger")
+    });
     panic::set_hook(Box::new(|info| {
         let b = Backtrace::capture();
         error!("Panic: {info} \n {b}");
