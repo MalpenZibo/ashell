@@ -67,6 +67,9 @@ impl Default for Config {
 
 impl Config {
     fn validate(&mut self) {
+        if let Some(ref mut updates) = self.updates {
+            updates.validate();
+        }
         self.system_info.validate();
     }
 }
@@ -82,6 +85,13 @@ pub struct UpdatesModuleConfig {
 impl UpdatesModuleConfig {
     const fn default_interval() -> u64 {
         3600
+    }
+
+    fn validate(&mut self) {
+        if self.interval == 0 {
+            warn!("UpdatesModuleConfig.interval is 0, setting to 1");
+            self.interval = 1;
+        }
     }
 }
 
@@ -288,6 +298,10 @@ impl SystemInfoModuleConfig {
     }
 
     fn validate(&mut self) {
+        if self.interval == 0 {
+            warn!("SystemInfoModuleConfig.interval is 0, setting to 1");
+            self.interval = 1;
+        }
         self.cpu.validate();
         self.memory.validate();
         self.temperature.validate();
