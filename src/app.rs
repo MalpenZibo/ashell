@@ -5,7 +5,6 @@ use crate::{
     menu::MenuType,
     modules::{
         self,
-        clock::Clock,
         custom_module::{self, Custom},
         keyboard_layout::KeyboardLayout,
         keyboard_submap::KeyboardSubmap,
@@ -57,7 +56,6 @@ pub struct App {
     pub keyboard_layout: KeyboardLayout,
     pub keyboard_submap: KeyboardSubmap,
     pub tray: TrayModule,
-    pub clock: Clock,
     pub tempo: Tempo,
     pub privacy: Privacy,
     pub settings: Settings,
@@ -78,7 +76,6 @@ pub enum Message {
     KeyboardLayout(modules::keyboard_layout::Message),
     KeyboardSubmap(modules::keyboard_submap::Message),
     Tray(modules::tray::Message),
-    Clock(modules::clock::Message),
     Tempo(modules::tempo::Message),
     Privacy(modules::privacy::Message),
     Settings(modules::settings::Message),
@@ -129,7 +126,6 @@ impl App {
                     keyboard_layout: KeyboardLayout::new(config.keyboard_layout),
                     keyboard_submap: KeyboardSubmap::default(),
                     tray: TrayModule::default(),
-                    clock: Clock::new(config.clock),
                     tempo: Tempo::new(config.tempo),
                     privacy: Privacy::default(),
                     settings: Settings::new(config.settings),
@@ -181,7 +177,6 @@ impl App {
             .map(Message::KeyboardLayout);
 
         self.keyboard_submap = KeyboardSubmap::default();
-        self.clock = Clock::new(config.clock);
         self.tempo
             .update(modules::tempo::Message::ConfigReloaded(config.tempo));
         self.settings
@@ -329,10 +324,6 @@ impl App {
                     .outputs
                     .close_all_menu_if(MenuType::Tray(name), self.general_config.enable_esc_key),
             },
-            Message::Clock(message) => {
-                self.clock.update(message);
-                Task::none()
-            }
             Message::Tempo(message) => match self.tempo.update(message) {
                 modules::tempo::Action::None => Task::none(),
             },
