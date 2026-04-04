@@ -32,7 +32,6 @@ pub struct Config {
     pub workspaces: WorkspacesModuleConfig,
     pub window_title: WindowTitleConfig,
     pub system_info: SystemInfoModuleConfig,
-    pub clock: ClockModuleConfig,
     pub tempo: TempoModuleConfig,
     pub settings: SettingsModuleConfig,
     pub appearance: Appearance,
@@ -53,7 +52,6 @@ impl Default for Config {
             workspaces: WorkspacesModuleConfig::default(),
             window_title: WindowTitleConfig::default(),
             system_info: SystemInfoModuleConfig::default(),
-            clock: ClockModuleConfig::default(),
             tempo: TempoModuleConfig::default(),
             settings: SettingsModuleConfig::default(),
             appearance: Appearance::default(),
@@ -250,19 +248,6 @@ impl Default for SystemInfoModuleConfig {
             memory: SystemInfoMemory::default(),
             temperature: SystemInfoTemperature::default(),
             disk: SystemInfoDisk::default(),
-        }
-    }
-}
-
-#[derive(Deserialize, Clone, Debug)]
-pub struct ClockModuleConfig {
-    pub format: String,
-}
-
-impl Default for ClockModuleConfig {
-    fn default() -> Self {
-        Self {
-            format: "%a %d %b %R".to_string(),
         }
     }
 }
@@ -657,7 +642,6 @@ pub enum ModuleName {
     KeyboardLayout,
     KeyboardSubmap,
     Tray,
-    Clock,
     Tempo,
     Privacy,
     Settings,
@@ -688,7 +672,6 @@ impl<'de> Deserialize<'de> for ModuleName {
                     "KeyboardLayout" => ModuleName::KeyboardLayout,
                     "KeyboardSubmap" => ModuleName::KeyboardSubmap,
                     "Tray" => ModuleName::Tray,
-                    "Clock" => ModuleName::Clock,
                     "Tempo" => ModuleName::Tempo,
                     "Privacy" => ModuleName::Privacy,
                     "Settings" => ModuleName::Settings,
