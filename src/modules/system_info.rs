@@ -55,6 +55,7 @@ struct MemoryUsage {
     percentage: u32,
     fraction: String,
 }
+
 struct CpuUsage {
     percentage: u32,
     frequency: f32,
@@ -62,7 +63,6 @@ struct CpuUsage {
 
 struct Temperature {
     celsius: Option<i32>,
-    fahrenheit: i32,
 }
 
 struct DiskView {
@@ -71,12 +71,12 @@ struct DiskView {
 }
 
 struct SystemInfoData {
-    pub cpu_usage: CpuUsage,
-    pub memory_usage: MemoryUsage,
-    pub memory_swap_usage: MemoryUsage,
-    pub temperature: Temperature,
-    pub disks: Vec<(String, DiskView)>,
-    pub network: Option<NetworkData>,
+    cpu_usage: CpuUsage,
+    memory_usage: MemoryUsage,
+    memory_swap_usage: MemoryUsage,
+    temperature: Temperature,
+    disks: Vec<(String, DiskView)>,
+    network: Option<NetworkData>,
 }
 
 fn get_system_info(
@@ -103,12 +103,14 @@ fn get_system_info(
     };
 
     let total_mem = system.total_memory();
-    let avail_mem = system.available_memory();
-    let used_mem = system.used_memory();
+    let used_mem = total_mem - system.available_memory();
 
     let memory_usage = MemoryUsage {
-        percentage: ((total_mem - avail_mem) as f32 / total_mem as f32 * 100.) as u32,
-
+        percentage: if total_mem > 0 {
+            (used_mem as f32 / total_mem as f32 * 100.) as u32
+        } else {
+            0
+        },
         fraction: format!(
             "{:.2}/{:.2}",
             utils::bytes_to_gib(used_mem),
@@ -117,13 +119,17 @@ fn get_system_info(
     };
 
     let total_swap = system.total_swap();
-    let free_swap = system.free_swap();
+    let used_swap = total_swap - system.free_swap();
 
     let memory_swap_usage = MemoryUsage {
-        percentage: ((total_swap - free_swap) as f32 / total_swap as f32 * 100.) as u32,
+        percentage: if total_swap > 0 {
+            (used_swap as f32 / total_swap as f32 * 100.) as u32
+        } else {
+            0
+        },
         fraction: format!(
             "{:.2}/{:.2}",
-            utils::bytes_to_gib(total_swap - free_swap),
+            utils::bytes_to_gib(used_swap),
             utils::bytes_to_gib(total_swap)
         ),
     };
@@ -140,9 +146,6 @@ fn get_system_info(
 
     let temperature = Temperature {
         celsius: temperature_cel,
-        fahrenheit: temperature_cel
-            .map(utils::celsius_to_fahrenheit)
-            .unwrap_or(0),
     };
 
     let disks: Vec<(String, DiskView)> = disks
@@ -334,8 +337,6 @@ impl SystemInfo {
         theme: &AshellTheme,
         info_icon: StaticIcon,
         (display, unit): (impl std::fmt::Display + 'a, &str),
-        // value: V,
-        // unit: &str,
         threshold: Option<(V, V, V)>,
         prefix: Option<&str>,
     ) -> Element<'a, Message> {
@@ -415,7 +416,7 @@ impl SystemInfo {
                             match self.config.temperature.format {
                                 TemperatureFormat::Celsius => format!("{cel}°C"),
                                 TemperatureFormat::Fahrenheit => {
-                                    format!("{}°F", self.data.temperature.fahrenheit)
+                                    format!("{}°F", utils::celsius_to_fahrenheit(cel))
                                 }
                             },
                         )
@@ -539,7 +540,7 @@ impl SystemInfo {
             SystemInfoIndicator::Temperature => self.data.temperature.celsius.map(|cel| {
                 let temp_value = match self.config.temperature.format {
                     TemperatureFormat::Celsius => cel,
-                    TemperatureFormat::Fahrenheit => self.data.temperature.fahrenheit,
+                    TemperatureFormat::Fahrenheit => utils::celsius_to_fahrenheit(cel),
                 };
                 Self::indicator_info_element(
                     theme,
@@ -550,8 +551,8 @@ impl SystemInfo {
                     },
                     Some((
                         temp_value,
-                        self.config.temperature.warn_threshold,
-                        self.config.temperature.alert_threshold,
+                        self.config.temperature.warn_threshold(),
+                        self.config.temperature.alert_threshold(),
                     )),
                     None,
                 )
