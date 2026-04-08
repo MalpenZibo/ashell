@@ -355,7 +355,7 @@ impl SystemInfo {
             element
                 .style(move |theme: &Theme| container::Style {
                     text_color: if value > warn_threshold && value < alert_threshold {
-                        Some(theme.extended_palette().danger.weak.color)
+                        Some(theme.palette().warning)
                     } else if value >= alert_threshold {
                         Some(theme.palette().danger)
                     } else {
