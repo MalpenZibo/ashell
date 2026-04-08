@@ -86,8 +86,7 @@ impl ReadOnlyService for CompositorService {
     }
 
     fn subscribe() -> Subscription<ServiceEvent<Self>> {
-        Subscription::run_with_id(
-            TypeId::of::<Self>(),
+        Subscription::run_with(TypeId::of::<Self>(), |_| {
             channel(10, async move |mut output| {
                 let mut rx = broadcaster_subscribe().await;
 
@@ -121,8 +120,8 @@ impl ReadOnlyService for CompositorService {
                         }
                     }
                 }
-            }),
-        )
+            })
+        })
     }
 }
 

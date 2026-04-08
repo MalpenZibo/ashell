@@ -13,12 +13,8 @@ use crate::{
     utils::IndicatorState,
 };
 use iced::{
-    Alignment, Element, Length, Subscription, Task, Theme,
-    widget::{
-        Column, MouseArea, button, column, container, horizontal_rule, row, scrollable, text,
-        toggler,
-    },
-    window::Id,
+    Alignment, Element, Length, Padding, Subscription, SurfaceId, Task, Theme,
+    widget::{Column, MouseArea, button, column, container, row, rule, scrollable, text, toggler},
 };
 use log::{info, warn};
 
@@ -109,10 +105,10 @@ pub enum Message {
     Event(ServiceEvent<NetworkService>),
     ToggleWiFi,
     ScanNearByWiFi,
-    WiFiMore(Id),
-    VpnMore(Id),
+    WiFiMore(SurfaceId),
+    VpnMore(SurfaceId),
     SelectAccessPoint(AccessPoint),
-    RequestWiFiPassword(Id, String),
+    RequestWiFiPassword(SurfaceId, String),
     ConfirmOpenNetwork(String),
     ToggleVpn(Vpn),
     ToggleAirplaneMode,
@@ -128,13 +124,13 @@ pub enum Message {
 pub enum Action {
     None,
     RequestPasswordForSSID(String),
-    RequestPassword(Id, String),
+    RequestPassword(SurfaceId, String),
     ConfirmOpenNetwork(String),
     Command(Task<Message>),
     ToggleWifiMenu,
     ToggleVpnMenu,
     CloseSubMenu(Task<Message>),
-    CloseMenu(Id),
+    CloseMenu(SurfaceId),
 }
 
 #[derive(Debug, Clone)]
@@ -419,7 +415,7 @@ impl NetworkSettings {
 
     pub fn wifi_quick_setting_button<'a>(
         &'a self,
-        id: Id,
+        id: SurfaceId,
         theme: &'a AshellTheme,
         sub_menu: Option<SubMenu>,
     ) -> Option<(Element<'a, Message>, Option<Element<'a, Message>>)> {
@@ -465,7 +461,7 @@ impl NetworkSettings {
 
     pub fn vpn_quick_setting_button<'a>(
         &'a self,
-        id: Id,
+        id: SurfaceId,
         theme: &'a AshellTheme,
         sub_menu: Option<SubMenu>,
     ) -> Option<(Element<'a, Message>, Option<Element<'a, Message>>)> {
@@ -566,7 +562,7 @@ impl NetworkSettings {
 
     fn wifi_menu<'a>(
         service: &'a NetworkService,
-        id: Id,
+        id: SurfaceId,
         theme: &'a AshellTheme,
         active_connection: Option<(&str, u8)>,
         show_more_button: bool,
@@ -585,7 +581,7 @@ impl NetworkSettings {
             .spacing(theme.space.xs)
             .width(Length::Fill)
             .align_y(Alignment::Center),
-            horizontal_rule(1),
+            rule::horizontal(1),
             container(scrollable(
                 Column::with_children({
                     let (active_networks, inactive_networks): (Vec<_>, Vec<_>) = service
@@ -657,7 +653,7 @@ impl NetworkSettings {
         if show_more_button {
             column!(
                 main,
-                horizontal_rule(1),
+                rule::horizontal(1),
                 button("More")
                     .on_press(Message::WiFiMore(id))
                     .padding([theme.space.xxs, theme.space.sm])
@@ -673,7 +669,7 @@ impl NetworkSettings {
 
     fn vpn_menu<'a>(
         service: &'a NetworkService,
-        id: Id,
+        id: SurfaceId,
         theme: &'a AshellTheme,
         show_more_button: bool,
     ) -> Element<'a, Message> {
@@ -716,7 +712,11 @@ impl NetworkSettings {
                 .collect::<Vec<Element<'a, Message>>>(),
         )
         .spacing(theme.space.xs)
-        .padding([0, theme.space.md, 0, theme.space.xs]);
+        .padding(
+            Padding::default()
+                .right(theme.space.md)
+                .left(theme.space.xs),
+        );
 
         let main = container(scrollable(vpn_list))
             .height(Length::Shrink)
@@ -725,7 +725,7 @@ impl NetworkSettings {
         if show_more_button {
             column!(
                 main,
-                horizontal_rule(1),
+                rule::horizontal(1),
                 button("More")
                     .on_press(Message::VpnMore(id))
                     .padding([theme.space.xxs, theme.space.sm])

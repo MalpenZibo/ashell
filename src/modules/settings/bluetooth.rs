@@ -9,12 +9,9 @@ use crate::{
     theme::AshellTheme,
 };
 use iced::{
-    Element, Length, Subscription, Task, Theme,
+    Element, Length, Padding, Subscription, SurfaceId, Task, Theme,
     alignment::{Alignment, Horizontal, Vertical},
-    widget::{
-        Column, MouseArea, Row, button, column, container, horizontal_rule, row, scrollable, text,
-    },
-    window::Id,
+    widget::{Column, MouseArea, Row, button, column, container, row, rule, scrollable, text},
 };
 use itertools::Itertools;
 use zbus::zvariant::OwnedObjectPath;
@@ -31,14 +28,14 @@ pub enum Message {
     DisconnectDevice(OwnedObjectPath),
     RemoveDevice(OwnedObjectPath),
     OpenMore,
-    More(Id),
+    More(SurfaceId),
     ConfigReloaded(BluetoothSettingsConfig),
 }
 
 pub enum Action {
     None,
     ToggleBluetoothMenu,
-    CloseMenu(Id),
+    CloseMenu(SurfaceId),
     CloseSubMenu(Task<Message>),
     Command(Task<Message>),
 }
@@ -167,7 +164,7 @@ impl BluetoothSettings {
 
     pub fn quick_setting_button<'a>(
         &'a self,
-        id: Id,
+        id: SurfaceId,
         theme: &'a AshellTheme,
         sub_menu: Option<SubMenu>,
     ) -> Option<(Element<'a, Message>, Option<Element<'a, Message>>)> {
@@ -211,7 +208,7 @@ impl BluetoothSettings {
 
     fn bluetooth_menu<'a>(
         &'a self,
-        id: Id,
+        id: SurfaceId,
         theme: &'a AshellTheme,
     ) -> Option<Element<'a, Message>> {
         self.service.as_ref().map(|service| {
@@ -264,7 +261,7 @@ impl BluetoothSettings {
                     .spacing(theme.space.xs)
                     .width(Length::Fill),
                 )
-                .push_maybe(if some_known {
+                .push(if some_known {
                     let known_device_entry = |d: &BluetoothDevice| {
                         button(
                             Row::with_capacity(3)
@@ -277,9 +274,7 @@ impl BluetoothSettings {
                                         })
                                         .width(Length::Fill),
                                 )
-                                .push_maybe(
-                                    d.battery.map(|battery| Self::battery_level(theme, battery)),
-                                )
+                                .push(d.battery.map(|battery| Self::battery_level(theme, battery)))
                                 .push(
                                     icon_button(theme, StaticIcon::Remove)
                                         .on_press(Message::RemoveDevice(d.path.clone()))
@@ -309,12 +304,12 @@ impl BluetoothSettings {
                                         .width(Length::Fill)
                                         .align_x(Horizontal::Right)
                                 )
-                                .padding([0, theme.space.sm]),
-                                horizontal_rule(1),
+                                .padding([0.0, theme.space.sm]),
+                                rule::horizontal(1),
                             ),
                             container(scrollable(
                                 Column::with_children(known_devices.map(known_device_entry),)
-                                    .padding([0, theme.space.xs, 0, 0])
+                                    .padding(Padding::default().right(theme.space.xs))
                             ))
                             .max_height(150),
                         )
@@ -323,7 +318,7 @@ impl BluetoothSettings {
                 } else {
                     None
                 })
-                .push_maybe(if some_available {
+                .push(if some_available {
                     Some(
                         column!(
                             column!(
@@ -333,8 +328,8 @@ impl BluetoothSettings {
                                         .align_x(Horizontal::Right)
                                         .size(theme.font_size.xs),
                                 )
-                                .padding([0, theme.space.sm]),
-                                horizontal_rule(1),
+                                .padding([0.0, theme.space.sm]),
+                                rule::horizontal(1),
                             ),
                             container(scrollable(
                                 Column::with_children(available_devices.map(|d| {
@@ -352,12 +347,7 @@ impl BluetoothSettings {
                                     .width(Length::Fill)
                                     .into()
                                 }))
-                                .padding([
-                                    0,
-                                    theme.space.xs,
-                                    0,
-                                    0
-                                ])
+                                .padding(Padding::default().right(theme.space.xs))
                             ))
                             .max_height(150),
                         )
@@ -366,13 +356,13 @@ impl BluetoothSettings {
                 } else {
                     None
                 })
-                .push_maybe(if !some_known && !some_available {
+                .push(if !some_known && !some_available {
                     Some(text("No devices found"))
                 } else {
                     None
                 })
-                .push_maybe(self.config.more_cmd.as_ref().map(|_| horizontal_rule(1)))
-                .push_maybe(self.config.more_cmd.as_ref().map(|_| {
+                .push(self.config.more_cmd.as_ref().map(|_| rule::horizontal(1)))
+                .push(self.config.more_cmd.as_ref().map(|_| {
                     button("More")
                         .on_press(Message::More(id))
                         .padding([theme.space.xxs, theme.space.sm])

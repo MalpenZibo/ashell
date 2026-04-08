@@ -6,9 +6,8 @@ use crate::{
     widgets::position_button,
 };
 use iced::{
-    Alignment, Border, Color, Element, Length, Subscription,
+    Alignment, Border, Color, Element, Length, Subscription, SurfaceId,
     widget::{Row, container},
-    window::Id,
 };
 
 pub mod clock;
@@ -40,7 +39,7 @@ pub enum OnModulePress {
 impl App {
     pub fn modules_section<'a>(
         &'a self,
-        id: Id,
+        id: SurfaceId,
         theme: &'a AshellTheme,
     ) -> [Element<'a, Message>; 3] {
         [
@@ -55,7 +54,7 @@ impl App {
                 .spacing(self.theme.space.xxs);
 
             for module_def in modules_def {
-                row = row.push_maybe(match module_def {
+                row = row.push(match module_def {
                     // life parsing of string to module
                     ModuleDef::Single(module) => self.single_module_wrapper(id, theme, module),
                     ModuleDef::Group(group) => self.group_module_wrapper(id, theme, group),
@@ -84,7 +83,7 @@ impl App {
 
     fn single_module_wrapper<'a>(
         &'a self,
-        id: Id,
+        id: SurfaceId,
         theme: &'a AshellTheme,
         module_name: &'a ModuleName,
     ) -> Option<Element<'a, Message>> {
@@ -98,7 +97,7 @@ impl App {
                         .height(Length::Fill)
                         .clip(true),
                 )
-                .padding([2, self.theme.space.xs])
+                .padding([2.0, self.theme.space.xs])
                 .height(Length::Fill)
                 .style(theme.module_button_style(false));
 
@@ -134,7 +133,7 @@ impl App {
             }
             _ => {
                 let container = container(content)
-                    .padding([2, self.theme.space.xs])
+                    .padding([2.0, self.theme.space.xs])
                     .height(Length::Fill)
                     .align_y(Alignment::Center)
                     .clip(true);
@@ -165,7 +164,7 @@ impl App {
 
     fn group_module_wrapper<'a>(
         &'a self,
-        id: Id,
+        id: SurfaceId,
         theme: &'a AshellTheme,
         group: &'a [ModuleName],
     ) -> Option<Element<'a, Message>> {
@@ -189,7 +188,7 @@ impl App {
                                         .height(Length::Fill)
                                         .clip(true),
                                 )
-                                .padding([2, self.theme.space.xs])
+                                .padding([2.0, self.theme.space.xs])
                                 .height(Length::Fill)
                                 .style(theme.module_button_style(true));
 
@@ -232,7 +231,7 @@ impl App {
                                 .into()
                             }
                             _ => container(content)
-                                .padding([2, self.theme.space.xs])
+                                .padding([2.0, self.theme.space.xs])
                                 .height(Length::Fill)
                                 .align_y(Alignment::Center)
                                 .clip(true)
@@ -267,7 +266,7 @@ impl App {
 
     fn get_module_view<'a>(
         &'a self,
-        id: Id,
+        id: SurfaceId,
         module_name: &'a ModuleName,
     ) -> Option<(Element<'a, Message>, Option<OnModulePress>)> {
         match module_name {

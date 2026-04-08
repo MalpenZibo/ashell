@@ -1,14 +1,15 @@
-use crate::config::get_config;
+use crate::config::{Position, get_config};
+use crate::outputs::Outputs;
 use app::App;
 use clap::Parser;
 use flexi_logger::{
     Age, Cleanup, Criterion, FileSpec, LogSpecBuilder, LogSpecification, Logger, Naming,
 };
-use iced::Font;
+use iced::{Anchor, Font, KeyboardInteractivity, Layer, LayerShellSettings};
 use log::{debug, error, warn};
+use std::backtrace::Backtrace;
 use std::panic;
 use std::path::PathBuf;
-use std::{backtrace::Backtrace, borrow::Cow};
 
 mod app;
 mod components;
@@ -51,8 +52,7 @@ fn get_log_spec(log_level: &str) -> LogSpecification {
     }
 }
 
-#[tokio::main]
-async fn main() -> iced::Result {
+fn main() -> iced::Result {
     let args = Args::parse();
     debug!("args: {args:?}");
 
@@ -93,14 +93,38 @@ async fn main() -> iced::Result {
         Font::DEFAULT
     };
 
-    iced::daemon(App::title, App::update, App::view)
-        .subscription(App::subscription)
-        .theme(App::theme)
-        .style(App::style)
-        .scale_factor(App::scale_factor)
-        .font(Cow::from(NERD_FONT))
-        .font(Cow::from(NERD_FONT_MONO))
-        .font(Cow::from(CUSTOM_FONT))
-        .default_font(font)
-        .run_with(App::new((logger, config, config_path)))
+    let height = Outputs::get_height(config.appearance.style, config.appearance.scale_factor);
+
+    let iced_layer = match config.layer {
+        config::Layer::Top => Layer::Top,
+        config::Layer::Bottom => Layer::Bottom,
+        config::Layer::Overlay => Layer::Overlay,
+    };
+
+    iced::application(
+        App::new((logger, config.clone(), config_path)),
+        App::update,
+        App::view,
+    )
+    .layer_shell(LayerShellSettings {
+        anchor: match config.position {
+            Position::Top => Anchor::TOP,
+            Position::Bottom => Anchor::BOTTOM,
+        } | Anchor::LEFT
+            | Anchor::RIGHT,
+        layer: iced_layer,
+        exclusive_zone: height as i32,
+        size: Some((0, height as u32)),
+        keyboard_interactivity: KeyboardInteractivity::None,
+        namespace: "ashell-main-layer".into(),
+        ..Default::default()
+    })
+    .subscription(App::subscription)
+    .theme(App::theme)
+    .scale_factor(App::scale_factor)
+    .font(NERD_FONT)
+    .font(NERD_FONT_MONO)
+    .font(CUSTOM_FONT)
+    .default_font(font)
+    .run()
 }

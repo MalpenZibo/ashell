@@ -8,9 +8,8 @@ use crate::{
     theme::AshellTheme,
 };
 use iced::{
-    Element, Length, Subscription, alignment,
+    Element, Length, Subscription, SurfaceId, alignment,
     widget::{MouseArea, Row, button, container, text},
-    window::Id,
 };
 use itertools::Itertools;
 use std::collections::HashMap;
@@ -401,7 +400,7 @@ impl Workspaces {
 
     pub fn view<'a>(
         &'a self,
-        id: Id,
+        id: SurfaceId,
         theme: &'a AshellTheme,
         outputs: &Outputs,
     ) -> Element<'a, Message> {
@@ -455,12 +454,12 @@ impl Workspaces {
                                 .style(theme.workspace_button_style(empty, color))
                                 .padding(if w.id < 0 {
                                     match w.displayed {
-                                        Displayed::Active => [0, theme.space.md],
-                                        Displayed::Visible => [0, theme.space.sm],
-                                        Displayed::Hidden => [0, theme.space.xs],
+                                        Displayed::Active => [0.0, theme.space.md],
+                                        Displayed::Visible => [0.0, theme.space.sm],
+                                        Displayed::Hidden => [0.0, theme.space.xs],
                                     }
                                 } else {
-                                    [0, 0]
+                                    [0.0, 0.0]
                                 })
                                 .on_press(if w.id > 0 {
                                     Message::ChangeWorkspace(w.id)
@@ -469,9 +468,9 @@ impl Workspaces {
                                 })
                                 .width(match (w.id < 0, &w.displayed) {
                                     (true, _) => Length::Shrink,
-                                    (_, Displayed::Active) => Length::Fixed(theme.space.xl as f32),
-                                    (_, Displayed::Visible) => Length::Fixed(theme.space.lg as f32),
-                                    (_, Displayed::Hidden) => Length::Fixed(theme.space.md as f32),
+                                    (_, Displayed::Active) => Length::Fixed(theme.space.xl),
+                                    (_, Displayed::Visible) => Length::Fixed(theme.space.lg),
+                                    (_, Displayed::Hidden) => Length::Fixed(theme.space.md),
                                 })
                                 .height(theme.space.md)
                                 .into(),
@@ -486,7 +485,7 @@ impl Workspaces {
         )
         .on_scroll(move |direction| match direction {
             iced::mouse::ScrollDelta::Lines { y, .. } => {
-                if y < 0. {
+                if y > 0. {
                     Message::Scroll(-1)
                 } else {
                     Message::Scroll(1)
@@ -498,9 +497,9 @@ impl Workspaces {
                 if self.scroll_accumulator.abs() < sensibility {
                     Message::ScrollAccumulator(y)
                 } else if self.scroll_accumulator.is_sign_positive() {
-                    Message::Scroll(-1)
-                } else {
                     Message::Scroll(1)
+                } else {
+                    Message::Scroll(-1)
                 }
             }
         })
