@@ -18,30 +18,37 @@ page on website
 
 ## ✨ Features
 
-- OS Updates indicator
-- Hyprland/Niri Active Window
-- Hyprland/Niri Workspaces
-- System Information (CPU, RAM, Disk, Network, Temperature)
-- Hyprland/Niri Keyboard Layout
+- Automatic Hyprland/Niri compositor detection
+- Multi-monitor support (all monitors, active monitor, or specific targets)
+- Hot-reload configuration (changes apply automatically via file watch)
+- Bar positioning (top or bottom) with configurable layer (Bottom, Top, Overlay)
+- Theming: Islands, Solid, and Gradient styles with custom colors, opacity, scale, and fonts
+- OS Updates indicator with configurable check interval
+- Hyprland/Niri Active Window (title, class, or initial title/class)
+- Hyprland/Niri Workspaces with naming, color coding, and per-monitor visibility
+- System Information (CPU, RAM, Disk, IP address, Network speed, Temperature) with warn/alert thresholds
+- Hyprland/Niri Keyboard Layout with custom labels
 - Hyprland Keyboard Submap
-- Tray
+- System Tray with context menus
 - Clock with calendar, weather, timezone cycling, and format cycling (Tempo)
-- Privacy (check microphone, camera and screenshare usage)
-- Media Player with album art
+- Privacy indicators (microphone, camera, and screenshare usage)
+- Media Player with album art and track info
 - Settings panel
-  - Power menu
-  - Battery information
+  - Power menu (shutdown, suspend, hibernate, reboot, logout, lock)
+  - Battery and peripheral battery information
   - Audio sources and sinks (with microphone)
   - Screen brightness
-  - Network
+  - Network (WiFi scanning, password entry; supports NetworkManager and IWD backends)
   - VPN
   - Bluetooth
   - Power profiles
   - Idle inhibitor
   - Airplane mode
+  - Custom quick-action buttons with status commands
 - Custom Modules
-  - Simple (execute command on click)
-  - Advanced (update UI with command output)
+  - Button (execute command on click)
+  - Text (display-only, update UI with command output via `listen_cmd`)
+  - Regex-based icon mapping and alert states
 
 ## 🛠️ Install
 
@@ -57,6 +64,24 @@ ashell comes with a default configuration that should work out of the box.
 If you want to customize it you can refer to
 the [Configuration](https://malpenzibo.github.io/ashell/docs/configuration)
 page for more details.
+
+## 📖 Developer Guide
+
+If you want to contribute or understand the codebase, check out the
+[Developer Guide](https://malpenzibo.github.io/ashell/dev-guide/).
+
+## 🤖 AI-Assisted Contributions
+
+AI-assisted contributions are accepted — the same quality standards apply regardless of how
+the code was written. Frontier-class models (e.g., Claude Opus or equivalent) are strongly
+recommended. **You are responsible for the code you submit**: review AI output carefully,
+ensure `make check` passes, and be prepared to explain your changes.
+
+Before working on a feature or large change, **discuss it with maintainers first**.
+Small, incremental PRs are preferred — code review is manual and remains the bottleneck.
+
+For the full AI contribution guide, see the
+[Developer Guide](https://malpenzibo.github.io/ashell/dev-guide/contributing/ai-assisted-contributions.html).
 
 ## 📷 Screenshots
 

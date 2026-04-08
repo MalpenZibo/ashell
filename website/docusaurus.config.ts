@@ -94,6 +94,11 @@ const config: Config = {
           position: "left",
         },
         {
+          href: "https://malpenzibo.github.io/ashell/dev-guide/",
+          label: "Developer Guide",
+          position: "left",
+        },
+        {
           type: "docsVersionDropdown",
           position: "right",
         },
@@ -118,6 +123,10 @@ const config: Config = {
             {
               label: "Configuration",
               to: "/docs/configuration",
+            },
+            {
+              label: "Developer Guide",
+              href: "https://malpenzibo.github.io/ashell/dev-guide/",
             },
           ],
         },

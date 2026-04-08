@@ -3,22 +3,21 @@ use crate::{
     theme::AshellTheme,
 };
 use iced::{
-    Alignment, Element, Length,
+    Alignment, Element, Length, SurfaceId,
     alignment::Vertical,
-    widget::{button, column, container, horizontal_space, row, text, text_input},
-    window::Id,
+    widget::{button, column, container, row, space, text, text_input},
 };
 
 #[derive(Debug, Clone)]
 pub enum Message {
     PasswordChanged(String),
     TogglePasswordVisibility,
-    DialogConfirmed(Id),
-    DialogCancelled(Id),
+    DialogConfirmed(SurfaceId),
+    DialogCancelled(SurfaceId),
 }
 
 pub fn view<'a>(
-    id: Id,
+    id: SurfaceId,
     theme: &'a AshellTheme,
     wifi_ssid: &str,
     current_password: &str,
@@ -55,7 +54,7 @@ Do you want to connect anyway?",
         .align_y(Alignment::Center),
         text(description),
     )
-    .push_maybe(
+    .push(
         (!warning_only).then_some(
             row!(
                 text_input("", current_password)
@@ -89,7 +88,7 @@ Do you want to connect anyway?",
     )
     .push(
         row!(
-            horizontal_space(),
+            space::horizontal(),
             button(text("Cancel").align_y(Vertical::Center))
                 .padding([theme.space.xxs, theme.space.xl])
                 .style(theme.outline_button_style())

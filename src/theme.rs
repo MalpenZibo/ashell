@@ -11,25 +11,25 @@ use iced::{
 #[allow(unused)]
 #[derive(Debug, Copy, Clone)]
 pub struct Space {
-    pub xxs: u16,
-    pub xs: u16,
-    pub sm: u16,
-    pub md: u16,
-    pub lg: u16,
-    pub xl: u16,
-    pub xxl: u16,
+    pub xxs: f32,
+    pub xs: f32,
+    pub sm: f32,
+    pub md: f32,
+    pub lg: f32,
+    pub xl: f32,
+    pub xxl: f32,
 }
 
 impl Default for Space {
     fn default() -> Self {
         Self {
-            xxs: 4,
-            xs: 8,
-            sm: 12,
-            md: 16,
-            lg: 24,
-            xl: 32,
-            xxl: 48,
+            xxs: 4.0,
+            xs: 8.0,
+            sm: 12.0,
+            md: 16.0,
+            lg: 24.0,
+            xl: 32.0,
+            xxl: 48.0,
         }
     }
 }
@@ -37,19 +37,19 @@ impl Default for Space {
 #[allow(unused)]
 #[derive(Debug, Clone, Copy)]
 pub struct Radius {
-    pub sm: u16,
-    pub md: u16,
-    pub lg: u16,
-    pub xl: u16,
+    pub sm: f32,
+    pub md: f32,
+    pub lg: f32,
+    pub xl: f32,
 }
 
 impl Default for Radius {
     fn default() -> Self {
         Self {
-            sm: 4,
-            md: 8,
-            lg: 16,
-            xl: 32,
+            sm: 4.0,
+            md: 8.0,
+            lg: 16.0,
+            xl: 32.0,
         }
     }
 }
@@ -57,30 +57,30 @@ impl Default for Radius {
 #[allow(unused)]
 #[derive(Debug, Copy, Clone)]
 pub struct FontSize {
-    pub xxs: u16,
-    pub xs: u16,
-    pub sm: u16,
-    pub md: u16,
-    pub lg: u16,
-    pub xl: u16,
-    pub xxl: u16,
+    pub xxs: f32,
+    pub xs: f32,
+    pub sm: f32,
+    pub md: f32,
+    pub lg: f32,
+    pub xl: f32,
+    pub xxl: f32,
 }
 
 impl Default for FontSize {
     fn default() -> Self {
         Self {
-            xxs: 8,
-            xs: 10,
-            sm: 12,
-            md: 16,
-            lg: 20,
-            xl: 22,
-            xxl: 32,
+            xxs: 8.0,
+            xs: 10.0,
+            sm: 12.0,
+            md: 16.0,
+            lg: 20.0,
+            xl: 22.0,
+            xxl: 32.0,
         }
     }
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct AshellTheme {
     pub iced_theme: Theme,
     pub space: Space,
@@ -115,6 +115,7 @@ impl AshellTheme {
                     text: appearance.text_color.get_base(),
                     primary: appearance.primary_color.get_base(),
                     success: appearance.success_color.get_base(),
+                    warning: appearance.success_color.get_base(),
                     danger: appearance.danger_color.get_base(),
                 },
                 |palette| {
@@ -149,17 +150,28 @@ impl AshellTheme {
                         appearance.danger_color.get_text().unwrap_or(palette.text),
                     );
 
+                    let default_warning = palette::Warning::generate(
+                        palette.warning,
+                        palette.background,
+                        palette.text,
+                    );
+
                     palette::Extended {
                         background: palette::Background {
                             base: default_bg.base,
+                            weakest: default_bg.weakest,
+                            weaker: default_bg.weaker,
                             weak: appearance
                                 .background_color
                                 .get_weak_pair(palette.text)
                                 .unwrap_or(default_bg.weak),
+                            neutral: default_bg.neutral,
                             strong: appearance
                                 .background_color
                                 .get_strong_pair(palette.text)
                                 .unwrap_or(default_bg.strong),
+                            stronger: default_bg.stronger,
+                            strongest: default_bg.strongest,
                         },
                         primary: palette::Primary {
                             base: default_primary.base,
@@ -205,6 +217,7 @@ impl AshellTheme {
                                 .get_strong_pair(palette.text)
                                 .unwrap_or(default_danger.strong),
                         },
+                        warning: default_warning,
                         is_dark: true,
                     }
                 },
@@ -524,7 +537,7 @@ impl AshellTheme {
             };
             match status {
                 text_input::Status::Active => base,
-                text_input::Status::Focused | text_input::Status::Hovered => {
+                text_input::Status::Focused { .. } | text_input::Status::Hovered => {
                     base.border.color = theme.extended_palette().background.strong.color;
                     base
                 }

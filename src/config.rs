@@ -14,7 +14,7 @@ use serde_with::DisplayFromStr;
 use serde_with::serde_as;
 use std::path::PathBuf;
 use std::time::Duration;
-use std::{any::TypeId, collections::HashMap, error::Error, ops::Deref, path::Path};
+use std::{collections::HashMap, error::Error, ops::Deref, path::Path};
 use tokio::time::sleep;
 
 pub const DEFAULT_CONFIG_FILE_PATH: &str = "~/.config/ashell/config.toml";
@@ -134,10 +134,10 @@ pub struct KeyboardLayoutModuleConfig {
 #[derive(Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct SystemInfoCpu {
-    #[serde(default)]
     pub warn_threshold: u32,
-    #[serde(default)]
     pub alert_threshold: u32,
+
+    pub format: CpuFormat,
 }
 
 impl Default for SystemInfoCpu {
@@ -145,6 +145,7 @@ impl Default for SystemInfoCpu {
         Self {
             warn_threshold: 60,
             alert_threshold: 80,
+            format: CpuFormat::Percentage,
         }
     }
 }
@@ -154,6 +155,7 @@ impl Default for SystemInfoCpu {
 pub struct SystemInfoMemory {
     pub warn_threshold: u32,
     pub alert_threshold: u32,
+    pub format: MemoryFormat,
 }
 
 impl Default for SystemInfoMemory {
@@ -161,6 +163,7 @@ impl Default for SystemInfoMemory {
         Self {
             warn_threshold: 70,
             alert_threshold: 85,
+            format: MemoryFormat::Percentage,
         }
     }
 }
@@ -171,6 +174,7 @@ pub struct SystemInfoTemperature {
     pub warn_threshold: i32,
     pub alert_threshold: i32,
     pub sensor: String,
+    pub format: TemperatureFormat,
 }
 
 impl Default for SystemInfoTemperature {
@@ -179,8 +183,37 @@ impl Default for SystemInfoTemperature {
             warn_threshold: 60,
             alert_threshold: 80,
             sensor: "acpitz temp1".to_string(),
+            format: TemperatureFormat::Celsius,
         }
     }
+}
+
+#[derive(Clone, Debug, Deserialize, Default)]
+pub enum DiskFormat {
+    #[default]
+    Percentage,
+    Fraction,
+}
+
+#[derive(Clone, Debug, Deserialize, Default)]
+pub enum MemoryFormat {
+    #[default]
+    Percentage,
+    Fraction,
+}
+
+#[derive(Clone, Debug, Deserialize, Default)]
+pub enum CpuFormat {
+    #[default]
+    Percentage,
+    Frequency,
+}
+
+#[derive(Clone, Debug, Deserialize, Default, PartialEq)]
+pub enum TemperatureFormat {
+    #[default]
+    Celsius,
+    Fahrenheit,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -188,6 +221,7 @@ impl Default for SystemInfoTemperature {
 pub struct SystemInfoDisk {
     pub warn_threshold: u32,
     pub alert_threshold: u32,
+    pub format: DiskFormat,
 }
 
 impl Default for SystemInfoDisk {
@@ -195,6 +229,7 @@ impl Default for SystemInfoDisk {
         Self {
             warn_threshold: 80,
             alert_threshold: 90,
+            format: DiskFormat::Percentage,
         }
     }
 }
@@ -305,6 +340,20 @@ pub enum WeatherLocation {
     Current,
     City(String),
     Coordinates(f32, f32),
+}
+
+impl std::hash::Hash for WeatherLocation {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        std::mem::discriminant(self).hash(state);
+        match self {
+            WeatherLocation::Current => {}
+            WeatherLocation::City(city) => city.hash(state),
+            WeatherLocation::Coordinates(lat, lon) => {
+                lat.to_bits().hash(state);
+                lon.to_bits().hash(state);
+            }
+        }
+    }
 }
 
 impl Default for TempoModuleConfig {
@@ -888,11 +937,10 @@ enum Event {
 }
 
 pub fn subscription(path: &Path) -> Subscription<Message> {
-    let id = TypeId::of::<Config>();
     let path = path.to_path_buf();
 
-    Subscription::run_with_id(
-        id,
+    Subscription::run_with(path, |path| {
+        let path = path.clone();
         channel(100, async move |mut output| {
             match (path.parent(), path.file_name(), Inotify::init()) {
                 (Some(folder), Some(file_name), Ok(inotify)) => {
@@ -992,6 +1040,6 @@ pub fn subscription(path: &Path) -> Subscription<Message> {
                     error!("Failed to initialize inotify: {e}");
                 }
             }
-        }),
-    )
+        })
+    })
 }

@@ -17,7 +17,7 @@ use crate::{
 use iced::{
     Alignment, Element, Length, Subscription, Task, Theme,
     alignment::Vertical,
-    widget::{Column, Row, button, column, container, horizontal_rule, row, text},
+    widget::{Column, Row, button, column, container, row, rule, text},
 };
 
 fn format_time_for_battery(battery: &BatteryData) -> String {
@@ -184,7 +184,7 @@ impl PowerSettings {
                 .on_press(Message::Shutdown)
                 .width(Length::Fill)
                 .style(theme.ghost_button_style()),
-            horizontal_rule(1),
+            rule::horizontal(1),
             button(row!(icon(StaticIcon::Logout), text("Logout")).spacing(theme.space.md))
                 .padding([theme.space.xxs, theme.space.sm])
                 .on_press(Message::Logout)
@@ -242,7 +242,7 @@ impl PowerSettings {
                         .align_y(Alignment::Center);
 
                     for p in service.peripherals.iter() {
-                        row = row.push_maybe({
+                        row = row.push({
                             if kinds.as_ref().is_none_or(|kinds| kinds.contains(&p.kind)) {
                                 let state = p.data.get_indicator_state();
 
@@ -359,7 +359,7 @@ impl PowerSettings {
         container({
             let battery_info = container(
                 Row::with_capacity(3)
-                    .push_maybe(peripheral_icon.map(icon))
+                    .push(peripheral_icon.map(icon))
                     .push(icon(battery.get_icon()))
                     .push(text(format!("{}%", battery.capacity)))
                     .spacing(ashell_theme.space.xxs),
@@ -407,7 +407,7 @@ impl PowerSettings {
 
                     if !service.peripherals.is_empty() {
                         button(indicator)
-                            .padding([0, ashell_theme.space.sm])
+                            .padding([0.0, ashell_theme.space.sm])
                             .on_press(Message::TogglePeripheralMenu)
                             .style(ashell_theme.settings_button_style())
                             .into()
@@ -425,7 +425,7 @@ impl PowerSettings {
 
                         Some(if service.peripherals.len() > 1 {
                             button(indicator)
-                                .padding([0, ashell_theme.space.sm])
+                                .padding([0.0, ashell_theme.space.sm])
                                 .on_press(Message::TogglePeripheralMenu)
                                 .style(ashell_theme.settings_button_style())
                                 .into()

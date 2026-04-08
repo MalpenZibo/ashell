@@ -24,7 +24,7 @@ jobs:
       - uses: nixbuild/nix-quick-install-action@v34
 
       - name: Restore and save Nix store
-        uses: nix-community/cache-nix-action@v6
+        uses: nix-community/cache-nix-action@v7
         with:
           primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/flake.lock') }}
           # do purge caches
