@@ -492,15 +492,11 @@ impl SystemInfo {
                     CpuFormat::Percentage => (self.data.cpu_usage.percentage.to_string(), "%"),
                     CpuFormat::Frequency => (self.data.cpu_usage.frequency.to_string(), " GHz"),
                 },
-                match self.config.cpu.format {
-                    // note quite sure on how to interpret thresholds with other types of display values yet.
-                    CpuFormat::Percentage => Some((
-                        self.data.cpu_usage.percentage,
-                        self.config.cpu.warn_threshold,
-                        self.config.cpu.alert_threshold,
-                    )),
-                    CpuFormat::Frequency => None,
-                },
+                Some((
+                    self.data.cpu_usage.percentage,
+                    self.config.cpu.warn_threshold,
+                    self.config.cpu.alert_threshold,
+                )),
                 None,
             )),
 
@@ -513,14 +509,11 @@ impl SystemInfo {
                     }
                     MemoryFormat::Fraction => (self.data.memory_usage.fraction.clone(), " GiB"),
                 },
-                match self.config.memory.format {
-                    MemoryFormat::Percentage => Some((
-                        self.data.memory_usage.percentage,
-                        self.config.memory.warn_threshold,
-                        self.config.memory.alert_threshold,
-                    )),
-                    MemoryFormat::Fraction => None,
-                },
+                Some((
+                    self.data.memory_usage.percentage,
+                    self.config.memory.warn_threshold,
+                    self.config.memory.alert_threshold,
+                )),
                 None,
             )),
 
@@ -535,27 +528,28 @@ impl SystemInfo {
                         (self.data.memory_swap_usage.fraction.clone(), " GiB")
                     }
                 },
-                match self.config.memory.format {
-                    MemoryFormat::Percentage => Some((
-                        self.data.memory_usage.percentage,
-                        self.config.memory.warn_threshold,
-                        self.config.memory.alert_threshold,
-                    )),
-                    MemoryFormat::Fraction => None,
-                },
+                Some((
+                    self.data.memory_swap_usage.percentage,
+                    self.config.memory.warn_threshold,
+                    self.config.memory.alert_threshold,
+                )),
                 Some("swap"),
             )),
 
             SystemInfoIndicator::Temperature => self.data.temperature.celsius.map(|cel| {
+                let temp_value = match self.config.temperature.format {
+                    TemperatureFormat::Celsius => cel,
+                    TemperatureFormat::Fahrenheit => self.data.temperature.fahrenheit,
+                };
                 Self::indicator_info_element(
                     theme,
                     StaticIcon::Temp,
                     match self.config.temperature.format {
-                        TemperatureFormat::Celsius => (cel, "°C"),
-                        TemperatureFormat::Fahrenheit => (self.data.temperature.fahrenheit, "°F"),
+                        TemperatureFormat::Celsius => (temp_value, "°C"),
+                        TemperatureFormat::Fahrenheit => (temp_value, "°F"),
                     },
                     Some((
-                        cel,
+                        temp_value,
                         self.config.temperature.warn_threshold,
                         self.config.temperature.alert_threshold,
                     )),
@@ -569,8 +563,8 @@ impl SystemInfo {
                             theme,
                             StaticIcon::Drive,
                             match self.config.disk.format {
-                                DiskFormat::Fraction => (disk.percentage.to_string(), "%"),
-                                DiskFormat::Percentage => (disk.fraction.clone(), " GB"),
+                                DiskFormat::Percentage => (disk.percentage.to_string(), "%"),
+                                DiskFormat::Fraction => (disk.fraction.clone(), " GB"),
                             },
                             Some((
                                 disk.percentage,

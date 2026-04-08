@@ -27,21 +27,35 @@ These are the available indicators:
 
 ### CPU
 
-The CPU indicator displays the current CPU usage as a percentage.
+The CPU indicator displays the current CPU usage as a percentage by default.
 
 To enable this indicator, add `Cpu` to the `indicators` configuration.
 
+You can change the display format using the `format` option in `[system_info.cpu]`:
+
+- `"Percentage"` (default) — shows CPU usage as a percentage (e.g., `72%`)
+- `"Frequency"` — shows the average CPU frequency in GHz (e.g., `3.42 GHz`)
+
 ### Memory
 
-The Memory indicator displays the current memory usage as a percentage.
+The Memory indicator displays the current memory usage as a percentage by default.
 
 To enable this indicator, add `Memory` to the `indicators` configuration.
 
+You can change the display format using the `format` option in `[system_info.memory]`:
+
+- `"Percentage"` (default) — shows memory usage as a percentage (e.g., `64%`)
+- `"Fraction"` — shows used and total memory in GiB (e.g., `5.12/15.89 GiB`)
+
 ### Memory Swap
 
-The Memory Swap indicator displays the current memory swap usage as a percentage.
+The Memory Swap indicator displays the current memory swap usage as a percentage by default.
 
 To enable this indicator, add `MemorySwap` to the `indicators` configuration.
+
+:::info
+Memory Swap uses the same `format` setting as Memory (`[system_info.memory]`). If you set Memory to `"Fraction"`, the swap indicator will also display as a fraction.
+:::
 
 ### Disk
 
@@ -49,6 +63,11 @@ The Disk indicator displays the disk space usage for a specific path.
 
 To enable this indicator, add `{ Disk = "path" }` or `{ Disk = "path", Name = "label" }` to the `indicators` configuration,
 where `path` is the path to the disk you want to monitor and `label` is an optional name to display for the disk.
+
+You can change the display format using the `format` option in `[system_info.disk]`:
+
+- `"Percentage"` (default) — shows disk usage as a percentage (e.g., `54%`)
+- `"Fraction"` — shows used and total disk space in GB (e.g., `256.00/512.00 GB`)
 
 #### Example
 
@@ -95,6 +114,11 @@ To enable this indicator, add `Temperature` to the `indicators` configuration.
 By default, the temperature sensor used is `acpitz temp1` (ACPI thermal zone).
 You can configure which sensor to use with the `sensor` option in the `[system_info.temperature]` section.
 
+You can also change the display format using the `format` option:
+
+- `"Celsius"` (default) — shows temperature in Celsius (e.g., `52°C`)
+- `"Fahrenheit"` — shows temperature in Fahrenheit (e.g., `125°F`)
+
 To see available sensors on your system, you can check the output of `sensors` command or
 look at the component labels returned by the sysinfo library.
 
@@ -127,6 +151,30 @@ interval = 10
 ```
 
 Higher values reduce CPU usage at the cost of less frequent updates.
+
+## Display Formats
+
+Each indicator type supports a `format` option that controls how its value is displayed in the status bar and menu. The format is configured in the corresponding `[system_info.<type>]` section.
+
+:::info
+Warning and alert color thresholds remain active regardless of the display format. For temperature, thresholds are interpreted in the configured unit — so if you use `"Fahrenheit"`, set your thresholds in Fahrenheit (e.g., `warn_threshold = 140`).
+:::
+
+#### Example
+
+```toml
+[system_info.cpu]
+format = "Frequency"
+
+[system_info.memory]
+format = "Fraction"
+
+[system_info.temperature]
+format = "Fahrenheit"
+
+[system_info.disk]
+format = "Fraction"
+```
 
 ## Warning and Alert Thresholds
 
@@ -163,17 +211,21 @@ interval = 5
 [system_info.cpu]
 warn_threshold = 60
 alert_threshold = 80
+format = "Percentage"
 
 [system_info.memory]
 warn_threshold = 70
 alert_threshold = 85
+format = "Percentage"
 
 [system_info.disk]
 warn_threshold = 80
 alert_threshold = 90
+format = "Percentage"
 
 [system_info.temperature]
 warn_threshold = 60
 alert_threshold = 80
 sensor = "acpitz temp1"
+format = "Celsius"
 ```
