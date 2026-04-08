@@ -67,7 +67,7 @@ clap = { version = "4.5", default-features = false, features = [
   "derive",
 ] }
 shellexpand = { version = "3", features = ["path"] }
-inotify = { version = "0.11.0", default-features = false, features = [
+inotify = { version = "0.11.1", default-features = false, features = [
   "stream",
 ] }
 pin-project-lite = "0.2.16"
