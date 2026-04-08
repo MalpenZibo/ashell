@@ -65,6 +65,15 @@ impl Default for Config {
     }
 }
 
+impl Config {
+    fn validate(&mut self) {
+        if let Some(ref mut updates) = self.updates {
+            updates.validate();
+        }
+        self.system_info.validate();
+    }
+}
+
 #[derive(Deserialize, Clone, Debug)]
 pub struct UpdatesModuleConfig {
     pub check_cmd: String,
@@ -76,6 +85,13 @@ pub struct UpdatesModuleConfig {
 impl UpdatesModuleConfig {
     const fn default_interval() -> u64 {
         3600
+    }
+
+    fn validate(&mut self) {
+        if self.interval == 0 {
+            warn!("UpdatesModuleConfig.interval is 0, setting to 1");
+            self.interval = 1;
+        }
     }
 }
 
@@ -139,6 +155,25 @@ pub struct SystemInfoCpu {
     pub format: CpuFormat,
 }
 
+fn validate_thresholds<T: PartialOrd + Copy + std::fmt::Display>(
+    warn: &mut T,
+    alert: &mut T,
+    name: &str,
+) {
+    if *warn >= *alert {
+        warn!(
+            "{name} warn_threshold ({warn}) >= alert_threshold ({alert}), setting both to {alert}"
+        );
+        *warn = *alert;
+    }
+}
+
+impl SystemInfoCpu {
+    fn validate(&mut self) {
+        validate_thresholds(&mut self.warn_threshold, &mut self.alert_threshold, "CPU");
+    }
+}
+
 impl Default for SystemInfoCpu {
     fn default() -> Self {
         Self {
@@ -155,6 +190,16 @@ pub struct SystemInfoMemory {
     pub warn_threshold: u32,
     pub alert_threshold: u32,
     pub format: MemoryFormat,
+}
+
+impl SystemInfoMemory {
+    fn validate(&mut self) {
+        validate_thresholds(
+            &mut self.warn_threshold,
+            &mut self.alert_threshold,
+            "Memory",
+        );
+    }
 }
 
 impl Default for SystemInfoMemory {
@@ -192,6 +237,16 @@ impl SystemInfoTemperature {
             TemperatureFormat::Celsius => DEFAULT_TEMP_ALERT_CELSIUS,
             TemperatureFormat::Fahrenheit => celsius_to_fahrenheit(DEFAULT_TEMP_ALERT_CELSIUS),
         })
+    }
+}
+
+impl SystemInfoTemperature {
+    fn validate(&mut self) {
+        validate_thresholds(
+            &mut self.warn_threshold,
+            &mut self.alert_threshold,
+            "Temperature",
+        );
     }
 }
 
@@ -246,6 +301,12 @@ pub struct SystemInfoDisk {
     pub format: DiskFormat,
 }
 
+impl SystemInfoDisk {
+    fn validate(&mut self) {
+        validate_thresholds(&mut self.warn_threshold, &mut self.alert_threshold, "Disk");
+    }
+}
+
 impl Default for SystemInfoDisk {
     fn default() -> Self {
         Self {
@@ -292,6 +353,17 @@ pub struct SystemInfoModuleConfig {
 impl SystemInfoModuleConfig {
     const fn default_interval() -> u64 {
         5
+    }
+
+    fn validate(&mut self) {
+        if self.interval == 0 {
+            warn!("SystemInfoModuleConfig.interval is 0, setting to 1");
+            self.interval = 1;
+        }
+        self.cpu.validate();
+        self.memory.validate();
+        self.temperature.validate();
+        self.disk.validate();
     }
 }
 
@@ -933,6 +1005,8 @@ fn read_config(path: &Path) -> Result<Config, Box<dyn Error + Send>> {
     match res {
         Ok(config) => {
             info!("Config file loaded successfully");
+            let mut config: Config = config;
+            config.validate();
             Ok(config)
         }
         Err(e) => {
