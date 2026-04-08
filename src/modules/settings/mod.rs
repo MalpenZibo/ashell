@@ -847,8 +847,8 @@ fn sub_menu_wrapper<'a, Msg: 'static>(
             background: Background::Color(
                 theme
                     .extended_palette()
-                    .secondary
-                    .strong
+                    .background
+                    .weak
                     .color
                     .scale_alpha(ashell_theme.opacity),
             )
