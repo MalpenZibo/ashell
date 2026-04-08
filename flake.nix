@@ -49,22 +49,46 @@
           libglvnd
         ];
         ldLibraryPath = pkgs.lib.makeLibraryPath runtimeDependencies;
-        defaultPackage = craneLib.buildPackage {
-          src = ./.;
 
+        # Filter source to only include files needed by the Rust build
+        # Excludes website/, docs/, screenshots/, etc. to avoid unnecessary rebuilds
+        src =
+          let
+            assetsFilter = path: _type: builtins.match ".*assets/.*" path != null;
+            srcFilter =
+              path: type: (assetsFilter path type) || (craneLib.filterCargoSources path type);
+          in
+          pkgs.lib.cleanSourceWith {
+            src = ./.;
+            filter = srcFilter;
+          };
+
+        # Shared build arguments for both deps and final build
+        commonArgs = {
+          inherit src;
+          strictDeps = true;
           nativeBuildInputs = with pkgs; [
             makeWrapper
             pkg-config
             autoPatchelfHook # Add runtimeDependencies to rpath
           ];
-
           inherit buildInputs runtimeDependencies ldLibraryPath;
-
-          postInstall = ''
-            wrapProgram "$out/bin/ashell" --prefix LD_LIBRARY_PATH : "${ldLibraryPath}"
-          '';
-          meta.mainProgram = "ashell";
         };
+
+        # Build only cargo dependencies — cached by Cargo.lock hash
+        cargoArtifacts = craneLib.buildDepsOnly commonArgs;
+
+        # Final build reuses cached dependency artifacts
+        defaultPackage = craneLib.buildPackage (
+          commonArgs
+          // {
+            inherit cargoArtifacts;
+            postInstall = ''
+              wrapProgram "$out/bin/ashell" --prefix LD_LIBRARY_PATH : "${ldLibraryPath}"
+            '';
+            meta.mainProgram = "ashell";
+          }
+        );
 
         devShell = pkgs.mkShell {
           inherit ldLibraryPath;
