@@ -167,24 +167,47 @@ impl Default for SystemInfoMemory {
     }
 }
 
+const DEFAULT_TEMP_WARN_CELSIUS: i32 = 60;
+const DEFAULT_TEMP_ALERT_CELSIUS: i32 = 80;
+
 #[derive(Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct SystemInfoTemperature {
-    pub warn_threshold: i32,
-    pub alert_threshold: i32,
+    warn_threshold: Option<i32>,
+    alert_threshold: Option<i32>,
     pub sensor: String,
     pub format: TemperatureFormat,
+}
+
+impl SystemInfoTemperature {
+    pub fn warn_threshold(&self) -> i32 {
+        self.warn_threshold.unwrap_or_else(|| match self.format {
+            TemperatureFormat::Celsius => DEFAULT_TEMP_WARN_CELSIUS,
+            TemperatureFormat::Fahrenheit => celsius_to_fahrenheit(DEFAULT_TEMP_WARN_CELSIUS),
+        })
+    }
+
+    pub fn alert_threshold(&self) -> i32 {
+        self.alert_threshold.unwrap_or_else(|| match self.format {
+            TemperatureFormat::Celsius => DEFAULT_TEMP_ALERT_CELSIUS,
+            TemperatureFormat::Fahrenheit => celsius_to_fahrenheit(DEFAULT_TEMP_ALERT_CELSIUS),
+        })
+    }
 }
 
 impl Default for SystemInfoTemperature {
     fn default() -> Self {
         Self {
-            warn_threshold: 60,
-            alert_threshold: 80,
+            warn_threshold: None,
+            alert_threshold: None,
             sensor: "acpitz temp1".to_string(),
             format: TemperatureFormat::Celsius,
         }
     }
+}
+
+fn celsius_to_fahrenheit(cel: i32) -> i32 {
+    cel * 9 / 5 + 32
 }
 
 #[derive(Clone, Debug, Deserialize, Default)]
@@ -208,7 +231,7 @@ pub enum CpuFormat {
     Frequency,
 }
 
-#[derive(Clone, Debug, Deserialize, Default, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Default)]
 pub enum TemperatureFormat {
     #[default]
     Celsius,
