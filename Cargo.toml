@@ -85,7 +85,7 @@ wayland-client = "0.31"
 wayland-protocols = { version = "0.32", features = ["client"] }
 
 [build-dependencies]
-allsorts = "0.15"
+allsorts = "0.16"
 
 [package.metadata.rpm]
 package = "ashell"
