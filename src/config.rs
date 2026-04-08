@@ -491,6 +491,17 @@ impl Default for MediaPlayerModuleConfig {
     }
 }
 
+fn hex_to_color(hex: HexColor) -> Color {
+    Color::from_rgb8(hex.r, hex.g, hex.b)
+}
+
+fn hex_to_pair(hex: HexColor, text: Option<HexColor>, text_fallback: Color) -> palette::Pair {
+    palette::Pair::new(
+        hex_to_color(hex),
+        text.map(hex_to_color).unwrap_or(text_fallback),
+    )
+}
+
 #[derive(Deserialize, Clone, Copy, Debug)]
 #[serde(untagged)]
 pub enum AppearanceColor {
@@ -506,43 +517,33 @@ pub enum AppearanceColor {
 impl AppearanceColor {
     pub fn get_base(&self) -> Color {
         match self {
-            AppearanceColor::Simple(color) => Color::from_rgb8(color.r, color.g, color.b),
-            AppearanceColor::Complete { base, .. } => Color::from_rgb8(base.r, base.g, base.b),
+            AppearanceColor::Simple(color) => hex_to_color(*color),
+            AppearanceColor::Complete { base, .. } => hex_to_color(*base),
         }
     }
 
     pub fn get_text(&self) -> Option<Color> {
         match self {
             AppearanceColor::Simple(_) => None,
-            AppearanceColor::Complete { text, .. } => {
-                text.map(|color| Color::from_rgb8(color.r, color.g, color.b))
-            }
+            AppearanceColor::Complete { text, .. } => text.map(hex_to_color),
         }
     }
 
     pub fn get_weak_pair(&self, text_fallback: Color) -> Option<palette::Pair> {
         match self {
             AppearanceColor::Simple(_) => None,
-            AppearanceColor::Complete { weak, text, .. } => weak.map(|color| {
-                palette::Pair::new(
-                    Color::from_rgb8(color.r, color.g, color.b),
-                    text.map(|color| Color::from_rgb8(color.r, color.g, color.b))
-                        .unwrap_or(text_fallback),
-                )
-            }),
+            AppearanceColor::Complete { weak, text, .. } => {
+                weak.map(|color| hex_to_pair(color, *text, text_fallback))
+            }
         }
     }
 
     pub fn get_strong_pair(&self, text_fallback: Color) -> Option<palette::Pair> {
         match self {
             AppearanceColor::Simple(_) => None,
-            AppearanceColor::Complete { strong, text, .. } => strong.map(|color| {
-                palette::Pair::new(
-                    Color::from_rgb8(color.r, color.g, color.b),
-                    text.map(|color| Color::from_rgb8(color.r, color.g, color.b))
-                        .unwrap_or(text_fallback),
-                )
-            }),
+            AppearanceColor::Complete { strong, text, .. } => {
+                strong.map(|color| hex_to_pair(color, *text, text_fallback))
+            }
         }
     }
 }
@@ -562,17 +563,6 @@ pub enum BackgroundAppearanceColor {
         strongest: Option<HexColor>,
         text: Option<HexColor>,
     },
-}
-
-fn hex_to_color(hex: HexColor) -> Color {
-    Color::from_rgb8(hex.r, hex.g, hex.b)
-}
-
-fn hex_to_pair(hex: HexColor, text: Option<HexColor>, text_fallback: Color) -> palette::Pair {
-    palette::Pair::new(
-        hex_to_color(hex),
-        text.map(hex_to_color).unwrap_or(text_fallback),
-    )
 }
 
 impl BackgroundAppearanceColor {
@@ -619,7 +609,7 @@ impl BackgroundAppearanceColor {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum BackgroundLevel {
     Weakest,
     Weaker,
