@@ -75,10 +75,6 @@ See the [custom module documentation](./custom_module.md) for details.
 
 Displays system tray icons and menus for applications.
 
-### Clock (deprecated - use [Tempo](./tempo.md) instead)
-
-Displays the current time and date.
-
 ### Tempo
 
 Pairs a customizable clock with compact weather info in the bar, plus a menu that shows forecasts, hourly breakdowns, and a calendar. See the [Tempo docs](./tempo.md) for full configuration details.
