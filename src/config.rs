@@ -242,11 +242,9 @@ impl SystemInfoTemperature {
 
 impl SystemInfoTemperature {
     fn validate(&mut self) {
-        validate_thresholds(
-            &mut self.warn_threshold,
-            &mut self.alert_threshold,
-            "Temperature",
-        );
+        if let (Some(warn), Some(alert)) = (&mut self.warn_threshold, &mut self.alert_threshold) {
+            validate_thresholds(warn, alert, "Temperature");
+        }
     }
 }
 
