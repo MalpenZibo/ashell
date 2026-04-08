@@ -665,7 +665,7 @@ pub struct Appearance {
     pub special_workspace_colors: Option<Vec<AppearanceColor>>,
 }
 
-static PRIMARY: HexColor = HexColor::rgb(250, 179, 135);
+static PRIMARY: HexColor = HexColor::rgb(122, 162, 247);
 
 fn scale_factor_deserializer<'de, D>(deserializer: D) -> Result<f64, D::Error>
 where
@@ -720,30 +720,24 @@ impl Default for Appearance {
             opacity: default_opacity(),
             menu: MenuAppearance::default(),
             background_color: BackgroundAppearanceColor::Complete {
-                base: HexColor::rgb(30, 30, 46),
+                base: HexColor::rgb(26, 27, 38),
                 weakest: None,
                 weaker: None,
-                weak: Some(HexColor::rgb(49, 50, 68)),
+                weak: Some(HexColor::rgb(36, 39, 58)),
                 neutral: None,
-                strong: Some(HexColor::rgb(69, 71, 90)),
+                strong: Some(HexColor::rgb(65, 72, 104)),
                 stronger: None,
                 strongest: None,
                 text: None,
             },
-            primary_color: AppearanceColor::Complete {
-                base: PRIMARY,
-                strong: None,
-                weak: None,
-                text: Some(HexColor::rgb(30, 30, 46)),
-            },
-            success_color: AppearanceColor::Simple(HexColor::rgb(166, 227, 161)),
-            warning_color: AppearanceColor::Simple(HexColor::rgb(249, 226, 175)),
-            danger_color: AppearanceColor::Simple(HexColor::rgb(243, 139, 168)),
-            text_color: AppearanceColor::Simple(HexColor::rgb(205, 214, 244)),
+            primary_color: AppearanceColor::Simple(PRIMARY),
+            success_color: AppearanceColor::Simple(HexColor::rgb(158, 206, 106)),
+            warning_color: AppearanceColor::Simple(HexColor::rgb(224, 175, 104)),
+            danger_color: AppearanceColor::Simple(HexColor::rgb(247, 118, 142)),
+            text_color: AppearanceColor::Simple(HexColor::rgb(169, 177, 214)),
             workspace_colors: vec![
                 AppearanceColor::Simple(PRIMARY),
-                AppearanceColor::Simple(HexColor::rgb(180, 190, 254)),
-                AppearanceColor::Simple(HexColor::rgb(203, 166, 247)),
+                AppearanceColor::Simple(HexColor::rgb(158, 206, 106)),
             ],
             special_workspace_colors: None,
         }
