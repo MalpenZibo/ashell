@@ -102,7 +102,12 @@ fn subset_text(input: &str, text: &str, output_path: &str) -> Result<(), Box<dyn
     println!("Number of glyphs in new font: {}", glyph_ids.len());
 
     // Subset
-    let new_font = subset::subset(&font_provider, &glyph_ids)?;
+    let new_font = subset::subset(
+        &font_provider,
+        &glyph_ids,
+        &subset::SubsetProfile::Minimal,
+        subset::CmapTarget::default(),
+    )?;
 
     let output_path = Path::new(output_path);
 
