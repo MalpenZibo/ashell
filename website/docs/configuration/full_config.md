@@ -40,23 +40,15 @@ interval = 5
 [system_info.cpu]
 warn_threshold = 60
 alert_threshold = 80
-#format = "Frequency"
 
 [system_info.memory]
 warn_threshold = 70
 alert_threshold = 85
-#format = "Fraction"
-
-[system_info.disk]
-warn_threshold = 80
-alert_threshold = 90
-#format = "Fraction"
 
 [system_info.temperature]
 warn_threshold = 60
 alert_threshold = 80
 sensor = "acpitz temp1"
-#format = "Fahrenheit"
 
 [tempo]
 clock_format = "%a %d %b %R"
