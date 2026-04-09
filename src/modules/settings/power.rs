@@ -2,7 +2,7 @@ use std::convert;
 
 use crate::{
     components::{
-        format_indicator, ghost_menu_button,
+        divider, format_indicator, ghost_menu_button,
         icons::{StaticIcon, icon},
         quick_setting_button,
     },
@@ -20,7 +20,7 @@ use crate::{
 use iced::{
     Alignment, Element, Length, Subscription, Task, Theme,
     alignment::Vertical,
-    widget::{Column, Row, button, column, container, row, rule, text},
+    widget::{Column, Row, button, column, container, row, text},
 };
 
 fn format_time_for_battery(battery: &BatteryData) -> String {
@@ -176,7 +176,7 @@ impl PowerSettings {
             ),
             ghost_menu_button(theme, StaticIcon::Reboot, "Reboot", Message::Reboot),
             ghost_menu_button(theme, StaticIcon::Power, "Shutdown", Message::Shutdown),
-            rule::horizontal(1),
+            divider(),
             ghost_menu_button(theme, StaticIcon::Logout, "Logout", Message::Logout),
         )
         .padding(theme.space.xs)

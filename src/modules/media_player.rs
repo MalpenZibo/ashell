@@ -1,4 +1,5 @@
 use crate::{
+    components::divider,
     components::icons::{IconButtonSize, StaticIcon, icon, icon_button},
     config::{MediaPlayerFormat, MediaPlayerModuleConfig},
     menu::MenuSize,
@@ -14,7 +15,7 @@ use crate::{
 use iced::{
     Background, Border, Element, Length, Subscription, Task, Theme,
     alignment::Vertical,
-    widget::{column, container, image, row, rule, slider, space, text},
+    widget::{column, container, image, row, slider, space, text},
 };
 use std::collections::{HashMap, HashSet};
 
@@ -84,7 +85,7 @@ impl MediaPlayer {
             None => Into::<Element<'a, Message>>::into(text("Not connected to MPRIS service")),
             Some(service) => column!(
                 text("Players").size(theme.font_size.lg),
-                rule::horizontal(1),
+                divider(),
                 column(service.players().iter().map(|d| {
                     const LEFT_COLUMN_WIDTH: Length = Length::FillPortion(3);
                     const RIGHT_COLUMN_WIDTH: Length = Length::FillPortion(2);

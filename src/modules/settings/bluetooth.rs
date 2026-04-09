@@ -1,7 +1,7 @@
 use super::SubMenu;
 use crate::{
     components::{
-        format_indicator,
+        divider, format_indicator,
         icons::{IconButtonSize, StaticIcon, icon, icon_button},
         quick_setting_button,
     },
@@ -15,7 +15,7 @@ use crate::{
 use iced::{
     Element, Length, Padding, Subscription, SurfaceId, Task, Theme,
     alignment::{Horizontal, Vertical},
-    widget::{Column, MouseArea, Row, button, column, container, row, rule, scrollable, text},
+    widget::{Column, MouseArea, Row, button, column, container, row, scrollable, text},
 };
 use itertools::Itertools;
 use zbus::zvariant::OwnedObjectPath;
@@ -309,7 +309,7 @@ impl BluetoothSettings {
                                         .align_x(Horizontal::Right)
                                 )
                                 .padding([0.0, theme.space.sm]),
-                                rule::horizontal(1),
+                                divider(),
                             ),
                             container(
                                 scrollable(Column::with_children(
@@ -335,7 +335,7 @@ impl BluetoothSettings {
                                         .size(theme.font_size.xs),
                                 )
                                 .padding([0.0, theme.space.sm]),
-                                rule::horizontal(1),
+                                divider(),
                             ),
                             container(
                                 scrollable(
@@ -369,7 +369,7 @@ impl BluetoothSettings {
                 } else {
                     None
                 })
-                .push(self.config.more_cmd.as_ref().map(|_| rule::horizontal(1)))
+                .push(self.config.more_cmd.as_ref().map(|_| divider()))
                 .push(self.config.more_cmd.as_ref().map(|_| {
                     button("More")
                         .on_press(Message::More(id))

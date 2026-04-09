@@ -1,4 +1,5 @@
 use crate::{
+    components::divider,
     components::icons::{StaticIcon, icon},
     config::UpdatesModuleConfig,
     menu::MenuSize,
@@ -8,7 +9,7 @@ use iced::{
     Alignment, Element, Length, Padding, Subscription, SurfaceId, Task,
     alignment::Horizontal,
     stream::channel,
-    widget::{Column, button, column, container, row, rule, scrollable, text},
+    widget::{Column, button, column, container, row, scrollable, text},
 };
 use log::error;
 use serde::Deserialize;
@@ -245,7 +246,7 @@ impl Updates {
                 }
                 elements.into()
             },
-            rule::horizontal(1),
+            divider(),
             self.update_buttons(id, theme),
         )
         .width(MenuSize::Small)

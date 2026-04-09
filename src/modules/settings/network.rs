@@ -1,7 +1,7 @@
 use super::SubMenu;
 use crate::{
     components::{
-        format_indicator,
+        divider, format_indicator,
         icons::{StaticIcon, icon, icon_button},
         quick_setting_button,
     },
@@ -18,7 +18,7 @@ use crate::{
 };
 use iced::{
     Alignment, Element, Length, Padding, Subscription, SurfaceId, Task, Theme,
-    widget::{Column, MouseArea, button, column, container, row, rule, scrollable, text, toggler},
+    widget::{Column, MouseArea, button, column, container, row, scrollable, text, toggler},
 };
 use log::{info, warn};
 
@@ -565,7 +565,7 @@ impl NetworkSettings {
             .spacing(theme.space.xs)
             .width(Length::Fill)
             .align_y(Alignment::Center),
-            rule::horizontal(1),
+            divider(),
             container(scrollable(
                 Column::with_children({
                     let (active_networks, inactive_networks): (Vec<_>, Vec<_>) = service
@@ -637,7 +637,7 @@ impl NetworkSettings {
         if show_more_button {
             column!(
                 main,
-                rule::horizontal(1),
+                divider(),
                 button("More")
                     .on_press(Message::WiFiMore(id))
                     .padding([theme.space.xxs, theme.space.sm])
@@ -709,7 +709,7 @@ impl NetworkSettings {
         if show_more_button {
             column!(
                 main,
-                rule::horizontal(1),
+                divider(),
                 button("More")
                     .on_press(Message::VpnMore(id))
                     .padding([theme.space.xxs, theme.space.sm])

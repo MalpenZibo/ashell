@@ -22,3 +22,9 @@ pub use quick_setting_button::*;
 pub use selectable_list_item::*;
 pub use slider_row::*;
 pub use sub_menu_wrapper::*;
+
+use iced::{Element, widget::rule};
+
+pub fn divider<'a, Msg: 'static>() -> Element<'a, Msg> {
+    rule::horizontal(1).into()
+}

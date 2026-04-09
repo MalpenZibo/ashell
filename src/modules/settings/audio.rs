@@ -1,7 +1,7 @@
 use super::SubMenu;
 use crate::{
     components::{
-        format_indicator,
+        divider, format_indicator,
         icons::{StaticIcon, icon, icon_button, icon_mono},
         selectable_list_item, slider_row,
     },
@@ -16,7 +16,7 @@ use crate::{
 use iced::{
     Element, Length, Subscription, SurfaceId, Task,
     mouse::ScrollDelta,
-    widget::{Column, MouseArea, Text, button, column, rule, slider, text},
+    widget::{Column, MouseArea, Text, button, column, slider, text},
 };
 use libpulse_binding::volume::Volume;
 
@@ -512,7 +512,7 @@ impl AudioSettings {
         match more_msg {
             Some(more_msg) => column!(
                 entries,
-                rule::horizontal(1),
+                divider(),
                 button("More")
                     .on_press(more_msg)
                     .padding([theme.space.xxs, theme.space.sm])

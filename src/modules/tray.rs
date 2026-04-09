@@ -1,4 +1,5 @@
 use crate::{
+    components::divider,
     components::icons::{StaticIcon, icon},
     components::{ButtonUIRef, position_button},
     menu::MenuSize,
@@ -13,7 +14,7 @@ use crate::{
 };
 use iced::{
     Alignment, Element, Length, Padding, Subscription, SurfaceId, Task,
-    widget::{Column, Image, Row, Svg, button, container, row, rule, text, toggler},
+    widget::{Column, Image, Row, Svg, button, container, row, text, toggler},
 };
 use log::debug;
 
@@ -168,7 +169,7 @@ impl TrayModule {
                 .width(Length::Fill)
                 .padding(theme.space.xs)
                 .into(),
-            LayoutProps { type_: Some(t), .. } if t == "separator" => rule::horizontal(1).into(),
+            LayoutProps { type_: Some(t), .. } if t == "separator" => divider(),
             _ => Row::new().into(),
         }
     }
