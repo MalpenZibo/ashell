@@ -16,7 +16,7 @@ use crate::{
 use iced::{
     Element, Length, Subscription, SurfaceId, Task,
     mouse::ScrollDelta,
-    widget::{Column, MouseArea, Row, Text, button, column, rule, slider, text},
+    widget::{Column, MouseArea, Text, button, column, rule, slider, text},
 };
 use libpulse_binding::volume::Volume;
 

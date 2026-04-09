@@ -616,25 +616,12 @@ impl AshellTheme {
         }
     }
 
-    /// Note: the transparent argument, when true, makes the base color bg
-    /// transparent but still has a hover bg color. Not to be confused with opacity,
-    /// which affects opacity at all times.
-    pub fn module_button_style(
-        &self,
-        transparent: bool,
-    ) -> impl Fn(&Theme, Status) -> button::Style {
+    /// Module button style: transparent base with hover highlight.
+    /// The Islands background is handled by `module_group`, not the button.
+    pub fn module_button_style(&self) -> impl Fn(&Theme, Status) -> button::Style {
         move |theme, status| {
             let mut base = button::Style {
-                background: match self.bar_style {
-                    AppearanceStyle::Solid | AppearanceStyle::Gradient => None,
-                    AppearanceStyle::Islands => {
-                        if transparent {
-                            None
-                        } else {
-                            Some(theme.palette().background.scale_alpha(self.opacity).into())
-                        }
-                    }
-                },
+                background: None,
                 border: Border {
                     width: 0.0,
                     radius: self.radius.lg.into(),
