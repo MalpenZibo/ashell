@@ -1,6 +1,10 @@
-use super::{SubMenu, quick_setting_button};
+use super::SubMenu;
 use crate::{
-    components::icons::{StaticIcon, icon, icon_button},
+    components::{
+        format_indicator,
+        icons::{StaticIcon, icon, icon_button},
+        quick_setting_button,
+    },
     config::SettingsFormat,
     services::{
         ReadOnlyService, Service, ServiceEvent,
@@ -334,15 +338,13 @@ impl NetworkSettings {
                             || matches!(c, ActiveConnectionInfo::Wired { .. })
                     })
                     .map_or_else(
-                        || match self.config.indicator_format {
-                            SettingsFormat::Icon => icon(StaticIcon::Wifi0).into(),
-                            SettingsFormat::Percentage | SettingsFormat::Time => text("0%").into(),
-                            SettingsFormat::IconAndPercentage | SettingsFormat::IconAndTime => {
-                                row!(icon(StaticIcon::Wifi0), text("0%"))
-                                    .spacing(theme.space.xxs)
-                                    .align_y(Alignment::Center)
-                                    .into()
-                            }
+                        || {
+                            format_indicator(
+                                theme,
+                                self.config.indicator_format,
+                                icon(StaticIcon::Wifi0).into(),
+                                text("0%").into(),
+                            )
                         },
                         |a| {
                             let icon_type = a.get_icon();
@@ -351,35 +353,19 @@ impl NetworkSettings {
                                 ActiveConnectionInfo::WiFi { strength, .. } => Some(*strength),
                                 _ => None,
                             };
+                            let strength_text =
+                                strength.map_or("100%".to_string(), |s| format!("{}%", s));
 
-                            match self.config.indicator_format {
-                                SettingsFormat::Icon => wrap_connectivity_style(
+                            wrap_connectivity_style(
+                                format_indicator(
+                                    theme,
+                                    self.config.indicator_format,
                                     icon(icon_type).into(),
-                                    state.0,
-                                    state.1,
+                                    text(strength_text).into(),
                                 ),
-                                SettingsFormat::Percentage | SettingsFormat::Time => {
-                                    let strength_text =
-                                        strength.map_or("100%".to_string(), |s| format!("{}%", s));
-                                    wrap_connectivity_style(
-                                        text(strength_text).into(),
-                                        state.0,
-                                        state.1,
-                                    )
-                                }
-                                SettingsFormat::IconAndPercentage | SettingsFormat::IconAndTime => {
-                                    let strength_text =
-                                        strength.map_or("100%".to_string(), |s| format!("{}%", s));
-                                    wrap_connectivity_style(
-                                        row!(icon(icon_type), text(strength_text))
-                                            .spacing(theme.space.xxs)
-                                            .align_y(Alignment::Center)
-                                            .into(),
-                                        state.0,
-                                        state.1,
-                                    )
-                                }
-                            }
+                                state.0,
+                                state.1,
+                            )
                         },
                     );
 

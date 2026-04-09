@@ -1,9 +1,12 @@
 use std::convert;
 
 use crate::{
-    components::icons::{StaticIcon, icon},
+    components::{
+        format_indicator, ghost_menu_button,
+        icons::{StaticIcon, icon},
+        quick_setting_button,
+    },
     config::{PeripheralIndicators, SettingsFormat},
-    modules::settings::quick_setting_button,
     services::{
         ReadOnlyService, Service, ServiceEvent,
         upower::{
@@ -164,32 +167,17 @@ impl PowerSettings {
 
     pub fn menu<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
         column!(
-            button(row!(icon(StaticIcon::Suspend), text("Suspend")).spacing(theme.space.md))
-                .padding([theme.space.xxs, theme.space.sm])
-                .on_press(Message::Suspend)
-                .width(Length::Fill)
-                .style(theme.ghost_button_style()),
-            button(row!(icon(StaticIcon::Hibernate), text("Hibernate")).spacing(theme.space.md))
-                .padding([theme.space.xxs, theme.space.sm])
-                .on_press(Message::Hibernate)
-                .width(Length::Fill)
-                .style(theme.ghost_button_style()),
-            button(row!(icon(StaticIcon::Reboot), text("Reboot")).spacing(theme.space.md))
-                .padding([theme.space.xxs, theme.space.sm])
-                .on_press(Message::Reboot)
-                .width(Length::Fill)
-                .style(theme.ghost_button_style()),
-            button(row!(icon(StaticIcon::Power), text("Shutdown")).spacing(theme.space.md))
-                .padding([theme.space.xxs, theme.space.sm])
-                .on_press(Message::Shutdown)
-                .width(Length::Fill)
-                .style(theme.ghost_button_style()),
+            ghost_menu_button(theme, StaticIcon::Suspend, "Suspend", Message::Suspend),
+            ghost_menu_button(
+                theme,
+                StaticIcon::Hibernate,
+                "Hibernate",
+                Message::Hibernate
+            ),
+            ghost_menu_button(theme, StaticIcon::Reboot, "Reboot", Message::Reboot),
+            ghost_menu_button(theme, StaticIcon::Power, "Shutdown", Message::Shutdown),
             rule::horizontal(1),
-            button(row!(icon(StaticIcon::Logout), text("Logout")).spacing(theme.space.md))
-                .padding([theme.space.xxs, theme.space.sm])
-                .on_press(Message::Logout)
-                .width(Length::Fill)
-                .style(theme.ghost_button_style()),
+            ghost_menu_button(theme, StaticIcon::Logout, "Logout", Message::Logout),
         )
         .padding(theme.space.xs)
         .width(Length::Fill)
@@ -313,28 +301,19 @@ impl PowerSettings {
         self.service.as_ref().and_then(|service| {
             service.system_battery.map(|battery| {
                 let state = battery.get_indicator_state();
+                let label: String = match self.config.battery_format {
+                    SettingsFormat::Time | SettingsFormat::IconAndTime => {
+                        format_time_for_battery(&battery)
+                    }
+                    _ => format!("{}%", battery.capacity),
+                };
 
-                container(match self.config.battery_format {
-                    SettingsFormat::Icon => icon(battery.get_icon()).into(),
-                    SettingsFormat::Percentage => convert::Into::<Element<'a, Message>>::into(
-                        text(format!("{}%", battery.capacity)),
-                    ),
-                    SettingsFormat::IconAndPercentage => row!(
-                        icon(battery.get_icon()),
-                        text(format!("{}%", battery.capacity))
-                    )
-                    .spacing(ashell_theme.space.xxs)
-                    .align_y(Alignment::Center)
-                    .into(),
-                    SettingsFormat::Time => text(format_time_for_battery(&battery)).into(),
-                    SettingsFormat::IconAndTime => row!(
-                        icon(battery.get_icon()),
-                        text(format_time_for_battery(&battery))
-                    )
-                    .spacing(ashell_theme.space.xxs)
-                    .align_y(Alignment::Center)
-                    .into(),
-                })
+                container(format_indicator(
+                    ashell_theme,
+                    self.config.battery_format,
+                    icon(battery.get_icon()).into(),
+                    text(label).into(),
+                ))
                 .style(move |theme: &Theme| container::Style {
                     text_color: Some(match state {
                         IndicatorState::Success => theme.palette().success,

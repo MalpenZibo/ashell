@@ -1,6 +1,10 @@
-use super::{SubMenu, quick_setting_button};
+use super::SubMenu;
 use crate::{
-    components::icons::{IconButtonSize, StaticIcon, icon, icon_button},
+    components::{
+        format_indicator,
+        icons::{IconButtonSize, StaticIcon, icon, icon_button},
+        quick_setting_button,
+    },
     config::SettingsFormat,
     services::{
         ReadOnlyService, Service, ServiceEvent,
@@ -413,35 +417,15 @@ impl BluetoothSettings {
         {
             let connected_count = service.devices.iter().filter(|d| d.connected).count();
 
-            let content: Element<'a, Message> = match self.config.indicator_format {
-                SettingsFormat::Icon => {
-                    let icon_type = if connected_count > 0 {
-                        StaticIcon::BluetoothConnected
-                    } else {
-                        StaticIcon::Bluetooth
-                    };
-                    icon(icon_type).into()
-                }
-                SettingsFormat::Percentage | SettingsFormat::Time => {
-                    if connected_count > 0 {
-                        text(format!("{}", connected_count)).into()
-                    } else {
-                        icon(StaticIcon::Bluetooth).into()
-                    }
-                }
-                SettingsFormat::IconAndPercentage | SettingsFormat::IconAndTime => {
-                    if connected_count > 0 {
-                        row!(
-                            icon(StaticIcon::BluetoothConnected),
-                            text(format!("{}", connected_count))
-                        )
-                        .spacing(theme.space.xxs)
-                        .align_y(Alignment::Center)
-                        .into()
-                    } else {
-                        icon(StaticIcon::Bluetooth).into()
-                    }
-                }
+            let content: Element<'a, Message> = if connected_count > 0 {
+                format_indicator(
+                    theme,
+                    self.config.indicator_format,
+                    icon(StaticIcon::BluetoothConnected).into(),
+                    text(format!("{}", connected_count)).into(),
+                )
+            } else {
+                icon(StaticIcon::Bluetooth).into()
             };
 
             Some(

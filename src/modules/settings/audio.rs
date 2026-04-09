@@ -1,6 +1,10 @@
 use super::SubMenu;
 use crate::{
-    components::icons::{StaticIcon, icon, icon_button, icon_mono},
+    components::{
+        format_indicator,
+        icons::{StaticIcon, icon, icon_button, icon_mono},
+        selectable_list_item, slider_row,
+    },
     config::SettingsFormat,
     services::{
         ReadOnlyService, Service, ServiceEvent,
@@ -10,9 +14,9 @@ use crate::{
     utils::remote_value::{self, Remote},
 };
 use iced::{
-    Alignment, Element, Length, Subscription, SurfaceId, Task, Theme,
+    Element, Length, Subscription, SurfaceId, Task,
     mouse::ScrollDelta,
-    widget::{Column, MouseArea, Row, Text, button, column, container, row, rule, slider, text},
+    widget::{Column, MouseArea, Row, Text, button, column, rule, slider, text},
 };
 use libpulse_binding::volume::Volume;
 
@@ -229,32 +233,15 @@ impl AudioSettings {
             })
             .map(|(service, icon_type)| {
                 let volume = service.sink_slider.value();
-                match self.config.indicator_format {
-                    SettingsFormat::Icon => {
-                        let icon = icon(icon_type);
-                        MouseArea::new(icon)
-                            .on_right_press(Message::OpenMore)
-                            .on_scroll(Self::on_scroll(volume, Message::SinkVolumeChanged))
-                            .into()
-                    }
-                    SettingsFormat::Percentage | SettingsFormat::Time => {
-                        MouseArea::new(Self::vol_text(volume))
-                            .on_right_press(Message::OpenMore)
-                            .on_scroll(Self::on_scroll(volume, Message::SinkVolumeChanged))
-                            .into()
-                    }
-                    SettingsFormat::IconAndPercentage | SettingsFormat::IconAndTime => {
-                        let icon = icon(icon_type);
-                        MouseArea::new(
-                            row!(icon, Self::vol_text(volume))
-                                .spacing(theme.space.xxs)
-                                .align_y(Alignment::Center),
-                        )
-                        .on_right_press(Message::OpenMore)
-                        .on_scroll(Self::on_scroll(volume, Message::SinkVolumeChanged))
-                        .into()
-                    }
-                }
+                MouseArea::new(format_indicator(
+                    theme,
+                    self.config.indicator_format,
+                    icon(icon_type).into(),
+                    Self::vol_text(volume).into(),
+                ))
+                .on_right_press(Message::OpenMore)
+                .on_scroll(Self::on_scroll(volume, Message::SinkVolumeChanged))
+                .into()
             })
     }
 
@@ -275,32 +262,15 @@ impl AudioSettings {
             })
             .map(|(service, icon_type)| {
                 let volume = service.source_slider.value();
-                match self.config.microphone_indicator_format {
-                    SettingsFormat::Icon => {
-                        let icon = icon(icon_type);
-                        MouseArea::new(icon)
-                            .on_right_press(Message::OpenSourceMore)
-                            .on_scroll(Self::on_scroll(volume, Message::SourceVolumeChanged))
-                            .into()
-                    }
-                    SettingsFormat::Percentage | SettingsFormat::Time => {
-                        MouseArea::new(Self::vol_text(volume))
-                            .on_right_press(Message::OpenSourceMore)
-                            .on_scroll(Self::on_scroll(volume, Message::SourceVolumeChanged))
-                            .into()
-                    }
-                    SettingsFormat::IconAndPercentage | SettingsFormat::IconAndTime => {
-                        let icon = icon(icon_type);
-                        MouseArea::new(
-                            row!(icon, Self::vol_text(volume))
-                                .spacing(theme.space.xxs)
-                                .align_y(Alignment::Center),
-                        )
-                        .on_right_press(Message::OpenSourceMore)
-                        .on_scroll(Self::on_scroll(volume, Message::SourceVolumeChanged))
-                        .into()
-                    }
-                }
+                MouseArea::new(format_indicator(
+                    theme,
+                    self.config.microphone_indicator_format,
+                    icon(icon_type).into(),
+                    Self::vol_text(volume).into(),
+                ))
+                .on_right_press(Message::OpenSourceMore)
+                .on_scroll(Self::on_scroll(volume, Message::SourceVolumeChanged))
+                .into()
             })
     }
 
@@ -311,7 +281,7 @@ impl AudioSettings {
     ) -> (Option<Element<'a, Message>>, Option<Element<'a, Message>>) {
         if let Some(service) = &self.service {
             let sink_slider = service.active_sink().map(|s| {
-                Self::slider(
+                Self::audio_slider(
                     theme,
                     SliderType::Sink,
                     s.is_mute,
@@ -327,7 +297,7 @@ impl AudioSettings {
             });
 
             let source_slider = service.active_source().map(|s| {
-                Self::slider(
+                Self::audio_slider(
                     theme,
                     SliderType::Source,
                     s.is_mute,
@@ -440,7 +410,7 @@ impl AudioSettings {
         }
     }
 
-    fn slider<'a>(
+    fn audio_slider<'a>(
         theme: &'a AshellTheme,
         slider_type: SliderType,
         is_mute: bool,
@@ -449,58 +419,55 @@ impl AudioSettings {
         volume_changed: &'a dyn Fn(remote_value::Message<u32>) -> Message,
         with_submenu: Option<(Option<SubMenu>, Message)>,
     ) -> Element<'a, Message> {
-        Row::with_capacity(3)
-            .push(
-                MouseArea::new(
-                    icon_button(
-                        theme,
-                        if is_mute {
-                            match slider_type {
-                                SliderType::Sink => StaticIcon::Speaker0,
-                                SliderType::Source => StaticIcon::Mic0,
-                            }
-                        } else {
-                            match slider_type {
-                                SliderType::Sink => StaticIcon::Speaker3,
-                                SliderType::Source => StaticIcon::Mic1,
-                            }
-                        },
-                    )
-                    .on_press(toggle_mute),
-                )
-                .on_right_press(match slider_type {
-                    SliderType::Sink => Message::OpenMore,
-                    SliderType::Source => Message::OpenSourceMore,
-                }),
+        let icon_element = MouseArea::new(
+            icon_button(
+                theme,
+                if is_mute {
+                    match slider_type {
+                        SliderType::Sink => StaticIcon::Speaker0,
+                        SliderType::Source => StaticIcon::Mic0,
+                    }
+                } else {
+                    match slider_type {
+                        SliderType::Sink => StaticIcon::Speaker3,
+                        SliderType::Source => StaticIcon::Mic1,
+                    }
+                },
             )
-            .push(
-                MouseArea::new(
-                    Element::<'a, remote_value::Message<u32>>::from(
-                        slider(
-                            Volume::MUTED.0..=Volume::NORMAL.0,
-                            volume.value(),
-                            remote_value::Message::Request,
-                        )
-                        .on_release(remote_value::Message::Timeout),
-                    )
-                    .map(volume_changed),
+            .on_press(toggle_mute),
+        )
+        .on_right_press(match slider_type {
+            SliderType::Sink => Message::OpenMore,
+            SliderType::Source => Message::OpenSourceMore,
+        });
+
+        let slider_element = MouseArea::new(
+            Element::<'a, remote_value::Message<u32>>::from(
+                slider(
+                    Volume::MUTED.0..=Volume::NORMAL.0,
+                    volume.value(),
+                    remote_value::Message::Request,
                 )
-                .on_scroll(Self::on_scroll(volume.value(), volume_changed)),
+                .on_release(remote_value::Message::Timeout),
             )
-            .push(with_submenu.map(|(submenu, msg)| {
-                icon_button(
-                    theme,
-                    match (slider_type, submenu) {
-                        (SliderType::Sink, Some(SubMenu::Sinks))
-                        | (SliderType::Source, Some(SubMenu::Sources)) => StaticIcon::Close,
-                        _ => StaticIcon::RightArrow,
-                    },
-                )
-                .on_press(msg)
-            }))
-            .align_y(Alignment::Center)
-            .spacing(theme.space.xs)
+            .map(volume_changed),
+        )
+        .on_scroll(Self::on_scroll(volume.value(), volume_changed));
+
+        let trailing = with_submenu.map(|(submenu, msg)| {
+            icon_button(
+                theme,
+                match (slider_type, submenu) {
+                    (SliderType::Sink, Some(SubMenu::Sinks))
+                    | (SliderType::Source, Some(SubMenu::Sources)) => StaticIcon::Close,
+                    _ => StaticIcon::RightArrow,
+                },
+            )
+            .on_press(msg)
             .into()
+        });
+
+        slider_row(theme, icon_element.into(), slider_element.into(), trailing)
     }
 
     fn on_scroll<F>(cur_volume: u32, make_msg: F) -> impl Fn(ScrollDelta) -> Message
@@ -531,34 +498,11 @@ impl AudioSettings {
         entries: Vec<SubmenuEntry<Message>>,
         more_msg: Option<Message>,
     ) -> Element<'a, Message> {
-        let entries = Column::with_children(
+        let entries: Element<'a, Message> = Column::with_children(
             entries
                 .into_iter()
                 .map(|e| {
-                    if e.active {
-                        container(
-                            row!(icon_mono(e.icon), text(e.name))
-                                .align_y(Alignment::Center)
-                                .spacing(theme.space.md)
-                                .padding([theme.space.xxs, theme.space.sm]),
-                        )
-                        .style(|theme: &Theme| container::Style {
-                            text_color: Some(theme.palette().success),
-                            ..Default::default()
-                        })
-                        .into()
-                    } else {
-                        button(
-                            row!(icon_mono(e.icon), text(e.name))
-                                .spacing(theme.space.md)
-                                .align_y(Alignment::Center),
-                        )
-                        .on_press(e.msg)
-                        .padding([theme.space.xxs, theme.space.sm])
-                        .width(Length::Fill)
-                        .style(theme.ghost_button_style())
-                        .into()
-                    }
+                    selectable_list_item(theme, icon_mono(e.icon).into(), e.name, e.active, e.msg)
                 })
                 .collect::<Vec<_>>(),
         )
