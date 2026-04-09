@@ -1,5 +1,6 @@
 use crate::app::Message;
 use crate::services::upower::PeripheralDeviceKind;
+use chrono::Locale;
 use hex_color::HexColor;
 use iced::futures::StreamExt;
 use iced::{Color, Subscription, futures::SinkExt, stream::channel, theme::palette};
@@ -380,6 +381,14 @@ impl Default for SystemInfoModuleConfig {
     }
 }
 
+fn deserialize_locale<'de, D>(deserializer: D) -> Result<Locale, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s: String = Deserialize::deserialize(deserializer)?;
+    Ok(Locale::try_from(s.as_str()).unwrap_or(Locale::en_US))
+}
+
 #[derive(Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct TempoModuleConfig {
@@ -391,6 +400,8 @@ pub struct TempoModuleConfig {
     #[serde(default)]
     pub weather_location: Option<WeatherLocation>,
     pub weather_indicator: WeatherIndicator,
+    #[serde(deserialize_with = "deserialize_locale")]
+    pub locale: Locale,
 }
 
 #[derive(Deserialize, Default, Clone, Debug, PartialEq, Eq)]
@@ -431,6 +442,7 @@ impl Default for TempoModuleConfig {
             timezones: vec![],
             weather_location: None,
             weather_indicator: WeatherIndicator::IconAndTemperature,
+            locale: Locale::en_US,
         }
     }
 }
