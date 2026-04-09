@@ -750,12 +750,94 @@ pub enum BackgroundLevel {
     Strongest,
 }
 
-#[derive(Deserialize, Default, Copy, Clone, Eq, PartialEq, Debug)]
-pub enum AppearanceStyle {
-    #[default]
-    Islands,
-    Solid,
-    Gradient,
+#[derive(Deserialize, Clone, Copy, Debug, PartialEq)]
+#[serde(untagged)]
+pub enum BoxSpacing {
+    Uniform(f32),
+    Axis([f32; 2]),
+    Full([f32; 4]),
+}
+
+impl BoxSpacing {
+    pub fn top(&self) -> f32 {
+        match self {
+            BoxSpacing::Uniform(v) => *v,
+            BoxSpacing::Axis([v, _]) => *v,
+            BoxSpacing::Full([t, _, _, _]) => *t,
+        }
+    }
+
+    pub fn right(&self) -> f32 {
+        match self {
+            BoxSpacing::Uniform(v) => *v,
+            BoxSpacing::Axis([_, h]) => *h,
+            BoxSpacing::Full([_, r, _, _]) => *r,
+        }
+    }
+
+    pub fn bottom(&self) -> f32 {
+        match self {
+            BoxSpacing::Uniform(v) => *v,
+            BoxSpacing::Axis([v, _]) => *v,
+            BoxSpacing::Full([_, _, b, _]) => *b,
+        }
+    }
+
+    pub fn left(&self) -> f32 {
+        match self {
+            BoxSpacing::Uniform(v) => *v,
+            BoxSpacing::Axis([_, h]) => *h,
+            BoxSpacing::Full([_, _, _, l]) => *l,
+        }
+    }
+
+    pub fn vertical(&self) -> f32 {
+        self.top() + self.bottom()
+    }
+}
+
+impl Default for BoxSpacing {
+    fn default() -> Self {
+        BoxSpacing::Uniform(0.0)
+    }
+}
+
+#[derive(Deserialize, Clone, Debug, PartialEq)]
+#[serde(untagged)]
+pub enum BarBackground {
+    Preset(BarBackgroundPreset),
+    Color(HexColor),
+    Gradient { gradient: GradientSpec },
+}
+
+impl BarBackground {
+    pub fn is_none(&self) -> bool {
+        matches!(self, BarBackground::Preset(BarBackgroundPreset::None))
+    }
+}
+
+impl Default for BarBackground {
+    fn default() -> Self {
+        BarBackground::Preset(BarBackgroundPreset::None)
+    }
+}
+
+#[derive(Deserialize, Clone, Debug, PartialEq)]
+pub enum BarBackgroundPreset {
+    None,
+    Palette,
+}
+
+#[derive(Deserialize, Clone, Debug, PartialEq)]
+#[serde(untagged)]
+pub enum GradientSpec {
+    Palette(GradientPalette),
+    Custom([HexColor; 2]),
+}
+
+#[derive(Deserialize, Clone, Debug, PartialEq)]
+pub enum GradientPalette {
+    Palette,
 }
 
 #[derive(Deserialize, Clone, Copy, Debug)]
@@ -781,7 +863,9 @@ pub struct Appearance {
     pub font_name: Option<String>,
     #[serde(deserialize_with = "scale_factor_deserializer")]
     pub scale_factor: f64,
-    pub style: AppearanceStyle,
+    pub margin: BoxSpacing,
+    pub padding: BoxSpacing,
+    pub background: BarBackground,
     #[serde(deserialize_with = "opacity_deserializer")]
     pub opacity: f32,
     pub menu: MenuAppearance,
@@ -846,7 +930,9 @@ impl Default for Appearance {
         Self {
             font_name: None,
             scale_factor: 1.0,
-            style: AppearanceStyle::default(),
+            margin: BoxSpacing::default(),
+            padding: BoxSpacing::Axis([4.0, 4.0]),
+            background: BarBackground::default(),
             opacity: default_opacity(),
             menu: MenuAppearance::default(),
             background_color: BackgroundAppearanceColor::Complete {

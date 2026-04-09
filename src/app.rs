@@ -2,7 +2,7 @@ use crate::{
     HEIGHT,
     components::menu::MenuType,
     components::{ButtonUIRef, Centerbox},
-    config::{self, AppearanceStyle, Config, Modules, Position},
+    config::{self, BarBackground, BarBackgroundPreset, Config, GradientSpec, Modules, Position},
     get_log_spec,
     modules::{
         self,
@@ -26,8 +26,8 @@ use crate::{
 };
 use flexi_logger::LoggerHandle;
 use iced::{
-    Alignment, Color, Element, Gradient, Length, OutputEvent, Radians, Subscription, SurfaceId,
-    Task, Theme,
+    Alignment, Color, Element, Gradient, Length, OutputEvent, Padding, Radians, Subscription,
+    SurfaceId, Task, Theme,
     event::listen_with,
     gradient::Linear,
     keyboard, set_exclusive_zone,
@@ -96,7 +96,7 @@ impl App {
     ) -> impl FnOnce() -> (Self, Task<Message>) {
         move || {
             let (outputs, task) = Outputs::new(
-                config.appearance.style,
+                config.appearance.margin,
                 config.position,
                 config.layer,
                 config.appearance.scale_factor,
@@ -217,13 +217,13 @@ impl App {
                 );
                 if self.general_config.outputs != config.outputs
                     || self.theme.bar_position != config.position
-                    || self.theme.bar_style != config.appearance.style
+                    || self.theme.margin != config.appearance.margin
                     || self.theme.scale_factor != config.appearance.scale_factor
                     || self.general_config.layer != config.layer
                 {
                     warn!("Outputs changed, syncing");
                     tasks.push(self.outputs.sync(
-                        config.appearance.style,
+                        config.appearance.margin,
                         &config.outputs,
                         config.position,
                         config.layer,
@@ -367,7 +367,7 @@ impl App {
                     }
 
                     self.outputs.add(
-                        self.theme.bar_style,
+                        self.theme.margin,
                         &self.general_config.outputs,
                         self.theme.bar_position,
                         self.general_config.layer,
@@ -379,7 +379,7 @@ impl App {
                 OutputEvent::Removed(output_id) => {
                     info!("Output destroyed");
                     self.outputs.remove(
-                        self.theme.bar_style,
+                        self.theme.margin,
                         self.theme.bar_position,
                         self.general_config.layer,
                         output_id,
@@ -401,7 +401,7 @@ impl App {
                 }
             }
             Message::ResumeFromSleep => self.outputs.sync(
-                self.theme.bar_style,
+                self.theme.margin,
                 &self.general_config.outputs,
                 self.theme.bar_position,
                 self.general_config.layer,
@@ -431,15 +431,10 @@ impl App {
             Message::None => Task::none(),
             Message::ToggleVisibility => {
                 self.visible = !self.visible;
-                let height = if self.visible {
-                    (crate::HEIGHT
-                        - match self.theme.bar_style {
-                            AppearanceStyle::Solid | AppearanceStyle::Gradient => 8.,
-                            AppearanceStyle::Islands => 0.,
-                        })
-                        * self.theme.scale_factor
+                let exclusive_zone = if self.visible {
+                    Outputs::get_exclusive_zone(self.theme.margin, self.theme.scale_factor)
                 } else {
-                    0.0
+                    0
                 };
 
                 Task::batch(
@@ -448,7 +443,7 @@ impl App {
                         .filter_map(|(_, shell_info, _)| {
                             shell_info
                                 .as_ref()
-                                .map(|info| set_exclusive_zone(info.id, height as i32))
+                                .map(|info| set_exclusive_zone(info.id, exclusive_zone))
                         })
                         .collect::<Vec<_>>(),
                 )
@@ -465,51 +460,73 @@ impl App {
 
                 let [left, center, right] = self.modules_section(id, &self.theme);
 
+                let padding = self.theme.padding;
                 let centerbox = Centerbox::new([left, center, right])
                     .spacing(self.theme.space.xxs)
                     .width(Length::Fill)
                     .align_items(Alignment::Center)
-                    .height(if self.theme.bar_style == AppearanceStyle::Islands {
-                        HEIGHT
-                    } else {
-                        HEIGHT - self.theme.space.xs as f64
-                    } as f32)
-                    .padding(if self.theme.bar_style == AppearanceStyle::Islands {
-                        [self.theme.space.xxs, self.theme.space.xxs]
-                    } else {
-                        [0.0, 0.0]
-                    });
+                    .height(HEIGHT as f32)
+                    .padding(
+                        Padding::new(0.)
+                            .top(padding.top())
+                            .right(padding.right())
+                            .bottom(padding.bottom())
+                            .left(padding.left()),
+                    );
 
-                let status_bar = container(centerbox).style(|t: &Theme| container::Style {
-                    background: match self.theme.bar_style {
-                        AppearanceStyle::Gradient => Some({
-                            let start_color =
-                                t.palette().background.scale_alpha(self.theme.opacity);
+                let background = self.theme.background.clone();
+                let menu_is_open = self.outputs.menu_is_open();
+                let opacity = self.theme.opacity;
+                let menu_backdrop = self.theme.menu.backdrop;
+                let bar_position = self.theme.bar_position;
 
-                            let start_color = if self.outputs.menu_is_open() {
-                                darken_color(start_color, self.theme.menu.backdrop)
+                let status_bar = container(centerbox).style(move |t: &Theme| container::Style {
+                    background: match &background {
+                        BarBackground::Gradient { gradient } => Some({
+                            let start_color = match gradient {
+                                GradientSpec::Palette(_) => {
+                                    t.palette().background.scale_alpha(opacity)
+                                }
+                                GradientSpec::Custom([from, _]) => {
+                                    Color::from_rgb8(from.r, from.g, from.b).scale_alpha(opacity)
+                                }
+                            };
+                            let start_color = if menu_is_open {
+                                darken_color(start_color, menu_backdrop)
                             } else {
                                 start_color
                             };
 
-                            let end_color = if self.outputs.menu_is_open() {
-                                backdrop_color(self.theme.menu.backdrop)
-                            } else {
-                                Color::TRANSPARENT
+                            let end_color = match gradient {
+                                GradientSpec::Palette(_) => {
+                                    if menu_is_open {
+                                        backdrop_color(menu_backdrop)
+                                    } else {
+                                        Color::TRANSPARENT
+                                    }
+                                }
+                                GradientSpec::Custom([_, to]) => {
+                                    let c = Color::from_rgb8(to.r, to.g, to.b).scale_alpha(opacity);
+                                    if menu_is_open {
+                                        darken_color(c, menu_backdrop)
+                                    } else {
+                                        c
+                                    }
+                                }
                             };
 
                             Gradient::Linear(
                                 Linear::new(Radians(PI))
                                     .add_stop(
                                         0.0,
-                                        match self.theme.bar_position {
+                                        match bar_position {
                                             Position::Top => start_color,
                                             Position::Bottom => end_color,
                                         },
                                     )
                                     .add_stop(
                                         1.0,
-                                        match self.theme.bar_position {
+                                        match bar_position {
                                             Position::Top => end_color,
                                             Position::Bottom => start_color,
                                         },
@@ -517,18 +534,27 @@ impl App {
                             )
                             .into()
                         }),
-                        AppearanceStyle::Solid => Some({
-                            let bg = t.palette().background.scale_alpha(self.theme.opacity);
-                            if self.outputs.menu_is_open() {
-                                darken_color(bg, self.theme.menu.backdrop)
+                        BarBackground::Preset(BarBackgroundPreset::Palette) => Some({
+                            let bg = t.palette().background.scale_alpha(opacity);
+                            if menu_is_open {
+                                darken_color(bg, menu_backdrop)
                             } else {
                                 bg
                             }
                             .into()
                         }),
-                        AppearanceStyle::Islands => {
-                            if self.outputs.menu_is_open() {
-                                Some(backdrop_color(self.theme.menu.backdrop).into())
+                        BarBackground::Color(hex) => Some({
+                            let bg = Color::from_rgb8(hex.r, hex.g, hex.b).scale_alpha(opacity);
+                            if menu_is_open {
+                                darken_color(bg, menu_backdrop)
+                            } else {
+                                bg
+                            }
+                            .into()
+                        }),
+                        BarBackground::Preset(BarBackgroundPreset::None) => {
+                            if menu_is_open {
+                                Some(backdrop_color(menu_backdrop).into())
                             } else {
                                 None
                             }

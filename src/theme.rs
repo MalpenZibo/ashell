@@ -1,7 +1,8 @@
 use crate::{
     components::button::{ButtonHierarchy, ButtonKind},
     config::{
-        Appearance, AppearanceColor, AppearanceStyle, BackgroundLevel, MenuAppearance, Position,
+        Appearance, AppearanceColor, BackgroundLevel, BarBackground, BoxSpacing, MenuAppearance,
+        Position,
     },
 };
 use iced::{
@@ -92,7 +93,9 @@ pub struct AshellTheme {
     pub radius: Radius,
     pub font_size: FontSize,
     pub bar_position: Position,
-    pub bar_style: AppearanceStyle,
+    pub margin: BoxSpacing,
+    pub padding: BoxSpacing,
+    pub background: BarBackground,
     pub opacity: f32,
     pub menu: MenuAppearance,
     pub workspace_colors: Vec<AppearanceColor>,
@@ -107,7 +110,9 @@ impl AshellTheme {
             radius: Radius::default(),
             font_size: FontSize::default(),
             bar_position: position,
-            bar_style: appearance.style,
+            margin: appearance.margin,
+            padding: appearance.padding,
+            background: appearance.background.clone(),
             opacity: appearance.opacity,
             menu: appearance.menu,
             workspace_colors: appearance.workspace_colors.clone(),

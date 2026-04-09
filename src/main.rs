@@ -99,7 +99,10 @@ fn main() -> iced::Result {
         Font::DEFAULT
     };
 
-    let height = Outputs::get_height(config.appearance.style, config.appearance.scale_factor);
+    let height = Outputs::get_height(config.appearance.scale_factor);
+    let exclusive_zone =
+        Outputs::get_exclusive_zone(config.appearance.margin, config.appearance.scale_factor);
+    let margin = Outputs::scaled_margin(config.appearance.margin, config.appearance.scale_factor);
 
     let iced_layer = match config.layer {
         config::Layer::Top => Layer::Top,
@@ -119,7 +122,8 @@ fn main() -> iced::Result {
         } | Anchor::LEFT
             | Anchor::RIGHT,
         layer: iced_layer,
-        exclusive_zone: height as i32,
+        exclusive_zone,
+        margin,
         size: Some((0, height as u32)),
         keyboard_interactivity: KeyboardInteractivity::None,
         namespace: "ashell-main-layer".into(),
