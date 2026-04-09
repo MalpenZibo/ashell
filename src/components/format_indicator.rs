@@ -33,7 +33,7 @@ pub fn format_indicator<'a, Msg: 'static>(
             .style(move |theme: &Theme| container::Style {
                 text_color: Some(match state {
                     IndicatorState::Success => theme.palette().success,
-                    IndicatorState::Warning => theme.palette().text,
+                    IndicatorState::Warning => theme.extended_palette().danger.weak.color,
                     IndicatorState::Danger => theme.palette().danger,
                     IndicatorState::Normal => unreachable!(),
                 }),

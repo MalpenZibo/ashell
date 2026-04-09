@@ -39,38 +39,15 @@ static WIFI_LOCK_SIGNAL_ICONS: [StaticIcon; 5] = [
     StaticIcon::WifiLock5,
 ];
 
-fn get_connectivity_color(
+fn get_connectivity_state(
     connectivity: ConnectivityState,
     indicator_state: IndicatorState,
-    theme: &Theme,
-) -> Option<iced::Color> {
+) -> IndicatorState {
     match (connectivity, indicator_state) {
-        (ConnectivityState::Full, IndicatorState::Warning) => Some(theme.palette().warning),
-        (ConnectivityState::Full, _) => None,
-        // Be more forgiving - if we have an active connection but connectivity check fails,
-        // show normal color instead of red (unless signal is very weak)
-        (
-            ConnectivityState::Loss | ConnectivityState::Portal | ConnectivityState::Unknown,
-            IndicatorState::Warning,
-        ) => Some(theme.palette().warning),
-        (ConnectivityState::Loss | ConnectivityState::Portal | ConnectivityState::Unknown, _) => {
-            None
-        } // Show normal color instead of red
-        (ConnectivityState::None, _) => Some(theme.palette().danger), // No connectivity - show red
+        (_, IndicatorState::Warning) => IndicatorState::Warning,
+        (ConnectivityState::None, _) => IndicatorState::Danger,
+        _ => IndicatorState::Normal,
     }
-}
-
-fn wrap_connectivity_style<'a>(
-    content: Element<'a, Message>,
-    connectivity: ConnectivityState,
-    indicator_state: IndicatorState,
-) -> Element<'a, Message> {
-    container(content)
-        .style(move |theme: &Theme| container::Style {
-            text_color: get_connectivity_color(connectivity, indicator_state, theme),
-            ..Default::default()
-        })
-        .into()
 }
 
 impl ActiveConnectionInfo {
@@ -349,7 +326,10 @@ impl NetworkSettings {
                         },
                         |a| {
                             let icon_type = a.get_icon();
-                            let state = (service.connectivity, a.get_indicator_state());
+                            let state = get_connectivity_state(
+                                service.connectivity,
+                                a.get_indicator_state(),
+                            );
                             let strength = match a {
                                 ActiveConnectionInfo::WiFi { strength, .. } => Some(*strength),
                                 _ => None,
@@ -357,16 +337,12 @@ impl NetworkSettings {
                             let strength_text =
                                 strength.map_or("100%".to_string(), |s| format!("{}%", s));
 
-                            wrap_connectivity_style(
-                                format_indicator(
-                                    theme,
-                                    self.config.indicator_format,
-                                    icon(icon_type).into(),
-                                    text(strength_text).into(),
-                                    IndicatorState::Normal,
-                                ),
-                                state.0,
-                                state.1,
+                            format_indicator(
+                                theme,
+                                self.config.indicator_format,
+                                icon(icon_type).into(),
+                                text(strength_text).into(),
+                                state,
                             )
                         },
                     );
