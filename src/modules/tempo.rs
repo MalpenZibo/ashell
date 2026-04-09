@@ -564,8 +564,8 @@ impl Tempo {
                         background: Background::Color(
                             app_theme
                                 .extended_palette()
-                                .secondary
-                                .strong
+                                .background
+                                .weak
                                 .color
                                 .scale_alpha(theme.opacity),
                         )
@@ -623,8 +623,8 @@ impl Tempo {
                         background: Background::Color(
                             app_theme
                                 .extended_palette()
-                                .secondary
-                                .strong
+                                .background
+                                .weak
                                 .color
                                 .scale_alpha(theme.opacity),
                         )
@@ -691,8 +691,8 @@ impl Tempo {
                                     background: Background::Color(
                                         app_theme
                                             .extended_palette()
-                                            .secondary
-                                            .strong
+                                            .background
+                                            .weak
                                             .color
                                             .scale_alpha(theme.opacity),
                                     )

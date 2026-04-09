@@ -162,8 +162,8 @@ impl App {
                     border: Border {
                         color: theme
                             .extended_palette()
-                            .secondary
-                            .base
+                            .background
+                            .weakest
                             .color
                             .scale_alpha(self.theme.menu.opacity),
                         width: 1.,

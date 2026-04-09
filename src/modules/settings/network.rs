@@ -41,16 +41,14 @@ fn get_connectivity_color(
     theme: &Theme,
 ) -> Option<iced::Color> {
     match (connectivity, indicator_state) {
-        (ConnectivityState::Full, IndicatorState::Warning) => {
-            Some(theme.extended_palette().danger.weak.color)
-        }
+        (ConnectivityState::Full, IndicatorState::Warning) => Some(theme.palette().warning),
         (ConnectivityState::Full, _) => None,
         // Be more forgiving - if we have an active connection but connectivity check fails,
         // show normal color instead of red (unless signal is very weak)
         (
             ConnectivityState::Loss | ConnectivityState::Portal | ConnectivityState::Unknown,
             IndicatorState::Warning,
-        ) => Some(theme.extended_palette().danger.weak.color),
+        ) => Some(theme.palette().warning),
         (ConnectivityState::Loss | ConnectivityState::Portal | ConnectivityState::Unknown, _) => {
             None
         } // Show normal color instead of red
@@ -405,7 +403,7 @@ impl NetworkSettings {
 
                     container(icon(icon_type))
                         .style(|theme: &Theme| container::Style {
-                            text_color: Some(theme.extended_palette().danger.weak.color),
+                            text_color: Some(theme.palette().warning),
                             ..Default::default()
                         })
                         .into()

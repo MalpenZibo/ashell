@@ -53,7 +53,7 @@ impl Privacy {
                         .spacing(theme.space.xs),
                 )
                 .style(|theme| container::Style {
-                    text_color: Some(theme.extended_palette().danger.weak.color),
+                    text_color: Some(theme.palette().warning),
                     ..Default::default()
                 })
                 .into(),
