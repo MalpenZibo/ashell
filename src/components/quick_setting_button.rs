@@ -11,7 +11,7 @@ use iced::{
 #[allow(clippy::too_many_arguments)]
 pub fn quick_setting_button<'a, Msg: Clone + 'static>(
     theme: &'a AshellTheme,
-    icon_type: impl Into<IconKind>,
+    icon: impl Into<IconKind>,
     title: String,
     subtitle: Option<String>,
     active: bool,
@@ -20,7 +20,7 @@ pub fn quick_setting_button<'a, Msg: Clone + 'static>(
     with_submenu: Option<(SubMenu, Option<SubMenu>, Msg)>,
 ) -> Element<'a, Msg> {
     let main_content = row!(
-        icon_type.into().to_text().size(theme.font_size.lg),
+        icon.into().to_text().size(theme.font_size.lg),
         container(
             Column::with_capacity(2)
                 .push(text(title).size(theme.font_size.sm))
