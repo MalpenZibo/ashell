@@ -1,5 +1,6 @@
 use crate::config::{Position, get_config};
 use crate::outputs::Outputs;
+use crate::theme::AshellTheme;
 use app::App;
 use clap::Parser;
 use flexi_logger::{
@@ -24,7 +25,6 @@ const NERD_FONT: &[u8] = include_bytes!("../target/generated/SymbolsNerdFont-Reg
 const NERD_FONT_MONO: &[u8] =
     include_bytes!("../target/generated/SymbolsNerdFontMono-Regular-Subset.ttf");
 const CUSTOM_FONT: &[u8] = include_bytes!("../assets/AshellCustomIcon-Regular.otf");
-const HEIGHT: f64 = 34.;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -99,9 +99,14 @@ fn main() -> iced::Result {
         Font::DEFAULT
     };
 
-    let height = Outputs::get_height(config.appearance.scale_factor);
-    let exclusive_zone =
-        Outputs::get_exclusive_zone(config.appearance.margin, config.appearance.scale_factor);
+    let init_theme = AshellTheme::new(config.position, &config.appearance);
+    let bar_height = init_theme.bar_height();
+    let height = (bar_height as f64 * config.appearance.scale_factor) as u32;
+    let exclusive_zone = Outputs::get_exclusive_zone(
+        bar_height,
+        config.appearance.margin,
+        config.appearance.scale_factor,
+    );
     let margin = Outputs::scaled_margin(config.appearance.margin, config.appearance.scale_factor);
 
     let iced_layer = match config.layer {
@@ -124,7 +129,7 @@ fn main() -> iced::Result {
         layer: iced_layer,
         exclusive_zone,
         margin,
-        size: Some((0, height as u32)),
+        size: Some((0, height)),
         keyboard_interactivity: KeyboardInteractivity::None,
         namespace: "ashell-main-layer".into(),
         ..Default::default()

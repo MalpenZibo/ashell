@@ -1,5 +1,4 @@
 use crate::{
-    HEIGHT,
     components::menu::MenuType,
     components::{ButtonUIRef, Centerbox},
     config::{self, BarBackground, BarBackgroundPreset, Config, Modules},
@@ -93,7 +92,9 @@ impl App {
         (logger, config, config_path): (LoggerHandle, Config, PathBuf),
     ) -> impl FnOnce() -> (Self, Task<Message>) {
         move || {
+            let theme = AshellTheme::new(config.position, &config.appearance);
             let (outputs, task) = Outputs::new(
+                theme.bar_height(),
                 config.appearance.margin,
                 config.position,
                 config.layer,
@@ -112,7 +113,7 @@ impl App {
             (
                 App {
                     config_path,
-                    theme: AshellTheme::new(config.position, &config.appearance),
+                    theme,
                     logger,
                     general_config: GeneralConfig {
                         outputs: config.outputs,
@@ -213,14 +214,17 @@ impl App {
                     "Current outputs: {:?}, new outputs: {:?}",
                     self.general_config.outputs, config.outputs
                 );
+                let new_theme = AshellTheme::new(config.position, &config.appearance);
                 if self.general_config.outputs != config.outputs
                     || self.theme.bar_position != config.position
                     || self.theme.margin != config.appearance.margin
+                    || self.theme.padding != config.appearance.padding
                     || self.theme.scale_factor != config.appearance.scale_factor
                     || self.general_config.layer != config.layer
                 {
                     warn!("Outputs changed, syncing");
                     tasks.push(self.outputs.sync(
+                        new_theme.bar_height(),
                         config.appearance.margin,
                         &config.outputs,
                         config.position,
@@ -365,6 +369,7 @@ impl App {
                     }
 
                     self.outputs.add(
+                        self.theme.bar_height(),
                         self.theme.margin,
                         &self.general_config.outputs,
                         self.theme.bar_position,
@@ -377,6 +382,7 @@ impl App {
                 OutputEvent::Removed(output_id) => {
                     info!("Output destroyed");
                     self.outputs.remove(
+                        self.theme.bar_height(),
                         self.theme.margin,
                         self.theme.bar_position,
                         self.general_config.layer,
@@ -399,6 +405,7 @@ impl App {
                 }
             }
             Message::ResumeFromSleep => self.outputs.sync(
+                self.theme.bar_height(),
                 self.theme.margin,
                 &self.general_config.outputs,
                 self.theme.bar_position,
@@ -430,7 +437,11 @@ impl App {
             Message::ToggleVisibility => {
                 self.visible = !self.visible;
                 let exclusive_zone = if self.visible {
-                    Outputs::get_exclusive_zone(self.theme.margin, self.theme.scale_factor)
+                    Outputs::get_exclusive_zone(
+                        self.theme.bar_height(),
+                        self.theme.margin,
+                        self.theme.scale_factor,
+                    )
                 } else {
                     0
                 };
@@ -463,7 +474,7 @@ impl App {
                     .spacing(self.theme.space.xxs)
                     .width(Length::Fill)
                     .align_items(Alignment::Center)
-                    .height(HEIGHT as f32)
+                    .height(self.theme.bar_height())
                     .padding(
                         Padding::new(0.)
                             .top(padding.top())

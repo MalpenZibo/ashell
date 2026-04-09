@@ -103,7 +103,20 @@ pub struct AshellTheme {
     pub scale_factor: f64,
 }
 
+const DEFAULT_TEXT_SIZE: f32 = 14.0;
+
+/// Default line height multiplier in iced (1.3).
+const DEFAULT_LINE_HEIGHT: f32 = 1.3;
+
+const MODULE_VERTICAL_PADDING: f32 = 2.0;
+
 impl AshellTheme {
+    pub fn bar_height(&self) -> f32 {
+        (DEFAULT_TEXT_SIZE * DEFAULT_LINE_HEIGHT).ceil()
+            + MODULE_VERTICAL_PADDING * 2.0
+            + self.padding.vertical()
+    }
+
     pub fn new(position: Position, appearance: &Appearance) -> Self {
         AshellTheme {
             space: Space::default(),
