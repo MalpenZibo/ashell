@@ -16,7 +16,7 @@ use crate::{
 use iced::{
     Element, Length, Subscription, SurfaceId, Task,
     mouse::ScrollDelta,
-    widget::{Column, MouseArea, Text, button, column, slider, text},
+    widget::{Column, MouseArea, Text, button, column, text},
 };
 use libpulse_binding::volume::Volume;
 
@@ -431,25 +431,19 @@ impl AudioSettings {
             }
         };
 
-        let slider_element = MouseArea::new(
-            Element::<'a, remote_value::Message<u32>>::from(
-                slider(
-                    Volume::MUTED.0..=Volume::NORMAL.0,
-                    volume.value(),
-                    remote_value::Message::Request,
-                )
-                .on_release(remote_value::Message::Timeout),
-            )
-            .map(volume_changed),
+        let mut row = slider_row(
+            theme,
+            mute_icon,
+            Volume::MUTED.0..=Volume::NORMAL.0,
+            volume.value(),
+            volume_changed,
+            Self::on_scroll(volume.value(), volume_changed),
         )
-        .on_scroll(Self::on_scroll(volume.value(), volume_changed));
-
-        let mut row = slider_row(theme, mute_icon, slider_element.into())
-            .on_icon_press(toggle_mute)
-            .on_icon_right_press(match slider_type {
-                SliderType::Sink => Message::OpenMore,
-                SliderType::Source => Message::OpenSourceMore,
-            });
+        .on_icon_press(toggle_mute)
+        .on_icon_right_press(match slider_type {
+            SliderType::Sink => Message::OpenMore,
+            SliderType::Source => Message::OpenSourceMore,
+        });
 
         if let Some((submenu, msg)) = with_submenu {
             let expanded = match slider_type {
