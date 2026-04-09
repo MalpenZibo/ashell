@@ -2,7 +2,7 @@ use crate::{
     HEIGHT,
     components::menu::MenuType,
     components::{ButtonUIRef, Centerbox},
-    config::{self, BarBackground, BarBackgroundPreset, Config, GradientSpec, Modules, Position},
+    config::{self, BarBackground, BarBackgroundPreset, Config, Modules},
     get_log_spec,
     modules::{
         self,
@@ -26,15 +26,13 @@ use crate::{
 };
 use flexi_logger::LoggerHandle;
 use iced::{
-    Alignment, Color, Element, Gradient, Length, OutputEvent, Padding, Radians, Subscription,
-    SurfaceId, Task, Theme,
+    Alignment, Color, Element, Length, OutputEvent, Padding, Subscription, SurfaceId, Task, Theme,
     event::listen_with,
-    gradient::Linear,
     keyboard, set_exclusive_zone,
     widget::{Row, container, mouse_area},
 };
 use log::{debug, info, warn};
-use std::{collections::HashMap, f32::consts::PI, path::PathBuf};
+use std::{collections::HashMap, path::PathBuf};
 
 pub struct GeneralConfig {
     outputs: config::Outputs,
@@ -478,62 +476,9 @@ impl App {
                 let menu_is_open = self.outputs.menu_is_open();
                 let opacity = self.theme.opacity;
                 let menu_backdrop = self.theme.menu.backdrop;
-                let bar_position = self.theme.bar_position;
 
                 let status_bar = container(centerbox).style(move |t: &Theme| container::Style {
                     background: match &background {
-                        BarBackground::Gradient { gradient } => Some({
-                            let start_color = match gradient {
-                                GradientSpec::Palette(_) => {
-                                    t.palette().background.scale_alpha(opacity)
-                                }
-                                GradientSpec::Custom([from, _]) => {
-                                    Color::from_rgb8(from.r, from.g, from.b).scale_alpha(opacity)
-                                }
-                            };
-                            let start_color = if menu_is_open {
-                                darken_color(start_color, menu_backdrop)
-                            } else {
-                                start_color
-                            };
-
-                            let end_color = match gradient {
-                                GradientSpec::Palette(_) => {
-                                    if menu_is_open {
-                                        backdrop_color(menu_backdrop)
-                                    } else {
-                                        Color::TRANSPARENT
-                                    }
-                                }
-                                GradientSpec::Custom([_, to]) => {
-                                    let c = Color::from_rgb8(to.r, to.g, to.b).scale_alpha(opacity);
-                                    if menu_is_open {
-                                        darken_color(c, menu_backdrop)
-                                    } else {
-                                        c
-                                    }
-                                }
-                            };
-
-                            Gradient::Linear(
-                                Linear::new(Radians(PI))
-                                    .add_stop(
-                                        0.0,
-                                        match bar_position {
-                                            Position::Top => start_color,
-                                            Position::Bottom => end_color,
-                                        },
-                                    )
-                                    .add_stop(
-                                        1.0,
-                                        match bar_position {
-                                            Position::Top => end_color,
-                                            Position::Bottom => start_color,
-                                        },
-                                    ),
-                            )
-                            .into()
-                        }),
                         BarBackground::Preset(BarBackgroundPreset::Palette) => Some({
                             let bg = t.palette().background.scale_alpha(opacity);
                             if menu_is_open {

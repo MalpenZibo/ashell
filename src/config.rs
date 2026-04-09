@@ -807,7 +807,6 @@ impl Default for BoxSpacing {
 pub enum BarBackground {
     Preset(BarBackgroundPreset),
     Color(HexColor),
-    Gradient { gradient: GradientSpec },
 }
 
 impl BarBackground {
@@ -825,18 +824,6 @@ impl Default for BarBackground {
 #[derive(Deserialize, Clone, Debug, PartialEq)]
 pub enum BarBackgroundPreset {
     None,
-    Palette,
-}
-
-#[derive(Deserialize, Clone, Debug, PartialEq)]
-#[serde(untagged)]
-pub enum GradientSpec {
-    Palette(GradientPalette),
-    Custom([HexColor; 2]),
-}
-
-#[derive(Deserialize, Clone, Debug, PartialEq)]
-pub enum GradientPalette {
     Palette,
 }
 
