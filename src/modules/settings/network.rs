@@ -344,6 +344,7 @@ impl NetworkSettings {
                                 self.config.indicator_format,
                                 icon(StaticIcon::Wifi0).into(),
                                 text("0%").into(),
+                                IndicatorState::Normal,
                             )
                         },
                         |a| {
@@ -362,6 +363,7 @@ impl NetworkSettings {
                                     self.config.indicator_format,
                                     icon(icon_type).into(),
                                     text(strength_text).into(),
+                                    IndicatorState::Normal,
                                 ),
                                 state.0,
                                 state.1,

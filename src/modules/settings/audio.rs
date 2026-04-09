@@ -11,6 +11,7 @@ use crate::{
         audio::{AudioCommand, AudioService, DevicePortType, Port},
     },
     theme::AshellTheme,
+    utils::IndicatorState,
     utils::remote_value::{self, Remote},
 };
 use iced::{
@@ -238,6 +239,7 @@ impl AudioSettings {
                     self.config.indicator_format,
                     icon(icon_type).into(),
                     Self::vol_text(volume).into(),
+                    IndicatorState::Normal,
                 ))
                 .on_right_press(Message::OpenMore)
                 .on_scroll(Self::on_scroll(volume, Message::SinkVolumeChanged))
@@ -267,6 +269,7 @@ impl AudioSettings {
                     self.config.microphone_indicator_format,
                     icon(icon_type).into(),
                     Self::vol_text(volume).into(),
+                    IndicatorState::Normal,
                 ))
                 .on_right_press(Message::OpenSourceMore)
                 .on_scroll(Self::on_scroll(volume, Message::SourceVolumeChanged))

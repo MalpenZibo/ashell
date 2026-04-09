@@ -1,5 +1,5 @@
-use crate::{config::SettingsFormat, theme::AshellTheme};
-use iced::{Alignment, Element, widget::row};
+use crate::{config::SettingsFormat, theme::AshellTheme, utils::IndicatorState};
+use iced::{Alignment, Element, Theme, widget::container, widget::row};
 
 /// Produces a format-aware indicator element based on `SettingsFormat`.
 ///
@@ -7,15 +7,16 @@ use iced::{Alignment, Element, widget::row};
 /// - `Percentage | Time` → just `text(label)`
 /// - `IconAndPercentage | IconAndTime` → `row!(icon, text).spacing(xxs).align_y(Center)`
 ///
-/// Callers are responsible for computing the appropriate icon and label,
-/// and for wrapping the result in `MouseArea`/`container` for interaction.
+/// When `state` is not `Normal`, wraps the result in a container with
+/// the appropriate text color (success, warning, danger).
 pub fn format_indicator<'a, Msg: 'static>(
     theme: &AshellTheme,
     format: SettingsFormat,
     icon_element: Element<'a, Msg>,
     label_element: Element<'a, Msg>,
+    state: IndicatorState,
 ) -> Element<'a, Msg> {
-    match format {
+    let content = match format {
         SettingsFormat::Icon => icon_element,
         SettingsFormat::Percentage | SettingsFormat::Time => label_element,
         SettingsFormat::IconAndPercentage | SettingsFormat::IconAndTime => {
@@ -24,5 +25,20 @@ pub fn format_indicator<'a, Msg: 'static>(
                 .align_y(Alignment::Center)
                 .into()
         }
+    };
+
+    match state {
+        IndicatorState::Normal => content,
+        _ => container(content)
+            .style(move |theme: &Theme| container::Style {
+                text_color: Some(match state {
+                    IndicatorState::Success => theme.palette().success,
+                    IndicatorState::Warning => theme.palette().text,
+                    IndicatorState::Danger => theme.palette().danger,
+                    IndicatorState::Normal => unreachable!(),
+                }),
+                ..Default::default()
+            })
+            .into(),
     }
 }

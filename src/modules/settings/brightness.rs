@@ -10,6 +10,7 @@ use crate::{
         brightness::{BrightnessCommand, BrightnessService},
     },
     theme::AshellTheme,
+    utils::IndicatorState,
     utils::remote_value,
 };
 use iced::{
@@ -123,6 +124,7 @@ impl BrightnessSettings {
                 self.config,
                 icon_mono(StaticIcon::Brightness).into(),
                 Self::percent_text(service).into(),
+                IndicatorState::Normal,
             ))
             .on_scroll(scroll_handler)
             .into()

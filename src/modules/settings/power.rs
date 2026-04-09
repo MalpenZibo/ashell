@@ -308,21 +308,13 @@ impl PowerSettings {
                     _ => format!("{}%", battery.capacity),
                 };
 
-                container(format_indicator(
+                format_indicator(
                     ashell_theme,
                     self.config.battery_format,
                     icon(battery.get_icon()).into(),
                     text(label).into(),
-                ))
-                .style(move |theme: &Theme| container::Style {
-                    text_color: Some(match state {
-                        IndicatorState::Success => theme.palette().success,
-                        IndicatorState::Danger => theme.palette().danger,
-                        _ => theme.palette().text,
-                    }),
-                    ..Default::default()
-                })
-                .into()
+                    state,
+                )
             })
         })
     }

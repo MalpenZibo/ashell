@@ -11,6 +11,7 @@ use crate::{
         bluetooth::{BluetoothCommand, BluetoothDevice, BluetoothService, BluetoothState},
     },
     theme::AshellTheme,
+    utils::IndicatorState,
 };
 use iced::{
     Element, Length, Padding, Subscription, SurfaceId, Task, Theme,
@@ -423,6 +424,7 @@ impl BluetoothSettings {
                     self.config.indicator_format,
                     icon(StaticIcon::BluetoothConnected).into(),
                     text(format!("{}", connected_count)).into(),
+                    IndicatorState::Normal,
                 )
             } else {
                 icon(StaticIcon::Bluetooth).into()
