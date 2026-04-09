@@ -11,7 +11,7 @@ use iced::{
     widget::{MouseArea, Row, slider},
 };
 
-pub struct SliderRow<'a, Msg> {
+pub struct SliderControl<'a, Msg> {
     theme: &'a AshellTheme,
     icon: StaticIcon,
     range: RangeInclusive<u32>,
@@ -23,15 +23,15 @@ pub struct SliderRow<'a, Msg> {
     trailing_toggle: Option<(bool, Msg)>,
 }
 
-pub fn slider_row<'a, Msg: 'static + Clone>(
+pub fn slider_control<'a, Msg: 'static + Clone>(
     theme: &'a AshellTheme,
     icon: StaticIcon,
     range: RangeInclusive<u32>,
     value: u32,
     on_change: impl Fn(remote_value::Message<u32>) -> Msg + 'a,
     on_scroll: impl Fn(ScrollDelta) -> Msg + 'a,
-) -> SliderRow<'a, Msg> {
-    SliderRow {
+) -> SliderControl<'a, Msg> {
+    SliderControl {
         theme,
         icon,
         range,
@@ -44,7 +44,7 @@ pub fn slider_row<'a, Msg: 'static + Clone>(
     }
 }
 
-impl<'a, Msg: 'static + Clone> SliderRow<'a, Msg> {
+impl<'a, Msg: 'static + Clone> SliderControl<'a, Msg> {
     pub fn on_icon_press(mut self, msg: Msg) -> Self {
         self.on_icon_press = Some(msg);
         self
@@ -61,17 +61,17 @@ impl<'a, Msg: 'static + Clone> SliderRow<'a, Msg> {
     }
 }
 
-impl<'a, Msg: 'static + Clone> From<SliderRow<'a, Msg>> for Element<'a, Msg> {
-    fn from(row: SliderRow<'a, Msg>) -> Self {
-        let icon_element: Element<'a, Msg> = if let Some(msg) = row.on_icon_press {
-            let btn = icon_button(row.theme, row.icon).on_press(msg);
-            if let Some(right_msg) = row.on_icon_right_press {
+impl<'a, Msg: 'static + Clone> From<SliderControl<'a, Msg>> for Element<'a, Msg> {
+    fn from(ctrl: SliderControl<'a, Msg>) -> Self {
+        let icon_element: Element<'a, Msg> = if let Some(msg) = ctrl.on_icon_press {
+            let btn = icon_button(ctrl.theme, ctrl.icon).on_press(msg);
+            if let Some(right_msg) = ctrl.on_icon_right_press {
                 MouseArea::new(btn).on_right_press(right_msg).into()
             } else {
                 btn.into()
             }
         } else {
-            iced::widget::container(icon_mono(row.icon))
+            iced::widget::container(icon_mono(ctrl.icon))
                 .center_x(32.)
                 .center_y(32.)
                 .clip(true)
@@ -80,20 +80,20 @@ impl<'a, Msg: 'static + Clone> From<SliderRow<'a, Msg>> for Element<'a, Msg> {
 
         let slider_element = MouseArea::new(
             Element::<'a, remote_value::Message<u32>>::from(
-                slider(row.range, row.value, remote_value::Message::Request)
+                slider(ctrl.range, ctrl.value, remote_value::Message::Request)
                     .on_release(remote_value::Message::Timeout),
             )
-            .map(row.on_change),
+            .map(ctrl.on_change),
         )
-        .on_scroll(row.on_scroll);
+        .on_scroll(ctrl.on_scroll);
 
-        let trailing: Option<Element<'a, Msg>> = row.trailing_toggle.map(|(expanded, msg)| {
+        let trailing: Option<Element<'a, Msg>> = ctrl.trailing_toggle.map(|(expanded, msg)| {
             let trailing_icon = if expanded {
                 StaticIcon::Close
             } else {
                 StaticIcon::RightArrow
             };
-            icon_button(row.theme, trailing_icon).on_press(msg).into()
+            icon_button(ctrl.theme, trailing_icon).on_press(msg).into()
         });
 
         Row::with_capacity(3)
@@ -101,7 +101,7 @@ impl<'a, Msg: 'static + Clone> From<SliderRow<'a, Msg>> for Element<'a, Msg> {
             .push(slider_element)
             .push(trailing)
             .align_y(Alignment::Center)
-            .spacing(row.theme.space.xs)
+            .spacing(ctrl.theme.space.xs)
             .into()
     }
 }

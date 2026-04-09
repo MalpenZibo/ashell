@@ -3,7 +3,7 @@ use crate::{
     components::{
         divider, format_indicator,
         icons::{StaticIcon, icon, icon_mono},
-        selectable_list_item, slider_row,
+        selectable_list_item, slider_control,
     },
     config::SettingsFormat,
     services::{
@@ -431,7 +431,7 @@ impl AudioSettings {
             }
         };
 
-        let mut row = slider_row(
+        let mut ctrl = slider_control(
             theme,
             mute_icon,
             Volume::MUTED.0..=Volume::NORMAL.0,
@@ -450,10 +450,10 @@ impl AudioSettings {
                 SliderType::Sink => submenu == Some(SubMenu::Sinks),
                 SliderType::Source => submenu == Some(SubMenu::Sources),
             };
-            row = row.trailing_toggle(expanded, msg);
+            ctrl = ctrl.trailing_toggle(expanded, msg);
         }
 
-        row.into()
+        ctrl.into()
     }
 
     fn on_scroll<F>(cur_volume: u32, make_msg: F) -> impl Fn(ScrollDelta) -> Message

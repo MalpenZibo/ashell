@@ -8,7 +8,7 @@ mod module_item;
 mod position_button;
 mod quick_setting_button;
 mod selectable_list_item;
-mod slider_row;
+mod slider_control;
 mod sub_menu_wrapper;
 
 pub use centerbox::*;
@@ -20,7 +20,7 @@ pub use module_item::*;
 pub use position_button::*;
 pub use quick_setting_button::*;
 pub use selectable_list_item::*;
-pub use slider_row::*;
+pub use slider_control::*;
 pub use sub_menu_wrapper::*;
 
 use iced::{Element, widget::rule};

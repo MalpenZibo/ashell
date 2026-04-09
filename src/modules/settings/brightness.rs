@@ -2,7 +2,7 @@ use crate::{
     components::{
         format_indicator,
         icons::{StaticIcon, icon_mono},
-        slider_row,
+        slider_control,
     },
     config::SettingsFormat,
     services::{
@@ -99,7 +99,7 @@ impl BrightnessSettings {
 
     pub fn slider<'a>(&'a self, theme: &'a AshellTheme) -> Option<Element<'a, Message>> {
         self.service.as_ref().map(|service| {
-            slider_row(
+            slider_control(
                 theme,
                 StaticIcon::Brightness,
                 0..=service.max,
