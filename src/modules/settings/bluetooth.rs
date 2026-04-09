@@ -418,23 +418,25 @@ impl BluetoothSettings {
         {
             let connected_count = service.devices.iter().filter(|d| d.connected).count();
 
-            let content: Element<'a, Message> = if connected_count > 0 {
-                format_indicator(
-                    theme,
-                    self.config.indicator_format,
-                    icon(StaticIcon::BluetoothConnected).into(),
-                    text(format!("{}", connected_count)).into(),
-                    IndicatorState::Normal,
-                )
-            } else {
-                icon(StaticIcon::Bluetooth).into()
-            };
-
-            Some(
-                MouseArea::new(content)
+            if connected_count > 0 {
+                Some(
+                    format_indicator(
+                        theme,
+                        self.config.indicator_format,
+                        icon(StaticIcon::BluetoothConnected).into(),
+                        text(format!("{}", connected_count)).into(),
+                        IndicatorState::Normal,
+                    )
                     .on_right_press(Message::OpenMore)
                     .into(),
-            )
+                )
+            } else {
+                Some(
+                    MouseArea::new(icon(StaticIcon::Bluetooth))
+                        .on_right_press(Message::OpenMore)
+                        .into(),
+                )
+            }
         } else {
             None
         }

@@ -18,7 +18,7 @@ use crate::{
 };
 use iced::{
     Alignment, Element, Length, Padding, Subscription, SurfaceId, Task, Theme,
-    widget::{Column, MouseArea, button, column, container, row, scrollable, text, toggler},
+    widget::{Column, button, column, container, row, scrollable, text, toggler},
 };
 use log::{info, warn};
 
@@ -307,51 +307,41 @@ impl NetworkSettings {
             if service.airplane_mode || !service.wifi_present {
                 None
             } else {
-                let content: Element<'a, Message> = service
-                    .active_connections
-                    .iter()
-                    .find(|c| {
-                        matches!(c, ActiveConnectionInfo::WiFi { .. })
-                            || matches!(c, ActiveConnectionInfo::Wired { .. })
-                    })
-                    .map_or_else(
-                        || {
-                            format_indicator(
-                                theme,
-                                self.config.indicator_format,
-                                icon(StaticIcon::Wifi0).into(),
-                                text("0%").into(),
-                                IndicatorState::Normal,
-                            )
-                        },
-                        |a| {
-                            let icon_type = a.get_icon();
-                            let state = get_connectivity_state(
-                                service.connectivity,
-                                a.get_indicator_state(),
-                            );
-                            let strength = match a {
-                                ActiveConnectionInfo::WiFi { strength, .. } => Some(*strength),
-                                _ => None,
-                            };
-                            let strength_text =
-                                strength.map_or("100%".to_string(), |s| format!("{}%", s));
+                let active = service.active_connections.iter().find(|c| {
+                    matches!(c, ActiveConnectionInfo::WiFi { .. })
+                        || matches!(c, ActiveConnectionInfo::Wired { .. })
+                });
 
-                            format_indicator(
-                                theme,
-                                self.config.indicator_format,
-                                icon(icon_type).into(),
-                                text(strength_text).into(),
-                                state,
-                            )
-                        },
-                    );
+                Some(if let Some(a) = active {
+                    let icon_type = a.get_icon();
+                    let state =
+                        get_connectivity_state(service.connectivity, a.get_indicator_state());
+                    let strength = match a {
+                        ActiveConnectionInfo::WiFi { strength, .. } => Some(*strength),
+                        _ => None,
+                    };
+                    let strength_text = strength.map_or("100%".to_string(), |s| format!("{}%", s));
 
-                Some(
-                    MouseArea::new(content)
-                        .on_right_press(Message::OpenMore)
-                        .into(),
-                )
+                    format_indicator(
+                        theme,
+                        self.config.indicator_format,
+                        icon(icon_type).into(),
+                        text(strength_text).into(),
+                        state,
+                    )
+                    .on_right_press(Message::OpenMore)
+                    .into()
+                } else {
+                    format_indicator(
+                        theme,
+                        self.config.indicator_format,
+                        icon(StaticIcon::Wifi0).into(),
+                        text("0%").into(),
+                        IndicatorState::Normal,
+                    )
+                    .on_right_press(Message::OpenMore)
+                    .into()
+                })
             }
         })
     }

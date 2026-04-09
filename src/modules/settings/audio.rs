@@ -17,7 +17,7 @@ use crate::{
 use iced::{
     Element, Length, Subscription, SurfaceId, Task,
     mouse::ScrollDelta,
-    widget::{Column, MouseArea, Text, button, column, text},
+    widget::{Column, Text, button, column, text},
 };
 use libpulse_binding::volume::Volume;
 
@@ -213,7 +213,7 @@ impl AudioSettings {
         }
     }
 
-    pub fn sink_indicator(&'_ self, theme: &'_ AshellTheme) -> Option<Element<'_, Message>> {
+    pub fn sink_indicator<'a>(&'a self, theme: &'a AshellTheme) -> Option<Element<'a, Message>> {
         self.service
             .as_ref()
             .and_then(|service| {
@@ -234,20 +234,20 @@ impl AudioSettings {
             })
             .map(|(service, icon_type)| {
                 let volume = service.sink_slider.value();
-                MouseArea::new(format_indicator(
+                format_indicator(
                     theme,
                     self.config.indicator_format,
                     icon(icon_type).into(),
                     Self::vol_text(volume).into(),
                     IndicatorState::Normal,
-                ))
+                )
                 .on_right_press(Message::OpenMore)
                 .on_scroll(Self::on_scroll(volume, Message::SinkVolumeChanged))
                 .into()
             })
     }
 
-    pub fn source_indicator(&'_ self, theme: &'_ AshellTheme) -> Option<Element<'_, Message>> {
+    pub fn source_indicator<'a>(&'a self, theme: &'a AshellTheme) -> Option<Element<'a, Message>> {
         self.service
             .as_ref()
             .and_then(|service| {
@@ -264,13 +264,13 @@ impl AudioSettings {
             })
             .map(|(service, icon_type)| {
                 let volume = service.source_slider.value();
-                MouseArea::new(format_indicator(
+                format_indicator(
                     theme,
                     self.config.microphone_indicator_format,
                     icon(icon_type).into(),
                     Self::vol_text(volume).into(),
                     IndicatorState::Normal,
-                ))
+                )
                 .on_right_press(Message::OpenSourceMore)
                 .on_scroll(Self::on_scroll(volume, Message::SourceVolumeChanged))
                 .into()

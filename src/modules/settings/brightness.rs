@@ -16,7 +16,7 @@ use crate::{
 use iced::{
     Element, Subscription, Task,
     mouse::ScrollDelta,
-    widget::{MouseArea, Text, text},
+    widget::{Text, text},
 };
 
 #[derive(Debug, Clone)]
@@ -119,13 +119,13 @@ impl BrightnessSettings {
         self.service.as_ref().map(|service| {
             let scroll_handler = Self::on_scroll(service.current.value(), service.max);
 
-            MouseArea::new(format_indicator(
+            format_indicator(
                 theme,
                 self.config,
                 icon_mono(StaticIcon::Brightness).into(),
                 Self::percent_text(service).into(),
                 IndicatorState::Normal,
-            ))
+            )
             .on_scroll(scroll_handler)
             .into()
         })

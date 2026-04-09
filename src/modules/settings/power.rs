@@ -296,7 +296,7 @@ impl PowerSettings {
 
     pub fn battery_indicator<'a>(
         &self,
-        ashell_theme: &AshellTheme,
+        ashell_theme: &'a AshellTheme,
     ) -> Option<Element<'a, Message>> {
         self.service.as_ref().and_then(|service| {
             service.system_battery.map(|battery| {
@@ -315,6 +315,7 @@ impl PowerSettings {
                     text(label).into(),
                     state,
                 )
+                .into()
             })
         })
     }

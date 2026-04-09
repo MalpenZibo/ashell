@@ -1,44 +1,89 @@
 use crate::{config::SettingsFormat, theme::AshellTheme, utils::IndicatorState};
-use iced::{Alignment, Element, Theme, widget::container, widget::row};
+use iced::{
+    Alignment, Element, Theme,
+    mouse::ScrollDelta,
+    widget::{MouseArea, container, row},
+};
 
-/// Produces a format-aware indicator element based on `SettingsFormat`.
-///
-/// - `Icon` → just the icon element
-/// - `Percentage | Time` → just `text(label)`
-/// - `IconAndPercentage | IconAndTime` → `row!(icon, text).spacing(xxs).align_y(Center)`
-///
-/// When `state` is not `Normal`, wraps the result in a container with
-/// the appropriate text color (success, warning, danger).
-pub fn format_indicator<'a, Msg: 'static>(
-    theme: &AshellTheme,
+pub struct FormatIndicator<'a, Msg> {
+    theme: &'a AshellTheme,
     format: SettingsFormat,
     icon_element: Element<'a, Msg>,
     label_element: Element<'a, Msg>,
     state: IndicatorState,
-) -> Element<'a, Msg> {
-    let content = match format {
-        SettingsFormat::Icon => icon_element,
-        SettingsFormat::Percentage | SettingsFormat::Time => label_element,
-        SettingsFormat::IconAndPercentage | SettingsFormat::IconAndTime => {
-            row![icon_element, label_element]
-                .spacing(theme.space.xxs)
-                .align_y(Alignment::Center)
-                .into()
-        }
-    };
+    on_scroll: Option<Box<dyn Fn(ScrollDelta) -> Msg + 'a>>,
+    on_right_press: Option<Msg>,
+}
 
-    match state {
-        IndicatorState::Normal => content,
-        _ => container(content)
-            .style(move |theme: &Theme| container::Style {
-                text_color: Some(match state {
-                    IndicatorState::Success => theme.palette().success,
-                    IndicatorState::Warning => theme.extended_palette().danger.weak.color,
-                    IndicatorState::Danger => theme.palette().danger,
-                    IndicatorState::Normal => unreachable!(),
-                }),
-                ..Default::default()
-            })
-            .into(),
+pub fn format_indicator<'a, Msg: 'static + Clone>(
+    theme: &'a AshellTheme,
+    format: SettingsFormat,
+    icon_element: Element<'a, Msg>,
+    label_element: Element<'a, Msg>,
+    state: IndicatorState,
+) -> FormatIndicator<'a, Msg> {
+    FormatIndicator {
+        theme,
+        format,
+        icon_element,
+        label_element,
+        state,
+        on_scroll: None,
+        on_right_press: None,
+    }
+}
+
+impl<'a, Msg: 'static + Clone> FormatIndicator<'a, Msg> {
+    pub fn on_scroll(mut self, handler: impl Fn(ScrollDelta) -> Msg + 'a) -> Self {
+        self.on_scroll = Some(Box::new(handler));
+        self
+    }
+
+    pub fn on_right_press(mut self, msg: Msg) -> Self {
+        self.on_right_press = Some(msg);
+        self
+    }
+}
+
+impl<'a, Msg: 'static + Clone> From<FormatIndicator<'a, Msg>> for Element<'a, Msg> {
+    fn from(fi: FormatIndicator<'a, Msg>) -> Self {
+        let content = match fi.format {
+            SettingsFormat::Icon => fi.icon_element,
+            SettingsFormat::Percentage | SettingsFormat::Time => fi.label_element,
+            SettingsFormat::IconAndPercentage | SettingsFormat::IconAndTime => {
+                row![fi.icon_element, fi.label_element]
+                    .spacing(fi.theme.space.xxs)
+                    .align_y(Alignment::Center)
+                    .into()
+            }
+        };
+
+        let colored = match fi.state {
+            IndicatorState::Normal => content,
+            _ => container(content)
+                .style(move |theme: &Theme| container::Style {
+                    text_color: Some(match fi.state {
+                        IndicatorState::Success => theme.palette().success,
+                        IndicatorState::Warning => theme.extended_palette().danger.weak.color,
+                        IndicatorState::Danger => theme.palette().danger,
+                        IndicatorState::Normal => unreachable!(),
+                    }),
+                    ..Default::default()
+                })
+                .into(),
+        };
+
+        if fi.on_scroll.is_some() || fi.on_right_press.is_some() {
+            let mut area = MouseArea::new(colored);
+            if let Some(handler) = fi.on_scroll {
+                area = area.on_scroll(handler);
+            }
+            if let Some(msg) = fi.on_right_press {
+                area = area.on_right_press(msg);
+            }
+            area.into()
+        } else {
+            colored
+        }
     }
 }
