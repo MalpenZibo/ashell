@@ -176,11 +176,7 @@ impl App {
                 .into(),
         )
         .padding({
-            let v_padding = if self.theme.background.is_none() {
-                0
-            } else {
-                2
-            };
+            let v_padding = 2;
 
             Padding::new(0.)
                 .top(if self.theme.bar_position == Position::Top {
