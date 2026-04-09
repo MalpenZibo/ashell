@@ -1,7 +1,7 @@
 use crate::{
     components::menu::MenuType,
     components::{ButtonUIRef, Centerbox},
-    config::{self, BarBackground, BarBackgroundPreset, Config, Modules},
+    config::{self, BarBackground, BarBackgroundPreset, Config, Modules, hex_to_color},
     get_log_spec,
     modules::{
         self,
@@ -25,7 +25,7 @@ use crate::{
 };
 use flexi_logger::LoggerHandle;
 use iced::{
-    Alignment, Color, Element, Length, OutputEvent, Padding, Subscription, SurfaceId, Task, Theme,
+    Alignment, Element, Length, OutputEvent, Padding, Subscription, SurfaceId, Task, Theme,
     event::listen_with,
     keyboard, set_exclusive_zone,
     widget::{Row, container, mouse_area},
@@ -500,7 +500,7 @@ impl App {
                             .into()
                         }),
                         BarBackground::Color(hex) => Some({
-                            let bg = Color::from_rgb8(hex.r, hex.g, hex.b).scale_alpha(opacity);
+                            let bg = hex_to_color(*hex).scale_alpha(opacity);
                             if menu_is_open {
                                 darken_color(bg, menu_backdrop)
                             } else {

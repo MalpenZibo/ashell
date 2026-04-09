@@ -621,7 +621,7 @@ impl Default for MediaPlayerModuleConfig {
     }
 }
 
-fn hex_to_color(hex: HexColor) -> Color {
+pub fn hex_to_color(hex: HexColor) -> Color {
     Color::from_rgb8(hex.r, hex.g, hex.b)
 }
 
@@ -644,36 +644,44 @@ pub enum AppearanceColor {
     },
 }
 
-impl AppearanceColor {
-    pub fn get_base(&self) -> Color {
-        match self {
-            AppearanceColor::Simple(color) => hex_to_color(*color),
+impl From<&AppearanceColor> for Color {
+    fn from(color: &AppearanceColor) -> Color {
+        match color {
+            AppearanceColor::Simple(hex) => hex_to_color(*hex),
             AppearanceColor::Complete { base, .. } => hex_to_color(*base),
         }
     }
+}
 
-    pub fn get_text(&self) -> Option<Color> {
+impl AppearanceColor {
+    pub fn text(&self) -> Option<Color> {
         match self {
             AppearanceColor::Simple(_) => None,
             AppearanceColor::Complete { text, .. } => text.map(hex_to_color),
         }
     }
 
-    pub fn get_weak_pair(&self, text_fallback: Color) -> Option<palette::Pair> {
+    pub fn weak_pair(&self, text_fallback: Color) -> Option<palette::Pair> {
         match self {
             AppearanceColor::Simple(_) => None,
-            AppearanceColor::Complete { weak, text, .. } => {
-                weak.map(|color| hex_to_pair(color, *text, text_fallback))
-            }
+            AppearanceColor::Complete { weak, text, .. } => weak.map(|color| {
+                palette::Pair::new(
+                    hex_to_color(color),
+                    text.map(hex_to_color).unwrap_or(text_fallback),
+                )
+            }),
         }
     }
 
-    pub fn get_strong_pair(&self, text_fallback: Color) -> Option<palette::Pair> {
+    pub fn strong_pair(&self, text_fallback: Color) -> Option<palette::Pair> {
         match self {
             AppearanceColor::Simple(_) => None,
-            AppearanceColor::Complete { strong, text, .. } => {
-                strong.map(|color| hex_to_pair(color, *text, text_fallback))
-            }
+            AppearanceColor::Complete { strong, text, .. } => strong.map(|color| {
+                palette::Pair::new(
+                    hex_to_color(color),
+                    text.map(hex_to_color).unwrap_or(text_fallback),
+                )
+            }),
         }
     }
 }

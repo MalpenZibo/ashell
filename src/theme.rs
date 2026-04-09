@@ -135,11 +135,11 @@ impl AshellTheme {
                 "local".to_string(),
                 Palette {
                     background: appearance.background_color.get_base(),
-                    text: appearance.text_color.get_base(),
-                    primary: appearance.primary_color.get_base(),
-                    success: appearance.success_color.get_base(),
-                    warning: appearance.warning_color.get_base(),
-                    danger: appearance.danger_color.get_base(),
+                    text: (&appearance.text_color).into(),
+                    primary: (&appearance.primary_color).into(),
+                    success: (&appearance.success_color).into(),
+                    warning: (&appearance.warning_color).into(),
+                    danger: (&appearance.danger_color).into(),
                 },
                 |palette| {
                     let text = palette.text;
@@ -156,22 +156,22 @@ impl AshellTheme {
                     let default_primary = palette::Primary::generate(
                         palette.primary,
                         palette.background,
-                        appearance.primary_color.get_text().unwrap_or(text),
+                        appearance.primary_color.text().unwrap_or(text),
                     );
                     let default_success = palette::Success::generate(
                         palette.success,
                         palette.background,
-                        appearance.success_color.get_text().unwrap_or(text),
+                        appearance.success_color.text().unwrap_or(text),
                     );
                     let default_warning = palette::Warning::generate(
                         palette.warning,
                         palette.background,
-                        appearance.warning_color.get_text().unwrap_or(text),
+                        appearance.warning_color.text().unwrap_or(text),
                     );
                     let default_danger = palette::Danger::generate(
                         palette.danger,
                         palette.background,
-                        appearance.danger_color.get_text().unwrap_or(text),
+                        appearance.danger_color.text().unwrap_or(text),
                     );
 
                     palette::Extended {
@@ -189,11 +189,11 @@ impl AshellTheme {
                             base: default_primary.base,
                             weak: appearance
                                 .primary_color
-                                .get_weak_pair(text)
+                                .weak_pair(text)
                                 .unwrap_or(default_primary.weak),
                             strong: appearance
                                 .primary_color
-                                .get_strong_pair(text)
+                                .strong_pair(text)
                                 .unwrap_or(default_primary.strong),
                         },
                         secondary: palette::Secondary::generate(palette.background, text),
@@ -201,33 +201,33 @@ impl AshellTheme {
                             base: default_success.base,
                             weak: appearance
                                 .success_color
-                                .get_weak_pair(text)
+                                .weak_pair(text)
                                 .unwrap_or(default_success.weak),
                             strong: appearance
                                 .success_color
-                                .get_strong_pair(text)
+                                .strong_pair(text)
                                 .unwrap_or(default_success.strong),
                         },
                         warning: palette::Warning {
                             base: default_warning.base,
                             weak: appearance
                                 .warning_color
-                                .get_weak_pair(text)
+                                .weak_pair(text)
                                 .unwrap_or(default_warning.weak),
                             strong: appearance
                                 .warning_color
-                                .get_strong_pair(text)
+                                .strong_pair(text)
                                 .unwrap_or(default_warning.strong),
                         },
                         danger: palette::Danger {
                             base: default_danger.base,
                             weak: appearance
                                 .danger_color
-                                .get_weak_pair(text)
+                                .weak_pair(text)
                                 .unwrap_or(default_danger.weak),
                             strong: appearance
                                 .danger_color
-                                .get_strong_pair(text)
+                                .strong_pair(text)
                                 .unwrap_or(default_danger.strong),
                         },
                         is_dark: true,
@@ -517,9 +517,9 @@ impl AshellTheme {
                         },
                         |c| {
                             let color = palette::Primary::generate(
-                                c.get_base(),
+                                Color::from(&c),
                                 theme.palette().background,
-                                c.get_text().unwrap_or_else(|| theme.palette().text),
+                                c.text().unwrap_or_else(|| theme.palette().text),
                             );
                             (color.base.color, color.base.text)
                         },
@@ -564,9 +564,9 @@ impl AshellTheme {
                                 },
                                 |c| {
                                     let color = palette::Primary::generate(
-                                        c.get_base(),
+                                        Color::from(&c),
                                         theme.palette().background,
-                                        c.get_text().unwrap_or_else(|| theme.palette().text),
+                                        c.text().unwrap_or_else(|| theme.palette().text),
                                     );
                                     (color.strong.color, color.strong.text)
                                 },
