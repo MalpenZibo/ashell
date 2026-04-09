@@ -21,17 +21,36 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            code:
+              - 'src/**'
+              - 'assets/**'
+              - 'build.rs'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - '.github/workflows/ci.yml'
+
       - name: Install dependencies
+        if: steps.filter.outputs.code == 'true'
         run: |
-          export DEBIAN_FRONTED=noninteractive
+          export DEBIAN_FRONTEND=noninteractive
           sudo apt-get update
           sudo apt-get install -y pkg-config llvm-dev libclang-dev clang libxkbcommon-dev libwayland-dev dbus libpipewire-0.3-dev libpulse-dev libudev-dev
 
+      - uses: Swatinem/rust-cache@v2
+        if: steps.filter.outputs.code == 'true'
+
       - name: Format
+        if: steps.filter.outputs.code == 'true'
         run: cargo fmt --all -- --check
 
       - name: Clippy
+        if: steps.filter.outputs.code == 'true'
         run: cargo clippy --all-features -- -D warnings
 
       - name: Build
+        if: steps.filter.outputs.code == 'true'
         run: cargo build

@@ -10,7 +10,6 @@ use iced::{
     widget::{Row, container},
 };
 
-pub mod clock;
 pub mod custom_module;
 pub mod keyboard_layout;
 pub mod keyboard_submap;
@@ -327,7 +326,6 @@ impl App {
                 .tray
                 .view(id, &self.theme)
                 .map(|view| (view.map(Message::Tray), None)),
-            ModuleName::Clock => Some((self.clock.view(&self.theme).map(Message::Clock), None)),
             ModuleName::Tempo => Some((
                 self.tempo.view(&self.theme).map(Message::Tempo),
                 Some(OnModulePress::ToggleMenuWithExtra {
@@ -387,7 +385,6 @@ impl App {
                     .map(Message::KeyboardSubmap),
             ),
             ModuleName::Tray => Some(self.tray.subscription().map(Message::Tray)),
-            ModuleName::Clock => Some(self.clock.subscription().map(Message::Clock)),
             ModuleName::Tempo => Some(self.tempo.subscription().map(Message::Tempo)),
             ModuleName::Privacy => Some(self.privacy.subscription().map(Message::Privacy)),
             ModuleName::MediaPlayer => {
