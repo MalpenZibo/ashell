@@ -1,4 +1,6 @@
-use crate::{config::SettingsFormat, theme::AshellTheme, utils::IndicatorState};
+use crate::{
+    components::icons::IconKind, config::SettingsFormat, theme::AshellTheme, utils::IndicatorState,
+};
 use iced::{
     Alignment, Element, Theme,
     mouse::ScrollDelta,
@@ -8,7 +10,7 @@ use iced::{
 pub struct FormatIndicator<'a, Msg> {
     theme: &'a AshellTheme,
     format: SettingsFormat,
-    icon_element: Element<'a, Msg>,
+    icon: IconKind,
     label_element: Element<'a, Msg>,
     state: IndicatorState,
     on_scroll: Option<Box<dyn Fn(ScrollDelta) -> Msg + 'a>>,
@@ -18,14 +20,14 @@ pub struct FormatIndicator<'a, Msg> {
 pub fn format_indicator<'a, Msg: 'static + Clone>(
     theme: &'a AshellTheme,
     format: SettingsFormat,
-    icon_element: Element<'a, Msg>,
+    icon: impl Into<IconKind>,
     label_element: Element<'a, Msg>,
     state: IndicatorState,
 ) -> FormatIndicator<'a, Msg> {
     FormatIndicator {
         theme,
         format,
-        icon_element,
+        icon: icon.into(),
         label_element,
         state,
         on_scroll: None,
@@ -48,10 +50,10 @@ impl<'a, Msg: 'static + Clone> FormatIndicator<'a, Msg> {
 impl<'a, Msg: 'static + Clone> From<FormatIndicator<'a, Msg>> for Element<'a, Msg> {
     fn from(fi: FormatIndicator<'a, Msg>) -> Self {
         let content = match fi.format {
-            SettingsFormat::Icon => fi.icon_element,
+            SettingsFormat::Icon => fi.icon.to_text().into(),
             SettingsFormat::Percentage | SettingsFormat::Time => fi.label_element,
             SettingsFormat::IconAndPercentage | SettingsFormat::IconAndTime => {
-                row![fi.icon_element, fi.label_element]
+                row![fi.icon.to_text(), fi.label_element]
                     .spacing(fi.theme.space.xxs)
                     .align_y(Alignment::Center)
                     .into()

@@ -325,7 +325,7 @@ impl NetworkSettings {
                     format_indicator(
                         theme,
                         self.config.indicator_format,
-                        icon(icon_type).into(),
+                        icon_type,
                         text(strength_text).into(),
                         state,
                     )
@@ -335,7 +335,7 @@ impl NetworkSettings {
                     format_indicator(
                         theme,
                         self.config.indicator_format,
-                        icon(StaticIcon::Wifi0).into(),
+                        StaticIcon::Wifi0,
                         text("0%").into(),
                         IndicatorState::Normal,
                     )

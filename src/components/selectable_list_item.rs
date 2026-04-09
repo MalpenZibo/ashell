@@ -1,4 +1,4 @@
-use crate::theme::AshellTheme;
+use crate::{components::icons::IconKind, theme::AshellTheme};
 use iced::{
     Alignment, Element, Length, Theme,
     widget::{button, container, row, text},
@@ -6,14 +6,15 @@ use iced::{
 
 pub fn selectable_list_item<'a, Msg: 'static + Clone>(
     theme: &'a AshellTheme,
-    icon_element: Element<'a, Msg>,
+    icon: impl Into<IconKind>,
     label: impl text::IntoFragment<'a>,
     active: bool,
     on_select: Msg,
 ) -> Element<'a, Msg> {
+    let icon_text = icon.into().to_text();
     if active {
         container(
-            row![icon_element, text(label)]
+            row![icon_text, text(label)]
                 .align_y(Alignment::Center)
                 .spacing(theme.space.md)
                 .padding([theme.space.xxs, theme.space.sm]),
@@ -25,7 +26,7 @@ pub fn selectable_list_item<'a, Msg: 'static + Clone>(
         .into()
     } else {
         button(
-            row![icon_element, text(label)]
+            row![icon_text, text(label)]
                 .spacing(theme.space.md)
                 .align_y(Alignment::Center),
         )

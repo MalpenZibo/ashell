@@ -1,9 +1,5 @@
 use crate::{
-    components::{
-        format_indicator,
-        icons::{StaticIcon, icon_mono},
-        slider_control,
-    },
+    components::{format_indicator, icons::StaticIcon, slider_control},
     config::SettingsFormat,
     services::{
         ReadOnlyService, Service, ServiceEvent,
@@ -122,7 +118,7 @@ impl BrightnessSettings {
             format_indicator(
                 theme,
                 self.config,
-                icon_mono(StaticIcon::Brightness).into(),
+                StaticIcon::Brightness,
                 Self::percent_text(service).into(),
                 IndicatorState::Normal,
             )

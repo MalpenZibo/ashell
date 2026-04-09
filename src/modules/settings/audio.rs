@@ -1,9 +1,7 @@
 use super::SubMenu;
 use crate::{
     components::{
-        divider, format_indicator,
-        icons::{StaticIcon, icon, icon_mono},
-        selectable_list_item, slider_control,
+        divider, format_indicator, icons::StaticIcon, selectable_list_item, slider_control,
     },
     config::SettingsFormat,
     services::{
@@ -237,7 +235,7 @@ impl AudioSettings {
                 format_indicator(
                     theme,
                     self.config.indicator_format,
-                    icon(icon_type).into(),
+                    icon_type,
                     Self::vol_text(volume).into(),
                     IndicatorState::Normal,
                 )
@@ -267,7 +265,7 @@ impl AudioSettings {
                 format_indicator(
                     theme,
                     self.config.microphone_indicator_format,
-                    icon(icon_type).into(),
+                    icon_type,
                     Self::vol_text(volume).into(),
                     IndicatorState::Normal,
                 )
@@ -490,9 +488,7 @@ impl AudioSettings {
         let entries: Element<'a, Message> = Column::with_children(
             entries
                 .into_iter()
-                .map(|e| {
-                    selectable_list_item(theme, icon_mono(e.icon).into(), e.name, e.active, e.msg)
-                })
+                .map(|e| selectable_list_item(theme, e.icon, e.name, e.active, e.msg))
                 .collect::<Vec<_>>(),
         )
         .spacing(theme.space.xxs)

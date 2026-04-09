@@ -1,19 +1,17 @@
-use crate::{components::icons::Icon, theme::AshellTheme};
+use crate::{components::icons::IconKind, theme::AshellTheme};
 use iced::{
     Alignment, Element, Length,
     widget::{button, row, text},
 };
 
-use super::icons::icon;
-
 pub fn ghost_menu_button<'a, Msg: 'static + Clone>(
     theme: &'a AshellTheme,
-    icon_type: impl Icon,
+    icon: impl Into<IconKind>,
     label: impl text::IntoFragment<'a>,
     on_press: Msg,
 ) -> Element<'a, Msg> {
     button(
-        row![icon(icon_type), text(label)]
+        row![icon.into().to_text(), text(label)]
             .spacing(theme.space.md)
             .align_y(Alignment::Center),
     )

@@ -311,7 +311,7 @@ impl PowerSettings {
                 format_indicator(
                     ashell_theme,
                     self.config.battery_format,
-                    icon(battery.get_icon()).into(),
+                    battery.get_icon(),
                     text(label).into(),
                     state,
                 )

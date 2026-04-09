@@ -303,6 +303,57 @@ impl Icon for DynamicIcon {
     }
 }
 
+#[derive(Clone)]
+pub enum IconKind {
+    Static(StaticIcon),
+    Dynamic(String),
+}
+
+impl From<StaticIcon> for IconKind {
+    fn from(icon: StaticIcon) -> Self {
+        IconKind::Static(icon)
+    }
+}
+
+impl From<DynamicIcon> for IconKind {
+    fn from(icon: DynamicIcon) -> Self {
+        IconKind::Dynamic(icon.0)
+    }
+}
+
+impl IconKind {
+    pub fn to_text<'a>(&self) -> Text<'a> {
+        match self {
+            IconKind::Static(s) => (*s).to_text(),
+            IconKind::Dynamic(s) => DynamicIcon(s.clone()).to_text(),
+        }
+    }
+
+    pub fn to_text_mono<'a>(&self) -> Text<'a> {
+        match self {
+            IconKind::Static(s) => (*s).to_text_mono(),
+            IconKind::Dynamic(s) => DynamicIcon(s.clone()).to_text_mono(),
+        }
+    }
+}
+
+impl Icon for IconKind {
+    fn to_text<'a>(self) -> Text<'a> {
+        // Call the inherent method via explicit disambiguation
+        match self {
+            IconKind::Static(s) => s.to_text(),
+            IconKind::Dynamic(s) => DynamicIcon(s).to_text(),
+        }
+    }
+
+    fn to_text_mono<'a>(self) -> Text<'a> {
+        match self {
+            IconKind::Static(s) => s.to_text_mono(),
+            IconKind::Dynamic(s) => DynamicIcon(s).to_text_mono(),
+        }
+    }
+}
+
 pub fn icon<'a>(icon: impl Icon) -> Text<'a> {
     icon.to_text()
 }
@@ -409,8 +460,9 @@ impl<'a, I: Icon, Message: 'static + Clone> From<IconButton<'a, I, Message>>
 
 pub fn icon_button<'a, Message: 'static + Clone>(
     theme: &'a AshellTheme,
-    icon: impl Icon,
-) -> IconButton<'a, impl Icon, Message> {
+    icon: impl Into<IconKind>,
+) -> IconButton<'a, IconKind, Message> {
+    let icon = icon.into();
     IconButton {
         theme,
         icon,

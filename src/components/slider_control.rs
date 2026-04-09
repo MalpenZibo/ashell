@@ -1,7 +1,7 @@
 use std::ops::RangeInclusive;
 
 use crate::{
-    components::icons::{StaticIcon, icon_button, icon_mono},
+    components::icons::{IconKind, StaticIcon, icon_button},
     theme::AshellTheme,
     utils::remote_value,
 };
@@ -13,7 +13,7 @@ use iced::{
 
 pub struct SliderControl<'a, Msg> {
     theme: &'a AshellTheme,
-    icon: StaticIcon,
+    icon: IconKind,
     range: RangeInclusive<u32>,
     value: u32,
     on_change: Box<dyn Fn(remote_value::Message<u32>) -> Msg + 'a>,
@@ -25,7 +25,7 @@ pub struct SliderControl<'a, Msg> {
 
 pub fn slider_control<'a, Msg: 'static + Clone>(
     theme: &'a AshellTheme,
-    icon: StaticIcon,
+    icon: impl Into<IconKind>,
     range: RangeInclusive<u32>,
     value: u32,
     on_change: impl Fn(remote_value::Message<u32>) -> Msg + 'a,
@@ -33,7 +33,7 @@ pub fn slider_control<'a, Msg: 'static + Clone>(
 ) -> SliderControl<'a, Msg> {
     SliderControl {
         theme,
-        icon,
+        icon: icon.into(),
         range,
         value,
         on_change: Box::new(on_change),
@@ -64,14 +64,14 @@ impl<'a, Msg: 'static + Clone> SliderControl<'a, Msg> {
 impl<'a, Msg: 'static + Clone> From<SliderControl<'a, Msg>> for Element<'a, Msg> {
     fn from(ctrl: SliderControl<'a, Msg>) -> Self {
         let icon_element: Element<'a, Msg> = if let Some(msg) = ctrl.on_icon_press {
-            let btn = icon_button(ctrl.theme, ctrl.icon).on_press(msg);
+            let btn = icon_button(ctrl.theme, ctrl.icon.clone()).on_press(msg);
             if let Some(right_msg) = ctrl.on_icon_right_press {
                 MouseArea::new(btn).on_right_press(right_msg).into()
             } else {
                 btn.into()
             }
         } else {
-            iced::widget::container(icon_mono(ctrl.icon))
+            iced::widget::container(ctrl.icon.to_text_mono())
                 .center_x(32.)
                 .center_y(32.)
                 .clip(true)

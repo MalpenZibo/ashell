@@ -423,7 +423,7 @@ impl BluetoothSettings {
                     format_indicator(
                         theme,
                         self.config.indicator_format,
-                        icon(StaticIcon::BluetoothConnected).into(),
+                        StaticIcon::BluetoothConnected,
                         text(format!("{}", connected_count)).into(),
                         IndicatorState::Normal,
                     )

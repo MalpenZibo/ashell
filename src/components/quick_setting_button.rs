@@ -1,5 +1,5 @@
 use crate::{
-    components::icons::{Icon, IconButtonSize, StaticIcon, icon, icon_button},
+    components::icons::{IconButtonSize, IconKind, StaticIcon, icon_button},
     modules::settings::SubMenu,
     theme::AshellTheme,
 };
@@ -9,9 +9,9 @@ use iced::{
 };
 
 #[allow(clippy::too_many_arguments)]
-pub fn quick_setting_button<'a, Msg: Clone + 'static, I: Icon>(
+pub fn quick_setting_button<'a, Msg: Clone + 'static>(
     theme: &'a AshellTheme,
-    icon_type: I,
+    icon_type: impl Into<IconKind>,
     title: String,
     subtitle: Option<String>,
     active: bool,
@@ -20,7 +20,7 @@ pub fn quick_setting_button<'a, Msg: Clone + 'static, I: Icon>(
     with_submenu: Option<(SubMenu, Option<SubMenu>, Msg)>,
 ) -> Element<'a, Msg> {
     let main_content = row!(
-        icon(icon_type).size(theme.font_size.lg),
+        icon_type.into().to_text().size(theme.font_size.lg),
         container(
             Column::with_capacity(2)
                 .push(text(title).size(theme.font_size.sm))
