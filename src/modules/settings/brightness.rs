@@ -15,7 +15,7 @@ use crate::{
 use iced::{
     Element, Subscription, Task,
     mouse::ScrollDelta,
-    widget::{MouseArea, Text, container, slider, text},
+    widget::{MouseArea, Text, slider, text},
 };
 
 #[derive(Debug, Clone)]
@@ -97,13 +97,8 @@ impl BrightnessSettings {
         }
     }
 
-    pub fn slider<'a>(&'a self, theme: &AshellTheme) -> Option<Element<'a, Message>> {
+    pub fn slider<'a>(&'a self, theme: &'a AshellTheme) -> Option<Element<'a, Message>> {
         self.service.as_ref().map(|service| {
-            let icon_element = container(icon_mono(StaticIcon::Brightness))
-                .center_x(32.)
-                .center_y(32.)
-                .clip(true);
-
             let slider_element = MouseArea::new(
                 Element::<'a, remote_value::Message<u32>>::from(
                     slider(
@@ -117,7 +112,7 @@ impl BrightnessSettings {
             )
             .on_scroll(Self::on_scroll(service.current.value(), service.max));
 
-            slider_row(theme, icon_element.into(), slider_element.into(), None)
+            slider_row(theme, StaticIcon::Brightness, slider_element.into()).into()
         })
     }
 

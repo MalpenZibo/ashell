@@ -2,7 +2,7 @@ use super::SubMenu;
 use crate::{
     components::{
         divider, format_indicator,
-        icons::{StaticIcon, icon, icon_button, icon_mono},
+        icons::{StaticIcon, icon, icon_mono},
         selectable_list_item, slider_row,
     },
     config::SettingsFormat,
@@ -419,27 +419,17 @@ impl AudioSettings {
         volume_changed: &'a dyn Fn(remote_value::Message<u32>) -> Message,
         with_submenu: Option<(Option<SubMenu>, Message)>,
     ) -> Element<'a, Message> {
-        let icon_element = MouseArea::new(
-            icon_button(
-                theme,
-                if is_mute {
-                    match slider_type {
-                        SliderType::Sink => StaticIcon::Speaker0,
-                        SliderType::Source => StaticIcon::Mic0,
-                    }
-                } else {
-                    match slider_type {
-                        SliderType::Sink => StaticIcon::Speaker3,
-                        SliderType::Source => StaticIcon::Mic1,
-                    }
-                },
-            )
-            .on_press(toggle_mute),
-        )
-        .on_right_press(match slider_type {
-            SliderType::Sink => Message::OpenMore,
-            SliderType::Source => Message::OpenSourceMore,
-        });
+        let mute_icon = if is_mute {
+            match slider_type {
+                SliderType::Sink => StaticIcon::Speaker0,
+                SliderType::Source => StaticIcon::Mic0,
+            }
+        } else {
+            match slider_type {
+                SliderType::Sink => StaticIcon::Speaker3,
+                SliderType::Source => StaticIcon::Mic1,
+            }
+        };
 
         let slider_element = MouseArea::new(
             Element::<'a, remote_value::Message<u32>>::from(
@@ -454,20 +444,22 @@ impl AudioSettings {
         )
         .on_scroll(Self::on_scroll(volume.value(), volume_changed));
 
-        let trailing = with_submenu.map(|(submenu, msg)| {
-            icon_button(
-                theme,
-                match (slider_type, submenu) {
-                    (SliderType::Sink, Some(SubMenu::Sinks))
-                    | (SliderType::Source, Some(SubMenu::Sources)) => StaticIcon::Close,
-                    _ => StaticIcon::RightArrow,
-                },
-            )
-            .on_press(msg)
-            .into()
-        });
+        let mut row = slider_row(theme, mute_icon, slider_element.into())
+            .on_icon_press(toggle_mute)
+            .on_icon_right_press(match slider_type {
+                SliderType::Sink => Message::OpenMore,
+                SliderType::Source => Message::OpenSourceMore,
+            });
 
-        slider_row(theme, icon_element.into(), slider_element.into(), trailing)
+        if let Some((submenu, msg)) = with_submenu {
+            let expanded = match slider_type {
+                SliderType::Sink => submenu == Some(SubMenu::Sinks),
+                SliderType::Source => submenu == Some(SubMenu::Sources),
+            };
+            row = row.trailing_toggle(expanded, msg);
+        }
+
+        row.into()
     }
 
     fn on_scroll<F>(cur_volume: u32, make_msg: F) -> impl Fn(ScrollDelta) -> Message
