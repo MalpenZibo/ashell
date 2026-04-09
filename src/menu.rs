@@ -1,7 +1,7 @@
 use crate::app::{self, App};
+use crate::components::{self, ButtonUIRef};
 use crate::config::{AppearanceStyle, Position};
 use crate::theme::backdrop_color;
-use crate::widgets::{self, ButtonUIRef};
 use iced::alignment::Vertical;
 use iced::widget::container::Style;
 use iced::{
@@ -148,7 +148,7 @@ impl App {
         content: Element<'a, app::Message>,
         button_ui_ref: ButtonUIRef,
     ) -> Element<'a, app::Message> {
-        widgets::MenuWrapper::new(
+        components::MenuWrapper::new(
             button_ui_ref.position.x,
             container(content)
                 .padding(self.theme.space.md)

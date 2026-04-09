@@ -1,9 +1,9 @@
 use crate::{
     app::{App, Message},
+    components::position_button,
     config::{AppearanceStyle, ModuleDef, ModuleName},
     menu::MenuType,
     theme::AshellTheme,
-    widgets::position_button,
 };
 use iced::{
     Alignment, Border, Color, Element, Length, Subscription, SurfaceId,

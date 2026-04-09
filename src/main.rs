@@ -21,7 +21,6 @@ mod password_dialog;
 mod services;
 mod theme;
 mod utils;
-mod widgets;
 
 const NERD_FONT: &[u8] = include_bytes!("../target/generated/SymbolsNerdFont-Regular-Subset.ttf");
 const NERD_FONT_MONO: &[u8] =

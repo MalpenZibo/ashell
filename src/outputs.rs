@@ -7,9 +7,9 @@ use log::debug;
 
 use crate::{
     HEIGHT,
+    components::ButtonUIRef,
     config::{self, AppearanceStyle, Position},
     menu::{Menu, MenuType},
-    widgets::ButtonUIRef,
 };
 
 #[derive(Debug, Clone)]

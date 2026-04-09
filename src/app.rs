@@ -1,5 +1,6 @@
 use crate::{
     HEIGHT,
+    components::{ButtonUIRef, Centerbox},
     config::{self, AppearanceStyle, Config, Modules, Position},
     get_log_spec,
     menu::MenuType,
@@ -22,7 +23,6 @@ use crate::{
     outputs::{HasOutput, Outputs},
     services::ReadOnlyService,
     theme::{AshellTheme, backdrop_color, darken_color},
-    widgets::{ButtonUIRef, Centerbox},
 };
 use flexi_logger::LoggerHandle;
 use iced::{
