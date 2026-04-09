@@ -1,8 +1,8 @@
 use crate::{
     components::divider,
     components::icons::{IconButtonSize, StaticIcon, icon, icon_button},
+    components::menu::MenuSize,
     config::{MediaPlayerFormat, MediaPlayerModuleConfig},
-    menu::MenuSize,
     services::{
         ReadOnlyService, Service, ServiceEvent,
         mpris::{

@@ -1,9 +1,9 @@
 use crate::{
     HEIGHT,
+    components::menu::MenuType,
     components::{ButtonUIRef, Centerbox},
     config::{self, AppearanceStyle, Config, Modules, Position},
     get_log_spec,
-    menu::MenuType,
     modules::{
         self,
         custom_module::{self, Custom},

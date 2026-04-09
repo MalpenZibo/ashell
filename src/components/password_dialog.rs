@@ -1,7 +1,5 @@
-use crate::{
-    components::icons::{StaticIcon, icon},
-    theme::AshellTheme,
-};
+use super::icons::{StaticIcon, icon};
+use crate::theme::AshellTheme;
 use iced::{
     Alignment, Element, Length, SurfaceId,
     alignment::Vertical,

@@ -1,8 +1,8 @@
 use crate::{
     app::{App, Message},
+    components::menu::MenuType,
     components::{module_group, module_item},
     config::{ModuleDef, ModuleName},
-    menu::MenuType,
     theme::AshellTheme,
 };
 use iced::{Alignment, Element, Length, Subscription, SurfaceId, widget::Row};

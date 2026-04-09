@@ -1,8 +1,8 @@
 use crate::{
     components::divider,
     components::icons::{StaticIcon, icon},
+    components::menu::MenuSize,
     components::{ButtonUIRef, position_button},
-    menu::MenuSize,
     services::{
         ReadOnlyService, Service, ServiceEvent,
         tray::{

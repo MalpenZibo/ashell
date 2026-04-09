@@ -1,8 +1,8 @@
 use crate::{
     components::divider,
     components::icons::{StaticIcon, icon},
+    components::menu::MenuSize,
     config::UpdatesModuleConfig,
-    menu::MenuSize,
     theme::AshellTheme,
 };
 use iced::{

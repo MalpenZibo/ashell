@@ -9,10 +9,10 @@ use tokio::time::timeout;
 use crate::{
     components::{
         icons::{DynamicIcon, StaticIcon, icon, icon_button},
-        quick_setting_button, sub_menu_wrapper,
+        menu::MenuSize,
+        password_dialog, quick_setting_button, sub_menu_wrapper,
     },
     config::{Position, SettingsCustomButton, SettingsIndicator, SettingsModuleConfig},
-    menu::MenuSize,
     modules::settings::{
         audio::{AudioSettings, AudioSettingsConfig},
         bluetooth::{BluetoothSettings, BluetoothSettingsConfig},
@@ -20,7 +20,6 @@ use crate::{
         network::{NetworkSettings, NetworkSettingsConfig},
         power::{PowerSettings, PowerSettingsConfig},
     },
-    password_dialog,
     services::idle_inhibitor::IdleInhibitorManager,
     theme::AshellTheme,
 };

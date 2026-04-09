@@ -8,8 +8,8 @@ use log::debug;
 use crate::{
     HEIGHT,
     components::ButtonUIRef,
+    components::menu::{Menu, MenuType},
     config::{self, AppearanceStyle, Position},
-    menu::{Menu, MenuType},
 };
 
 #[derive(Debug, Clone)]

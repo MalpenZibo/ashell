@@ -1,11 +1,11 @@
 use crate::{
     components::divider,
     components::icons::{StaticIcon, icon},
+    components::menu::MenuSize,
     config::{
         CpuFormat, DiskFormat, MemoryFormat, SystemInfoIndicator, SystemInfoModuleConfig,
         TemperatureFormat,
     },
-    menu::MenuSize,
     theme::AshellTheme,
     utils,
 };

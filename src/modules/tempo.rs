@@ -1,7 +1,7 @@
 use crate::{
     components::icons::{StaticIcon, icon},
+    components::menu::MenuSize,
     config::{TempoModuleConfig, WeatherIndicator, WeatherLocation},
-    menu::MenuSize,
     theme::AshellTheme,
 };
 use chrono::{
