@@ -77,6 +77,9 @@ reqwest = { version = "0.13", default-features = false, features = [
   "json",
   "rustls",
 ] }
+image = { version = "0.25", default-features = false, features = [
+    "default-formats"
+] }
 url = "2.5.7"
 signal-hook = "0.4.3"
 signal-hook-tokio = { version = "0.4", features = ["futures-v0_3"] }

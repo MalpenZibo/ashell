@@ -12,11 +12,14 @@ use crate::{
     utils::truncate_text,
 };
 use iced::{
-    Background, Border, Element, Length, Subscription, Task, Theme,
+    Background, Border, ContentFit, Element, Length, Subscription, Task, Theme,
     alignment::Vertical,
     widget::{column, container, image, row, rule, slider, space, text},
 };
+extern crate image as image_crate;
+use image_crate::{DynamicImage, ImageError, ImageReader};
 use std::collections::{HashMap, HashSet};
+use std::io::Cursor;
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -152,6 +155,9 @@ impl MediaPlayer {
                                 .get(url)
                                 .map(|handle| {
                                     image(handle)
+                                        .width(Length::Fill)
+                                        .height(56)
+                                        .content_fit(ContentFit::Cover)
                                         .filter_method(image::FilterMethod::Linear)
                                         .into()
                                 })
@@ -161,6 +167,7 @@ impl MediaPlayer {
                     let metadata = |description, cover| -> Element<'_, _> {
                         row![description]
                             .push(cover)
+                            .width(Length::Fill)
                             .spacing(theme.space.md)
                             .align_y(Vertical::Center)
                             .into()
@@ -281,7 +288,25 @@ impl MediaPlayer {
                 continue;
             };
             self.covers
-                .insert(url.clone(), image::Handle::from_bytes(cover.clone()));
+                .insert(url.clone(), Self::cover_handle_from_bytes(cover));
+        }
+    }
+
+    fn cover_handle_from_bytes(bytes: &iced::core::Bytes) -> image::Handle {
+        let reader: ImageReader<Cursor<&[u8]>> =
+            match ImageReader::new(Cursor::new(bytes.as_ref())).with_guessed_format() {
+                Ok(reader) => reader,
+                Err(_) => return image::Handle::from_bytes(bytes.clone()),
+            };
+
+        let decoded: Result<DynamicImage, ImageError> = reader.decode();
+
+        match decoded {
+            Ok(decoded) => {
+                let rgba = decoded.to_rgba8();
+                image::Handle::from_rgba(rgba.width(), rgba.height(), rgba.into_raw())
+            }
+            Err(_) => image::Handle::from_bytes(bytes.clone()),
         }
     }
 }
