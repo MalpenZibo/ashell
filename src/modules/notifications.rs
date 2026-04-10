@@ -14,9 +14,9 @@ use crate::{
 use chrono::{DateTime, Local};
 use freedesktop_icons::lookup;
 use iced::{
-    Alignment, Background, Border, Color, Element, Length, Radius, Subscription, Task, Theme,
+    Alignment, Background, Border, Color, Element, Length, Subscription, Task, Theme,
     widget::{
-        Space, button, column, container, horizontal_rule, image, row, scrollable, svg, text,
+        Space, button, column, container, image, row, scrollable, svg, text, rule,
     },
 };
 use linicon_theme::get_icon_theme;
@@ -30,7 +30,7 @@ use zbus::Connection;
 use zbus::zvariant::OwnedValue;
 
 const ICON_SIZE: f32 = 20.0;
-const HORIZONTAL_RULE_HEIGHT: f32 = 0.2;
+const HORIZONTAL_RULE_HEIGHT: u32 = 1;
 
 fn strong_text_style(theme: &Theme) -> text::Style {
     text::Style {
@@ -192,7 +192,7 @@ fn icon_button_style(theme: &Theme, status: button::Status) -> button::Style {
     }
 }
 
-fn clear_button_style(radius: u16) -> impl Fn(&Theme, button::Status) -> button::Style {
+fn clear_button_style(radius: f32) -> impl Fn(&Theme, button::Status) -> button::Style {
     move |iced_theme: &Theme, _status| button::Style {
         background: Some(Background::Color(Color::TRANSPARENT)),
         text_color: iced_theme.palette().text,
@@ -552,11 +552,12 @@ impl Notifications {
                             button_style.border = Border::default().rounded(theme.radius.md)
                         }
                         NotificationStyle::BottomRounded => {
-                            button_style.border = Border::default().rounded(
-                                Radius::default()
-                                    .bottom_left(theme.radius.md)
-                                    .bottom_right(theme.radius.md),
-                            )
+                            button_style.border = Border::default().rounded(iced::border::Radius {
+                                top_left: 0.0,
+                                top_right: 0.0,
+                                bottom_left: theme.radius.md,
+                                bottom_right: theme.radius.md,
+                            })
                         }
                     }
                     button_style.background = Some(Background::Color(
@@ -582,11 +583,12 @@ impl Notifications {
         let theme = theme.clone();
         move |iced_theme: &Theme, status| {
             let mut style = iced::widget::button::Style::default();
-            let border = Border::default().rounded(
-                Radius::default()
-                    .top_left(theme.radius.md)
-                    .top_right(theme.radius.md),
-            );
+            let border = Border::default().rounded(iced::border::Radius {
+                top_left: theme.radius.md,
+                top_right: theme.radius.md,
+                bottom_left: 0.0,
+                bottom_right: 0.0,
+            });
             match status {
                 iced::widget::button::Status::Hovered => {
                     style.background = Some(Background::Color(
@@ -638,7 +640,7 @@ impl Notifications {
                 .style(weak_text_style)
                 .into()
         } else {
-            Space::with_width(Length::Shrink).into()
+            Space::new().width(Length::Shrink).into()
         };
 
         let body_element: Element<'_, Message> = if show_body && !notification.body.is_empty() {
@@ -648,7 +650,7 @@ impl Notifications {
                 .style(strong_text_style)
                 .into()
         } else {
-            Space::with_height(Length::Shrink).into()
+            Space::new().height(Length::Shrink).into()
         };
 
         let notification_id = notification.id;
@@ -784,12 +786,12 @@ impl Notifications {
                 for (i, notification) in notifications.iter().enumerate() {
                     let is_last = i == notifications.len() - 1;
                     preview = preview.push(column!(
-                        horizontal_rule(HORIZONTAL_RULE_HEIGHT),
+                        rule::horizontal(HORIZONTAL_RULE_HEIGHT),
                         self.build_full_item(notification, is_last, theme)
                     ));
                 }
             } else if let Some(first_notification) = notifications.first() {
-                preview = preview.push(horizontal_rule(HORIZONTAL_RULE_HEIGHT));
+                preview = preview.push(rule::horizontal(HORIZONTAL_RULE_HEIGHT));
                 preview = preview.push(self.build_full_item(first_notification, true, theme))
             }
 
@@ -854,12 +856,12 @@ impl Notifications {
                     .width(Length::Fill)
                     .align_x(Alignment::End)
                 } else {
-                    container(Space::new(Length::Fill, Length::Shrink))
+                    container(Space::new().width(Length::Fill).height(Length::Shrink))
                         .width(Length::Fill)
                         .align_x(Alignment::End)
                 }
             ),
-            scrollable(content).scrollbar_width(0.0).scroller_width(0.0),
+            scrollable(content),
         )
         .width(MenuSize::Medium)
         .spacing(theme.space.sm)
@@ -868,12 +870,12 @@ impl Notifications {
 
     pub fn toast_view<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
         if self.toasts.is_empty() {
-            return Space::new(Length::Fill, Length::Fill).into();
+            return Space::new().width(Length::Fill).height(Length::Fill).into();
         }
 
         let mut toast_column = column!()
             .spacing(theme.space.sm)
-            .width(self.config.toast_width);
+            .width(Length::Fixed(self.config.toast_width as f32));
 
         for &toast_id in &self.toasts {
             if let Some(notification) = self.find_notification(toast_id) {

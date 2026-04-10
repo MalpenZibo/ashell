@@ -661,7 +661,7 @@ impl Outputs {
     ) -> Task<Message> {
         let mut tasks = vec![];
 
-        for (_, shell_info, wl_output) in &mut self.0 {
+        for (_, shell_info, _) in &mut self.0 {
             if let Some(shell_info) = shell_info {
                 // If we already created a toast surface for this output, just
                 // update its size and layer ordering.

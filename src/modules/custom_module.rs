@@ -108,7 +108,7 @@ impl Custom {
                         None
                     }
                 })
-                .unwrap_or_else(|| Space::with_width(Length::Shrink).into()),
+                .unwrap_or_else(|| Space::new().width(Length::Shrink).into()),
             crate::config::CustomModuleType::Button => {
                 let mut icon_element = self.config.icon.as_ref().map_or_else(
                     || icon(StaticIcon::None),
