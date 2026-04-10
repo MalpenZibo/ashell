@@ -238,45 +238,40 @@ impl StaticIcon {
         }
     }
 
-    fn get_font(&self) -> &'static str {
-        match self {
+    fn is_custom_battery_icon(&self) -> bool {
+        matches!(
+            self,
             StaticIcon::KeyboardBatteryFull
-            | StaticIcon::KeyboardBatteryMedium
-            | StaticIcon::KeyboardBatteryLow
-            | StaticIcon::KeyboardBatteryAlert
-            | StaticIcon::KeyboardBatteryCharging
-            | StaticIcon::MouseBatteryFull
-            | StaticIcon::MouseBatteryMedium
-            | StaticIcon::MouseBatteryLow
-            | StaticIcon::MouseBatteryAlert
-            | StaticIcon::MouseBatteryCharging
-            | StaticIcon::HeadphoneBatteryFull
-            | StaticIcon::HeadphoneBatteryMedium
-            | StaticIcon::HeadphoneBatteryLow
-            | StaticIcon::HeadphoneBatteryAlert
-            | StaticIcon::HeadphoneBatteryCharging => "Ashell Custom Icon",
-            _ => "Symbols Nerd Font",
+                | StaticIcon::KeyboardBatteryMedium
+                | StaticIcon::KeyboardBatteryLow
+                | StaticIcon::KeyboardBatteryAlert
+                | StaticIcon::KeyboardBatteryCharging
+                | StaticIcon::MouseBatteryFull
+                | StaticIcon::MouseBatteryMedium
+                | StaticIcon::MouseBatteryLow
+                | StaticIcon::MouseBatteryAlert
+                | StaticIcon::MouseBatteryCharging
+                | StaticIcon::HeadphoneBatteryFull
+                | StaticIcon::HeadphoneBatteryMedium
+                | StaticIcon::HeadphoneBatteryLow
+                | StaticIcon::HeadphoneBatteryAlert
+                | StaticIcon::HeadphoneBatteryCharging
+        )
+    }
+
+    fn get_font(&self) -> &'static str {
+        if self.is_custom_battery_icon() {
+            "Ashell Custom Icon"
+        } else {
+            "Symbols Nerd Font"
         }
     }
 
     fn get_font_mono(&self) -> &'static str {
-        match self {
-            StaticIcon::KeyboardBatteryFull
-            | StaticIcon::KeyboardBatteryMedium
-            | StaticIcon::KeyboardBatteryLow
-            | StaticIcon::KeyboardBatteryAlert
-            | StaticIcon::KeyboardBatteryCharging
-            | StaticIcon::MouseBatteryFull
-            | StaticIcon::MouseBatteryMedium
-            | StaticIcon::MouseBatteryLow
-            | StaticIcon::MouseBatteryAlert
-            | StaticIcon::MouseBatteryCharging
-            | StaticIcon::HeadphoneBatteryFull
-            | StaticIcon::HeadphoneBatteryMedium
-            | StaticIcon::HeadphoneBatteryLow
-            | StaticIcon::HeadphoneBatteryAlert
-            | StaticIcon::HeadphoneBatteryCharging => "Ashell Custom Icon",
-            _ => "Symbols Nerd Font Mono",
+        if self.is_custom_battery_icon() {
+            "Ashell Custom Icon"
+        } else {
+            "Symbols Nerd Font Mono"
         }
     }
 }

@@ -54,6 +54,11 @@ static SYSTEM_ICON_ENTRIES: LazyLock<Vec<(Cow<'static, str>, Cow<'static, str>)>
     });
 
 fn get_icon_from_name(icon_name: &str) -> Option<TrayIcon> {
+    let icon_name = icon_name.trim();
+    if icon_name.is_empty() {
+        return None;
+    }
+
     if let Some(path) = find_icon_path(icon_name) {
         return tray_icon_from_path(path);
     }
@@ -659,18 +664,15 @@ impl ReadOnlyService for TrayService {
     }
 
     fn subscribe() -> iced::Subscription<ServiceEvent<Self>> {
-        let id = TypeId::of::<Self>();
-
-        Subscription::run_with_id(
-            id,
+        Subscription::run_with(TypeId::of::<Self>(), |_| {
             channel(100, async |mut output| {
                 let mut state = State::Init;
 
                 loop {
                     state = TrayService::start_listening(state, &mut output).await;
                 }
-            }),
-        )
+            })
+        })
     }
 }
 

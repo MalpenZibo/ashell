@@ -3,13 +3,11 @@ use crate::config::{AppearanceStyle, Position};
 use crate::theme::backdrop_color;
 use crate::widgets::{self, ButtonUIRef};
 use iced::alignment::Vertical;
-use iced::platform_specific::shell::commands::layer_surface::{
-    KeyboardInteractivity, Layer, set_keyboard_interactivity, set_layer,
-};
 use iced::widget::container::Style;
-use iced::window::Id;
-use iced::{self, Element, Task, Theme, widget::container};
-use iced::{Border, Length, Padding, Pixels};
+use iced::{
+    Border, Element, KeyboardInteractivity, Layer, Length, Padding, Pixels, SurfaceId, Task, Theme,
+    set_keyboard_interactivity, set_layer, widget::container,
+};
 
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub enum MenuType {
@@ -24,12 +22,12 @@ pub enum MenuType {
 
 #[derive(Clone, Debug)]
 pub struct Menu {
-    pub id: Id,
+    pub id: SurfaceId,
     pub menu_info: Option<(MenuType, ButtonUIRef)>,
 }
 
 impl Menu {
-    pub fn new(id: Id) -> Self {
+    pub fn new(id: SurfaceId) -> Self {
         Self {
             id,
             menu_info: None,
@@ -146,7 +144,7 @@ impl App {
     #[allow(clippy::too_many_arguments)]
     pub fn menu_wrapper<'a>(
         &'a self,
-        id: Id,
+        id: SurfaceId,
         content: Element<'a, app::Message>,
         button_ui_ref: ButtonUIRef,
     ) -> Element<'a, app::Message> {
@@ -165,8 +163,8 @@ impl App {
                     border: Border {
                         color: theme
                             .extended_palette()
-                            .secondary
-                            .base
+                            .background
+                            .weakest
                             .color
                             .scale_alpha(self.theme.menu.opacity),
                         width: 1.,

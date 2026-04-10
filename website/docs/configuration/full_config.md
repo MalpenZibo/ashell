@@ -93,20 +93,15 @@ style = "Islands"
 
 primary_color = "#7aa2f7"
 success_color = "#9ece6a"
+warning_color = "#e0af68"
+danger_color = "#f7768e"
 text_color = "#a9b1d6"
 workspace_colors = [ "#7aa2f7", "#9ece6a" ]
 special_workspace_colors = [ "#7aa2f7", "#9ece6a" ]
-
-[appearance.danger_color]
-base = "#f7768e"
-weak = "#e0af68"
 
 [appearance.background_color]
 base = "#1a1b26"
 weak = "#24273a"
 strong = "#414868"
-
-[appearance.secondary_color]
-base = "#0c0d14"
 
 ```

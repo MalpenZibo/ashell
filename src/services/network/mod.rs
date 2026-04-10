@@ -3,7 +3,6 @@ use crate::services::ReadOnlyService;
 use dbus::ConnectivityState;
 use dbus::NetworkDbus;
 use iced::futures::TryFutureExt;
-use iced::futures::stream::pending;
 use iced::{
     Subscription, Task,
     futures::{SinkExt, StreamExt, channel::mpsc::Sender},
@@ -11,7 +10,8 @@ use iced::{
 };
 use iwd_dbus::IwdDbus;
 use log::{debug, error, info};
-use std::{any::TypeId, ops::Deref};
+use std::{any::TypeId, ops::Deref, time::Duration};
+use tokio::time::sleep;
 use zbus::zvariant::OwnedObjectPath;
 
 pub mod dbus;
@@ -279,18 +279,15 @@ impl ReadOnlyService for NetworkService {
     }
 
     fn subscribe() -> Subscription<ServiceEvent<Self>> {
-        let id = TypeId::of::<Self>();
-
-        Subscription::run_with_id(
-            id,
+        Subscription::run_with(TypeId::of::<Self>(), |_| {
             channel(50, async |mut output| {
                 let mut state = State::Init;
 
                 loop {
                     state = NetworkService::start_listening(state, &mut output).await;
                 }
-            }),
-        )
+            })
+        })
     }
 }
 
@@ -553,11 +550,11 @@ impl NetworkService {
                 }
             }
             State::Error => {
-                error!("Network service error");
+                error!("Network service error, retrying in 5 seconds");
 
-                let _ = pending::<u8>().next().await;
+                sleep(Duration::from_secs(5)).await;
 
-                State::Error
+                State::Init
             }
         }
     }

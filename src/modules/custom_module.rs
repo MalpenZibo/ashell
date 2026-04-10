@@ -19,7 +19,7 @@ use iced::{
 };
 use log::{error, info};
 use serde::Deserialize;
-use std::{any::TypeId, process::Stdio};
+use std::process::Stdio;
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
     process::Command,
@@ -137,8 +137,8 @@ impl Custom {
 
                 let icon_with_alert = if show_alert {
                     let alert_canvas = canvas(AlertIndicator)
-                        .width(Length::Fixed(theme.space.xs as f32)) // Size of the dot
-                        .height(Length::Fixed(theme.space.xs as f32));
+                        .width(Length::Fixed(theme.space.xs)) // Size of the dot
+                        .height(Length::Fixed(theme.space.xs));
 
                     // Container to position the dot at the top-right
                     let alert_indicator_container = container(alert_canvas)
@@ -175,11 +175,10 @@ impl Custom {
     }
 
     pub fn subscription(&self) -> Subscription<(String, Message)> {
-        let id = TypeId::of::<Self>();
         let name = self.config.name.clone();
         if let Some(listen_cmd) = self.config.listen_cmd.clone() {
-            Subscription::run_with_id(
-                (id, name.clone(), listen_cmd.clone()),
+            Subscription::run_with((name, listen_cmd), |data| {
+                let (name, listen_cmd) = data.clone();
                 channel(10, async move |mut output| {
                     let command = Command::new("bash")
                         .arg("-c")
@@ -229,8 +228,8 @@ impl Custom {
                             error!("Failed to execute command: {error}");
                         }
                     }
-                }),
-            )
+                })
+            })
         } else {
             Subscription::none()
         }

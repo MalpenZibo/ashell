@@ -12,16 +12,15 @@ use crate::{
     widgets::{ButtonUIRef, position_button},
 };
 use iced::{
-    Alignment, Element, Length, Subscription, Task,
-    widget::{Column, Image, Row, Svg, button, container, horizontal_rule, row, text, toggler},
-    window::Id,
+    Alignment, Element, Length, Padding, Subscription, SurfaceId, Task,
+    widget::{Column, Image, Row, Svg, button, container, row, rule, text, toggler},
 };
 use log::debug;
 
 #[derive(Debug, Clone)]
 pub enum Message {
     Event(Box<ServiceEvent<TrayService>>),
-    ToggleMenu(String, Id, ButtonUIRef),
+    ToggleMenu(String, SurfaceId, ButtonUIRef),
     ToggleSubmenu(i32),
     MenuSelected(String, i32),
     MenuOpened(String),
@@ -29,7 +28,7 @@ pub enum Message {
 
 pub enum Action {
     None,
-    ToggleMenu(String, Id, ButtonUIRef),
+    ToggleMenu(String, SurfaceId, ButtonUIRef),
     TrayMenuCommand(Task<Message>),
     CloseTrayMenu(String),
 }
@@ -143,7 +142,7 @@ impl TrayModule {
                         .on_press(Message::ToggleSubmenu(layout.0))
                         .width(Length::Fill),
                     )
-                    .push_maybe(if is_open {
+                    .push(if is_open {
                         Some(
                             Column::with_children(
                                 layout
@@ -153,7 +152,7 @@ impl TrayModule {
                                     .map(|menu| self.menu_voice(theme, name, menu))
                                     .collect::<Vec<_>>(),
                             )
-                            .padding([0, 0, 0, theme.space.md])
+                            .padding(Padding::default().left(theme.space.md))
                             .spacing(theme.space.xxs),
                         )
                     } else {
@@ -169,12 +168,16 @@ impl TrayModule {
                 .width(Length::Fill)
                 .padding(theme.space.xs)
                 .into(),
-            LayoutProps { type_: Some(t), .. } if t == "separator" => horizontal_rule(1).into(),
+            LayoutProps { type_: Some(t), .. } if t == "separator" => rule::horizontal(1).into(),
             _ => Row::new().into(),
         }
     }
 
-    pub fn view<'a>(&'a self, id: Id, theme: &'a AshellTheme) -> Option<Element<'a, Message>> {
+    pub fn view<'a>(
+        &'a self,
+        id: SurfaceId,
+        theme: &'a AshellTheme,
+    ) -> Option<Element<'a, Message>> {
         self.service
             .as_ref()
             .filter(|s| !s.data.is_empty())
@@ -188,12 +191,12 @@ impl TrayModule {
                                 position_button(match &item.icon {
                                     Some(TrayIcon::Image(handle)) => Into::<Element<_>>::into(
                                         Image::new(handle.clone())
-                                            .height(Length::Fixed(theme.font_size.md as f32 - 2.0)),
+                                            .height(Length::Fixed(theme.font_size.md - 2.0)),
                                     ),
                                     Some(TrayIcon::Svg(handle)) => Into::<Element<_>>::into(
                                         Svg::new(handle.clone())
-                                            .height(Length::Fixed(theme.font_size.md as f32 + 2.))
-                                            .width(Length::Fixed(theme.font_size.md as f32 + 2.))
+                                            .height(Length::Fixed(theme.font_size.md + 2.))
+                                            .width(Length::Fixed(theme.font_size.md + 2.))
                                             .content_fit(iced::ContentFit::Cover),
                                     ),
                                     _ => icon(StaticIcon::Point).into(),
@@ -230,7 +233,7 @@ impl TrayModule {
                 _ => Column::new(),
             },
         )
-        .max_width(MenuSize::Medium)
+        .width(MenuSize::Medium)
         .into()
     }
 

@@ -1,5 +1,6 @@
 use crate::app::Message;
 use crate::services::upower::PeripheralDeviceKind;
+use chrono::Locale;
 use hex_color::HexColor;
 use iced::futures::StreamExt;
 use iced::{Color, Subscription, futures::SinkExt, stream::channel, theme::palette};
@@ -13,7 +14,7 @@ use serde_with::DisplayFromStr;
 use serde_with::serde_as;
 use std::path::PathBuf;
 use std::time::Duration;
-use std::{any::TypeId, collections::HashMap, error::Error, ops::Deref, path::Path};
+use std::{collections::HashMap, error::Error, ops::Deref, path::Path};
 use tokio::time::sleep;
 
 pub const DEFAULT_CONFIG_FILE_PATH: &str = "~/.config/ashell/config.toml";
@@ -33,7 +34,6 @@ pub struct Config {
     pub window_title: WindowTitleConfig,
     pub system_info: SystemInfoModuleConfig,
     pub notifications: NotificationsModuleConfig,
-    pub clock: ClockModuleConfig,
     pub tempo: TempoModuleConfig,
     pub settings: SettingsModuleConfig,
     pub appearance: Appearance,
@@ -55,7 +55,6 @@ impl Default for Config {
             window_title: WindowTitleConfig::default(),
             system_info: SystemInfoModuleConfig::default(),
             notifications: NotificationsModuleConfig::default(),
-            clock: ClockModuleConfig::default(),
             tempo: TempoModuleConfig::default(),
             settings: SettingsModuleConfig::default(),
             appearance: Appearance::default(),
@@ -64,6 +63,15 @@ impl Default for Config {
             custom_modules: vec![],
             enable_esc_key: false,
         }
+    }
+}
+
+impl Config {
+    fn validate(&mut self) {
+        if let Some(ref mut updates) = self.updates {
+            updates.validate();
+        }
+        self.system_info.validate();
     }
 }
 
@@ -78,6 +86,13 @@ pub struct UpdatesModuleConfig {
 impl UpdatesModuleConfig {
     const fn default_interval() -> u64 {
         3600
+    }
+
+    fn validate(&mut self) {
+        if self.interval == 0 {
+            warn!("UpdatesModuleConfig.interval is 0, setting to 1");
+            self.interval = 1;
+        }
     }
 }
 
@@ -135,10 +150,29 @@ pub struct KeyboardLayoutModuleConfig {
 #[derive(Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct SystemInfoCpu {
-    #[serde(default)]
     pub warn_threshold: u32,
-    #[serde(default)]
     pub alert_threshold: u32,
+
+    pub format: CpuFormat,
+}
+
+fn validate_thresholds<T: PartialOrd + Copy + std::fmt::Display>(
+    warn: &mut T,
+    alert: &mut T,
+    name: &str,
+) {
+    if *warn >= *alert {
+        warn!(
+            "{name} warn_threshold ({warn}) >= alert_threshold ({alert}), setting both to {alert}"
+        );
+        *warn = *alert;
+    }
+}
+
+impl SystemInfoCpu {
+    fn validate(&mut self) {
+        validate_thresholds(&mut self.warn_threshold, &mut self.alert_threshold, "CPU");
+    }
 }
 
 impl Default for SystemInfoCpu {
@@ -146,6 +180,7 @@ impl Default for SystemInfoCpu {
         Self {
             warn_threshold: 60,
             alert_threshold: 80,
+            format: CpuFormat::Percentage,
         }
     }
 }
@@ -155,6 +190,17 @@ impl Default for SystemInfoCpu {
 pub struct SystemInfoMemory {
     pub warn_threshold: u32,
     pub alert_threshold: u32,
+    pub format: MemoryFormat,
+}
+
+impl SystemInfoMemory {
+    fn validate(&mut self) {
+        validate_thresholds(
+            &mut self.warn_threshold,
+            &mut self.alert_threshold,
+            "Memory",
+        );
+    }
 }
 
 impl Default for SystemInfoMemory {
@@ -162,26 +208,88 @@ impl Default for SystemInfoMemory {
         Self {
             warn_threshold: 70,
             alert_threshold: 85,
+            format: MemoryFormat::Percentage,
         }
     }
 }
 
+const DEFAULT_TEMP_WARN_CELSIUS: i32 = 60;
+const DEFAULT_TEMP_ALERT_CELSIUS: i32 = 80;
+
 #[derive(Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct SystemInfoTemperature {
-    pub warn_threshold: i32,
-    pub alert_threshold: i32,
+    warn_threshold: Option<i32>,
+    alert_threshold: Option<i32>,
     pub sensor: String,
+    pub format: TemperatureFormat,
+}
+
+impl SystemInfoTemperature {
+    pub fn warn_threshold(&self) -> i32 {
+        self.warn_threshold.unwrap_or_else(|| match self.format {
+            TemperatureFormat::Celsius => DEFAULT_TEMP_WARN_CELSIUS,
+            TemperatureFormat::Fahrenheit => celsius_to_fahrenheit(DEFAULT_TEMP_WARN_CELSIUS),
+        })
+    }
+
+    pub fn alert_threshold(&self) -> i32 {
+        self.alert_threshold.unwrap_or_else(|| match self.format {
+            TemperatureFormat::Celsius => DEFAULT_TEMP_ALERT_CELSIUS,
+            TemperatureFormat::Fahrenheit => celsius_to_fahrenheit(DEFAULT_TEMP_ALERT_CELSIUS),
+        })
+    }
+}
+
+impl SystemInfoTemperature {
+    fn validate(&mut self) {
+        if let (Some(warn), Some(alert)) = (&mut self.warn_threshold, &mut self.alert_threshold) {
+            validate_thresholds(warn, alert, "Temperature");
+        }
+    }
 }
 
 impl Default for SystemInfoTemperature {
     fn default() -> Self {
         Self {
-            warn_threshold: 60,
-            alert_threshold: 80,
+            warn_threshold: None,
+            alert_threshold: None,
             sensor: "acpitz temp1".to_string(),
+            format: TemperatureFormat::Celsius,
         }
     }
+}
+
+fn celsius_to_fahrenheit(cel: i32) -> i32 {
+    cel * 9 / 5 + 32
+}
+
+#[derive(Clone, Debug, Deserialize, Default)]
+pub enum DiskFormat {
+    #[default]
+    Percentage,
+    Fraction,
+}
+
+#[derive(Clone, Debug, Deserialize, Default)]
+pub enum MemoryFormat {
+    #[default]
+    Percentage,
+    Fraction,
+}
+
+#[derive(Clone, Debug, Deserialize, Default)]
+pub enum CpuFormat {
+    #[default]
+    Percentage,
+    Frequency,
+}
+
+#[derive(Clone, Debug, Deserialize, Default)]
+pub enum TemperatureFormat {
+    #[default]
+    Celsius,
+    Fahrenheit,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -189,6 +297,13 @@ impl Default for SystemInfoTemperature {
 pub struct SystemInfoDisk {
     pub warn_threshold: u32,
     pub alert_threshold: u32,
+    pub format: DiskFormat,
+}
+
+impl SystemInfoDisk {
+    fn validate(&mut self) {
+        validate_thresholds(&mut self.warn_threshold, &mut self.alert_threshold, "Disk");
+    }
 }
 
 impl Default for SystemInfoDisk {
@@ -196,6 +311,7 @@ impl Default for SystemInfoDisk {
         Self {
             warn_threshold: 80,
             alert_threshold: 90,
+            format: DiskFormat::Percentage,
         }
     }
 }
@@ -237,6 +353,17 @@ impl SystemInfoModuleConfig {
     const fn default_interval() -> u64 {
         5
     }
+
+    fn validate(&mut self) {
+        if self.interval == 0 {
+            warn!("SystemInfoModuleConfig.interval is 0, setting to 1");
+            self.interval = 1;
+        }
+        self.cpu.validate();
+        self.memory.validate();
+        self.temperature.validate();
+        self.disk.validate();
+    }
 }
 
 impl Default for SystemInfoModuleConfig {
@@ -256,17 +383,12 @@ impl Default for SystemInfoModuleConfig {
     }
 }
 
-#[derive(Deserialize, Clone, Debug)]
-pub struct ClockModuleConfig {
-    pub format: String,
-}
-
-impl Default for ClockModuleConfig {
-    fn default() -> Self {
-        Self {
-            format: "%a %d %b %R".to_string(),
-        }
-    }
+fn deserialize_locale<'de, D>(deserializer: D) -> Result<Locale, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s: String = Deserialize::deserialize(deserializer)?;
+    Ok(Locale::try_from(s.as_str()).unwrap_or(Locale::en_US))
 }
 #[derive(Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -326,6 +448,8 @@ pub struct TempoModuleConfig {
     #[serde(default)]
     pub weather_location: Option<WeatherLocation>,
     pub weather_indicator: WeatherIndicator,
+    #[serde(deserialize_with = "deserialize_locale")]
+    pub locale: Locale,
 }
 
 #[derive(Deserialize, Default, Clone, Debug, PartialEq, Eq)]
@@ -344,6 +468,20 @@ pub enum WeatherLocation {
     Coordinates(f32, f32),
 }
 
+impl std::hash::Hash for WeatherLocation {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        std::mem::discriminant(self).hash(state);
+        match self {
+            WeatherLocation::Current => {}
+            WeatherLocation::City(city) => city.hash(state),
+            WeatherLocation::Coordinates(lat, lon) => {
+                lat.to_bits().hash(state);
+                lon.to_bits().hash(state);
+            }
+        }
+    }
+}
+
 impl Default for TempoModuleConfig {
     fn default() -> Self {
         Self {
@@ -352,6 +490,7 @@ impl Default for TempoModuleConfig {
             timezones: vec![],
             weather_location: None,
             weather_indicator: WeatherIndicator::IconAndTemperature,
+            locale: Locale::en_US,
         }
     }
 }
@@ -490,6 +629,17 @@ impl Default for MediaPlayerModuleConfig {
     }
 }
 
+fn hex_to_color(hex: HexColor) -> Color {
+    Color::from_rgb8(hex.r, hex.g, hex.b)
+}
+
+fn hex_to_pair(hex: HexColor, text: Option<HexColor>, text_fallback: Color) -> palette::Pair {
+    palette::Pair::new(
+        hex_to_color(hex),
+        text.map(hex_to_color).unwrap_or(text_fallback),
+    )
+}
+
 #[derive(Deserialize, Clone, Copy, Debug)]
 #[serde(untagged)]
 pub enum AppearanceColor {
@@ -505,45 +655,107 @@ pub enum AppearanceColor {
 impl AppearanceColor {
     pub fn get_base(&self) -> Color {
         match self {
-            AppearanceColor::Simple(color) => Color::from_rgb8(color.r, color.g, color.b),
-            AppearanceColor::Complete { base, .. } => Color::from_rgb8(base.r, base.g, base.b),
+            AppearanceColor::Simple(color) => hex_to_color(*color),
+            AppearanceColor::Complete { base, .. } => hex_to_color(*base),
         }
     }
 
     pub fn get_text(&self) -> Option<Color> {
         match self {
             AppearanceColor::Simple(_) => None,
-            AppearanceColor::Complete { text, .. } => {
-                text.map(|color| Color::from_rgb8(color.r, color.g, color.b))
-            }
+            AppearanceColor::Complete { text, .. } => text.map(hex_to_color),
         }
     }
 
     pub fn get_weak_pair(&self, text_fallback: Color) -> Option<palette::Pair> {
         match self {
             AppearanceColor::Simple(_) => None,
-            AppearanceColor::Complete { weak, text, .. } => weak.map(|color| {
-                palette::Pair::new(
-                    Color::from_rgb8(color.r, color.g, color.b),
-                    text.map(|color| Color::from_rgb8(color.r, color.g, color.b))
-                        .unwrap_or(text_fallback),
-                )
-            }),
+            AppearanceColor::Complete { weak, text, .. } => {
+                weak.map(|color| hex_to_pair(color, *text, text_fallback))
+            }
         }
     }
 
     pub fn get_strong_pair(&self, text_fallback: Color) -> Option<palette::Pair> {
         match self {
             AppearanceColor::Simple(_) => None,
-            AppearanceColor::Complete { strong, text, .. } => strong.map(|color| {
-                palette::Pair::new(
-                    Color::from_rgb8(color.r, color.g, color.b),
-                    text.map(|color| Color::from_rgb8(color.r, color.g, color.b))
-                        .unwrap_or(text_fallback),
-                )
-            }),
+            AppearanceColor::Complete { strong, text, .. } => {
+                strong.map(|color| hex_to_pair(color, *text, text_fallback))
+            }
         }
     }
+}
+
+#[derive(Deserialize, Clone, Copy, Debug)]
+#[serde(untagged)]
+pub enum BackgroundAppearanceColor {
+    Simple(HexColor),
+    Complete {
+        base: HexColor,
+        weakest: Option<HexColor>,
+        weaker: Option<HexColor>,
+        weak: Option<HexColor>,
+        neutral: Option<HexColor>,
+        strong: Option<HexColor>,
+        stronger: Option<HexColor>,
+        strongest: Option<HexColor>,
+        text: Option<HexColor>,
+    },
+}
+
+impl BackgroundAppearanceColor {
+    pub fn get_base(&self) -> Color {
+        match self {
+            BackgroundAppearanceColor::Simple(color) => hex_to_color(*color),
+            BackgroundAppearanceColor::Complete { base, .. } => hex_to_color(*base),
+        }
+    }
+
+    pub fn get_text(&self) -> Option<Color> {
+        match self {
+            BackgroundAppearanceColor::Simple(_) => None,
+            BackgroundAppearanceColor::Complete { text, .. } => text.map(hex_to_color),
+        }
+    }
+
+    pub fn get_pair(&self, level: BackgroundLevel, text_fallback: Color) -> Option<palette::Pair> {
+        match self {
+            BackgroundAppearanceColor::Simple(_) => None,
+            BackgroundAppearanceColor::Complete {
+                weakest,
+                weaker,
+                weak,
+                neutral,
+                strong,
+                stronger,
+                strongest,
+                text,
+                ..
+            } => {
+                let hex = match level {
+                    BackgroundLevel::Weakest => *weakest,
+                    BackgroundLevel::Weaker => *weaker,
+                    BackgroundLevel::Weak => *weak,
+                    BackgroundLevel::Neutral => *neutral,
+                    BackgroundLevel::Strong => *strong,
+                    BackgroundLevel::Stronger => *stronger,
+                    BackgroundLevel::Strongest => *strongest,
+                };
+                hex.map(|h| hex_to_pair(h, *text, text_fallback))
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum BackgroundLevel {
+    Weakest,
+    Weaker,
+    Weak,
+    Neutral,
+    Strong,
+    Stronger,
+    Strongest,
 }
 
 #[derive(Deserialize, Default, Copy, Clone, Eq, PartialEq, Debug)]
@@ -581,17 +793,17 @@ pub struct Appearance {
     #[serde(deserialize_with = "opacity_deserializer")]
     pub opacity: f32,
     pub menu: MenuAppearance,
-    pub background_color: AppearanceColor,
+    pub background_color: BackgroundAppearanceColor,
     pub primary_color: AppearanceColor,
-    pub secondary_color: AppearanceColor,
     pub success_color: AppearanceColor,
+    pub warning_color: AppearanceColor,
     pub danger_color: AppearanceColor,
     pub text_color: AppearanceColor,
     pub workspace_colors: Vec<AppearanceColor>,
     pub special_workspace_colors: Option<Vec<AppearanceColor>>,
 }
 
-static PRIMARY: HexColor = HexColor::rgb(250, 179, 135);
+static PRIMARY: HexColor = HexColor::rgb(122, 162, 247);
 
 fn scale_factor_deserializer<'de, D>(deserializer: D) -> Result<f64, D::Error>
 where
@@ -645,36 +857,25 @@ impl Default for Appearance {
             style: AppearanceStyle::default(),
             opacity: default_opacity(),
             menu: MenuAppearance::default(),
-            background_color: AppearanceColor::Complete {
-                base: HexColor::rgb(30, 30, 46),
-                strong: Some(HexColor::rgb(69, 71, 90)),
-                weak: Some(HexColor::rgb(49, 50, 68)),
+            background_color: BackgroundAppearanceColor::Complete {
+                base: HexColor::rgb(26, 27, 38),
+                weakest: None,
+                weaker: None,
+                weak: Some(HexColor::rgb(36, 39, 58)),
+                neutral: None,
+                strong: Some(HexColor::rgb(65, 72, 104)),
+                stronger: None,
+                strongest: None,
                 text: None,
             },
-            primary_color: AppearanceColor::Complete {
-                base: PRIMARY,
-                strong: None,
-                weak: None,
-                text: Some(HexColor::rgb(30, 30, 46)),
-            },
-            secondary_color: AppearanceColor::Complete {
-                base: HexColor::rgb(17, 17, 27),
-                strong: Some(HexColor::rgb(24, 24, 37)),
-                weak: None,
-                text: None,
-            },
-            success_color: AppearanceColor::Simple(HexColor::rgb(166, 227, 161)),
-            danger_color: AppearanceColor::Complete {
-                base: HexColor::rgb(243, 139, 168),
-                weak: Some(HexColor::rgb(249, 226, 175)),
-                strong: None,
-                text: None,
-            },
-            text_color: AppearanceColor::Simple(HexColor::rgb(205, 214, 244)),
+            primary_color: AppearanceColor::Simple(PRIMARY),
+            success_color: AppearanceColor::Simple(HexColor::rgb(158, 206, 106)),
+            warning_color: AppearanceColor::Simple(HexColor::rgb(224, 175, 104)),
+            danger_color: AppearanceColor::Simple(HexColor::rgb(247, 118, 142)),
+            text_color: AppearanceColor::Simple(HexColor::rgb(169, 177, 214)),
             workspace_colors: vec![
                 AppearanceColor::Simple(PRIMARY),
-                AppearanceColor::Simple(HexColor::rgb(180, 190, 254)),
-                AppearanceColor::Simple(HexColor::rgb(203, 166, 247)),
+                AppearanceColor::Simple(HexColor::rgb(158, 206, 106)),
             ],
             special_workspace_colors: None,
         }
@@ -705,7 +906,6 @@ pub enum ModuleName {
     KeyboardLayout,
     KeyboardSubmap,
     Tray,
-    Clock,
     Tempo,
     Privacy,
     Settings,
@@ -737,7 +937,6 @@ impl<'de> Deserialize<'de> for ModuleName {
                     "KeyboardLayout" => ModuleName::KeyboardLayout,
                     "KeyboardSubmap" => ModuleName::KeyboardSubmap,
                     "Tray" => ModuleName::Tray,
-                    "Clock" => ModuleName::Clock,
                     "Notifications" => ModuleName::Notifications,
                     "Tempo" => ModuleName::Tempo,
                     "Privacy" => ModuleName::Privacy,
@@ -911,6 +1110,8 @@ fn read_config(path: &Path) -> Result<Config, Box<dyn Error + Send>> {
     match res {
         Ok(config) => {
             info!("Config file loaded successfully");
+            let mut config: Config = config;
+            config.validate();
             Ok(config)
         }
         Err(e) => {
@@ -926,11 +1127,10 @@ enum Event {
 }
 
 pub fn subscription(path: &Path) -> Subscription<Message> {
-    let id = TypeId::of::<Config>();
     let path = path.to_path_buf();
 
-    Subscription::run_with_id(
-        id,
+    Subscription::run_with(path, |path| {
+        let path = path.clone();
         channel(100, async move |mut output| {
             match (path.parent(), path.file_name(), Inotify::init()) {
                 (Some(folder), Some(file_name), Ok(inotify)) => {
@@ -1030,6 +1230,6 @@ pub fn subscription(path: &Path) -> Subscription<Message> {
                     error!("Failed to initialize inotify: {e}");
                 }
             }
-        }),
-    )
+        })
+    })
 }

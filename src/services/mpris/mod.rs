@@ -2,7 +2,7 @@ use super::{ReadOnlyService, Service, ServiceEvent};
 use dbus::MprisPlayerProxy;
 use iced::{
     Subscription,
-    core::image::Bytes,
+    core::Bytes,
     futures::{
         FutureExt, SinkExt, Stream, StreamExt,
         channel::mpsc::Sender,
@@ -118,6 +118,7 @@ impl MprisPlayerService {
 struct ActiveData {
     conn: zbus::Connection,
     fetched_covers: HashSet<String>,
+    failed_covers: HashSet<String>,
     in_flight: HashMap<String, AbortHandle>,
     pending_downloads: FuturesUnordered<CoverDownloadFuture>,
 }
@@ -127,6 +128,7 @@ impl ActiveData {
         Self {
             conn,
             fetched_covers: HashSet::new(),
+            failed_covers: HashSet::new(),
             in_flight: HashMap::new(),
             pending_downloads: FuturesUnordered::new(),
         }
@@ -167,18 +169,15 @@ impl ReadOnlyService for MprisPlayerService {
     }
 
     fn subscribe() -> Subscription<ServiceEvent<Self>> {
-        let id = TypeId::of::<Self>();
-
-        Subscription::run_with_id(
-            id,
+        Subscription::run_with(TypeId::of::<Self>(), |_| {
             channel(10, async |mut output| {
                 let mut state = State::Init;
 
                 loop {
-                    state = Self::start_listening(state, &mut output).await;
+                    state = MprisPlayerService::start_listening(state, &mut output).await;
                 }
-            }),
-        )
+            })
+        })
     }
 }
 
@@ -410,6 +409,7 @@ impl MprisPlayerService {
                                         }
                                         Err(err) => {
                                             error!("Failed to fetch cover art from {url}: {err}");
+                                            state_data.failed_covers.insert(url);
                                         }
                                     }
                                 }
@@ -443,16 +443,29 @@ impl MprisPlayerService {
         }
     }
 
+    fn is_valid_art_url(url: &str) -> bool {
+        !url.is_empty()
+            && url
+                .parse::<reqwest::Url>()
+                .is_ok_and(|u| matches!(u.scheme(), "http" | "https" | "file"))
+    }
+
     fn check_cover_update(data: &[MprisPlayerData], state_data: &mut ActiveData) {
         let mut desired_urls: HashSet<String> = data
             .iter()
             .filter_map(|p| p.metadata.as_ref()?.art_url.clone())
+            .filter(|url| Self::is_valid_art_url(url))
             .collect();
         // These will be removed in `update()`
         state_data
             .fetched_covers
             .retain(|url| desired_urls.contains(url));
-        desired_urls.retain(|url| !state_data.fetched_covers.contains(url));
+        state_data
+            .failed_covers
+            .retain(|url| desired_urls.contains(url));
+        desired_urls.retain(|url| {
+            !state_data.fetched_covers.contains(url) && !state_data.failed_covers.contains(url)
+        });
 
         for (_, handle) in state_data
             .in_flight

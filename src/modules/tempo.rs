@@ -12,7 +12,7 @@ use chrono_tz::Tz;
 use iced::{
     Background, Border, Degrees, Element,
     Length::{self, FillPortion},
-    Rotation, Subscription, Theme,
+    Padding, Rotation, Subscription, Theme,
     alignment::{Horizontal, Vertical},
     core::svg::Handle,
     futures::SinkExt,
@@ -25,7 +25,7 @@ use iced::{
 use itertools::izip;
 use log::{debug, warn};
 use serde::{Deserialize, Deserializer};
-use std::{any::TypeId, time::Duration};
+use std::time::Duration;
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -166,7 +166,7 @@ impl Tempo {
         let display_text = self.time_str(self.current_format(), self.current_timezone_index);
 
         Row::with_capacity(2)
-            .push_maybe(self.weather_indicator(theme))
+            .push(self.weather_indicator(theme))
             .push(text(display_text))
             .align_y(Vertical::Center)
             .spacing(theme.space.sm)
@@ -186,7 +186,7 @@ impl Tempo {
                     return Some(
                         offset
                             .from_utc_datetime(&utc_now.naive_utc())
-                            .format(format)
+                            .format_localized(format, self.config.locale)
                             .to_string(),
                     );
                 }
@@ -194,14 +194,18 @@ impl Tempo {
                 if let Ok(tz) = tz_name.parse::<Tz>() {
                     return Some(
                         tz.from_utc_datetime(&utc_now.naive_utc())
-                            .format(format)
+                            .format_localized(format, self.config.locale)
                             .to_string(),
                     );
                 }
 
                 None
             })
-            .unwrap_or_else(|| self.date.format(format).to_string())
+            .unwrap_or_else(|| {
+                self.date
+                    .format_localized(format, self.config.locale)
+                    .to_string()
+            })
     }
 
     pub fn weather_indicator(&'_ self, theme: &AshellTheme) -> Option<Element<'_, Message>> {
@@ -217,9 +221,9 @@ impl Tempo {
                 Row::new()
                     .push(
                         weather_icon(data.current.weather_code, data.current.is_day > 0)
-                            .width(Length::Fixed(theme.font_size.sm as f32)),
+                            .width(Length::Fixed(theme.font_size.sm)),
                     )
-                    .push_maybe(
+                    .push(
                         (self.config.weather_indicator == WeatherIndicator::IconAndTemperature)
                             .then(|| {
                                 text(format!("{}°C", data.current.temperature_2m))
@@ -237,7 +241,7 @@ impl Tempo {
         container(
             Row::with_capacity(2)
                 .push(self.calendar(theme))
-                .push_maybe(self.weather(theme))
+                .push(self.weather(theme))
                 .spacing(theme.space.lg),
         )
         .max_width(MenuSize::XLarge)
@@ -298,10 +302,14 @@ impl Tempo {
                     ))
                     .padding([theme.space.xs, theme.space.md])
                     .style(theme.settings_button_style()),
-                text(selected_date.format("%B").to_string())
-                    .size(theme.font_size.md)
-                    .width(Length::Fill)
-                    .align_x(Horizontal::Center),
+                text(
+                    selected_date
+                        .format_localized("%B", self.config.locale)
+                        .to_string()
+                )
+                .size(theme.font_size.md)
+                .width(Length::Fill)
+                .align_x(Horizontal::Center),
                 button(icon(StaticIcon::RightChevron))
                     .on_press(Message::ChangeSelectDate(
                         selected_date.checked_add_months(Months::new(1))
@@ -323,10 +331,15 @@ impl Tempo {
                 ]
                 .into_iter()
                 .map(|i| {
-                    text(i.to_string())
-                        .align_x(Horizontal::Center)
-                        .width(Length::Fill)
-                        .into()
+                    text(
+                        NaiveDate::from_isoywd_opt(2000, 20, i)
+                            .expect("valid NaiveDate")
+                            .format_localized("%a", self.config.locale)
+                            .to_string(),
+                    )
+                    .align_x(Horizontal::Center)
+                    .width(Length::Fill)
+                    .into()
                 })
                 .collect::<Vec<Element<'a, Message>>>(),
             )
@@ -342,27 +355,28 @@ impl Tempo {
                                     current = current.succ_opt().unwrap_or(current);
 
                                     button(
-                                        text(day.format("%d").to_string())
-                                            .align_x(Horizontal::Center)
-                                            .color_maybe({
-                                                if day
-                                                    == self.naive_date(self.current_timezone_index)
-                                                {
-                                                    Some(theme.iced_theme.palette().success)
-                                                } else if day == selected_date {
-                                                    Some(theme.iced_theme.palette().primary)
-                                                } else if day.month0() != current_month {
-                                                    Some(
-                                                        theme
-                                                            .iced_theme
-                                                            .palette()
-                                                            .text
-                                                            .scale_alpha(0.2),
-                                                    )
-                                                } else {
-                                                    None
-                                                }
-                                            }),
+                                        text(
+                                            day.format_localized("%d", self.config.locale)
+                                                .to_string(),
+                                        )
+                                        .align_x(Horizontal::Center)
+                                        .color_maybe({
+                                            if day == self.naive_date(self.current_timezone_index) {
+                                                Some(theme.iced_theme.palette().success)
+                                            } else if day == selected_date {
+                                                Some(theme.iced_theme.palette().primary)
+                                            } else if day.month0() != current_month {
+                                                Some(
+                                                    theme
+                                                        .iced_theme
+                                                        .palette()
+                                                        .text
+                                                        .scale_alpha(0.2),
+                                                )
+                                            } else {
+                                                None
+                                            }
+                                        }),
                                     )
                                     .on_press_maybe(
                                         if day != self.naive_date(self.current_timezone_index) {
@@ -423,8 +437,18 @@ impl Tempo {
         column!(
             button(
                 column!(
-                    text(self.date.format("%A").to_string()).size(theme.font_size.sm),
-                    text(self.date.format("%d %B %Y").to_string()).size(theme.font_size.md),
+                    text(
+                        self.date
+                            .format_localized("%A", self.config.locale)
+                            .to_string()
+                    )
+                    .size(theme.font_size.sm),
+                    text(
+                        self.date
+                            .format_localized("%d %B %Y", self.config.locale)
+                            .to_string()
+                    )
+                    .size(theme.font_size.md),
                 )
                 .spacing(theme.space.xs)
             )
@@ -518,7 +542,7 @@ impl Tempo {
                                             .size(theme.font_size.xs)
                                             .align_x(Horizontal::Right)
                                             .width(Length::Fill),
-                                        text(format!("{} Km/h", data.current.wind_speed_10m))
+                                        text(format!("{} km/h", data.current.wind_speed_10m))
                                             .align_x(Horizontal::Right)
                                             .size(theme.font_size.xs)
                                             .width(Length::Fill),
@@ -540,8 +564,8 @@ impl Tempo {
                         background: Background::Color(
                             app_theme
                                 .extended_palette()
-                                .secondary
-                                .strong
+                                .background
+                                .weak
                                 .color
                                 .scale_alpha(theme.opacity),
                         )
@@ -589,7 +613,7 @@ impl Tempo {
                                 })
                                 .collect::<Vec<_>>()
                             })
-                            .padding([0, 0, theme.space.md, 0,])
+                            .padding(Padding::default().bottom(theme.space.md))
                             .spacing(theme.space.sm)
                         )
                         .direction(scrollable::Direction::Horizontal(Scrollbar::new()))
@@ -599,8 +623,8 @@ impl Tempo {
                         background: Background::Color(
                             app_theme
                                 .extended_palette()
-                                .secondary
-                                .strong
+                                .background
+                                .weak
                                 .color
                                 .scale_alpha(theme.opacity),
                         )
@@ -626,8 +650,11 @@ impl Tempo {
                             )| {
                                 container(
                                     row!(
-                                        text(time.format("%a, %d %b").to_string())
-                                            .width(Length::Fill),
+                                        text(
+                                            time.format_localized("%a, %d %b", self.config.locale)
+                                                .to_string()
+                                        )
+                                        .width(Length::Fill),
                                         weather_icon(*weather_code, true)
                                             .height(theme.font_size.md)
                                             .width(Length::Shrink),
@@ -648,7 +675,7 @@ impl Tempo {
                                                     .rotation(Rotation::Floating(
                                                         Degrees(*wind_dir as f32 + 90.).into()
                                                     )),
-                                                    text(format!("{} Km/h", wind_speed))
+                                                    text(format!("{} km/h", wind_speed))
                                                 )
                                                 .spacing(theme.space.xxs)
                                             )
@@ -664,34 +691,34 @@ impl Tempo {
                                     background: Background::Color(
                                         app_theme
                                             .extended_palette()
-                                            .secondary
-                                            .strong
+                                            .background
+                                            .weak
                                             .color
                                             .scale_alpha(theme.opacity),
                                     )
                                     .into(),
-                                    border: Border::default().rounded([
-                                        if index == 0 {
+                                    border: Border::default().rounded(iced::border::Radius {
+                                        top_left: if index == 0 {
                                             theme.radius.lg
                                         } else {
                                             theme.radius.sm
                                         },
-                                        if index == 0 {
+                                        top_right: if index == 0 {
                                             theme.radius.lg
                                         } else {
                                             theme.radius.sm
                                         },
-                                        if index == data.daily.time.len() - 2 {
+                                        bottom_right: if index == data.daily.time.len() - 2 {
                                             theme.radius.lg
                                         } else {
                                             theme.radius.sm
                                         },
-                                        if index == data.daily.time.len() - 2 {
+                                        bottom_left: if index == data.daily.time.len() - 2 {
                                             theme.radius.lg
                                         } else {
                                             theme.radius.sm
                                         },
-                                    ]),
+                                    }),
                                     ..container::Style::default()
                                 })
                                 .into()
@@ -726,24 +753,23 @@ impl Tempo {
             Duration::from_secs(5)
         };
 
-        let time_sub = Subscription::run_with_id(
-            TypeId::of::<Self>(),
-            channel(100, move |mut output| async move {
-                let mut interval = tokio::time::interval(interval);
-                loop {
-                    interval.tick().await;
-                    output.send(Message::Update).await.ok();
-                }
-            }),
-        );
+        let time_sub = Subscription::run_with(interval, |interval| {
+            let interval = *interval;
+            channel(
+                100,
+                async move |mut output: iced::futures::channel::mpsc::Sender<Message>| {
+                    let mut interval = tokio::time::interval(interval);
+                    loop {
+                        interval.tick().await;
+                        output.send(Message::Update).await.ok();
+                    }
+                },
+            )
+        });
 
         let weather_sub = self.config.weather_location.clone().map(|location| {
-            Subscription::run_with_id(
-                (
-                    TypeId::of::<Self>(),
-                    format!("{:?}", self.config.weather_location),
-                    "weather",
-                ),
+            Subscription::run_with(location, |location| {
+                let location = location.clone();
                 channel(100, async move |mut output| {
                     let mut failed_attempt: u64 = 0;
 
@@ -783,8 +809,8 @@ impl Tempo {
                         failed_attempt += 1;
                         tokio::time::sleep(Duration::from_secs(60 * failed_attempt)).await;
                     }
-                }),
-            )
+                })
+            })
         });
 
         if let Some(weather_sub) = weather_sub {
