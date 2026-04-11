@@ -485,10 +485,9 @@ impl Workspaces {
         )
         .on_scroll(move |direction| match direction {
             iced::mouse::ScrollDelta::Lines { y, .. } => {
-                if y > 0. {
-                    Message::Scroll(-1)
-                } else {
-                    Message::Scroll(1)
+                match self.config.invert_workspace_scroll_direction {
+                    true => Message::Scroll(y as i32 * 1),
+                    false => Message::Scroll(y as i32 * -1)
                 }
             }
             iced::mouse::ScrollDelta::Pixels { y, .. } => {

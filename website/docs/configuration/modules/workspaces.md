@@ -117,6 +117,13 @@ enabled.
 enable_virtual_desktops = true
 ```
 
+## Workspace Scrolling Direction
+
+You can use the `invert_workspace_scroll_direction` bool to choose between 2 modes of scrolling:
+
+- `true`: Scrolling up will go to the previous workspace and down will go to the next one
+- `false`: Scrolling up will go to the next workspace and down will go to the previous one (default)
+
 ## Default Configuration
 
 The default configuration is:
@@ -127,6 +134,7 @@ visibility_mode = "All"
 group_by_monitor = false
 enable_workspace_filling = false
 disable_special_workspaces = false
+invert_workspace_scroll_direction = false
 ```
 
 ## Examples
