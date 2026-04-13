@@ -530,7 +530,6 @@ impl Notifications {
         theme: &AshellTheme,
         style: NotificationStyle,
     ) -> impl Fn(&Theme, iced::widget::button::Status) -> iced::widget::button::Style {
-        let theme = theme.clone();
         move |iced_theme: &Theme, status| {
             let mut button_style = iced::widget::button::Style {
                 text_color: iced_theme.palette().text,
@@ -624,80 +623,56 @@ impl Notifications {
         show_body: bool,
         on_press: Message,
     ) -> Element<'a, Message> {
-        let timestamp_element: Element<'_, Message> = if self.config.show_timestamps {
-            text(self.format_timestamp(notification.timestamp))
-                .size(theme.font_size.sm)
-                // .style(weak_text_style)
-                .into()
+        let timestamp_element = if self.config.show_timestamps {
+            Some(text(self.format_timestamp(notification.timestamp)).size(theme.font_size.sm))
         } else {
-            Space::new().width(Length::Shrink).into()
+            None
         };
 
-        let body_element: Element<'_, Message> = if show_body && !notification.body.is_empty() {
-            text(&notification.body)
-                .size(theme.font_size.sm)
-                .wrapping(text::Wrapping::WordOrGlyph)
-                // .style(strong_text_style)
-                .into()
+        let body_element = if show_body && !notification.body.is_empty() {
+            Some(
+                text(&notification.body)
+                    .size(theme.font_size.sm)
+                    .wrapping(text::Wrapping::WordOrGlyph),
+            )
         } else {
-            Space::new().height(Length::Shrink).into()
+            None
         };
 
         let notification_id = notification.id;
-        let icon_kind = self.icon_for_notification(notification_id);
-        // App icon (no longer closes the notification when clicked)
-        let app_icon_elem = notification_icon_with_frame(icon_kind);
+        let icon = self.icon_for_notification(notification_id);
 
-        let action_button: Element<'_, Message> = if !notification.actions.is_empty() {
-            icon_button(theme, StaticIcon::RightArrow)
-                .size(IconButtonSize::Small)
-                .on_press(Message::NotificationClicked(notification_id))
-                .style(icon_button_style)
-                .into()
-        } else {
-            Space::new().width(Length::Shrink).into()
-        };
-
-        let close_button = icon_button(theme, StaticIcon::Close)
-            .size(IconButtonSize::Small)
+        let app_icon_button = button(notification_icon_with_frame(icon))
             .on_press(Message::CloseNotificationById(notification_id))
             .style(icon_button_style);
 
         let card = container(
             column!(
-                row!(
-                    app_icon_elem,
-                    container(
-                        text(&notification.app_name)
-                            .size(theme.font_size.md)
-                            .wrapping(text::Wrapping::WordOrGlyph) // .style(palette_text_style)
+                Row::new()
+                    .push(app_icon_button)
+                    .push(
+                        container(
+                            text(&notification.app_name)
+                                .size(theme.font_size.md)
+                                .wrapping(text::Wrapping::WordOrGlyph)
+                        )
+                        .width(Length::Fill)
                     )
-                    .width(Length::Fill),
-                    timestamp_element,
-                    action_button,
-                    close_button,
-                )
-                .spacing(theme.space.xs)
-                .align_y(Alignment::Center),
+                    .push(timestamp_element)
+                    .spacing(theme.space.xs)
+                    .align_y(Alignment::Center),
                 text(&notification.summary)
                     .size(theme.font_size.sm)
                     .wrapping(text::Wrapping::WordOrGlyph),
-                // .style(strong_text_style),
                 body_element,
             )
             .spacing(theme.space.xxs),
         )
-        .style(Self::item_container_style(theme))
-        .padding(theme.space.sm)
-        .width(Length::Fill);
+        .padding(theme.space.sm);
 
         button(card)
             .on_press(on_press)
-            .style(Self::notification_button_style(
-                theme,
-                NotificationStyle::Rounded,
-            ))
-            .padding(0)
+            .style(theme.round_button_style())
             .into()
     }
 
@@ -772,15 +747,10 @@ impl Notifications {
                         .width(Length::Fill)
                         .size(theme.font_size.lg)
                 )
-                .push(if !is_empty {
-                    Some(
-                        icon_button(theme, StaticIcon::Delete)
-                            .on_press(Message::ClearNotifications),
-                    )
-                } else {
-                    None
-                }),
-            scrollable(content),
+                .push((!is_empty).then(|| {
+                    icon_button(theme, StaticIcon::Delete).on_press(Message::ClearNotifications)
+                })),
+            container(scrollable(content)).max_height(400.),
         )
         .width(MenuSize::Medium)
         .spacing(theme.space.sm)
@@ -890,7 +860,7 @@ impl Notifications {
     }
 
     fn list_notifications<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
-        Column::from_vec(
+        Column::with_children(
             self.notifications
                 .iter()
                 .map(|notification| {
