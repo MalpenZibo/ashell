@@ -662,9 +662,7 @@ impl AshellTheme {
         }
     }
 
-    pub fn notification_group_delete_button_style(
-        &self,
-    ) -> impl Fn(&Theme, Status) -> button::Style {
+    pub fn notification_delete_button_style(&self) -> impl Fn(&Theme, Status) -> button::Style {
         move |theme: &Theme, status: Status| {
             let mut base = button::Style {
                 background: None,

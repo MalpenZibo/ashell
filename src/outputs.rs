@@ -669,14 +669,13 @@ impl Outputs {
                     tasks.push(set_size(toast_id, (width, height)));
                     tasks.push(set_layer(toast_id, Layer::Overlay));
                 } else {
-                    
                     let anchor = match position {
                         config::ToastPosition::TopLeft => Anchor::TOP | Anchor::LEFT,
                         config::ToastPosition::TopRight => Anchor::TOP | Anchor::RIGHT,
                         config::ToastPosition::BottomLeft => Anchor::BOTTOM | Anchor::LEFT,
                         config::ToastPosition::BottomRight => Anchor::BOTTOM | Anchor::RIGHT,
                     };
-                    
+
                     let (toast_id, toast_task) = new_layer_surface(LayerShellSettings {
                         namespace: "ashell-toast-layer".to_string(),
                         size: Some((width, height)),
@@ -686,7 +685,7 @@ impl Outputs {
                         anchor,
                         ..Default::default()
                     });
-                    
+
                     shell_info.toast_id = Some(toast_id);
                     tasks.push(toast_task);
                 }

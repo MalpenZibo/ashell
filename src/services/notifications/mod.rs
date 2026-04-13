@@ -2,16 +2,103 @@ use crate::services::{ReadOnlyService, ServiceEvent};
 use iced::Subscription;
 use iced::futures::{SinkExt, StreamExt, channel::mpsc::Sender, stream::pending};
 use iced::stream::channel;
+use iced::widget::{image, svg};
 use log::{error, info};
 use std::any::TypeId;
+use std::collections::HashMap;
+use std::path::PathBuf;
 use tokio::sync::broadcast;
 use tokio_stream::wrappers::BroadcastStream;
 use zbus::Connection;
+use zbus::zvariant::OwnedValue;
 
 pub mod dbus;
 
 pub use dbus::Notification;
 use dbus::NotificationEvent;
+
+#[derive(Debug, Clone)]
+pub enum NotificationIcon {
+    Image(image::Handle),
+    Svg(svg::Handle),
+}
+
+impl NotificationIcon {
+    pub fn resolve(
+        app_name: &str,
+        app_icon: &str,
+        hints: &HashMap<String, OwnedValue>,
+    ) -> Option<Self> {
+        icon_candidates(app_name, app_icon, hints)
+            .find_map(resolve_candidate)
+            .map(Self::from_path)
+    }
+
+    fn from_path(path: PathBuf) -> Self {
+        let is_svg = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .is_some_and(|e| e.eq_ignore_ascii_case("svg"));
+        if is_svg {
+            Self::Svg(svg::Handle::from_path(path))
+        } else {
+            Self::Image(image::Handle::from_path(path))
+        }
+    }
+}
+
+const HINT_KEYS: &[&str] = &[
+    "image-path",
+    "image_path",
+    "icon-name",
+    "icon_name",
+    "desktop-entry",
+];
+
+fn icon_candidates<'a>(
+    app_name: &'a str,
+    app_icon: &'a str,
+    hints: &'a HashMap<String, OwnedValue>,
+) -> impl Iterator<Item = String> + 'a {
+    std::iter::once(app_icon.to_string())
+        .chain(
+            HINT_KEYS
+                .iter()
+                .filter_map(|k| hints.get(*k).and_then(|v| v.clone().try_into().ok())),
+        )
+        .chain(std::iter::once(app_name.to_string()))
+        .map(|s: String| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+fn resolve_candidate(candidate: String) -> Option<PathBuf> {
+    if let Ok(url) = url::Url::parse(&candidate)
+        && url.scheme() == "file"
+    {
+        return url.to_file_path().ok().filter(|p| p.exists());
+    }
+
+    if candidate.contains('/') || candidate.starts_with('.') {
+        let path = PathBuf::from(&candidate);
+        if path.exists() {
+            return Some(path);
+        }
+    }
+
+    let name = candidate.strip_suffix(".desktop").unwrap_or(&candidate);
+    freedesktop_lookup(name)
+}
+
+fn freedesktop_lookup(name: &str) -> Option<PathBuf> {
+    let base = freedesktop_icons::lookup(name).with_cache();
+    match linicon_theme::get_icon_theme() {
+        Some(theme) => base
+            .with_theme(&theme)
+            .find()
+            .or_else(|| freedesktop_icons::lookup(name).with_cache().find()),
+        None => base.find(),
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct NotificationsService {
