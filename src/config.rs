@@ -405,7 +405,6 @@ pub enum ToastPosition {
 pub struct NotificationsModuleConfig {
     pub format: String,
     pub show_timestamps: bool,
-    pub max_notifications: Option<usize>,
     pub show_bodies: bool,
     pub grouped: bool,
     pub toast: bool,
@@ -415,14 +414,12 @@ pub struct NotificationsModuleConfig {
     pub toast_width: u16,
     pub toast_summary_line_budget: u32,
     pub toast_body_line_budget: u32,
-    pub empty_state_height: f32,
 }
 impl Default for NotificationsModuleConfig {
     fn default() -> Self {
         Self {
             format: "%H:%M".to_string(),
             show_timestamps: true,
-            max_notifications: None,
             show_bodies: true,
             grouped: false,
             toast: true,
@@ -432,7 +429,6 @@ impl Default for NotificationsModuleConfig {
             toast_width: 380,
             toast_summary_line_budget: 3,
             toast_body_line_budget: 8,
-            empty_state_height: 200.0,
         }
     }
 }

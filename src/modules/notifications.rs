@@ -1,5 +1,5 @@
 use crate::{
-    components::icons::{IconButtonSize, StaticIcon, icon, icon_button},
+    components::icons::{StaticIcon, icon, icon_button},
     config::{NotificationsModuleConfig, ToastPosition},
     menu::MenuSize,
     services::{
@@ -14,7 +14,7 @@ use crate::{
 use chrono::{DateTime, Local};
 use freedesktop_icons::lookup;
 use iced::{
-    Alignment, Background, Border, Color, Element, Length, Subscription, Task, Theme,
+    Alignment, Background, Border, Color, Column, Element, Length, Row, Subscription, Task, Theme,
     widget::{Space, button, column, container, image, row, rule, scrollable, svg, text},
 };
 use linicon_theme::get_icon_theme;
@@ -187,15 +187,6 @@ fn icon_button_style(theme: &Theme, status: button::Status) -> button::Style {
             _ => theme.palette().text,
         },
         ..Default::default()
-    }
-}
-
-fn clear_button_style(radius: f32) -> impl Fn(&Theme, button::Status) -> button::Style {
-    move |iced_theme: &Theme, _status| button::Style {
-        background: Some(Background::Color(Color::TRANSPARENT)),
-        text_color: iced_theme.palette().text,
-        border: Border::default().rounded(radius),
-        ..button::Style::default()
     }
 }
 
@@ -759,12 +750,86 @@ impl Notifications {
         }
     }
 
+    pub fn menu_view<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
+        let is_empty = self.notifications.is_empty();
+
+        let content = if is_empty {
+            container(text("No notifications").size(theme.font_size.md))
+                .padding([theme.space.xxl, 0.])
+                .width(Length::Fill)
+                .center_x(Length::Fill)
+                .into()
+        } else if self.config.grouped {
+            self.grouped_notifications(theme)
+        } else {
+            self.list_notifications(theme)
+        };
+
+        column!(
+            Row::new()
+                .push(
+                    text("Notifications")
+                        .width(Length::Fill)
+                        .size(theme.font_size.lg)
+                )
+                .push(if !is_empty {
+                    Some(
+                        icon_button(theme, StaticIcon::Delete)
+                            .on_press(Message::ClearNotifications),
+                    )
+                } else {
+                    None
+                }),
+            scrollable(content),
+        )
+        .width(MenuSize::Medium)
+        .spacing(theme.space.sm)
+        .into()
+    }
+
+    pub fn toast_view<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
+        if self.toasts.is_empty() {
+            return Space::new().width(Length::Fill).height(Length::Fill).into();
+        }
+
+        let mut toast_column = column!()
+            .spacing(theme.space.sm)
+            .width(Length::Fixed(self.config.toast_width as f32));
+
+        for &toast_id in &self.toasts {
+            if let Some(notification) = self.find_notification(toast_id) {
+                toast_column = toast_column.push(self.build_notification_card(
+                    notification,
+                    theme,
+                    true,
+                    Message::DismissToast(notification.id),
+                ));
+            }
+        }
+
+        let (h_align, v_align) = match self.config.toast_position {
+            ToastPosition::TopLeft => (Alignment::Start, Alignment::Start),
+            ToastPosition::TopRight => (Alignment::End, Alignment::Start),
+            ToastPosition::BottomLeft => (Alignment::Start, Alignment::End),
+            ToastPosition::BottomRight => (Alignment::End, Alignment::End),
+        };
+
+        container(toast_column)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .padding(theme.space.sm)
+            .align_x(h_align)
+            .align_y(v_align)
+            .into()
+    }
+
     pub fn subscription(&self) -> Subscription<Message> {
         NotificationsService::subscribe().map(Message::Event)
     }
 
     fn grouped_notifications<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
         let mut content = column!().spacing(theme.space.sm);
+
         for (app_name, notifications) in self.grouped_notifications_by_app() {
             let is_expanded = self.expanded_groups.contains(&app_name);
             let app_icon: Element<'a, Message> = notifications
@@ -825,96 +890,21 @@ impl Notifications {
     }
 
     fn list_notifications<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
-        let mut notifications_refs: Vec<&Notification> = self.notifications.iter().collect();
-
-        if let Some(max) = self.config.max_notifications {
-            notifications_refs.truncate(max);
-        }
-
-        let mut content = column!().spacing(theme.space.sm);
-        for notification in notifications_refs {
-            content = content.push(self.build_notification_card(
-                notification,
-                theme,
-                self.config.show_bodies,
-                Message::NotificationClicked(notification.id),
-            ));
-        }
-        content.into()
-    }
-
-    pub fn menu_view<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
-        let is_empty = self.notifications.is_empty();
-        let content = if is_empty {
-            container(text("No notifications").size(theme.font_size.md))
-                .width(Length::Fill)
-                .height(Length::Fixed(self.config.empty_state_height))
-                .center_x(Length::Fill)
-                .center_y(Length::Fixed(self.config.empty_state_height))
-                .into()
-        } else if self.config.grouped {
-            self.grouped_notifications(theme)
-        } else {
-            self.list_notifications(theme)
-        };
-        column!(
-            row!(
-                text("Notifications").size(theme.font_size.lg),
-                if !is_empty {
-                    container(
-                        button("Clear")
-                            .style(clear_button_style(theme.radius.md))
-                            .on_press(Message::ClearNotifications),
+        Column::from_vec(
+            self.notifications
+                .iter()
+                .map(|notification| {
+                    self.build_notification_card(
+                        notification,
+                        theme,
+                        self.config.show_bodies,
+                        Message::NotificationClicked(notification.id),
                     )
-                    .width(Length::Fill)
-                    .align_x(Alignment::End)
-                } else {
-                    container(Space::new().width(Length::Fill).height(Length::Shrink))
-                        .width(Length::Fill)
-                        .align_x(Alignment::End)
-                }
-            ),
-            scrollable(content),
+                })
+                .collect::<Vec<Element<'a, Message>>>(),
         )
-        .width(MenuSize::Medium)
         .spacing(theme.space.sm)
         .into()
-    }
-
-    pub fn toast_view<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
-        if self.toasts.is_empty() {
-            return Space::new().width(Length::Fill).height(Length::Fill).into();
-        }
-
-        let mut toast_column = column!()
-            .spacing(theme.space.sm)
-            .width(Length::Fixed(self.config.toast_width as f32));
-
-        for &toast_id in &self.toasts {
-            if let Some(notification) = self.find_notification(toast_id) {
-                toast_column = toast_column.push(self.build_notification_card(
-                    notification,
-                    theme,
-                    true,
-                    Message::DismissToast(notification.id),
-                ));
-            }
-        }
-
-        let (h_align, v_align) = match self.config.toast_position {
-            ToastPosition::TopLeft => (Alignment::Start, Alignment::Start),
-            ToastPosition::TopRight => (Alignment::End, Alignment::Start),
-            ToastPosition::BottomLeft => (Alignment::Start, Alignment::End),
-            ToastPosition::BottomRight => (Alignment::End, Alignment::End),
-        };
-
-        container(toast_column)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .padding(theme.space.sm)
-            .align_x(h_align)
-            .align_y(v_align)
-            .into()
     }
 
     pub fn toast_layer_size(&self, theme: &AshellTheme) -> (u32, u32) {
