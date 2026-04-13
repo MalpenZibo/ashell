@@ -798,7 +798,9 @@ impl Notifications {
                     .wrapping(text::Wrapping::WordOrGlyph)
                     .width(Length::Fill),
                 text(format!("{count} new")).size(theme.font_size.sm),
-                icon_button(theme, StaticIcon::Delete).on_press(clear_msg)
+                icon_button(theme, StaticIcon::Delete)
+                    .on_press(clear_msg)
+                    .style(theme.notification_group_delete_button_style())
             )
             .spacing(theme.space.xs)
             .align_y(Alignment::Center);

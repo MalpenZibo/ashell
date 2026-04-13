@@ -661,6 +661,30 @@ impl AshellTheme {
             }
         }
     }
+
+    pub fn notification_group_delete_button_style(
+        &self,
+    ) -> impl Fn(&Theme, Status) -> button::Style {
+        move |theme: &Theme, status: Status| {
+            let mut base = button::Style {
+                background: None,
+                border: Border {
+                    width: 0.0,
+                    radius: self.radius.lg.into(),
+                    color: Color::TRANSPARENT,
+                },
+                text_color: theme.palette().text,
+                ..button::Style::default()
+            };
+            match status {
+                Status::Hovered => {
+                    base.text_color = theme.palette().danger;
+                    base
+                }
+                _ => base,
+            }
+        }
+    }
 }
 
 pub fn backdrop_color(backdrop: f32) -> Color {
