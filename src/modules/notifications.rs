@@ -15,8 +15,9 @@ use chrono::{DateTime, Local};
 use freedesktop_icons::lookup;
 use iced::{
     Alignment, Background, Border, Color, Column, Element, Length, Row, Subscription, Task, Theme,
-    widget::{Space, button, column, container, image, row, rule, scrollable, svg, text},
+    widget::{Space, button, column, container, image, row, scrollable, svg, text},
 };
+use itertools::Itertools;
 use linicon_theme::get_icon_theme;
 use log::error;
 use std::{
@@ -28,19 +29,6 @@ use zbus::Connection;
 use zbus::zvariant::OwnedValue;
 
 const ICON_SIZE: f32 = 20.0;
-const HORIZONTAL_RULE_HEIGHT: u32 = 1;
-
-fn strong_text_style(theme: &Theme) -> text::Style {
-    text::Style {
-        color: Some(theme.extended_palette().secondary.strong.text),
-    }
-}
-
-fn weak_text_style(theme: &Theme) -> text::Style {
-    text::Style {
-        color: Some(theme.extended_palette().secondary.weak.text),
-    }
-}
 
 fn palette_text_style(theme: &Theme) -> text::Style {
     text::Style {
@@ -261,11 +249,16 @@ pub enum Message {
     ExpireToast(u32),
     DismissToast(u32),
 }
+
+#[derive(Debug, PartialEq)]
 pub enum NotificationStyle {
-    Rectangular,
-    Rounded,
-    BottomRounded,
+    Toast,
+    Standalone,
+    GroupHeader,
+    GroupItem,
+    GroupLast,
 }
+
 pub enum Action {
     None,
     Task(Task<Message>),
@@ -330,20 +323,6 @@ impl Notifications {
             .filter(|notification| notification.app_name == app_name)
             .map(|notification| notification.id)
             .collect()
-    }
-
-    fn grouped_notifications_by_app(&self) -> Vec<(String, Vec<&Notification>)> {
-        let mut grouped: HashMap<String, Vec<&Notification>> = HashMap::new();
-        for notification in &self.notifications {
-            grouped
-                .entry(notification.app_name.clone())
-                .or_default()
-                .push(notification);
-        }
-
-        let mut grouped: Vec<(String, Vec<&Notification>)> = grouped.into_iter().collect();
-        grouped.sort_by(|(left, _), (right, _)| left.cmp(right));
-        grouped
     }
 
     fn icon_for_notification(&self, id: u32) -> &NotificationIcon {
@@ -533,95 +512,72 @@ impl Notifications {
         move |iced_theme: &Theme, status| {
             let mut button_style = iced::widget::button::Style {
                 text_color: iced_theme.palette().text,
+                border: match style {
+                    NotificationStyle::Standalone | NotificationStyle::Toast => {
+                        Border::default().rounded(theme.radius.lg)
+                    }
+                    NotificationStyle::GroupHeader => {
+                        Border::default().rounded(iced::border::Radius {
+                            top_left: theme.radius.lg,
+                            top_right: theme.radius.lg,
+                            bottom_left: theme.radius.sm,
+                            bottom_right: theme.radius.sm,
+                        })
+                    }
+                    NotificationStyle::GroupItem => Border::default().rounded(theme.radius.sm),
+                    NotificationStyle::GroupLast => {
+                        Border::default().rounded(iced::border::Radius {
+                            top_left: 0.0,
+                            top_right: 0.0,
+                            bottom_left: theme.radius.lg,
+                            bottom_right: theme.radius.lg,
+                        })
+                    }
+                },
                 ..iced::widget::button::Style::default()
             };
             match status {
                 iced::widget::button::Status::Hovered => {
-                    match style {
-                        NotificationStyle::Rectangular => (),
-                        NotificationStyle::Rounded => {
-                            button_style.border = Border::default().rounded(theme.radius.md)
-                        }
-                        NotificationStyle::BottomRounded => {
-                            button_style.border = Border::default().rounded(iced::border::Radius {
-                                top_left: 0.0,
-                                top_right: 0.0,
-                                bottom_left: theme.radius.md,
-                                bottom_right: theme.radius.md,
-                            })
-                        }
+                    if style == NotificationStyle::Toast {
+                        button_style.background = Some(
+                            iced_theme
+                                .extended_palette()
+                                .background
+                                .weak
+                                .color
+                                .scale_alpha(theme.menu.opacity)
+                                .into(),
+                        );
+                    } else {
+                        button_style.background = Some(
+                            iced_theme
+                                .extended_palette()
+                                .background
+                                .strong
+                                .color
+                                .scale_alpha(theme.menu.opacity)
+                                .into(),
+                        );
                     }
-                    button_style.background = Some(Background::Color(
-                        iced_theme
-                            .extended_palette()
-                            .background
-                            .weak
-                            .color
-                            .scale_alpha(theme.menu.opacity),
-                    ));
                 }
                 _ => {
-                    button_style.background = Some(Background::Color(iced::Color::TRANSPARENT));
+                    button_style.background = if style == NotificationStyle::Toast {
+                        Some(iced_theme.palette().background.into())
+                    } else {
+                        Some(iced_theme.extended_palette().background.weak.color.into())
+                    }
                 }
             }
             button_style
         }
     }
 
-    fn group_header_button_style(
-        theme: &AshellTheme,
-    ) -> impl Fn(&Theme, iced::widget::button::Status) -> iced::widget::button::Style {
-        let theme = theme.clone();
-        move |iced_theme: &Theme, status| {
-            let mut style = iced::widget::button::Style::default();
-            let border = Border::default().rounded(iced::border::Radius {
-                top_left: theme.radius.md,
-                top_right: theme.radius.md,
-                bottom_left: 0.0,
-                bottom_right: 0.0,
-            });
-            match status {
-                iced::widget::button::Status::Hovered => {
-                    style.background = Some(Background::Color(
-                        iced_theme
-                            .extended_palette()
-                            .background
-                            .weak
-                            .color
-                            .scale_alpha(theme.menu.opacity),
-                    ));
-                    style.border = border;
-                }
-                _ => {
-                    style.background = Some(Background::Color(iced::Color::TRANSPARENT));
-                    style.border = border;
-                }
-            }
-            style
-        }
-    }
-
-    fn item_container_style(theme: &AshellTheme) -> impl Fn(&Theme) -> container::Style {
-        let theme = theme.clone();
-        move |app_theme: &Theme| container::Style {
-            background: Background::Color(
-                app_theme
-                    .palette()
-                    .background
-                    .scale_alpha(theme.menu.opacity),
-            )
-            .into(),
-            border: Border::default().rounded(theme.radius.md),
-            ..container::Style::default()
-        }
-    }
-
-    fn build_notification_card<'a>(
+    fn notification_card<'a>(
         &'a self,
         notification: &'a Notification,
         theme: &'a AshellTheme,
-        show_body: bool,
         on_press: Message,
+        toast: bool,
     ) -> Element<'a, Message> {
         let timestamp_element = if self.config.show_timestamps {
             Some(text(self.format_timestamp(notification.timestamp)).size(theme.font_size.sm))
@@ -629,7 +585,7 @@ impl Notifications {
             None
         };
 
-        let body_element = if show_body && !notification.body.is_empty() {
+        let body_element = if (!toast || self.config.show_bodies) && !notification.body.is_empty() {
             Some(
                 text(&notification.body)
                     .size(theme.font_size.sm)
@@ -672,11 +628,18 @@ impl Notifications {
 
         button(card)
             .on_press(on_press)
-            .style(theme.round_button_style())
+            .style(Self::notification_button_style(
+                theme,
+                if toast {
+                    NotificationStyle::Toast
+                } else {
+                    NotificationStyle::Standalone
+                },
+            ))
             .into()
     }
 
-    fn build_full_item<'a>(
+    fn group_item<'a>(
         &'a self,
         notification: &'a Notification,
         is_last: bool,
@@ -685,32 +648,22 @@ impl Notifications {
         button(
             column!(
                 row!(
-                    container(
-                        text(&notification.summary)
-                            .size(theme.font_size.md)
-                            .wrapping(text::Wrapping::WordOrGlyph)
-                            .style(strong_text_style)
-                    )
-                    .width(Length::Fill),
-                    text(self.format_timestamp(notification.timestamp))
-                        .size(theme.font_size.sm)
-                        .style(weak_text_style)
+                    text(&notification.summary)
+                        .wrapping(text::Wrapping::WordOrGlyph)
+                        .width(Length::Fill),
+                    text(self.format_timestamp(notification.timestamp)).size(theme.font_size.sm)
                 ),
-                text(&notification.body)
-                    .size(theme.font_size.sm)
-                    .wrapping(text::Wrapping::WordOrGlyph)
-                    .style(weak_text_style)
+                text(&notification.body).wrapping(text::Wrapping::WordOrGlyph)
             )
             .padding(theme.space.xs)
             .spacing(theme.space.xs),
         )
-        .width(Length::Fill)
         .style(Self::notification_button_style(
             theme,
             if is_last {
-                NotificationStyle::BottomRounded
+                NotificationStyle::GroupLast
             } else {
-                NotificationStyle::Rectangular
+                NotificationStyle::GroupItem
             },
         ))
         .on_press(Message::NotificationClicked(notification.id))
@@ -768,11 +721,11 @@ impl Notifications {
 
         for &toast_id in &self.toasts {
             if let Some(notification) = self.find_notification(toast_id) {
-                toast_column = toast_column.push(self.build_notification_card(
+                toast_column = toast_column.push(self.notification_card(
                     notification,
                     theme,
-                    true,
                     Message::DismissToast(notification.id),
+                    true,
                 ));
             }
         }
@@ -800,11 +753,33 @@ impl Notifications {
     fn grouped_notifications<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
         let mut content = column!().spacing(theme.space.sm);
 
-        for (app_name, notifications) in self.grouped_notifications_by_app() {
+        for (app_name, group) in self
+            .notifications
+            .iter()
+            .sorted_by(|a, b| a.app_name.cmp(&b.app_name))
+            .chunk_by(|n| n.app_name.clone())
+            .into_iter()
+        {
             let is_expanded = self.expanded_groups.contains(&app_name);
-            let app_icon: Element<'a, Message> = notifications
-                .first()
-                .map(|notification| self.icon_for_notification(notification.id))
+
+            let mut iter = group.peekable();
+            let first_id = iter.peek().map(|n| n.id);
+            let mut count = 0usize;
+            let mut group_notifications = vec![];
+
+            if is_expanded {
+                while let Some(notification) = iter.next() {
+                    count += 1;
+                    let is_last = iter.peek().is_none();
+                    group_notifications.push(self.group_item(notification, is_last, theme));
+                }
+            } else if let Some(first) = iter.next() {
+                count = 1 + iter.count(); // consume the rest just to count
+                group_notifications.push(self.group_item(first, true, theme));
+            }
+
+            let app_icon: Element<'a, Message> = first_id
+                .map(|id| self.icon_for_notification(id))
                 .map(notification_icon_with_frame)
                 .unwrap_or_else(|| icon(StaticIcon::Bell).size(ICON_SIZE).into());
 
@@ -812,49 +787,30 @@ impl Notifications {
             let toggle_msg = Message::ToggleGroup(app_name.clone());
 
             let header = row!(
-                button(app_icon)
-                    .style(icon_button_style)
-                    .on_press(clear_msg),
-                container(
-                    text(app_name)
-                        .size(theme.font_size.md)
-                        .wrapping(text::Wrapping::WordOrGlyph)
-                        .style(palette_text_style)
-                )
-                .width(Length::Fill),
-                text(format!("{} new", notifications.len()))
-                    .size(theme.font_size.sm)
-                    .style(weak_text_style),
+                app_icon,
+                text(app_name)
+                    .size(theme.font_size.md)
+                    .wrapping(text::Wrapping::WordOrGlyph)
+                    .width(Length::Fill),
+                text(format!("{count} new")).size(theme.font_size.sm),
+                icon_button(theme, StaticIcon::Delete).on_press(clear_msg)
             )
             .spacing(theme.space.xs)
             .align_y(Alignment::Center);
 
-            let mut preview = column!();
-            if is_expanded {
-                for (i, notification) in notifications.iter().enumerate() {
-                    let is_last = i == notifications.len() - 1;
-                    preview = preview.push(column!(
-                        rule::horizontal(HORIZONTAL_RULE_HEIGHT),
-                        self.build_full_item(notification, is_last, theme)
-                    ));
-                }
-            } else if let Some(first_notification) = notifications.first() {
-                preview = preview.push(rule::horizontal(HORIZONTAL_RULE_HEIGHT));
-                preview = preview.push(self.build_full_item(first_notification, true, theme))
-            }
+            let item = Column::new()
+                .push(
+                    button(header)
+                        .style(Self::notification_button_style(
+                            theme,
+                            NotificationStyle::GroupHeader,
+                        ))
+                        .on_press(toggle_msg),
+                )
+                .extend(group_notifications)
+                .spacing(theme.space.xxs);
 
-            let item = column!(
-                button(header)
-                    .width(Length::Fill)
-                    .style(Self::group_header_button_style(theme))
-                    .on_press(toggle_msg),
-                preview
-            );
-            content = content.push(
-                container(item)
-                    .style(Self::item_container_style(theme))
-                    .width(Length::Fill),
-            );
+            content = content.push(item);
         }
         content.into()
     }
@@ -864,11 +820,11 @@ impl Notifications {
             self.notifications
                 .iter()
                 .map(|notification| {
-                    self.build_notification_card(
+                    self.notification_card(
                         notification,
                         theme,
-                        self.config.show_bodies,
                         Message::NotificationClicked(notification.id),
+                        false,
                     )
                 })
                 .collect::<Vec<Element<'a, Message>>>(),
