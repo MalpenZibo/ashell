@@ -541,7 +541,10 @@ impl Notifications {
     ) -> impl Fn(&Theme, iced::widget::button::Status) -> iced::widget::button::Style {
         let theme = theme.clone();
         move |iced_theme: &Theme, status| {
-            let mut button_style = iced::widget::button::Style::default();
+            let mut button_style = iced::widget::button::Style {
+                text_color: iced_theme.palette().text,
+                ..iced::widget::button::Style::default()
+            };
             match status {
                 iced::widget::button::Status::Hovered => {
                     match style {
@@ -613,10 +616,8 @@ impl Notifications {
         move |app_theme: &Theme| container::Style {
             background: Background::Color(
                 app_theme
-                    .extended_palette()
-                    .secondary
-                    .strong
-                    .color
+                    .palette()
+                    .background
                     .scale_alpha(theme.menu.opacity),
             )
             .into(),
@@ -635,7 +636,7 @@ impl Notifications {
         let timestamp_element: Element<'_, Message> = if self.config.show_timestamps {
             text(self.format_timestamp(notification.timestamp))
                 .size(theme.font_size.sm)
-                .style(weak_text_style)
+                // .style(weak_text_style)
                 .into()
         } else {
             Space::new().width(Length::Shrink).into()
@@ -645,7 +646,7 @@ impl Notifications {
             text(&notification.body)
                 .size(theme.font_size.sm)
                 .wrapping(text::Wrapping::WordOrGlyph)
-                .style(weak_text_style)
+                // .style(strong_text_style)
                 .into()
         } else {
             Space::new().height(Length::Shrink).into()
@@ -678,8 +679,7 @@ impl Notifications {
                     container(
                         text(&notification.app_name)
                             .size(theme.font_size.md)
-                            .wrapping(text::Wrapping::WordOrGlyph)
-                            .style(palette_text_style)
+                            .wrapping(text::Wrapping::WordOrGlyph) // .style(palette_text_style)
                     )
                     .width(Length::Fill),
                     timestamp_element,
@@ -690,8 +690,8 @@ impl Notifications {
                 .align_y(Alignment::Center),
                 text(&notification.summary)
                     .size(theme.font_size.sm)
-                    .wrapping(text::Wrapping::WordOrGlyph)
-                    .style(strong_text_style),
+                    .wrapping(text::Wrapping::WordOrGlyph),
+                // .style(strong_text_style),
                 body_element,
             )
             .spacing(theme.space.xxs),
