@@ -14,7 +14,8 @@ use crate::{
 use chrono::{DateTime, Local};
 use freedesktop_icons::lookup;
 use iced::{
-    Alignment, Background, Border, Color, Column, Element, Length, Row, Subscription, Task, Theme,
+    Alignment, Background, Border, Color, Column, Element, Length, Padding, Row, Subscription,
+    Task, Theme,
     widget::{Space, button, column, container, image, row, scrollable, svg, text},
 };
 use itertools::Itertools;
@@ -751,7 +752,11 @@ impl Notifications {
     }
 
     fn grouped_notifications<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
-        let mut content = column!().spacing(theme.space.sm);
+        let mut content = column!().spacing(theme.space.sm).padding(
+            Padding::default()
+                .right(theme.space.md)
+                .left(theme.space.xs),
+        );
 
         for (app_name, group) in self
             .notifications
@@ -828,6 +833,11 @@ impl Notifications {
                     )
                 })
                 .collect::<Vec<Element<'a, Message>>>(),
+        )
+        .padding(
+            Padding::default()
+                .right(theme.space.md)
+                .left(theme.space.xs),
         )
         .spacing(theme.space.sm)
         .into()
