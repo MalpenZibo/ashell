@@ -210,6 +210,11 @@ impl Notifications {
 
         match update_event {
             NotificationEvent::Received(notification) => {
+                if self.config.toast_limit == 0 {
+                    self.toasts.clear();
+                    return Action::None;
+                }
+
                 while self.toasts.len() >= self.config.toast_limit {
                     self.toasts.pop_front();
                 }
