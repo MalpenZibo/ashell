@@ -411,7 +411,7 @@ pub struct NotificationsModuleConfig {
     pub toast_position: ToastPosition,
     pub toast_timeout: u64,
     pub toast_limit: usize,
-    pub toast_height: u32,
+    pub toast_max_height: u32,
 }
 impl Default for NotificationsModuleConfig {
     fn default() -> Self {
@@ -424,7 +424,7 @@ impl Default for NotificationsModuleConfig {
             toast_position: ToastPosition::default(),
             toast_timeout: 5000,
             toast_limit: 5,
-            toast_height: 150,
+            toast_max_height: 150,
         }
     }
 }

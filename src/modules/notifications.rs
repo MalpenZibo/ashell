@@ -478,7 +478,7 @@ impl Notifications {
             )
             .spacing(theme.space.xxs),
         )
-        .max_height(self.config.toast_height);
+        .max_height(self.config.toast_max_height);
 
         button(card)
             .on_press(on_press)
