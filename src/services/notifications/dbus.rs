@@ -1,3 +1,4 @@
+use super::NotificationIcon;
 use log::{debug, info, warn};
 use std::collections::HashMap;
 use std::time::SystemTime;
@@ -31,6 +32,8 @@ pub struct Notification {
     pub hints: HashMap<String, OwnedValue>,
     pub expire_timeout: i32,
     pub timestamp: SystemTime,
+    #[serde(skip)]
+    pub icon: Option<NotificationIcon>,
 }
 
 pub struct NotificationDaemon {
@@ -79,6 +82,7 @@ impl NotificationDaemon {
             replaces_id
         };
 
+        let icon = NotificationIcon::resolve(&app_name, &app_icon, &hints);
         let notification = Notification {
             id,
             app_name,
@@ -89,6 +93,7 @@ impl NotificationDaemon {
             hints,
             expire_timeout,
             timestamp: SystemTime::now(),
+            icon,
         };
 
         debug!("New notification: {:?}", notification);

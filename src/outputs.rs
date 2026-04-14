@@ -1,7 +1,7 @@
 use iced::{
-    Anchor, KeyboardInteractivity, Layer, LayerShellSettings, OutputId, SurfaceId, Task,
-    destroy_layer_surface, new_layer_surface, set_anchor, set_exclusive_zone,
-    set_keyboard_interactivity, set_layer, set_size,
+    Anchor, InputRegionRect, KeyboardInteractivity, Layer, LayerShellSettings, OutputId, SurfaceId,
+    Task, destroy_layer_surface, new_layer_surface, set_anchor, set_exclusive_zone,
+    set_input_region, set_keyboard_interactivity, set_size,
 };
 use log::debug;
 
@@ -22,6 +22,8 @@ pub struct ShellInfo {
     pub scale_factor: f64,
     /// Optional layer surface used to render toast notifications.
     pub toast_id: Option<SurfaceId>,
+    /// Logical height of this output (for computing toast input regions).
+    pub output_logical_height: Option<u32>,
 }
 
 #[derive(Debug, Clone)]
@@ -65,6 +67,7 @@ impl Outputs {
                     layer,
                     style,
                     scale_factor,
+                    output_logical_height: None,
                 }),
                 None,
             )]),
@@ -220,6 +223,7 @@ impl Outputs {
                     layer,
                     style,
                     scale_factor,
+                    output_logical_height: None,
                 }),
                 Some(output_id),
             ));
@@ -305,6 +309,7 @@ impl Outputs {
                             layer,
                             style,
                             scale_factor,
+                            output_logical_height: None,
                         }),
                         None,
                     ));
@@ -648,52 +653,98 @@ impl Outputs {
 
     /// Show the toast layer(s) for every output.
     ///
-    /// `width` and `height` specify the size of the new surface, and
-    /// `position` determines the corner where it should be anchored.  The
-    /// returned `Task` creates (or updates) the surfaces; callers should supply
-    /// values large enough to encompass all possible toasts, for example using
-    /// `toast_max_visible` from the notifications configuration.
+    /// Creates a full-height surface anchored at `position`. Height is 0 so
+    /// the compositor fills the output height. The surface starts with an
+    /// empty input region (fully click-through); `update_toast_input_region`
+    /// restricts input to just the rendered toast area after layout.
     pub fn show_toast_layer<Message: 'static>(
         &mut self,
         width: u32,
-        height: u32,
         position: config::ToastPosition,
     ) -> Task<Message> {
         let mut tasks = vec![];
 
         for (_, shell_info, _) in &mut self.0 {
-            if let Some(shell_info) = shell_info {
-                // If we already created a toast surface for this output, just
-                // update its size and layer ordering.
-                if let Some(toast_id) = shell_info.toast_id {
-                    tasks.push(set_size(toast_id, (width, height)));
-                    tasks.push(set_layer(toast_id, Layer::Overlay));
-                } else {
-                    
-                    let anchor = match position {
-                        config::ToastPosition::TopLeft => Anchor::TOP | Anchor::LEFT,
-                        config::ToastPosition::TopRight => Anchor::TOP | Anchor::RIGHT,
-                        config::ToastPosition::BottomLeft => Anchor::BOTTOM | Anchor::LEFT,
-                        config::ToastPosition::BottomRight => Anchor::BOTTOM | Anchor::RIGHT,
-                    };
-                    
-                    let (toast_id, toast_task) = new_layer_surface(LayerShellSettings {
-                        namespace: "ashell-toast-layer".to_string(),
-                        size: Some((width, height)),
-                        layer: Layer::Top,
-                        keyboard_interactivity: KeyboardInteractivity::None,
-                        exclusive_zone: 0,
-                        anchor,
-                        ..Default::default()
-                    });
-                    
-                    shell_info.toast_id = Some(toast_id);
-                    tasks.push(toast_task);
-                }
+            if let Some(shell_info) = shell_info
+                && shell_info.toast_id.is_none()
+            {
+                // Anchor both vertical edges so height 0 → full output height.
+                let anchor = match position {
+                    config::ToastPosition::TopLeft => Anchor::TOP | Anchor::BOTTOM | Anchor::LEFT,
+                    config::ToastPosition::TopRight => Anchor::TOP | Anchor::BOTTOM | Anchor::RIGHT,
+                    config::ToastPosition::BottomLeft => {
+                        Anchor::TOP | Anchor::BOTTOM | Anchor::LEFT
+                    }
+                    config::ToastPosition::BottomRight => {
+                        Anchor::TOP | Anchor::BOTTOM | Anchor::RIGHT
+                    }
+                };
+
+                let (toast_id, toast_task) = new_layer_surface(LayerShellSettings {
+                    namespace: "ashell-toast-layer".to_string(),
+                    size: Some((width, 0)),
+                    layer: Layer::Overlay,
+                    keyboard_interactivity: KeyboardInteractivity::None,
+                    exclusive_zone: 0,
+                    anchor,
+                    ..Default::default()
+                });
+
+                shell_info.toast_id = Some(toast_id);
+                tasks.push(toast_task);
+                // Start fully click-through until sensor reports content size.
+                tasks.push(set_input_region(toast_id, Some(vec![])));
             }
         }
 
         Task::batch(tasks)
+    }
+
+    /// Update the input region of the toast surface(s) so only the rendered
+    /// toast content accepts pointer input. Everything else is click-through.
+    pub fn update_toast_input_region<Message: 'static>(
+        &self,
+        content_size: iced::Size,
+        position: config::ToastPosition,
+    ) -> Task<Message> {
+        let content_w = content_size.width.ceil() as i32;
+        let content_h = content_size.height.ceil() as i32;
+        let mut tasks = vec![];
+        for (_, shell_info, _) in &self.0 {
+            if let Some(shell_info) = shell_info
+                && let Some(toast_id) = shell_info.toast_id
+            {
+                let y = match position {
+                    config::ToastPosition::TopLeft | config::ToastPosition::TopRight => 0,
+                    config::ToastPosition::BottomLeft | config::ToastPosition::BottomRight => {
+                        shell_info
+                            .output_logical_height
+                            .map_or(0, |h| (h as i32) - content_h)
+                    }
+                };
+                tasks.push(set_input_region(
+                    toast_id,
+                    Some(vec![InputRegionRect {
+                        x: 0,
+                        y,
+                        width: content_w,
+                        height: content_h,
+                    }]),
+                ));
+            }
+        }
+        Task::batch(tasks)
+    }
+
+    /// Store the logical height for an output (used for bottom-aligned toast input regions).
+    pub fn set_output_logical_height(&mut self, output_id: OutputId, height: u32) {
+        for (_, shell_info, oid) in &mut self.0 {
+            if *oid == Some(output_id)
+                && let Some(info) = shell_info
+            {
+                info.output_logical_height = Some(height);
+            }
+        }
     }
 
     pub fn hide_toast_layer<Message: 'static>(&mut self) -> Task<Message> {
