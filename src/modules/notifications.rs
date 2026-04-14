@@ -448,7 +448,7 @@ impl Notifications {
 
         let app_icon_button = notification_icon(notification.icon.as_ref());
 
-        let card = container(
+        let mut card = container(
             column!(
                 Row::new()
                     .push(
@@ -477,8 +477,11 @@ impl Notifications {
                 .padding(Padding::new(theme.space.xxs).top(0.))
             )
             .spacing(theme.space.xxs),
-        )
-        .max_height(self.config.toast_max_height);
+        );
+
+        if toast {
+            card = card.max_height(self.config.toast_max_height);
+        }
 
         button(card)
             .on_press(on_press)
