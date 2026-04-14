@@ -1,5 +1,5 @@
 use crate::{
-    components::icons::{StaticIcon, icon},
+    components::icons::{IconButtonSize, StaticIcon, icon, icon_button},
     config::{NotificationsModuleConfig, ToastPosition},
     menu::MenuSize,
     services::{
@@ -15,9 +15,7 @@ use chrono::{DateTime, Local};
 use freedesktop_icons::lookup;
 use iced::{
     Alignment, Background, Border, Color, Element, Length, Subscription, Task, Theme,
-    widget::{
-        Space, button, column, container, image, row, scrollable, svg, text, rule,
-    },
+    widget::{Space, button, column, container, image, row, rule, scrollable, svg, text},
 };
 use linicon_theme::get_icon_theme;
 use log::error;
@@ -647,23 +645,37 @@ impl Notifications {
             text(&notification.body)
                 .size(theme.font_size.sm)
                 .wrapping(text::Wrapping::WordOrGlyph)
-                .style(strong_text_style)
+                .style(weak_text_style)
                 .into()
         } else {
             Space::new().height(Length::Shrink).into()
         };
 
         let notification_id = notification.id;
-        let icon = self.icon_for_notification(notification_id);
-        let app_icon_button = button(notification_icon_with_frame(icon))
+        let icon_kind = self.icon_for_notification(notification_id);
+        // App icon (no longer closes the notification when clicked)
+        let app_icon_elem = notification_icon_with_frame(icon_kind);
+
+        // Action button (invokes the notification action if available)
+        let action_button: Element<'_, Message> = if !notification.actions.is_empty() {
+            icon_button(theme, StaticIcon::RightArrow)
+                .size(IconButtonSize::Small)
+                .on_press(Message::NotificationClicked(notification_id))
+                .style(icon_button_style)
+                .into()
+        } else {
+            Space::new().width(Length::Shrink).into()
+        };
+
+        let close_button = icon_button(theme, StaticIcon::Close)
+            .size(IconButtonSize::Small)
             .on_press(Message::CloseNotificationById(notification_id))
-            .style(icon_button_style)
-            .padding(0);
+            .style(icon_button_style);
 
         let card = container(
             column!(
                 row!(
-                    app_icon_button,
+                    app_icon_elem,
                     container(
                         text(&notification.app_name)
                             .size(theme.font_size.md)
@@ -672,6 +684,8 @@ impl Notifications {
                     )
                     .width(Length::Fill),
                     timestamp_element,
+                    action_button,
+                    close_button,
                 )
                 .spacing(theme.space.xs)
                 .align_y(Alignment::Center),
