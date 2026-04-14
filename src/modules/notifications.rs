@@ -656,7 +656,6 @@ impl Notifications {
         // App icon (no longer closes the notification when clicked)
         let app_icon_elem = notification_icon_with_frame(icon_kind);
 
-        // Action button (invokes the notification action if available)
         let action_button: Element<'_, Message> = if !notification.actions.is_empty() {
             icon_button(theme, StaticIcon::RightArrow)
                 .size(IconButtonSize::Small)
