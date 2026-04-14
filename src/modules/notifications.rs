@@ -623,30 +623,47 @@ impl Notifications {
                 .left(theme.space.xs),
         );
 
-        for (app_name, group) in self
+        for (_app_name, group) in self
             .notifications
             .iter()
             .sorted_by(|a, b| a.app_name.cmp(&b.app_name))
             .chunk_by(|n| n.app_name.clone())
             .into_iter()
         {
-            let is_expanded = self.expanded_groups.contains(&app_name);
-
             let mut iter = group.peekable();
-            let first_icon = iter.peek().and_then(|n| n.icon.as_ref());
-            let app_icon = notification_icon(first_icon);
+            let first = match iter.next() {
+                Some(n) => n,
+                None => continue,
+            };
 
-            let mut count = 0usize;
+            // Single notification in the group — use the normal card layout.
+            if iter.peek().is_none() {
+                content = content.push(self.notification_card(
+                    first,
+                    theme,
+                    Message::NotificationClicked(first.id),
+                    false,
+                ));
+                continue;
+            }
+
+            // Multiple notifications — use the group layout.
+            let app_name = first.app_name.clone();
+            let is_expanded = self.expanded_groups.contains(&app_name);
+            let app_icon = notification_icon(first.icon.as_ref());
+
+            let mut count = 1;
             let mut group_notifications = vec![];
 
             if is_expanded {
+                group_notifications.push(self.group_item(first, false, theme));
                 while let Some(notification) = iter.next() {
                     count += 1;
                     let is_last = iter.peek().is_none();
                     group_notifications.push(self.group_item(notification, is_last, theme));
                 }
-            } else if let Some(first) = iter.next() {
-                count = 1 + iter.count(); // consume the rest just to count
+            } else {
+                count += iter.count(); // consume the rest just to count
                 group_notifications.push(self.group_item(first, true, theme));
             }
 
