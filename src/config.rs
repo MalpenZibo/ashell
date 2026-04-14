@@ -424,7 +424,7 @@ impl Default for NotificationsModuleConfig {
             toast_position: ToastPosition::default(),
             toast_timeout: 5000,
             toast_limit: 5,
-            toast_height: 250,
+            toast_height: 150,
         }
     }
 }

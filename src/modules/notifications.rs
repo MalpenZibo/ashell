@@ -13,8 +13,8 @@ use crate::{
 };
 use chrono::{DateTime, Local};
 use iced::{
-    Alignment, Border, Column, Element, Length, Padding, Row, Subscription, Task, Theme,
-    widget::{Space, button, column, container, image, row, scrollable, svg, text},
+    Alignment, Border, Column, Element, Length, Padding, Row, Size, Subscription, Task, Theme,
+    widget::{Space, button, column, container, image, row, scrollable, sensor, svg, text},
 };
 use itertools::Itertools;
 use log::error;
@@ -110,6 +110,7 @@ pub enum Message {
     ToggleGroup(String),
     ExpireToast(u32),
     DismissToast(u32),
+    ToastResized(Size),
 }
 
 #[derive(Debug, PartialEq)]
@@ -126,6 +127,7 @@ pub enum Action {
     Task(Task<Message>),
     Show(Task<Message>),
     Hide(Task<Message>),
+    UpdateToastInputRegion(Size),
 }
 
 pub struct Notifications {
@@ -338,6 +340,7 @@ impl Notifications {
                 let task = invoke_and_close_task(connection, id, action_key);
                 self.hide_toasts_if_empty_with_task(had_toasts, task)
             }
+            Message::ToastResized(size) => Action::UpdateToastInputRegion(size),
         }
     }
 
@@ -445,34 +448,37 @@ impl Notifications {
 
         let app_icon_button = notification_icon(notification.icon.as_ref());
 
-        let card = column!(
-            Row::new()
-                .push(
-                    Row::new()
-                        .push(app_icon_button)
-                        .push(column!(
-                            text(&notification.app_name)
-                                .size(theme.font_size.md)
-                                .wrapping(text::Wrapping::WordOrGlyph),
-                            timestamp_element
-                        ))
-                        .width(Length::Fill)
-                        .spacing(theme.space.xs)
-                        .align_y(Alignment::Center),
-                )
-                .push(
-                    icon_button(theme, StaticIcon::Close)
-                        .style(theme.notification_delete_button_style())
-                        .on_press(Message::CloseNotificationById(notification_id))
-                ),
+        let card = container(
             column!(
-                text(&notification.summary).wrapping(text::Wrapping::WordOrGlyph),
-                body_element,
+                Row::new()
+                    .push(
+                        Row::new()
+                            .push(app_icon_button)
+                            .push(column!(
+                                text(&notification.app_name)
+                                    .size(theme.font_size.md)
+                                    .wrapping(text::Wrapping::WordOrGlyph),
+                                timestamp_element
+                            ))
+                            .width(Length::Fill)
+                            .spacing(theme.space.xs)
+                            .align_y(Alignment::Center),
+                    )
+                    .push(
+                        icon_button(theme, StaticIcon::Close)
+                            .style(theme.notification_delete_button_style())
+                            .on_press(Message::CloseNotificationById(notification_id))
+                    ),
+                column!(
+                    text(&notification.summary).wrapping(text::Wrapping::WordOrGlyph),
+                    body_element,
+                )
+                .spacing(theme.space.xxs)
+                .padding(Padding::new(theme.space.xxs).top(0.))
             )
-            .spacing(theme.space.xxs)
-            .padding(Padding::new(theme.space.xxs).top(0.))
+            .spacing(theme.space.xxs),
         )
-        .spacing(theme.space.xxs);
+        .max_height(self.config.toast_height);
 
         button(card)
             .on_press(on_press)
@@ -577,17 +583,23 @@ impl Notifications {
             }
         }
 
-        let (h_align, v_align) = match self.config.toast_position {
-            ToastPosition::TopLeft => (Alignment::Start, Alignment::Start),
-            ToastPosition::TopRight => (Alignment::End, Alignment::Start),
-            ToastPosition::BottomLeft => (Alignment::Start, Alignment::End),
-            ToastPosition::BottomRight => (Alignment::End, Alignment::End),
+        let v_align = match self.config.toast_position {
+            ToastPosition::TopLeft | ToastPosition::TopRight => Alignment::Start,
+            ToastPosition::BottomLeft | ToastPosition::BottomRight => Alignment::End,
         };
 
-        container(toast_column)
-            .width(MenuSize::Medium)
-            .padding(theme.space.sm)
-            .align_x(h_align)
+        // Sensor wraps the padded toast content to report its rendered size.
+        // The outer container fills the full-height surface and aligns vertically.
+        let toast_content = sensor(
+            container(toast_column)
+                .width(MenuSize::Medium)
+                .padding(theme.space.sm),
+        )
+        .on_resize(Message::ToastResized);
+
+        container(toast_content)
+            .width(Length::Fill)
+            .height(Length::Fill)
             .align_y(v_align)
             .into()
     }
@@ -686,18 +698,6 @@ impl Notifications {
         )
         .spacing(theme.space.sm)
         .into()
-    }
-
-    pub fn toast_layer_size(&self, theme: &AshellTheme) -> (u32, u32) {
-        let limit = self.config.toast_limit;
-        let single_height = self.config.toast_height;
-        let spacing = theme.space.sm;
-
-        let n = limit.min(self.toasts.len()) as u32;
-
-        let height = n * single_height + (n - 1) * spacing as u32;
-
-        (MenuSize::Medium.size() as u32, height)
     }
 
     pub fn toast_position(&self) -> ToastPosition {

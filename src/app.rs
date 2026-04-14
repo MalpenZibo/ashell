@@ -362,6 +362,10 @@ impl App {
                     info!("Output created: {info:?}");
                     let name = &info.name;
 
+                    if let Some((_, h)) = info.logical_size {
+                        self.outputs.set_output_logical_height(info.id, h as u32);
+                    }
+
                     self.outputs.add(
                         self.theme.bar_style,
                         &self.general_config.outputs,
@@ -407,17 +411,22 @@ impl App {
                 modules::notifications::Action::None => Task::none(),
                 modules::notifications::Action::Task(task) => task.map(Message::Notifications),
                 modules::notifications::Action::Show(task) => {
-                    let (width, height) = self.notifications.toast_layer_size(&self.theme);
                     let position = self.notifications.toast_position();
+                    let width = crate::menu::MenuSize::Medium.size() as u32;
                     Task::batch(vec![
                         task.map(Message::Notifications),
-                        self.outputs.show_toast_layer(width, height, position),
+                        self.outputs.show_toast_layer(width, position),
                     ])
                 }
                 modules::notifications::Action::Hide(task) => Task::batch(vec![
                     task.map(Message::Notifications),
                     self.outputs.hide_toast_layer(),
                 ]),
+                modules::notifications::Action::UpdateToastInputRegion(content_size) => {
+                    let position = self.notifications.toast_position();
+                    self.outputs
+                        .update_toast_input_region(content_size, position)
+                }
             },
             Message::None => Task::none(),
             Message::ToggleVisibility => {
