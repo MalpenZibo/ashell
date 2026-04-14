@@ -1,7 +1,7 @@
 use iced::{
     Anchor, KeyboardInteractivity, Layer, LayerShellSettings, OutputId, SurfaceId, Task,
     destroy_layer_surface, new_layer_surface, set_anchor, set_exclusive_zone,
-    set_keyboard_interactivity, set_layer, set_size,
+    set_keyboard_interactivity, set_size,
 };
 use log::debug;
 
@@ -667,7 +667,6 @@ impl Outputs {
                 // update its size and layer ordering.
                 if let Some(toast_id) = shell_info.toast_id {
                     tasks.push(set_size(toast_id, (width, height)));
-                    tasks.push(set_layer(toast_id, Layer::Overlay));
                 } else {
                     let anchor = match position {
                         config::ToastPosition::TopLeft => Anchor::TOP | Anchor::LEFT,
@@ -679,7 +678,7 @@ impl Outputs {
                     let (toast_id, toast_task) = new_layer_surface(LayerShellSettings {
                         namespace: "ashell-toast-layer".to_string(),
                         size: Some((width, height)),
-                        layer: Layer::Top,
+                        layer: Layer::Overlay,
                         keyboard_interactivity: KeyboardInteractivity::None,
                         exclusive_zone: 0,
                         anchor,

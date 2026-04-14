@@ -87,11 +87,11 @@ fn close_notification_by_id_task(connection: Option<Connection>, id: u32) -> Tas
     )
 }
 
-fn toast_timeout(expire_timeout: i32, default_timeout_ms: u64) -> Option<Duration> {
-    match expire_timeout {
-        -1 => Some(Duration::from_millis(default_timeout_ms)),
+fn toast_timeout(required_timeout: i32, timeout_ms: u64) -> Option<Duration> {
+    match required_timeout {
+        -1 => Some(Duration::from_millis(timeout_ms)),
         0 => None,
-        t if t > 0 => Some(Duration::from_millis(t as u64)),
+        required if required > 0 => Some(Duration::from_millis(required as u64)),
         _ => None,
     }
 }
@@ -208,17 +208,13 @@ impl Notifications {
 
         match update_event {
             NotificationEvent::Received(notification) => {
-                let was_empty = self.toasts.is_empty();
-                while self.toasts.len() >= self.config.toast_max_visible {
+                while self.toasts.len() >= self.config.toast_limit {
                     self.toasts.pop_front();
                 }
                 self.toasts.push_back(notification.id);
 
                 let notification_id = notification.id;
-                let timeout = toast_timeout(
-                    notification.expire_timeout,
-                    self.config.toast_default_timeout,
-                );
+                let timeout = toast_timeout(notification.expire_timeout, self.config.toast_timeout);
 
                 let timer_task = if let Some(timeout) = timeout {
                     Task::perform(
@@ -232,11 +228,7 @@ impl Notifications {
                     Task::none()
                 };
 
-                if was_empty {
-                    Action::Show(timer_task)
-                } else {
-                    Action::Task(timer_task)
-                }
+                Action::Show(timer_task)
             }
             NotificationEvent::Closed(id) => {
                 let id = *id;
@@ -697,17 +689,15 @@ impl Notifications {
     }
 
     pub fn toast_layer_size(&self, theme: &AshellTheme) -> (u32, u32) {
-        let n = self.config.toast_max_visible as u32;
-        let margin = theme.space.sm as u32;
-        let line_height = theme.font_size.sm as u32 + theme.space.xxs as u32;
-        let card_height = ICON_SIZE as u32
-            + (self.config.toast_summary_line_budget + self.config.toast_body_line_budget)
-                * line_height
-            + 3 * theme.space.sm as u32;
-        let spacing = theme.space.sm as u32;
-        let width = MenuSize::Medium.size() as u32 + 2 * margin;
-        let height = n * card_height + n.saturating_sub(1) * spacing + 2 * margin;
-        (width, height)
+        let limit = self.config.toast_limit;
+        let single_height = self.config.toast_height;
+        let spacing = theme.space.sm;
+
+        let n = limit.min(self.toasts.len()) as u32;
+
+        let height = n * single_height + (n - 1) * spacing as u32;
+
+        (MenuSize::Medium.size() as u32, height)
     }
 
     pub fn toast_position(&self) -> ToastPosition {
