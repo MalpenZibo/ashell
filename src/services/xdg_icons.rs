@@ -1,3 +1,4 @@
+use crate::components::icons::StaticIcon;
 use freedesktop_icons::lookup;
 use iced::widget::{image, svg};
 use linicon_theme::get_icon_theme;
@@ -42,11 +43,11 @@ static DESKTOP_ICON_INDEX: LazyLock<HashMap<String, String>> =
 pub enum XdgIcon {
     Image(image::Handle),
     Svg(svg::Handle),
-    NerdFont(&'static str),
+    NerdFont(StaticIcon),
 }
 
 pub fn fallback_icon() -> XdgIcon {
-    XdgIcon::NerdFont(crate::components::icons::StaticIcon::Point.get_str())
+    XdgIcon::NerdFont(StaticIcon::Point)
 }
 
 pub fn get_icon_from_name(icon_name: &str) -> Option<XdgIcon> {
@@ -238,7 +239,6 @@ fn find_desktop_icon(icon_name: &str) -> Option<PathBuf> {
         return None;
     };
     debug!("icon '{icon_name}': desktop index '{normalized}' → '{icon_value}'");
-
 
     if icon_value.starts_with('/') {
         let path = PathBuf::from(icon_value);

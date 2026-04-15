@@ -14,7 +14,7 @@ pub trait Icon {
     fn to_text_mono<'a>(self) -> Text<'a>;
 }
 
-#[derive(Copy, Clone, Default)]
+#[derive(Debug, Copy, Clone, Default)]
 #[allow(dead_code)]
 pub enum StaticIcon {
     #[default]
@@ -125,7 +125,7 @@ pub enum StaticIcon {
 }
 
 impl StaticIcon {
-    pub fn get_str(&self) -> &'static str {
+    fn get_str(&self) -> &'static str {
         match self {
             StaticIcon::None => "",
             StaticIcon::Refresh => "\u{f0453}",

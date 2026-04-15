@@ -1,4 +1,5 @@
 use crate::{
+    components::icons::icon,
     config::{WorkspaceIndicatorFormat, WorkspaceVisibilityMode, WorkspacesModuleConfig},
     outputs::Outputs,
     services::{
@@ -11,7 +12,7 @@ use crate::{
     theme::AshellTheme,
 };
 use iced::{
-    Element, Font, Length, Subscription, alignment,
+    Element, Length, Subscription, alignment,
     widget::{Image, MouseArea, Row, Svg, button, container, text},
     window::Id,
 };
@@ -499,10 +500,9 @@ impl Workspaces {
                                             .height(Length::Fixed(theme.font_size.xs as f32))
                                             .width(Length::Shrink)
                                             .into(),
-                                        XdgIcon::NerdFont(glyph) => text(*glyph)
-                                            .size(theme.font_size.xs)
-                                            .font(Font::with_name("Symbols Nerd Font"))
-                                            .into(),
+                                        XdgIcon::NerdFont(si) => {
+                                            icon(*si).size(theme.font_size.xs).into()
+                                        }
                                     }
                                 }))
                                 .collect();
