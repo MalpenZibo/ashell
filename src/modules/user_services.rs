@@ -10,7 +10,7 @@ use crate::{
 use iced::{
     Alignment, Element, Length, Padding, Subscription, Task,
     alignment::Vertical,
-    widget::{Column, column, container, row, rule, scrollable, text, toggler},
+    widget::{Column, button, column, container, row, rule, scrollable, text, toggler},
 };
 use std::convert;
 
@@ -82,6 +82,8 @@ impl UserServices {
     }
 
     pub fn menu_view<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
+        let iced_theme = theme.get_theme();
+
         column![
             row![
                 text("User Services")
@@ -106,30 +108,37 @@ impl UserServices {
                             .units
                             .iter()
                             .map(|unit| {
-                                let name = unit.display_name();
-                                let unit_name = unit.name.clone();
-                                let is_active = unit.is_active();
-                                let can_toggle = unit.can_toggle();
+                                let text_color = match unit.active_state.as_str() {
+                                    "active" | "reloading" => Some(iced_theme.palette().success),
+                                    "activating" | "deactivating" => {
+                                        Some(iced_theme.palette().warning)
+                                    }
+                                    "failed" => Some(iced_theme.palette().danger),
+                                    _ => None,
+                                };
 
-                                row!(
-                                    text(name).width(Length::Fill),
-                                    toggler(is_active)
-                                        .on_toggle_maybe(can_toggle.then_some(move |_| {
-                                            Message::ToggleUnit(unit_name.clone())
-                                        },))
-                                        .width(Length::Shrink),
+                                let content = row!(
+                                    text(unit.display_name())
+                                        .color_maybe(text_color)
+                                        .width(Length::Fill),
+                                    toggler(unit.is_active()).width(Length::Shrink),
                                 )
-                                .padding([theme.space.xxs, theme.space.xs])
-                                .into()
+                                .align_y(Vertical::Center);
+
+                                button(content)
+                                    .style(theme.ghost_button_style())
+                                    .padding([theme.space.xxs, theme.space.sm])
+                                    .on_press_maybe(
+                                        unit.can_toggle()
+                                            .then_some(Message::ToggleUnit(unit.name.clone())),
+                                    )
+                                    .width(Length::Fill)
+                                    .into()
                             })
                             .collect::<Vec<_>>(),
                     )
-                    .spacing(theme.space.xs)
-                    .padding(
-                        Padding::default()
-                            .right(theme.space.md)
-                            .left(theme.space.xs),
-                    ),
+                    .spacing(theme.space.xxs)
+                    .padding(Padding::default().right(theme.space.md)),
                 ))
                 .max_height(400)
                 .into(),
