@@ -219,18 +219,16 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
         }
     }
 
-    let mut monitors = Vec::new();
-    for (name, active_ws_id) in &output_to_active_ws {
-        monitors.push(CompositorMonitor {
-            id: outputs
-                .iter()
-                .position(|o| *o == name)
-                .map_or(-1, |i| i as i128),
-            name: name.clone(),
-            active_workspace_id: *active_ws_id,
+    let monitors: Vec<CompositorMonitor> = outputs
+        .iter()
+        .enumerate()
+        .map(|(i, name)| CompositorMonitor {
+            id: i as i128,
+            name: (*name).clone(),
+            active_workspace_id: output_to_active_ws.get(*name).copied().unwrap_or(-1),
             special_workspace_id: -1,
-        });
-    }
+        })
+        .collect();
 
     let active_workspace_id = niri
         .workspaces
