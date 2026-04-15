@@ -904,6 +904,7 @@ pub enum ModuleName {
     MediaPlayer,
     Custom(String),
     Notifications,
+    UserServices,
 }
 
 impl<'de> Deserialize<'de> for ModuleName {
@@ -934,6 +935,7 @@ impl<'de> Deserialize<'de> for ModuleName {
                     "Privacy" => ModuleName::Privacy,
                     "Settings" => ModuleName::Settings,
                     "MediaPlayer" => ModuleName::MediaPlayer,
+                    "UserServices" => ModuleName::UserServices,
                     other => ModuleName::Custom(other.to_string()),
                 })
             }

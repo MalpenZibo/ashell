@@ -21,6 +21,7 @@ pub mod system_info;
 pub mod tempo;
 pub mod tray;
 pub mod updates;
+pub mod user_services;
 pub mod window_title;
 pub mod workspaces;
 
@@ -360,6 +361,12 @@ impl App {
                     .map(Message::Notifications),
                 Some(OnModulePress::ToggleMenu(MenuType::Notifications)),
             )),
+            ModuleName::UserServices => Some((
+                self.user_services
+                    .view(&self.theme)
+                    .map(Message::UserServices),
+                Some(OnModulePress::ToggleMenu(MenuType::UserServices)),
+            )),
         }
     }
 
@@ -403,6 +410,9 @@ impl App {
                     .subscription()
                     .map(Message::Notifications),
             ),
+            ModuleName::UserServices => {
+                Some(self.user_services.subscription().map(Message::UserServices))
+            }
         }
     }
 }

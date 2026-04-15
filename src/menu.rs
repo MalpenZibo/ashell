@@ -18,6 +18,7 @@ pub enum MenuType {
     MediaPlayer,
     SystemInfo,
     Tempo,
+    UserServices,
 }
 
 #[derive(Clone, Debug)]

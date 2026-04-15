@@ -16,6 +16,7 @@ use crate::{
         tempo::Tempo,
         tray::TrayModule,
         updates::Updates,
+        user_services::UserServices,
         window_title::WindowTitle,
         workspaces::Workspaces,
     },
@@ -62,6 +63,7 @@ pub struct App {
     pub settings: Settings,
     pub media_player: MediaPlayer,
     pub notifications: Notifications,
+    pub user_services: UserServices,
     pub visible: bool,
 }
 
@@ -83,6 +85,7 @@ pub enum Message {
     Settings(modules::settings::Message),
     MediaPlayer(modules::media_player::Message),
     Notifications(modules::notifications::Message),
+    UserServices(modules::user_services::Message),
     OutputEvent(OutputEvent),
     CloseAllMenus,
     ResumeFromSleep,
@@ -136,6 +139,7 @@ impl App {
                     settings: Settings::new(config.settings),
                     notifications,
                     media_player: MediaPlayer::new(config.media_player),
+                    user_services: UserServices::new(),
                     visible: true,
                 },
                 task,
@@ -392,6 +396,10 @@ impl App {
                 modules::media_player::Action::None => Task::none(),
                 modules::media_player::Action::Command(task) => task.map(Message::MediaPlayer),
             },
+            Message::UserServices(msg) => match self.user_services.update(msg) {
+                modules::user_services::Action::None => Task::none(),
+                modules::user_services::Action::Command(task) => task.map(Message::UserServices),
+            },
             Message::CloseAllMenus => {
                 if self.outputs.menu_is_open() {
                     self.outputs
@@ -594,6 +602,13 @@ impl App {
                 Some((MenuType::Tempo, button_ui_ref)) => self.menu_wrapper(
                     id,
                     self.tempo.menu_view(&self.theme).map(Message::Tempo),
+                    *button_ui_ref,
+                ),
+                Some((MenuType::UserServices, button_ui_ref)) => self.menu_wrapper(
+                    id,
+                    self.user_services
+                        .menu_view(&self.theme)
+                        .map(Message::UserServices),
                     *button_ui_ref,
                 ),
                 None => Row::new().into(),
