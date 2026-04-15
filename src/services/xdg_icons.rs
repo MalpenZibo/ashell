@@ -233,12 +233,12 @@ fn prefix_match_icon(icon_name: &str) -> Option<Cow<'static, str>> {
 
 fn find_desktop_icon(icon_name: &str) -> Option<PathBuf> {
     let normalized = normalize_icon_name(icon_name);
-    let normalized_str: String = normalized.into_owned();
-    let Some(icon_value) = DESKTOP_ICON_INDEX.get(&normalized_str) else {
-        debug!("icon '{icon_name}': normalized '{normalized_str}' not in desktop index");
+    let Some(icon_value) = DESKTOP_ICON_INDEX.get(normalized.as_ref()) else {
+        debug!("icon '{icon_name}': normalized '{normalized}' not in desktop index");
         return None;
     };
-    debug!("icon '{icon_name}': desktop index '{normalized_str}' → '{icon_value}'");
+    debug!("icon '{icon_name}': desktop index '{normalized}' → '{icon_value}'");
+
 
     if icon_value.starts_with('/') {
         let path = PathBuf::from(icon_value);

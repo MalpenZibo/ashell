@@ -97,7 +97,7 @@ fn calculate_ui_workspaces(
 
     // map special workspaces
     if !config.disable_special_workspaces {
-        for w in special.iter() {
+        for w in special {
             // Special workspaces are active if they are assigned to any monitor.
             // Currently a special and normal workspace can be active at the same time on the same monitor.
             let active = monitors.iter().any(|m| m.special_workspace_id == w.id);
@@ -110,7 +110,7 @@ fn calculate_ui_workspaces(
                     .last()
                     .map_or_else(|| "".to_string(), |s| s.to_owned()),
                 monitor_id: w.monitor_id,
-                monitor: w.monitor.clone(),
+                monitor: w.monitor,
                 displayed: if active {
                     Displayed::Active
                 } else {
@@ -126,21 +126,21 @@ fn calculate_ui_workspaces(
         let monitor_count = monitors.len().max(1);
         let mut virtual_desktops: HashMap<i32, VirtualDesktop> = HashMap::new();
 
-        for w in normal.iter() {
+        for w in normal {
             let vdesk_id = ((w.id - 1) / monitor_count as i32) + 1;
             let is_active = Some(w.id) == active_id;
 
             if let Some(vdesk) = virtual_desktops.get_mut(&vdesk_id) {
                 vdesk.windows += w.windows;
                 vdesk.active = vdesk.active || is_active;
-                vdesk.window_classes.extend(w.window_classes.clone());
+                vdesk.window_classes.extend(w.window_classes);
             } else {
                 virtual_desktops.insert(
                     vdesk_id,
                     VirtualDesktop {
                         active: is_active,
                         windows: w.windows,
-                        window_classes: w.window_classes.clone(),
+                        window_classes: w.window_classes,
                     },
                 );
             }
@@ -170,17 +170,17 @@ fn calculate_ui_workspaces(
             });
         });
     } else {
-        for w in normal.iter() {
+        for w in normal {
             let display_name = if w.id > 0 {
                 let idx = (w.id - 1) as usize;
                 config
                     .workspace_names
                     .get(idx)
                     .cloned()
-                    .or_else(|| Some(w.name.clone()))
+                    .or(Some(w.name))
                     .unwrap_or_else(|| w.id.to_string())
             } else {
-                w.name.clone()
+                w.name
             };
 
             let is_active = active_id == Some(w.id);
@@ -191,7 +191,7 @@ fn calculate_ui_workspaces(
                 index: w.index,
                 name: display_name,
                 monitor_id: w.monitor_id,
-                monitor: w.monitor.clone(),
+                monitor: w.monitor,
                 displayed: match (is_active, is_visible) {
                     (true, _) => Displayed::Active,
                     (false, true) => Displayed::Visible,
