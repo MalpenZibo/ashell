@@ -6,7 +6,7 @@ use iced::{
     stream::channel,
 };
 use log::{debug, error, warn};
-use std::{any::TypeId, path::PathBuf};
+use std::{any::TypeId, collections::HashSet, path::PathBuf};
 use zbus::{MatchRule, MessageStream, message::Type as MessageType, zvariant::OwnedObjectPath};
 
 mod dbus;
@@ -178,7 +178,7 @@ impl Service for UserServicesService {
 
 enum State {
     Init,
-    Active(zbus::Connection),
+    Active(zbus::Connection, HashSet<OwnedObjectPath>),
     Error,
 }
 
@@ -198,6 +198,9 @@ async fn start_listening(
 
                 match list_user_units(&conn).await {
                     Ok(units) => {
+                        let tracked_paths: HashSet<OwnedObjectPath> =
+                            units.iter().map(|u| u.object_path.clone()).collect();
+
                         let service = UserServicesService {
                             units: units.clone(),
                             conn: conn.clone(),
@@ -207,7 +210,7 @@ async fn start_listening(
                             .send(ServiceEvent::Update(UserServicesEvent::UnitsLoaded(units)))
                             .await;
 
-                        State::Active(conn)
+                        State::Active(conn, tracked_paths)
                     }
                     Err(err) => {
                         error!("Failed to list user units: {err}");
@@ -222,13 +225,15 @@ async fn start_listening(
                 State::Error
             }
         },
-        State::Active(conn) => match listen_properties_changed(&conn, output).await {
-            Ok(()) => State::Active(conn),
-            Err(err) => {
-                error!("Failed to listen for PropertiesChanged: {err}");
-                State::Error
+        State::Active(conn, tracked_paths) => {
+            match listen_properties_changed(&conn, &tracked_paths, output).await {
+                Ok(()) => State::Active(conn, tracked_paths),
+                Err(err) => {
+                    error!("Failed to listen for PropertiesChanged: {err}");
+                    State::Error
+                }
             }
-        },
+        }
         State::Error => {
             let _ = pending::<u8>().next().await;
             State::Error
@@ -240,6 +245,7 @@ async fn start_listening(
 
 async fn listen_properties_changed(
     conn: &zbus::Connection,
+    tracked_paths: &HashSet<OwnedObjectPath>,
     output: &mut iced::futures::channel::mpsc::Sender<ServiceEvent<UserServicesService>>,
 ) -> anyhow::Result<()> {
     let rule = MatchRule::builder()
@@ -250,57 +256,64 @@ async fn listen_properties_changed(
         .path_namespace("/org/freedesktop/systemd1/unit")?
         .build();
 
-    let mut stream = MessageStream::for_match_rule(rule, conn, None).await?;
+    let stream = MessageStream::for_match_rule(rule, conn, None).await?;
+    let mut chunks = stream.ready_chunks(10);
 
-    while let Some(msg) = stream.next().await {
-        let msg = match msg {
-            Ok(m) => m,
-            Err(e) => {
-                warn!("Error receiving PropertiesChanged message: {e}");
+    while let Some(chunk) = chunks.next().await {
+        // Collect unique tracked object paths from this batch of signals.
+        let mut paths_to_update = HashSet::new();
+
+        for msg in chunk.into_iter().flatten() {
+            // Parse the signal body: (interface_name, changed_props, invalidated_props)
+            let Ok(body) = msg.body().deserialize::<(
+                String,
+                std::collections::HashMap<String, zbus::zvariant::OwnedValue>,
+                Vec<String>,
+            )>() else {
+                continue;
+            };
+
+            let (iface_name, changed_props, _invalidated) = body;
+
+            // Only care about org.freedesktop.systemd1.Unit interface.
+            if iface_name != UNIT_IFACE {
                 continue;
             }
-        };
 
-        // Parse the signal body: (interface_name, changed_props, invalidated_props)
-        let Ok(body) = msg.body().deserialize::<(
-            String,
-            std::collections::HashMap<String, zbus::zvariant::OwnedValue>,
-            Vec<String>,
-        )>() else {
-            continue;
-        };
+            // Check if any interesting property changed.
+            let dominated = changed_props
+                .keys()
+                .any(|k| INTERESTING_PROPS.contains(&k.as_str()));
 
-        let (iface_name, changed_props, _invalidated) = body;
+            if !dominated {
+                continue;
+            }
 
-        // Only care about org.freedesktop.systemd1.Unit interface.
-        if iface_name != UNIT_IFACE {
-            continue;
+            // Get the object path from the message header.
+            let header = msg.header();
+            let Some(path) = header.path() else {
+                continue;
+            };
+            let path: OwnedObjectPath = path.to_owned().into();
+
+            // Filter: only process signals for units we are tracking.
+            if !tracked_paths.contains(&path) {
+                continue;
+            }
+
+            paths_to_update.insert(path);
         }
 
-        // Check if any interesting property changed.
-        let dominated = changed_props
-            .keys()
-            .any(|k| INTERESTING_PROPS.contains(&k.as_str()));
-
-        if !dominated {
-            continue;
-        }
-
-        // Get the object path from the message header.
-        let header = msg.header();
-        let Some(path) = header.path() else {
-            continue;
-        };
-        let path: OwnedObjectPath = path.to_owned().into();
-
-        // Read unit properties via proxy.
-        if let Ok(info) = read_unit_from_path(conn, &path).await
-            && info.name.ends_with(SERVICE_SUFFIX)
-        {
-            debug!("Unit changed: {} -> {}", info.name, info.active_state);
-            let _ = output
-                .send(ServiceEvent::Update(UserServicesEvent::UnitChanged(info)))
-                .await;
+        // One D-Bus read per unique tracked unit in this batch.
+        for path in paths_to_update {
+            if let Ok(info) = read_unit_from_path(conn, &path).await
+                && info.name.ends_with(SERVICE_SUFFIX)
+            {
+                debug!("Unit changed: {} -> {}", info.name, info.active_state);
+                let _ = output
+                    .send(ServiceEvent::Update(UserServicesEvent::UnitChanged(info)))
+                    .await;
+            }
         }
     }
 
