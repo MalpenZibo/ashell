@@ -18,6 +18,7 @@ use iced::{
 };
 use itertools::Itertools;
 use log::error;
+use regex::Regex;
 use std::{
     collections::{HashSet, VecDeque},
     time::Duration,
@@ -135,18 +136,25 @@ pub struct Notifications {
     connection: Option<Connection>,
     notifications: VecDeque<Notification>,
     expanded_groups: HashSet<String>,
+    blacklist: Vec<Regex>,
     toasts: VecDeque<u32>,
 }
 
 impl Notifications {
     pub fn new(config: NotificationsModuleConfig) -> Self {
+        let blacklist = compile_blacklist(&config.blacklist);
         Self {
             config,
             connection: None,
             notifications: VecDeque::new(),
             expanded_groups: HashSet::new(),
+            blacklist,
             toasts: VecDeque::new(),
         }
+    }
+
+    fn is_blacklisted(&self, app_name: &str) -> bool {
+        self.blacklist.iter().any(|pattern| pattern.is_match(app_name))
     }
 
     fn find_notification(&self, id: u32) -> Option<&Notification> {
@@ -268,6 +276,7 @@ impl Notifications {
         match message {
             Message::ConfigReloaded(config) => {
                 let hide = !config.toast && self.config.toast && !self.toasts.is_empty();
+                self.blacklist = compile_blacklist(&config.blacklist);
                 self.config = config;
                 if hide {
                     self.toasts.clear();
@@ -282,6 +291,12 @@ impl Notifications {
                     Action::None
                 }
                 ServiceEvent::Update(update_event) => {
+                    if let NotificationEvent::Received(notification) = &update_event
+                        && self.is_blacklisted(&notification.app_name)
+                    {
+                        return Action::None;
+                    }
+
                     let toast_action = self.toast_action_for_update_event(&update_event);
                     self.apply_update_event(update_event);
 
@@ -754,4 +769,17 @@ impl Notifications {
     pub fn toast_position(&self) -> ToastPosition {
         self.config.toast_position
     }
+}
+
+fn compile_blacklist(patterns: &[String]) -> Vec<Regex> {
+    patterns
+        .iter()
+        .filter_map(|pattern| match Regex::new(pattern) {
+            Ok(regex) => Some(regex),
+            Err(err) => {
+                error!("Invalid notification blacklist regex `{}`: {}", pattern, err);
+                None
+            }
+        })
+        .collect()
 }
