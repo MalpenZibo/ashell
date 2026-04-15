@@ -5,7 +5,7 @@ use crate::{
     services::{
         ReadOnlyService, ServiceEvent,
         notifications::{
-            Notification, NotificationIcon, NotificationsService,
+            Notification, NotificationIcon, NotificationsService, Urgency,
             dbus::{NotificationDaemon, NotificationEvent},
         },
     },
@@ -221,7 +221,13 @@ impl Notifications {
                 self.toasts.push_back(notification.id);
 
                 let notification_id = notification.id;
-                let timeout = toast_timeout(notification.expire_timeout, self.config.toast_timeout);
+                // Critical notifications are persistent per the freedesktop
+                // spec: they must be acknowledged by the user.
+                let timeout = if notification.urgency == Urgency::Critical {
+                    None
+                } else {
+                    toast_timeout(notification.expire_timeout, self.config.toast_timeout)
+                };
 
                 let timer_task = if let Some(timeout) = timeout {
                     Task::perform(
@@ -357,32 +363,44 @@ impl Notifications {
     fn notification_button_style(
         theme: &AshellTheme,
         style: NotificationStyle,
+        urgency: Urgency,
     ) -> impl Fn(&Theme, iced::widget::button::Status) -> iced::widget::button::Style {
         move |iced_theme: &Theme, status| {
+            let mut border = match style {
+                NotificationStyle::Standalone | NotificationStyle::Toast => {
+                    Border::default().rounded(theme.radius.lg)
+                }
+                NotificationStyle::GroupHeader => Border::default().rounded(iced::border::Radius {
+                    top_left: theme.radius.lg,
+                    top_right: theme.radius.lg,
+                    bottom_left: theme.radius.sm,
+                    bottom_right: theme.radius.sm,
+                }),
+                NotificationStyle::GroupItem => Border::default().rounded(theme.radius.sm),
+                NotificationStyle::GroupLast => Border::default().rounded(iced::border::Radius {
+                    top_left: 0.0,
+                    top_right: 0.0,
+                    bottom_left: theme.radius.lg,
+                    bottom_right: theme.radius.lg,
+                }),
+            };
+
+            // Highlight critical notifications with a danger-colored border
+            // on the top-level card styles (Toast/Standalone). Grouped item
+            // styles are left untouched to avoid visual noise inside a list.
+            if urgency == Urgency::Critical
+                && matches!(
+                    style,
+                    NotificationStyle::Standalone | NotificationStyle::Toast
+                )
+            {
+                border.width = 2.0;
+                border.color = iced_theme.palette().danger;
+            }
+
             let mut button_style = iced::widget::button::Style {
                 text_color: iced_theme.palette().text,
-                border: match style {
-                    NotificationStyle::Standalone | NotificationStyle::Toast => {
-                        Border::default().rounded(theme.radius.lg)
-                    }
-                    NotificationStyle::GroupHeader => {
-                        Border::default().rounded(iced::border::Radius {
-                            top_left: theme.radius.lg,
-                            top_right: theme.radius.lg,
-                            bottom_left: theme.radius.sm,
-                            bottom_right: theme.radius.sm,
-                        })
-                    }
-                    NotificationStyle::GroupItem => Border::default().rounded(theme.radius.sm),
-                    NotificationStyle::GroupLast => {
-                        Border::default().rounded(iced::border::Radius {
-                            top_left: 0.0,
-                            top_right: 0.0,
-                            bottom_left: theme.radius.lg,
-                            bottom_right: theme.radius.lg,
-                        })
-                    }
-                },
+                border,
                 ..iced::widget::button::Style::default()
             };
             match status {
@@ -498,6 +516,7 @@ impl Notifications {
                 } else {
                     NotificationStyle::Standalone
                 },
+                notification.urgency,
             ))
             .into()
     }
@@ -528,6 +547,7 @@ impl Notifications {
             } else {
                 NotificationStyle::GroupItem
             },
+            notification.urgency,
         ))
         .on_press(Message::NotificationClicked(notification.id))
         .into()
@@ -691,6 +711,7 @@ impl Notifications {
                         .style(Self::notification_button_style(
                             theme,
                             NotificationStyle::GroupHeader,
+                            Urgency::Normal,
                         ))
                         .on_press(toggle_msg),
                 )
