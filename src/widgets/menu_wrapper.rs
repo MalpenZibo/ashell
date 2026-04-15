@@ -172,13 +172,19 @@ where
 
     fn mouse_interaction(
         &self,
-        _: &Tree,
-        _: Layout<'_>,
-        _: mouse::Cursor,
-        _: &Rectangle,
-        _: &Renderer,
+        tree: &Tree,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        viewport: &Rectangle,
+        renderer: &Renderer,
     ) -> mouse::Interaction {
-        mouse::Interaction::default()
+        self.content.as_widget().mouse_interaction(
+            &tree.children[0],
+            layout.children().next().unwrap(),
+            cursor,
+            viewport,
+            renderer,
+        )
     }
 
     fn draw(
