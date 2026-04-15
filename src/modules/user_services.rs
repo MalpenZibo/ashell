@@ -10,7 +10,7 @@ use crate::{
 use iced::{
     Alignment, Element, Length, Padding, Subscription, Task,
     alignment::Vertical,
-    widget::{Column, button, column, container, row, rule, scrollable, text},
+    widget::{Column, column, container, row, rule, scrollable, text, toggler},
 };
 use std::convert;
 
@@ -75,13 +75,10 @@ impl UserServices {
             None => (0, 0),
         };
 
-        row![
-            icon(StaticIcon::Server),
-            text(format!("{active}/{total}")).size(theme.font_size.sm),
-        ]
-        .align_y(Alignment::Center)
-        .spacing(theme.space.xxs)
-        .into()
+        row![icon(StaticIcon::Server), text(format!("{active}/{total}")),]
+            .align_y(Alignment::Center)
+            .spacing(theme.space.xxs)
+            .into()
     }
 
     pub fn menu_view<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
@@ -108,11 +105,31 @@ impl UserServices {
                         service
                             .units
                             .iter()
-                            .map(|unit| self.unit_row(theme, unit))
+                            .map(|unit| {
+                                let name = unit.display_name();
+                                let unit_name = unit.name.clone();
+                                let is_active = unit.is_active();
+                                let can_toggle = unit.can_toggle();
+
+                                row!(
+                                    text(name).width(Length::Fill),
+                                    toggler(is_active)
+                                        .on_toggle_maybe(can_toggle.then_some(move |_| {
+                                            Message::ToggleUnit(unit_name.clone())
+                                        },))
+                                        .width(Length::Shrink),
+                                )
+                                .padding([theme.space.xxs, theme.space.xs])
+                                .into()
+                            })
                             .collect::<Vec<_>>(),
                     )
-                    .spacing(theme.space.xxs)
-                    .padding(Padding::default().right(theme.space.md)),
+                    .spacing(theme.space.xs)
+                    .padding(
+                        Padding::default()
+                            .right(theme.space.md)
+                            .left(theme.space.xs),
+                    ),
                 ))
                 .max_height(400)
                 .into(),
@@ -121,37 +138,6 @@ impl UserServices {
         .width(MenuSize::Medium)
         .spacing(theme.space.xs)
         .into()
-    }
-
-    fn unit_row<'a>(
-        &'a self,
-        theme: &'a AshellTheme,
-        unit: &'a crate::services::user_services::UnitInfo,
-    ) -> Element<'a, Message> {
-        let status_dot = icon(StaticIcon::Point)
-            .size(theme.font_size.xs)
-            .color(unit.status_color());
-
-        let name = text(unit.display_name()).size(theme.font_size.sm);
-
-        let content = row![status_dot, name]
-            .align_y(Vertical::Center)
-            .spacing(theme.space.xs)
-            .width(Length::Fill);
-
-        if unit.can_toggle() {
-            button(content)
-                .style(theme.ghost_button_style())
-                .padding(theme.space.xs)
-                .on_press(Message::ToggleUnit(unit.name.clone()))
-                .width(Length::Fill)
-                .into()
-        } else {
-            container(content)
-                .padding(theme.space.xs)
-                .width(Length::Fill)
-                .into()
-        }
     }
 
     pub fn subscription(&self) -> Subscription<Message> {

@@ -55,17 +55,6 @@ impl UnitInfo {
         )
     }
 
-    /// Return a color for the status dot.
-    pub fn status_color(&self) -> iced::Color {
-        match self.active_state.as_str() {
-            "active" => iced::Color::from_rgb(0.0, 0.8, 0.0), // green
-            "activating" => iced::Color::from_rgb(1.0, 0.85, 0.0), // yellow
-            "deactivating" => iced::Color::from_rgb(1.0, 0.55, 0.0), // orange
-            "failed" => iced::Color::from_rgb(1.0, 0.0, 0.0), // red
-            _ => iced::Color::from_rgb(0.7, 0.7, 0.7),        // gray (inactive)
-        }
-    }
-
     /// Sort key: (unit_file_state order, name).
     fn state_order(&self) -> u8 {
         match self.unit_file_state.as_str() {
