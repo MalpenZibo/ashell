@@ -322,14 +322,17 @@ impl Workspaces {
                     .iter()
                     .find(|w| w.displayed == Displayed::Active);
 
-                let Some(current_workspace_id) = current_workspace.map(|w| w.id) else {
+                let Some(current) = current_workspace else {
                     return iced::Task::none();
                 };
+                // Compare by (index, id): on Hyprland id == index so it's
+                // equivalent to sorting by id, but on Niri `id` is an
+                // arbitrary internal handle while `index` is the visual
+                // position — we want to scroll in visual order.
+                let current_key = (current.index, current.id);
 
-                let current_monitor = current_workspace
-                    .map(|w| w.monitor.clone())
-                    .unwrap_or_default();
-                let current_monitor_id = current_workspace.and_then(|w| w.monitor_id);
+                let current_monitor = current.monitor.clone();
+                let current_monitor_id = current.monitor_id;
 
                 let restrict_to_monitor = matches!(
                     self.config.visibility_mode,
@@ -360,14 +363,14 @@ impl Workspaces {
                     self.ui_workspaces
                         .iter()
                         .filter(|w| in_current_group(w))
-                        .filter(|w| w.id < current_workspace_id)
-                        .max_by_key(|w| w.id)
+                        .filter(|w| (w.index, w.id) < current_key)
+                        .max_by_key(|w| (w.index, w.id))
                 } else {
                     self.ui_workspaces
                         .iter()
                         .filter(|w| in_current_group(w))
-                        .filter(|w| w.id > current_workspace_id)
-                        .min_by_key(|w| w.id)
+                        .filter(|w| (w.index, w.id) > current_key)
+                        .min_by_key(|w| (w.index, w.id))
                 };
 
                 if let Some(next) = next_workspace {
