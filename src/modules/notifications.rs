@@ -154,7 +154,9 @@ impl Notifications {
     }
 
     fn is_blacklisted(&self, app_name: &str) -> bool {
-        self.blacklist.iter().any(|pattern| pattern.is_match(app_name))
+        self.blacklist
+            .iter()
+            .any(|pattern| pattern.is_match(app_name))
     }
 
     fn find_notification(&self, id: u32) -> Option<&Notification> {
@@ -777,7 +779,10 @@ fn compile_blacklist(patterns: &[String]) -> Vec<Regex> {
         .filter_map(|pattern| match Regex::new(pattern) {
             Ok(regex) => Some(regex),
             Err(err) => {
-                error!("Invalid notification blacklist regex `{}`: {}", pattern, err);
+                error!(
+                    "Invalid notification blacklist regex `{}`: {}",
+                    pattern, err
+                );
                 None
             }
         })
