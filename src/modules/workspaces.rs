@@ -181,38 +181,38 @@ fn calculate_ui_workspaces(
     }
 
     if config.enable_workspace_filling && !result.is_empty() {
-        let existing_ids = result.iter().map(|w| w.id).collect_vec();
-        let mut max_id = *existing_ids
+        let existing_indices = result.iter().map(|w| w.index).collect_vec();
+        let mut max_index = *existing_indices
             .iter()
-            .filter(|&&id| id > 0)
+            .filter(|&&idx| idx > 0)
             .max()
             .unwrap_or(&0);
 
         if let Some(max_cfg) = config.max_workspaces
-            && max_cfg > max_id as u32
+            && max_cfg > max_index as u32
         {
-            max_id = max_cfg as i32;
+            max_index = max_cfg as i32;
         }
 
-        let missing_ids: Vec<i32> = (1..=max_id)
-            .filter(|id| !existing_ids.contains(id))
+        let missing_indices: Vec<i32> = (1..=max_index)
+            .filter(|idx| !existing_indices.contains(idx))
             .collect();
 
-        for id in missing_ids {
-            let display_name = if id > 0 {
-                let idx = (id - 1) as usize;
+        for index in missing_indices {
+            let display_name = if index > 0 {
+                let name_idx = (index - 1) as usize;
                 config
                     .workspace_names
-                    .get(idx)
+                    .get(name_idx)
                     .cloned()
-                    .unwrap_or_else(|| id.to_string())
+                    .unwrap_or_else(|| index.to_string())
             } else {
-                id.to_string()
+                index.to_string()
             };
 
             result.push(UiWorkspace {
-                id,
-                index: id,
+                id: index,
+                index,
                 name: display_name,
                 monitor_id: None,
                 monitor: "".to_string(),
