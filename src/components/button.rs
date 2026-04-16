@@ -125,10 +125,10 @@ impl<'a, Message: 'static + Clone> From<StyledButton<'a, Message>> for Element<'
     fn from(value: StyledButton<'a, Message>) -> Self {
         let theme = value.theme;
 
-        let (btn_height, padding, icon_size) = match value.size {
-            ButtonSize::Small => (28., [theme.space.xxs, theme.space.sm], theme.font_size.sm),
-            ButtonSize::Medium => (36., [theme.space.xs, theme.space.md], theme.font_size.md),
-            ButtonSize::Large => (48., [theme.space.sm, theme.space.xl], theme.font_size.lg),
+        let (padding, icon_size) = match value.size {
+            ButtonSize::Small => ([theme.space.xxs, theme.space.sm], theme.font_size.sm),
+            ButtonSize::Medium => ([theme.space.xs, theme.space.md], theme.font_size.md),
+            ButtonSize::Large => ([theme.space.sm, theme.space.xl], theme.font_size.lg),
         };
 
         let (icon_element, icon_position) = match value.icon {
@@ -155,7 +155,7 @@ impl<'a, Message: 'static + Clone> From<StyledButton<'a, Message>> for Element<'
         let mut btn = button_fn(content)
             .padding(padding)
             .style(theme.button_style(value.kind, value.hierarchy))
-            .height(value.height.unwrap_or(Length::Fixed(btn_height)));
+            .height(value.height.unwrap_or(Length::Shrink));
 
         if let Some(width) = value.width {
             btn = btn.width(width);

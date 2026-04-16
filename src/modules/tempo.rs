@@ -1,7 +1,10 @@
 use crate::{
-    components::icons::StaticIcon,
-    components::menu::MenuSize,
-    components::{ButtonKind, IconPosition, styled_button},
+    components::{
+        ButtonKind, ButtonSize,
+        icons::{StaticIcon, icon_button},
+        menu::MenuSize,
+        styled_button,
+    },
     config::{TempoModuleConfig, WeatherIndicator, WeatherLocation},
     theme::AshellTheme,
 };
@@ -294,8 +297,7 @@ impl Tempo {
 
         let calendar = column![
             row![
-                styled_button::<Message>(theme, "")
-                    .icon(StaticIcon::LeftChevron, IconPosition::Before)
+                icon_button::<Message>(theme, StaticIcon::LeftChevron)
                     .kind(ButtonKind::Solid)
                     .on_press(Message::ChangeSelectDate(
                         selected_date.checked_sub_months(Months::new(1)),
@@ -308,8 +310,7 @@ impl Tempo {
                 .size(theme.font_size.md)
                 .width(Length::Fill)
                 .align_x(Horizontal::Center),
-                styled_button::<Message>(theme, "")
-                    .icon(StaticIcon::RightChevron, IconPosition::Before)
+                icon_button::<Message>(theme, StaticIcon::RightChevron)
                     .kind(ButtonKind::Solid)
                     .on_press(Message::ChangeSelectDate(
                         selected_date.checked_add_months(Months::new(1))
@@ -388,7 +389,9 @@ impl Tempo {
                                             None
                                         },
                                     )
+                                    .size(ButtonSize::Small)
                                     .width(Length::Fill)
+                                    .height(Length::Fixed(36.))
                                     .into()
                                 })
                                 .collect::<Vec<Element<'a, Message>>>(),
@@ -454,6 +457,7 @@ impl Tempo {
                     .spacing(theme.space.xs),
                 ),
             )
+            .size(ButtonSize::Large)
             .kind(ButtonKind::Outline)
             .on_press_maybe(if self.selected_date.is_some() {
                 Some(Message::ChangeSelectDate(None))
