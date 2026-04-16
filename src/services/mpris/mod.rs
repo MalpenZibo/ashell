@@ -11,6 +11,7 @@ use iced::{
         stream::{AbortHandle, Abortable, Aborted, FuturesUnordered, SelectAll, pending},
     },
     stream::channel,
+    widget::image,
 };
 use log::{debug, error, info};
 use std::{
@@ -102,7 +103,7 @@ impl From<HashMap<String, OwnedValue>> for MprisPlayerMetadata {
 pub struct MprisPlayerService {
     data: Vec<MprisPlayerData>,
     conn: zbus::Connection,
-    covers: HashMap<String, Bytes>,
+    covers: HashMap<String, image::Handle>,
 }
 
 impl MprisPlayerService {
@@ -110,7 +111,7 @@ impl MprisPlayerService {
         &self.data
     }
 
-    pub fn get_cover(&self, url: &str) -> Option<&Bytes> {
+    pub fn get_cover(&self, url: &str) -> Option<&image::Handle> {
         self.covers.get(url)
     }
 }
@@ -163,7 +164,7 @@ impl ReadOnlyService for MprisPlayerService {
                 self.covers.retain(|url, _| desired_urls.contains(url));
             }
             Event::CoverFetched(url, bytes) => {
-                self.covers.insert(url, bytes);
+                self.covers.insert(url, image::Handle::from_bytes(bytes));
             }
         }
     }
