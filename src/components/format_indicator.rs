@@ -66,7 +66,7 @@ impl<'a, Msg: 'static + Clone> From<FormatIndicator<'a, Msg>> for Element<'a, Ms
                 .style(move |theme: &Theme| container::Style {
                     text_color: Some(match fi.state {
                         IndicatorState::Success => theme.palette().success,
-                        IndicatorState::Warning => theme.extended_palette().danger.weak.color,
+                        IndicatorState::Warning => theme.palette().warning,
                         IndicatorState::Danger => theme.palette().danger,
                         IndicatorState::Normal => unreachable!(),
                     }),
