@@ -1,3 +1,4 @@
+pub mod button;
 mod centerbox;
 mod format_indicator;
 mod ghost_menu_button;
@@ -13,6 +14,8 @@ mod selectable_list_item;
 mod slider_control;
 mod sub_menu_wrapper;
 
+#[allow(unused_imports)]
+pub use button::*;
 pub use centerbox::*;
 pub use format_indicator::*;
 pub use ghost_menu_button::*;

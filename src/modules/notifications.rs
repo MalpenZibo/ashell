@@ -561,6 +561,7 @@ impl Notifications {
             container(text("No notifications").size(theme.font_size.md))
                 .width(Length::Fill)
                 .center_x(Length::Fill)
+                .padding(theme.space.xxl)
                 .into()
         } else if self.config.grouped {
             self.grouped_notifications(theme)

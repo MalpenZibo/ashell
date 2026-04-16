@@ -1,5 +1,8 @@
-use crate::config::{
-    Appearance, AppearanceColor, AppearanceStyle, BackgroundLevel, MenuAppearance, Position,
+use crate::{
+    components::button::{ButtonHierarchy, ButtonKind},
+    config::{
+        Appearance, AppearanceColor, AppearanceStyle, BackgroundLevel, MenuAppearance, Position,
+    },
 };
 use iced::{
     Background, Border, Color, Theme,
@@ -218,6 +221,138 @@ impl AshellTheme {
 
     pub fn get_theme(&self) -> &Theme {
         &self.iced_theme
+    }
+
+    pub fn button_style(
+        &self,
+        kind: ButtonKind,
+        hierarchy: ButtonHierarchy,
+    ) -> impl Fn(&Theme, Status) -> button::Style {
+        let radius = match kind {
+            ButtonKind::Transparent => self.radius.sm,
+            ButtonKind::Solid | ButtonKind::Outline => self.radius.xl,
+        };
+        let opacity = self.opacity;
+
+        move |theme: &Theme, status: Status| {
+            let palette = theme.palette();
+            let ext = theme.extended_palette();
+
+            let (base_bg, hover_bg, base_text, hover_text, border_color) = match hierarchy {
+                ButtonHierarchy::Primary => (
+                    palette.primary,
+                    ext.primary.weak.color,
+                    ext.primary.base.text,
+                    ext.primary.base.text,
+                    palette.primary,
+                ),
+                ButtonHierarchy::Secondary => (
+                    ext.background.weak.color,
+                    ext.background.strong.color,
+                    palette.text,
+                    palette.text,
+                    ext.background.weak.color,
+                ),
+                ButtonHierarchy::Danger => (
+                    palette.danger,
+                    ext.danger.weak.color,
+                    ext.danger.base.text,
+                    ext.danger.base.text,
+                    palette.danger,
+                ),
+            };
+
+            match (kind, status) {
+                (ButtonKind::Solid, Status::Active) => button::Style {
+                    background: Some(base_bg.scale_alpha(opacity).into()),
+                    border: Border {
+                        width: 0.0,
+                        radius: radius.into(),
+                        color: Color::TRANSPARENT,
+                    },
+                    text_color: base_text,
+                    ..button::Style::default()
+                },
+                (ButtonKind::Solid, Status::Hovered) => button::Style {
+                    background: Some(hover_bg.scale_alpha(opacity).into()),
+                    border: Border {
+                        width: 0.0,
+                        radius: radius.into(),
+                        color: Color::TRANSPARENT,
+                    },
+                    text_color: hover_text,
+                    ..button::Style::default()
+                },
+
+                (ButtonKind::Transparent, Status::Active) => button::Style {
+                    background: None,
+                    border: Border {
+                        width: 0.0,
+                        radius: radius.into(),
+                        color: Color::TRANSPARENT,
+                    },
+                    text_color: palette.text,
+                    ..button::Style::default()
+                },
+                (ButtonKind::Transparent, Status::Hovered) => button::Style {
+                    background: Some(ext.background.weak.color.scale_alpha(opacity).into()),
+                    border: Border {
+                        width: 0.0,
+                        radius: radius.into(),
+                        color: Color::TRANSPARENT,
+                    },
+                    text_color: match hierarchy {
+                        ButtonHierarchy::Danger => palette.danger,
+                        ButtonHierarchy::Primary => palette.primary,
+                        ButtonHierarchy::Secondary => palette.text,
+                    },
+                    ..button::Style::default()
+                },
+
+                (ButtonKind::Outline, Status::Active) => button::Style {
+                    background: None,
+                    border: Border {
+                        width: 2.0,
+                        radius: radius.into(),
+                        color: border_color,
+                    },
+                    text_color: palette.text,
+                    ..button::Style::default()
+                },
+                (ButtonKind::Outline, Status::Hovered) => button::Style {
+                    background: Some(base_bg.scale_alpha(opacity).into()),
+                    border: Border {
+                        width: 2.0,
+                        radius: radius.into(),
+                        color: border_color,
+                    },
+                    text_color: palette.text,
+                    ..button::Style::default()
+                },
+
+                (_, Status::Disabled) => button::Style {
+                    background: None,
+                    border: Border {
+                        width: 0.0,
+                        radius: radius.into(),
+                        color: Color::TRANSPARENT,
+                    },
+                    text_color: palette.text.scale_alpha(0.3),
+                    ..button::Style::default()
+                },
+
+                _ => button::Style {
+                    background: None,
+                    border: Border {
+                        width: 0.0,
+                        radius: radius.into(),
+                        color: Color::TRANSPARENT,
+                    },
+                    text_color: palette.text,
+                    ..button::Style::default()
+                },
+            }
+        }
     }
 
     pub fn ghost_button_style(&self) -> impl Fn(&Theme, Status) -> button::Style {
