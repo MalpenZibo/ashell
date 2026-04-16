@@ -2,7 +2,7 @@ use std::convert;
 
 use crate::{
     components::{
-        IconPosition, divider, format_indicator,
+        ButtonKind, IconPosition, divider, format_indicator,
         icons::{StaticIcon, icon},
         quick_setting_button, styled_button,
     },
@@ -20,7 +20,7 @@ use crate::{
 use iced::{
     Alignment, Element, Length, Subscription, Task, Theme,
     alignment::Vertical,
-    widget::{Column, Row, button, column, container, row, text},
+    widget::{Column, Row, column, container, row, text},
 };
 
 fn format_time_for_battery(battery: &BatteryData) -> String {
@@ -388,13 +388,9 @@ impl PowerSettings {
                     let indicator = self.menu_indicator(ashell_theme, battery, None);
 
                     if !service.peripherals.is_empty() {
-                        button(indicator)
-                            .padding([0.0, ashell_theme.space.sm])
+                        styled_button(ashell_theme, indicator)
+                            .kind(ButtonKind::Solid)
                             .on_press(Message::TogglePeripheralMenu)
-                            .style(ashell_theme.button_style(
-                                crate::components::ButtonKind::Solid,
-                                crate::components::ButtonHierarchy::Secondary,
-                            ))
                             .into()
                     } else {
                         indicator
@@ -409,13 +405,9 @@ impl PowerSettings {
                         );
 
                         Some(if service.peripherals.len() > 1 {
-                            button(indicator)
-                                .padding([0.0, ashell_theme.space.sm])
+                            styled_button(ashell_theme, indicator)
+                                .kind(ButtonKind::Solid)
                                 .on_press(Message::TogglePeripheralMenu)
-                                .style(ashell_theme.button_style(
-                                    crate::components::ButtonKind::Solid,
-                                    crate::components::ButtonHierarchy::Secondary,
-                                ))
                                 .into()
                         } else {
                             indicator

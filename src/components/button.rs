@@ -4,6 +4,28 @@ use iced::{
     widget::{button as button_fn, container, row, text},
 };
 
+pub trait IntoButtonContent<'a, Message: 'static> {
+    fn into_content(self) -> Element<'a, Message>;
+}
+
+impl<'a, Message: 'static> IntoButtonContent<'a, Message> for &'a str {
+    fn into_content(self) -> Element<'a, Message> {
+        text(self).align_y(Alignment::Center).into()
+    }
+}
+
+impl<'a, Message: 'static> IntoButtonContent<'a, Message> for String {
+    fn into_content(self) -> Element<'a, Message> {
+        text(self).align_y(Alignment::Center).into()
+    }
+}
+
+impl<'a, Message: 'static> IntoButtonContent<'a, Message> for Element<'a, Message> {
+    fn into_content(self) -> Element<'a, Message> {
+        self
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum ButtonKind {
     Solid,
@@ -151,11 +173,11 @@ impl<'a, Message: 'static + Clone> From<StyledButton<'a, Message>> for Element<'
 
 pub fn styled_button<'a, Message: 'static + Clone>(
     theme: &'a AshellTheme,
-    label: impl text::IntoFragment<'a>,
+    content: impl IntoButtonContent<'a, Message>,
 ) -> StyledButton<'a, Message> {
     StyledButton {
         theme,
-        label: text(label).align_y(Alignment::Center).into(),
+        label: content.into_content(),
         icon: None,
         kind: ButtonKind::default(),
         hierarchy: ButtonHierarchy::default(),
