@@ -2,7 +2,9 @@ use crate::{
     components::divider,
     components::icons::{StaticIcon, icon},
     components::menu::MenuSize,
-    components::{ButtonUIRef, IconPosition, position_button, styled_button},
+    components::{
+        ButtonHierarchy, ButtonKind, ButtonUIRef, IconPosition, position_button, styled_button,
+    },
     services::{
         ReadOnlyService, Service, ServiceEvent,
         tray::{
@@ -207,8 +209,8 @@ impl TrayModule {
                                 })
                                 .padding(theme.space.xxs)
                                 .style(theme.button_style(
-                                    crate::components::ButtonKind::Transparent,
-                                    crate::components::ButtonHierarchy::Secondary,
+                                    ButtonKind::Transparent,
+                                    ButtonHierarchy::Secondary,
                                 ))
                                 .into()
                             })
