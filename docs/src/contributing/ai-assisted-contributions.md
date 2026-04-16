@@ -20,7 +20,7 @@ Regardless of the tools used, **you are responsible for the code you submit**. R
 
 ### Discuss Before Implementing
 
-Before working on a feature or large change, **talk to the maintainers first**. Open an issue or comment on an existing one to discuss:
+Before working on a feature or large change, **talk to the maintainers first**. Reach out on [Matrix](https://matrix.to/#/#ashell:matrix.org), open an issue, or comment on an existing one to discuss:
 
 - Does this fit the project?
 - What architectural decisions make sense?

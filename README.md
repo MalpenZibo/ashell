@@ -65,6 +65,11 @@ If you want to customize it you can refer to
 the [Configuration](https://malpenzibo.github.io/ashell/docs/configuration)
 page for more details.
 
+## 💬 Community
+
+Join the conversation on [Matrix](https://matrix.to/#/#ashell:matrix.org) or open an
+[issue](https://github.com/MalpenZibo/ashell/issues) on GitHub.
+
 ## 📖 Developer Guide
 
 If you want to contribute or understand the codebase, check out the
