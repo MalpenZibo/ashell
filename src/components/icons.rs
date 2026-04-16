@@ -444,9 +444,17 @@ impl<'a, I: Icon, Message: 'static + Clone> From<IconButton<'a, I, Message>>
             ButtonSize::Large => (38., value.theme.font_size.sm),
         };
 
+        let radius = value.theme.radius.xl;
         let style: StyleFn<'a, Theme> = match value.style_override {
             Some(s) => s,
-            None => Box::new(value.theme.button_style(value.kind, value.hierarchy)),
+            None => {
+                let base = value.theme.button_style(value.kind, value.hierarchy);
+                Box::new(move |theme: &Theme, status: Status| {
+                    let mut s = base(theme, status);
+                    s.border.radius = radius.into();
+                    s
+                })
+            }
         };
 
         let btn = button_fn(
