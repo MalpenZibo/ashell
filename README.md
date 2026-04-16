@@ -33,6 +33,7 @@ page on website
 - Clock with calendar, weather, timezone cycling, and format cycling (Tempo)
 - Privacy indicators (microphone, camera, and screenshare usage)
 - Media Player with album art and track info
+- Notification manager with toast popups, grouping, and urgency support
 - Settings panel
   - Power menu (shutdown, suspend, hibernate, reboot, logout, lock)
   - Battery and peripheral battery information

@@ -22,11 +22,12 @@ ashell is structured in three layers:
 ┌───────▼──────────┐    ┌─────────────▼────────────┐
 │   Modules (UI)   │    │   Services (Backend)     │
 │                  │    │                          │
-│  clock, tempo,   │    │  compositor, audio,      │
+│  tempo,          │    │  compositor, audio,      │
 │  workspaces,     │    │  bluetooth, network,     │
 │  settings,       │◄───│  mpris, tray, upower,    │
 │  system_info,    │    │  brightness, privacy,    │
-│  tray, media,    │    │  logind, idle_inhibitor  │
+│  notifications,  │    │  notifications, logind,  │
+│  tray, media,    │    │  idle_inhibitor          │
 │  privacy, etc.   │    │                          │
 └──────────────────┘    └──────────────────────────┘
 ```
@@ -41,28 +42,20 @@ ashell is structured in three layers:
 
 - **Rust-native**: No FFI bindings to GTK/Qt, keeping the stack uniform.
 - **Elm Architecture**: Predictable state management with unidirectional data flow.
-- **Wayland layer shell support**: Available through a fork (see below).
+- **Wayland layer shell support**: Available through [iced_layershell](https://github.com/MalpenZibo/iced_layershell).
 - **GPU-accelerated rendering**: Via wgpu.
 
-### The iced Fork Chain
+### iced_layershell
 
-ashell does **not** use upstream iced directly. Instead, it uses a chain of forks:
+ashell uses upstream iced 0.14 with [iced_layershell](https://github.com/MalpenZibo/iced_layershell), a Wayland layer shell backend built on Smithay Client Toolkit (SCTK). This provides layer surface management, multi-surface support, and input handling without forking iced.
 
-```
-upstream iced
-    └── Pop!_OS / cosmic-iced (adds Wayland layer shell support via SCTK)
-            └── MalpenZibo/iced (ashell's fork: fixes, features, Wayland tweaks)
-```
-
-The Pop!_OS fork adds SCTK (Smithay Client Toolkit) integration for Wayland layer surfaces, which is essential for a status bar. MalpenZibo's fork on top of that includes additional fixes and features specific to ashell's needs.
-
-This fork dependency is tracked in `Cargo.toml` as a git dependency with a pinned revision:
+In `Cargo.toml` the dependency is aliased as `iced` for convenience:
 
 ```toml
-iced = { git = "https://github.com/MalpenZibo/iced", rev = "...", features = [...] }
+iced = { package = "iced_layershell", git = "https://github.com/MalpenZibo/iced_layershell", tag = "v0.1.3", features = [...] }
 ```
 
-> **Note**: The fork dependency is a known maintenance burden. See [Known Limitations](known-limitations.md) for more context and the long-term plans.
+> **History**: ashell previously depended on a Pop!_OS/cosmic-iced fork chain. The migration to iced_layershell (v0.8.0+) eliminated that fork dependency.
 
 ## Design Principles
 

@@ -2,20 +2,6 @@
 
 This chapter documents known architectural limitations and design tradeoffs. Understanding these helps contributors make informed decisions and avoid re-discovering known issues.
 
-## The iced Fork Dependency
-
-**Issue**: ashell depends on a fork of a fork of iced (upstream → Pop!_OS/cosmic → MalpenZibo). This creates maintenance burden:
-
-- Upstream iced improvements must be manually cherry-picked.
-- The fork diverges over time, making rebases increasingly difficult.
-- Contributors can't easily use upstream iced documentation or examples without checking for differences.
-
-**Why it exists**: Upstream iced doesn't support Wayland layer shell surfaces. The Pop!_OS fork adds SCTK integration, and MalpenZibo's fork adds further fixes needed by ashell.
-
-**Status**: The maintainer has explored alternatives (including an experimental GUI library called "guido"), but there are no concrete plans to migrate away from the iced fork. The fork is updated periodically to track upstream changes.
-
-**Related**: [GitHub Issue #450 (Roadmap)](https://github.com/MalpenZibo/ashell/issues/450)
-
 ## Menu Surface Architecture
 
 **Issue**: Context menus currently use a fullscreen transparent overlay surface. This has several drawbacks:
@@ -24,7 +10,7 @@ This chapter documents known architectural limitations and design tradeoffs. Und
 - **Layering bugs**: The overlay doesn't correctly layer popups on top of other windows in all cases
 - **Conflicts**: Can interfere with other layer surfaces on the Background layer
 
-**Correct approach**: Use `zwlr_layer_surface_v1::get_popup` to create proper `xdg_popup` surfaces. However, the SCTK library has this method but the iced fork doesn't expose it.
+**Correct approach**: Use `zwlr_layer_surface_v1::get_popup` to create proper `xdg_popup` surfaces. However, iced_layershell does not currently expose this.
 
 **Workaround**: The current fullscreen overlay approach was also chosen because iced has a HiDPI scaling regression where newly created surfaces initially render blurry.
 

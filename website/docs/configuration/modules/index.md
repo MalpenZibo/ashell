@@ -87,6 +87,11 @@ Provides privacy-related features, such as toggling microphone and camera access
 
 Displays media player controls and information about the currently playing media.
 
+### Notifications
+
+Desktop notification daemon with toast popups and a notification center menu.
+See the [Notifications docs](./notifications.md) for full configuration details.
+
 ### Settings
 
 Provides access to system settings like audio, network, Bluetooth, battery,

@@ -39,7 +39,7 @@
 - [Modules Overview](modules/overview.md)
 - [Anatomy of a Module](modules/anatomy-of-a-module.md)
 - [Module Registry and Routing](modules/module-registry.md)
-- [Walkthrough: The Clock Module](modules/clock-walkthrough.md)
+- [Walkthrough: The Clock Module (Historical)](modules/clock-walkthrough.md)
 - [Deep Dive: The Settings Module](modules/settings-module.md)
 - [Writing a New Module](modules/writing-a-new-module.md)
 

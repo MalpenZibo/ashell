@@ -12,8 +12,8 @@ Modules are the UI building blocks of ashell. Each module is a self-contained co
 | KeyboardLayout | `"KeyboardLayout"` | Keyboard layout indicator (click to cycle) | No |
 | KeyboardSubmap | `"KeyboardSubmap"` | Hyprland submap display | No |
 | Tray | `"Tray"` | System tray icons | Yes (per-app) |
-| Clock | `"Clock"` | Simple time display (**deprecated**) | No |
 | Tempo | `"Tempo"` | Advanced clock with calendar, weather, timezones | Yes |
+| Notifications | `"Notifications"` | Desktop notification daemon with toasts | Yes |
 | Privacy | `"Privacy"` | Microphone/camera/screenshare indicators | No |
 | Settings | `"Settings"` | Settings panel (audio, network, bluetooth, etc.) | Yes |
 | MediaPlayer | `"MediaPlayer"` | MPRIS media player control | Yes |
