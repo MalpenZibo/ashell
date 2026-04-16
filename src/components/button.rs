@@ -144,7 +144,7 @@ impl<'a, Message: 'static + Clone> From<StyledButton<'a, Message>> for Element<'
             )
             .into(),
             (Some(icon_el), Some(IconPosition::After)) => container(
-                row![value.label, icon_el]
+                row![container(value.label).width(Length::Fill), icon_el,]
                     .spacing(theme.space.xs)
                     .align_y(Alignment::Center),
             )

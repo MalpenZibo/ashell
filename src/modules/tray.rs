@@ -112,16 +112,19 @@ impl TrayModule {
                 toggle_type: Some(toggle_type),
                 toggle_state: Some(state),
                 ..
-            } if toggle_type == "checkmark" => toggler(*state > 0)
-                .label(label.replace("_", "").to_owned())
-                .on_toggle({
-                    let name = name.to_owned();
-                    let id = layout.0;
+            } if toggle_type == "checkmark" => container(
+                toggler(*state > 0)
+                    .label(label.replace("_", "").to_owned())
+                    .on_toggle({
+                        let name = name.to_owned();
+                        let id = layout.0;
 
-                    move |_| Message::MenuSelected(name.to_owned(), id)
-                })
-                .width(Length::Fill)
-                .into(),
+                        move |_| Message::MenuSelected(name.to_owned(), id)
+                    })
+                    .width(Length::Fill),
+            )
+            .padding([theme.space.xs, theme.space.md])
+            .into(),
             LayoutProps {
                 children_display: Some(display),
                 label: Some(label),
