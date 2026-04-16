@@ -385,15 +385,7 @@ impl Notifications {
                 }),
             };
 
-            // Highlight critical notifications with a danger-colored border
-            // on the top-level card styles (Toast/Standalone). Grouped item
-            // styles are left untouched to avoid visual noise inside a list.
-            if urgency == Urgency::Critical
-                && matches!(
-                    style,
-                    NotificationStyle::Standalone | NotificationStyle::Toast
-                )
-            {
+            if urgency == Urgency::Critical {
                 border.width = 2.0;
                 border.color = iced_theme.palette().danger;
             }
@@ -673,17 +665,22 @@ impl Notifications {
             let app_icon = notification_icon(first.icon.as_ref());
 
             let mut count = 1;
+            let mut has_critical = first.urgency == Urgency::Critical;
             let mut group_notifications = vec![];
 
             if is_expanded {
                 group_notifications.push(self.group_item(first, false, theme));
                 while let Some(notification) = iter.next() {
                     count += 1;
+                    has_critical = has_critical || notification.urgency == Urgency::Critical;
                     let is_last = iter.peek().is_none();
                     group_notifications.push(self.group_item(notification, is_last, theme));
                 }
             } else {
-                count += iter.count(); // consume the rest just to count
+                for notification in iter {
+                    count += 1;
+                    has_critical = has_critical || notification.urgency == Urgency::Critical;
+                }
                 group_notifications.push(self.group_item(first, true, theme));
             }
 
@@ -711,7 +708,11 @@ impl Notifications {
                         .style(Self::notification_button_style(
                             theme,
                             NotificationStyle::GroupHeader,
-                            Urgency::Normal,
+                            if has_critical {
+                                Urgency::Critical
+                            } else {
+                                Urgency::Normal
+                            },
                         ))
                         .on_press(toggle_msg),
                 )
