@@ -1,8 +1,8 @@
-# Walkthrough: The Clock Module
+# Walkthrough: The Clock Module (Historical)
 
-The Clock module (`src/modules/clock.rs`) is the simplest module in ashell at just 60 lines. It's an ideal example for understanding the module pattern.
+> **Note**: The Clock module has been removed from the codebase. This walkthrough is preserved as a teaching example of the module pattern. For current patterns, see [Anatomy of a Module](anatomy-of-a-module.md).
 
-> **Note**: The Clock module is deprecated in favor of the more feature-rich [Tempo](../reference/glossary.md) module. It remains in the codebase for backwards compatibility but logs a deprecation warning.
+The Clock module was the simplest module in ashell at just 60 lines. It's an ideal example for understanding the module pattern.
 
 ## Complete Source (annotated)
 

@@ -31,15 +31,14 @@ If you don't use Nix, install the [prerequisites](prerequisites.md) for your dis
 
 ### rust-analyzer
 
-ashell uses a custom fork of iced (see [Architecture Overview](../architecture/overview.md)). This means `rust-analyzer` resolves iced types from the git dependency. Go-to-definition works, but it will navigate into `~/.cargo/git/` rather than a local checkout.
+ashell uses [iced_layershell](https://github.com/MalpenZibo/iced_layershell) as a git dependency (see [Architecture Overview](../architecture/overview.md)). `rust-analyzer` works normally — go-to-definition will navigate into `~/.cargo/git/`.
 
-If you need to edit or deeply explore the iced fork, clone it locally:
+If you need to develop against a local checkout of iced_layershell, add a `[patch]` section to `Cargo.toml` (don't commit this):
 
-```bash
-git clone https://github.com/MalpenZibo/iced.git
+```toml
+[patch."https://github.com/MalpenZibo/iced_layershell"]
+iced_layershell = { path = "../iced_layershell" }
 ```
-
-Then temporarily override the dependency in `Cargo.toml` using a `[patch]` section (don't commit this).
 
 ## Running ashell
 

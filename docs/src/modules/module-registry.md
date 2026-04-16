@@ -11,8 +11,8 @@ fn get_module_view(&self, id: Id, module_name: &ModuleName)
     -> Option<(Element<Message>, Option<OnModulePress>)>
 {
     match module_name {
-        ModuleName::Clock => Some((
-            self.clock.view(&self.theme).map(Message::Clock),
+        ModuleName::Privacy => Some((
+            self.privacy.view(&self.theme).map(Message::Privacy),
             None,  // No interaction
         )),
         ModuleName::Settings => Some((
@@ -63,7 +63,7 @@ Maps each module to its subscriptions:
 ```rust
 fn get_module_subscription(&self, module_name: &ModuleName) -> Option<Subscription<Message>> {
     match module_name {
-        ModuleName::Clock => Some(self.clock.subscription().map(Message::Clock)),
+        ModuleName::Privacy => Some(self.privacy.subscription().map(Message::Privacy)),
         ModuleName::Settings => Some(self.settings.subscription().map(Message::Settings)),
         // ...
     }

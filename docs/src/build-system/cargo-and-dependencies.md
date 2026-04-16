@@ -8,15 +8,12 @@ ashell's dependencies are managed in `Cargo.toml`. This chapter covers the key d
 
 | Crate | Version | Purpose |
 |-------|---------|---------|
-| `iced` | Git (MalpenZibo fork) | GUI framework with Wayland layer shell support |
+| `iced` (iced_layershell) | Git | GUI framework with Wayland layer shell support via [iced_layershell](https://github.com/MalpenZibo/iced_layershell) |
 
-The iced dependency uses many features:
+The dependency is aliased as `iced` in `Cargo.toml` (`package = "iced_layershell"`). It uses these features:
 - `tokio` — Async runtime integration
-- `multi-window` — Multiple layer surfaces (bar + menu per monitor)
 - `advanced` — Custom widget support
 - `wgpu` — GPU-accelerated rendering
-- `winit` — Window system integration
-- `wayland` — Wayland protocol support
 - `image`, `svg`, `canvas` — Graphics capabilities
 
 ### Async Runtime
