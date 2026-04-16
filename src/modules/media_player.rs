@@ -146,7 +146,7 @@ impl MediaPlayer {
                             let inner: Element<'_, _> = service
                                 .get_cover(url)
                                 .map(|handle| {
-                                    image(handle.clone())
+                                    image(handle)
                                         .filter_method(image::FilterMethod::Linear)
                                         .into()
                                 })
