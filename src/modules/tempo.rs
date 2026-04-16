@@ -1,6 +1,7 @@
 use crate::{
-    components::icons::{StaticIcon, icon},
+    components::icons::StaticIcon,
     components::menu::MenuSize,
+    components::{ButtonHierarchy, ButtonKind, IconPosition, styled_button},
     config::{TempoModuleConfig, WeatherIndicator, WeatherLocation},
     theme::AshellTheme,
 };
@@ -293,12 +294,12 @@ impl Tempo {
 
         let calendar = column![
             row![
-                button(icon(StaticIcon::LeftChevron))
+                styled_button::<Message>(theme, "")
+                    .icon(StaticIcon::LeftChevron, IconPosition::Before)
+                    .kind(ButtonKind::Solid)
                     .on_press(Message::ChangeSelectDate(
                         selected_date.checked_sub_months(Months::new(1)),
-                    ))
-                    .padding([theme.space.xs, theme.space.md])
-                    .style(theme.settings_button_style()),
+                    )),
                 text(
                     selected_date
                         .format_localized("%B", self.config.locale)
@@ -307,12 +308,12 @@ impl Tempo {
                 .size(theme.font_size.md)
                 .width(Length::Fill)
                 .align_x(Horizontal::Center),
-                button(icon(StaticIcon::RightChevron))
+                styled_button::<Message>(theme, "")
+                    .icon(StaticIcon::RightChevron, IconPosition::Before)
+                    .kind(ButtonKind::Solid)
                     .on_press(Message::ChangeSelectDate(
                         selected_date.checked_add_months(Months::new(1))
                     ))
-                    .padding([theme.space.xs, theme.space.md])
-                    .style(theme.settings_button_style())
             ]
             .width(Length::Fill)
             .align_y(Vertical::Center),
@@ -383,7 +384,10 @@ impl Tempo {
                                         },
                                     )
                                     .width(Length::Fill)
-                                    .style(theme.ghost_button_style())
+                                    .style(theme.button_style(
+                                        ButtonKind::Transparent,
+                                        ButtonHierarchy::Secondary,
+                                    ))
                                     .into()
                                 })
                                 .collect::<Vec<Element<'a, Message>>>(),
@@ -416,15 +420,12 @@ impl Tempo {
                         })
                         .into()
                     } else {
-                        button(text(format!(
-                            "{}: {}",
-                            tz_name,
-                            self.time_str("%d %h %R", index)
-                        )))
+                        styled_button(
+                            theme,
+                            format!("{}: {}", tz_name, self.time_str("%d %h %R", index)),
+                        )
                         .width(Length::Fill)
                         .on_press(Message::SetTimezone(index))
-                        .padding([theme.space.xxs, theme.space.sm])
-                        .style(theme.ghost_button_style())
                         .into()
                     }
                 })
@@ -455,7 +456,7 @@ impl Tempo {
             } else {
                 None
             })
-            .style(theme.outline_button_style()),
+            .style(theme.button_style(ButtonKind::Outline, ButtonHierarchy::Secondary)),
             calendar,
             timezones,
         )

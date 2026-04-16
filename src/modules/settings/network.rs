@@ -3,7 +3,7 @@ use crate::{
     components::{
         divider, format_indicator,
         icons::{StaticIcon, icon, icon_button},
-        quick_setting_button,
+        quick_setting_button, styled_button,
     },
     config::SettingsFormat,
     services::{
@@ -578,7 +578,10 @@ impl NetworkSettings {
                                     }
                                 }),
                             )
-                            .style(theme.ghost_button_style())
+                            .style(theme.button_style(
+                                crate::components::ButtonKind::Transparent,
+                                crate::components::ButtonHierarchy::Secondary,
+                            ))
                             .padding([8, 8])
                             .on_press_maybe(if !is_active {
                                 Some(if ac.public {
@@ -606,11 +609,9 @@ impl NetworkSettings {
             column!(
                 main,
                 divider(),
-                button("More")
+                styled_button(theme, "More")
                     .on_press(Message::WiFiMore(id))
-                    .padding([theme.space.xxs, theme.space.sm])
                     .width(Length::Fill)
-                    .style(theme.ghost_button_style())
             )
             .spacing(theme.space.sm)
             .into()
@@ -678,11 +679,9 @@ impl NetworkSettings {
             column!(
                 main,
                 divider(),
-                button("More")
+                styled_button(theme, "More")
                     .on_press(Message::VpnMore(id))
-                    .padding([theme.space.xxs, theme.space.sm])
                     .width(Length::Fill)
-                    .style(theme.ghost_button_style())
             )
             .spacing(theme.space.sm)
             .into()

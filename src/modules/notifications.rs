@@ -1,7 +1,7 @@
 use crate::{
-    components::ButtonSize,
     components::icons::{StaticIcon, icon, icon_button},
     components::menu::MenuSize,
+    components::{ButtonHierarchy, ButtonKind, ButtonSize},
     config::{NotificationsModuleConfig, ToastPosition},
     services::{
         ReadOnlyService, ServiceEvent,
@@ -483,7 +483,8 @@ impl Notifications {
                     )
                     .push(
                         icon_button(theme, StaticIcon::Close)
-                            .style(theme.notification_delete_button_style())
+                            .kind(ButtonKind::Transparent)
+                            .hierarchy(ButtonHierarchy::Danger)
                             .on_press(Message::CloseNotificationById(notification_id))
                     ),
                 column!(
@@ -699,7 +700,8 @@ impl Notifications {
                 icon_button(theme, StaticIcon::Delete)
                     .on_press(clear_msg)
                     .size(ButtonSize::Large)
-                    .style(theme.notification_delete_button_style())
+                    .kind(ButtonKind::Transparent)
+                    .hierarchy(ButtonHierarchy::Danger)
             )
             .spacing(theme.space.xs)
             .align_y(Alignment::Center);

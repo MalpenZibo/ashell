@@ -1,7 +1,9 @@
 use super::SubMenu;
 use crate::{
     components::{
-        divider, format_indicator, icons::StaticIcon, selectable_list_item, slider_control,
+        IconPosition, divider, format_indicator,
+        icons::{Icon, StaticIcon},
+        slider_control, styled_button,
     },
     config::SettingsFormat,
     services::{
@@ -13,9 +15,9 @@ use crate::{
     utils::remote_value::{self, Remote},
 };
 use iced::{
-    Element, Length, Subscription, SurfaceId, Task,
+    Alignment, Element, Length, Subscription, SurfaceId, Task, Theme,
     mouse::ScrollDelta,
-    widget::{Column, Text, button, column, text},
+    widget::{Column, Text, column, container, row, text},
 };
 use libpulse_binding::volume::Volume;
 
@@ -488,7 +490,27 @@ impl AudioSettings {
         let entries: Element<'a, Message> = Column::with_children(
             entries
                 .into_iter()
-                .map(|e| selectable_list_item(theme, e.icon, e.name, e.active, e.msg))
+                .map(|e| {
+                    if e.active {
+                        container(
+                            row![e.icon.to_text(), text(e.name)]
+                                .align_y(Alignment::Center)
+                                .spacing(theme.space.md)
+                                .padding([theme.space.xxs, theme.space.sm]),
+                        )
+                        .style(|theme: &Theme| container::Style {
+                            text_color: Some(theme.palette().success),
+                            ..Default::default()
+                        })
+                        .into()
+                    } else {
+                        styled_button(theme, e.name)
+                            .icon(e.icon, IconPosition::Before)
+                            .on_press(e.msg)
+                            .width(Length::Fill)
+                            .into()
+                    }
+                })
                 .collect::<Vec<_>>(),
         )
         .spacing(theme.space.xxs)
@@ -498,11 +520,9 @@ impl AudioSettings {
             Some(more_msg) => column!(
                 entries,
                 divider(),
-                button("More")
+                styled_button(theme, "More")
                     .on_press(more_msg)
-                    .padding([theme.space.xxs, theme.space.sm])
-                    .width(Length::Fill)
-                    .style(theme.ghost_button_style()),
+                    .width(Length::Fill),
             )
             .spacing(theme.space.sm)
             .into(),

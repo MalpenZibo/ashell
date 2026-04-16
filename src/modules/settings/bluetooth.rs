@@ -3,7 +3,7 @@ use crate::{
     components::{
         ButtonSize, divider, format_indicator,
         icons::{StaticIcon, icon, icon_button},
-        quick_setting_button,
+        quick_setting_button, styled_button,
     },
     config::SettingsFormat,
     services::{
@@ -290,7 +290,10 @@ impl BluetoothSettings {
                                 .spacing(theme.space.xs)
                                 .width(Length::Fill),
                         )
-                        .style(theme.ghost_button_style())
+                        .style(theme.button_style(
+                            crate::components::ButtonKind::Transparent,
+                            crate::components::ButtonHierarchy::Secondary,
+                        ))
                         .padding([theme.space.xs, theme.space.xs])
                         .on_press(if d.connected {
                             Message::DisconnectDevice(d.path.clone())
@@ -349,7 +352,10 @@ impl BluetoothSettings {
                                             .align_y(Vertical::Center)
                                             .spacing(theme.space.xs),
                                         )
-                                        .style(theme.ghost_button_style())
+                                        .style(theme.button_style(
+                                            crate::components::ButtonKind::Transparent,
+                                            crate::components::ButtonHierarchy::Secondary,
+                                        ))
                                         .on_press(Message::PairDevice(d.path.clone()))
                                         .width(Length::Fill)
                                         .into()
@@ -372,11 +378,9 @@ impl BluetoothSettings {
                 })
                 .push(self.config.more_cmd.as_ref().map(|_| divider()))
                 .push(self.config.more_cmd.as_ref().map(|_| {
-                    button("More")
+                    styled_button(theme, "More")
                         .on_press(Message::More(id))
-                        .padding([theme.space.xxs, theme.space.sm])
                         .width(Length::Fill)
-                        .style(theme.ghost_button_style())
                 }))
                 .spacing(theme.space.sm)
                 .into()

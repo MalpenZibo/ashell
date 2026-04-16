@@ -149,7 +149,6 @@ impl<'a, Message: 'static + Clone> From<StyledButton<'a, Message>> for Element<'
     }
 }
 
-#[allow(dead_code)]
 pub fn styled_button<'a, Message: 'static + Clone>(
     theme: &'a AshellTheme,
     label: impl text::IntoFragment<'a>,

@@ -412,7 +412,7 @@ impl App {
                 modules::notifications::Action::Task(task) => task.map(Message::Notifications),
                 modules::notifications::Action::Show(task) => {
                     let position = self.notifications.toast_position();
-                    let width = crate::menu::MenuSize::Medium.size() as u32;
+                    let width = crate::components::menu::MenuSize::Medium.size() as u32;
                     Task::batch(vec![
                         task.map(Message::Notifications),
                         self.outputs.show_toast_layer(width, position),

@@ -2,9 +2,9 @@ use std::convert;
 
 use crate::{
     components::{
-        divider, format_indicator, ghost_menu_button,
+        IconPosition, divider, format_indicator,
         icons::{StaticIcon, icon},
-        quick_setting_button,
+        quick_setting_button, styled_button,
     },
     config::{PeripheralIndicators, SettingsFormat},
     services::{
@@ -167,17 +167,27 @@ impl PowerSettings {
 
     pub fn menu<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
         column!(
-            ghost_menu_button(theme, StaticIcon::Suspend, "Suspend", Message::Suspend),
-            ghost_menu_button(
-                theme,
-                StaticIcon::Hibernate,
-                "Hibernate",
-                Message::Hibernate
-            ),
-            ghost_menu_button(theme, StaticIcon::Reboot, "Reboot", Message::Reboot),
-            ghost_menu_button(theme, StaticIcon::Power, "Shutdown", Message::Shutdown),
+            styled_button(theme, "Suspend")
+                .icon(StaticIcon::Suspend, IconPosition::Before)
+                .on_press(Message::Suspend)
+                .width(Length::Fill),
+            styled_button(theme, "Hibernate")
+                .icon(StaticIcon::Hibernate, IconPosition::Before)
+                .on_press(Message::Hibernate)
+                .width(Length::Fill),
+            styled_button(theme, "Reboot")
+                .icon(StaticIcon::Reboot, IconPosition::Before)
+                .on_press(Message::Reboot)
+                .width(Length::Fill),
+            styled_button(theme, "Shutdown")
+                .icon(StaticIcon::Power, IconPosition::Before)
+                .on_press(Message::Shutdown)
+                .width(Length::Fill),
             divider(),
-            ghost_menu_button(theme, StaticIcon::Logout, "Logout", Message::Logout),
+            styled_button(theme, "Logout")
+                .icon(StaticIcon::Logout, IconPosition::Before)
+                .on_press(Message::Logout)
+                .width(Length::Fill),
         )
         .padding(theme.space.xs)
         .width(Length::Fill)
@@ -381,7 +391,10 @@ impl PowerSettings {
                         button(indicator)
                             .padding([0.0, ashell_theme.space.sm])
                             .on_press(Message::TogglePeripheralMenu)
-                            .style(ashell_theme.settings_button_style())
+                            .style(ashell_theme.button_style(
+                                crate::components::ButtonKind::Solid,
+                                crate::components::ButtonHierarchy::Secondary,
+                            ))
                             .into()
                     } else {
                         indicator
@@ -399,7 +412,10 @@ impl PowerSettings {
                             button(indicator)
                                 .padding([0.0, ashell_theme.space.sm])
                                 .on_press(Message::TogglePeripheralMenu)
-                                .style(ashell_theme.settings_button_style())
+                                .style(ashell_theme.button_style(
+                                    crate::components::ButtonKind::Solid,
+                                    crate::components::ButtonHierarchy::Secondary,
+                                ))
                                 .into()
                         } else {
                             indicator
