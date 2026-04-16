@@ -17,10 +17,7 @@ use iced::{
     core::svg::Handle,
     futures::SinkExt,
     stream::channel,
-    widget::{
-        Column, Row, Svg, button, column, container, row, scrollable, scrollable::Scrollbar, svg,
-        text,
-    },
+    widget::{Column, Row, Svg, button, column, container, row, scrollable, svg, text},
 };
 use itertools::izip;
 use log::{debug, warn};
@@ -613,10 +610,10 @@ impl Tempo {
                                 })
                                 .collect::<Vec<_>>()
                             })
-                            .padding(Padding::default().bottom(theme.space.md))
                             .spacing(theme.space.sm)
+                            .padding(Padding::default().bottom(theme.space.sm))
                         )
-                        .direction(scrollable::Direction::Horizontal(Scrollbar::new()))
+                        .horizontal()
                     )
                     .padding(theme.space.sm)
                     .style(move |app_theme: &Theme| container::Style {

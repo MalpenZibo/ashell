@@ -484,7 +484,8 @@ impl Notifications {
                                 timestamp_element
                             ))
                             .width(Length::Fill)
-                            .spacing(theme.space.xs)
+                            .spacing(theme.space.xxs)
+                            .padding(theme.space.xs)
                             .align_y(Alignment::Center),
                     )
                     .push(
@@ -566,7 +567,6 @@ impl Notifications {
 
         let content = if is_empty {
             container(text("No notifications").size(theme.font_size.md))
-                .padding([theme.space.xxl, 0.])
                 .width(Length::Fill)
                 .center_x(Length::Fill)
                 .into()
@@ -586,7 +586,7 @@ impl Notifications {
                 .push((!is_empty).then(|| {
                     icon_button(theme, StaticIcon::Delete).on_press(Message::ClearNotifications)
                 })),
-            container(scrollable(content)).max_height(400.),
+            container(scrollable(content).spacing(theme.space.xs)).max_height(400.),
         )
         .width(MenuSize::Medium)
         .spacing(theme.space.sm)
