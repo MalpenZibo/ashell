@@ -84,6 +84,7 @@ libc = "0.2.182"
 chrono-tz = "0.10.4"
 wayland-client = "0.31"
 wayland-protocols = { version = "0.32", features = ["client"] }
+wayland-protocols-wlr = { version = "0.3", features = ["client"] }
 
 [build-dependencies]
 allsorts = "0.16"
