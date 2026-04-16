@@ -338,16 +338,43 @@ impl AshellTheme {
                     ..button::Style::default()
                 },
 
-                (_, Status::Disabled) => button::Style {
-                    background: None,
-                    border: Border {
-                        width: 0.0,
-                        radius: radius.into(),
-                        color: Color::TRANSPARENT,
-                    },
-                    text_color: palette.text.scale_alpha(0.3),
-                    ..button::Style::default()
-                },
+                (kind, Status::Disabled) => {
+                    let disabled_opacity = 0.3;
+                    match kind {
+                        ButtonKind::Solid => button::Style {
+                            background: Some(
+                                base_bg.scale_alpha(opacity * disabled_opacity).into(),
+                            ),
+                            border: Border {
+                                width: 0.0,
+                                radius: radius.into(),
+                                color: Color::TRANSPARENT,
+                            },
+                            text_color: base_text.scale_alpha(disabled_opacity),
+                            ..button::Style::default()
+                        },
+                        ButtonKind::Transparent => button::Style {
+                            background: None,
+                            border: Border {
+                                width: 0.0,
+                                radius: radius.into(),
+                                color: Color::TRANSPARENT,
+                            },
+                            text_color: palette.text.scale_alpha(disabled_opacity),
+                            ..button::Style::default()
+                        },
+                        ButtonKind::Outline => button::Style {
+                            background: None,
+                            border: Border {
+                                width: 2.0,
+                                radius: radius.into(),
+                                color: border_color.scale_alpha(disabled_opacity),
+                            },
+                            text_color: palette.text.scale_alpha(disabled_opacity),
+                            ..button::Style::default()
+                        },
+                    }
+                }
 
                 _ => button::Style {
                     background: None,
