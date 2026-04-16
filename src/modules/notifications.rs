@@ -492,7 +492,7 @@ impl Notifications {
                     body_element,
                 )
                 .spacing(theme.space.xxs)
-                .padding(Padding::new(theme.space.xxs).top(0.))
+                .padding(Padding::new(theme.space.xs).top(0.))
             )
             .spacing(theme.space.xxs),
         );
@@ -504,6 +504,7 @@ impl Notifications {
         button(card)
             .on_press(on_press)
             .width(Length::Fill)
+            .padding(theme.space.xxs)
             .style(Self::notification_button_style(
                 theme,
                 if toast {

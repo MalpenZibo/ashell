@@ -391,12 +391,11 @@ impl Tempo {
                                     )
                                     .size(ButtonSize::Small)
                                     .width(Length::Fill)
-                                    .height(Length::Fixed(36.))
                                     .into()
                                 })
                                 .collect::<Vec<Element<'a, Message>>>(),
                         )
-                        .spacing(theme.space.sm)
+                        .spacing(theme.space.xs)
                         .width(Length::Fill)
                         .into()
                     })
@@ -463,7 +462,8 @@ impl Tempo {
                 Some(Message::ChangeSelectDate(None))
             } else {
                 None
-            }),
+            })
+            .width(Length::Fill),
             calendar,
             timezones,
         )
