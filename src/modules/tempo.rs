@@ -126,7 +126,7 @@ impl Tempo {
             Message::SetTimezone(index) => {
                 if !self.config.timezones.is_empty() {
                     let len = self.config.timezones.len();
-                    if index <= len {
+                    if index < len {
                         self.current_timezone_index = index;
                     }
                 }
