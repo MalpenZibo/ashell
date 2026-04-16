@@ -16,7 +16,7 @@ use crate::{
 use iced::{
     Element, Length, Padding, Subscription, SurfaceId, Task, Theme,
     alignment::{Horizontal, Vertical},
-    widget::{Column, MouseArea, Row, button, column, container, row, scrollable, text},
+    widget::{Column, MouseArea, Row, column, container, row, scrollable, text},
 };
 use itertools::Itertools;
 use zbus::zvariant::OwnedObjectPath;
@@ -268,38 +268,40 @@ impl BluetoothSettings {
                 )
                 .push(if some_known {
                     let known_device_entry = |d: &BluetoothDevice| {
-                        button(
-                            Row::with_capacity(3)
-                                .push(
-                                    text(d.name.clone())
-                                        .color_maybe(if d.connected {
-                                            Some(theme.get_theme().palette().success)
-                                        } else {
-                                            None
-                                        })
-                                        .width(Length::Fill),
-                                )
-                                .push(d.battery.map(|battery| Self::battery_level(theme, battery)))
-                                .push(
-                                    icon_button(theme, StaticIcon::Remove)
-                                        .on_press(Message::RemoveDevice(d.path.clone()))
-                                        .color(theme.get_theme().palette().danger)
-                                        .size(ButtonSize::Small),
-                                )
-                                .align_y(Vertical::Center)
-                                .spacing(theme.space.xs)
-                                .width(Length::Fill),
+                        styled_button(
+                            theme,
+                            Element::from(
+                                Row::with_capacity(3)
+                                    .push(
+                                        text(d.name.clone())
+                                            .color_maybe(if d.connected {
+                                                Some(theme.get_theme().palette().success)
+                                            } else {
+                                                None
+                                            })
+                                            .width(Length::Fill),
+                                    )
+                                    .push(
+                                        d.battery
+                                            .map(|battery| Self::battery_level(theme, battery)),
+                                    )
+                                    .push(
+                                        icon_button(theme, StaticIcon::Remove)
+                                            .on_press(Message::RemoveDevice(d.path.clone()))
+                                            .color(theme.get_theme().palette().danger)
+                                            .size(ButtonSize::Small),
+                                    )
+                                    .align_y(Vertical::Center)
+                                    .spacing(theme.space.xs)
+                                    .width(Length::Fill),
+                            ),
                         )
-                        .style(theme.button_style(
-                            crate::components::ButtonKind::Transparent,
-                            crate::components::ButtonHierarchy::Secondary,
-                        ))
-                        .padding([theme.space.xs, theme.space.xs])
                         .on_press(if d.connected {
                             Message::DisconnectDevice(d.path.clone())
                         } else {
                             Message::ConnectDevice(d.path.clone())
                         })
+                        .width(Length::Fill)
                         .into()
                     };
 
@@ -344,18 +346,17 @@ impl BluetoothSettings {
                             container(
                                 scrollable(
                                     Column::with_children(available_devices.map(|d| {
-                                        button(
-                                            row![
-                                                text(d.name.clone()).width(Length::Fill),
-                                                text("Pair").size(theme.font_size.xs),
-                                            ]
-                                            .align_y(Vertical::Center)
-                                            .spacing(theme.space.xs),
+                                        styled_button(
+                                            theme,
+                                            Element::from(
+                                                row![
+                                                    text(d.name.clone()).width(Length::Fill),
+                                                    text("Pair").size(theme.font_size.xs),
+                                                ]
+                                                .align_y(Vertical::Center)
+                                                .spacing(theme.space.xs),
+                                            ),
                                         )
-                                        .style(theme.button_style(
-                                            crate::components::ButtonKind::Transparent,
-                                            crate::components::ButtonHierarchy::Secondary,
-                                        ))
                                         .on_press(Message::PairDevice(d.path.clone()))
                                         .width(Length::Fill)
                                         .into()

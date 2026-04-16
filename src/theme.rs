@@ -295,7 +295,15 @@ impl AshellTheme {
                     ..button::Style::default()
                 },
                 (ButtonKind::Transparent, Status::Hovered) => button::Style {
-                    background: Some(ext.background.weak.color.scale_alpha(opacity).into()),
+                    background: Some(
+                        theme
+                            .extended_palette()
+                            .background
+                            .base
+                            .text
+                            .scale_alpha(0.04)
+                            .into(),
+                    ),
                     border: Border {
                         width: 0.0,
                         radius: radius.into(),

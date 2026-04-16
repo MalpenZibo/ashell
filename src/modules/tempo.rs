@@ -1,7 +1,7 @@
 use crate::{
     components::icons::StaticIcon,
     components::menu::MenuSize,
-    components::{ButtonHierarchy, ButtonKind, IconPosition, styled_button},
+    components::{ButtonKind, IconPosition, styled_button},
     config::{TempoModuleConfig, WeatherIndicator, WeatherLocation},
     theme::AshellTheme,
 };
@@ -18,7 +18,7 @@ use iced::{
     core::svg::Handle,
     futures::SinkExt,
     stream::channel,
-    widget::{Column, Row, Svg, button, column, container, row, scrollable, svg, text},
+    widget::{Column, Row, Svg, column, container, row, scrollable, svg, text},
 };
 use itertools::izip;
 use log::{debug, warn};
@@ -352,29 +352,34 @@ impl Tempo {
                                     let day = current;
                                     current = current.succ_opt().unwrap_or(current);
 
-                                    button(
-                                        text(
-                                            day.format_localized("%d", self.config.locale)
-                                                .to_string(),
-                                        )
-                                        .align_x(Horizontal::Center)
-                                        .color_maybe({
-                                            if day == self.naive_date(self.current_timezone_index) {
-                                                Some(theme.iced_theme.palette().success)
-                                            } else if day == selected_date {
-                                                Some(theme.iced_theme.palette().primary)
-                                            } else if day.month0() != current_month {
-                                                Some(
-                                                    theme
-                                                        .iced_theme
-                                                        .palette()
-                                                        .text
-                                                        .scale_alpha(0.2),
-                                                )
-                                            } else {
-                                                None
-                                            }
-                                        }),
+                                    styled_button(
+                                        theme,
+                                        Element::from(
+                                            text(
+                                                day.format_localized("%d", self.config.locale)
+                                                    .to_string(),
+                                            )
+                                            .align_x(Horizontal::Center)
+                                            .color_maybe({
+                                                if day
+                                                    == self.naive_date(self.current_timezone_index)
+                                                {
+                                                    Some(theme.iced_theme.palette().success)
+                                                } else if day == selected_date {
+                                                    Some(theme.iced_theme.palette().primary)
+                                                } else if day.month0() != current_month {
+                                                    Some(
+                                                        theme
+                                                            .iced_theme
+                                                            .palette()
+                                                            .text
+                                                            .scale_alpha(0.2),
+                                                    )
+                                                } else {
+                                                    None
+                                                }
+                                            }),
+                                        ),
                                     )
                                     .on_press_maybe(
                                         if day != self.naive_date(self.current_timezone_index) {
@@ -384,10 +389,6 @@ impl Tempo {
                                         },
                                     )
                                     .width(Length::Fill)
-                                    .style(theme.button_style(
-                                        ButtonKind::Transparent,
-                                        ButtonHierarchy::Secondary,
-                                    ))
                                     .into()
                                 })
                                 .collect::<Vec<Element<'a, Message>>>(),
@@ -433,30 +434,32 @@ impl Tempo {
         );
 
         column!(
-            button(
-                column!(
-                    text(
-                        self.date
-                            .format_localized("%A", self.config.locale)
-                            .to_string()
+            styled_button(
+                theme,
+                Element::from(
+                    column!(
+                        text(
+                            self.date
+                                .format_localized("%A", self.config.locale)
+                                .to_string()
+                        )
+                        .size(theme.font_size.sm),
+                        text(
+                            self.date
+                                .format_localized("%d %B %Y", self.config.locale)
+                                .to_string()
+                        )
+                        .size(theme.font_size.md),
                     )
-                    .size(theme.font_size.sm),
-                    text(
-                        self.date
-                            .format_localized("%d %B %Y", self.config.locale)
-                            .to_string()
-                    )
-                    .size(theme.font_size.md),
-                )
-                .spacing(theme.space.xs)
+                    .spacing(theme.space.xs),
+                ),
             )
-            .padding([theme.space.sm, theme.space.lg])
+            .kind(ButtonKind::Outline)
             .on_press_maybe(if self.selected_date.is_some() {
                 Some(Message::ChangeSelectDate(None))
             } else {
                 None
-            })
-            .style(theme.button_style(ButtonKind::Outline, ButtonHierarchy::Secondary)),
+            }),
             calendar,
             timezones,
         )

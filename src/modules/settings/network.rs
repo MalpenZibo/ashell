@@ -18,7 +18,7 @@ use crate::{
 };
 use iced::{
     Alignment, Element, Length, Padding, Subscription, SurfaceId, Task, Theme,
-    widget::{Column, button, column, container, row, scrollable, text, toggler},
+    widget::{Column, column, container, row, scrollable, text, toggler},
 };
 use log::{info, warn};
 
@@ -553,36 +553,34 @@ impl NetworkSettings {
                                 )
                             });
 
-                            button(
-                                container(
-                                    row!(
-                                        icon(if ac.public {
-                                            ActiveConnectionInfo::get_wifi_icon(ac.strength)
-                                        } else {
-                                            ActiveConnectionInfo::get_wifi_lock_icon(ac.strength)
-                                        })
-                                        .width(Length::Shrink),
-                                        text(ac.ssid.as_str()).width(Length::Fill),
+                            styled_button(
+                                theme,
+                                Element::from(
+                                    container(
+                                        row!(
+                                            icon(if ac.public {
+                                                ActiveConnectionInfo::get_wifi_icon(ac.strength)
+                                            } else {
+                                                ActiveConnectionInfo::get_wifi_lock_icon(ac.strength)
+                                            })
+                                            .width(Length::Shrink),
+                                            text(ac.ssid.as_str()).width(Length::Fill),
+                                        )
+                                        .align_y(Alignment::Center)
+                                        .spacing(8),
                                     )
-                                    .align_y(Alignment::Center)
-                                    .spacing(8),
-                                )
-                                .style(move |theme: &Theme| {
-                                    container::Style {
-                                        text_color: if is_active {
-                                            Some(theme.palette().success)
-                                        } else {
-                                            None
-                                        },
-                                        ..Default::default()
-                                    }
-                                }),
+                                    .style(move |theme: &Theme| {
+                                        container::Style {
+                                            text_color: if is_active {
+                                                Some(theme.palette().success)
+                                            } else {
+                                                None
+                                            },
+                                            ..Default::default()
+                                        }
+                                    }),
+                                ),
                             )
-                            .style(theme.button_style(
-                                crate::components::ButtonKind::Transparent,
-                                crate::components::ButtonHierarchy::Secondary,
-                            ))
-                            .padding([8, 8])
                             .on_press_maybe(if !is_active {
                                 Some(if ac.public {
                                     Message::ConfirmOpenNetwork(ac.ssid.to_string())
