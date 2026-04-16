@@ -317,19 +317,16 @@ impl Workspaces {
                         .map(Message::ServiceEvent);
                 }
                 return iced::Task::none();*/
-                let current_workspace = self
+                let Some(pos) = self
                     .ui_workspaces
                     .iter()
-                    .find(|w| w.displayed == Displayed::Active);
-
-                let Some(current_workspace_id) = current_workspace.map(|w| w.id) else {
+                    .position(|w| w.displayed == Displayed::Active)
+                else {
                     return iced::Task::none();
                 };
 
-                let current_monitor = current_workspace
-                    .map(|w| w.monitor.clone())
-                    .unwrap_or_default();
-                let current_monitor_id = current_workspace.and_then(|w| w.monitor_id);
+                let current_monitor = self.ui_workspaces[pos].monitor.clone();
+                let current_monitor_id = self.ui_workspaces[pos].monitor_id;
 
                 let restrict_to_monitor = matches!(
                     self.config.visibility_mode,
@@ -356,18 +353,18 @@ impl Workspaces {
                     true
                 };
 
+                // Navigate by position in the already-sorted ui_workspaces
+                // vector, which represents exact visual order regardless of
+                // group_by_monitor or visibility_mode configuration.
                 let next_workspace = if direction > 0 {
-                    self.ui_workspaces
+                    self.ui_workspaces[..pos]
                         .iter()
-                        .filter(|w| in_current_group(w))
-                        .filter(|w| w.id < current_workspace_id)
-                        .max_by_key(|w| w.id)
+                        .rev()
+                        .find(|w| in_current_group(w))
                 } else {
-                    self.ui_workspaces
+                    self.ui_workspaces[pos + 1..]
                         .iter()
-                        .filter(|w| in_current_group(w))
-                        .filter(|w| w.id > current_workspace_id)
-                        .min_by_key(|w| w.id)
+                        .find(|w| in_current_group(w))
                 };
 
                 if let Some(next) = next_workspace {
