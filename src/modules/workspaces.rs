@@ -317,22 +317,16 @@ impl Workspaces {
                         .map(Message::ServiceEvent);
                 }
                 return iced::Task::none();*/
-                let current_workspace = self
+                let Some(pos) = self
                     .ui_workspaces
                     .iter()
-                    .find(|w| w.displayed == Displayed::Active);
-
-                let Some(current) = current_workspace else {
+                    .position(|w| w.displayed == Displayed::Active)
+                else {
                     return iced::Task::none();
                 };
-                // Compare by (index, id): on Hyprland id == index so it's
-                // equivalent to sorting by id, but on Niri `id` is an
-                // arbitrary internal handle while `index` is the visual
-                // position — we want to scroll in visual order.
-                let current_key = (current.index, current.id);
 
-                let current_monitor = current.monitor.clone();
-                let current_monitor_id = current.monitor_id;
+                let current_monitor = self.ui_workspaces[pos].monitor.clone();
+                let current_monitor_id = self.ui_workspaces[pos].monitor_id;
 
                 let restrict_to_monitor = matches!(
                     self.config.visibility_mode,
@@ -359,18 +353,18 @@ impl Workspaces {
                     true
                 };
 
+                // Navigate by position in the already-sorted ui_workspaces
+                // vector, which represents exact visual order regardless of
+                // group_by_monitor or visibility_mode configuration.
                 let next_workspace = if direction > 0 {
-                    self.ui_workspaces
+                    self.ui_workspaces[..pos]
                         .iter()
-                        .filter(|w| in_current_group(w))
-                        .filter(|w| (w.index, w.id) < current_key)
-                        .max_by_key(|w| (w.index, w.id))
+                        .rev()
+                        .find(|w| in_current_group(w))
                 } else {
-                    self.ui_workspaces
+                    self.ui_workspaces[pos + 1..]
                         .iter()
-                        .filter(|w| in_current_group(w))
-                        .filter(|w| (w.index, w.id) > current_key)
-                        .min_by_key(|w| (w.index, w.id))
+                        .find(|w| in_current_group(w))
                 };
 
                 if let Some(next) = next_workspace {
