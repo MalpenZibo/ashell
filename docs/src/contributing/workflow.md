@@ -64,4 +64,5 @@ For the full AI contribution guide including workflow recommendations, common pi
 
 ## Communication
 
+- For real-time discussion and community support, join us on [Matrix](https://matrix.to/#/#ashell:matrix.org).
 - Primary communication is through GitHub issues and PR comments.

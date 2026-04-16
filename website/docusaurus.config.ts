@@ -134,6 +134,10 @@ const config: Config = {
           title: "Community",
           items: [
             {
+              label: "Matrix Chat",
+              href: "https://matrix.to/#/#ashell:matrix.org",
+            },
+            {
               label: "Issues",
               href: "https://github.com/MalpenZibo/ashell/issues",
             },
