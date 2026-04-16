@@ -5,7 +5,7 @@ use crate::{
     services::{
         ReadOnlyService, ServiceEvent,
         notifications::{
-            Notification, NotificationIcon, NotificationsService,
+            Notification, NotificationIcon, NotificationsService, Urgency,
             dbus::{NotificationDaemon, NotificationEvent},
         },
     },
@@ -221,7 +221,13 @@ impl Notifications {
                 self.toasts.push_back(notification.id);
 
                 let notification_id = notification.id;
-                let timeout = toast_timeout(notification.expire_timeout, self.config.toast_timeout);
+                // Critical notifications are persistent per the freedesktop
+                // spec: they must be acknowledged by the user.
+                let timeout = if notification.urgency == Urgency::Critical {
+                    None
+                } else {
+                    toast_timeout(notification.expire_timeout, self.config.toast_timeout)
+                };
 
                 let timer_task = if let Some(timeout) = timeout {
                     Task::perform(
@@ -357,32 +363,36 @@ impl Notifications {
     fn notification_button_style(
         theme: &AshellTheme,
         style: NotificationStyle,
+        urgency: Urgency,
     ) -> impl Fn(&Theme, iced::widget::button::Status) -> iced::widget::button::Style {
         move |iced_theme: &Theme, status| {
+            let mut border = match style {
+                NotificationStyle::Standalone | NotificationStyle::Toast => {
+                    Border::default().rounded(theme.radius.lg)
+                }
+                NotificationStyle::GroupHeader => Border::default().rounded(iced::border::Radius {
+                    top_left: theme.radius.lg,
+                    top_right: theme.radius.lg,
+                    bottom_left: theme.radius.sm,
+                    bottom_right: theme.radius.sm,
+                }),
+                NotificationStyle::GroupItem => Border::default().rounded(theme.radius.sm),
+                NotificationStyle::GroupLast => Border::default().rounded(iced::border::Radius {
+                    top_left: 0.0,
+                    top_right: 0.0,
+                    bottom_left: theme.radius.lg,
+                    bottom_right: theme.radius.lg,
+                }),
+            };
+
+            if urgency == Urgency::Critical {
+                border.width = 2.0;
+                border.color = iced_theme.palette().danger;
+            }
+
             let mut button_style = iced::widget::button::Style {
                 text_color: iced_theme.palette().text,
-                border: match style {
-                    NotificationStyle::Standalone | NotificationStyle::Toast => {
-                        Border::default().rounded(theme.radius.lg)
-                    }
-                    NotificationStyle::GroupHeader => {
-                        Border::default().rounded(iced::border::Radius {
-                            top_left: theme.radius.lg,
-                            top_right: theme.radius.lg,
-                            bottom_left: theme.radius.sm,
-                            bottom_right: theme.radius.sm,
-                        })
-                    }
-                    NotificationStyle::GroupItem => Border::default().rounded(theme.radius.sm),
-                    NotificationStyle::GroupLast => {
-                        Border::default().rounded(iced::border::Radius {
-                            top_left: 0.0,
-                            top_right: 0.0,
-                            bottom_left: theme.radius.lg,
-                            bottom_right: theme.radius.lg,
-                        })
-                    }
-                },
+                border,
                 ..iced::widget::button::Style::default()
             };
             match status {
@@ -466,7 +476,8 @@ impl Notifications {
                                 timestamp_element
                             ))
                             .width(Length::Fill)
-                            .spacing(theme.space.xs)
+                            .spacing(theme.space.xxs)
+                            .padding(theme.space.xs)
                             .align_y(Alignment::Center),
                     )
                     .push(
@@ -498,6 +509,7 @@ impl Notifications {
                 } else {
                     NotificationStyle::Standalone
                 },
+                notification.urgency,
             ))
             .into()
     }
@@ -528,6 +540,7 @@ impl Notifications {
             } else {
                 NotificationStyle::GroupItem
             },
+            notification.urgency,
         ))
         .on_press(Message::NotificationClicked(notification.id))
         .into()
@@ -546,7 +559,6 @@ impl Notifications {
 
         let content = if is_empty {
             container(text("No notifications").size(theme.font_size.md))
-                .padding([theme.space.xxl, 0.])
                 .width(Length::Fill)
                 .center_x(Length::Fill)
                 .into()
@@ -566,7 +578,7 @@ impl Notifications {
                 .push((!is_empty).then(|| {
                     icon_button(theme, StaticIcon::Delete).on_press(Message::ClearNotifications)
                 })),
-            container(scrollable(content)).max_height(400.),
+            container(scrollable(content).spacing(theme.space.xs)).max_height(400.),
         )
         .width(MenuSize::Medium)
         .spacing(theme.space.sm)
@@ -653,17 +665,22 @@ impl Notifications {
             let app_icon = notification_icon(first.icon.as_ref());
 
             let mut count = 1;
+            let mut has_critical = first.urgency == Urgency::Critical;
             let mut group_notifications = vec![];
 
             if is_expanded {
                 group_notifications.push(self.group_item(first, false, theme));
                 while let Some(notification) = iter.next() {
                     count += 1;
+                    has_critical = has_critical || notification.urgency == Urgency::Critical;
                     let is_last = iter.peek().is_none();
                     group_notifications.push(self.group_item(notification, is_last, theme));
                 }
             } else {
-                count += iter.count(); // consume the rest just to count
+                for notification in iter {
+                    count += 1;
+                    has_critical = has_critical || notification.urgency == Urgency::Critical;
+                }
                 group_notifications.push(self.group_item(first, true, theme));
             }
 
@@ -691,6 +708,11 @@ impl Notifications {
                         .style(Self::notification_button_style(
                             theme,
                             NotificationStyle::GroupHeader,
+                            if has_critical {
+                                Urgency::Critical
+                            } else {
+                                Urgency::Normal
+                            },
                         ))
                         .on_press(toggle_msg),
                 )

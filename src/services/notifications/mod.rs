@@ -14,8 +14,8 @@ use zbus::zvariant::OwnedValue;
 
 pub mod dbus;
 
-pub use dbus::Notification;
 use dbus::NotificationEvent;
+pub use dbus::{Notification, Urgency};
 
 #[derive(Debug, Clone)]
 pub enum NotificationIcon {

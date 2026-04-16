@@ -21,6 +21,30 @@ const NAME: WellKnownName =
     WellKnownName::from_static_str_unchecked("org.freedesktop.Notifications");
 pub const OBJECT_PATH: &str = "/org/freedesktop/Notifications";
 
+/// Notification urgency as defined by the freedesktop Notifications
+/// specification (sent as the `urgency` byte hint).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+pub enum Urgency {
+    Low,
+    #[default]
+    Normal,
+    Critical,
+}
+
+impl Urgency {
+    fn from_hints(hints: &HashMap<String, OwnedValue>) -> Self {
+        hints
+            .get("urgency")
+            .and_then(|v| u8::try_from(v).ok())
+            .map(|b| match b {
+                0 => Self::Low,
+                2 => Self::Critical,
+                _ => Self::Normal,
+            })
+            .unwrap_or_default()
+    }
+}
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Notification {
     pub id: u32,
@@ -32,6 +56,7 @@ pub struct Notification {
     pub hints: HashMap<String, OwnedValue>,
     pub expire_timeout: i32,
     pub timestamp: SystemTime,
+    pub urgency: Urgency,
     #[serde(skip)]
     pub icon: Option<NotificationIcon>,
 }
@@ -83,6 +108,7 @@ impl NotificationDaemon {
         };
 
         let icon = NotificationIcon::resolve(&app_name, &app_icon, &hints);
+        let urgency = Urgency::from_hints(&hints);
         let notification = Notification {
             id,
             app_name,
@@ -93,6 +119,7 @@ impl NotificationDaemon {
             hints,
             expire_timeout,
             timestamp: SystemTime::now(),
+            urgency,
             icon,
         };
 
