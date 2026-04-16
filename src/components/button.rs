@@ -57,7 +57,7 @@ pub enum IconPosition {
     After,
 }
 
-enum OnPress<'a, Message> {
+pub(crate) enum OnPress<'a, Message> {
     Direct(Message),
     Closure(Box<dyn Fn() -> Message + 'a>),
 }

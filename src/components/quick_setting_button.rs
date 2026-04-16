@@ -63,8 +63,6 @@ pub fn quick_setting_button<'a, Msg: Clone + 'static>(
     )
     .padding([theme.space.xxs, theme.space.xs])
     .on_press(on_press)
-    .height(Length::Fill)
-    .width(Length::Fill)
     .style(theme.quick_settings_button_style(active))
     .width(Length::Fill)
     .height(Length::Fixed(50.));

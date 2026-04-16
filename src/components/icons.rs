@@ -1,5 +1,5 @@
 use crate::{
-    components::button::{ButtonHierarchy, ButtonKind, ButtonSize},
+    components::button::{ButtonHierarchy, ButtonKind, ButtonSize, OnPress},
     theme::AshellTheme,
 };
 use iced::{
@@ -363,11 +363,6 @@ pub fn icon<'a>(icon: impl Icon) -> Text<'a> {
 
 pub fn icon_mono<'a>(icon: impl Icon) -> Text<'a> {
     icon.to_text_mono()
-}
-
-enum OnPress<'a, Message> {
-    Direct(Message),
-    Closure(Box<dyn Fn() -> Message + 'a>),
 }
 
 pub type StyleFn<'a, Theme> = Box<dyn for<'b> Fn(&'b Theme, Status) -> Style + 'a>;
