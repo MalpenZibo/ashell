@@ -350,7 +350,7 @@ impl AshellTheme {
                                 radius: radius.into(),
                                 color: Color::TRANSPARENT,
                             },
-                            text_color: base_text.scale_alpha(disabled_opacity),
+                            text_color: base_text.scale_alpha(0.5),
                             ..button::Style::default()
                         },
                         ButtonKind::Transparent => button::Style {
