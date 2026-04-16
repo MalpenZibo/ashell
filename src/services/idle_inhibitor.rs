@@ -1,16 +1,51 @@
 use log::{debug, info, warn};
+use std::os::fd::{AsFd, AsRawFd, FromRawFd};
 use wayland_client::{
     Connection, Dispatch, DispatchError, EventQueue, Proxy, QueueHandle,
     protocol::{
+        wl_buffer::WlBuffer,
         wl_compositor::WlCompositor,
         wl_display::WlDisplay,
         wl_registry::{self, WlRegistry},
+        wl_shm::{self, WlShm},
+        wl_shm_pool::WlShmPool,
         wl_surface::WlSurface,
     },
 };
 use wayland_protocols::wp::idle_inhibit::zv1::client::{
     zwp_idle_inhibit_manager_v1::ZwpIdleInhibitManagerV1, zwp_idle_inhibitor_v1::ZwpIdleInhibitorV1,
 };
+use wayland_protocols_wlr::layer_shell::v1::client::{
+    zwlr_layer_shell_v1::{self, ZwlrLayerShellV1},
+    zwlr_layer_surface_v1::{self, ZwlrLayerSurfaceV1},
+};
+
+/// Create a 1×1 transparent ARGB `WlBuffer` via `wl_shm`.
+fn create_transparent_buffer(
+    shm: &WlShm,
+    handle: &QueueHandle<IdleInhibitorManagerData>,
+) -> Option<WlBuffer> {
+    let name = c"ashell-idle-shm";
+    let fd = unsafe { libc::memfd_create(name.as_ptr(), libc::MFD_CLOEXEC) };
+    if fd < 0 {
+        warn!("memfd_create failed; cannot create shm buffer for idle inhibitor");
+        return None;
+    }
+    // SAFETY: we just created the fd above and own it.
+    let file = unsafe { std::os::fd::OwnedFd::from_raw_fd(fd) };
+
+    // 4 bytes = one ARGB8888 pixel (all zeros = fully transparent).
+    const PIXEL_SIZE: i32 = 4;
+    unsafe {
+        libc::ftruncate(file.as_fd().as_raw_fd(), PIXEL_SIZE as libc::off_t);
+    }
+
+    let pool = shm.create_pool(file.as_fd(), PIXEL_SIZE, handle, ());
+    let buffer = pool.create_buffer(0, 1, 1, PIXEL_SIZE, wl_shm::Format::Argb8888, handle, ());
+    pool.destroy();
+
+    Some(buffer)
+}
 
 pub struct IdleInhibitorManager {
     _connection: Connection,
@@ -39,7 +74,27 @@ impl IdleInhibitorManager {
                 data: IdleInhibitorManagerData::default(),
             };
 
+            // First roundtrip: discover and bind globals (compositor, idle
+            // manager, layer shell, shm). The compositor handler also creates
+            // the wl_surface we'll reuse for both the layer role and the
+            // inhibitor.
             obj.roundtrip()?;
+
+            // Give the surface a layer-shell role so it becomes properly
+            // mapped. Spec-compliant compositors like niri ignore idle
+            // inhibitors on unmapped surfaces.
+            obj.init_layer_surface();
+
+            // Second roundtrip: receive the layer-surface configure event,
+            // ack it, attach the buffer, and commit — the surface is now
+            // mapped on an output with content.
+            obj.roundtrip()?;
+
+            if !obj.data.surface_ready {
+                warn!(
+                    "Idle inhibitor surface was not configured; inhibitor may not work on spec-compliant compositors"
+                );
+            }
 
             Ok(obj)
         };
@@ -51,6 +106,41 @@ impl IdleInhibitorManager {
                 None
             }
         }
+    }
+
+    fn init_layer_surface(&mut self) {
+        let Some(surface) = &self.data.surface else {
+            return;
+        };
+        let Some((layer_shell, _)) = &self.data.layer_shell else {
+            warn!("Layer shell not available; idle inhibitor surface will remain unmapped");
+            return;
+        };
+
+        // Create a transparent pixel buffer so the surface has content.
+        // Without a buffer, some compositors won't assign a scanout output
+        // and will ignore the idle inhibitor.
+        if let Some((shm, _)) = &self.data.shm {
+            self.data.buffer = create_transparent_buffer(shm, &self.handle);
+        }
+
+        let layer_surface = layer_shell.get_layer_surface(
+            surface,
+            None,
+            zwlr_layer_shell_v1::Layer::Overlay,
+            "ashell-idle-inhibitor".to_string(),
+            &self.handle,
+            (),
+        );
+        layer_surface.set_size(1, 1);
+        layer_surface
+            .set_anchor(zwlr_layer_surface_v1::Anchor::Top | zwlr_layer_surface_v1::Anchor::Left);
+        layer_surface.set_exclusive_zone(-1);
+        layer_surface
+            .set_keyboard_interactivity(zwlr_layer_surface_v1::KeyboardInteractivity::None);
+        surface.commit();
+
+        self.data.layer_surface = Some(layer_surface);
     }
 
     fn roundtrip(&mut self) -> anyhow::Result<usize, DispatchError> {
@@ -108,8 +198,13 @@ impl IdleInhibitorManager {
 struct IdleInhibitorManagerData {
     compositor: Option<(WlCompositor, u32)>,
     surface: Option<WlSurface>,
+    shm: Option<(WlShm, u32)>,
+    buffer: Option<WlBuffer>,
     idle_manager: Option<(ZwpIdleInhibitManagerV1, u32)>,
     idle_inhibitor_state: Option<ZwpIdleInhibitorV1>,
+    layer_shell: Option<(ZwlrLayerShellV1, u32)>,
+    layer_surface: Option<ZwlrLayerSurfaceV1>,
+    surface_ready: bool,
 }
 
 impl Dispatch<WlRegistry, ()> for IdleInhibitorManagerData {
@@ -138,27 +233,38 @@ impl Dispatch<WlRegistry, ()> for IdleInhibitorManagerData {
                 {
                     debug!(target: "IdleInhibitor::WlRegistry::Event::Global", "Adding IdleInhibitManager with name {name} and version {version}");
                     state.idle_manager = Some((proxy.bind(name, version, handle, ()), name));
-                };
+                } else if interface == ZwlrLayerShellV1::interface().name
+                    && state.layer_shell.is_none()
+                {
+                    debug!(target: "IdleInhibitor::WlRegistry::Event::Global", "Adding LayerShell with name {name} and version {version}");
+                    state.layer_shell = Some((proxy.bind(name, version, handle, ()), name));
+                } else if interface == WlShm::interface().name && state.shm.is_none() {
+                    debug!(target: "IdleInhibitor::WlRegistry::Event::Global", "Adding Shm with name {name} and version {version}");
+                    state.shm = Some((proxy.bind(name, version, handle, ()), name));
+                }
             }
-            wl_registry::Event::GlobalRemove { name } => match &state.compositor {
-                Some((_, compositor_name)) => {
-                    if name == *compositor_name {
-                        warn!(target: "IdleInhibitor::GlobalRemove", "Compositor was removed!");
-
-                        state.compositor = None;
-                        state.surface = None;
-                    }
+            wl_registry::Event::GlobalRemove { name } => {
+                if let Some((_, n)) = &state.compositor
+                    && name == *n
+                {
+                    warn!(target: "IdleInhibitor::GlobalRemove", "Compositor was removed!");
+                    state.compositor = None;
+                    state.surface = None;
+                    state.surface_ready = false;
+                } else if let Some((_, n)) = &state.idle_manager
+                    && name == *n
+                {
+                    warn!(target: "IdleInhibitor::GlobalRemove", "IdleInhibitManager was removed!");
+                    state.idle_manager = None;
+                } else if let Some((_, n)) = &state.layer_shell
+                    && name == *n
+                {
+                    warn!(target: "IdleInhibitor::GlobalRemove", "LayerShell was removed!");
+                    state.layer_shell = None;
+                    state.layer_surface = None;
+                    state.surface_ready = false;
                 }
-                _ => {
-                    if let Some((_, idle_manager_name)) = &state.idle_manager
-                        && name == *idle_manager_name
-                    {
-                        warn!(target: "IdleInhibitor::GlobalRemove", "IdleInhibitManager was removed!");
-
-                        state.idle_manager = None;
-                    }
-                }
-            },
+            }
             _ => {}
         }
     }
@@ -173,7 +279,7 @@ impl Dispatch<WlCompositor, ()> for IdleInhibitorManagerData {
         _conn: &wayland_client::Connection,
         _qhandle: &wayland_client::QueueHandle<Self>,
     ) {
-    } // This interface has no events.
+    }
 }
 
 impl Dispatch<WlSurface, ()> for IdleInhibitorManagerData {
@@ -181,6 +287,42 @@ impl Dispatch<WlSurface, ()> for IdleInhibitorManagerData {
         _state: &mut Self,
         _proxy: &WlSurface,
         _event: <WlSurface as Proxy>::Event,
+        _data: &(),
+        _conn: &Connection,
+        _qhandle: &QueueHandle<Self>,
+    ) {
+    }
+}
+
+impl Dispatch<WlShm, ()> for IdleInhibitorManagerData {
+    fn event(
+        _state: &mut Self,
+        _proxy: &WlShm,
+        _event: <WlShm as Proxy>::Event,
+        _data: &(),
+        _conn: &Connection,
+        _qhandle: &QueueHandle<Self>,
+    ) {
+    }
+}
+
+impl Dispatch<WlShmPool, ()> for IdleInhibitorManagerData {
+    fn event(
+        _state: &mut Self,
+        _proxy: &WlShmPool,
+        _event: <WlShmPool as Proxy>::Event,
+        _data: &(),
+        _conn: &Connection,
+        _qhandle: &QueueHandle<Self>,
+    ) {
+    }
+}
+
+impl Dispatch<WlBuffer, ()> for IdleInhibitorManagerData {
+    fn event(
+        _state: &mut Self,
+        _proxy: &WlBuffer,
+        _event: <WlBuffer as Proxy>::Event,
         _data: &(),
         _conn: &Connection,
         _qhandle: &QueueHandle<Self>,
@@ -197,7 +339,7 @@ impl Dispatch<ZwpIdleInhibitManagerV1, ()> for IdleInhibitorManagerData {
         _conn: &wayland_client::Connection,
         _qhandle: &wayland_client::QueueHandle<Self>,
     ) {
-    } // This interface has no events.
+    }
 }
 
 impl Dispatch<ZwpIdleInhibitorV1, ()> for IdleInhibitorManagerData {
@@ -209,5 +351,48 @@ impl Dispatch<ZwpIdleInhibitorV1, ()> for IdleInhibitorManagerData {
         _conn: &Connection,
         _qhandle: &QueueHandle<Self>,
     ) {
-    } // This interface has no events.
+    }
+}
+
+impl Dispatch<ZwlrLayerShellV1, ()> for IdleInhibitorManagerData {
+    fn event(
+        _state: &mut Self,
+        _proxy: &ZwlrLayerShellV1,
+        _event: <ZwlrLayerShellV1 as Proxy>::Event,
+        _data: &(),
+        _conn: &Connection,
+        _qhandle: &QueueHandle<Self>,
+    ) {
+    }
+}
+
+impl Dispatch<ZwlrLayerSurfaceV1, ()> for IdleInhibitorManagerData {
+    fn event(
+        state: &mut Self,
+        proxy: &ZwlrLayerSurfaceV1,
+        event: <ZwlrLayerSurfaceV1 as Proxy>::Event,
+        _data: &(),
+        _conn: &Connection,
+        _qhandle: &QueueHandle<Self>,
+    ) {
+        match event {
+            zwlr_layer_surface_v1::Event::Configure { serial, .. } => {
+                proxy.ack_configure(serial);
+                if let Some(surface) = &state.surface {
+                    if let Some(buffer) = &state.buffer {
+                        surface.attach(Some(buffer), 0, 0);
+                    }
+                    surface.commit();
+                }
+                state.surface_ready = true;
+                debug!(target: "IdleInhibitor::LayerSurface", "Surface configured and committed");
+            }
+            zwlr_layer_surface_v1::Event::Closed => {
+                state.layer_surface = None;
+                state.surface_ready = false;
+                warn!(target: "IdleInhibitor::LayerSurface", "Layer surface was closed");
+            }
+            _ => {}
+        }
+    }
 }
