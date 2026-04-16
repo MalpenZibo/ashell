@@ -1,5 +1,8 @@
 use crate::{
-    components::icons::{IconButtonSize, IconKind, StaticIcon, icon_button},
+    components::{
+        ButtonSize,
+        icons::{IconKind, StaticIcon, icon_button},
+    },
     modules::settings::SubMenu,
     theme::AshellTheme,
 };
@@ -51,7 +54,7 @@ pub fn quick_setting_button<'a, Msg: Clone + 'static>(
                     },
                 )
                 .on_press(msg)
-                .size(IconButtonSize::Small)
+                .size(ButtonSize::Small)
                 .style(theme.quick_settings_submenu_button_style(active))
             }))
             .spacing(theme.space.xxs)

@@ -1,8 +1,8 @@
 use super::SubMenu;
 use crate::{
     components::{
-        divider, format_indicator,
-        icons::{IconButtonSize, StaticIcon, icon, icon_button},
+        ButtonSize, divider, format_indicator,
+        icons::{StaticIcon, icon, icon_button},
         quick_setting_button,
     },
     config::SettingsFormat,
@@ -284,7 +284,7 @@ impl BluetoothSettings {
                                     icon_button(theme, StaticIcon::Remove)
                                         .on_press(Message::RemoveDevice(d.path.clone()))
                                         .color(theme.get_theme().palette().danger)
-                                        .size(IconButtonSize::Small),
+                                        .size(ButtonSize::Small),
                                 )
                                 .align_y(Vertical::Center)
                                 .spacing(theme.space.xs)

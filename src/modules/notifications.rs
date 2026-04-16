@@ -1,7 +1,8 @@
 use crate::{
-    components::icons::{IconButtonSize, StaticIcon, icon, icon_button},
+    components::ButtonSize,
+    components::icons::{StaticIcon, icon, icon_button},
+    components::menu::MenuSize,
     config::{NotificationsModuleConfig, ToastPosition},
-    menu::MenuSize,
     services::{
         ReadOnlyService, ServiceEvent,
         notifications::{
@@ -697,7 +698,7 @@ impl Notifications {
                 text(format!("{count} new")),
                 icon_button(theme, StaticIcon::Delete)
                     .on_press(clear_msg)
-                    .size(IconButtonSize::Large)
+                    .size(ButtonSize::Large)
                     .style(theme.notification_delete_button_style())
             )
             .spacing(theme.space.xs)

@@ -1,6 +1,7 @@
 use crate::{
+    components::ButtonSize,
     components::divider,
-    components::icons::{IconButtonSize, StaticIcon, icon, icon_button},
+    components::icons::{StaticIcon, icon, icon_button},
     components::menu::MenuSize,
     config::{MediaPlayerFormat, MediaPlayerModuleConfig},
     services::{
@@ -124,13 +125,13 @@ impl MediaPlayer {
                         row![
                             icon_button(theme, StaticIcon::SkipPrevious)
                                 .on_press(Message::Prev(d.service.clone()))
-                                .size(IconButtonSize::Large),
+                                .size(ButtonSize::Large),
                             icon_button(theme, play_pause_icon)
                                 .on_press(Message::PlayPause(d.service.clone()))
-                                .size(IconButtonSize::Large),
+                                .size(ButtonSize::Large),
                             icon_button(theme, StaticIcon::SkipNext)
                                 .on_press(Message::Next(d.service.clone()))
-                                .size(IconButtonSize::Large),
+                                .size(ButtonSize::Large),
                         ]
                         .align_y(Vertical::Center)
                         .spacing(theme.space.xs),
