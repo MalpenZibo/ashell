@@ -494,9 +494,9 @@ impl Workspaces {
                 if self.scroll_accumulator.abs() < sensibility {
                     Message::ScrollAccumulator(y)
                 } else if self.scroll_accumulator.is_sign_positive() {
-                    Message::Scroll(1)
-                } else {
                     Message::Scroll(-1)
+                } else {
+                    Message::Scroll(1)
                 }
             }
         })
