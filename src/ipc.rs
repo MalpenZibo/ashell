@@ -3,14 +3,44 @@
 //! The daemon listens on `$XDG_RUNTIME_DIR/ashell.sock`.
 //! The same binary acts as a client via `ashell msg <command>`.
 
-use std::io::{BufRead, BufReader, Write};
+use std::fmt;
+use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::PathBuf;
+use std::str::FromStr;
 
 use anyhow::{Context, Result, anyhow};
+use clap::Subcommand;
 use iced::Subscription;
 
-use crate::IpcCommand;
+/// Maximum bytes to read from a client connection.
+const MAX_REQUEST_LEN: u64 = 4096;
+
+/// IPC command that can be sent to the daemon.
+#[derive(Subcommand, Debug, Clone)]
+pub enum IpcCommand {
+    /// Toggle bar visibility
+    ToggleVisibility,
+}
+
+impl fmt::Display for IpcCommand {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            IpcCommand::ToggleVisibility => write!(f, "toggle-visibility"),
+        }
+    }
+}
+
+impl FromStr for IpcCommand {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        match s {
+            "toggle-visibility" => Ok(IpcCommand::ToggleVisibility),
+            _ => Err(anyhow!("unknown IPC command: {s:?}")),
+        }
+    }
+}
 
 /// Resolve the socket path.
 pub fn socket_path() -> Result<PathBuf> {
@@ -31,15 +61,13 @@ pub fn run_client(cmd: &IpcCommand) -> Result<()> {
     let mut stream = UnixStream::connect(&path)
         .with_context(|| format!("connect to {} — is ashell running?", path.display()))?;
 
-    let line = match cmd {
-        IpcCommand::ToggleVisibility => "toggle-visibility\n",
-    };
+    let line = format!("{cmd}\n");
     stream.write_all(line.as_bytes()).context("send command")?;
     stream.flush()?;
     stream.shutdown(std::net::Shutdown::Write)?;
 
     let mut response = String::new();
-    BufReader::new(&stream)
+    BufReader::new((&stream).take(MAX_REQUEST_LEN))
         .read_line(&mut response)
         .context("read response")?;
     let response = response.trim_end();
@@ -58,19 +86,18 @@ pub fn run_client(cmd: &IpcCommand) -> Result<()> {
 // Server
 // ---------------------------------------------------------------------------
 
-/// Parsed IPC request from a client.
-#[derive(Debug, Clone)]
-pub enum IpcRequest {
-    ToggleVisibility,
-}
-
 /// Create the Unix listener, removing any stale socket file first.
-pub fn create_listener() -> Result<UnixListener> {
+fn create_listener() -> Result<UnixListener> {
     let path = socket_path()?;
 
-    if path.exists() {
-        std::fs::remove_file(&path)
-            .with_context(|| format!("remove stale socket {}", path.display()))?;
+    match std::fs::remove_file(&path) {
+        Ok(()) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => {
+            return Err(
+                anyhow::Error::new(e).context(format!("remove stale socket {}", path.display()))
+            );
+        }
     }
 
     let listener = UnixListener::bind(&path).with_context(|| format!("bind {}", path.display()))?;
@@ -80,72 +107,67 @@ pub fn create_listener() -> Result<UnixListener> {
 }
 
 /// Read a single command from an accepted client connection.
-pub fn read_request(stream: &UnixStream) -> Result<IpcRequest> {
+fn read_request(stream: &UnixStream) -> Result<IpcCommand> {
     let mut line = String::new();
-    BufReader::new(stream)
+    BufReader::new(stream.take(MAX_REQUEST_LEN))
         .read_line(&mut line)
         .context("read IPC command")?;
-    let line = line.trim();
-
-    match line {
-        "toggle-visibility" => Ok(IpcRequest::ToggleVisibility),
-        _ => Err(anyhow!("unknown IPC command: {line:?}")),
-    }
+    line.trim().parse()
 }
 
-/// Write a success response to the client.
-pub fn write_response(stream: &mut UnixStream, response: &str) {
+/// Write a response line to the client.
+fn write_response(stream: &mut UnixStream, response: &str) {
     let msg = format!("{response}\n");
     if let Err(e) = stream.write_all(msg.as_bytes()) {
         log::debug!("IPC write response failed: {e}");
     }
 }
 
-/// Write an error response to the client.
-pub fn write_error(stream: &mut UnixStream, err: &str) {
-    write_response(stream, &format!("error {err}"));
+/// Handle a single accepted client connection.
+fn handle_connection(mut stream: UnixStream) -> Option<IpcCommand> {
+    match read_request(&stream) {
+        Ok(cmd) => {
+            write_response(&mut stream, "ok");
+            Some(cmd)
+        }
+        Err(e) => {
+            write_response(&mut stream, &format!("error {e:#}"));
+            None
+        }
+    }
+}
+
+fn init_listener() -> Option<tokio::net::UnixListener> {
+    let std_listener = match create_listener() {
+        Ok(l) => l,
+        Err(e) => {
+            log::error!("Failed to create IPC listener: {e:#}");
+            return None;
+        }
+    };
+    match tokio::net::UnixListener::from_std(std_listener) {
+        Ok(l) => Some(l),
+        Err(e) => {
+            log::error!("Failed to convert IPC listener to tokio: {e}");
+            None
+        }
+    }
 }
 
 /// Subscription that listens for IPC commands on the Unix socket.
-pub fn subscription() -> Subscription<IpcRequest> {
+pub fn subscription() -> Subscription<IpcCommand> {
     use iced::futures::StreamExt;
 
     Subscription::run(|| {
         iced::futures::stream::unfold(None::<tokio::net::UnixListener>, |listener| async {
             let listener = match listener {
                 Some(l) => l,
-                None => {
-                    let std_listener = match create_listener() {
-                        Ok(l) => l,
-                        Err(e) => {
-                            log::error!("Failed to create IPC listener: {e:#}");
-                            return None;
-                        }
-                    };
-                    match tokio::net::UnixListener::from_std(std_listener) {
-                        Ok(l) => l,
-                        Err(e) => {
-                            log::error!("Failed to convert IPC listener to tokio: {e}");
-                            return None;
-                        }
-                    }
-                }
+                None => init_listener()?,
             };
             let (request, listener) = match listener.accept().await {
                 Ok((stream, _)) => {
                     let request = match stream.into_std() {
-                        Ok(std_stream) => match read_request(&std_stream) {
-                            Ok(request) => {
-                                let mut writer = std_stream;
-                                write_response(&mut writer, "ok");
-                                Some(request)
-                            }
-                            Err(e) => {
-                                let mut writer = std_stream;
-                                write_error(&mut writer, &format!("{e:#}"));
-                                None
-                            }
-                        },
+                        Ok(std_stream) => handle_connection(std_stream),
                         Err(e) => {
                             log::error!("IPC stream conversion error: {e}");
                             None

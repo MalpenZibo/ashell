@@ -1,7 +1,7 @@
 use crate::config::{Position, get_config};
 use crate::outputs::Outputs;
 use app::App;
-use clap::{Parser, Subcommand};
+use clap::Parser;
 use flexi_logger::{
     Age, Cleanup, Criterion, FileSpec, LogSpecBuilder, LogSpecification, Logger, Naming,
 };
@@ -40,19 +40,13 @@ struct Args {
     command: Option<Command>,
 }
 
-#[derive(Subcommand, Debug)]
+#[derive(clap::Subcommand, Debug)]
 enum Command {
     /// Send a message to a running ashell instance
     Msg {
         #[command(subcommand)]
-        command: IpcCommand,
+        command: ipc::IpcCommand,
     },
-}
-
-#[derive(Subcommand, Debug, Clone)]
-pub enum IpcCommand {
-    /// Toggle bar visibility
-    ToggleVisibility,
 }
 
 fn get_log_spec(log_level: &str) -> LogSpecification {
