@@ -29,9 +29,10 @@ It follows the Elm architecture (model → update → view) with a modular desig
 
 ```
 src/
-├── main.rs              # entry point, font embedding
+├── main.rs              # entry point, font embedding, CLI dispatch
 ├── app.rs               # App state, Elm update/view cycle
 ├── config.rs            # configuration types (TOML deserialization)
+├── ipc.rs               # Unix socket IPC (client + server + subscription)
 ├── theme.rs             # theming (Islands/Solid/Gradient styles)
 ├── menu.rs              # menu UI
 ├── outputs.rs           # multi-monitor output management
