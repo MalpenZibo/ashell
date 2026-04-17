@@ -641,6 +641,60 @@ impl App {
                         }
                     })
             }),
+            Subscription::run(|| {
+                iced::futures::stream::unfold(None::<tokio::net::UnixListener>, |listener| async {
+                    let listener = match listener {
+                        Some(l) => l,
+                        None => {
+                            let std_listener = match crate::ipc::create_listener() {
+                                Ok(l) => l,
+                                Err(e) => {
+                                    log::error!("Failed to create IPC listener: {e:#}");
+                                    return None;
+                                }
+                            };
+                            match tokio::net::UnixListener::from_std(std_listener) {
+                                Ok(l) => l,
+                                Err(e) => {
+                                    log::error!("Failed to convert IPC listener to tokio: {e}");
+                                    return None;
+                                }
+                            }
+                        }
+                    };
+                    match listener.accept().await {
+                        Ok((stream, _)) => {
+                            let msg = match stream.into_std() {
+                                Ok(std_stream) => match crate::ipc::read_request(&std_stream) {
+                                    Ok(request) => {
+                                        let mut writer = std_stream;
+                                        crate::ipc::write_response(&mut writer, "ok");
+                                        match request {
+                                            crate::ipc::IpcRequest::ToggleVisibility => {
+                                                Message::ToggleVisibility
+                                            }
+                                        }
+                                    }
+                                    Err(e) => {
+                                        let mut writer = std_stream;
+                                        crate::ipc::write_error(&mut writer, &format!("{e:#}"));
+                                        Message::None
+                                    }
+                                },
+                                Err(e) => {
+                                    log::error!("IPC stream conversion error: {e}");
+                                    Message::None
+                                }
+                            };
+                            Some((msg, Some(listener)))
+                        }
+                        Err(e) => {
+                            log::error!("IPC accept error: {e}");
+                            Some((Message::None, Some(listener)))
+                        }
+                    }
+                })
+            }),
         ])
     }
 }

@@ -1,7 +1,7 @@
 use crate::config::{Position, get_config};
 use crate::outputs::Outputs;
 use app::App;
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use flexi_logger::{
     Age, Cleanup, Criterion, FileSpec, LogSpecBuilder, LogSpecification, Logger, Naming,
 };
@@ -14,6 +14,7 @@ use std::path::PathBuf;
 mod app;
 mod components;
 mod config;
+mod ipc;
 mod modules;
 mod outputs;
 mod services;
@@ -34,6 +35,24 @@ const HEIGHT: f64 = 34.;
 struct Args {
     #[arg(short, long, value_parser = clap::value_parser!(PathBuf))]
     config_path: Option<PathBuf>,
+
+    #[command(subcommand)]
+    command: Option<Command>,
+}
+
+#[derive(Subcommand, Debug)]
+enum Command {
+    /// Send a message to a running ashell instance
+    Msg {
+        #[command(subcommand)]
+        command: IpcCommand,
+    },
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum IpcCommand {
+    /// Toggle bar visibility
+    ToggleVisibility,
 }
 
 fn get_log_spec(log_level: &str) -> LogSpecification {
@@ -51,6 +70,15 @@ fn get_log_spec(log_level: &str) -> LogSpecification {
 
 fn main() -> iced::Result {
     let args = Args::parse();
+
+    if let Some(Command::Msg { command }) = &args.command {
+        if let Err(e) = ipc::run_client(command) {
+            eprintln!("Error: {e:#}");
+            std::process::exit(1);
+        }
+        std::process::exit(0);
+    }
+
     debug!("args: {args:?}");
 
     let logger = Logger::with(
