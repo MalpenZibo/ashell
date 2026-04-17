@@ -137,17 +137,11 @@ enable_esc_key = true
 
 ## Visibility Toggle
 
-You can toggle the visibility of the status bar using the built-in IPC socket:
+You can toggle the visibility of the status bar by sending a `SIGUSR1` signal to the ashell process.
+
+This is useful for keybind-based toggling or scripting.
 
 ```bash
 # Toggle ashell visibility
-ashell msg toggle-visibility
-```
-
-This is the recommended approach for keybind-based toggling or scripting.
-
-Alternatively, you can still use a `SIGUSR1` signal:
-
-```bash
 kill -SIGUSR1 $(pidof ashell)
 ```
