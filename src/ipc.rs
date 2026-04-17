@@ -8,6 +8,7 @@ use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::PathBuf;
 
 use anyhow::{Context, Result, anyhow};
+use iced::Subscription;
 
 use crate::IpcCommand;
 
@@ -58,6 +59,7 @@ pub fn run_client(cmd: &IpcCommand) -> Result<()> {
 // ---------------------------------------------------------------------------
 
 /// Parsed IPC request from a client.
+#[derive(Debug, Clone)]
 pub enum IpcRequest {
     ToggleVisibility,
 }
@@ -102,4 +104,62 @@ pub fn write_response(stream: &mut UnixStream, response: &str) {
 /// Write an error response to the client.
 pub fn write_error(stream: &mut UnixStream, err: &str) {
     write_response(stream, &format!("error {err}"));
+}
+
+/// Subscription that listens for IPC commands on the Unix socket.
+pub fn subscription() -> Subscription<IpcRequest> {
+    use iced::futures::StreamExt;
+
+    Subscription::run(|| {
+        iced::futures::stream::unfold(None::<tokio::net::UnixListener>, |listener| async {
+            let listener = match listener {
+                Some(l) => l,
+                None => {
+                    let std_listener = match create_listener() {
+                        Ok(l) => l,
+                        Err(e) => {
+                            log::error!("Failed to create IPC listener: {e:#}");
+                            return None;
+                        }
+                    };
+                    match tokio::net::UnixListener::from_std(std_listener) {
+                        Ok(l) => l,
+                        Err(e) => {
+                            log::error!("Failed to convert IPC listener to tokio: {e}");
+                            return None;
+                        }
+                    }
+                }
+            };
+            let (request, listener) = match listener.accept().await {
+                Ok((stream, _)) => {
+                    let request = match stream.into_std() {
+                        Ok(std_stream) => match read_request(&std_stream) {
+                            Ok(request) => {
+                                let mut writer = std_stream;
+                                write_response(&mut writer, "ok");
+                                Some(request)
+                            }
+                            Err(e) => {
+                                let mut writer = std_stream;
+                                write_error(&mut writer, &format!("{e:#}"));
+                                None
+                            }
+                        },
+                        Err(e) => {
+                            log::error!("IPC stream conversion error: {e}");
+                            None
+                        }
+                    };
+                    (request, listener)
+                }
+                Err(e) => {
+                    log::error!("IPC accept error: {e}");
+                    (None, listener)
+                }
+            };
+            Some((request, Some(listener)))
+        })
+        .filter_map(iced::futures::future::ready)
+    })
 }
