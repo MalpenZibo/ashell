@@ -487,7 +487,7 @@ impl Workspaces {
             iced::mouse::ScrollDelta::Lines { y, .. } => {
                 match self.config.invert_workspace_scroll_direction {
                     true => Message::Scroll(y as i32),
-                    false => Message::Scroll(-y as i32)
+                    false => Message::Scroll(-y as i32),
                 }
             }
             iced::mouse::ScrollDelta::Pixels { y, .. } => {
