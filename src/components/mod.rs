@@ -15,6 +15,7 @@ mod sub_menu_wrapper;
 pub use button::*;
 pub use centerbox::*;
 pub use format_indicator::*;
+pub use menu::MenuSize;
 pub use menu_wrapper::*;
 pub use module_group::*;
 pub use module_item::*;

@@ -1,8 +1,7 @@
 use crate::{
     components::{
-        ButtonKind, ButtonSize,
+        ButtonKind, ButtonSize, MenuSize,
         icons::{StaticIcon, icon_button},
-        menu::MenuSize,
         styled_button,
     },
     config::{TempoModuleConfig, WeatherIndicator, WeatherLocation},

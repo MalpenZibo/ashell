@@ -1,8 +1,7 @@
 use crate::{
     components::divider,
     components::icons::{StaticIcon, icon},
-    components::menu::MenuSize,
-    components::{IconPosition, styled_button},
+    components::{IconPosition, MenuSize, styled_button},
     config::UpdatesModuleConfig,
     theme::AshellTheme,
 };

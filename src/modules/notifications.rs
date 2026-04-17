@@ -1,7 +1,6 @@
 use crate::{
     components::icons::{StaticIcon, icon, icon_button},
-    components::menu::MenuSize,
-    components::{ButtonHierarchy, ButtonKind, ButtonSize},
+    components::{ButtonHierarchy, ButtonKind, ButtonSize, MenuSize},
     config::{NotificationsModuleConfig, ToastPosition},
     services::{
         ReadOnlyService, ServiceEvent,

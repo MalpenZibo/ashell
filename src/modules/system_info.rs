@@ -1,7 +1,7 @@
 use crate::{
+    components::MenuSize,
     components::divider,
     components::icons::{StaticIcon, icon},
-    components::menu::MenuSize,
     config::{
         CpuFormat, DiskFormat, MemoryFormat, SystemInfoIndicator, SystemInfoModuleConfig,
         TemperatureFormat,

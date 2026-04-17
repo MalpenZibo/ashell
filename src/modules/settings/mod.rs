@@ -8,8 +8,8 @@ use tokio::time::timeout;
 
 use crate::{
     components::{
+        MenuSize,
         icons::{DynamicIcon, StaticIcon, icon, icon_button},
-        menu::MenuSize,
         password_dialog, quick_setting_button, sub_menu_wrapper,
     },
     config::{Position, SettingsCustomButton, SettingsIndicator, SettingsModuleConfig},

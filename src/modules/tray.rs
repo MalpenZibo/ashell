@@ -1,9 +1,9 @@
 use crate::{
     components::divider,
     components::icons::{StaticIcon, icon},
-    components::menu::MenuSize,
     components::{
-        ButtonHierarchy, ButtonKind, ButtonUIRef, IconPosition, position_button, styled_button,
+        ButtonHierarchy, ButtonKind, ButtonUIRef, IconPosition, MenuSize, position_button,
+        styled_button,
     },
     services::{
         ReadOnlyService, Service, ServiceEvent,
