@@ -5,8 +5,9 @@ use crate::widgets::{self, ButtonUIRef};
 use iced::alignment::Vertical;
 use iced::widget::container::Style;
 use iced::{
-    Border, Element, KeyboardInteractivity, Layer, Length, Padding, Pixels, SurfaceId, Task, Theme,
-    set_keyboard_interactivity, set_layer, widget::container,
+    Anchor, Border, Element, KeyboardInteractivity, Layer, LayerShellSettings, Length, OutputId,
+    Padding, Pixels, SurfaceId, Task, Theme, destroy_layer_surface, new_layer_surface,
+    set_keyboard_interactivity, widget::container,
 };
 
 #[derive(Eq, PartialEq, Clone, Debug)]
@@ -21,17 +22,28 @@ pub enum MenuType {
 }
 
 #[derive(Clone, Debug)]
-pub struct Menu {
+pub struct OpenMenu {
     pub id: SurfaceId,
-    pub menu_info: Option<(MenuType, ButtonUIRef)>,
+    pub menu_type: MenuType,
+    pub button_ui_ref: ButtonUIRef,
+}
+
+#[derive(Clone, Debug)]
+pub struct Menu {
+    pub open: Option<OpenMenu>,
 }
 
 impl Menu {
-    pub fn new(id: SurfaceId) -> Self {
-        Self {
-            id,
-            menu_info: None,
-        }
+    pub fn new() -> Self {
+        Self { open: None }
+    }
+
+    pub fn surface_id(&self) -> Option<SurfaceId> {
+        self.open.as_ref().map(|o| o.id)
+    }
+
+    pub fn is_open(&self) -> bool {
+        self.open.is_some()
     }
 
     pub fn open<Message: 'static>(
@@ -39,33 +51,35 @@ impl Menu {
         menu_type: MenuType,
         button_ui_ref: ButtonUIRef,
         request_keyboard: bool,
+        output_id: Option<OutputId>,
     ) -> Task<Message> {
-        self.menu_info.replace((menu_type, button_ui_ref));
+        let keyboard_interactivity = if request_keyboard {
+            KeyboardInteractivity::OnDemand
+        } else {
+            KeyboardInteractivity::None
+        };
 
-        let mut tasks = vec![set_layer(self.id, Layer::Overlay)];
+        let (menu_id, task) = new_layer_surface(LayerShellSettings {
+            namespace: "ashell-menu-layer".to_string(),
+            size: None,
+            layer: Layer::Overlay,
+            keyboard_interactivity,
+            output: output_id,
+            anchor: Anchor::TOP | Anchor::BOTTOM | Anchor::LEFT | Anchor::RIGHT,
+            ..Default::default()
+        });
 
-        if request_keyboard {
-            tasks.push(set_keyboard_interactivity(
-                self.id,
-                KeyboardInteractivity::OnDemand,
-            ));
-        }
-
-        Task::batch(tasks)
+        self.open = Some(OpenMenu {
+            id: menu_id,
+            menu_type,
+            button_ui_ref,
+        });
+        task
     }
 
     pub fn close<Message: 'static>(&mut self) -> Task<Message> {
-        if self.menu_info.is_some() {
-            self.menu_info.take();
-
-            let mut tasks = vec![set_layer(self.id, Layer::Background)];
-
-            tasks.push(set_keyboard_interactivity(
-                self.id,
-                KeyboardInteractivity::None,
-            ));
-
-            Task::batch(tasks)
+        if let Some(open) = self.open.take() {
+            destroy_layer_surface(open.id)
         } else {
             Task::none()
         }
@@ -76,36 +90,41 @@ impl Menu {
         menu_type: MenuType,
         button_ui_ref: ButtonUIRef,
         request_keyboard: bool,
+        output_id: Option<OutputId>,
     ) -> Task<Message> {
-        match self.menu_info.as_mut() {
-            None => self.open(menu_type, button_ui_ref, request_keyboard),
-            Some((current_type, _)) if *current_type == menu_type => self.close(),
-            Some((current_type, current_button_ui_ref)) => {
-                *current_type = menu_type;
-                *current_button_ui_ref = button_ui_ref;
+        match &mut self.open {
+            None => self.open(menu_type, button_ui_ref, request_keyboard, output_id),
+            Some(open) if open.menu_type == menu_type => self.close(),
+            Some(open) => {
+                open.menu_type = menu_type;
+                open.button_ui_ref = button_ui_ref;
                 Task::none()
             }
         }
     }
 
     pub fn close_if<Message: 'static>(&mut self, menu_type: MenuType) -> Task<Message> {
-        if let Some((current_type, _)) = self.menu_info.as_ref() {
-            if *current_type == menu_type {
-                self.close()
-            } else {
-                Task::none()
-            }
+        if self.open.as_ref().is_some_and(|o| o.menu_type == menu_type) {
+            self.close()
         } else {
             Task::none()
         }
     }
 
     pub fn request_keyboard<Message: 'static>(&self) -> Task<Message> {
-        set_keyboard_interactivity(self.id, KeyboardInteractivity::OnDemand)
+        if let Some(open) = &self.open {
+            set_keyboard_interactivity(open.id, KeyboardInteractivity::OnDemand)
+        } else {
+            Task::none()
+        }
     }
 
     pub fn release_keyboard<Message: 'static>(&self) -> Task<Message> {
-        set_keyboard_interactivity(self.id, KeyboardInteractivity::None)
+        if let Some(open) = &self.open {
+            set_keyboard_interactivity(open.id, KeyboardInteractivity::None)
+        } else {
+            Task::none()
+        }
     }
 }
 

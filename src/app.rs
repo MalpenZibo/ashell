@@ -95,7 +95,7 @@ impl App {
         (logger, config, config_path): (LoggerHandle, Config, PathBuf),
     ) -> impl FnOnce() -> (Self, Task<Message>) {
         move || {
-            let (outputs, task) = Outputs::new(
+            let outputs = Outputs::new(
                 config.appearance.style,
                 config.position,
                 config.layer,
@@ -138,7 +138,7 @@ impl App {
                     media_player: MediaPlayer::new(config.media_player),
                     visible: true,
                 },
-                task,
+                Task::none(),
             )
         }
     }
@@ -269,9 +269,10 @@ impl App {
 
                 Task::batch(cmd)
             }
-            Message::CloseMenu(id) => self
-                .outputs
-                .close_menu(id, self.general_config.enable_esc_key),
+            Message::CloseMenu(id) => {
+                self.outputs
+                    .close_menu(id, None, self.general_config.enable_esc_key)
+            }
             Message::Custom(name, msg) => {
                 if let Some(custom) = self.custom.get_mut(&name) {
                     custom.update(msg);
@@ -288,9 +289,9 @@ impl App {
                         }
                         modules::updates::Action::CloseMenu(id, task) => Task::batch(vec![
                             task.map(Message::Updates),
-                            self.outputs.close_menu_if(
+                            self.outputs.close_menu(
                                 id,
-                                MenuType::Updates,
+                                Some(MenuType::Updates),
                                 self.general_config.enable_esc_key,
                             ),
                         ]),
@@ -345,9 +346,10 @@ impl App {
             Message::Settings(message) => match self.settings.update(message) {
                 modules::settings::Action::None => Task::none(),
                 modules::settings::Action::Command(task) => task.map(Message::Settings),
-                modules::settings::Action::CloseMenu(id) => self
-                    .outputs
-                    .close_menu(id, self.general_config.enable_esc_key),
+                modules::settings::Action::CloseMenu(id) => {
+                    self.outputs
+                        .close_menu(id, None, self.general_config.enable_esc_key)
+                }
                 modules::settings::Action::RequestKeyboard(id) => self.outputs.request_keyboard(id),
                 modules::settings::Action::ReleaseKeyboard(id) => self.outputs.release_keyboard(id),
                 modules::settings::Action::ReleaseKeyboardWithCommand(id, task) => {
@@ -545,59 +547,61 @@ impl App {
                     status_bar.into()
                 }
             }
-            Some(HasOutput::Menu(menu_info)) => match menu_info {
-                Some((MenuType::Updates, button_ui_ref)) => {
-                    if let Some(updates) = self.updates.as_ref() {
-                        self.menu_wrapper(
-                            id,
-                            updates.menu_view(id, &self.theme).map(Message::Updates),
-                            *button_ui_ref,
-                        )
-                    } else {
-                        Row::new().into()
+            Some(HasOutput::Menu(Some(open_menu))) => {
+                let ui_ref = open_menu.button_ui_ref;
+                match &open_menu.menu_type {
+                    MenuType::Updates => {
+                        if let Some(updates) = self.updates.as_ref() {
+                            self.menu_wrapper(
+                                id,
+                                updates.menu_view(id, &self.theme).map(Message::Updates),
+                                ui_ref,
+                            )
+                        } else {
+                            Row::new().into()
+                        }
                     }
+                    MenuType::Tray(name) => self.menu_wrapper(
+                        id,
+                        self.tray.menu_view(&self.theme, name).map(Message::Tray),
+                        ui_ref,
+                    ),
+                    MenuType::Notifications => self.menu_wrapper(
+                        id,
+                        self.notifications
+                            .menu_view(&self.theme)
+                            .map(Message::Notifications),
+                        ui_ref,
+                    ),
+                    MenuType::Settings => self.menu_wrapper(
+                        id,
+                        self.settings
+                            .menu_view(id, &self.theme, self.theme.bar_position)
+                            .map(Message::Settings),
+                        ui_ref,
+                    ),
+                    MenuType::MediaPlayer => self.menu_wrapper(
+                        id,
+                        self.media_player
+                            .menu_view(&self.theme)
+                            .map(Message::MediaPlayer),
+                        ui_ref,
+                    ),
+                    MenuType::SystemInfo => self.menu_wrapper(
+                        id,
+                        self.system_info
+                            .menu_view(&self.theme)
+                            .map(Message::SystemInfo),
+                        ui_ref,
+                    ),
+                    MenuType::Tempo => self.menu_wrapper(
+                        id,
+                        self.tempo.menu_view(&self.theme).map(Message::Tempo),
+                        ui_ref,
+                    ),
                 }
-                Some((MenuType::Tray(name), button_ui_ref)) => self.menu_wrapper(
-                    id,
-                    self.tray.menu_view(&self.theme, name).map(Message::Tray),
-                    *button_ui_ref,
-                ),
-                Some((MenuType::Notifications, button_ui_ref)) => self.menu_wrapper(
-                    id,
-                    self.notifications
-                        .menu_view(&self.theme)
-                        .map(Message::Notifications),
-                    *button_ui_ref,
-                ),
-                Some((MenuType::Settings, button_ui_ref)) => self.menu_wrapper(
-                    id,
-                    self.settings
-                        .menu_view(id, &self.theme, self.theme.bar_position)
-                        .map(Message::Settings),
-                    *button_ui_ref,
-                ),
-                Some((MenuType::MediaPlayer, button_ui_ref)) => self.menu_wrapper(
-                    id,
-                    self.media_player
-                        .menu_view(&self.theme)
-                        .map(Message::MediaPlayer),
-                    *button_ui_ref,
-                ),
-                Some((MenuType::SystemInfo, button_ui_ref)) => self.menu_wrapper(
-                    id,
-                    self.system_info
-                        .menu_view(&self.theme)
-                        .map(Message::SystemInfo),
-                    *button_ui_ref,
-                ),
-
-                Some((MenuType::Tempo, button_ui_ref)) => self.menu_wrapper(
-                    id,
-                    self.tempo.menu_view(&self.theme).map(Message::Tempo),
-                    *button_ui_ref,
-                ),
-                None => Row::new().into(),
-            },
+            }
+            Some(HasOutput::Menu(None)) => Row::new().into(),
             Some(HasOutput::Toast) => self
                 .notifications
                 .toast_view(&self.theme)
