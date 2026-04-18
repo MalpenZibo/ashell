@@ -1,17 +1,17 @@
-use crate::{config::AppearanceStyle, theme::AshellTheme};
+use crate::{config::BarBackground, theme::AshellTheme};
 use iced::{Border, Color, Element, widget::container};
 
-/// Wraps content with the appropriate bar style container.
+/// Wraps content with the appropriate bar background container.
 ///
-/// - `Solid | Gradient` → pass through as-is
-/// - `Islands` → wrap in a container with background color + rounded border
+/// - When the bar has a background → pass through as-is (modules blend into the bar)
+/// - When the bar has no background → wrap in a container with background color + rounded border
+///   (islands look)
 pub fn module_group<'a, Msg: 'static>(
     theme: &'a AshellTheme,
     content: Element<'a, Msg>,
 ) -> Element<'a, Msg> {
-    match theme.bar_style {
-        AppearanceStyle::Solid | AppearanceStyle::Gradient => content,
-        AppearanceStyle::Islands => container(content)
+    if theme.background == BarBackground::Transparent {
+        container(content)
             .style(move |iced_theme: &iced::Theme| container::Style {
                 background: Some(
                     iced_theme
@@ -27,6 +27,8 @@ pub fn module_group<'a, Msg: 'static>(
                 },
                 ..container::Style::default()
             })
-            .into(),
+            .into()
+    } else {
+        content
     }
 }

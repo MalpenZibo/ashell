@@ -1,8 +1,7 @@
 use crate::{
-    HEIGHT,
     components::menu::MenuType,
     components::{ButtonUIRef, Centerbox},
-    config::{self, AppearanceStyle, Config, Modules, Position},
+    config::{self, BarBackground, Config, Modules},
     get_log_spec,
     modules::{
         self,
@@ -26,15 +25,13 @@ use crate::{
 };
 use flexi_logger::LoggerHandle;
 use iced::{
-    Alignment, Color, Element, Gradient, Length, OutputEvent, Radians, Subscription, SurfaceId,
-    Task, Theme,
+    Alignment, Element, Length, OutputEvent, Padding, Subscription, SurfaceId, Task, Theme,
     event::listen_with,
-    gradient::Linear,
     keyboard, set_exclusive_zone,
     widget::{Row, container, mouse_area},
 };
 use log::{debug, info, warn};
-use std::{collections::HashMap, f32::consts::PI, path::PathBuf};
+use std::{collections::HashMap, path::PathBuf};
 
 pub struct GeneralConfig {
     outputs: config::Outputs,
@@ -95,8 +92,10 @@ impl App {
         (logger, config, config_path): (LoggerHandle, Config, PathBuf),
     ) -> impl FnOnce() -> (Self, Task<Message>) {
         move || {
+            let theme = AshellTheme::new(config.position, &config.appearance);
             let (outputs, task) = Outputs::new(
-                config.appearance.style,
+                theme.bar_height(),
+                config.appearance.margin,
                 config.position,
                 config.layer,
                 config.appearance.scale_factor,
@@ -114,7 +113,7 @@ impl App {
             (
                 App {
                     config_path,
-                    theme: AshellTheme::new(config.position, &config.appearance),
+                    theme,
                     logger,
                     general_config: GeneralConfig {
                         outputs: config.outputs,
@@ -215,15 +214,18 @@ impl App {
                     "Current outputs: {:?}, new outputs: {:?}",
                     self.general_config.outputs, config.outputs
                 );
+                let new_theme = AshellTheme::new(config.position, &config.appearance);
                 if self.general_config.outputs != config.outputs
                     || self.theme.bar_position != config.position
-                    || self.theme.bar_style != config.appearance.style
+                    || self.theme.margin != config.appearance.margin
+                    || self.theme.padding != config.appearance.padding
                     || self.theme.scale_factor != config.appearance.scale_factor
                     || self.general_config.layer != config.layer
                 {
                     warn!("Outputs changed, syncing");
                     tasks.push(self.outputs.sync(
-                        config.appearance.style,
+                        new_theme.bar_height(),
+                        config.appearance.margin,
                         &config.outputs,
                         config.position,
                         config.layer,
@@ -367,7 +369,8 @@ impl App {
                     }
 
                     self.outputs.add(
-                        self.theme.bar_style,
+                        self.theme.bar_height(),
+                        self.theme.margin,
                         &self.general_config.outputs,
                         self.theme.bar_position,
                         self.general_config.layer,
@@ -379,7 +382,8 @@ impl App {
                 OutputEvent::Removed(output_id) => {
                     info!("Output destroyed");
                     self.outputs.remove(
-                        self.theme.bar_style,
+                        self.theme.bar_height(),
+                        self.theme.margin,
                         self.theme.bar_position,
                         self.general_config.layer,
                         output_id,
@@ -401,7 +405,8 @@ impl App {
                 }
             }
             Message::ResumeFromSleep => self.outputs.sync(
-                self.theme.bar_style,
+                self.theme.bar_height(),
+                self.theme.margin,
                 &self.general_config.outputs,
                 self.theme.bar_position,
                 self.general_config.layer,
@@ -431,15 +436,14 @@ impl App {
             Message::None => Task::none(),
             Message::ToggleVisibility => {
                 self.visible = !self.visible;
-                let height = if self.visible {
-                    (crate::HEIGHT
-                        - match self.theme.bar_style {
-                            AppearanceStyle::Solid | AppearanceStyle::Gradient => 8.,
-                            AppearanceStyle::Islands => 0.,
-                        })
-                        * self.theme.scale_factor
+                let exclusive_zone = if self.visible {
+                    Outputs::get_exclusive_zone(
+                        self.theme.bar_height(),
+                        self.theme.margin,
+                        self.theme.scale_factor,
+                    )
                 } else {
-                    0.0
+                    0
                 };
 
                 Task::batch(
@@ -448,7 +452,7 @@ impl App {
                         .filter_map(|(_, shell_info, _)| {
                             shell_info
                                 .as_ref()
-                                .map(|info| set_exclusive_zone(info.id, height as i32))
+                                .map(|info| set_exclusive_zone(info.id, exclusive_zone))
                         })
                         .collect::<Vec<_>>(),
                 )
@@ -465,70 +469,39 @@ impl App {
 
                 let [left, center, right] = self.modules_section(id, &self.theme);
 
+                let padding = self.theme.padding;
                 let centerbox = Centerbox::new([left, center, right])
                     .spacing(self.theme.space.xxs)
                     .width(Length::Fill)
                     .align_items(Alignment::Center)
-                    .height(if self.theme.bar_style == AppearanceStyle::Islands {
-                        HEIGHT
-                    } else {
-                        HEIGHT - self.theme.space.xs as f64
-                    } as f32)
-                    .padding(if self.theme.bar_style == AppearanceStyle::Islands {
-                        [self.theme.space.xxs, self.theme.space.xxs]
-                    } else {
-                        [0.0, 0.0]
-                    });
+                    .height(self.theme.bar_height())
+                    .padding(
+                        Padding::new(0.)
+                            .top(padding.top())
+                            .right(padding.right())
+                            .bottom(padding.bottom())
+                            .left(padding.left()),
+                    );
 
-                let status_bar = container(centerbox).style(|t: &Theme| container::Style {
-                    background: match self.theme.bar_style {
-                        AppearanceStyle::Gradient => Some({
-                            let start_color =
-                                t.palette().background.scale_alpha(self.theme.opacity);
+                let background = self.theme.background.clone();
+                let menu_is_open = self.outputs.menu_is_open();
+                let opacity = self.theme.opacity;
+                let menu_backdrop = self.theme.menu.backdrop;
 
-                            let start_color = if self.outputs.menu_is_open() {
-                                darken_color(start_color, self.theme.menu.backdrop)
-                            } else {
-                                start_color
-                            };
-
-                            let end_color = if self.outputs.menu_is_open() {
-                                backdrop_color(self.theme.menu.backdrop)
-                            } else {
-                                Color::TRANSPARENT
-                            };
-
-                            Gradient::Linear(
-                                Linear::new(Radians(PI))
-                                    .add_stop(
-                                        0.0,
-                                        match self.theme.bar_position {
-                                            Position::Top => start_color,
-                                            Position::Bottom => end_color,
-                                        },
-                                    )
-                                    .add_stop(
-                                        1.0,
-                                        match self.theme.bar_position {
-                                            Position::Top => end_color,
-                                            Position::Bottom => start_color,
-                                        },
-                                    ),
-                            )
-                            .into()
-                        }),
-                        AppearanceStyle::Solid => Some({
-                            let bg = t.palette().background.scale_alpha(self.theme.opacity);
-                            if self.outputs.menu_is_open() {
-                                darken_color(bg, self.theme.menu.backdrop)
+                let status_bar = container(centerbox).style(move |t: &Theme| container::Style {
+                    background: match &background {
+                        BarBackground::Solid => Some({
+                            let bg = t.palette().background.scale_alpha(opacity);
+                            if menu_is_open {
+                                darken_color(bg, menu_backdrop)
                             } else {
                                 bg
                             }
                             .into()
                         }),
-                        AppearanceStyle::Islands => {
-                            if self.outputs.menu_is_open() {
-                                Some(backdrop_color(self.theme.menu.backdrop).into())
+                        BarBackground::Transparent => {
+                            if menu_is_open {
+                                Some(backdrop_color(menu_backdrop).into())
                             } else {
                                 None
                             }
