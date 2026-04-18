@@ -54,7 +54,7 @@ impl WindowTitle {
 
     fn recalculate_value(&mut self) {
         if let Some(service) = &self.service {
-            self.value = service.active_window.as_ref().map(|w| {
+            let new_value = service.active_window.as_ref().map(|w| {
                 let raw_title = match self.config.mode {
                     WindowTitleMode::Title => w.title(),
                     WindowTitleMode::Class => w.class(),
@@ -83,6 +83,10 @@ impl WindowTitle {
 
                 truncate_text(raw_title, max_length)
             });
+
+            if self.value != new_value {
+                self.value = new_value;
+            }
         }
     }
 
