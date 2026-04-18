@@ -149,6 +149,10 @@ impl NetworkSettings {
         }
     }
 
+    pub fn is_airplane_mode(&self) -> Option<bool> {
+        self.service.as_ref().map(|s| s.airplane_mode)
+    }
+
     pub fn update(&mut self, message: Message) -> Action {
         match message {
             Message::Event(event) => match event {
