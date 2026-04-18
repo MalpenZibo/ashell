@@ -22,17 +22,28 @@ pub enum MenuType {
 }
 
 #[derive(Clone, Debug)]
+pub struct OpenMenu {
+    pub id: SurfaceId,
+    pub menu_type: MenuType,
+    pub button_ui_ref: ButtonUIRef,
+}
+
+#[derive(Clone, Debug)]
 pub struct Menu {
-    pub id: Option<SurfaceId>,
-    pub menu_info: Option<(MenuType, ButtonUIRef)>,
+    pub open: Option<OpenMenu>,
 }
 
 impl Menu {
     pub fn new() -> Self {
-        Self {
-            id: None,
-            menu_info: None,
-        }
+        Self { open: None }
+    }
+
+    pub fn surface_id(&self) -> Option<SurfaceId> {
+        self.open.as_ref().map(|o| o.id)
+    }
+
+    pub fn is_open(&self) -> bool {
+        self.open.is_some()
     }
 
     pub fn open<Message: 'static>(
@@ -42,8 +53,6 @@ impl Menu {
         request_keyboard: bool,
         output_id: Option<OutputId>,
     ) -> Task<Message> {
-        self.menu_info.replace((menu_type, button_ui_ref));
-
         let keyboard_interactivity = if request_keyboard {
             KeyboardInteractivity::OnDemand
         } else {
@@ -60,19 +69,17 @@ impl Menu {
             ..Default::default()
         });
 
-        self.id = Some(menu_id);
+        self.open = Some(OpenMenu {
+            id: menu_id,
+            menu_type,
+            button_ui_ref,
+        });
         task
     }
 
     pub fn close<Message: 'static>(&mut self) -> Task<Message> {
-        if self.menu_info.is_some() {
-            self.menu_info.take();
-
-            if let Some(id) = self.id.take() {
-                destroy_layer_surface(id)
-            } else {
-                Task::none()
-            }
+        if let Some(open) = self.open.take() {
+            destroy_layer_surface(open.id)
         } else {
             Task::none()
         }
@@ -85,40 +92,36 @@ impl Menu {
         request_keyboard: bool,
         output_id: Option<OutputId>,
     ) -> Task<Message> {
-        match self.menu_info.as_mut() {
+        match &mut self.open {
             None => self.open(menu_type, button_ui_ref, request_keyboard, output_id),
-            Some((current_type, _)) if *current_type == menu_type => self.close(),
-            Some((current_type, current_button_ui_ref)) => {
-                *current_type = menu_type;
-                *current_button_ui_ref = button_ui_ref;
+            Some(open) if open.menu_type == menu_type => self.close(),
+            Some(open) => {
+                open.menu_type = menu_type;
+                open.button_ui_ref = button_ui_ref;
                 Task::none()
             }
         }
     }
 
     pub fn close_if<Message: 'static>(&mut self, menu_type: MenuType) -> Task<Message> {
-        if let Some((current_type, _)) = self.menu_info.as_ref() {
-            if *current_type == menu_type {
-                self.close()
-            } else {
-                Task::none()
-            }
+        if self.open.as_ref().is_some_and(|o| o.menu_type == menu_type) {
+            self.close()
         } else {
             Task::none()
         }
     }
 
     pub fn request_keyboard<Message: 'static>(&self) -> Task<Message> {
-        if let Some(id) = self.id {
-            set_keyboard_interactivity(id, KeyboardInteractivity::OnDemand)
+        if let Some(open) = &self.open {
+            set_keyboard_interactivity(open.id, KeyboardInteractivity::OnDemand)
         } else {
             Task::none()
         }
     }
 
     pub fn release_keyboard<Message: 'static>(&self) -> Task<Message> {
-        if let Some(id) = self.id {
-            set_keyboard_interactivity(id, KeyboardInteractivity::None)
+        if let Some(open) = &self.open {
+            set_keyboard_interactivity(open.id, KeyboardInteractivity::None)
         } else {
             Task::none()
         }

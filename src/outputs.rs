@@ -8,7 +8,7 @@ use log::debug;
 use crate::{
     HEIGHT,
     config::{self, AppearanceStyle, Position},
-    menu::{Menu, MenuType},
+    menu::{Menu, MenuType, OpenMenu},
     widgets::ButtonUIRef,
 };
 
@@ -29,7 +29,7 @@ pub struct ShellInfo {
 impl ShellInfo {
     fn destroy_surfaces<Message: 'static>(self) -> Task<Message> {
         let mut tasks = vec![destroy_layer_surface(self.id)];
-        if let Some(menu_id) = self.menu.id {
+        if let Some(menu_id) = self.menu.surface_id() {
             tasks.push(destroy_layer_surface(menu_id));
         }
         if let Some(toast_id) = self.toast_id {
@@ -44,7 +44,7 @@ pub struct Outputs(Vec<(String, Option<ShellInfo>, Option<OutputId>)>);
 
 pub enum HasOutput<'a> {
     Main,
-    Menu(Option<&'a (MenuType, ButtonUIRef)>),
+    Menu(Option<&'a OpenMenu>),
     Toast,
 }
 
@@ -135,8 +135,8 @@ impl Outputs {
             info.as_ref().and_then(|info| {
                 if info.id == id {
                     Some(HasOutput::Main)
-                } else if info.menu.id == Some(id) {
-                    Some(HasOutput::Menu(info.menu.menu_info.as_ref()))
+                } else if info.menu.surface_id() == Some(id) {
+                    Some(HasOutput::Menu(info.menu.open.as_ref()))
                 } else if let Some(toast_id) = info.toast_id {
                     if toast_id == id {
                         Some(HasOutput::Toast)
@@ -430,7 +430,7 @@ impl Outputs {
         self.0.iter().find(|(_, shell_info, _)| {
             shell_info
                 .as_ref()
-                .is_some_and(|si| si.id == id || si.menu.id == Some(id))
+                .is_some_and(|si| si.id == id || si.menu.surface_id() == Some(id))
         })
     }
 
@@ -441,17 +441,14 @@ impl Outputs {
         self.0.iter_mut().find(|(_, shell_info, _)| {
             shell_info
                 .as_ref()
-                .is_some_and(|si| si.id == id || si.menu.id == Some(id))
+                .is_some_and(|si| si.id == id || si.menu.surface_id() == Some(id))
         })
     }
 
     pub fn menu_is_open(&self) -> bool {
-        self.0.iter().any(|(_, shell_info, _)| {
-            shell_info
-                .as_ref()
-                .map(|shell_info| shell_info.menu.menu_info.is_some())
-                .unwrap_or_default()
-        })
+        self.0
+            .iter()
+            .any(|(_, shell_info, _)| shell_info.as_ref().is_some_and(|si| si.menu.is_open()))
     }
 
     pub fn toggle_menu<Message: 'static>(
@@ -473,7 +470,7 @@ impl Outputs {
                     .iter_mut()
                     .filter_map(|(_, shell_info, _)| {
                         if let Some(shell_info) = shell_info {
-                            if shell_info.id != id && shell_info.menu.id != Some(id) {
+                            if shell_info.id != id && shell_info.menu.surface_id() != Some(id) {
                                 Some(shell_info.menu.close())
                             } else {
                                 None
@@ -507,45 +504,43 @@ impl Outputs {
         }
     }
 
-    pub fn close_menu<Message: 'static>(
-        &mut self,
-        id: SurfaceId,
+    /// Disable keyboard interactivity on all outputs if no menus remain open.
+    fn maybe_release_all_keyboards<Message: 'static>(
+        &self,
+        task: Task<Message>,
         esc_button_enabled: bool,
     ) -> Task<Message> {
-        let task = match self.find_by_surface_id_mut(id) {
-            Some((_, Some(shell_info), _)) => shell_info.menu.close(),
-            _ => Task::none(),
-        };
-
         if esc_button_enabled && !self.menu_is_open() {
-            Task::batch(vec![
-                task,
-                set_keyboard_interactivity(id, KeyboardInteractivity::None),
-            ])
+            let keyboard_tasks = self
+                .0
+                .iter()
+                .filter_map(|(_, shell_info, _)| {
+                    shell_info
+                        .as_ref()
+                        .map(|si| set_keyboard_interactivity(si.id, KeyboardInteractivity::None))
+                })
+                .collect::<Vec<_>>();
+            Task::batch(vec![task, Task::batch(keyboard_tasks)])
         } else {
             task
         }
     }
 
-    pub fn close_menu_if<Message: 'static>(
+    pub fn close_menu<Message: 'static>(
         &mut self,
         id: SurfaceId,
-        menu_type: MenuType,
+        menu_type: Option<MenuType>,
         esc_button_enabled: bool,
     ) -> Task<Message> {
         let task = match self.find_by_surface_id_mut(id) {
-            Some((_, Some(shell_info), _)) => shell_info.menu.close_if(menu_type),
+            Some((_, Some(shell_info), _)) => match menu_type {
+                Some(mt) => shell_info.menu.close_if(mt),
+                None => shell_info.menu.close(),
+            },
             _ => Task::none(),
         };
 
-        if esc_button_enabled && !self.menu_is_open() {
-            Task::batch(vec![
-                task,
-                set_keyboard_interactivity(id, KeyboardInteractivity::None),
-            ])
-        } else {
-            task
-        }
+        self.maybe_release_all_keyboards(task, esc_button_enabled)
     }
 
     pub fn close_all_menu_if<Message: 'static>(
@@ -556,67 +551,31 @@ impl Outputs {
         let task = Task::batch(
             self.0
                 .iter_mut()
-                .map(|(_, shell_info, _)| {
-                    if let Some(shell_info) = shell_info {
-                        shell_info.menu.close_if(menu_type.clone())
-                    } else {
-                        Task::none()
-                    }
+                .filter_map(|(_, shell_info, _)| {
+                    shell_info
+                        .as_mut()
+                        .map(|si| si.menu.close_if(menu_type.clone()))
                 })
                 .collect::<Vec<_>>(),
         );
 
-        if esc_button_enabled && !self.menu_is_open() {
-            let keyboard_tasks = self
-                .0
-                .iter()
-                .map(|(_, shell_info, _)| {
-                    shell_info.as_ref().map_or_else(Task::none, |shell_info| {
-                        set_keyboard_interactivity(shell_info.id, KeyboardInteractivity::None)
-                    })
-                })
-                .collect::<Vec<_>>();
-            Task::batch(vec![task, Task::batch(keyboard_tasks)])
-        } else {
-            task
-        }
+        self.maybe_release_all_keyboards(task, esc_button_enabled)
     }
 
     pub fn close_all_menus<Message: 'static>(&mut self, esc_button_enabled: bool) -> Task<Message> {
         let task = Task::batch(
             self.0
                 .iter_mut()
-                .map(|(_, shell_info, _)| {
-                    if let Some(shell_info) = shell_info {
-                        if shell_info.menu.menu_info.is_some() {
-                            // toasts are on a background surface, so menu close
-                            // doesn't need to reorder them
-
-                            shell_info.menu.close()
-                        } else {
-                            Task::none()
-                        }
-                    } else {
-                        Task::none()
-                    }
+                .filter_map(|(_, shell_info, _)| {
+                    shell_info
+                        .as_mut()
+                        .filter(|si| si.menu.is_open())
+                        .map(|si| si.menu.close())
                 })
                 .collect::<Vec<_>>(),
         );
 
-        if esc_button_enabled && !self.menu_is_open() {
-            let keyboard_tasks = self
-                .0
-                .iter()
-                .map(|(_, shell_info, _)| {
-                    shell_info.as_ref().map_or_else(Task::none, |shell_info| {
-                        set_keyboard_interactivity(shell_info.id, KeyboardInteractivity::None)
-                    })
-                })
-                .collect::<Vec<_>>();
-            Task::batch(vec![task, Task::batch(keyboard_tasks)])
-        } else {
-            task
-        }
+        self.maybe_release_all_keyboards(task, esc_button_enabled)
     }
 
     pub fn request_keyboard<Message: 'static>(&self, id: SurfaceId) -> Task<Message> {
