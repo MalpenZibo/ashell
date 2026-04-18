@@ -108,7 +108,7 @@ Maximum height (in pixels) of each individual toast card. Cards with less conten
 **Type:** `integer`
 **Default:** `150`
 
-### blacklist
+### blocklist
 
 Notification app names to ignore.
 
@@ -130,5 +130,5 @@ toast_position = "top_right"
 toast_timeout = 4000
 toast_limit = 5
 toast_max_height = 150
-blacklist = ["blueman", "^org\\.gnome\\."]
+blocklist = ["blueman", "^org\\.gnome\\."]
 ```
