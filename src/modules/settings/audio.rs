@@ -8,7 +8,7 @@ use crate::{
     config::SettingsFormat,
     services::{
         ReadOnlyService, Service, ServiceEvent,
-        audio::{AudioCommand, AudioService, DevicePortType, Port},
+        audio::{AudioCommand, AudioService, ChannelVolumesExt, DevicePortType, Port},
     },
     theme::AshellTheme,
     utils::IndicatorState,
@@ -104,6 +104,12 @@ impl AudioSettings {
         self.service.as_ref().map(|s| s.sink_slider.value())
     }
 
+    pub fn real_sink_volume(&self) -> Option<u32> {
+        self.service
+            .as_ref()
+            .and_then(|s| s.active_sink().map(|d| d.volume.get_volume()))
+    }
+
     pub fn is_sink_muted(&self) -> Option<bool> {
         self.service
             .as_ref()
@@ -115,7 +121,7 @@ impl AudioSettings {
     }
 
     pub fn volume_adjust(&mut self, up: bool) -> Action {
-        let Some(cur) = self.current_sink_volume() else {
+        let Some(cur) = self.real_sink_volume() else {
             return Action::None;
         };
         let step = 5 * VOL_PERCENT;
