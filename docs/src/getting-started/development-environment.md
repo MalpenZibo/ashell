@@ -75,9 +75,19 @@ To watch logs in real time:
 tail -f /tmp/ashell/*.log
 ```
 
+## IPC Socket
+
+ashell listens on a Unix domain socket at `$XDG_RUNTIME_DIR/ashell.sock`.
+The same binary acts as a client when invoked with the `msg` subcommand:
+
+```bash
+# Toggle bar visibility
+ashell msg toggle-visibility
+```
+
 ## Signal Handling
 
-- **SIGUSR1**: Toggles bar visibility. Useful for keybindings:
+- **SIGUSR1**: Toggles bar visibility (legacy, still supported):
   ```bash
   kill -USR1 $(pidof ashell)
   ```

@@ -29,9 +29,10 @@ It follows the Elm architecture (model → update → view) with a modular desig
 
 ```
 src/
-├── main.rs              # entry point, font embedding
+├── main.rs              # entry point, font embedding, CLI dispatch
 ├── app.rs               # App state, Elm update/view cycle
 ├── config.rs            # configuration types (TOML deserialization)
+├── ipc.rs               # Unix socket IPC (client + server + subscription)
 ├── theme.rs             # theming (Islands/Solid/Gradient styles)
 ├── menu.rs              # menu UI
 ├── outputs.rs           # multi-monitor output management
@@ -73,6 +74,7 @@ Scope examples: `fix(brightness)`, `feat(system_info)`, `fix(network)`
 ## Documentation
 
 - **User docs:** `website/` (Docusaurus) → https://malpenzibo.github.io/ashell/
+- **Versioned docs:** `website/versioned_docs/` are frozen snapshots of past releases. **Never modify them** — only update `website/docs/` (the "next" version).
 - **Developer guide:** `docs/` (mdbook) → https://malpenzibo.github.io/ashell/dev-guide/
 - The developer guide is AI-generated but primarily written for human readers.
 - **Most useful docs for AI agents:** architecture overview, build.rs font subsetting, anatomy-of-a-module. These capture patterns that aren't obvious from the code alone.
