@@ -13,6 +13,7 @@ use iced::{
 pub enum MenuType {
     Updates,
     Settings,
+    Notifications,
     Tray(String),
     MediaPlayer,
     SystemInfo,
@@ -117,7 +118,7 @@ pub enum MenuSize {
 }
 
 impl MenuSize {
-    fn size(&self) -> f32 {
+    pub fn size(&self) -> f32 {
         match self {
             MenuSize::Small => 250.,
             MenuSize::Medium => 350.,

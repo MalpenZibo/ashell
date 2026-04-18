@@ -9,6 +9,7 @@ use crate::{
         keyboard_layout::KeyboardLayout,
         keyboard_submap::KeyboardSubmap,
         media_player::MediaPlayer,
+        notifications::Notifications,
         privacy::Privacy,
         settings::Settings,
         system_info::SystemInfo,
@@ -60,6 +61,7 @@ pub struct App {
     pub privacy: Privacy,
     pub settings: Settings,
     pub media_player: MediaPlayer,
+    pub notifications: Notifications,
     pub visible: bool,
 }
 
@@ -80,6 +82,7 @@ pub enum Message {
     Privacy(modules::privacy::Message),
     Settings(modules::settings::Message),
     MediaPlayer(modules::media_player::Message),
+    Notifications(modules::notifications::Message),
     OutputEvent(OutputEvent),
     CloseAllMenus,
     ResumeFromSleep,
@@ -106,6 +109,8 @@ impl App {
                 .map(|o| (o.name.clone(), Custom::new(o)))
                 .collect();
 
+            let notifications = Notifications::new(config.notifications);
+
             (
                 App {
                     config_path,
@@ -129,6 +134,7 @@ impl App {
                     tempo: Tempo::new(config.tempo),
                     privacy: Privacy::default(),
                     settings: Settings::new(config.settings),
+                    notifications,
                     media_player: MediaPlayer::new(config.media_player),
                     visible: true,
                 },
@@ -184,6 +190,11 @@ impl App {
         self.media_player
             .update(modules::media_player::Message::ConfigReloaded(
                 config.media_player,
+            ));
+        let _ = self
+            .notifications
+            .update(modules::notifications::Message::ConfigReloaded(
+                config.notifications,
             ));
     }
 
@@ -351,6 +362,10 @@ impl App {
                     info!("Output created: {info:?}");
                     let name = &info.name;
 
+                    if let Some((_, h)) = info.logical_size {
+                        self.outputs.set_output_logical_height(info.id, h as u32);
+                    }
+
                     self.outputs.add(
                         self.theme.bar_style,
                         &self.general_config.outputs,
@@ -392,6 +407,27 @@ impl App {
                 self.general_config.layer,
                 self.theme.scale_factor,
             ),
+            Message::Notifications(message) => match self.notifications.update(message) {
+                modules::notifications::Action::None => Task::none(),
+                modules::notifications::Action::Task(task) => task.map(Message::Notifications),
+                modules::notifications::Action::Show(task) => {
+                    let position = self.notifications.toast_position();
+                    let width = crate::menu::MenuSize::Medium.size() as u32;
+                    Task::batch(vec![
+                        task.map(Message::Notifications),
+                        self.outputs.show_toast_layer(width, position),
+                    ])
+                }
+                modules::notifications::Action::Hide(task) => Task::batch(vec![
+                    task.map(Message::Notifications),
+                    self.outputs.hide_toast_layer(),
+                ]),
+                modules::notifications::Action::UpdateToastInputRegion(content_size) => {
+                    let position = self.notifications.toast_position();
+                    self.outputs
+                        .update_toast_input_region(content_size, position)
+                }
+            },
             Message::None => Task::none(),
             Message::ToggleVisibility => {
                 self.visible = !self.visible;
@@ -526,6 +562,13 @@ impl App {
                     self.tray.menu_view(&self.theme, name).map(Message::Tray),
                     *button_ui_ref,
                 ),
+                Some((MenuType::Notifications, button_ui_ref)) => self.menu_wrapper(
+                    id,
+                    self.notifications
+                        .menu_view(&self.theme)
+                        .map(Message::Notifications),
+                    *button_ui_ref,
+                ),
                 Some((MenuType::Settings, button_ui_ref)) => self.menu_wrapper(
                     id,
                     self.settings
@@ -555,6 +598,10 @@ impl App {
                 ),
                 None => Row::new().into(),
             },
+            Some(HasOutput::Toast) => self
+                .notifications
+                .toast_view(&self.theme)
+                .map(Message::Notifications),
             None => Row::new().into(),
         }
     }

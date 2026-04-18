@@ -34,10 +34,13 @@ impl StatusNotifierWatcher {
         let dbus_proxy = DBusProxy::new(&connection).await?;
         let name_owner_changed_stream = dbus_proxy.receive_name_owner_changed().await?;
 
-        let flags = RequestNameFlags::AllowReplacement.into();
+        let flags = RequestNameFlags::AllowReplacement | RequestNameFlags::ReplaceExisting;
         if dbus_proxy.request_name(NAME, flags).await? == RequestNameReply::InQueue {
             warn!("Bus name '{NAME}' already owned");
         }
+
+        let emitter = SignalEmitter::new(&connection, OBJECT_PATH)?;
+        Self::status_notifier_host_registered(&emitter).await?;
 
         let internal_connection = connection.clone();
         let internal_interface = interface.clone();
@@ -180,7 +183,13 @@ impl StatusNotifierWatcher {
             .await;
     }
 
-    fn register_status_notifier_host(&mut self, _service: &str) {}
+    async fn register_status_notifier_host(
+        &mut self,
+        _service: &str,
+        #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
+    ) {
+        let _ = Self::status_notifier_host_registered(&emitter).await;
+    }
 
     #[zbus(property)]
     fn registered_status_notifier_items(&self) -> Vec<String> {

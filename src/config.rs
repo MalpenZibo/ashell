@@ -33,6 +33,7 @@ pub struct Config {
     pub workspaces: WorkspacesModuleConfig,
     pub window_title: WindowTitleConfig,
     pub system_info: SystemInfoModuleConfig,
+    pub notifications: NotificationsModuleConfig,
     pub tempo: TempoModuleConfig,
     pub settings: SettingsModuleConfig,
     pub appearance: Appearance,
@@ -53,6 +54,7 @@ impl Default for Config {
             workspaces: WorkspacesModuleConfig::default(),
             window_title: WindowTitleConfig::default(),
             system_info: SystemInfoModuleConfig::default(),
+            notifications: NotificationsModuleConfig::default(),
             tempo: TempoModuleConfig::default(),
             settings: SettingsModuleConfig::default(),
             appearance: Appearance::default(),
@@ -388,6 +390,44 @@ where
 {
     let s: String = Deserialize::deserialize(deserializer)?;
     Ok(Locale::try_from(s.as_str()).unwrap_or(Locale::en_US))
+}
+#[derive(Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ToastPosition {
+    TopLeft,
+    #[default]
+    TopRight,
+    BottomLeft,
+    BottomRight,
+}
+
+#[derive(Deserialize, Clone, Debug)]
+#[serde(default)]
+pub struct NotificationsModuleConfig {
+    pub format: String,
+    pub show_timestamps: bool,
+    pub show_bodies: bool,
+    pub grouped: bool,
+    pub toast: bool,
+    pub toast_position: ToastPosition,
+    pub toast_timeout: u64,
+    pub toast_limit: usize,
+    pub toast_max_height: u32,
+}
+impl Default for NotificationsModuleConfig {
+    fn default() -> Self {
+        Self {
+            format: "%H:%M".to_string(),
+            show_timestamps: true,
+            show_bodies: true,
+            grouped: false,
+            toast: true,
+            toast_position: ToastPosition::default(),
+            toast_timeout: 5000,
+            toast_limit: 5,
+            toast_max_height: 150,
+        }
+    }
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -864,6 +904,7 @@ pub enum ModuleName {
     Settings,
     MediaPlayer,
     Custom(String),
+    Notifications,
 }
 
 impl<'de> Deserialize<'de> for ModuleName {
@@ -889,6 +930,7 @@ impl<'de> Deserialize<'de> for ModuleName {
                     "KeyboardLayout" => ModuleName::KeyboardLayout,
                     "KeyboardSubmap" => ModuleName::KeyboardSubmap,
                     "Tray" => ModuleName::Tray,
+                    "Notifications" => ModuleName::Notifications,
                     "Tempo" => ModuleName::Tempo,
                     "Privacy" => ModuleName::Privacy,
                     "Settings" => ModuleName::Settings,

@@ -181,38 +181,38 @@ fn calculate_ui_workspaces(
     }
 
     if config.enable_workspace_filling && !result.is_empty() {
-        let existing_ids = result.iter().map(|w| w.id).collect_vec();
-        let mut max_id = *existing_ids
+        let existing_indices = result.iter().map(|w| w.index).collect_vec();
+        let mut max_index = *existing_indices
             .iter()
-            .filter(|&&id| id > 0)
+            .filter(|&&idx| idx > 0)
             .max()
             .unwrap_or(&0);
 
         if let Some(max_cfg) = config.max_workspaces
-            && max_cfg > max_id as u32
+            && max_cfg > max_index as u32
         {
-            max_id = max_cfg as i32;
+            max_index = max_cfg as i32;
         }
 
-        let missing_ids: Vec<i32> = (1..=max_id)
-            .filter(|id| !existing_ids.contains(id))
+        let missing_indices: Vec<i32> = (1..=max_index)
+            .filter(|idx| !existing_indices.contains(idx))
             .collect();
 
-        for id in missing_ids {
-            let display_name = if id > 0 {
-                let idx = (id - 1) as usize;
+        for index in missing_indices {
+            let display_name = if index > 0 {
+                let name_idx = (index - 1) as usize;
                 config
                     .workspace_names
-                    .get(idx)
+                    .get(name_idx)
                     .cloned()
-                    .unwrap_or_else(|| id.to_string())
+                    .unwrap_or_else(|| index.to_string())
             } else {
-                id.to_string()
+                index.to_string()
             };
 
             result.push(UiWorkspace {
-                id,
-                index: id,
+                id: index,
+                index,
                 name: display_name,
                 monitor_id: None,
                 monitor: "".to_string(),
@@ -317,19 +317,16 @@ impl Workspaces {
                         .map(Message::ServiceEvent);
                 }
                 return iced::Task::none();*/
-                let current_workspace = self
+                let Some(pos) = self
                     .ui_workspaces
                     .iter()
-                    .find(|w| w.displayed == Displayed::Active);
-
-                let Some(current_workspace_id) = current_workspace.map(|w| w.id) else {
+                    .position(|w| w.displayed == Displayed::Active)
+                else {
                     return iced::Task::none();
                 };
 
-                let current_monitor = current_workspace
-                    .map(|w| w.monitor.clone())
-                    .unwrap_or_default();
-                let current_monitor_id = current_workspace.and_then(|w| w.monitor_id);
+                let current_monitor = self.ui_workspaces[pos].monitor.clone();
+                let current_monitor_id = self.ui_workspaces[pos].monitor_id;
 
                 let restrict_to_monitor = matches!(
                     self.config.visibility_mode,
@@ -356,18 +353,18 @@ impl Workspaces {
                     true
                 };
 
+                // Navigate by position in the already-sorted ui_workspaces
+                // vector, which represents exact visual order regardless of
+                // group_by_monitor or visibility_mode configuration.
                 let next_workspace = if direction > 0 {
-                    self.ui_workspaces
+                    self.ui_workspaces[..pos]
                         .iter()
-                        .filter(|w| in_current_group(w))
-                        .filter(|w| w.id < current_workspace_id)
-                        .max_by_key(|w| w.id)
+                        .rev()
+                        .find(|w| in_current_group(w))
                 } else {
-                    self.ui_workspaces
+                    self.ui_workspaces[pos + 1..]
                         .iter()
-                        .filter(|w| in_current_group(w))
-                        .filter(|w| w.id > current_workspace_id)
-                        .min_by_key(|w| w.id)
+                        .find(|w| in_current_group(w))
                 };
 
                 if let Some(next) = next_workspace {
@@ -496,9 +493,9 @@ impl Workspaces {
                 if self.scroll_accumulator.abs() < sensibility {
                     Message::ScrollAccumulator(y)
                 } else if self.scroll_accumulator.is_sign_positive() {
-                    Message::Scroll(1)
-                } else {
                     Message::Scroll(-1)
+                } else {
+                    Message::Scroll(1)
                 }
             }
         })

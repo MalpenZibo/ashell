@@ -1,20 +1,18 @@
-<div align="center">
+<h1 align="center">
   <a href="https://malpenzibo.github.io/ashell/">
     <img src="https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/logo_header_dark.svg" alt="ashell" height="140"/>
   </a>
-</div>
+</h1>
+<p align="center">A ready to go Wayland status bar for Hyprland and Niri.</p>
+<p align="center">
+    <a href="https://matrix.to/#/#ashell:matrix.org"><img alt="Matrix" src="https://img.shields.io/badge/matrix-%23ashell-blue?logo=matrix"></a>
+    <a href="https://github.com/MalpenZibo/ashell/blob/main/LICENSE"><img alt="GitHub License" src="https://img.shields.io/github/license/MalpenZibo/ashell"></a>
+    <a href="https://github.com/MalpenZibo/ashell/releases"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/MalpenZibo/ashell?logo=github"></a>
+</p>
 
-## What is ashell?
-
-ashell is a ready to go Wayland status bar for Hyprland and Niri.
-
-Feel free to fork this project and customize it for your needs or just open an
-issue to request a particular feature.
-
-## 🚀 Getting Started
-
-Refer to the [Getting Started](https://malpenzibo.github.io/ashell/docs/intro)
-page on website
+<p align="center">
+    <a href="https://malpenzibo.github.io/ashell/docs/intro">Getting Started</a> | <a href="https://malpenzibo.github.io/ashell/docs/configuration">Configuration</a> | <a href="https://malpenzibo.github.io/ashell/dev-guide/">Developer&nbsp;Guide</a>
+</p>
 
 ## ✨ Features
 
@@ -33,6 +31,7 @@ page on website
 - Clock with calendar, weather, timezone cycling, and format cycling (Tempo)
 - Privacy indicators (microphone, camera, and screenshare usage)
 - Media Player with album art and track info
+- Notification manager with toast popups, grouping, and urgency support
 - Settings panel
   - Power menu (shutdown, suspend, hibernate, reboot, logout, lock)
   - Battery and peripheral battery information
@@ -64,6 +63,11 @@ ashell comes with a default configuration that should work out of the box.
 If you want to customize it you can refer to
 the [Configuration](https://malpenzibo.github.io/ashell/docs/configuration)
 page for more details.
+
+## 💬 Community
+
+Join the conversation on [Matrix](https://matrix.to/#/#ashell:matrix.org) or open an
+[issue](https://github.com/MalpenZibo/ashell/issues) on GitHub.
 
 ## 📖 Developer Guide
 

@@ -52,19 +52,12 @@ pub struct Port {
     pub name: String,
     pub description: String,
     pub device_type: DevicePortType,
-    pub active: bool,
 }
 
 #[derive(Debug, Copy, Clone)]
 pub struct Route<'a> {
     pub device: &'a Device,
     pub port: Option<&'a Port>,
-}
-
-impl Route<'_> {
-    pub fn is_active(&self) -> bool {
-        self.device.is_filter || self.port.map(|p| p.active).unwrap_or(false)
-    }
 }
 
 impl<'a> fmt::Display for Route<'a> {
@@ -251,15 +244,15 @@ impl AudioService {
     }
 
     pub fn active_sink(&self) -> Option<&Device> {
-        self.sink_iter()
-            .find(|route| route.is_active() && route.device.name == self.server_info.default_sink)
-            .map(|route| route.device)
+        self.sinks
+            .iter()
+            .find(|device| device.name == self.server_info.default_sink)
     }
 
     pub fn active_source(&self) -> Option<&Device> {
-        self.source_iter()
-            .find(|route| route.is_active() && route.device.name == self.server_info.default_source)
-            .map(|route| route.device)
+        self.sources
+            .iter()
+            .find(|device| device.name == self.server_info.default_source)
     }
 
     pub fn has_multiple_sources(&self) -> bool {
@@ -288,6 +281,8 @@ impl AudioService {
                     let device_name = device.name.as_str();
                     warn!("Unexpected multiple ports in a filter node: {device_name}")
                 }
+                Either::Left(std::iter::once(Route { device, port: None }))
+            } else if device.ports.is_empty() {
                 Either::Left(std::iter::once(Route { device, port: None }))
             } else {
                 Either::Right(device.ports.iter().map(move |port| Route {
@@ -712,10 +707,11 @@ impl PulseAudioServer {
     ) {
         match info {
             ListResult::Item(data) => {
-                if data
-                    .ports
-                    .iter()
-                    .any(|port| port.available != PortAvailable::No)
+                if data.ports.is_empty()
+                    || data
+                        .ports
+                        .iter()
+                        .any(|port| port.available != PortAvailable::No)
                     || data.proplist.get_str("node.link-group").is_some()
                 {
                     debug!("Adding sink data: {data:?}");
@@ -801,8 +797,6 @@ impl From<&SinkInfo<'_>> for Device {
                                 .map_or_else(String::default, |n| n.to_string()),
                             description: port.description.as_ref().unwrap().to_string(),
                             device_type: port.r#type,
-                            active: value.active_port.as_ref().and_then(|p| p.name.as_ref())
-                                == port.name.as_ref(),
                         })
                     } else {
                         None
@@ -839,8 +833,6 @@ impl From<&SourceInfo<'_>> for Device {
                                 .map_or_else(String::default, |n| n.to_string()),
                             description: port.description.as_ref().unwrap().to_string(),
                             device_type: port.r#type,
-                            active: value.active_port.as_ref().and_then(|p| p.name.as_ref())
-                                == port.name.as_ref(),
                         })
                     } else {
                         None

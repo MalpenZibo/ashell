@@ -307,10 +307,12 @@ impl BluetoothSettings {
                                 .padding([0.0, theme.space.sm]),
                                 rule::horizontal(1),
                             ),
-                            container(scrollable(
-                                Column::with_children(known_devices.map(known_device_entry),)
-                                    .padding(Padding::default().right(theme.space.xs))
-                            ))
+                            container(
+                                scrollable(Column::with_children(
+                                    known_devices.map(known_device_entry),
+                                ))
+                                .spacing(theme.space.xs)
+                            )
                             .max_height(150),
                         )
                         .spacing(theme.space.xs),
@@ -331,24 +333,26 @@ impl BluetoothSettings {
                                 .padding([0.0, theme.space.sm]),
                                 rule::horizontal(1),
                             ),
-                            container(scrollable(
-                                Column::with_children(available_devices.map(|d| {
-                                    button(
-                                        row![
-                                            text(d.name.clone()).width(Length::Fill),
-                                            text("Pair").size(theme.font_size.xs),
-                                        ]
-                                        .align_y(Vertical::Center)
-                                        .spacing(theme.space.xs),
-                                    )
-                                    .style(theme.ghost_button_style())
-                                    .padding([theme.space.xs, theme.space.xs])
-                                    .on_press(Message::PairDevice(d.path.clone()))
-                                    .width(Length::Fill)
-                                    .into()
-                                }))
-                                .padding(Padding::default().right(theme.space.xs))
-                            ))
+                            container(
+                                scrollable(
+                                    Column::with_children(available_devices.map(|d| {
+                                        button(
+                                            row![
+                                                text(d.name.clone()).width(Length::Fill),
+                                                text("Pair").size(theme.font_size.xs),
+                                            ]
+                                            .align_y(Vertical::Center)
+                                            .spacing(theme.space.xs),
+                                        )
+                                        .style(theme.ghost_button_style())
+                                        .on_press(Message::PairDevice(d.path.clone()))
+                                        .width(Length::Fill)
+                                        .into()
+                                    }))
+                                    .padding(Padding::default().right(theme.space.xs))
+                                )
+                                .spacing(theme.space.xs)
+                            )
                             .max_height(150),
                         )
                         .spacing(theme.space.xs),

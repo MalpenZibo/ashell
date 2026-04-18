@@ -1,7 +1,7 @@
 use iced::{
-    Anchor, KeyboardInteractivity, Layer, LayerShellSettings, OutputId, SurfaceId, Task,
-    destroy_layer_surface, new_layer_surface, set_anchor, set_exclusive_zone,
-    set_keyboard_interactivity, set_size,
+    Anchor, InputRegionRect, KeyboardInteractivity, Layer, LayerShellSettings, OutputId, SurfaceId,
+    Task, destroy_layer_surface, new_layer_surface, set_anchor, set_exclusive_zone,
+    set_input_region, set_keyboard_interactivity, set_size,
 };
 use log::debug;
 
@@ -20,6 +20,10 @@ pub struct ShellInfo {
     pub style: AppearanceStyle,
     pub menu: Menu,
     pub scale_factor: f64,
+    /// Optional layer surface used to render toast notifications.
+    pub toast_id: Option<SurfaceId>,
+    /// Logical height of this output (for computing toast input regions).
+    pub output_logical_height: Option<u32>,
 }
 
 #[derive(Debug, Clone)]
@@ -28,6 +32,7 @@ pub struct Outputs(Vec<(String, Option<ShellInfo>, Option<OutputId>)>);
 pub enum HasOutput<'a> {
     Main,
     Menu(Option<&'a (MenuType, ButtonUIRef)>),
+    Toast,
 }
 
 impl Outputs {
@@ -57,10 +62,12 @@ impl Outputs {
                 Some(ShellInfo {
                     id: SurfaceId::MAIN,
                     menu: Menu::new(menu_id),
+                    toast_id: None,
                     position,
                     layer,
                     style,
                     scale_factor,
+                    output_logical_height: None,
                 }),
                 None,
             )]),
@@ -136,7 +143,17 @@ impl Outputs {
                 if info.id == id {
                     Some(HasOutput::Main)
                 } else if info.menu.id == id {
-                    Some(HasOutput::Menu(info.menu.menu_info.as_ref()))
+                    if info.menu.menu_info.is_some() {
+                        Some(HasOutput::Menu(info.menu.menu_info.as_ref()))
+                    } else {
+                        Some(HasOutput::Menu(None))
+                    }
+                } else if let Some(toast_id) = info.toast_id {
+                    if toast_id == id {
+                        Some(HasOutput::Toast)
+                    } else {
+                        None
+                    }
                 } else {
                     None
                 }
@@ -186,12 +203,10 @@ impl Outputs {
                     let old_output = self.0.swap_remove(index);
 
                     match old_output.1 {
-                        Some(shell_info) => {
-                            let destroy_main_task = destroy_layer_surface(shell_info.id);
-                            let destroy_menu_task = destroy_layer_surface(shell_info.menu.id);
-
-                            Task::batch(vec![destroy_main_task, destroy_menu_task])
-                        }
+                        Some(shell_info) => Task::batch(vec![
+                            destroy_layer_surface(shell_info.id),
+                            destroy_layer_surface(shell_info.menu.id),
+                        ]),
                         _ => Task::none(),
                     }
                 }
@@ -203,10 +218,12 @@ impl Outputs {
                 Some(ShellInfo {
                     id,
                     menu: Menu::new(menu_id),
+                    toast_id: None,
                     position,
                     layer,
                     style,
                     scale_factor,
+                    output_logical_height: None,
                 }),
                 Some(output_id),
             ));
@@ -218,17 +235,10 @@ impl Outputs {
                         let old_output = self.0.swap_remove(index);
 
                         match old_output.1 {
-                            Some(shell_info) => {
-                                let destroy_fallback_main_task =
-                                    destroy_layer_surface(shell_info.id);
-                                let destroy_fallback_menu_task =
-                                    destroy_layer_surface(shell_info.menu.id);
-
-                                Task::batch(vec![
-                                    destroy_fallback_main_task,
-                                    destroy_fallback_menu_task,
-                                ])
-                            }
+                            Some(shell_info) => Task::batch(vec![
+                                destroy_layer_surface(shell_info.id),
+                                destroy_layer_surface(shell_info.menu.id),
+                            ]),
                             _ => Task::none(),
                         }
                     }
@@ -267,10 +277,14 @@ impl Outputs {
                 let (name, shell_info, output_id) = self.0.swap_remove(index_to_remove);
 
                 let destroy_task = if let Some(shell_info) = shell_info {
-                    let destroy_main_task = destroy_layer_surface(shell_info.id);
-                    let destroy_menu_task = destroy_layer_surface(shell_info.menu.id);
-
-                    Task::batch(vec![destroy_main_task, destroy_menu_task])
+                    let mut tasks = vec![
+                        destroy_layer_surface(shell_info.id),
+                        destroy_layer_surface(shell_info.menu.id),
+                    ];
+                    if let Some(toast_id) = shell_info.toast_id {
+                        tasks.push(destroy_layer_surface(toast_id));
+                    }
+                    Task::batch(tasks)
                 } else {
                     Task::none()
                 };
@@ -290,10 +304,12 @@ impl Outputs {
                         Some(ShellInfo {
                             id,
                             menu: Menu::new(menu_id),
+                            toast_id: None,
                             position,
                             layer,
                             style,
                             scale_factor,
+                            output_logical_height: None,
                         }),
                         None,
                     ));
@@ -396,18 +412,15 @@ impl Outputs {
                 let (id, menu_id, task) =
                     Self::create_output_layers(style, *output_id, position, layer, scale_factor);
 
+                let batch = vec![destroy_main_task, destroy_menu_task, task];
+
                 shell_info.id = id;
                 shell_info.menu = Menu::new(menu_id);
-                shell_info.position = position;
-                shell_info.layer = layer;
+                shell_info.toast_id = None;
                 shell_info.style = style;
                 shell_info.scale_factor = scale_factor;
 
-                tasks.push(Task::batch(vec![
-                    destroy_main_task,
-                    destroy_menu_task,
-                    task,
-                ]));
+                tasks.push(Task::batch(batch));
             }
         }
 
@@ -588,6 +601,9 @@ impl Outputs {
                 .map(|(_, shell_info, _)| {
                     if let Some(shell_info) = shell_info {
                         if shell_info.menu.menu_info.is_some() {
+                            // toasts are on a background surface, so menu close
+                            // doesn't need to reorder them
+
                             shell_info.menu.close()
                         } else {
                             Task::none()
@@ -633,5 +649,113 @@ impl Outputs {
             Some((_, Some(shell_info), _)) => shell_info.menu.release_keyboard(),
             _ => Task::none(),
         }
+    }
+
+    /// Show the toast layer(s) for every output.
+    ///
+    /// Creates a full-height surface anchored at `position`. Height is 0 so
+    /// the compositor fills the output height. The surface starts with an
+    /// empty input region (fully click-through); `update_toast_input_region`
+    /// restricts input to just the rendered toast area after layout.
+    pub fn show_toast_layer<Message: 'static>(
+        &mut self,
+        width: u32,
+        position: config::ToastPosition,
+    ) -> Task<Message> {
+        let mut tasks = vec![];
+
+        for (_, shell_info, _) in &mut self.0 {
+            if let Some(shell_info) = shell_info
+                && shell_info.toast_id.is_none()
+            {
+                // Anchor both vertical edges so height 0 → full output height.
+                let anchor = match position {
+                    config::ToastPosition::TopLeft => Anchor::TOP | Anchor::BOTTOM | Anchor::LEFT,
+                    config::ToastPosition::TopRight => Anchor::TOP | Anchor::BOTTOM | Anchor::RIGHT,
+                    config::ToastPosition::BottomLeft => {
+                        Anchor::TOP | Anchor::BOTTOM | Anchor::LEFT
+                    }
+                    config::ToastPosition::BottomRight => {
+                        Anchor::TOP | Anchor::BOTTOM | Anchor::RIGHT
+                    }
+                };
+
+                let (toast_id, toast_task) = new_layer_surface(LayerShellSettings {
+                    namespace: "ashell-toast-layer".to_string(),
+                    size: Some((width, 0)),
+                    layer: Layer::Overlay,
+                    keyboard_interactivity: KeyboardInteractivity::None,
+                    exclusive_zone: 0,
+                    anchor,
+                    ..Default::default()
+                });
+
+                shell_info.toast_id = Some(toast_id);
+                tasks.push(toast_task);
+                // Start fully click-through until sensor reports content size.
+                tasks.push(set_input_region(toast_id, Some(vec![])));
+            }
+        }
+
+        Task::batch(tasks)
+    }
+
+    /// Update the input region of the toast surface(s) so only the rendered
+    /// toast content accepts pointer input. Everything else is click-through.
+    pub fn update_toast_input_region<Message: 'static>(
+        &self,
+        content_size: iced::Size,
+        position: config::ToastPosition,
+    ) -> Task<Message> {
+        let content_w = content_size.width.ceil() as i32;
+        let content_h = content_size.height.ceil() as i32;
+        let mut tasks = vec![];
+        for (_, shell_info, _) in &self.0 {
+            if let Some(shell_info) = shell_info
+                && let Some(toast_id) = shell_info.toast_id
+            {
+                let y = match position {
+                    config::ToastPosition::TopLeft | config::ToastPosition::TopRight => 0,
+                    config::ToastPosition::BottomLeft | config::ToastPosition::BottomRight => {
+                        shell_info
+                            .output_logical_height
+                            .map_or(0, |h| (h as i32) - content_h)
+                    }
+                };
+                tasks.push(set_input_region(
+                    toast_id,
+                    Some(vec![InputRegionRect {
+                        x: 0,
+                        y,
+                        width: content_w,
+                        height: content_h,
+                    }]),
+                ));
+            }
+        }
+        Task::batch(tasks)
+    }
+
+    /// Store the logical height for an output (used for bottom-aligned toast input regions).
+    pub fn set_output_logical_height(&mut self, output_id: OutputId, height: u32) {
+        for (_, shell_info, oid) in &mut self.0 {
+            if *oid == Some(output_id)
+                && let Some(info) = shell_info
+            {
+                info.output_logical_height = Some(height);
+            }
+        }
+    }
+
+    pub fn hide_toast_layer<Message: 'static>(&mut self) -> Task<Message> {
+        let mut tasks = vec![];
+        for (_, shell_info, _) in &mut self.0 {
+            if let Some(shell_info) = shell_info
+                && let Some(toast_id) = shell_info.toast_id.take()
+            {
+                tasks.push(destroy_layer_surface(toast_id));
+            }
+        }
+        Task::batch(tasks)
     }
 }

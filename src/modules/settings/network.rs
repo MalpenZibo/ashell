@@ -643,7 +643,7 @@ impl NetworkSettings {
                         .collect::<Vec<Element<'a, Message>>>()
                 })
                 .spacing(theme.space.xxs)
-            ))
+            ).spacing(theme.space.xs))
             .max_height(200),
         )
         .spacing(theme.space.xs);

@@ -202,45 +202,44 @@ impl Updates {
 
                 if self.is_updates_list_open {
                     elements = elements.push(
-                        container(scrollable(
-                            Column::with_children(
-                                self.updates
-                                    .iter()
-                                    .map(|update| {
-                                        column!(
-                                            text(update.package.clone())
+                        container(
+                            scrollable(
+                                Column::with_children(
+                                    self.updates
+                                        .iter()
+                                        .map(|update| {
+                                            column!(
+                                                text(update.package.clone())
+                                                    .size(theme.font_size.xs)
+                                                    .width(Length::Fill),
+                                                text(format!(
+                                                    "{} -> {}",
+                                                    {
+                                                        let mut res = update.from.clone();
+                                                        res.truncate(18);
+
+                                                        res
+                                                    },
+                                                    {
+                                                        let mut res = update.to.clone();
+                                                        res.truncate(18);
+
+                                                        res
+                                                    },
+                                                ))
+                                                .width(Length::Fill)
+                                                .align_x(Horizontal::Right)
                                                 .size(theme.font_size.xs)
-                                                .width(Length::Fill),
-                                            text(format!(
-                                                "{} -> {}",
-                                                {
-                                                    let mut res = update.from.clone();
-                                                    res.truncate(18);
-
-                                                    res
-                                                },
-                                                {
-                                                    let mut res = update.to.clone();
-                                                    res.truncate(18);
-
-                                                    res
-                                                },
-                                            ))
-                                            .width(Length::Fill)
-                                            .align_x(Horizontal::Right)
-                                            .size(theme.font_size.xs)
-                                        )
-                                        .into()
-                                    })
-                                    .collect::<Vec<Element<'_, _>>>(),
+                                            )
+                                            .into()
+                                        })
+                                        .collect::<Vec<Element<'_, _>>>(),
+                                )
+                                .spacing(theme.space.xs)
+                                .padding(Padding::default().left(theme.space.md)),
                             )
-                            .spacing(theme.space.xs)
-                            .padding(
-                                Padding::default()
-                                    .right(theme.space.md)
-                                    .left(theme.space.xs),
-                            ),
-                        ))
+                            .spacing(theme.space.xs),
+                        )
                         .max_height(300),
                     );
                 }

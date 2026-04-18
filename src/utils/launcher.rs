@@ -1,67 +1,42 @@
 use std::process::Command;
 
-pub fn execute_command(command: String) {
+use log::error;
+
+fn run_command(cmd: String, context: &'static str) {
     tokio::spawn(async move {
-        let _ = Command::new("bash")
-            .arg("-c")
-            .arg(&command)
-            .spawn()
-            .unwrap_or_else(|_| panic!("Failed to execute command {}", &command))
-            .wait();
+        match Command::new("bash").arg("-c").arg(&cmd).spawn() {
+            Ok(mut child) => {
+                if let Err(e) = child.wait() {
+                    error!("{context} command failed: {e}");
+                }
+            }
+            Err(e) => {
+                error!("Failed to execute {context} command: {e}");
+            }
+        }
     });
+}
+
+pub fn execute_command(command: String) {
+    run_command(command, "execute");
 }
 
 pub fn suspend(cmd: String) {
-    tokio::spawn(async move {
-        let _ = Command::new("bash")
-            .arg("-c")
-            .arg(cmd)
-            .spawn()
-            .expect("Failed to execute command.")
-            .wait();
-    });
+    run_command(cmd, "suspend");
 }
 
 pub fn hibernate(cmd: String) {
-    tokio::spawn(async move {
-        let _ = Command::new("bash")
-            .arg("-c")
-            .arg(cmd)
-            .spawn()
-            .expect("Failed to execute command.")
-            .wait();
-    });
+    run_command(cmd, "hibernate");
 }
 
 pub fn shutdown(cmd: String) {
-    tokio::spawn(async move {
-        let _ = Command::new("bash")
-            .arg("-c")
-            .arg(cmd)
-            .spawn()
-            .expect("Failed to execute command.")
-            .wait();
-    });
+    run_command(cmd, "shutdown");
 }
 
 pub fn reboot(cmd: String) {
-    tokio::spawn(async move {
-        let _ = Command::new("bash")
-            .arg("-c")
-            .arg(cmd)
-            .spawn()
-            .expect("Failed to execute command.")
-            .wait();
-    });
+    run_command(cmd, "reboot");
 }
 
 pub fn logout(cmd: String) {
-    tokio::spawn(async move {
-        let _ = Command::new("bash")
-            .arg("-c")
-            .arg(cmd)
-            .spawn()
-            .expect("Failed to execute command.")
-            .wait();
-    });
+    run_command(cmd, "logout");
 }
