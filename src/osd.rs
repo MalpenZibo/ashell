@@ -125,11 +125,8 @@ impl Osd {
                 container(bar).center_x(Length::Fill).into()
             }
             OsdKind::Airplane => {
-                let label = if state.value > 0.5 {
-                    "Enabled"
-                } else {
-                    "Disabled"
-                };
+                // For toggles, `muted` carries the active/enabled state.
+                let label = if state.muted { "Enabled" } else { "Disabled" };
                 container(text(label)).center_x(Length::Fill).into()
             }
         };

@@ -257,8 +257,9 @@ impl App {
                 .map(|(cur, max)| (OsdKind::Brightness, normalise(cur, max), false)),
             IpcCommand::AirplaneToggle { .. } => {
                 // After toggle: the new state is the opposite of current.
+                // For toggles, `muted` carries the active/enabled state; `value` is unused.
                 let active = !self.settings.network().is_airplane_mode().unwrap_or(false);
-                Some((OsdKind::Airplane, if active { 1.0 } else { 0.0 }, false))
+                Some((OsdKind::Airplane, 0.0, active))
             }
             IpcCommand::ToggleVisibility => None,
         }
