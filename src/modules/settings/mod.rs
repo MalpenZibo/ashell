@@ -28,9 +28,9 @@ use iced::{
     widget::{Column, Row, Space, container, row, space},
 };
 
-mod audio;
+pub(crate) mod audio;
 mod bluetooth;
-mod brightness;
+pub(crate) mod brightness;
 mod network;
 mod power;
 
@@ -119,6 +119,33 @@ pub enum SubMenu {
 }
 
 impl Settings {
+    pub fn audio(&self) -> &AudioSettings {
+        &self.audio
+    }
+
+    pub fn brightness(&self) -> &BrightnessSettings {
+        &self.brightness
+    }
+
+    pub fn volume_adjust(&mut self, up: bool) -> Action {
+        match self.audio.volume_adjust(up) {
+            audio::Action::Task(task) => Action::Command(task.map(Message::Audio)),
+            _ => Action::None,
+        }
+    }
+
+    pub fn toggle_mute(&mut self) -> Action {
+        self.audio.toggle_mute();
+        Action::None
+    }
+
+    pub fn brightness_adjust(&mut self, up: bool) -> Action {
+        match self.brightness.brightness_adjust(up) {
+            brightness::Action::Command(task) => Action::Command(task.map(Message::Brightness)),
+            brightness::Action::None => Action::None,
+        }
+    }
+
     pub fn new(config: SettingsModuleConfig) -> Self {
         Settings {
             lock_cmd: config.lock_cmd,

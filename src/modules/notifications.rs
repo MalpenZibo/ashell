@@ -367,9 +367,11 @@ impl Notifications {
     ) -> impl Fn(&Theme, iced::widget::button::Status) -> iced::widget::button::Style {
         move |iced_theme: &Theme, status| {
             let mut border = match style {
-                NotificationStyle::Standalone | NotificationStyle::Toast => {
-                    Border::default().rounded(theme.radius.lg)
-                }
+                NotificationStyle::Toast => Border::default()
+                    .width(1)
+                    .color(iced_theme.extended_palette().background.weakest.color)
+                    .rounded(theme.radius.lg),
+                NotificationStyle::Standalone => Border::default().rounded(theme.radius.lg),
                 NotificationStyle::GroupHeader => Border::default().rounded(iced::border::Radius {
                     top_left: theme.radius.lg,
                     top_right: theme.radius.lg,
@@ -386,7 +388,7 @@ impl Notifications {
             };
 
             if urgency == Urgency::Critical {
-                border.width = 2.0;
+                border.width = 1.0;
                 border.color = iced_theme.palette().danger;
             }
 
