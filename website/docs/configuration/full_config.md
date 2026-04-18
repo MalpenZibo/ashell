@@ -79,6 +79,8 @@ microphone_indicator_format = "Icon"
 network_indicator_format = "Icon"
 bluetooth_indicator_format = "Icon"
 brightness_indicator_format = "Icon"
+audio_feedback = true
+audio_feedback_sound = "/usr/share/sounds/freedesktop/stereo/bell.oga"
 indicators = [ "IdleInhibitor", "PowerProfile", "Audio", "Microphone", "Bluetooth", "Network", "Vpn", "Battery", "Brightness" ]
 
 [[settings.CustomButton]]
