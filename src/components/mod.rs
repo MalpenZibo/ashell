@@ -1,3 +1,4 @@
+mod animated_size;
 pub mod button;
 mod centerbox;
 mod format_indicator;
@@ -12,6 +13,7 @@ mod quick_setting_button;
 mod slider_control;
 mod sub_menu_wrapper;
 
+pub use animated_size::*;
 pub use button::*;
 pub use centerbox::*;
 pub use format_indicator::*;
