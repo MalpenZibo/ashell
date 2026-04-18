@@ -81,9 +81,16 @@ ashell listens on a Unix domain socket at `$XDG_RUNTIME_DIR/ashell.sock`.
 The same binary acts as a client when invoked with the `msg` subcommand:
 
 ```bash
-# Toggle bar visibility
 ashell msg toggle-visibility
+ashell msg volume-up
+ashell msg volume-down
+ashell msg volume-toggle-mute
+ashell msg brightness-up
+ashell msg brightness-down
+ashell msg airplane-toggle
 ```
+
+Volume, brightness, and airplane commands show an OSD overlay. Add `--no-osd` to suppress it.
 
 ## Signal Handling
 

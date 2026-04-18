@@ -1065,7 +1065,7 @@ pub struct OsdConfig {
 impl Default for OsdConfig {
     fn default() -> Self {
         Self {
-            enabled: true,
+            enabled: false,
             timeout: 1500,
         }
     }

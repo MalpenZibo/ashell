@@ -44,6 +44,8 @@
   - Idle inhibitor
   - Airplane mode
   - Custom quick-action buttons with status commands
+- IPC socket for scripting and keybindings (`ashell msg <command>`)
+- OSD overlay for volume, brightness, and airplane mode changes
 - Custom Modules
   - Button (execute command on click)
   - Text (display-only, update UI with command output via `listen_cmd`)
