@@ -114,7 +114,16 @@ pub struct WorkspacesModuleConfig {
     pub max_workspaces: Option<u32>,
     pub workspace_names: Vec<String>,
     pub enable_virtual_desktops: bool,
-    pub invert_workspace_scroll_direction: bool,
+    pub invert_scroll_direction: Option<InvertScrollDirection>,
+}
+
+#[derive(Deserialize, Copy, Clone, Default, PartialEq, Eq, Debug)]
+pub enum InvertScrollDirection {
+    #[default]
+    All,
+    Mice,
+    Trackpads,
+    None,
 }
 
 #[derive(Deserialize, Copy, Clone, Default, PartialEq, Eq, Debug)]

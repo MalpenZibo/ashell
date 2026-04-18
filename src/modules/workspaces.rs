@@ -1,5 +1,5 @@
 use crate::{
-    config::{WorkspaceVisibilityMode, WorkspacesModuleConfig},
+    config::{InvertScrollDirection, WorkspaceVisibilityMode, WorkspacesModuleConfig},
     outputs::Outputs,
     services::{
         ReadOnlyService, Service, ServiceEvent,
@@ -482,9 +482,14 @@ impl Workspaces {
         )
         .on_scroll(move |direction| match direction {
             iced::mouse::ScrollDelta::Lines { y, .. } => {
-                match self.config.invert_workspace_scroll_direction {
-                    true => Message::Scroll(y as i32),
-                    false => Message::Scroll(-y as i32),
+                match self.config.invert_scroll_direction {
+                    Some(InvertScrollDirection::All | InvertScrollDirection::Mice) => {
+                        Message::Scroll(-y as i32)
+                    }
+                    Some(InvertScrollDirection::Trackpads | InvertScrollDirection::None) => {
+                        Message::Scroll(y as i32)
+                    }
+                    None => Message::Scroll(y as i32),
                 }
             }
             iced::mouse::ScrollDelta::Pixels { y, .. } => {
@@ -492,10 +497,16 @@ impl Workspaces {
 
                 if self.scroll_accumulator.abs() < sensibility {
                     Message::ScrollAccumulator(y)
-                } else if self.scroll_accumulator.is_sign_positive() {
-                    Message::Scroll(-1)
                 } else {
-                    Message::Scroll(1)
+                    match self.config.invert_scroll_direction {
+                        Some(InvertScrollDirection::All | InvertScrollDirection::Trackpads) => {
+                            Message::Scroll(-y as i32)
+                        }
+                        Some(InvertScrollDirection::Mice | InvertScrollDirection::None) => {
+                            Message::Scroll(y as i32)
+                        }
+                        None => Message::Scroll(y as i32),
+                    }
                 }
             }
         })
