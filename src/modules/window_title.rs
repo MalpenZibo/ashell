@@ -1,4 +1,7 @@
+use std::time::Duration;
+
 use crate::{
+    components::animated_size,
     config::{WindowTitleConfig, WindowTitleMode},
     services::{ReadOnlyService, ServiceEvent, compositor::CompositorService},
     theme::AshellTheme,
@@ -91,12 +94,16 @@ impl WindowTitle {
     }
 
     pub fn view(&'_ self, theme: &AshellTheme, title: String) -> Element<'_, Message> {
-        container(
-            text(title)
-                .size(theme.font_size.sm)
-                .wrapping(text::Wrapping::None),
+        animated_size(
+            container(
+                text(title)
+                    .size(theme.font_size.sm)
+                    .wrapping(text::Wrapping::None),
+            )
+            .clip(true),
         )
-        .clip(true)
+        .easing(iced::animation::Easing::EaseIn)
+        .duration(Duration::from_millis(100))
         .into()
     }
 
