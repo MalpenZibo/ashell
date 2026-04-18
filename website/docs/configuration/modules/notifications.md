@@ -108,6 +108,15 @@ Maximum height (in pixels) of each individual toast card. Cards with less conten
 **Type:** `integer`
 **Default:** `150`
 
+### blocklist
+
+Notification app names to ignore.
+
+Each entry is treated as a regular expression and matched against the notification `app_name`. If any pattern matches, the notification is dropped before it appears in the menu or as a toast.
+
+**Type:** `array of strings`
+**Default:** `[]`
+
 ### Example
 
 ```toml
@@ -121,4 +130,5 @@ toast_position = "top_right"
 toast_timeout = 4000
 toast_limit = 5
 toast_max_height = 150
+blocklist = ["blueman", "^org\\.gnome\\."]
 ```

@@ -135,18 +135,27 @@ pub struct Notifications {
     connection: Option<Connection>,
     notifications: VecDeque<Notification>,
     expanded_groups: HashSet<String>,
+    blocklist: Vec<crate::config::RegexCfg>,
     toasts: VecDeque<u32>,
 }
 
 impl Notifications {
     pub fn new(config: NotificationsModuleConfig) -> Self {
+        let blocklist = config.blocklist.clone();
         Self {
             config,
             connection: None,
             notifications: VecDeque::new(),
             expanded_groups: HashSet::new(),
+            blocklist,
             toasts: VecDeque::new(),
         }
+    }
+
+    fn is_blocklisted(&self, app_name: &str) -> bool {
+        self.blocklist
+            .iter()
+            .any(|pattern| pattern.is_match(app_name))
     }
 
     fn find_notification(&self, id: u32) -> Option<&Notification> {
@@ -268,6 +277,7 @@ impl Notifications {
         match message {
             Message::ConfigReloaded(config) => {
                 let hide = !config.toast && self.config.toast && !self.toasts.is_empty();
+                self.blocklist = config.blocklist.clone();
                 self.config = config;
                 if hide {
                     self.toasts.clear();
@@ -282,6 +292,12 @@ impl Notifications {
                     Action::None
                 }
                 ServiceEvent::Update(update_event) => {
+                    if let NotificationEvent::Received(notification) = &update_event
+                        && self.is_blocklisted(&notification.app_name)
+                    {
+                        return Action::None;
+                    }
+
                     let toast_action = self.toast_action_for_update_event(&update_event);
                     self.apply_update_event(update_event);
 
