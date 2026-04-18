@@ -26,6 +26,19 @@ pub struct ShellInfo {
     pub output_logical_height: Option<u32>,
 }
 
+impl ShellInfo {
+    fn destroy_surfaces<Message: 'static>(self) -> Task<Message> {
+        let mut tasks = vec![destroy_layer_surface(self.id)];
+        if let Some(menu_id) = self.menu.id {
+            tasks.push(destroy_layer_surface(menu_id));
+        }
+        if let Some(toast_id) = self.toast_id {
+            tasks.push(destroy_layer_surface(toast_id));
+        }
+        Task::batch(tasks)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Outputs(Vec<(String, Option<ShellInfo>, Option<OutputId>)>);
 
@@ -123,11 +136,7 @@ impl Outputs {
                 if info.id == id {
                     Some(HasOutput::Main)
                 } else if info.menu.id == Some(id) {
-                    if info.menu.menu_info.is_some() {
-                        Some(HasOutput::Menu(info.menu.menu_info.as_ref()))
-                    } else {
-                        Some(HasOutput::Menu(None))
-                    }
+                    Some(HasOutput::Menu(info.menu.menu_info.as_ref()))
                 } else if let Some(toast_id) = info.toast_id {
                     if toast_id == id {
                         Some(HasOutput::Toast)
@@ -183,13 +192,7 @@ impl Outputs {
                     let old_output = self.0.swap_remove(index);
 
                     match old_output.1 {
-                        Some(shell_info) => {
-                            let mut tasks = vec![destroy_layer_surface(shell_info.id)];
-                            if let Some(menu_id) = shell_info.menu.id {
-                                tasks.push(destroy_layer_surface(menu_id));
-                            }
-                            Task::batch(tasks)
-                        }
+                        Some(shell_info) => shell_info.destroy_surfaces(),
                         _ => Task::none(),
                     }
                 }
@@ -218,13 +221,7 @@ impl Outputs {
                         let old_output = self.0.swap_remove(index);
 
                         match old_output.1 {
-                            Some(shell_info) => {
-                                let mut tasks = vec![destroy_layer_surface(shell_info.id)];
-                                if let Some(menu_id) = shell_info.menu.id {
-                                    tasks.push(destroy_layer_surface(menu_id));
-                                }
-                                Task::batch(tasks)
-                            }
+                            Some(shell_info) => shell_info.destroy_surfaces(),
                             _ => Task::none(),
                         }
                     }
@@ -263,14 +260,7 @@ impl Outputs {
                 let (name, shell_info, output_id) = self.0.swap_remove(index_to_remove);
 
                 let destroy_task = if let Some(shell_info) = shell_info {
-                    let mut tasks = vec![destroy_layer_surface(shell_info.id)];
-                    if let Some(menu_id) = shell_info.menu.id {
-                        tasks.push(destroy_layer_surface(menu_id));
-                    }
-                    if let Some(toast_id) = shell_info.toast_id {
-                        tasks.push(destroy_layer_surface(toast_id));
-                    }
-                    Task::batch(tasks)
+                    shell_info.destroy_surfaces()
                 } else {
                     Task::none()
                 };
@@ -392,15 +382,11 @@ impl Outputs {
             if let Some(shell_info) = shell_info
                 && shell_info.layer != layer
             {
-                let mut batch = vec![destroy_layer_surface(shell_info.id)];
-                if let Some(menu_id) = shell_info.menu.id {
-                    batch.push(destroy_layer_surface(menu_id));
-                }
+                let old = shell_info.clone();
+                let destroy_task = old.destroy_surfaces();
 
-                let (id, task) =
+                let (id, create_task) =
                     Self::create_output_layers(style, *output_id, position, layer, scale_factor);
-
-                batch.push(task);
 
                 shell_info.id = id;
                 shell_info.menu = Menu::new();
@@ -408,7 +394,7 @@ impl Outputs {
                 shell_info.style = style;
                 shell_info.scale_factor = scale_factor;
 
-                tasks.push(Task::batch(batch));
+                tasks.push(Task::batch(vec![destroy_task, create_task]));
             }
         }
 
@@ -437,6 +423,28 @@ impl Outputs {
         Task::batch(tasks)
     }
 
+    fn find_by_surface_id(
+        &self,
+        id: SurfaceId,
+    ) -> Option<&(String, Option<ShellInfo>, Option<OutputId>)> {
+        self.0.iter().find(|(_, shell_info, _)| {
+            shell_info
+                .as_ref()
+                .is_some_and(|si| si.id == id || si.menu.id == Some(id))
+        })
+    }
+
+    fn find_by_surface_id_mut(
+        &mut self,
+        id: SurfaceId,
+    ) -> Option<&mut (String, Option<ShellInfo>, Option<OutputId>)> {
+        self.0.iter_mut().find(|(_, shell_info, _)| {
+            shell_info
+                .as_ref()
+                .is_some_and(|si| si.id == id || si.menu.id == Some(id))
+        })
+    }
+
     pub fn menu_is_open(&self) -> bool {
         self.0.iter().any(|(_, shell_info, _)| {
             shell_info
@@ -453,13 +461,7 @@ impl Outputs {
         button_ui_ref: ButtonUIRef,
         request_keyboard: bool,
     ) -> Task<Message> {
-        let task = match self.0.iter_mut().find(|(_, shell_info, _)| {
-            shell_info.as_ref().map(|shell_info| shell_info.id) == Some(id)
-                || shell_info
-                    .as_ref()
-                    .and_then(|shell_info| shell_info.menu.id)
-                    == Some(id)
-        }) {
+        let task = match self.find_by_surface_id_mut(id) {
             Some((_, Some(shell_info), output_id)) => {
                 let output_id = *output_id;
                 let toggle_task =
@@ -510,13 +512,7 @@ impl Outputs {
         id: SurfaceId,
         esc_button_enabled: bool,
     ) -> Task<Message> {
-        let task = match self.0.iter_mut().find(|(_, shell_info, _)| {
-            shell_info.as_ref().map(|shell_info| shell_info.id) == Some(id)
-                || shell_info
-                    .as_ref()
-                    .and_then(|shell_info| shell_info.menu.id)
-                    == Some(id)
-        }) {
+        let task = match self.find_by_surface_id_mut(id) {
             Some((_, Some(shell_info), _)) => shell_info.menu.close(),
             _ => Task::none(),
         };
@@ -537,13 +533,7 @@ impl Outputs {
         menu_type: MenuType,
         esc_button_enabled: bool,
     ) -> Task<Message> {
-        let task = match self.0.iter_mut().find(|(_, shell_info, _)| {
-            shell_info.as_ref().map(|shell_info| shell_info.id) == Some(id)
-                || shell_info
-                    .as_ref()
-                    .and_then(|shell_info| shell_info.menu.id)
-                    == Some(id)
-        }) {
+        let task = match self.find_by_surface_id_mut(id) {
             Some((_, Some(shell_info), _)) => shell_info.menu.close_if(menu_type),
             _ => Task::none(),
         };
@@ -630,26 +620,14 @@ impl Outputs {
     }
 
     pub fn request_keyboard<Message: 'static>(&self, id: SurfaceId) -> Task<Message> {
-        match self.0.iter().find(|(_, shell_info, _)| {
-            shell_info.as_ref().map(|shell_info| shell_info.id) == Some(id)
-                || shell_info
-                    .as_ref()
-                    .and_then(|shell_info| shell_info.menu.id)
-                    == Some(id)
-        }) {
+        match self.find_by_surface_id(id) {
             Some((_, Some(shell_info), _)) => shell_info.menu.request_keyboard(),
             _ => Task::none(),
         }
     }
 
     pub fn release_keyboard<Message: 'static>(&self, id: SurfaceId) -> Task<Message> {
-        match self.0.iter().find(|(_, shell_info, _)| {
-            shell_info.as_ref().map(|shell_info| shell_info.id) == Some(id)
-                || shell_info
-                    .as_ref()
-                    .and_then(|shell_info| shell_info.menu.id)
-                    == Some(id)
-        }) {
+        match self.find_by_surface_id(id) {
             Some((_, Some(shell_info), _)) => shell_info.menu.release_keyboard(),
             _ => Task::none(),
         }
