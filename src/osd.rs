@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use iced::{
     Alignment, Border, Element, Length, Task, Theme,
-    widget::{container, progress_bar, row},
+    widget::{container, progress_bar, row, text},
 };
 use tokio::time::sleep;
 
@@ -30,6 +30,7 @@ struct OsdState {
 pub enum OsdKind {
     Volume,
     Brightness,
+    Airplane,
 }
 
 #[derive(Debug, Clone)]
@@ -110,18 +111,32 @@ impl Osd {
         let icon = match state.kind {
             OsdKind::Volume => AudioSettings::speaker_icon(state.muted, state.value),
             OsdKind::Brightness => StaticIcon::Brightness,
+            OsdKind::Airplane => StaticIcon::Airplane,
         };
 
-        let display_value = if state.muted { 0.0 } else { state.value };
+        let detail: Element<'_, Message> = match state.kind {
+            OsdKind::Volume | OsdKind::Brightness => {
+                let mut bar = progress_bar(0.0..=1.0, state.value)
+                    .length(160.0)
+                    .girth(8.0);
+                if state.muted {
+                    bar = bar.style(progress_bar::secondary);
+                }
+                container(bar).center_x(Length::Fill).into()
+            }
+            OsdKind::Airplane => {
+                let label = if state.value > 0.5 {
+                    "Enabled"
+                } else {
+                    "Disabled"
+                };
+                container(text(label)).center_x(Length::Fill).into()
+            }
+        };
 
-        let content = row![
-            icon.to_text().size(theme.font_size.xxl),
-            progress_bar(0.0..=1.0, display_value)
-                .length(160.0)
-                .girth(8.0),
-        ]
-        .spacing(theme.space.sm)
-        .align_y(Alignment::Center);
+        let content = row![icon.to_text().size(theme.font_size.xxl), detail,]
+            .spacing(theme.space.sm)
+            .align_y(Alignment::Center);
 
         container(content)
             .padding([theme.space.sm, theme.space.md])

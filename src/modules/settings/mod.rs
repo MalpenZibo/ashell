@@ -31,7 +31,7 @@ use iced::{
 pub(crate) mod audio;
 mod bluetooth;
 pub(crate) mod brightness;
-mod network;
+pub(crate) mod network;
 mod power;
 
 pub struct Settings {
@@ -127,6 +127,10 @@ impl Settings {
         &self.brightness
     }
 
+    pub fn network(&self) -> &NetworkSettings {
+        &self.network
+    }
+
     pub fn volume_adjust(&mut self, up: bool) -> Action {
         match self.audio.volume_adjust(up) {
             audio::Action::Task(task) => Action::Command(task.map(Message::Audio)),
@@ -143,6 +147,14 @@ impl Settings {
         match self.brightness.brightness_adjust(up) {
             brightness::Action::Command(task) => Action::Command(task.map(Message::Brightness)),
             brightness::Action::None => Action::None,
+        }
+    }
+
+    pub fn toggle_airplane(&mut self) -> Action {
+        match self.network.update(network::Message::ToggleAirplaneMode) {
+            network::Action::CloseSubMenu(task) => Action::Command(task.map(Message::Network)),
+            network::Action::Command(task) => Action::Command(task.map(Message::Network)),
+            _ => Action::None,
         }
     }
 

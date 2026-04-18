@@ -228,11 +228,22 @@ impl App {
         }
 
         match cmd {
-            IpcCommand::VolumeUp { .. }
-            | IpcCommand::VolumeDown { .. }
-            | IpcCommand::VolumeToggleMute { .. } => {
+            IpcCommand::VolumeUp { .. } | IpcCommand::VolumeDown { .. } => {
+                // Use slider value — it has the optimistic RequestAndTimeout update,
+                // which was computed from real_sink_volume in volume_adjust().
                 let vol = self.settings.audio().current_sink_volume().unwrap_or(0);
                 let muted = self.settings.audio().is_sink_muted().unwrap_or(false);
+                Some((
+                    OsdKind::Volume,
+                    normalise(vol, audio::AudioSettings::vol_max()),
+                    muted,
+                ))
+            }
+            IpcCommand::VolumeToggleMute { .. } => {
+                let vol = self.settings.audio().real_sink_volume().unwrap_or(0);
+                // Invert: the toggle was just sent but PulseAudio hasn't
+                // round-tripped yet, so the current state is stale.
+                let muted = !self.settings.audio().is_sink_muted().unwrap_or(false);
                 Some((
                     OsdKind::Volume,
                     normalise(vol, audio::AudioSettings::vol_max()),
@@ -244,6 +255,11 @@ impl App {
                 .brightness()
                 .current_brightness()
                 .map(|(cur, max)| (OsdKind::Brightness, normalise(cur, max), false)),
+            IpcCommand::AirplaneToggle { .. } => {
+                // After toggle: the new state is the opposite of current.
+                let active = !self.settings.network().is_airplane_mode().unwrap_or(false);
+                Some((OsdKind::Airplane, if active { 1.0 } else { 0.0 }, false))
+            }
             IpcCommand::ToggleVisibility => None,
         }
     }
@@ -482,6 +498,7 @@ impl App {
                     IpcCommand::VolumeToggleMute { .. } => self.settings.toggle_mute(),
                     IpcCommand::BrightnessUp { .. } => self.settings.brightness_adjust(true),
                     IpcCommand::BrightnessDown { .. } => self.settings.brightness_adjust(false),
+                    IpcCommand::AirplaneToggle { .. } => self.settings.toggle_airplane(),
                     IpcCommand::ToggleVisibility => unreachable!(),
                 };
                 if let settings::Action::Command(task) = action {
