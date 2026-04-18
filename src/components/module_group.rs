@@ -1,4 +1,4 @@
-use crate::theme::AshellTheme;
+use crate::{config::BarBackground, theme::AshellTheme};
 use iced::{Border, Color, Element, widget::container};
 
 /// Wraps content with the appropriate bar background container.
@@ -10,7 +10,7 @@ pub fn module_group<'a, Msg: 'static>(
     theme: &'a AshellTheme,
     content: Element<'a, Msg>,
 ) -> Element<'a, Msg> {
-    if theme.background.is_none() {
+    if theme.background == BarBackground::Transparent {
         container(content)
             .style(move |iced_theme: &iced::Theme| container::Style {
                 background: Some(

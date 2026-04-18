@@ -582,7 +582,6 @@ impl Default for SettingsModuleConfig {
                 SettingsIndicator::Network,
                 SettingsIndicator::Vpn,
                 SettingsIndicator::Battery,
-                SettingsIndicator::Brightness,
             ],
             custom_buttons: Default::default(),
         }
@@ -810,29 +809,11 @@ impl Default for BoxSpacing {
     }
 }
 
-#[derive(Deserialize, Clone, Debug, PartialEq)]
-#[serde(untagged)]
+#[derive(Deserialize, Default, Clone, Debug, PartialEq)]
 pub enum BarBackground {
-    Preset(BarBackgroundPreset),
-    Color(HexColor),
-}
-
-impl BarBackground {
-    pub fn is_none(&self) -> bool {
-        matches!(self, BarBackground::Preset(BarBackgroundPreset::None))
-    }
-}
-
-impl Default for BarBackground {
-    fn default() -> Self {
-        BarBackground::Preset(BarBackgroundPreset::None)
-    }
-}
-
-#[derive(Deserialize, Clone, Debug, PartialEq)]
-pub enum BarBackgroundPreset {
-    None,
-    Palette,
+    #[default]
+    Transparent,
+    Solid,
 }
 
 #[derive(Deserialize, Clone, Copy, Debug)]

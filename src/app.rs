@@ -1,7 +1,7 @@
 use crate::{
     components::menu::MenuType,
     components::{ButtonUIRef, Centerbox},
-    config::{self, BarBackground, BarBackgroundPreset, Config, Modules, hex_to_color},
+    config::{self, BarBackground, Config, Modules},
     get_log_spec,
     modules::{
         self,
@@ -490,7 +490,7 @@ impl App {
 
                 let status_bar = container(centerbox).style(move |t: &Theme| container::Style {
                     background: match &background {
-                        BarBackground::Preset(BarBackgroundPreset::Palette) => Some({
+                        BarBackground::Solid => Some({
                             let bg = t.palette().background.scale_alpha(opacity);
                             if menu_is_open {
                                 darken_color(bg, menu_backdrop)
@@ -499,16 +499,7 @@ impl App {
                             }
                             .into()
                         }),
-                        BarBackground::Color(hex) => Some({
-                            let bg = hex_to_color(*hex).scale_alpha(opacity);
-                            if menu_is_open {
-                                darken_color(bg, menu_backdrop)
-                            } else {
-                                bg
-                            }
-                            .into()
-                        }),
-                        BarBackground::Preset(BarBackgroundPreset::None) => {
+                        BarBackground::Transparent => {
                             if menu_is_open {
                                 Some(backdrop_color(menu_backdrop).into())
                             } else {
