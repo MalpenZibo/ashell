@@ -1,17 +1,18 @@
 use crate::{
-    components::icons::{StaticIcon, icon_mono},
+    components::{format_indicator, icons::StaticIcon, slider_control},
     config::SettingsFormat,
     services::{
         ReadOnlyService, Service, ServiceEvent,
         brightness::{BrightnessCommand, BrightnessService},
     },
     theme::AshellTheme,
+    utils::IndicatorState,
     utils::remote_value,
 };
 use iced::{
-    Alignment, Element, Subscription, Task,
+    Element, Subscription, Task,
     mouse::ScrollDelta,
-    widget::{MouseArea, Text, container, row, slider, text},
+    widget::{Text, text},
 };
 
 #[derive(Debug, Clone)]
@@ -93,28 +94,16 @@ impl BrightnessSettings {
         }
     }
 
-    pub fn slider<'a>(&'a self, theme: &AshellTheme) -> Option<Element<'a, Message>> {
+    pub fn slider<'a>(&'a self, theme: &'a AshellTheme) -> Option<Element<'a, Message>> {
         self.service.as_ref().map(|service| {
-            row!(
-                container(icon_mono(StaticIcon::Brightness))
-                    .center_x(32.)
-                    .center_y(32.)
-                    .clip(true),
-                MouseArea::new(
-                    Element::<'a, remote_value::Message<u32>>::from(
-                        slider(
-                            0..=service.max,
-                            service.current.value(),
-                            remote_value::Message::Request,
-                        )
-                        .on_release(remote_value::Message::Timeout),
-                    )
-                    .map(Message::Changed)
-                )
-                .on_scroll(Self::on_scroll(service.current.value(), service.max))
+            slider_control(
+                theme,
+                StaticIcon::Brightness,
+                0..=service.max,
+                service.current.value(),
+                Message::Changed,
+                Self::on_scroll(service.current.value(), service.max),
             )
-            .align_y(Alignment::Center)
-            .spacing(theme.space.xs)
             .into()
         })
     }
@@ -126,27 +115,15 @@ impl BrightnessSettings {
         self.service.as_ref().map(|service| {
             let scroll_handler = Self::on_scroll(service.current.value(), service.max);
 
-            match self.config {
-                SettingsFormat::Icon => {
-                    let icon = icon_mono(StaticIcon::Brightness);
-                    MouseArea::new(icon).on_scroll(scroll_handler).into()
-                }
-                SettingsFormat::Percentage | SettingsFormat::Time => {
-                    MouseArea::new(Self::percent_text(service))
-                        .on_scroll(scroll_handler)
-                        .into()
-                }
-                SettingsFormat::IconAndPercentage | SettingsFormat::IconAndTime => {
-                    let icon = icon_mono(StaticIcon::Brightness);
-                    MouseArea::new(
-                        row!(icon, Self::percent_text(service))
-                            .spacing(theme.space.xxs)
-                            .align_y(Alignment::Center),
-                    )
-                    .on_scroll(scroll_handler)
-                    .into()
-                }
-            }
+            format_indicator(
+                theme,
+                self.config,
+                StaticIcon::Brightness,
+                Self::percent_text(service).into(),
+                IndicatorState::Normal,
+            )
+            .on_scroll(scroll_handler)
+            .into()
         })
     }
 

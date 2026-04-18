@@ -1,5 +1,8 @@
-use crate::config::{
-    Appearance, AppearanceColor, AppearanceStyle, BackgroundLevel, MenuAppearance, Position,
+use crate::{
+    components::button::{ButtonHierarchy, ButtonKind},
+    config::{
+        Appearance, AppearanceColor, AppearanceStyle, BackgroundLevel, MenuAppearance, Position,
+    },
 };
 use iced::{
     Background, Border, Color, Theme,
@@ -220,111 +223,169 @@ impl AshellTheme {
         &self.iced_theme
     }
 
-    pub fn ghost_button_style(&self) -> impl Fn(&Theme, Status) -> button::Style {
-        move |theme, status| {
-            let mut base = button::Style {
-                background: None,
-                border: Border {
-                    width: 0.0,
-                    radius: self.radius.sm.into(),
-                    color: Color::TRANSPARENT,
-                },
-                text_color: theme.palette().text,
-                ..button::Style::default()
-            };
-            match status {
-                Status::Active => base,
-                Status::Hovered => {
-                    base.background = Some(
-                        theme
-                            .extended_palette()
-                            .background
-                            .weak
-                            .color
-                            .scale_alpha(self.opacity)
-                            .into(),
-                    );
-                    base
-                }
-                _ => base,
-            }
-        }
-    }
+    pub fn button_style(
+        &self,
+        kind: ButtonKind,
+        hierarchy: ButtonHierarchy,
+    ) -> impl Fn(&Theme, Status) -> button::Style {
+        let radius = match kind {
+            ButtonKind::Transparent => self.radius.sm,
+            ButtonKind::Solid | ButtonKind::Outline => self.radius.xl,
+        };
+        let opacity = self.opacity;
 
-    pub fn settings_button_style(&self) -> impl Fn(&Theme, Status) -> button::Style {
-        move |theme, status| {
-            let mut base = button::Style {
-                background: Some(
-                    theme
-                        .extended_palette()
-                        .background
-                        .weak
-                        .color
-                        .scale_alpha(self.opacity)
-                        .into(),
-                ),
-                border: Border {
-                    width: 0.0,
-                    radius: self.radius.xl.into(),
-                    color: Color::TRANSPARENT,
-                },
-                text_color: theme.palette().text,
-                ..button::Style::default()
-            };
-            match status {
-                Status::Active => base,
-                Status::Hovered => {
-                    base.background = Some(
-                        theme
-                            .extended_palette()
-                            .background
-                            .strong
-                            .color
-                            .scale_alpha(self.opacity)
-                            .into(),
-                    );
-                    base
-                }
-                _ => base,
-            }
-        }
-    }
+        move |theme: &Theme, status: Status| {
+            let palette = theme.palette();
+            let ext = theme.extended_palette();
 
-    pub fn round_button_style(&self) -> impl Fn(&Theme, Status) -> button::Style {
-        move |theme, status| {
-            let mut base = button::Style {
-                background: Some(
-                    theme
-                        .extended_palette()
-                        .background
-                        .weak
-                        .color
-                        .scale_alpha(self.opacity)
-                        .into(),
+            let (base_bg, hover_bg, base_text, hover_text, border_color) = match hierarchy {
+                ButtonHierarchy::Primary => (
+                    palette.primary,
+                    ext.primary.weak.color,
+                    ext.primary.base.text,
+                    ext.primary.base.text,
+                    palette.primary,
                 ),
-                border: Border {
-                    width: 0.0,
-                    radius: self.radius.xl.into(),
-                    color: Color::TRANSPARENT,
-                },
-                text_color: theme.palette().text,
-                ..button::Style::default()
+                ButtonHierarchy::Secondary => (
+                    ext.background.weak.color,
+                    ext.background.strong.color,
+                    palette.text,
+                    palette.text,
+                    ext.background.weak.color,
+                ),
+                ButtonHierarchy::Danger => (
+                    palette.danger,
+                    ext.danger.weak.color,
+                    ext.danger.base.text,
+                    ext.danger.base.text,
+                    palette.danger,
+                ),
             };
-            match status {
-                Status::Active => base,
-                Status::Hovered => {
-                    base.background = Some(
+
+            match (kind, status) {
+                (ButtonKind::Solid, Status::Active) => button::Style {
+                    background: Some(base_bg.scale_alpha(opacity).into()),
+                    border: Border {
+                        width: 0.0,
+                        radius: radius.into(),
+                        color: Color::TRANSPARENT,
+                    },
+                    text_color: base_text,
+                    ..button::Style::default()
+                },
+                (ButtonKind::Solid, Status::Hovered) => button::Style {
+                    background: Some(hover_bg.scale_alpha(opacity).into()),
+                    border: Border {
+                        width: 0.0,
+                        radius: radius.into(),
+                        color: Color::TRANSPARENT,
+                    },
+                    text_color: hover_text,
+                    ..button::Style::default()
+                },
+
+                (ButtonKind::Transparent, Status::Active) => button::Style {
+                    background: None,
+                    border: Border {
+                        width: 0.0,
+                        radius: radius.into(),
+                        color: Color::TRANSPARENT,
+                    },
+                    text_color: palette.text,
+                    ..button::Style::default()
+                },
+                (ButtonKind::Transparent, Status::Hovered) => button::Style {
+                    background: Some(
                         theme
                             .extended_palette()
                             .background
-                            .strong
-                            .color
-                            .scale_alpha(self.opacity)
+                            .base
+                            .text
+                            .scale_alpha(0.04)
                             .into(),
-                    );
-                    base
+                    ),
+                    border: Border {
+                        width: 0.0,
+                        radius: radius.into(),
+                        color: Color::TRANSPARENT,
+                    },
+                    text_color: match hierarchy {
+                        ButtonHierarchy::Danger => palette.danger,
+                        ButtonHierarchy::Primary => palette.primary,
+                        ButtonHierarchy::Secondary => palette.text,
+                    },
+                    ..button::Style::default()
+                },
+
+                (ButtonKind::Outline, Status::Active) => button::Style {
+                    background: None,
+                    border: Border {
+                        width: 2.0,
+                        radius: radius.into(),
+                        color: border_color,
+                    },
+                    text_color: palette.text,
+                    ..button::Style::default()
+                },
+                (ButtonKind::Outline, Status::Hovered) => button::Style {
+                    background: Some(base_bg.scale_alpha(opacity).into()),
+                    border: Border {
+                        width: 2.0,
+                        radius: radius.into(),
+                        color: border_color,
+                    },
+                    text_color: palette.text,
+                    ..button::Style::default()
+                },
+
+                (kind, Status::Disabled) => {
+                    let disabled_opacity = 0.3;
+                    match kind {
+                        ButtonKind::Solid => button::Style {
+                            background: Some(
+                                base_bg.scale_alpha(opacity * disabled_opacity).into(),
+                            ),
+                            border: Border {
+                                width: 0.0,
+                                radius: radius.into(),
+                                color: Color::TRANSPARENT,
+                            },
+                            text_color: base_text.scale_alpha(0.5),
+                            ..button::Style::default()
+                        },
+                        ButtonKind::Transparent => button::Style {
+                            background: None,
+                            border: Border {
+                                width: 0.0,
+                                radius: radius.into(),
+                                color: Color::TRANSPARENT,
+                            },
+                            text_color: palette.text.scale_alpha(disabled_opacity),
+                            ..button::Style::default()
+                        },
+                        ButtonKind::Outline => button::Style {
+                            background: None,
+                            border: Border {
+                                width: 2.0,
+                                radius: radius.into(),
+                                color: border_color.scale_alpha(disabled_opacity),
+                            },
+                            text_color: palette.text.scale_alpha(disabled_opacity),
+                            ..button::Style::default()
+                        },
+                    }
                 }
-                _ => base,
+
+                _ => button::Style {
+                    background: None,
+                    border: Border {
+                        width: 0.0,
+                        radius: radius.into(),
+                        color: Color::TRANSPARENT,
+                    },
+                    text_color: palette.text,
+                    ..button::Style::default()
+                },
             }
         }
     }
@@ -541,100 +602,12 @@ impl AshellTheme {
         }
     }
 
-    pub fn outline_button_style(&self) -> impl Fn(&Theme, Status) -> button::Style {
+    /// Module button style: transparent base with hover highlight.
+    /// The Islands background is handled by `module_group`, not the button.
+    pub fn module_button_style(&self) -> impl Fn(&Theme, Status) -> button::Style {
         move |theme, status| {
             let mut base = button::Style {
                 background: None,
-                border: Border {
-                    width: 2.0,
-                    radius: self.radius.xl.into(),
-                    color: theme.extended_palette().background.weak.color,
-                },
-                text_color: theme.palette().text,
-                ..button::Style::default()
-            };
-            match status {
-                Status::Active => base,
-                Status::Hovered => {
-                    base.background = Some(
-                        theme
-                            .extended_palette()
-                            .background
-                            .weak
-                            .color
-                            .scale_alpha(self.opacity)
-                            .into(),
-                    );
-                    base
-                }
-                Status::Disabled => {
-                    base.border.width = 0.;
-
-                    base
-                }
-                _ => base,
-            }
-        }
-    }
-
-    pub fn confirm_button_style(&self) -> impl Fn(&Theme, Status) -> button::Style {
-        move |theme, status| {
-            let mut base = button::Style {
-                background: Some(
-                    theme
-                        .extended_palette()
-                        .background
-                        .weak
-                        .color
-                        .scale_alpha(self.opacity)
-                        .into(),
-                ),
-                border: Border {
-                    width: 2.0,
-                    radius: self.radius.xl.into(),
-                    color: Color::TRANSPARENT,
-                },
-                text_color: theme.palette().text,
-                ..button::Style::default()
-            };
-            match status {
-                Status::Active => base,
-                Status::Hovered => {
-                    base.background = Some(
-                        theme
-                            .extended_palette()
-                            .background
-                            .strong
-                            .color
-                            .scale_alpha(self.opacity)
-                            .into(),
-                    );
-                    base
-                }
-                _ => base,
-            }
-        }
-    }
-
-    /// Note: the transparent argument, when true, makes the base color bg
-    /// transparent but still has a hover bg color. Not to be confused with opacity,
-    /// which affects opacity at all times.
-    pub fn module_button_style(
-        &self,
-        transparent: bool,
-    ) -> impl Fn(&Theme, Status) -> button::Style {
-        move |theme, status| {
-            let mut base = button::Style {
-                background: match self.bar_style {
-                    AppearanceStyle::Solid | AppearanceStyle::Gradient => None,
-                    AppearanceStyle::Islands => {
-                        if transparent {
-                            None
-                        } else {
-                            Some(theme.palette().background.scale_alpha(self.opacity).into())
-                        }
-                    }
-                },
                 border: Border {
                     width: 0.0,
                     radius: self.radius.lg.into(),
@@ -655,28 +628,6 @@ impl AshellTheme {
                             .scale_alpha(self.opacity)
                             .into(),
                     );
-                    base
-                }
-                _ => base,
-            }
-        }
-    }
-
-    pub fn notification_delete_button_style(&self) -> impl Fn(&Theme, Status) -> button::Style {
-        move |theme: &Theme, status: Status| {
-            let mut base = button::Style {
-                background: None,
-                border: Border {
-                    width: 0.0,
-                    radius: self.radius.lg.into(),
-                    color: Color::TRANSPARENT,
-                },
-                text_color: theme.palette().text,
-                ..button::Style::default()
-            };
-            match status {
-                Status::Hovered => {
-                    base.text_color = theme.palette().danger;
                     base
                 }
                 _ => base,

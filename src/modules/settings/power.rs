@@ -1,9 +1,12 @@
 use std::convert;
 
 use crate::{
-    components::icons::{StaticIcon, icon},
+    components::{
+        ButtonKind, IconPosition, divider, format_indicator,
+        icons::{StaticIcon, icon},
+        quick_setting_button, styled_button,
+    },
     config::{PeripheralIndicators, SettingsFormat},
-    modules::settings::quick_setting_button,
     services::{
         ReadOnlyService, Service, ServiceEvent,
         upower::{
@@ -17,7 +20,7 @@ use crate::{
 use iced::{
     Alignment, Element, Length, Subscription, Task, Theme,
     alignment::Vertical,
-    widget::{Column, Row, button, column, container, row, rule, text},
+    widget::{Column, Row, column, container, row, text},
 };
 
 fn format_time_for_battery(battery: &BatteryData) -> String {
@@ -164,32 +167,27 @@ impl PowerSettings {
 
     pub fn menu<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
         column!(
-            button(row!(icon(StaticIcon::Suspend), text("Suspend")).spacing(theme.space.md))
-                .padding([theme.space.xxs, theme.space.sm])
+            styled_button(theme, "Suspend")
+                .icon(StaticIcon::Suspend, IconPosition::Before)
                 .on_press(Message::Suspend)
-                .width(Length::Fill)
-                .style(theme.ghost_button_style()),
-            button(row!(icon(StaticIcon::Hibernate), text("Hibernate")).spacing(theme.space.md))
-                .padding([theme.space.xxs, theme.space.sm])
+                .width(Length::Fill),
+            styled_button(theme, "Hibernate")
+                .icon(StaticIcon::Hibernate, IconPosition::Before)
                 .on_press(Message::Hibernate)
-                .width(Length::Fill)
-                .style(theme.ghost_button_style()),
-            button(row!(icon(StaticIcon::Reboot), text("Reboot")).spacing(theme.space.md))
-                .padding([theme.space.xxs, theme.space.sm])
+                .width(Length::Fill),
+            styled_button(theme, "Reboot")
+                .icon(StaticIcon::Reboot, IconPosition::Before)
                 .on_press(Message::Reboot)
-                .width(Length::Fill)
-                .style(theme.ghost_button_style()),
-            button(row!(icon(StaticIcon::Power), text("Shutdown")).spacing(theme.space.md))
-                .padding([theme.space.xxs, theme.space.sm])
+                .width(Length::Fill),
+            styled_button(theme, "Shutdown")
+                .icon(StaticIcon::Power, IconPosition::Before)
                 .on_press(Message::Shutdown)
-                .width(Length::Fill)
-                .style(theme.ghost_button_style()),
-            rule::horizontal(1),
-            button(row!(icon(StaticIcon::Logout), text("Logout")).spacing(theme.space.md))
-                .padding([theme.space.xxs, theme.space.sm])
+                .width(Length::Fill),
+            divider(),
+            styled_button(theme, "Logout")
+                .icon(StaticIcon::Logout, IconPosition::Before)
                 .on_press(Message::Logout)
-                .width(Length::Fill)
-                .style(theme.ghost_button_style()),
+                .width(Length::Fill),
         )
         .padding(theme.space.xs)
         .width(Length::Fill)
@@ -308,41 +306,25 @@ impl PowerSettings {
 
     pub fn battery_indicator<'a>(
         &self,
-        ashell_theme: &AshellTheme,
+        ashell_theme: &'a AshellTheme,
     ) -> Option<Element<'a, Message>> {
         self.service.as_ref().and_then(|service| {
             service.system_battery.map(|battery| {
                 let state = battery.get_indicator_state();
+                let label: String = match self.config.battery_format {
+                    SettingsFormat::Time | SettingsFormat::IconAndTime => {
+                        format_time_for_battery(&battery)
+                    }
+                    _ => format!("{}%", battery.capacity),
+                };
 
-                container(match self.config.battery_format {
-                    SettingsFormat::Icon => icon(battery.get_icon()).into(),
-                    SettingsFormat::Percentage => convert::Into::<Element<'a, Message>>::into(
-                        text(format!("{}%", battery.capacity)),
-                    ),
-                    SettingsFormat::IconAndPercentage => row!(
-                        icon(battery.get_icon()),
-                        text(format!("{}%", battery.capacity))
-                    )
-                    .spacing(ashell_theme.space.xxs)
-                    .align_y(Alignment::Center)
-                    .into(),
-                    SettingsFormat::Time => text(format_time_for_battery(&battery)).into(),
-                    SettingsFormat::IconAndTime => row!(
-                        icon(battery.get_icon()),
-                        text(format_time_for_battery(&battery))
-                    )
-                    .spacing(ashell_theme.space.xxs)
-                    .align_y(Alignment::Center)
-                    .into(),
-                })
-                .style(move |theme: &Theme| container::Style {
-                    text_color: Some(match state {
-                        IndicatorState::Success => theme.palette().success,
-                        IndicatorState::Danger => theme.palette().danger,
-                        _ => theme.palette().text,
-                    }),
-                    ..Default::default()
-                })
+                format_indicator(
+                    ashell_theme,
+                    self.config.battery_format,
+                    battery.get_icon(),
+                    text(label).into(),
+                    state,
+                )
                 .into()
             })
         })
@@ -406,10 +388,9 @@ impl PowerSettings {
                     let indicator = self.menu_indicator(ashell_theme, battery, None);
 
                     if !service.peripherals.is_empty() {
-                        button(indicator)
-                            .padding([0.0, ashell_theme.space.sm])
+                        styled_button(ashell_theme, indicator)
+                            .kind(ButtonKind::Solid)
                             .on_press(Message::TogglePeripheralMenu)
-                            .style(ashell_theme.settings_button_style())
                             .into()
                     } else {
                         indicator
@@ -424,10 +405,9 @@ impl PowerSettings {
                         );
 
                         Some(if service.peripherals.len() > 1 {
-                            button(indicator)
-                                .padding([0.0, ashell_theme.space.sm])
+                            styled_button(ashell_theme, indicator)
+                                .kind(ButtonKind::Solid)
                                 .on_press(Message::TogglePeripheralMenu)
-                                .style(ashell_theme.settings_button_style())
                                 .into()
                         } else {
                             indicator

@@ -1,4 +1,7 @@
-use crate::theme::AshellTheme;
+use crate::{
+    components::button::{ButtonHierarchy, ButtonKind, ButtonSize, OnPress},
+    theme::AshellTheme,
+};
 use iced::{
     Color, Element, Font, Length, Theme,
     widget::{
@@ -303,6 +306,57 @@ impl Icon for DynamicIcon {
     }
 }
 
+#[derive(Clone)]
+pub enum IconKind {
+    Static(StaticIcon),
+    Dynamic(String),
+}
+
+impl From<StaticIcon> for IconKind {
+    fn from(icon: StaticIcon) -> Self {
+        IconKind::Static(icon)
+    }
+}
+
+impl From<DynamicIcon> for IconKind {
+    fn from(icon: DynamicIcon) -> Self {
+        IconKind::Dynamic(icon.0)
+    }
+}
+
+impl IconKind {
+    pub fn to_text<'a>(&self) -> Text<'a> {
+        match self {
+            IconKind::Static(s) => (*s).to_text(),
+            IconKind::Dynamic(s) => DynamicIcon(s.clone()).to_text(),
+        }
+    }
+
+    pub fn to_text_mono<'a>(&self) -> Text<'a> {
+        match self {
+            IconKind::Static(s) => (*s).to_text_mono(),
+            IconKind::Dynamic(s) => DynamicIcon(s.clone()).to_text_mono(),
+        }
+    }
+}
+
+impl Icon for IconKind {
+    fn to_text<'a>(self) -> Text<'a> {
+        // Call the inherent method via explicit disambiguation
+        match self {
+            IconKind::Static(s) => s.to_text(),
+            IconKind::Dynamic(s) => DynamicIcon(s).to_text(),
+        }
+    }
+
+    fn to_text_mono<'a>(self) -> Text<'a> {
+        match self {
+            IconKind::Static(s) => s.to_text_mono(),
+            IconKind::Dynamic(s) => DynamicIcon(s).to_text_mono(),
+        }
+    }
+}
+
 pub fn icon<'a>(icon: impl Icon) -> Text<'a> {
     icon.to_text()
 }
@@ -311,26 +365,17 @@ pub fn icon_mono<'a>(icon: impl Icon) -> Text<'a> {
     icon.to_text_mono()
 }
 
-pub enum IconButtonSize {
-    Small,
-    Medium,
-    Large,
-}
-
-enum OnPress<'a, Message> {
-    Direct(Message),
-    Closure(Box<dyn Fn() -> Message + 'a>),
-}
-
 pub type StyleFn<'a, Theme> = Box<dyn for<'b> Fn(&'b Theme, Status) -> Style + 'a>;
 
 pub struct IconButton<'a, I: Icon, Message> {
     theme: &'a AshellTheme,
     icon: I,
     on_press: Option<OnPress<'a, Message>>,
-    button_class: StyleFn<'a, Theme>,
+    kind: ButtonKind,
+    hierarchy: ButtonHierarchy,
+    style_override: Option<StyleFn<'a, Theme>>,
     color: Option<Color>,
-    size: IconButtonSize,
+    size: ButtonSize,
 }
 
 impl<'a, I: Icon, Message> IconButton<'a, I, Message> {
@@ -350,7 +395,17 @@ impl<'a, I: Icon, Message> IconButton<'a, I, Message> {
     }
 
     pub fn style(mut self, style: impl for<'b> Fn(&'b Theme, Status) -> Style + 'a) -> Self {
-        self.button_class = Box::new(style) as StyleFn<'a, Theme>;
+        self.style_override = Some(Box::new(style) as StyleFn<'a, Theme>);
+        self
+    }
+
+    pub fn kind(mut self, kind: ButtonKind) -> Self {
+        self.kind = kind;
+        self
+    }
+
+    pub fn hierarchy(mut self, hierarchy: ButtonHierarchy) -> Self {
+        self.hierarchy = hierarchy;
         self
     }
 
@@ -366,7 +421,7 @@ impl<'a, I: Icon, Message> IconButton<'a, I, Message> {
         self
     }
 
-    pub fn size(mut self, size: IconButtonSize) -> Self {
+    pub fn size(mut self, size: ButtonSize) -> Self {
         self.size = size;
 
         self
@@ -379,9 +434,22 @@ impl<'a, I: Icon, Message: 'static + Clone> From<IconButton<'a, I, Message>>
     #[inline]
     fn from(value: IconButton<'a, I, Message>) -> Self {
         let (container_size, font_size) = match value.size {
-            IconButtonSize::Small => (24., value.theme.font_size.xs),
-            IconButtonSize::Medium => (32., value.theme.font_size.xs),
-            IconButtonSize::Large => (38., value.theme.font_size.sm),
+            ButtonSize::Small => (24., value.theme.font_size.xs),
+            ButtonSize::Medium => (32., value.theme.font_size.xs),
+            ButtonSize::Large => (38., value.theme.font_size.sm),
+        };
+
+        let radius = value.theme.radius.xl;
+        let style: StyleFn<'a, Theme> = match value.style_override {
+            Some(s) => s,
+            None => {
+                let base = value.theme.button_style(value.kind, value.hierarchy);
+                Box::new(move |theme: &Theme, status: Status| {
+                    let mut s = base(theme, status);
+                    s.border.radius = radius.into();
+                    s
+                })
+            }
         };
 
         let btn = button_fn(
@@ -395,7 +463,7 @@ impl<'a, I: Icon, Message: 'static + Clone> From<IconButton<'a, I, Message>>
             .clip(true),
         )
         .padding(0)
-        .style(value.button_class);
+        .style(style);
 
         let btn = match value.on_press {
             Some(OnPress::Direct(message)) => btn.on_press(message),
@@ -409,14 +477,17 @@ impl<'a, I: Icon, Message: 'static + Clone> From<IconButton<'a, I, Message>>
 
 pub fn icon_button<'a, Message: 'static + Clone>(
     theme: &'a AshellTheme,
-    icon: impl Icon,
-) -> IconButton<'a, impl Icon, Message> {
+    icon: impl Into<IconKind>,
+) -> IconButton<'a, IconKind, Message> {
+    let icon = icon.into();
     IconButton {
         theme,
         icon,
         on_press: None,
-        button_class: Box::new(theme.round_button_style()),
+        kind: ButtonKind::Solid,
+        hierarchy: ButtonHierarchy::Secondary,
+        style_override: None,
         color: None,
-        size: IconButtonSize::Medium,
+        size: ButtonSize::Medium,
     }
 }

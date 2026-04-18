@@ -1,14 +1,11 @@
 use crate::{
     app::{App, Message},
-    config::{AppearanceStyle, ModuleDef, ModuleName},
-    menu::MenuType,
+    components::menu::MenuType,
+    components::{module_group, module_item},
+    config::{ModuleDef, ModuleName},
     theme::AshellTheme,
-    widgets::position_button,
 };
-use iced::{
-    Alignment, Border, Color, Element, Length, Subscription, SurfaceId,
-    widget::{Row, container},
-};
+use iced::{Alignment, Element, Length, Subscription, SurfaceId, widget::Row};
 
 pub mod custom_module;
 pub mod keyboard_layout;
@@ -81,32 +78,24 @@ impl App {
             .collect()
     }
 
-    fn single_module_wrapper<'a>(
+    fn build_module_item<'a>(
         &'a self,
         id: SurfaceId,
         theme: &'a AshellTheme,
-        module_name: &'a ModuleName,
-    ) -> Option<Element<'a, Message>> {
-        let module = self.get_module_view(id, module_name);
-
-        module.map(|(content, action)| match action {
+        content: Element<'a, Message>,
+        action: Option<OnModulePress>,
+    ) -> Element<'a, Message> {
+        match action {
             Some(action) => {
-                let button = position_button(
-                    container(content)
-                        .align_y(Alignment::Center)
-                        .height(Length::Fill)
-                        .clip(true),
-                )
-                .padding([2.0, self.theme.space.xs])
-                .height(Length::Fill)
-                .style(theme.module_button_style(false));
-
+                let mut item = module_item(theme, content);
                 match action {
-                    OnModulePress::Action(action) => button.on_press(*action),
+                    OnModulePress::Action(msg) => {
+                        item = item.on_press(*msg);
+                    }
                     OnModulePress::ToggleMenu(menu_type) => {
-                        button.on_press_with_position(move |button_ui_ref| {
+                        item = item.on_press_with_position(move |button_ui_ref| {
                             Message::ToggleMenu(menu_type.clone(), id, button_ui_ref)
-                        })
+                        });
                     }
                     OnModulePress::ToggleMenuWithExtra {
                         menu_type,
@@ -114,52 +103,36 @@ impl App {
                         on_scroll_up,
                         on_scroll_down,
                     } => {
-                        let mut button = button.on_press_with_position(move |button_ui_ref| {
+                        item = item.on_press_with_position(move |button_ui_ref| {
                             Message::ToggleMenu(menu_type.clone(), id, button_ui_ref)
                         });
                         if let Some(msg) = on_right_press {
-                            button = button.on_right_press(*msg);
+                            item = item.on_right_press(*msg);
                         }
                         if let Some(msg) = on_scroll_up {
-                            button = button.on_scroll_up(*msg);
+                            item = item.on_scroll_up(*msg);
                         }
                         if let Some(msg) = on_scroll_down {
-                            button = button.on_scroll_down(*msg);
+                            item = item.on_scroll_down(*msg);
                         }
-                        button
                     }
                 }
-                .into()
+                item.into()
             }
-            _ => {
-                let container = container(content)
-                    .padding([2.0, self.theme.space.xs])
-                    .height(Length::Fill)
-                    .align_y(Alignment::Center)
-                    .clip(true);
+            None => module_item(theme, content).into(),
+        }
+    }
 
-                match self.theme.bar_style {
-                    AppearanceStyle::Solid | AppearanceStyle::Gradient => container.into(),
-                    AppearanceStyle::Islands => container
-                        .style(|theme| container::Style {
-                            background: Some(
-                                theme
-                                    .palette()
-                                    .background
-                                    .scale_alpha(self.theme.opacity)
-                                    .into(),
-                            ),
-                            border: Border {
-                                width: 0.0,
-                                radius: self.theme.radius.lg.into(),
-                                color: Color::TRANSPARENT,
-                            },
-                            ..container::Style::default()
-                        })
-                        .into(),
-                }
-            }
-        })
+    fn single_module_wrapper<'a>(
+        &'a self,
+        id: SurfaceId,
+        theme: &'a AshellTheme,
+        module_name: &'a ModuleName,
+    ) -> Option<Element<'a, Message>> {
+        self.get_module_view(id, module_name)
+            .map(|(content, action)| {
+                module_group(theme, self.build_module_item(id, theme, content, action))
+            })
     }
 
     fn group_module_wrapper<'a>(
@@ -168,99 +141,21 @@ impl App {
         theme: &'a AshellTheme,
         group: &'a [ModuleName],
     ) -> Option<Element<'a, Message>> {
-        let modules = group
+        let modules: Vec<_> = group
             .iter()
             .filter_map(|module| self.get_module_view(id, module))
-            .collect::<Vec<_>>();
+            .collect();
 
         if modules.is_empty() {
             None
         } else {
-            Some({
-                let group = Row::with_children(
-                    modules
-                        .into_iter()
-                        .map(|(content, action)| match action {
-                            Some(action) => {
-                                let button = position_button(
-                                    container(content)
-                                        .align_y(Alignment::Center)
-                                        .height(Length::Fill)
-                                        .clip(true),
-                                )
-                                .padding([2.0, self.theme.space.xs])
-                                .height(Length::Fill)
-                                .style(theme.module_button_style(true));
-
-                                match action {
-                                    OnModulePress::Action(action) => button.on_press(*action),
-                                    OnModulePress::ToggleMenu(menu_type) => button
-                                        .on_press_with_position(move |button_ui_ref| {
-                                            Message::ToggleMenu(
-                                                menu_type.clone(),
-                                                id,
-                                                button_ui_ref,
-                                            )
-                                        }),
-                                    OnModulePress::ToggleMenuWithExtra {
-                                        menu_type,
-                                        on_right_press,
-                                        on_scroll_up,
-                                        on_scroll_down,
-                                    } => {
-                                        let mut button =
-                                            button.on_press_with_position(move |button_ui_ref| {
-                                                Message::ToggleMenu(
-                                                    menu_type.clone(),
-                                                    id,
-                                                    button_ui_ref,
-                                                )
-                                            });
-                                        if let Some(msg) = on_right_press {
-                                            button = button.on_right_press(*msg);
-                                        }
-                                        if let Some(msg) = on_scroll_up {
-                                            button = button.on_scroll_up(*msg);
-                                        }
-                                        if let Some(msg) = on_scroll_down {
-                                            button = button.on_scroll_down(*msg);
-                                        }
-                                        button
-                                    }
-                                }
-                                .into()
-                            }
-                            _ => container(content)
-                                .padding([2.0, self.theme.space.xs])
-                                .height(Length::Fill)
-                                .align_y(Alignment::Center)
-                                .clip(true)
-                                .into(),
-                        })
-                        .collect::<Vec<_>>(),
-                );
-
-                match self.theme.bar_style {
-                    AppearanceStyle::Solid | AppearanceStyle::Gradient => group.into(),
-                    AppearanceStyle::Islands => container(group)
-                        .style(|theme| container::Style {
-                            background: Some(
-                                theme
-                                    .palette()
-                                    .background
-                                    .scale_alpha(self.theme.opacity)
-                                    .into(),
-                            ),
-                            border: Border {
-                                width: 0.0,
-                                radius: self.theme.radius.lg.into(),
-                                color: Color::TRANSPARENT,
-                            },
-                            ..container::Style::default()
-                        })
-                        .into(),
-                }
-            })
+            let items = Row::with_children(
+                modules
+                    .into_iter()
+                    .map(|(content, action)| self.build_module_item(id, theme, content, action))
+                    .collect::<Vec<_>>(),
+            );
+            Some(module_group(theme, items.into()))
         }
     }
 

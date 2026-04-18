@@ -1,17 +1,22 @@
-use super::{SubMenu, quick_setting_button};
+use super::SubMenu;
 use crate::{
-    components::icons::{IconButtonSize, StaticIcon, icon, icon_button},
+    components::{
+        ButtonSize, divider, format_indicator,
+        icons::{StaticIcon, icon, icon_button},
+        quick_setting_button, styled_button,
+    },
     config::SettingsFormat,
     services::{
         ReadOnlyService, Service, ServiceEvent,
         bluetooth::{BluetoothCommand, BluetoothDevice, BluetoothService, BluetoothState},
     },
     theme::AshellTheme,
+    utils::IndicatorState,
 };
 use iced::{
     Element, Length, Padding, Subscription, SurfaceId, Task, Theme,
-    alignment::{Alignment, Horizontal, Vertical},
-    widget::{Column, MouseArea, Row, button, column, container, row, rule, scrollable, text},
+    alignment::{Horizontal, Vertical},
+    widget::{Column, MouseArea, Row, column, container, row, scrollable, text},
 };
 use itertools::Itertools;
 use zbus::zvariant::OwnedObjectPath;
@@ -263,35 +268,40 @@ impl BluetoothSettings {
                 )
                 .push(if some_known {
                     let known_device_entry = |d: &BluetoothDevice| {
-                        button(
-                            Row::with_capacity(3)
-                                .push(
-                                    text(d.name.clone())
-                                        .color_maybe(if d.connected {
-                                            Some(theme.get_theme().palette().success)
-                                        } else {
-                                            None
-                                        })
-                                        .width(Length::Fill),
-                                )
-                                .push(d.battery.map(|battery| Self::battery_level(theme, battery)))
-                                .push(
-                                    icon_button(theme, StaticIcon::Remove)
-                                        .on_press(Message::RemoveDevice(d.path.clone()))
-                                        .color(theme.get_theme().palette().danger)
-                                        .size(IconButtonSize::Small),
-                                )
-                                .align_y(Vertical::Center)
-                                .spacing(theme.space.xs)
-                                .width(Length::Fill),
+                        styled_button(
+                            theme,
+                            Element::from(
+                                Row::with_capacity(3)
+                                    .push(
+                                        text(d.name.clone())
+                                            .color_maybe(if d.connected {
+                                                Some(theme.get_theme().palette().success)
+                                            } else {
+                                                None
+                                            })
+                                            .width(Length::Fill),
+                                    )
+                                    .push(
+                                        d.battery
+                                            .map(|battery| Self::battery_level(theme, battery)),
+                                    )
+                                    .push(
+                                        icon_button(theme, StaticIcon::Remove)
+                                            .on_press(Message::RemoveDevice(d.path.clone()))
+                                            .color(theme.get_theme().palette().danger)
+                                            .size(ButtonSize::Small),
+                                    )
+                                    .align_y(Vertical::Center)
+                                    .spacing(theme.space.xs)
+                                    .width(Length::Fill),
+                            ),
                         )
-                        .style(theme.ghost_button_style())
-                        .padding([theme.space.xs, theme.space.xs])
                         .on_press(if d.connected {
                             Message::DisconnectDevice(d.path.clone())
                         } else {
                             Message::ConnectDevice(d.path.clone())
                         })
+                        .width(Length::Fill)
                         .into()
                     };
 
@@ -305,7 +315,7 @@ impl BluetoothSettings {
                                         .align_x(Horizontal::Right)
                                 )
                                 .padding([0.0, theme.space.sm]),
-                                rule::horizontal(1),
+                                divider(),
                             ),
                             container(
                                 scrollable(Column::with_children(
@@ -331,20 +341,22 @@ impl BluetoothSettings {
                                         .size(theme.font_size.xs),
                                 )
                                 .padding([0.0, theme.space.sm]),
-                                rule::horizontal(1),
+                                divider(),
                             ),
                             container(
                                 scrollable(
                                     Column::with_children(available_devices.map(|d| {
-                                        button(
-                                            row![
-                                                text(d.name.clone()).width(Length::Fill),
-                                                text("Pair").size(theme.font_size.xs),
-                                            ]
-                                            .align_y(Vertical::Center)
-                                            .spacing(theme.space.xs),
+                                        styled_button(
+                                            theme,
+                                            Element::from(
+                                                row![
+                                                    text(d.name.clone()).width(Length::Fill),
+                                                    text("Pair").size(theme.font_size.xs),
+                                                ]
+                                                .align_y(Vertical::Center)
+                                                .spacing(theme.space.xs),
+                                            ),
                                         )
-                                        .style(theme.ghost_button_style())
                                         .on_press(Message::PairDevice(d.path.clone()))
                                         .width(Length::Fill)
                                         .into()
@@ -365,13 +377,11 @@ impl BluetoothSettings {
                 } else {
                     None
                 })
-                .push(self.config.more_cmd.as_ref().map(|_| rule::horizontal(1)))
+                .push(self.config.more_cmd.as_ref().map(|_| divider()))
                 .push(self.config.more_cmd.as_ref().map(|_| {
-                    button("More")
+                    styled_button(theme, "More")
                         .on_press(Message::More(id))
-                        .padding([theme.space.xxs, theme.space.sm])
                         .width(Length::Fill)
-                        .style(theme.ghost_button_style())
                 }))
                 .spacing(theme.space.sm)
                 .into()
@@ -413,42 +423,25 @@ impl BluetoothSettings {
         {
             let connected_count = service.devices.iter().filter(|d| d.connected).count();
 
-            let content: Element<'a, Message> = match self.config.indicator_format {
-                SettingsFormat::Icon => {
-                    let icon_type = if connected_count > 0 {
-                        StaticIcon::BluetoothConnected
-                    } else {
-                        StaticIcon::Bluetooth
-                    };
-                    icon(icon_type).into()
-                }
-                SettingsFormat::Percentage | SettingsFormat::Time => {
-                    if connected_count > 0 {
-                        text(format!("{}", connected_count)).into()
-                    } else {
-                        icon(StaticIcon::Bluetooth).into()
-                    }
-                }
-                SettingsFormat::IconAndPercentage | SettingsFormat::IconAndTime => {
-                    if connected_count > 0 {
-                        row!(
-                            icon(StaticIcon::BluetoothConnected),
-                            text(format!("{}", connected_count))
-                        )
-                        .spacing(theme.space.xxs)
-                        .align_y(Alignment::Center)
-                        .into()
-                    } else {
-                        icon(StaticIcon::Bluetooth).into()
-                    }
-                }
-            };
-
-            Some(
-                MouseArea::new(content)
+            if connected_count > 0 {
+                Some(
+                    format_indicator(
+                        theme,
+                        self.config.indicator_format,
+                        StaticIcon::BluetoothConnected,
+                        text(format!("{}", connected_count)).into(),
+                        IndicatorState::Normal,
+                    )
                     .on_right_press(Message::OpenMore)
                     .into(),
-            )
+                )
+            } else {
+                Some(
+                    MouseArea::new(icon(StaticIcon::Bluetooth))
+                        .on_right_press(Message::OpenMore)
+                        .into(),
+                )
+            }
         } else {
             None
         }

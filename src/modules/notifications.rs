@@ -1,7 +1,7 @@
 use crate::{
-    components::icons::{IconButtonSize, StaticIcon, icon, icon_button},
+    components::icons::{StaticIcon, icon, icon_button},
+    components::{ButtonHierarchy, ButtonKind, ButtonSize, MenuSize},
     config::{NotificationsModuleConfig, ToastPosition},
-    menu::MenuSize,
     services::{
         ReadOnlyService, ServiceEvent,
         notifications::{
@@ -482,7 +482,8 @@ impl Notifications {
                     )
                     .push(
                         icon_button(theme, StaticIcon::Close)
-                            .style(theme.notification_delete_button_style())
+                            .kind(ButtonKind::Transparent)
+                            .hierarchy(ButtonHierarchy::Danger)
                             .on_press(Message::CloseNotificationById(notification_id))
                     ),
                 column!(
@@ -490,7 +491,7 @@ impl Notifications {
                     body_element,
                 )
                 .spacing(theme.space.xxs)
-                .padding(Padding::new(theme.space.xxs).top(0.))
+                .padding(Padding::new(theme.space.xs).top(0.))
             )
             .spacing(theme.space.xxs),
         );
@@ -502,6 +503,7 @@ impl Notifications {
         button(card)
             .on_press(on_press)
             .width(Length::Fill)
+            .padding(theme.space.xxs)
             .style(Self::notification_button_style(
                 theme,
                 if toast {
@@ -561,6 +563,7 @@ impl Notifications {
             container(text("No notifications").size(theme.font_size.md))
                 .width(Length::Fill)
                 .center_x(Length::Fill)
+                .padding(theme.space.xxl)
                 .into()
         } else if self.config.grouped {
             self.grouped_notifications(theme)
@@ -696,8 +699,9 @@ impl Notifications {
                 text(format!("{count} new")),
                 icon_button(theme, StaticIcon::Delete)
                     .on_press(clear_msg)
-                    .size(IconButtonSize::Large)
-                    .style(theme.notification_delete_button_style())
+                    .size(ButtonSize::Large)
+                    .kind(ButtonKind::Transparent)
+                    .hierarchy(ButtonHierarchy::Danger)
             )
             .spacing(theme.space.xs)
             .align_y(Alignment::Center);

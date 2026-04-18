@@ -1,6 +1,10 @@
 use crate::{
+    components::divider,
     components::icons::{StaticIcon, icon},
-    menu::MenuSize,
+    components::{
+        ButtonHierarchy, ButtonKind, ButtonUIRef, IconPosition, MenuSize, position_button,
+        styled_button,
+    },
     services::{
         ReadOnlyService, Service, ServiceEvent,
         tray::{
@@ -9,11 +13,10 @@ use crate::{
         },
     },
     theme::AshellTheme,
-    widgets::{ButtonUIRef, position_button},
 };
 use iced::{
     Alignment, Element, Length, Padding, Subscription, SurfaceId, Task,
-    widget::{Column, Image, Row, Svg, button, container, row, rule, text, toggler},
+    widget::{Column, Image, Row, Svg, container, toggler},
 };
 use log::debug;
 
@@ -111,16 +114,19 @@ impl TrayModule {
                 toggle_type: Some(toggle_type),
                 toggle_state: Some(state),
                 ..
-            } if toggle_type == "checkmark" => toggler(*state > 0)
-                .label(label.replace("_", "").to_owned())
-                .on_toggle({
-                    let name = name.to_owned();
-                    let id = layout.0;
+            } if toggle_type == "checkmark" => container(
+                toggler(*state > 0)
+                    .label(label.replace("_", "").to_owned())
+                    .on_toggle({
+                        let name = name.to_owned();
+                        let id = layout.0;
 
-                    move |_| Message::MenuSelected(name.to_owned(), id)
-                })
-                .width(Length::Fill)
-                .into(),
+                        move |_| Message::MenuSelected(name.to_owned(), id)
+                    })
+                    .width(Length::Fill),
+            )
+            .padding([theme.space.xs, theme.space.md])
+            .into(),
             LayoutProps {
                 children_display: Some(display),
                 label: Some(label),
@@ -129,18 +135,17 @@ impl TrayModule {
                 let is_open = self.submenus.contains(&layout.0);
                 Column::with_capacity(2)
                     .push(
-                        button(row!(
-                            text(label.replace("_", "").to_owned()).width(Length::Fill),
-                            icon(if is_open {
-                                StaticIcon::MenuOpen
-                            } else {
-                                StaticIcon::MenuClosed
-                            })
-                        ))
-                        .style(theme.ghost_button_style())
-                        .padding(theme.space.xs)
-                        .on_press(Message::ToggleSubmenu(layout.0))
-                        .width(Length::Fill),
+                        styled_button(theme, label.replace("_", ""))
+                            .icon(
+                                if is_open {
+                                    StaticIcon::MenuOpen
+                                } else {
+                                    StaticIcon::MenuClosed
+                                },
+                                IconPosition::After,
+                            )
+                            .on_press(Message::ToggleSubmenu(layout.0))
+                            .width(Length::Fill),
                     )
                     .push(if is_open {
                         Some(
@@ -162,13 +167,11 @@ impl TrayModule {
             }
             LayoutProps {
                 label: Some(label), ..
-            } if !label.is_empty() => button(text(label.replace("_", "")))
-                .style(theme.ghost_button_style())
+            } if !label.is_empty() => styled_button(theme, label.replace("_", ""))
                 .on_press(Message::MenuSelected(name.to_owned(), layout.0))
                 .width(Length::Fill)
-                .padding(theme.space.xs)
                 .into(),
-            LayoutProps { type_: Some(t), .. } if t == "separator" => rule::horizontal(1).into(),
+            LayoutProps { type_: Some(t), .. } if t == "separator" => divider(),
             _ => Row::new().into(),
         }
     }
@@ -205,7 +208,10 @@ impl TrayModule {
                                     Message::ToggleMenu(item.name.to_owned(), id, button_ui_ref)
                                 })
                                 .padding(theme.space.xxs)
-                                .style(theme.ghost_button_style())
+                                .style(theme.button_style(
+                                    ButtonKind::Transparent,
+                                    ButtonHierarchy::Secondary,
+                                ))
                                 .into()
                             })
                             .collect::<Vec<_>>(),

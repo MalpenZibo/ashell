@@ -1,14 +1,15 @@
 use crate::{
+    components::divider,
     components::icons::{StaticIcon, icon},
+    components::{IconPosition, MenuSize, styled_button},
     config::UpdatesModuleConfig,
-    menu::MenuSize,
     theme::AshellTheme,
 };
 use iced::{
     Alignment, Element, Length, Padding, Subscription, SurfaceId, Task,
     alignment::Horizontal,
     stream::channel,
-    widget::{Column, button, column, container, row, rule, scrollable, text},
+    widget::{Column, column, container, row, scrollable, text},
 };
 use log::error;
 use serde::Deserialize;
@@ -184,19 +185,17 @@ impl Updates {
                 )
             } else {
                 let mut elements = column!(
-                    button(row!(
-                        text(format!("{} Updates available", self.updates.len()))
-                            .width(Length::Fill),
-                        icon(if self.is_updates_list_open {
-                            StaticIcon::MenuClosed
-                        } else {
-                            StaticIcon::MenuOpen
-                        })
-                    ))
-                    .style(theme.ghost_button_style())
-                    .padding(theme.space.xs)
-                    .on_press(Message::ToggleUpdatesList)
-                    .width(Length::Fill),
+                    styled_button(theme, format!("{} Updates available", self.updates.len()),)
+                        .icon(
+                            if self.is_updates_list_open {
+                                StaticIcon::MenuClosed
+                            } else {
+                                StaticIcon::MenuOpen
+                            },
+                            IconPosition::After,
+                        )
+                        .on_press(Message::ToggleUpdatesList)
+                        .width(Length::Fill),
                 )
                 .spacing(theme.space.xs);
 
@@ -245,7 +244,7 @@ impl Updates {
                 }
                 elements.into()
             },
-            rule::horizontal(1),
+            divider(),
             self.update_buttons(id, theme),
         )
         .width(MenuSize::Small)
@@ -258,9 +257,7 @@ impl Updates {
 
         if !self.updates.is_empty() {
             buttons = buttons.push(
-                button("Update")
-                    .style(theme.ghost_button_style())
-                    .padding(theme.space.xs)
+                styled_button(theme, "Update")
                     .on_press(Message::Update(id))
                     .width(Length::Fill),
             );
@@ -268,9 +265,7 @@ impl Updates {
 
         buttons
             .push(
-                button(row!(text("Check now").width(Length::Fill)))
-                    .style(theme.ghost_button_style())
-                    .padding(theme.space.xs)
+                styled_button(theme, "Check now")
                     .on_press(Message::CheckNow)
                     .width(Length::Fill),
             )

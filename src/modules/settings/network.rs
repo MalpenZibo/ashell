@@ -1,6 +1,10 @@
-use super::{SubMenu, quick_setting_button};
+use super::SubMenu;
 use crate::{
-    components::icons::{StaticIcon, icon, icon_button},
+    components::{
+        divider, format_indicator,
+        icons::{StaticIcon, icon, icon_button},
+        quick_setting_button, styled_button,
+    },
     config::SettingsFormat,
     services::{
         ReadOnlyService, Service, ServiceEvent,
@@ -14,7 +18,7 @@ use crate::{
 };
 use iced::{
     Alignment, Element, Length, Padding, Subscription, SurfaceId, Task, Theme,
-    widget::{Column, MouseArea, button, column, container, row, rule, scrollable, text, toggler},
+    widget::{Column, column, container, row, scrollable, text, toggler},
 };
 use log::{info, warn};
 
@@ -35,38 +39,15 @@ static WIFI_LOCK_SIGNAL_ICONS: [StaticIcon; 5] = [
     StaticIcon::WifiLock5,
 ];
 
-fn get_connectivity_color(
+fn get_connectivity_state(
     connectivity: ConnectivityState,
     indicator_state: IndicatorState,
-    theme: &Theme,
-) -> Option<iced::Color> {
+) -> IndicatorState {
     match (connectivity, indicator_state) {
-        (ConnectivityState::Full, IndicatorState::Warning) => Some(theme.palette().warning),
-        (ConnectivityState::Full, _) => None,
-        // Be more forgiving - if we have an active connection but connectivity check fails,
-        // show normal color instead of red (unless signal is very weak)
-        (
-            ConnectivityState::Loss | ConnectivityState::Portal | ConnectivityState::Unknown,
-            IndicatorState::Warning,
-        ) => Some(theme.palette().warning),
-        (ConnectivityState::Loss | ConnectivityState::Portal | ConnectivityState::Unknown, _) => {
-            None
-        } // Show normal color instead of red
-        (ConnectivityState::None, _) => Some(theme.palette().danger), // No connectivity - show red
+        (_, IndicatorState::Warning) => IndicatorState::Warning,
+        (ConnectivityState::None, _) => IndicatorState::Danger,
+        _ => IndicatorState::Normal,
     }
-}
-
-fn wrap_connectivity_style<'a>(
-    content: Element<'a, Message>,
-    connectivity: ConnectivityState,
-    indicator_state: IndicatorState,
-) -> Element<'a, Message> {
-    container(content)
-        .style(move |theme: &Theme| container::Style {
-            text_color: get_connectivity_color(connectivity, indicator_state, theme),
-            ..Default::default()
-        })
-        .into()
 }
 
 impl ActiveConnectionInfo {
@@ -326,68 +307,41 @@ impl NetworkSettings {
             if service.airplane_mode || !service.wifi_present {
                 None
             } else {
-                let content: Element<'a, Message> = service
-                    .active_connections
-                    .iter()
-                    .find(|c| {
-                        matches!(c, ActiveConnectionInfo::WiFi { .. })
-                            || matches!(c, ActiveConnectionInfo::Wired { .. })
-                    })
-                    .map_or_else(
-                        || match self.config.indicator_format {
-                            SettingsFormat::Icon => icon(StaticIcon::Wifi0).into(),
-                            SettingsFormat::Percentage | SettingsFormat::Time => text("0%").into(),
-                            SettingsFormat::IconAndPercentage | SettingsFormat::IconAndTime => {
-                                row!(icon(StaticIcon::Wifi0), text("0%"))
-                                    .spacing(theme.space.xxs)
-                                    .align_y(Alignment::Center)
-                                    .into()
-                            }
-                        },
-                        |a| {
-                            let icon_type = a.get_icon();
-                            let state = (service.connectivity, a.get_indicator_state());
-                            let strength = match a {
-                                ActiveConnectionInfo::WiFi { strength, .. } => Some(*strength),
-                                _ => None,
-                            };
+                let active = service.active_connections.iter().find(|c| {
+                    matches!(c, ActiveConnectionInfo::WiFi { .. })
+                        || matches!(c, ActiveConnectionInfo::Wired { .. })
+                });
 
-                            match self.config.indicator_format {
-                                SettingsFormat::Icon => wrap_connectivity_style(
-                                    icon(icon_type).into(),
-                                    state.0,
-                                    state.1,
-                                ),
-                                SettingsFormat::Percentage | SettingsFormat::Time => {
-                                    let strength_text =
-                                        strength.map_or("100%".to_string(), |s| format!("{}%", s));
-                                    wrap_connectivity_style(
-                                        text(strength_text).into(),
-                                        state.0,
-                                        state.1,
-                                    )
-                                }
-                                SettingsFormat::IconAndPercentage | SettingsFormat::IconAndTime => {
-                                    let strength_text =
-                                        strength.map_or("100%".to_string(), |s| format!("{}%", s));
-                                    wrap_connectivity_style(
-                                        row!(icon(icon_type), text(strength_text))
-                                            .spacing(theme.space.xxs)
-                                            .align_y(Alignment::Center)
-                                            .into(),
-                                        state.0,
-                                        state.1,
-                                    )
-                                }
-                            }
-                        },
-                    );
+                Some(if let Some(a) = active {
+                    let icon_type = a.get_icon();
+                    let state =
+                        get_connectivity_state(service.connectivity, a.get_indicator_state());
+                    let strength = match a {
+                        ActiveConnectionInfo::WiFi { strength, .. } => Some(*strength),
+                        _ => None,
+                    };
+                    let strength_text = strength.map_or("100%".to_string(), |s| format!("{}%", s));
 
-                Some(
-                    MouseArea::new(content)
-                        .on_right_press(Message::OpenMore)
-                        .into(),
-                )
+                    format_indicator(
+                        theme,
+                        self.config.indicator_format,
+                        icon_type,
+                        text(strength_text).into(),
+                        state,
+                    )
+                    .on_right_press(Message::OpenMore)
+                    .into()
+                } else {
+                    format_indicator(
+                        theme,
+                        self.config.indicator_format,
+                        StaticIcon::Wifi0,
+                        text("0%").into(),
+                        IndicatorState::Normal,
+                    )
+                    .on_right_press(Message::OpenMore)
+                    .into()
+                })
             }
         })
     }
@@ -579,7 +533,7 @@ impl NetworkSettings {
             .spacing(theme.space.xs)
             .width(Length::Fill)
             .align_y(Alignment::Center),
-            rule::horizontal(1),
+            divider(),
             container(scrollable(
                 Column::with_children({
                     let (active_networks, inactive_networks): (Vec<_>, Vec<_>) = service
@@ -599,33 +553,34 @@ impl NetworkSettings {
                                 )
                             });
 
-                            button(
-                                container(
-                                    row!(
-                                        icon(if ac.public {
-                                            ActiveConnectionInfo::get_wifi_icon(ac.strength)
-                                        } else {
-                                            ActiveConnectionInfo::get_wifi_lock_icon(ac.strength)
-                                        })
-                                        .width(Length::Shrink),
-                                        text(ac.ssid.as_str()).width(Length::Fill),
+                            styled_button(
+                                theme,
+                                Element::from(
+                                    container(
+                                        row!(
+                                            icon(if ac.public {
+                                                ActiveConnectionInfo::get_wifi_icon(ac.strength)
+                                            } else {
+                                                ActiveConnectionInfo::get_wifi_lock_icon(ac.strength)
+                                            })
+                                            .width(Length::Shrink),
+                                            text(ac.ssid.as_str()).width(Length::Fill),
+                                        )
+                                        .align_y(Alignment::Center)
+                                        .spacing(8),
                                     )
-                                    .align_y(Alignment::Center)
-                                    .spacing(8),
-                                )
-                                .style(move |theme: &Theme| {
-                                    container::Style {
-                                        text_color: if is_active {
-                                            Some(theme.palette().success)
-                                        } else {
-                                            None
-                                        },
-                                        ..Default::default()
-                                    }
-                                }),
+                                    .style(move |theme: &Theme| {
+                                        container::Style {
+                                            text_color: if is_active {
+                                                Some(theme.palette().success)
+                                            } else {
+                                                None
+                                            },
+                                            ..Default::default()
+                                        }
+                                    }),
+                                ),
                             )
-                            .style(theme.ghost_button_style())
-                            .padding([8, 8])
                             .on_press_maybe(if !is_active {
                                 Some(if ac.public {
                                     Message::ConfirmOpenNetwork(ac.ssid.to_string())
@@ -651,12 +606,10 @@ impl NetworkSettings {
         if show_more_button {
             column!(
                 main,
-                rule::horizontal(1),
-                button("More")
+                divider(),
+                styled_button(theme, "More")
                     .on_press(Message::WiFiMore(id))
-                    .padding([theme.space.xxs, theme.space.sm])
                     .width(Length::Fill)
-                    .style(theme.ghost_button_style())
             )
             .spacing(theme.space.sm)
             .into()
@@ -723,12 +676,10 @@ impl NetworkSettings {
         if show_more_button {
             column!(
                 main,
-                rule::horizontal(1),
-                button("More")
+                divider(),
+                styled_button(theme, "More")
                     .on_press(Message::VpnMore(id))
-                    .padding([theme.space.xxs, theme.space.sm])
                     .width(Length::Fill)
-                    .style(theme.ghost_button_style())
             )
             .spacing(theme.space.sm)
             .into()

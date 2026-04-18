@@ -1,8 +1,9 @@
 use crate::{
     HEIGHT,
+    components::menu::MenuType,
+    components::{ButtonUIRef, Centerbox},
     config::{self, AppearanceStyle, Config, Modules, Position},
     get_log_spec,
-    menu::MenuType,
     modules::{
         self,
         custom_module::{self, Custom},
@@ -22,7 +23,6 @@ use crate::{
     outputs::{HasOutput, Outputs},
     services::ReadOnlyService,
     theme::{AshellTheme, backdrop_color, darken_color},
-    widgets::{ButtonUIRef, Centerbox},
 };
 use flexi_logger::LoggerHandle;
 use iced::{
@@ -412,7 +412,7 @@ impl App {
                 modules::notifications::Action::Task(task) => task.map(Message::Notifications),
                 modules::notifications::Action::Show(task) => {
                     let position = self.notifications.toast_position();
-                    let width = crate::menu::MenuSize::Medium.size() as u32;
+                    let width = crate::components::MenuSize::Medium.size() as u32;
                     Task::batch(vec![
                         task.map(Message::Notifications),
                         self.outputs.show_toast_layer(width, position),

@@ -1,7 +1,8 @@
 use crate::{
-    components::icons::{IconButtonSize, StaticIcon, icon, icon_button},
+    components::divider,
+    components::icons::{StaticIcon, icon, icon_button},
+    components::{ButtonSize, MenuSize},
     config::{MediaPlayerFormat, MediaPlayerModuleConfig},
-    menu::MenuSize,
     services::{
         ReadOnlyService, Service, ServiceEvent,
         mpris::{
@@ -14,7 +15,7 @@ use crate::{
 use iced::{
     Background, Border, Element, Length, Subscription, Task, Theme,
     alignment::Vertical,
-    widget::{column, container, image, row, rule, slider, space, text},
+    widget::{column, container, image, row, slider, space, text},
 };
 
 #[derive(Debug, Clone)]
@@ -80,7 +81,7 @@ impl MediaPlayer {
             None => Into::<Element<'a, Message>>::into(text("Not connected to MPRIS service")),
             Some(service) => column!(
                 text("Players").size(theme.font_size.lg),
-                rule::horizontal(1),
+                divider(),
                 column(service.players().iter().map(|d| {
                     const LEFT_COLUMN_WIDTH: Length = Length::FillPortion(3);
                     const RIGHT_COLUMN_WIDTH: Length = Length::FillPortion(2);
@@ -119,13 +120,13 @@ impl MediaPlayer {
                         row![
                             icon_button(theme, StaticIcon::SkipPrevious)
                                 .on_press(Message::Prev(d.service.clone()))
-                                .size(IconButtonSize::Large),
+                                .size(ButtonSize::Large),
                             icon_button(theme, play_pause_icon)
                                 .on_press(Message::PlayPause(d.service.clone()))
-                                .size(IconButtonSize::Large),
+                                .size(ButtonSize::Large),
                             icon_button(theme, StaticIcon::SkipNext)
                                 .on_press(Message::Next(d.service.clone()))
-                                .size(IconButtonSize::Large),
+                                .size(ButtonSize::Large),
                         ]
                         .align_y(Vertical::Center)
                         .spacing(theme.space.xs),

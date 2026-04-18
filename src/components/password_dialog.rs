@@ -1,11 +1,11 @@
+use super::icons::{StaticIcon, icon, icon_button};
 use crate::{
-    components::icons::{StaticIcon, icon},
+    components::{ButtonHierarchy, ButtonKind, styled_button},
     theme::AshellTheme,
 };
 use iced::{
     Alignment, Element, Length, SurfaceId,
-    alignment::Vertical,
-    widget::{button, column, container, row, space, text, text_input},
+    widget::{column, row, space, text, text_input},
 };
 
 #[derive(Debug, Clone)]
@@ -65,22 +65,15 @@ Do you want to connect anyway?",
                     .on_input(Message::PasswordChanged)
                     .on_submit(Message::DialogConfirmed(id))
                     .width(Length::Fill),
-                button(
-                    container(
-                        icon(if show_password {
-                            StaticIcon::EyeOpened
-                        } else {
-                            StaticIcon::EyeClosed
-                        })
-                        .size(theme.font_size.md)
-                    )
-                    .center(Length::Fill)
+                icon_button(
+                    theme,
+                    if show_password {
+                        StaticIcon::EyeOpened
+                    } else {
+                        StaticIcon::EyeClosed
+                    },
                 )
-                .padding(0)
-                .style(theme.round_button_style())
-                .on_press(Message::TogglePasswordVisibility)
-                .height(Length::Fixed(32.))
-                .width(Length::Fixed(32.)),
+                .on_press(Message::TogglePasswordVisibility),
             )
             .spacing(theme.space.sm)
             .align_y(Alignment::Center),
@@ -89,15 +82,14 @@ Do you want to connect anyway?",
     .push(
         row!(
             space::horizontal(),
-            button(text("Cancel").align_y(Vertical::Center))
-                .padding([theme.space.xxs, theme.space.xl])
-                .style(theme.outline_button_style())
+            styled_button(theme, "Cancel")
+                .kind(ButtonKind::Outline)
                 .height(Length::Fixed(50.))
                 .on_press(Message::DialogCancelled(id)),
-            button(text("Confirm").align_y(Vertical::Center))
-                .padding([theme.space.xxs, theme.space.xl])
+            styled_button(theme, "Confirm")
+                .kind(ButtonKind::Solid)
+                .hierarchy(ButtonHierarchy::Primary)
                 .height(Length::Fixed(50.))
-                .style(theme.confirm_button_style())
                 .on_press_maybe(if !warning_only && current_password.is_empty() {
                     None
                 } else {

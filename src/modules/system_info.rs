@@ -1,17 +1,18 @@
 use crate::{
+    components::MenuSize,
+    components::divider,
     components::icons::{StaticIcon, icon},
     config::{
         CpuFormat, DiskFormat, MemoryFormat, SystemInfoIndicator, SystemInfoModuleConfig,
         TemperatureFormat,
     },
-    menu::MenuSize,
     theme::AshellTheme,
     utils,
 };
 use iced::{
     Alignment, Element, Length, Subscription, Theme,
     time::every,
-    widget::{Column, Row, column, container, row, rule, text},
+    widget::{Column, Row, column, container, row, text},
 };
 use itertools::Itertools;
 use std::time::{Duration, Instant};
@@ -374,7 +375,7 @@ impl SystemInfo {
         container(
             column!(
                 text("System Info").size(theme.font_size.lg),
-                rule::horizontal(1),
+                divider(),
                 Column::with_capacity(6)
                     .push(Self::info_element(
                         theme,
