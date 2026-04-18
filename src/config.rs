@@ -19,12 +19,22 @@ use tokio::time::sleep;
 
 pub const DEFAULT_CONFIG_FILE_PATH: &str = "~/.config/ashell/config.toml";
 
+#[derive(Deserialize, Copy, Clone, Debug, Default, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum RendererBackend {
+    #[default]
+    Auto,
+    Vulkan,
+    OpenGL,
+}
+
 #[derive(Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct Config {
     pub log_level: String,
     pub position: Position,
     pub layer: Layer,
+    pub renderer_backend: RendererBackend,
     pub outputs: Outputs,
     pub modules: Modules,
     #[serde(rename = "CustomModule")]
@@ -48,6 +58,7 @@ impl Default for Config {
             log_level: "warn".to_owned(),
             position: Position::default(),
             layer: Layer::default(),
+            renderer_backend: RendererBackend::default(),
             outputs: Outputs::default(),
             modules: Modules::default(),
             updates: None,

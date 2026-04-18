@@ -12,7 +12,13 @@ Common issues and quick fixes for ashell.
 
 **Cause:** The default Vulkan backend may have compatibility issues with NVIDIA drivers.
 
-**Solution:** Force the use of OpenGL by setting the `WGPU_BACKEND` environment variable:
+**Solution 1 (Permanent):** Set renderer backend in your config.toml:
+
+```toml
+renderer_backend = "opengl"
+```
+
+**Solution 2 (Temporary):** Force the use of OpenGL by setting the `WGPU_BACKEND` environment variable:
 
 ```bash
 WGPU_BACKEND=gl ashell
