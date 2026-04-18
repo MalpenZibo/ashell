@@ -95,7 +95,7 @@ impl App {
         (logger, config, config_path): (LoggerHandle, Config, PathBuf),
     ) -> impl FnOnce() -> (Self, Task<Message>) {
         move || {
-            let (outputs, task) = Outputs::new(
+            let outputs = Outputs::new(
                 config.appearance.style,
                 config.position,
                 config.layer,
@@ -138,7 +138,7 @@ impl App {
                     media_player: MediaPlayer::new(config.media_player),
                     visible: true,
                 },
-                task,
+                Task::none(),
             )
         }
     }
