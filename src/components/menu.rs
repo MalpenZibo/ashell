@@ -5,8 +5,9 @@ use crate::theme::backdrop_color;
 use iced::alignment::Vertical;
 use iced::widget::container::Style;
 use iced::{
-    Border, Element, KeyboardInteractivity, Layer, Length, Padding, Pixels, SurfaceId, Task, Theme,
-    set_keyboard_interactivity, set_layer, widget::container,
+    Anchor, Border, Element, KeyboardInteractivity, Layer, LayerShellSettings, Length, OutputId,
+    Padding, Pixels, SurfaceId, Task, Theme, destroy_layer_surface, new_layer_surface,
+    set_keyboard_interactivity, widget::container,
 };
 
 #[derive(Eq, PartialEq, Clone, Debug)]
@@ -22,14 +23,14 @@ pub enum MenuType {
 
 #[derive(Clone, Debug)]
 pub struct Menu {
-    pub id: SurfaceId,
+    pub id: Option<SurfaceId>,
     pub menu_info: Option<(MenuType, ButtonUIRef)>,
 }
 
 impl Menu {
-    pub fn new(id: SurfaceId) -> Self {
+    pub fn new() -> Self {
         Self {
-            id,
+            id: None,
             menu_info: None,
         }
     }
@@ -39,33 +40,39 @@ impl Menu {
         menu_type: MenuType,
         button_ui_ref: ButtonUIRef,
         request_keyboard: bool,
+        output_id: Option<OutputId>,
     ) -> Task<Message> {
         self.menu_info.replace((menu_type, button_ui_ref));
 
-        let mut tasks = vec![set_layer(self.id, Layer::Overlay)];
+        let keyboard_interactivity = if request_keyboard {
+            KeyboardInteractivity::OnDemand
+        } else {
+            KeyboardInteractivity::None
+        };
 
-        if request_keyboard {
-            tasks.push(set_keyboard_interactivity(
-                self.id,
-                KeyboardInteractivity::OnDemand,
-            ));
-        }
+        let (menu_id, task) = new_layer_surface(LayerShellSettings {
+            namespace: "ashell-menu-layer".to_string(),
+            size: None,
+            layer: Layer::Overlay,
+            keyboard_interactivity,
+            output: output_id,
+            anchor: Anchor::TOP | Anchor::BOTTOM | Anchor::LEFT | Anchor::RIGHT,
+            ..Default::default()
+        });
 
-        Task::batch(tasks)
+        self.id = Some(menu_id);
+        task
     }
 
     pub fn close<Message: 'static>(&mut self) -> Task<Message> {
         if self.menu_info.is_some() {
             self.menu_info.take();
 
-            let mut tasks = vec![set_layer(self.id, Layer::Background)];
-
-            tasks.push(set_keyboard_interactivity(
-                self.id,
-                KeyboardInteractivity::None,
-            ));
-
-            Task::batch(tasks)
+            if let Some(id) = self.id.take() {
+                destroy_layer_surface(id)
+            } else {
+                Task::none()
+            }
         } else {
             Task::none()
         }
@@ -76,9 +83,10 @@ impl Menu {
         menu_type: MenuType,
         button_ui_ref: ButtonUIRef,
         request_keyboard: bool,
+        output_id: Option<OutputId>,
     ) -> Task<Message> {
         match self.menu_info.as_mut() {
-            None => self.open(menu_type, button_ui_ref, request_keyboard),
+            None => self.open(menu_type, button_ui_ref, request_keyboard, output_id),
             Some((current_type, _)) if *current_type == menu_type => self.close(),
             Some((current_type, current_button_ui_ref)) => {
                 *current_type = menu_type;
@@ -101,11 +109,19 @@ impl Menu {
     }
 
     pub fn request_keyboard<Message: 'static>(&self) -> Task<Message> {
-        set_keyboard_interactivity(self.id, KeyboardInteractivity::OnDemand)
+        if let Some(id) = self.id {
+            set_keyboard_interactivity(id, KeyboardInteractivity::OnDemand)
+        } else {
+            Task::none()
+        }
     }
 
     pub fn release_keyboard<Message: 'static>(&self) -> Task<Message> {
-        set_keyboard_interactivity(self.id, KeyboardInteractivity::None)
+        if let Some(id) = self.id {
+            set_keyboard_interactivity(id, KeyboardInteractivity::None)
+        } else {
+            Task::none()
+        }
     }
 }
 
