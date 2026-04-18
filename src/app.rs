@@ -4,6 +4,7 @@ use crate::{
     components::{ButtonUIRef, Centerbox},
     config::{self, AppearanceStyle, Config, Modules, Position},
     get_log_spec,
+    ipc::IpcCommand,
     modules::{
         self,
         custom_module::{self, Custom},
@@ -12,7 +13,7 @@ use crate::{
         media_player::MediaPlayer,
         notifications::Notifications,
         privacy::Privacy,
-        settings::Settings,
+        settings::{self, Settings, audio},
         system_info::SystemInfo,
         tempo::Tempo,
         tray::TrayModule,
@@ -20,6 +21,7 @@ use crate::{
         window_title::WindowTitle,
         workspaces::Workspaces,
     },
+    osd::{self, Osd, OsdKind},
     outputs::{HasOutput, Outputs},
     services::ReadOnlyService,
     theme::{AshellTheme, backdrop_color, darken_color},
@@ -35,6 +37,9 @@ use iced::{
 };
 use log::{debug, info, warn};
 use std::{collections::HashMap, f32::consts::PI, path::PathBuf};
+
+const OSD_WIDTH: u32 = 250;
+const OSD_HEIGHT: u32 = 64;
 
 pub struct GeneralConfig {
     outputs: config::Outputs,
@@ -62,6 +67,7 @@ pub struct App {
     pub settings: Settings,
     pub media_player: MediaPlayer,
     pub notifications: Notifications,
+    pub osd: Osd,
     pub visible: bool,
 }
 
@@ -83,6 +89,8 @@ pub enum Message {
     Settings(modules::settings::Message),
     MediaPlayer(modules::media_player::Message),
     Notifications(modules::notifications::Message),
+    Osd(osd::Message),
+    IpcOsdCommand(IpcCommand),
     OutputEvent(OutputEvent),
     CloseAllMenus,
     ResumeFromSleep,
@@ -136,6 +144,7 @@ impl App {
                     settings: Settings::new(config.settings),
                     notifications,
                     media_player: MediaPlayer::new(config.media_player),
+                    osd: Osd::new(config.osd),
                     visible: true,
                 },
                 Task::none(),
@@ -196,6 +205,7 @@ impl App {
             .update(modules::notifications::Message::ConfigReloaded(
                 config.notifications,
             ));
+        self.osd.update(osd::Message::ConfigReloaded(config.osd));
     }
 
     pub fn theme(&self) -> Theme {
@@ -204,6 +214,38 @@ impl App {
 
     pub fn scale_factor(&self) -> f64 {
         self.theme.scale_factor
+    }
+
+    /// Build OSD display info (kind, normalised value, muted) for the given
+    /// IPC command, reading current state from the Settings services.
+    fn osd_info_for(&self, cmd: &IpcCommand) -> Option<(OsdKind, f32, bool)> {
+        fn normalise(cur: u32, max: u32) -> f32 {
+            if max > 0 {
+                cur as f32 / max as f32
+            } else {
+                0.0
+            }
+        }
+
+        match cmd {
+            IpcCommand::VolumeUp { .. }
+            | IpcCommand::VolumeDown { .. }
+            | IpcCommand::VolumeToggleMute { .. } => {
+                let vol = self.settings.audio().current_sink_volume().unwrap_or(0);
+                let muted = self.settings.audio().is_sink_muted().unwrap_or(false);
+                Some((
+                    OsdKind::Volume,
+                    normalise(vol, audio::AudioSettings::vol_max()),
+                    muted,
+                ))
+            }
+            IpcCommand::BrightnessUp { .. } | IpcCommand::BrightnessDown { .. } => self
+                .settings
+                .brightness()
+                .current_brightness()
+                .map(|(cur, max)| (OsdKind::Brightness, normalise(cur, max), false)),
+            IpcCommand::ToggleVisibility => None,
+        }
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
@@ -430,6 +472,41 @@ impl App {
                         .update_toast_input_region(content_size, position)
                 }
             },
+            Message::IpcOsdCommand(cmd) => {
+                let mut tasks = vec![];
+
+                // Execute the action via Settings.
+                let action = match &cmd {
+                    IpcCommand::VolumeUp { .. } => self.settings.volume_adjust(true),
+                    IpcCommand::VolumeDown { .. } => self.settings.volume_adjust(false),
+                    IpcCommand::VolumeToggleMute { .. } => self.settings.toggle_mute(),
+                    IpcCommand::BrightnessUp { .. } => self.settings.brightness_adjust(true),
+                    IpcCommand::BrightnessDown { .. } => self.settings.brightness_adjust(false),
+                    IpcCommand::ToggleVisibility => unreachable!(),
+                };
+                if let settings::Action::Command(task) = action {
+                    tasks.push(task.map(Message::Settings));
+                }
+
+                // Show OSD overlay if enabled.
+                if self.osd.config().enabled && !cmd.no_osd() {
+                    let osd_info = self.osd_info_for(&cmd);
+
+                    if let Some((kind, value, muted)) = osd_info
+                        && let osd::Action::Show(timer) =
+                            self.osd.update(osd::Message::Show { kind, value, muted })
+                    {
+                        tasks.push(timer.map(Message::Osd));
+                        tasks.push(self.outputs.show_osd_layer(OSD_WIDTH, OSD_HEIGHT));
+                    }
+                }
+
+                Task::batch(tasks)
+            }
+            Message::Osd(msg) => match self.osd.update(msg) {
+                osd::Action::Hide => self.outputs.hide_osd_layer(),
+                _ => Task::none(),
+            },
             Message::None => Task::none(),
             Message::ToggleVisibility => {
                 self.visible = !self.visible;
@@ -606,6 +683,7 @@ impl App {
                 .notifications
                 .toast_view(&self.theme)
                 .map(Message::Notifications),
+            Some(HasOutput::Osd) => self.osd.view(&self.theme).map(Message::Osd),
             None => Row::new().into(),
         }
     }
@@ -645,8 +723,12 @@ impl App {
                         }
                     })
             }),
+            // Always subscribe to audio/brightness services so OSD works
+            // even when the Settings module isn't in the module list.
+            self.settings.subscription().map(Message::Settings),
             crate::ipc::subscription().map(|cmd| match cmd {
-                crate::ipc::IpcCommand::ToggleVisibility => Message::ToggleVisibility,
+                IpcCommand::ToggleVisibility => Message::ToggleVisibility,
+                other => Message::IpcOsdCommand(other),
             }),
         ])
     }

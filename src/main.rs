@@ -16,6 +16,7 @@ mod components;
 mod config;
 mod ipc;
 mod modules;
+mod osd;
 mod outputs;
 mod services;
 mod theme;

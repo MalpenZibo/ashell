@@ -41,13 +41,36 @@ impl BrightnessSettings {
         }
     }
 
+    pub fn current_brightness(&self) -> Option<(u32, u32)> {
+        self.service.as_ref().map(|s| (s.current.value(), s.max))
+    }
+
+    fn step(max: u32) -> u32 {
+        (5 * max / 100).max(1)
+    }
+
+    pub fn brightness_adjust(&mut self, up: bool) -> Action {
+        let Some((cur, max)) = self.current_brightness() else {
+            return Action::None;
+        };
+        let step = Self::step(max);
+        let new_val = if up {
+            (cur + step).min(max)
+        } else {
+            cur.saturating_sub(step)
+        };
+        self.update(Message::Changed(remote_value::Message::RequestAndTimeout(
+            new_val,
+        )))
+    }
+
     fn on_scroll(current: u32, max: u32) -> impl Fn(ScrollDelta) -> Message {
         move |delta| {
             let y = match delta {
                 ScrollDelta::Lines { y, .. } => y,
                 ScrollDelta::Pixels { y, .. } => y,
             };
-            let step = (5 * max / 100).max(1);
+            let step = Self::step(max);
             let new = if y > 0.0 {
                 (current + step).min(max)
             } else {

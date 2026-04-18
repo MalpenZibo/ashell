@@ -21,13 +21,58 @@ const MAX_REQUEST_LEN: u64 = 4096;
 pub enum IpcCommand {
     /// Toggle bar visibility
     ToggleVisibility,
+    VolumeUp {
+        #[arg(long)]
+        no_osd: bool,
+    },
+    VolumeDown {
+        #[arg(long)]
+        no_osd: bool,
+    },
+    VolumeToggleMute {
+        #[arg(long)]
+        no_osd: bool,
+    },
+    BrightnessUp {
+        #[arg(long)]
+        no_osd: bool,
+    },
+    BrightnessDown {
+        #[arg(long)]
+        no_osd: bool,
+    },
 }
+
+impl IpcCommand {
+    pub fn no_osd(&self) -> bool {
+        match self {
+            IpcCommand::ToggleVisibility => false,
+            IpcCommand::VolumeUp { no_osd }
+            | IpcCommand::VolumeDown { no_osd }
+            | IpcCommand::VolumeToggleMute { no_osd }
+            | IpcCommand::BrightnessUp { no_osd }
+            | IpcCommand::BrightnessDown { no_osd } => *no_osd,
+        }
+    }
+}
+
+const NO_OSD_SUFFIX: &str = "?no-osd";
 
 impl fmt::Display for IpcCommand {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            IpcCommand::ToggleVisibility => write!(f, "toggle-visibility"),
+        let base = match self {
+            IpcCommand::ToggleVisibility => "toggle-visibility",
+            IpcCommand::VolumeUp { .. } => "volume-up",
+            IpcCommand::VolumeDown { .. } => "volume-down",
+            IpcCommand::VolumeToggleMute { .. } => "volume-toggle-mute",
+            IpcCommand::BrightnessUp { .. } => "brightness-up",
+            IpcCommand::BrightnessDown { .. } => "brightness-down",
+        };
+        write!(f, "{base}")?;
+        if self.no_osd() {
+            write!(f, "{NO_OSD_SUFFIX}")?;
         }
+        Ok(())
     }
 }
 
@@ -35,14 +80,22 @@ impl FromStr for IpcCommand {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self> {
-        match s {
+        let (cmd, no_osd) = match s.strip_suffix(NO_OSD_SUFFIX) {
+            Some(base) => (base, true),
+            None => (s, false),
+        };
+        match cmd {
             "toggle-visibility" => Ok(IpcCommand::ToggleVisibility),
+            "volume-up" => Ok(IpcCommand::VolumeUp { no_osd }),
+            "volume-down" => Ok(IpcCommand::VolumeDown { no_osd }),
+            "volume-toggle-mute" => Ok(IpcCommand::VolumeToggleMute { no_osd }),
+            "brightness-up" => Ok(IpcCommand::BrightnessUp { no_osd }),
+            "brightness-down" => Ok(IpcCommand::BrightnessDown { no_osd }),
             _ => Err(anyhow!("unknown IPC command: {s:?}")),
         }
     }
 }
 
-/// Resolve the socket path.
 pub fn socket_path() -> Result<PathBuf> {
     if let Some(dir) = std::env::var_os("XDG_RUNTIME_DIR") {
         return Ok(PathBuf::from(dir).join("ashell.sock"));
