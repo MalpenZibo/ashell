@@ -88,6 +88,10 @@ command = "/path/to/toggle-keyboard.sh"
 status_command = "/path/to/check-keyboard-status.sh"
 tooltip = "Toggle On-Screen Keyboard"
 
+[osd]
+enabled = true   # disabled by default
+timeout = 1500
+
 [appearance]
 style = "Islands"
 

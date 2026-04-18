@@ -40,8 +40,21 @@ ashell msg <command>
 
 Available commands:
 
-| Command              | Description              |
-| -------------------- | ------------------------ |
-| `toggle-visibility`  | Toggle the bar on/off    |
+| Command              | Description                          |
+| -------------------- | ------------------------------------ |
+| `toggle-visibility`  | Toggle the bar on/off                |
+| `volume-up`          | Increase sink volume by 5%           |
+| `volume-down`        | Decrease sink volume by 5%           |
+| `volume-toggle-mute` | Toggle sink mute                     |
+| `brightness-up`      | Increase screen brightness by 5%     |
+| `brightness-down`    | Decrease screen brightness by 5%     |
+| `airplane-toggle`    | Toggle airplane mode                 |
+
+Volume, brightness, and airplane commands show an OSD (On-Screen Display)
+overlay by default. Add `--no-osd` to suppress it:
+
+```bash
+ashell msg volume-up --no-osd
+```
 
 The socket is created at `$XDG_RUNTIME_DIR/ashell.sock`.

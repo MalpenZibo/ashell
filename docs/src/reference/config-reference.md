@@ -11,6 +11,8 @@ Complete reference for all configuration options in `~/.config/ashell/config.tom
 | `layer` | `"Top"` \| `"Bottom"` \| `"Overlay"` | `"Bottom"` | Wayland layer (Bottom = below floating windows) |
 | `outputs` | `"All"` \| `"Active"` \| `{ Targets = [...] }` | `"All"` | Which monitors show the bar |
 | `enable_esc_key` | bool | `false` | Whether ESC key closes menus |
+| `osd.enabled` | bool | `false` | Show OSD overlay for IPC volume/brightness/airplane commands |
+| `osd.timeout` | u64 | `1500` | OSD auto-hide delay in milliseconds |
 
 ## Module Layout
 
