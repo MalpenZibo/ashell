@@ -151,3 +151,37 @@ Alternatively, you can still use a `SIGUSR1` signal:
 ```bash
 kill -SIGUSR1 $(pidof ashell)
 ```
+
+## OSD (On-Screen Display)
+
+Ashell can show a transient overlay when volume, brightness, or airplane mode
+changes via IPC commands. This is useful for binding compositor keys to ashell:
+
+```bash
+# Volume
+ashell msg volume-up
+ashell msg volume-down
+ashell msg volume-toggle-mute
+
+# Brightness
+ashell msg brightness-up
+ashell msg brightness-down
+
+# Airplane mode
+ashell msg airplane-toggle
+```
+
+The OSD appears at center-bottom and auto-hides after a timeout. To suppress
+it for a specific command, add `--no-osd`:
+
+```bash
+ashell msg volume-up --no-osd
+```
+
+### OSD Configuration
+
+```toml
+[osd]
+enabled = true   # Disabled by default; set to true to enable the OSD overlay
+timeout = 1500   # Auto-hide delay in milliseconds
+```
