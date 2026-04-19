@@ -121,9 +121,8 @@ pub struct WorkspacesModuleConfig {
 pub enum InvertScrollDirection {
     #[default]
     All,
-    Mice,
-    Trackpads,
-    None,
+    Mouse,
+    Trackpad,
 }
 
 #[derive(Deserialize, Copy, Clone, Default, PartialEq, Eq, Debug)]
