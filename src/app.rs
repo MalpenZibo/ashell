@@ -130,7 +130,7 @@ impl App {
             ));
             init_localizer(resolve_localizer(&config));
 
-            let notifications = Notifications::new(config.notifications);
+            let notifications = Notifications::new(config.notifications, config.animations.enabled);
 
             (
                 App {
@@ -218,6 +218,8 @@ impl App {
                 config.media_player,
             ));
         self.outputs
+            .set_animations_enabled(config.animations.enabled);
+        self.notifications
             .set_animations_enabled(config.animations.enabled);
         let _ = self
             .notifications
@@ -490,13 +492,9 @@ impl App {
                     info!("Output created: {info:?}");
                     let name = &format!("{} {} {}", info.name, info.make, info.model);
 
-                    if let Some((_, h)) = info.logical_size {
-                        self.outputs.set_output_logical_height(info.id, h as u32);
-                    }
-
                     let (bar_style, bar_position, scale_factor) =
                         use_theme(|t| (t.bar_style, t.bar_position, t.scale_factor));
-                    self.outputs.add(
+                    let task = self.outputs.add(
                         bar_style,
                         &self.general_config.outputs,
                         bar_position,
@@ -504,7 +502,14 @@ impl App {
                         name,
                         info.id,
                         scale_factor,
-                    )
+                    );
+
+                    // After add(), so the output's entry exists to attach the height to.
+                    if let Some((_, h)) = info.logical_size {
+                        self.outputs.set_output_logical_height(info.id, h as u32);
+                    }
+
+                    task
                 }
                 OutputEvent::Removed(output_id) => {
                     info!("Output destroyed");
@@ -555,7 +560,9 @@ impl App {
                 modules::notifications::Action::Task(task) => task.map(Message::Notifications),
                 modules::notifications::Action::Show(task) => {
                     let position = self.notifications.toast_position();
-                    let width = crate::components::MenuSize::Medium.size() as u32;
+                    // Double width gives the card a runway to fully exit on slide-out.
+                    let card_width = crate::components::MenuSize::Medium.size() as u32;
+                    let width = card_width * 2;
                     Task::batch(vec![
                         task.map(Message::Notifications),
                         self.outputs.show_toast_layer(width, position),
