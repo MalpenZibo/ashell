@@ -8,7 +8,7 @@ use tokio::time::timeout;
 
 use crate::{
     components::{
-        MenuSize,
+        MenuSize, collapsible,
         icons::{DynamicIcon, StaticIcon, icon, icon_button},
         password_dialog, quick_setting_button, sub_menu_wrapper,
     },
@@ -34,6 +34,10 @@ mod bluetooth;
 pub(crate) mod brightness;
 pub(crate) mod network;
 mod power;
+
+/// A quick-setting button paired with an optional collapsible sub-menu.
+/// The tuple contains (expanded, submenu_content) when a sub-menu exists.
+type QuickSettingEntry<'a> = (Element<'a, Message>, Option<(bool, Element<'a, Message>)>);
 
 pub struct Settings {
     lock_cmd: Option<String>,
@@ -593,7 +597,7 @@ impl Settings {
                 .map(|(button, submenu)| {
                     (
                         button.map(Message::Network),
-                        submenu.map(|e| e.map(Message::Network)),
+                        submenu.map(|(expanded, e)| (expanded, e.map(Message::Network))),
                     )
                 });
             let quick_settings = quick_settings_section(
@@ -603,7 +607,7 @@ impl Settings {
                         |(button, submenu)| {
                             (
                                 button.map(Message::Bluetooth),
-                                submenu.map(|e| e.map(Message::Bluetooth)),
+                                submenu.map(|(expanded, e)| (expanded, e.map(Message::Bluetooth))),
                             )
                         },
                     ),
@@ -612,7 +616,7 @@ impl Settings {
                         .map(|(button, submenu)| {
                             (
                                 button.map(Message::Network),
-                                submenu.map(|e| e.map(Message::Network)),
+                                submenu.map(|(expanded, e)| (expanded, e.map(Message::Network))),
                             )
                         }),
                     self.network
@@ -637,7 +641,7 @@ impl Settings {
                     self.power.quick_setting_button().map(|(button, submenu)| {
                         (
                             button.map(Message::Power),
-                            submenu.map(|e| e.map(Message::Power)),
+                            submenu.map(|(expanded, e)| (expanded, e.map(Message::Power))),
                         )
                     }),
                 ]
@@ -674,43 +678,40 @@ impl Settings {
                 Position::Bottom => (None, source_slider.map(|e| e.map(Message::Audio))),
             };
 
+            let animated = use_theme(|t| t.animations_enabled);
             Column::with_capacity(11)
                 .push(header)
+                .push(self.power.peripheral_menu().map(|e| {
+                    collapsible(
+                        self.sub_menu == Some(SubMenu::PeripheralMenu),
+                        sub_menu_wrapper(e.map(Message::Power)),
+                    )
+                    .animated(animated)
+                }))
                 .push(
-                    self.sub_menu
-                        .filter(|menu_type| *menu_type == SubMenu::PeripheralMenu)
-                        .and_then(|_| {
-                            self.power
-                                .peripheral_menu()
-                                .map(|e| sub_menu_wrapper(e.map(Message::Power)))
-                        }),
-                )
-                .push(
-                    self.sub_menu
-                        .filter(|menu_type| *menu_type == SubMenu::Power)
-                        .map(|_| sub_menu_wrapper(self.power.menu().map(Message::Power))),
+                    collapsible(
+                        self.sub_menu == Some(SubMenu::Power),
+                        sub_menu_wrapper(self.power.menu().map(Message::Power)),
+                    )
+                    .animated(animated),
                 )
                 .push(top_sink_slider)
-                .push(
-                    self.sub_menu
-                        .filter(|menu_type| *menu_type == SubMenu::Sinks)
-                        .and_then(|_| {
-                            self.audio
-                                .sinks_submenu(id)
-                                .map(|submenu| sub_menu_wrapper(submenu.map(Message::Audio)))
-                        }),
-                )
+                .push(self.audio.sinks_submenu(id).map(|submenu| {
+                    collapsible(
+                        self.sub_menu == Some(SubMenu::Sinks),
+                        sub_menu_wrapper(submenu.map(Message::Audio)),
+                    )
+                    .animated(animated)
+                }))
                 .push(bottom_sink_slider)
                 .push(top_source_slider)
-                .push(
-                    self.sub_menu
-                        .filter(|menu_type| *menu_type == SubMenu::Sources)
-                        .and_then(|_| {
-                            self.audio
-                                .sources_submenu(id)
-                                .map(|submenu| sub_menu_wrapper(submenu.map(Message::Audio)))
-                        }),
-                )
+                .push(self.audio.sources_submenu(id).map(|submenu| {
+                    collapsible(
+                        self.sub_menu == Some(SubMenu::Sources),
+                        sub_menu_wrapper(submenu.map(Message::Audio)),
+                    )
+                    .animated(animated)
+                }))
                 .push(bottom_source_slider)
                 .push(self.brightness.slider().map(|e| e.map(Message::Brightness)))
                 .push(quick_settings)
@@ -838,15 +839,15 @@ impl Settings {
 }
 
 fn quick_settings_section<'a>(
-    buttons: Vec<(Element<'a, Message>, Option<Element<'a, Message>>)>,
+    buttons: Vec<QuickSettingEntry<'a>>,
 ) -> Element<'a, Message> {
-    let space = use_theme(|t| t.space);
+    let (space, animated) = use_theme(|t| (t.space, t.animations_enabled));
     // TODO trying to read this function gives me a headache; there's surely
     // a better way to do this, maybe with Iterator::chunks or something?
     // I might be way off though, I still don't fully understand how this works.
     let mut section = Column::with_capacity(buttons.len() * 3).spacing(space.xs);
 
-    let mut before: Option<(Element<'a, Message>, Option<Element<'a, Message>>)> = None;
+    let mut before: Option<QuickSettingEntry<'a>> = None;
 
     for (button, menu) in buttons.into_iter() {
         match before.take() {
@@ -857,12 +858,14 @@ fn quick_settings_section<'a>(
                         .spacing(space.xs),
                 );
 
-                if let Some(menu) = before_menu {
-                    section = section.push(sub_menu_wrapper(menu));
+                if let Some((expanded, menu)) = before_menu {
+                    section =
+                        section.push(collapsible(expanded, sub_menu_wrapper(menu)).animated(animated));
                 }
 
-                if let Some(menu) = menu {
-                    section = section.push(sub_menu_wrapper(menu));
+                if let Some((expanded, menu)) = menu {
+                    section =
+                        section.push(collapsible(expanded, sub_menu_wrapper(menu)).animated(animated));
                 }
             }
             _ => {
@@ -878,8 +881,9 @@ fn quick_settings_section<'a>(
                 .spacing(space.xs),
         );
 
-        if let Some(menu) = before_menu {
-            section = section.push(sub_menu_wrapper(menu));
+        if let Some((expanded, menu)) = before_menu {
+            section =
+                section.push(collapsible(expanded, sub_menu_wrapper(menu)).animated(animated));
         }
     }
 

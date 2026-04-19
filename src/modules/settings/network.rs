@@ -365,11 +365,12 @@ impl NetworkSettings {
         })
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn wifi_quick_setting_button<'a>(
         &'a self,
         id: SurfaceId,
         sub_menu: Option<SubMenu>,
-    ) -> Option<(Element<'a, Message>, Option<Element<'a, Message>>)> {
+    ) -> Option<(Element<'a, Message>, Option<(bool, Element<'a, Message>)>)> {
         self.service.as_ref().and_then(|service| {
             if service.wifi_present {
                 let active_connection = service.active_connections.iter().find_map(|c| match c {
@@ -390,17 +391,16 @@ impl NetworkSettings {
                         Some((SubMenu::Wifi, sub_menu, Message::ToggleWifiMenu))
                             .filter(|_| service.wifi_enabled),
                     ),
-                    sub_menu
-                        .filter(|menu_type| *menu_type == SubMenu::Wifi)
-                        .map(|_| {
-                            Self::wifi_menu(
-                                service,
-                                id,
-                                active_connection
-                                    .map(|(name, strength, _)| (name.as_str(), *strength)),
-                                self.config.wifi_more_cmd.is_some(),
-                            )
-                        }),
+                    Some((
+                        sub_menu == Some(SubMenu::Wifi),
+                        Self::wifi_menu(
+                            service,
+                            id,
+                            active_connection.map(|(name, strength, _)| (name.as_str(), *strength)),
+                            self.config.wifi_more_cmd.is_some(),
+                        ),
+                    ))
+                    .filter(|_| service.wifi_enabled),
                 ))
             } else {
                 None
@@ -408,11 +408,12 @@ impl NetworkSettings {
         })
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn vpn_quick_setting_button<'a>(
         &'a self,
         id: SurfaceId,
         sub_menu: Option<SubMenu>,
-    ) -> Option<(Element<'a, Message>, Option<Element<'a, Message>>)> {
+    ) -> Option<(Element<'a, Message>, Option<(bool, Element<'a, Message>)>)> {
         self.service.as_ref().and_then(|service| {
             service
                 .known_connections
@@ -467,19 +468,19 @@ impl NetworkSettings {
                                 None
                             },
                         ),
-                        sub_menu
-                            .filter(|menu_type| *menu_type == SubMenu::Vpn)
-                            .map(|_| {
-                                Self::vpn_menu(service, id, self.config.vpn_more_cmd.is_some())
-                            }),
+                        Some((
+                            sub_menu == Some(SubMenu::Vpn),
+                            Self::vpn_menu(service, id, self.config.vpn_more_cmd.is_some()),
+                        )),
                     )
                 })
         })
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn airplane_mode_quick_setting_button<'a>(
         &'a self,
-    ) -> Option<(Element<'a, Message>, Option<Element<'a, Message>>)> {
+    ) -> Option<(Element<'a, Message>, Option<(bool, Element<'a, Message>)>)> {
         if self.config.remove_airplane_btn {
             None
         } else {

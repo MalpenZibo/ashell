@@ -1,6 +1,7 @@
 mod animated_size;
 pub mod button;
 mod centerbox;
+mod collapsible;
 mod format_indicator;
 pub mod icons;
 pub mod menu;
@@ -16,6 +17,7 @@ mod sub_menu_wrapper;
 pub use animated_size::animated_size;
 pub use button::*;
 pub use centerbox::*;
+pub use collapsible::collapsible;
 pub use format_indicator::*;
 pub use menu::MenuSize;
 pub use menu_wrapper::*;

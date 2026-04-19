@@ -168,11 +168,12 @@ impl BluetoothSettings {
         }
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn quick_setting_button<'a>(
         &'a self,
         id: SurfaceId,
         sub_menu: Option<SubMenu>,
-    ) -> Option<(Element<'a, Message>, Option<Element<'a, Message>>)> {
+    ) -> Option<(Element<'a, Message>, Option<(bool, Element<'a, Message>)>)> {
         if let Some(service) = &self.service
             && service.state != BluetoothState::Unavailable
         {
@@ -205,9 +206,8 @@ impl BluetoothSettings {
                     Some((SubMenu::Bluetooth, sub_menu, Message::ToggleSubMenu))
                         .filter(|_| service.state == BluetoothState::Active),
                 ),
-                sub_menu
-                    .filter(|menu_type| *menu_type == SubMenu::Bluetooth)
-                    .and_then(|_| self.bluetooth_menu(id)),
+                self.bluetooth_menu(id)
+                    .map(|menu| (sub_menu == Some(SubMenu::Bluetooth), menu)),
             ))
         } else {
             None
