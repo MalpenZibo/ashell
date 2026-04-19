@@ -1,5 +1,5 @@
 use crate::{
-    config::{WorkspaceVisibilityMode, WorkspacesModuleConfig},
+    config::{InvertScrollDirection, WorkspaceVisibilityMode, WorkspacesModuleConfig},
     outputs::Outputs,
     services::{
         ReadOnlyService, Service, ServiceEvent,
@@ -482,10 +482,22 @@ impl Workspaces {
         )
         .on_scroll(move |direction| match direction {
             iced::mouse::ScrollDelta::Lines { y, .. } => {
-                if y > 0. {
-                    Message::Scroll(-1)
+                if y.is_sign_positive() {
+                    match self.config.invert_scroll_direction {
+                        Some(InvertScrollDirection::All | InvertScrollDirection::Mouse) => {
+                            Message::Scroll(-1)
+                        }
+                        Some(InvertScrollDirection::Trackpad) => Message::Scroll(1),
+                        None => Message::Scroll(1),
+                    }
                 } else {
-                    Message::Scroll(1)
+                    match self.config.invert_scroll_direction {
+                        Some(InvertScrollDirection::All | InvertScrollDirection::Mouse) => {
+                            Message::Scroll(1)
+                        }
+                        Some(InvertScrollDirection::Trackpad) => Message::Scroll(-1),
+                        None => Message::Scroll(-1),
+                    }
                 }
             }
             iced::mouse::ScrollDelta::Pixels { y, .. } => {
@@ -494,9 +506,21 @@ impl Workspaces {
                 if self.scroll_accumulator.abs() < sensibility {
                     Message::ScrollAccumulator(y)
                 } else if self.scroll_accumulator.is_sign_positive() {
-                    Message::Scroll(-1)
+                    match self.config.invert_scroll_direction {
+                        Some(InvertScrollDirection::All | InvertScrollDirection::Trackpad) => {
+                            Message::Scroll(1)
+                        }
+                        Some(InvertScrollDirection::Mouse) => Message::Scroll(-1),
+                        None => Message::Scroll(-1),
+                    }
                 } else {
-                    Message::Scroll(1)
+                    match self.config.invert_scroll_direction {
+                        Some(InvertScrollDirection::All | InvertScrollDirection::Trackpad) => {
+                            Message::Scroll(-1)
+                        }
+                        Some(InvertScrollDirection::Mouse) => Message::Scroll(1),
+                        None => Message::Scroll(1),
+                    }
                 }
             }
         })
