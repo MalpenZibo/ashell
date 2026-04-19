@@ -255,16 +255,18 @@ impl BluetoothSettings {
                             String::new()
                         })
                         .size(theme.font_size.xs),
-                        icon_button(if service.discovering {
-                            StaticIcon::Close
+                        if service.discovering {
+                            crate::components::spinning_icon::spinning_icon(
+                                true,
+                                theme.font_size.xs,
+                                theme.animations_enabled,
+                            )
+                            .map(|_| Message::StopDiscovery)
                         } else {
-                            StaticIcon::Refresh
-                        })
-                        .on_press(if service.discovering {
-                            Message::StopDiscovery
-                        } else {
-                            Message::StartDiscovery
-                        })
+                            icon_button(StaticIcon::Refresh)
+                                .on_press(Message::StartDiscovery)
+                                .into()
+                        }
                     ]
                     .align_y(Vertical::Center)
                     .spacing(theme.space.xs)
