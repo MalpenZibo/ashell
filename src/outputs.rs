@@ -72,6 +72,7 @@ pub struct Outputs {
     /// Last toast input-region request, replayed once the toast's output is
     /// known (the enter event may arrive after the first layout).
     toast_region: Option<(iced::Size, config::ToastPosition)>,
+    toast_width: u32,
     animations_enabled: bool,
 }
 
@@ -113,6 +114,7 @@ impl Outputs {
             toast: None,
             osd: None,
             toast_region: None,
+            toast_width: 0,
             animations_enabled: false,
         }
     }
@@ -683,6 +685,8 @@ impl Outputs {
         width: u32,
         position: config::ToastPosition,
     ) -> Task<Message> {
+        self.toast_width = width;
+
         // Anchor both vertical edges so height 0 → full output height.
         let anchor = match position {
             config::ToastPosition::TopLeft | config::ToastPosition::BottomLeft => {
@@ -725,16 +729,24 @@ impl Outputs {
         self.toast_region = Some((content_size, position));
         let content_w = content_size.width.ceil() as i32;
         let content_h = content_size.height.ceil() as i32;
+        // The surface is wider than a card to leave slide runway, and content is
+        // aligned to the toast's horizontal edge, so the input region must follow.
+        let x = match position {
+            config::ToastPosition::TopLeft | config::ToastPosition::BottomLeft => 0,
+            config::ToastPosition::TopRight | config::ToastPosition::BottomRight => {
+                (self.toast_width as i32 - content_w).max(0)
+            }
+        };
         let y = match position {
             config::ToastPosition::TopLeft | config::ToastPosition::TopRight => 0,
             config::ToastPosition::BottomLeft | config::ToastPosition::BottomRight => self
-                .logical_height_for_output(toast.output)
+                .toast_usable_height(toast.output)
                 .map_or(0, |h| (h as i32) - content_h),
         };
         set_input_region(
             toast.id,
             Some(vec![InputRegionRect {
-                x: 0,
+                x,
                 y,
                 width: content_w,
                 height: content_h,
@@ -742,11 +754,18 @@ impl Outputs {
         )
     }
 
-    fn logical_height_for_output(&self, output_id: Option<OutputId>) -> Option<u32> {
+    /// Output height minus the bar's exclusive zone, which the toast surface
+    /// respects — so its usable height (for bottom-aligning) is shorter.
+    fn toast_usable_height(&self, output_id: Option<OutputId>) -> Option<u32> {
         let target = output_id?;
         self.entries.iter().find_map(|(_, info, oid)| {
             if *oid == Some(target) {
-                info.as_ref().and_then(|i| i.output_logical_height)
+                info.as_ref().and_then(|i| {
+                    i.output_logical_height.map(|h| {
+                        let bar = Self::get_height(i.style, i.scale_factor) as u32;
+                        h.saturating_sub(bar)
+                    })
+                })
             } else {
                 None
             }
