@@ -1,5 +1,7 @@
 use crate::{
+    components::collapsible::{self, collapsible},
     components::icons::{StaticIcon, icon, icon_button},
+    components::slide::{self, SlideDirection, slide},
     components::{ButtonHierarchy, ButtonKind, ButtonSize, MenuSize},
     config::{NotificationsModuleConfig, ToastPosition},
     services::{
@@ -20,7 +22,7 @@ use iced::{
 use itertools::Itertools;
 use log::error;
 use std::{
-    collections::{HashSet, VecDeque},
+    collections::{HashMap, HashSet, VecDeque},
     time::Duration,
 };
 use zbus::Connection;
@@ -88,6 +90,16 @@ fn close_notification_by_id_task(connection: Option<Connection>, id: u32) -> Tas
     )
 }
 
+fn delayed_toast_message(delay: Duration, id: u32, msg: fn(u32) -> Message) -> Task<Message> {
+    Task::perform(
+        async move {
+            tokio::time::sleep(delay).await;
+            id
+        },
+        msg,
+    )
+}
+
 fn toast_timeout(required_timeout: i32, timeout_ms: u64) -> Option<Duration> {
     match required_timeout {
         -1 => Some(Duration::from_millis(timeout_ms)),
@@ -111,6 +123,8 @@ pub enum Message {
     ToggleGroup(String),
     ExpireToast(u32),
     DismissToast(u32),
+    StartCollapse(u32),
+    DismissAnimationComplete(u32),
     ToastResized(Size),
 }
 
@@ -131,6 +145,19 @@ pub enum Action {
     UpdateToastInputRegion(Size),
 }
 
+// Phase durations must match the underlying widget durations so the task
+// delays align with when the animation actually ends.
+const SLIDE_ANIMATION: Duration = slide::DEFAULT_DURATION;
+const COLLAPSE_ANIMATION: Duration = collapsible::DEFAULT_DURATION;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DismissPhase {
+    /// Toast is sliding off-screen horizontally.
+    Sliding,
+    /// Slide-out done; toast is collapsing its vertical space.
+    Collapsing,
+}
+
 pub struct Notifications {
     config: NotificationsModuleConfig,
     connection: Option<Connection>,
@@ -138,10 +165,12 @@ pub struct Notifications {
     expanded_groups: HashSet<String>,
     blocklist: Vec<crate::config::RegexCfg>,
     toasts: VecDeque<u32>,
+    dismiss_phases: HashMap<u32, DismissPhase>,
+    animations_enabled: bool,
 }
 
 impl Notifications {
-    pub fn new(config: NotificationsModuleConfig) -> Self {
+    pub fn new(config: NotificationsModuleConfig, animations_enabled: bool) -> Self {
         let blocklist = config.blocklist.clone();
         Self {
             config,
@@ -150,7 +179,13 @@ impl Notifications {
             expanded_groups: HashSet::new(),
             blocklist,
             toasts: VecDeque::new(),
+            dismiss_phases: HashMap::new(),
+            animations_enabled,
         }
+    }
+
+    pub fn set_animations_enabled(&mut self, enabled: bool) {
+        self.animations_enabled = enabled;
     }
 
     fn is_blocklisted(&self, app_name: &str) -> bool {
@@ -173,6 +208,7 @@ impl Notifications {
     fn clear_toasts(&mut self) -> bool {
         let had_toasts = !self.toasts.is_empty();
         self.toasts.clear();
+        self.dismiss_phases.clear();
         had_toasts
     }
 
@@ -222,11 +258,14 @@ impl Notifications {
             NotificationEvent::Received(notification) => {
                 if self.config.toast_limit == 0 {
                     self.toasts.clear();
+                    self.dismiss_phases.clear();
                     return Action::None;
                 }
 
                 while self.toasts.len() >= self.config.toast_limit {
-                    self.toasts.pop_front();
+                    if let Some(evicted) = self.toasts.pop_front() {
+                        self.dismiss_phases.remove(&evicted);
+                    }
                 }
                 self.toasts.push_back(notification.id);
 
@@ -255,6 +294,9 @@ impl Notifications {
             }
             NotificationEvent::Closed(id) => {
                 let id = *id;
+                if self.dismiss_phases.contains_key(&id) {
+                    return Action::None;
+                }
                 let was_showing = self.remove_toast(id);
                 self.hide_toasts_if_empty(was_showing)
             }
@@ -351,22 +393,65 @@ impl Notifications {
                 Action::None
             }
             Message::ExpireToast(id) => {
-                let had_toasts = self.remove_toast(id);
-                self.hide_toasts_if_empty(had_toasts)
+                if self.toasts.contains(&id) && !self.dismiss_phases.contains_key(&id) {
+                    if !self.animations_enabled {
+                        let had_toasts = self.remove_toast(id);
+                        return self.hide_toasts_if_empty(had_toasts);
+                    }
+                    self.dismiss_phases.insert(id, DismissPhase::Sliding);
+                    Action::Task(delayed_toast_message(
+                        SLIDE_ANIMATION,
+                        id,
+                        Message::StartCollapse,
+                    ))
+                } else {
+                    Action::None
+                }
             }
             Message::CloseNotificationById(id) => {
                 let connection = self.connection.clone();
                 let had_toasts = self.remove_toast(id);
+                self.dismiss_phases.remove(&id);
 
                 let task = close_notification_by_id_task(connection, id);
                 self.hide_toasts_if_empty_with_task(had_toasts, task)
             }
             Message::DismissToast(id) => {
-                let connection = self.connection.clone();
-                let action_key = self.find_first_action_key(id);
+                if self.toasts.contains(&id) && !self.dismiss_phases.contains_key(&id) {
+                    let connection = self.connection.clone();
+                    let action_key = self.find_first_action_key(id);
+                    let invoke_task = invoke_and_close_task(connection, id, action_key);
+                    if !self.animations_enabled {
+                        let had_toasts = self.remove_toast(id);
+                        let hide_action =
+                            self.hide_toasts_if_empty_with_task(had_toasts, invoke_task);
+                        return hide_action;
+                    }
+                    self.dismiss_phases.insert(id, DismissPhase::Sliding);
+                    Action::Task(Task::batch(vec![
+                        invoke_task,
+                        delayed_toast_message(SLIDE_ANIMATION, id, Message::StartCollapse),
+                    ]))
+                } else {
+                    Action::None
+                }
+            }
+            Message::StartCollapse(id) => {
+                if self.dismiss_phases.get(&id) == Some(&DismissPhase::Sliding) {
+                    self.dismiss_phases.insert(id, DismissPhase::Collapsing);
+                    Action::Task(delayed_toast_message(
+                        COLLAPSE_ANIMATION,
+                        id,
+                        Message::DismissAnimationComplete,
+                    ))
+                } else {
+                    Action::None
+                }
+            }
+            Message::DismissAnimationComplete(id) => {
+                self.dismiss_phases.remove(&id);
                 let had_toasts = self.remove_toast(id);
-                let task = invoke_and_close_task(connection, id, action_key);
-                self.hide_toasts_if_empty_with_task(had_toasts, task)
+                self.hide_toasts_if_empty(had_toasts)
             }
             Message::ToastResized(size) => Action::UpdateToastInputRegion(size),
         }
@@ -610,15 +695,38 @@ impl Notifications {
             return Space::new().into();
         }
 
+        let slide_direction = match self.config.toast_position {
+            ToastPosition::TopRight | ToastPosition::BottomRight => SlideDirection::Right,
+            ToastPosition::TopLeft | ToastPosition::BottomLeft => SlideDirection::Left,
+        };
+        let card_width = MenuSize::Medium.size();
+
         let mut toast_column = column!().spacing(space.sm);
 
         for &toast_id in &self.toasts {
             if let Some(notification) = self.find_notification(toast_id) {
-                toast_column = toast_column.push(self.notification_card(
-                    notification,
-                    Message::DismissToast(notification.id),
-                    true,
-                ));
+                let phase = self.dismiss_phases.get(&toast_id).copied();
+                let is_dismissing = phase.is_some();
+                let is_collapsing = phase == Some(DismissPhase::Collapsing);
+                toast_column = toast_column.push(
+                    collapsible(
+                        !is_collapsing,
+                        slide(
+                            !is_dismissing,
+                            slide_direction,
+                            card_width,
+                            self.notification_card(
+                                notification,
+                                Message::DismissToast(notification.id),
+                                true,
+                            ),
+                        )
+                        .animated(self.animations_enabled)
+                        .key(toast_id as u64),
+                    )
+                    .animated(self.animations_enabled)
+                    .key(toast_id as u64),
+                );
             }
         }
 
@@ -626,9 +734,11 @@ impl Notifications {
             ToastPosition::TopLeft | ToastPosition::TopRight => Alignment::Start,
             ToastPosition::BottomLeft | ToastPosition::BottomRight => Alignment::End,
         };
+        let h_align = match self.config.toast_position {
+            ToastPosition::TopLeft | ToastPosition::BottomLeft => Alignment::Start,
+            ToastPosition::TopRight | ToastPosition::BottomRight => Alignment::End,
+        };
 
-        // Sensor wraps the padded toast content to report its rendered size.
-        // The outer container fills the full-height surface and aligns vertically.
         let toast_content = sensor(
             container(toast_column)
                 .width(MenuSize::Medium)
@@ -640,6 +750,7 @@ impl Notifications {
             .width(Length::Fill)
             .height(Length::Fill)
             .align_y(v_align)
+            .align_x(h_align)
             .into()
     }
 
