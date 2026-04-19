@@ -12,6 +12,7 @@ pub mod password_dialog;
 mod position_button;
 mod quick_setting_button;
 mod slider_control;
+pub mod spinning_icon;
 mod sub_menu_wrapper;
 
 pub use animated_size::animated_size;
