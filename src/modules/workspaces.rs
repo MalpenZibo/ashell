@@ -508,18 +508,18 @@ impl Workspaces {
                 } else if self.scroll_accumulator.is_sign_positive() {
                     match self.config.invert_scroll_direction {
                         Some(InvertScrollDirection::All | InvertScrollDirection::Trackpad) => {
-                            Message::Scroll(1)
-                        }
-                        Some(InvertScrollDirection::Mouse) => Message::Scroll(-1),
-                        None => Message::Scroll(-1),
-                    }
-                } else {
-                    match self.config.invert_scroll_direction {
-                        Some(InvertScrollDirection::All | InvertScrollDirection::Trackpad) => {
                             Message::Scroll(-1)
                         }
                         Some(InvertScrollDirection::Mouse) => Message::Scroll(1),
                         None => Message::Scroll(1),
+                    }
+                } else {
+                    match self.config.invert_scroll_direction {
+                        Some(InvertScrollDirection::All | InvertScrollDirection::Trackpad) => {
+                            Message::Scroll(1)
+                        }
+                        Some(InvertScrollDirection::Mouse) => Message::Scroll(-1),
+                        None => Message::Scroll(-1),
                     }
                 }
             }
