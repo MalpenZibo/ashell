@@ -40,6 +40,8 @@ where
     duration: Duration,
     easing: Easing,
     animated: bool,
+    open_padding_top: f32,
+    open_padding_bottom: f32,
 }
 
 impl<'a, Message, Theme, Renderer> Collapsible<'a, Message, Theme, Renderer>
@@ -60,6 +62,22 @@ where
     /// expanded/collapsed states instead of tweening.
     pub fn animated(mut self, animated: bool) -> Self {
         self.animated = animated;
+        self
+    }
+
+    /// Extra empty space above the content when expanded. This space is part
+    /// of the animated height, so neighboring widgets can sit flush against
+    /// the Collapsible (with spacing=0) and still see a proper gap open up.
+    pub fn open_padding_top(mut self, padding: f32) -> Self {
+        self.open_padding_top = padding;
+        self
+    }
+
+    /// Extra empty space below the content when expanded. Mirror of
+    /// `open_padding_top` for cases where the Collapsible sits above its
+    /// trigger instead of below it.
+    pub fn open_padding_bottom(mut self, padding: f32) -> Self {
+        self.open_padding_bottom = padding;
         self
     }
 }
@@ -117,7 +135,8 @@ where
         let child_width = child_node.size().width;
         let child_height = child_node.size().height;
 
-        let target_height = if self.expanded { child_height } else { 0.0 };
+        let expanded_height = child_height + self.open_padding_top + self.open_padding_bottom;
+        let target_height = if self.expanded { expanded_height } else { 0.0 };
 
         if !self.animated {
             state.height_anim = Animation::new(target_height);
@@ -133,11 +152,11 @@ where
             state.last_expanded = self.expanded;
             state.height_anim.go_mut(target_height, now);
         } else if self.expanded
-            && (child_height - state.height_anim.value()).abs() > 0.5
+            && (expanded_height - state.height_anim.value()).abs() > 0.5
             && !state.height_anim.is_animating(now)
         {
             // Content height changed while expanded — snap to new height
-            state.height_anim = Animation::new(child_height)
+            state.height_anim = Animation::new(expanded_height)
                 .duration(self.duration)
                 .easing(self.easing);
         }
@@ -148,7 +167,11 @@ where
             target_height
         };
 
-        layout::Node::with_children(Size::new(child_width, display_height), vec![child_node])
+        let positioned_child = child_node.translate(Vector::new(0.0, self.open_padding_top));
+        layout::Node::with_children(
+            Size::new(child_width, display_height),
+            vec![positioned_child],
+        )
     }
 
     fn update(
@@ -293,5 +316,7 @@ where
         duration: Duration::from_millis(200),
         easing: Easing::EaseOutCubic,
         animated: true,
+        open_padding_top: 0.0,
+        open_padding_bottom: 0.0,
     }
 }
