@@ -1,6 +1,6 @@
 use crate::app::{self, App};
 use crate::components::{self, ButtonUIRef};
-use crate::config::{AppearanceStyle, Position};
+use crate::config::Position;
 use crate::theme::backdrop_color;
 use iced::alignment::Vertical;
 use iced::widget::container::Style;
@@ -176,10 +176,7 @@ impl App {
                 .into(),
         )
         .padding({
-            let v_padding = match self.theme.bar_style {
-                AppearanceStyle::Solid | AppearanceStyle::Gradient => 2,
-                AppearanceStyle::Islands => 0,
-            };
+            let v_padding = 2;
 
             Padding::new(0.)
                 .top(if self.theme.bar_position == Position::Top {
