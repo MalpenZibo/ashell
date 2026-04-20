@@ -117,6 +117,14 @@ enabled.
 enable_virtual_desktops = true
 ```
 
+## Workspace Scrolling Direction
+
+You can use the `invert_scroll_direction` field to choose whether to invert the scrolling direction for mice and trackpads:
+
+- `All`: Enables both *Mouse* and *Trackpad* options below.
+- `Mouse`: Scrolling up will go to the next workspace and down will go to the previous one
+- `Trackpad`: Swiping up will go to the previous workspace and down will go to the next one
+
 ## Default Configuration
 
 The default configuration is:
@@ -127,6 +135,7 @@ visibility_mode = "All"
 group_by_monitor = false
 enable_workspace_filling = false
 disable_special_workspaces = false
+invert_scroll_direction = None
 ```
 
 ## Examples
