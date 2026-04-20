@@ -1122,7 +1122,7 @@ pub fn subscription(path: &Path) -> Subscription<Message> {
     let path = path.to_path_buf();
 
     Subscription::run_with(path, |path| {
-        let path = path.clone();
+        let path = std::fs::canonicalize(path).unwrap_or_else(|_| path.clone());
         channel(100, async move |mut output| {
             match (path.parent(), path.file_name(), Inotify::init()) {
                 (Some(folder), Some(file_name), Ok(inotify)) => {
