@@ -5,7 +5,7 @@ use crate::{
     config::{CpuFormat, DiskFormat, MemoryFormat, SystemInfoIndicator, SystemInfoModuleConfig},
     i18n::{UnitSystem, unit_system},
     t,
-    theme::use_theme,
+    theme::{lerp_color, use_theme},
     utils,
 };
 use iced::{
@@ -13,6 +13,7 @@ use iced::{
     time::every,
     widget::{Column, Row, column, container, row, text},
 };
+use iced_anim::{AnimationBuilder, transition::Easing};
 use itertools::Itertools;
 use std::time::{Duration, Instant};
 use sysinfo::{Components, Disks, Networks, System};
@@ -281,6 +282,19 @@ pub enum Message {
     Update,
 }
 
+/// Lerps between normal → warning → danger text colors. Input: 0.0 = normal,
+/// 1.0 = warning, 2.0 = danger. The intermediate segment lets normal→danger
+/// transitions flow through warning rather than cross-fading directly.
+fn severity_color(theme: &Theme, t: f32) -> iced::Color {
+    let palette = theme.palette();
+    let t = t.clamp(0.0, 2.0);
+    if t <= 1.0 {
+        lerp_color(palette.text, palette.warning, t)
+    } else {
+        lerp_color(palette.warning, palette.danger, t - 1.0)
+    }
+}
+
 pub struct SystemInfo {
     config: SystemInfoModuleConfig,
     system: System,
@@ -364,34 +378,46 @@ impl SystemInfo {
         threshold: Option<(V, V, V)>,
         prefix: Option<String>,
     ) -> Element<'a, Message> {
-        let space = use_theme(|t| t.space);
-        let element = container(
-            row!(
-                icon(info_icon),
-                if let Some(prefix) = prefix {
-                    text(format!("{prefix} {display}{unit}"))
-                } else {
-                    text(format!("{display}{unit}"))
-                }
-            )
-            .spacing(space.xxs),
-        );
+        let label = if let Some(prefix) = prefix {
+            format!("{prefix} {display}{unit}")
+        } else {
+            format!("{display}{unit}")
+        };
+        let (spacing, animations_enabled) = use_theme(|t| (t.space.xxs, t.animations_enabled));
 
-        if let Some((value, warn_threshold, alert_threshold)) = threshold {
-            element
+        let Some((value, warn_threshold, alert_threshold)) = threshold else {
+            return container(row!(icon(info_icon), text(label)).spacing(spacing)).into();
+        };
+
+        // 0.0 = normal, 1.0 = warning, 2.0 = danger. Animating through the
+        // warning color on normal→danger transitions mirrors the discrete
+        // state machine users expect.
+        let target: f32 = if value >= alert_threshold {
+            2.0
+        } else if value > warn_threshold {
+            1.0
+        } else {
+            0.0
+        };
+
+        if animations_enabled {
+            AnimationBuilder::new(target, move |t| {
+                container(row!(icon(info_icon), text(label.clone())).spacing(spacing))
+                    .style(move |theme: &Theme| container::Style {
+                        text_color: Some(severity_color(theme, t)),
+                        ..Default::default()
+                    })
+                    .into()
+            })
+            .animation(Easing::EASE.quick())
+            .into()
+        } else {
+            container(row!(icon(info_icon), text(label)).spacing(spacing))
                 .style(move |theme: &Theme| container::Style {
-                    text_color: if value > warn_threshold && value < alert_threshold {
-                        Some(theme.palette().warning)
-                    } else if value >= alert_threshold {
-                        Some(theme.palette().danger)
-                    } else {
-                        None
-                    },
+                    text_color: Some(severity_color(theme, target)),
                     ..Default::default()
                 })
                 .into()
-        } else {
-            element.into()
         }
     }
 
