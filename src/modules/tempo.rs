@@ -31,6 +31,7 @@ use log::{debug, warn};
 use serde::{Deserialize, Deserializer};
 use std::collections::HashSet;
 use std::str::FromStr;
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
 #[derive(Debug, Clone)]
@@ -63,6 +64,15 @@ pub(crate) struct CalendarEvent {
     end: DateTime<Local>,
     color: Option<String>,
 }
+
+#[derive(Clone)]
+struct CalendarCacheEntry {
+    events: Vec<CalendarEvent>,
+    updated_at: std::time::Instant,
+}
+
+static CALENDAR_CACHE: OnceLock<Arc<Mutex<std::collections::HashMap<String, CalendarCacheEntry>>>> =
+    OnceLock::new();
 
 pub struct Tempo {
     config: TempoModuleConfig,
@@ -272,42 +282,110 @@ impl Tempo {
     }
 
     fn calendar_panel<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
-        let header = styled_button(
-            theme,
-            Element::from(
-                column!(
-                    text(
-                        self.date
-                            .format_localized("%A", self.config.locale)
-                            .to_string()
-                    )
-                    .size(theme.font_size.sm),
-                    text(
-                        self.date
-                            .format_localized("%d %B %Y", self.config.locale)
-                            .to_string()
-                    )
-                    .size(theme.font_size.md),
-                )
-                .spacing(theme.space.xs),
-            ),
-        )
-        .size(ButtonSize::Large)
-        .kind(ButtonKind::Outline)
-        .on_press_maybe(if self.selected_date.is_some() {
-            Some(Message::ChangeSelectDate(None))
-        } else {
-            None
-        })
-        .width(Length::Fill);
-
         let content = if self.config.calendar_type == TempoCalendarType::Calendar {
-            column!(header, self.calendar(theme), self.timezones(theme))
+            column!(
+                self.calendar_header(theme, false),
+                self.calendar(theme),
+                self.timezones(theme)
+            )
         } else {
-            column!(header, self.events_view(theme), self.timezones(theme))
+            column!(
+                self.calendar_header(theme, true),
+                self.events_view(theme),
+                self.timezones(theme)
+            )
         };
 
         content.spacing(theme.space.lg).width(225).into()
+    }
+
+    fn calendar_header<'a>(
+        &'a self,
+        theme: &'a AshellTheme,
+        events_mode: bool,
+    ) -> Element<'a, Message> {
+        let date = if events_mode {
+            self.selected_date
+                .unwrap_or_else(|| self.naive_date(self.current_timezone_index))
+        } else {
+            self.date.date_naive()
+        };
+
+        let content = if events_mode {
+            column!(
+                text(
+                    date.format_localized("%a, %d %b %Y", self.config.locale)
+                        .to_string()
+                )
+                .align_x(Horizontal::Center)
+                .wrapping(text::Wrapping::None)
+                .size(theme.font_size.sm),
+            )
+        } else {
+            column!(
+                text(date.format_localized("%A", self.config.locale).to_string())
+                    .size(theme.font_size.sm),
+                text(
+                    date.format_localized("%d %B %Y", self.config.locale)
+                        .to_string()
+                )
+                .size(theme.font_size.md),
+            )
+            .spacing(theme.space.xs)
+        };
+
+        if events_mode {
+            Row::with_capacity(3)
+                .push(
+                    container(
+                        icon_button::<Message>(theme, StaticIcon::LeftChevron)
+                            .kind(ButtonKind::Solid)
+                            .on_press(Message::ChangeSelectDate(Some(
+                                date - chrono::Duration::days(1),
+                            ))),
+                    )
+                    .width(Length::Shrink),
+                )
+                .push(
+                    container(
+                        styled_button(theme, Element::from(content))
+                            .size(ButtonSize::Large)
+                            .kind(ButtonKind::Outline)
+                            .width(Length::Fixed(145.0))
+                            .on_press_maybe(if self.selected_date.is_some() {
+                                Some(Message::ChangeSelectDate(None))
+                            } else {
+                                None
+                            }),
+                    )
+                    .width(Length::Fill)
+                    .center_x(Length::Fill),
+                )
+                .push(
+                    container(
+                        icon_button::<Message>(theme, StaticIcon::RightChevron)
+                            .kind(ButtonKind::Solid)
+                            .on_press(Message::ChangeSelectDate(Some(
+                                date + chrono::Duration::days(1),
+                            ))),
+                    )
+                    .width(Length::Shrink),
+                )
+                .spacing(theme.space.xs)
+                .align_y(Vertical::Center)
+                .into()
+        } else {
+            styled_button(theme, Element::from(content))
+                .size(ButtonSize::Large)
+                .kind(ButtonKind::Outline)
+                .on_press_maybe(if self.selected_date.is_some() {
+                    Some(Message::ChangeSelectDate(None))
+                } else {
+                    None
+                })
+                .width(Length::Fill)
+                .into()
+        }
     }
 
     fn naive_date(&'_ self, timezone_index: usize) -> NaiveDate {
@@ -413,34 +491,45 @@ impl Tempo {
                                 .map(|_| {
                                     let day = current;
                                     current = current.succ_opt().unwrap_or(current);
+                                    let event_count = self.events_on_day(day);
 
                                     styled_button(
                                         theme,
                                         Element::from(
-                                            text(
-                                                day.format_localized("%d", self.config.locale)
-                                                    .to_string(),
+                                            column!(
+                                                text(
+                                                    day.format_localized("%d", self.config.locale)
+                                                        .to_string(),
+                                                )
+                                                .align_x(Horizontal::Center)
+                                                .color_maybe({
+                                                    if day
+                                                        == self
+                                                            .naive_date(self.current_timezone_index)
+                                                    {
+                                                        Some(theme.iced_theme.palette().success)
+                                                    } else if day == selected_date {
+                                                        Some(theme.iced_theme.palette().primary)
+                                                    } else if day.month0() != current_month {
+                                                        Some(
+                                                            theme
+                                                                .iced_theme
+                                                                .palette()
+                                                                .text
+                                                                .scale_alpha(0.2),
+                                                        )
+                                                    } else {
+                                                        None
+                                                    }
+                                                }),
+                                                (event_count > 0).then(|| {
+                                                    text("•")
+                                                        .align_x(Horizontal::Center)
+                                                        .size(theme.font_size.xs)
+                                                        .color(theme.iced_theme.palette().primary)
+                                                }),
                                             )
-                                            .align_x(Horizontal::Center)
-                                            .color_maybe({
-                                                if day
-                                                    == self.naive_date(self.current_timezone_index)
-                                                {
-                                                    Some(theme.iced_theme.palette().success)
-                                                } else if day == selected_date {
-                                                    Some(theme.iced_theme.palette().primary)
-                                                } else if day.month0() != current_month {
-                                                    Some(
-                                                        theme
-                                                            .iced_theme
-                                                            .palette()
-                                                            .text
-                                                            .scale_alpha(0.2),
-                                                    )
-                                                } else {
-                                                    None
-                                                }
-                                            }),
+                                            .spacing(theme.space.xxs),
                                         ),
                                     )
                                     .on_press_maybe(
@@ -543,28 +632,18 @@ impl Tempo {
         } else {
             self.calendar_events.clone()
         };
-        let today_start = self
-            .date
-            .date_naive()
-            .and_hms_opt(0, 0, 0)
-            .unwrap_or_default();
-        let yesterday_start = today_start - chrono::Duration::days(1);
+        let selected_day = self
+            .selected_date
+            .unwrap_or_else(|| self.naive_date(self.current_timezone_index));
+        let today_start = selected_day.and_hms_opt(0, 0, 0).unwrap_or_default();
         let tomorrow_start = today_start + chrono::Duration::days(1);
-        let day_after_tomorrow_start = tomorrow_start + chrono::Duration::days(1);
         let event_opacity = theme.opacity;
         Column::with_children(
             events
                 .into_iter()
                 .filter(|event| {
-                    let start = event.start.naive_local();
-                    let end = event.end.naive_local();
-
-                    start >= yesterday_start
-                        && start < day_after_tomorrow_start
-                        && end >= yesterday_start
-                        && end < day_after_tomorrow_start
-                        && start < tomorrow_start
-                        && end >= today_start
+                    event.start.naive_local() < tomorrow_start
+                        && event.end.naive_local() >= today_start
                 })
                 .map(|event| {
                     let card_opacity = if event.end.naive_local() < self.date.naive_local() {
@@ -648,6 +727,17 @@ impl Tempo {
                 color: None,
             },
         ]
+    }
+
+    fn events_on_day(&self, day: NaiveDate) -> usize {
+        self.calendar_events
+            .iter()
+            .filter(|event| {
+                let start = event.start.naive_local().date();
+                let end = event.end.naive_local().date();
+                start <= day && end >= day
+            })
+            .count()
     }
 
     fn weather<'a>(&'a self, theme: &'a AshellTheme) -> Option<Element<'a, Message>> {
@@ -1006,7 +1096,7 @@ impl Tempo {
                     loop {
                         let mut events = Vec::new();
                         for calendar in &calendars {
-                            match fetch_calendar_events(calendar).await {
+                            match fetch_calendar_events_cached(calendar).await {
                                 Ok(mut items) => events.append(&mut items),
                                 Err(e) => warn!("Failed to fetch calendar: {:?}", e),
                             }
@@ -1014,7 +1104,7 @@ impl Tempo {
 
                         events.sort_by_key(|event| event.start);
                         let _ = output.send(Message::UpdateCalendarEvents(events)).await;
-                        tokio::time::sleep(Duration::from_secs(60 * 15)).await;
+                        tokio::time::sleep(Duration::from_secs(60 * 10)).await;
                     }
                 })
             }))
@@ -1047,21 +1137,39 @@ async fn fetch_calendar_events(source: &TempoCalendarSource) -> anyhow::Result<V
         }
     };
 
-    let today_start = Local::now()
-        .date_naive()
-        .and_hms_opt(0, 0, 0)
-        .unwrap_or_default();
-    let window_start = today_start - chrono::Duration::days(1);
-    let window_end = today_start + chrono::Duration::days(2);
+    Ok(parse_ics_events(&raw, source))
+}
 
-    Ok(parse_ics_events(&raw, source)
-        .into_iter()
-        .filter(|event| {
-            let start = event.start.naive_local();
-            let end = event.end.naive_local();
-            start >= window_start && start < window_end && end >= window_start && end < window_end
-        })
-        .collect())
+async fn fetch_calendar_events_cached(
+    source: &TempoCalendarSource,
+) -> anyhow::Result<Vec<CalendarEvent>> {
+    let key = match source {
+        TempoCalendarSource::Url { url, .. } => format!("url:{url}"),
+        TempoCalendarSource::Path { path, .. } => format!("path:{path}"),
+    };
+
+    let cache = CALENDAR_CACHE
+        .get_or_init(|| Arc::new(Mutex::new(std::collections::HashMap::new())))
+        .clone();
+
+    if let Some(entry) = cache.lock().ok().and_then(|m| m.get(&key).cloned())
+        && entry.updated_at.elapsed() < Duration::from_secs(60 * 10)
+    {
+        return Ok(entry.events);
+    }
+
+    let events = fetch_calendar_events(source).await?;
+    if let Ok(mut guard) = cache.lock() {
+        guard.insert(
+            key,
+            CalendarCacheEntry {
+                events: events.clone(),
+                updated_at: std::time::Instant::now(),
+            },
+        );
+    }
+
+    Ok(events)
 }
 
 fn parse_ics_events(raw: &str, source: &TempoCalendarSource) -> Vec<CalendarEvent> {
