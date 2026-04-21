@@ -4,20 +4,20 @@ Services are the backend layer of ashell. They manage communication with system 
 
 ## Available Services
 
-| Service | Location | Backend | Protocol |
-|---------|----------|---------|----------|
-| Compositor | `services/compositor/` | Hyprland / Niri | IPC socket |
-| Audio | `services/audio.rs` | PulseAudio | libpulse C library |
-| Brightness | `services/brightness.rs` | sysfs + logind | File I/O + D-Bus |
-| Bluetooth | `services/bluetooth/` | BlueZ | D-Bus |
-| Network | `services/network/` | NetworkManager / IWD | D-Bus |
-| MPRIS | `services/mpris/` | Media players | D-Bus |
-| Tray | `services/tray/` | StatusNotifierItem | D-Bus |
-| UPower | `services/upower/` | UPower daemon | D-Bus |
-| Privacy | `services/privacy.rs` | PipeWire portals | D-Bus |
-| Idle Inhibitor | `services/idle_inhibitor.rs` | systemd-logind | D-Bus |
-| Logind | `services/logind.rs` | systemd-logind | D-Bus |
-| Throttle | `services/throttle.rs` | (utility) | Stream adapter |
+| Service | Location | Backend | Protocol | Required Package |
+|---------|----------|---------|----------|-----------------|
+| Compositor | `services/compositor/` | Hyprland / Niri | IPC socket | Hyprland or Niri |
+| Audio | `services/audio.rs` | PulseAudio | libpulse C library | PulseAudio or PipeWire-Pulse |
+| Brightness | `services/brightness.rs` | sysfs + logind | File I/O + D-Bus | systemd-logind |
+| Bluetooth | `services/bluetooth/` | BlueZ | D-Bus | `bluez` |
+| Network | `services/network/` | NetworkManager / IWD | D-Bus | `networkmanager` or `iwd` |
+| MPRIS | `services/mpris/` | Media players | D-Bus | MPRIS-compatible player |
+| Tray | `services/tray/` | StatusNotifierItem | D-Bus | — |
+| UPower | `services/upower/` | UPower daemon | D-Bus | `upower` |
+| Privacy | `services/privacy.rs` | PipeWire | PipeWire portals | `pipewire` |
+| Idle Inhibitor | `services/idle_inhibitor.rs` | systemd-logind | D-Bus | systemd-logind |
+| Logind | `services/logind.rs` | systemd-logind | D-Bus | systemd-logind |
+| Throttle | `services/throttle.rs` | (utility) | Stream adapter | — |
 
 ## Services vs. Modules
 

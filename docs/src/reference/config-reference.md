@@ -130,6 +130,10 @@ warn_threshold = 60
 alert_threshold = 80
 ```
 
+**Dependencies:**
+- Temperature monitoring reads the kernel `hwmon` sysfs interface directly (no extra package required). The `sensor` label (e.g. `"acpitz temp1"`) must match a hwmon device on your system — run `sensors` (from `lm_sensors`) to find the right name.
+- CPU, memory, disk, and network info use standard kernel interfaces and do not need extra packages.
+
 ## Clock Module (Deprecated)
 
 ```toml
@@ -160,12 +164,24 @@ status_cmd = "vpn-status"
 on_click = "vpn-toggle"
 ```
 
+**Sub-module dependencies:** The Settings module requires `systemd-logind` for shutdown/reboot/sleep actions.
+
+| Sub-module | Required Package |
+|------------|-----------------|
+| Audio (volume) | PulseAudio or PipeWire-Pulse |
+| Bluetooth | `bluez` |
+| Brightness | systemd-logind (usually present) |
+| Network | `networkmanager` or `iwd` |
+| Power (battery) | `upower` |
+
 ## Media Player Module
 
 ```toml
 [media_player]
 format = "{artist} - {title}"
 ```
+
+**Dependencies:** Any MPRIS-compatible media player (e.g., Spotify, Firefox, VLC, Strawberry). No extra system package is needed.
 
 ## Custom Modules
 

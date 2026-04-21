@@ -60,6 +60,18 @@ The Settings module interacts with multiple services:
 | Network | `NetworkService` | List WiFi networks, connect, manage VPN |
 | Power | `LogindService` | Shutdown, reboot, sleep, hibernate |
 
+### Required System Packages
+
+Each sub-module depends on a specific system service. If the service is not available, that part of the Settings panel will be hidden or non-functional. Additionally, the Settings module as a whole requires `systemd-logind` for shutdown/reboot/sleep actions.
+
+| Sub-module | Required Package | D-Bus Service |
+|------------|-----------------|---------------|
+| Audio | PulseAudio or PipeWire-Pulse | — (uses libpulse directly) |
+| Bluetooth | `bluez` | `org.bluez` |
+| Brightness | systemd-logind (usually pre-installed) | `org.freedesktop.login1` |
+| Network | `networkmanager` or `iwd` | `org.freedesktop.NetworkManager` or `net.connman.iwd` |
+| Power (battery) | `upower` | `org.freedesktop.UPower` |
+
 ## Password Dialog Integration
 
 The network sub-module can trigger a password dialog for WiFi authentication. This is handled through the `password_dialog.rs` module at the app level, since the dialog needs its own input focus and keyboard interactivity.
