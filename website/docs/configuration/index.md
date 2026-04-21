@@ -28,3 +28,20 @@ ashell --config-path /path/to/config.toml
 This allows you to use a different configuration file instead of the default one.
 
 Ashell will still watch this file for changes and apply updates immediately.
+
+## IPC messaging
+
+Ashell exposes a Unix socket for controlling a running instance. The same binary
+acts as a client when invoked with the `msg` subcommand:
+
+```bash
+ashell msg <command>
+```
+
+Available commands:
+
+| Command              | Description              |
+| -------------------- | ------------------------ |
+| `toggle-visibility`  | Toggle the bar on/off    |
+
+The socket is created at `$XDG_RUNTIME_DIR/ashell.sock`.

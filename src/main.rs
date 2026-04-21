@@ -14,6 +14,7 @@ use std::path::PathBuf;
 mod app;
 mod components;
 mod config;
+mod ipc;
 mod modules;
 mod outputs;
 mod services;
@@ -34,6 +35,18 @@ const HEIGHT: f64 = 34.;
 struct Args {
     #[arg(short, long, value_parser = clap::value_parser!(PathBuf))]
     config_path: Option<PathBuf>,
+
+    #[command(subcommand)]
+    command: Option<Command>,
+}
+
+#[derive(clap::Subcommand, Debug)]
+enum Command {
+    /// Send a message to a running ashell instance
+    Msg {
+        #[command(subcommand)]
+        command: ipc::IpcCommand,
+    },
 }
 
 fn get_log_spec(log_level: &str) -> LogSpecification {
@@ -51,6 +64,15 @@ fn get_log_spec(log_level: &str) -> LogSpecification {
 
 fn main() -> iced::Result {
     let args = Args::parse();
+
+    if let Some(Command::Msg { command }) = &args.command {
+        if let Err(e) = ipc::run_client(command) {
+            eprintln!("Error: {e:#}");
+            std::process::exit(1);
+        }
+        std::process::exit(0);
+    }
+
     debug!("args: {args:?}");
 
     let logger = Logger::with(

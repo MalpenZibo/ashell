@@ -641,6 +641,9 @@ impl App {
                         }
                     })
             }),
+            crate::ipc::subscription().map(|cmd| match cmd {
+                crate::ipc::IpcCommand::ToggleVisibility => Message::ToggleVisibility,
+            }),
         ])
     }
 }
