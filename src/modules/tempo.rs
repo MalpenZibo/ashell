@@ -4,7 +4,10 @@ use crate::{
         icons::{StaticIcon, icon_button},
         styled_button,
     },
-    config::{TempoModuleConfig, WeatherIndicator, WeatherLocation},
+    config::{
+        TempoCalendarSource, TempoCalendarType, TempoModuleConfig, WeatherIndicator,
+        WeatherLocation,
+    },
     theme::AshellTheme,
 };
 use chrono::{
@@ -12,8 +15,9 @@ use chrono::{
     Weekday,
 };
 use chrono_tz::Tz;
+use hex_color::HexColor;
 use iced::{
-    Background, Border, Degrees, Element,
+    Background, Border, Color, Degrees, Element,
     Length::{self, FillPortion},
     Padding, Rotation, Subscription, Theme,
     alignment::{Horizontal, Vertical},
@@ -25,6 +29,8 @@ use iced::{
 use itertools::izip;
 use log::{debug, warn};
 use serde::{Deserialize, Deserializer};
+use std::collections::HashSet;
+use std::str::FromStr;
 use std::time::Duration;
 
 #[derive(Debug, Clone)]
@@ -33,6 +39,7 @@ pub enum Message {
     ChangeSelectDate(Option<NaiveDate>),
     UpdateWeather(Box<WeatherData>),
     UpdateLocation(Location),
+    UpdateCalendarEvents(Vec<CalendarEvent>),
     CycleFormat,
     CycleTimezone(TimezoneDirection),
     SetTimezone(usize),
@@ -49,12 +56,21 @@ pub enum Action {
     None,
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct CalendarEvent {
+    title: String,
+    start: DateTime<Local>,
+    end: DateTime<Local>,
+    color: Option<String>,
+}
+
 pub struct Tempo {
     config: TempoModuleConfig,
     date: DateTime<Local>,
     selected_date: Option<NaiveDate>,
     weather_data: Option<WeatherData>,
     location: Option<Location>,
+    calendar_events: Vec<CalendarEvent>,
     current_format_index: usize,
     current_timezone_index: usize,
 }
@@ -67,6 +83,7 @@ impl Tempo {
             selected_date: None,
             weather_data: None,
             location: None,
+            calendar_events: vec![],
             current_format_index: 0,
             current_timezone_index: 0,
         }
@@ -103,6 +120,11 @@ impl Tempo {
             }
             Message::UpdateLocation(location) => {
                 self.location = Some(location);
+
+                Action::None
+            }
+            Message::UpdateCalendarEvents(events) => {
+                self.calendar_events = events;
 
                 Action::None
             }
@@ -157,6 +179,7 @@ impl Tempo {
                 }
 
                 self.config = new_config;
+                self.calendar_events.clear();
                 Action::None
             }
         }
@@ -240,12 +263,51 @@ impl Tempo {
     pub fn menu_view<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
         container(
             Row::with_capacity(2)
-                .push(self.calendar(theme))
+                .push(self.calendar_panel(theme))
                 .push(self.weather(theme))
                 .spacing(theme.space.lg),
         )
         .max_width(MenuSize::XLarge)
         .into()
+    }
+
+    fn calendar_panel<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
+        let header = styled_button(
+            theme,
+            Element::from(
+                column!(
+                    text(
+                        self.date
+                            .format_localized("%A", self.config.locale)
+                            .to_string()
+                    )
+                    .size(theme.font_size.sm),
+                    text(
+                        self.date
+                            .format_localized("%d %B %Y", self.config.locale)
+                            .to_string()
+                    )
+                    .size(theme.font_size.md),
+                )
+                .spacing(theme.space.xs),
+            ),
+        )
+        .size(ButtonSize::Large)
+        .kind(ButtonKind::Outline)
+        .on_press_maybe(if self.selected_date.is_some() {
+            Some(Message::ChangeSelectDate(None))
+        } else {
+            None
+        })
+        .width(Length::Fill);
+
+        let content = if self.config.calendar_type == TempoCalendarType::Calendar {
+            column!(header, self.calendar(theme), self.timezones(theme))
+        } else {
+            column!(header, self.events_view(theme), self.timezones(theme))
+        };
+
+        content.spacing(theme.space.lg).width(225).into()
     }
 
     fn naive_date(&'_ self, timezone_index: usize) -> NaiveDate {
@@ -403,36 +465,7 @@ impl Tempo {
         ]
         .spacing(theme.space.md);
 
-        let timezones = Column::with_children(
-            self.config
-                .timezones
-                .iter()
-                .enumerate()
-                .map(|(index, tz_name)| {
-                    if self.current_timezone_index == index {
-                        container(
-                            text(format!("{}: {}", tz_name, self.time_str("%d %h %R", index)))
-                                .wrapping(text::Wrapping::Word),
-                        )
-                        .padding([theme.space.xxs, theme.space.sm])
-                        .width(Length::Fill)
-                        .style(|theme: &Theme| container::Style {
-                            text_color: Some(theme.palette().success),
-                            ..Default::default()
-                        })
-                        .into()
-                    } else {
-                        styled_button(
-                            theme,
-                            format!("{}: {}", tz_name, self.time_str("%d %h %R", index)),
-                        )
-                        .width(Length::Fill)
-                        .on_press(Message::SetTimezone(index))
-                        .into()
-                    }
-                })
-                .collect::<Vec<Element<'a, Message>>>(),
-        );
+        let timezones = self.timezones(theme);
 
         column!(
             styled_button(
@@ -469,6 +502,152 @@ impl Tempo {
         .spacing(theme.space.lg)
         .width(225)
         .into()
+    }
+
+    fn timezones<'a>(&'a self, theme: &'a AshellTheme) -> Column<'a, Message> {
+        Column::with_children(
+            self.config
+                .timezones
+                .iter()
+                .enumerate()
+                .map(|(index, tz_name)| {
+                    if self.current_timezone_index == index {
+                        container(
+                            text(format!("{}: {}", tz_name, self.time_str("%d %h %R", index)))
+                                .wrapping(text::Wrapping::Word),
+                        )
+                        .padding([theme.space.xxs, theme.space.sm])
+                        .width(Length::Fill)
+                        .style(|theme: &Theme| container::Style {
+                            text_color: Some(theme.palette().success),
+                            ..Default::default()
+                        })
+                        .into()
+                    } else {
+                        styled_button(
+                            theme,
+                            format!("{}: {}", tz_name, self.time_str("%d %h %R", index)),
+                        )
+                        .width(Length::Fill)
+                        .on_press(Message::SetTimezone(index))
+                        .into()
+                    }
+                })
+                .collect::<Vec<Element<'a, Message>>>(),
+        )
+    }
+
+    fn events_view<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
+        let events = if self.config.calendars.is_empty() {
+            self.mock_events()
+        } else {
+            self.calendar_events.clone()
+        };
+        let today_start = self
+            .date
+            .date_naive()
+            .and_hms_opt(0, 0, 0)
+            .unwrap_or_default();
+        let yesterday_start = today_start - chrono::Duration::days(1);
+        let tomorrow_start = today_start + chrono::Duration::days(1);
+        let day_after_tomorrow_start = tomorrow_start + chrono::Duration::days(1);
+        let event_opacity = theme.opacity;
+        Column::with_children(
+            events
+                .into_iter()
+                .filter(|event| {
+                    let start = event.start.naive_local();
+                    let end = event.end.naive_local();
+
+                    start >= yesterday_start
+                        && start < day_after_tomorrow_start
+                        && end >= yesterday_start
+                        && end < day_after_tomorrow_start
+                        && start < tomorrow_start
+                        && end >= today_start
+                })
+                .map(|event| {
+                    let card_opacity = if event.end.naive_local() < self.date.naive_local() {
+                        event_opacity * 0.35
+                    } else {
+                        event_opacity
+                    };
+                    let background = event
+                        .color
+                        .as_deref()
+                        .and_then(|color| HexColor::from_str(color).ok())
+                        .map(|color| Color::from_rgb8(color.r, color.g, color.b))
+                        .unwrap_or_else(|| {
+                            theme.iced_theme.extended_palette().background.weak.color
+                        });
+
+                    container(
+                        column!(
+                            text(event.title).size(theme.font_size.sm),
+                            text(format!(
+                                "{} - {}",
+                                event.start.format("%R"),
+                                event.end.format("%R")
+                            ))
+                            .size(theme.font_size.xs),
+                        )
+                        .spacing(theme.space.xxs),
+                    )
+                    .padding(theme.space.sm)
+                    .width(Length::Fill)
+                    .style(move |_theme: &Theme| container::Style {
+                        background: Background::Color(background.scale_alpha(card_opacity)).into(),
+                        border: Border::default().rounded(theme.radius.sm),
+                        ..Default::default()
+                    })
+                    .into()
+                })
+                .collect::<Vec<Element<'a, Message>>>(),
+        )
+        .spacing(theme.space.xs)
+        .into()
+    }
+
+    fn mock_events(&self) -> Vec<CalendarEvent> {
+        let day = self.date.date_naive();
+        vec![
+            CalendarEvent {
+                title: "Team sync".to_string(),
+                start: Local
+                    .from_local_datetime(&day.and_hms_opt(9, 30, 0).unwrap_or_default())
+                    .single()
+                    .unwrap_or(self.date),
+                end: Local
+                    .from_local_datetime(&day.and_hms_opt(10, 0, 0).unwrap_or_default())
+                    .single()
+                    .unwrap_or(self.date),
+                color: None,
+            },
+            CalendarEvent {
+                title: "Release prep".to_string(),
+                start: Local
+                    .from_local_datetime(&day.and_hms_opt(13, 0, 0).unwrap_or_default())
+                    .single()
+                    .unwrap_or(self.date),
+                end: Local
+                    .from_local_datetime(&day.and_hms_opt(14, 0, 0).unwrap_or_default())
+                    .single()
+                    .unwrap_or(self.date),
+                color: None,
+            },
+            CalendarEvent {
+                title: "Design review".to_string(),
+                start: Local
+                    .from_local_datetime(&day.and_hms_opt(15, 30, 0).unwrap_or_default())
+                    .single()
+                    .unwrap_or(self.date),
+                end: Local
+                    .from_local_datetime(&day.and_hms_opt(16, 15, 0).unwrap_or_default())
+                    .single()
+                    .unwrap_or(self.date),
+                color: None,
+            },
+        ]
     }
 
     fn weather<'a>(&'a self, theme: &'a AshellTheme) -> Option<Element<'a, Message>> {
@@ -817,12 +996,348 @@ impl Tempo {
             })
         });
 
-        if let Some(weather_sub) = weather_sub {
-            Subscription::batch(vec![time_sub, weather_sub])
+        let calendars_sub = if self.config.calendars.is_empty() {
+            None
         } else {
-            time_sub
+            let calendars = self.config.calendars.clone();
+            Some(Subscription::run_with(calendars, |calendars| {
+                let calendars = calendars.clone();
+                channel(100, async move |mut output| {
+                    loop {
+                        let mut events = Vec::new();
+                        for calendar in &calendars {
+                            match fetch_calendar_events(calendar).await {
+                                Ok(mut items) => events.append(&mut items),
+                                Err(e) => warn!("Failed to fetch calendar: {:?}", e),
+                            }
+                        }
+
+                        events.sort_by_key(|event| event.start);
+                        let _ = output.send(Message::UpdateCalendarEvents(events)).await;
+                        tokio::time::sleep(Duration::from_secs(60 * 15)).await;
+                    }
+                })
+            }))
+        };
+
+        let mut subscriptions = vec![time_sub];
+        if let Some(weather_sub) = weather_sub {
+            subscriptions.push(weather_sub);
+        }
+        if let Some(calendars_sub) = calendars_sub {
+            subscriptions.push(calendars_sub);
+        }
+
+        if subscriptions.len() > 1 {
+            Subscription::batch(subscriptions)
+        } else {
+            subscriptions.into_iter().next().unwrap()
         }
     }
+}
+
+async fn fetch_calendar_events(source: &TempoCalendarSource) -> anyhow::Result<Vec<CalendarEvent>> {
+    let raw = match source {
+        TempoCalendarSource::Url { url, .. } => {
+            reqwest::Client::new().get(url).send().await?.text().await?
+        }
+        TempoCalendarSource::Path { path, .. } => {
+            let expanded = shellexpand::tilde(path);
+            std::fs::read_to_string(expanded.as_ref())?
+        }
+    };
+
+    let today_start = Local::now()
+        .date_naive()
+        .and_hms_opt(0, 0, 0)
+        .unwrap_or_default();
+    let window_start = today_start - chrono::Duration::days(1);
+    let window_end = today_start + chrono::Duration::days(2);
+
+    Ok(parse_ics_events(&raw, source)
+        .into_iter()
+        .filter(|event| {
+            let start = event.start.naive_local();
+            let end = event.end.naive_local();
+            start >= window_start && start < window_end && end >= window_start && end < window_end
+        })
+        .collect())
+}
+
+fn parse_ics_events(raw: &str, source: &TempoCalendarSource) -> Vec<CalendarEvent> {
+    let color = match source {
+        TempoCalendarSource::Url { color, .. } | TempoCalendarSource::Path { color, .. } => {
+            Some(color.clone())
+        }
+    };
+
+    let unfolded = unfold_ics_lines(raw);
+
+    let events: Vec<CalendarEvent> = unfolded
+        .split("BEGIN:VEVENT")
+        .filter_map(|chunk| {
+            let section = chunk.split("END:VEVENT").next()?;
+            let title = get_ics_value(section, "SUMMARY")?;
+            let (start_value, start_tzid) = get_ics_value_and_tzid(section, "DTSTART")?;
+            let start = match parse_ics_datetime(&start_value, start_tzid.as_deref()) {
+                Ok(start) => start,
+                Err(e) => {
+                    warn!("Skipping ICS event with invalid DTSTART: {e:?}");
+                    return None;
+                }
+            };
+            let end = get_ics_value_and_tzid(section, "DTEND")
+                .and_then(|(value, tzid)| parse_ics_datetime(&value, tzid.as_deref()).ok())
+                .unwrap_or_else(|| start + chrono::Duration::hours(1));
+
+            let event = RecurringEvent {
+                title,
+                start,
+                end,
+                color: color.clone(),
+                rrule: get_ics_value(section, "RRULE"),
+            };
+
+            Some(event.expand())
+        })
+        .flatten()
+        .collect();
+
+    let mut seen = HashSet::new();
+    events
+        .into_iter()
+        .filter(|event| {
+            seen.insert((
+                event.title.clone(),
+                event.start.naive_local(),
+                event.end.naive_local(),
+                event.color.clone(),
+            ))
+        })
+        .collect()
+}
+
+#[derive(Clone)]
+struct RecurringEvent {
+    title: String,
+    start: DateTime<Local>,
+    end: DateTime<Local>,
+    color: Option<String>,
+    rrule: Option<String>,
+}
+
+impl RecurringEvent {
+    fn expand(self) -> Vec<CalendarEvent> {
+        let Some(rrule) = self.rrule else {
+            return vec![CalendarEvent {
+                title: self.title,
+                start: self.start,
+                end: self.end,
+                color: self.color,
+            }];
+        };
+
+        let rule = RRule::parse(&rrule);
+        let duration = self.end - self.start;
+        let mut out = Vec::new();
+        let mut current = self.start;
+        let mut emitted = 0usize;
+        let interval = rule.interval.max(1) as i64;
+        let count = rule.count.unwrap_or(usize::MAX);
+        let until = rule.until;
+
+        while emitted < count {
+            if let Some(until) = until
+                && current > until
+            {
+                break;
+            }
+
+            if rule.matches(current) {
+                out.push(CalendarEvent {
+                    title: self.title.clone(),
+                    start: current,
+                    end: current + duration,
+                    color: self.color.clone(),
+                });
+                emitted += 1;
+            }
+
+            current = match rule.freq {
+                Frequency::Daily => current + chrono::Duration::days(interval),
+                Frequency::Weekly => current + chrono::Duration::weeks(interval),
+                Frequency::Monthly => current + chrono::Duration::days(30 * interval),
+                Frequency::Yearly => current + chrono::Duration::days(365 * interval),
+            };
+
+            if out.len() > 500 {
+                break;
+            }
+        }
+
+        if out.is_empty() {
+            vec![CalendarEvent {
+                title: self.title,
+                start: self.start,
+                end: self.end,
+                color: self.color,
+            }]
+        } else {
+            out
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum Frequency {
+    Daily,
+    Weekly,
+    Monthly,
+    Yearly,
+}
+
+struct RRule {
+    freq: Frequency,
+    interval: u32,
+    count: Option<usize>,
+    until: Option<DateTime<Local>>,
+    byday: Vec<Weekday>,
+}
+
+impl RRule {
+    fn parse(raw: &str) -> Self {
+        let mut freq = Frequency::Weekly;
+        let mut interval = 1;
+        let mut count = None;
+        let mut until = None;
+        let mut byday = vec![];
+
+        for part in raw.split(';') {
+            if let Some(v) = part.strip_prefix("FREQ=") {
+                freq = match v {
+                    "DAILY" => Frequency::Daily,
+                    "WEEKLY" => Frequency::Weekly,
+                    "MONTHLY" => Frequency::Monthly,
+                    "YEARLY" => Frequency::Yearly,
+                    _ => Frequency::Weekly,
+                };
+            } else if let Some(v) = part.strip_prefix("INTERVAL=") {
+                interval = v.parse().unwrap_or(1);
+            } else if let Some(v) = part.strip_prefix("COUNT=") {
+                count = v.parse().ok();
+            } else if let Some(v) = part.strip_prefix("UNTIL=") {
+                until = parse_ics_datetime(v, None).ok();
+            } else if let Some(v) = part.strip_prefix("BYDAY=") {
+                byday = v.split(',').filter_map(parse_weekday).collect();
+            }
+        }
+
+        Self {
+            freq,
+            interval,
+            count,
+            until,
+            byday,
+        }
+    }
+
+    fn matches(&self, dt: DateTime<Local>) -> bool {
+        if self.byday.is_empty() {
+            return true;
+        }
+        self.byday.contains(&dt.weekday())
+    }
+}
+
+fn parse_weekday(v: &str) -> Option<Weekday> {
+    match v {
+        "MO" => Some(Weekday::Mon),
+        "TU" => Some(Weekday::Tue),
+        "WE" => Some(Weekday::Wed),
+        "TH" => Some(Weekday::Thu),
+        "FR" => Some(Weekday::Fri),
+        "SA" => Some(Weekday::Sat),
+        "SU" => Some(Weekday::Sun),
+        _ => None,
+    }
+}
+
+fn unfold_ics_lines(raw: &str) -> String {
+    let mut out = String::new();
+    for line in raw.lines() {
+        if line.starts_with(' ') || line.starts_with('\t') {
+            out.push_str(line.trim_start());
+        } else {
+            if !out.is_empty() {
+                out.push('\n');
+            }
+            out.push_str(line);
+        }
+    }
+    out
+}
+
+fn get_ics_value(section: &str, key: &str) -> Option<String> {
+    section
+        .lines()
+        .find(|line| line.starts_with(key))
+        .and_then(|line| {
+            line.split_once(':')
+                .map(|(_, value)| value.trim().to_string())
+        })
+}
+
+fn get_ics_value_and_tzid(section: &str, key: &str) -> Option<(String, Option<String>)> {
+    section.lines().find_map(|line| {
+        let (prop, value) = line.split_once(':')?;
+        if !prop.starts_with(key) {
+            return None;
+        }
+
+        let tzid = prop
+            .split(';')
+            .find_map(|part| part.strip_prefix("TZID=").map(|v| v.to_string()));
+
+        Some((value.trim().to_string(), tzid))
+    })
+}
+
+fn parse_ics_datetime(value: &str, tzid: Option<&str>) -> anyhow::Result<DateTime<Local>> {
+    let value = value.trim();
+
+    if let Some(utc_value) = value.strip_suffix('Z')
+        && let Ok(dt) = NaiveDateTime::parse_from_str(utc_value, "%Y%m%dT%H%M%S")
+    {
+        return Ok(Utc.from_utc_datetime(&dt).with_timezone(&Local));
+    }
+
+    if let Ok(dt) = NaiveDateTime::parse_from_str(value, "%Y%m%dT%H%M%S") {
+        if let Some(tzid) = tzid
+            && let Ok(tz) = tzid.parse::<Tz>()
+        {
+            return Ok(tz
+                .from_local_datetime(&dt)
+                .single()
+                .unwrap_or_else(|| tz.from_utc_datetime(&dt))
+                .with_timezone(&Local));
+        }
+
+        if let Some(local_dt) = Local.from_local_datetime(&dt).single() {
+            return Ok(local_dt);
+        }
+        return Ok(Local.from_utc_datetime(&dt));
+    }
+
+    if let Ok(date) = NaiveDate::parse_from_str(value, "%Y%m%d") {
+        return Ok(Local
+            .from_local_datetime(&date.and_hms_opt(0, 0, 0).unwrap_or_default())
+            .single()
+            .unwrap_or_else(|| {
+                Local.from_utc_datetime(&date.and_hms_opt(0, 0, 0).unwrap_or_default())
+            }));
+    }
+
+    anyhow::bail!("unsupported ICS datetime: {value}")
 }
 
 async fn fetch_location(location: &WeatherLocation) -> anyhow::Result<Location> {

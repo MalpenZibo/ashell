@@ -450,9 +450,37 @@ pub struct TempoModuleConfig {
     pub timezones: Vec<String>,
     #[serde(default)]
     pub weather_location: Option<WeatherLocation>,
+    #[serde(default)]
+    pub calendar_type: TempoCalendarType,
+    #[serde(default)]
+    pub calendars: Vec<TempoCalendarSource>,
     pub weather_indicator: WeatherIndicator,
     #[serde(deserialize_with = "deserialize_locale")]
     pub locale: Locale,
+}
+
+#[derive(Deserialize, Default, Clone, Debug, PartialEq, Eq)]
+pub enum TempoCalendarType {
+    #[default]
+    Calendar,
+    Events,
+}
+
+#[derive(Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
+#[serde(untagged)]
+pub enum TempoCalendarSource {
+    Url {
+        #[serde(rename = "Url")]
+        url: String,
+        #[serde(rename = "Color")]
+        color: String,
+    },
+    Path {
+        #[serde(rename = "Path")]
+        path: String,
+        #[serde(rename = "Color")]
+        color: String,
+    },
 }
 
 #[derive(Deserialize, Default, Clone, Debug, PartialEq, Eq)]
@@ -492,6 +520,8 @@ impl Default for TempoModuleConfig {
             formats: vec![],
             timezones: vec![],
             weather_location: None,
+            calendar_type: TempoCalendarType::Calendar,
+            calendars: vec![],
             weather_indicator: WeatherIndicator::IconAndTemperature,
             locale: Locale::en_US,
         }
