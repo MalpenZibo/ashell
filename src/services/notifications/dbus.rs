@@ -163,7 +163,10 @@ impl NotificationDaemon {
 impl NotificationDaemon {
     pub async fn start_server() -> anyhow::Result<(Connection, broadcast::Sender<NotificationEvent>)>
     {
-        // Initialize the event channel (100 message buffer)
+        Self::init_server().await
+    }
+
+    async fn init_server() -> anyhow::Result<(Connection, broadcast::Sender<NotificationEvent>)> {
         let (event_tx, _rx) = broadcast::channel(100);
 
         let connection = zbus::connection::Connection::session().await?;
@@ -171,11 +174,14 @@ impl NotificationDaemon {
         connection.object_server().at(OBJECT_PATH, daemon).await?;
 
         let dbus_proxy = DBusProxy::new(&connection).await?;
-        let flags = RequestNameFlags::AllowReplacement.into();
-        if dbus_proxy.request_name(NAME, flags).await? == RequestNameReply::InQueue {
-            warn!("Bus name '{NAME}' already owned");
-        } else {
-            info!("Acquired notification daemon bus name");
+        let flags = RequestNameFlags::AllowReplacement | RequestNameFlags::ReplaceExisting;
+        match dbus_proxy.request_name(NAME, flags).await? {
+            RequestNameReply::PrimaryOwner | RequestNameReply::AlreadyOwner => {
+                info!("Acquired notification daemon bus name");
+            }
+            RequestNameReply::InQueue | RequestNameReply::Exists => {
+                warn!("Bus name '{NAME}' already owned");
+            }
         }
 
         Ok((connection, event_tx))
