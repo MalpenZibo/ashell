@@ -2,7 +2,6 @@ use super::NotificationIcon;
 use log::{debug, info, warn};
 use std::collections::HashMap;
 use std::time::SystemTime;
-use tokio::sync::OnceCell;
 use tokio::sync::broadcast;
 use zbus::{
     Connection,
@@ -21,7 +20,6 @@ pub enum NotificationEvent {
 const NAME: WellKnownName =
     WellKnownName::from_static_str_unchecked("org.freedesktop.Notifications");
 pub const OBJECT_PATH: &str = "/org/freedesktop/Notifications";
-static DAEMON: OnceCell<(Connection, broadcast::Sender<NotificationEvent>)> = OnceCell::const_new();
 
 /// Notification urgency as defined by the freedesktop Notifications
 /// specification (sent as the `urgency` byte hint).
@@ -165,10 +163,7 @@ impl NotificationDaemon {
 impl NotificationDaemon {
     pub async fn start_server() -> anyhow::Result<(Connection, broadcast::Sender<NotificationEvent>)>
     {
-        DAEMON
-            .get_or_try_init(Self::init_server)
-            .await
-            .map(|(connection, event_tx)| (connection.clone(), event_tx.clone()))
+        Self::init_server().await
     }
 
     async fn init_server() -> anyhow::Result<(Connection, broadcast::Sender<NotificationEvent>)> {
@@ -179,7 +174,7 @@ impl NotificationDaemon {
         connection.object_server().at(OBJECT_PATH, daemon).await?;
 
         let dbus_proxy = DBusProxy::new(&connection).await?;
-        let flags = RequestNameFlags::AllowReplacement.into();
+        let flags = RequestNameFlags::AllowReplacement | RequestNameFlags::ReplaceExisting;
         match dbus_proxy.request_name(NAME, flags).await? {
             RequestNameReply::PrimaryOwner | RequestNameReply::AlreadyOwner => {
                 info!("Acquired notification daemon bus name");
