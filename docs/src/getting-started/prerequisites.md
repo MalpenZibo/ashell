@@ -72,3 +72,18 @@ At runtime, ashell needs:
 - PipeWire libraries (`libpipewire-0.3`)
 - PulseAudio libraries (`libpulse`)
 - A running Hyprland or Niri compositor
+
+## Optional Runtime Dependencies
+
+Several modules require additional system services. If a service is missing, the corresponding module will simply not show data (ashell will not crash).
+
+| Package | Required by | Purpose |
+|---------|-------------|---------|
+| `upower` | Settings (Power), System Info | Battery status, power profiles |
+| `networkmanager` | Settings (Network) | WiFi, wired, VPN management |
+| `iwd` | Settings (Network) | Alternative WiFi backend (fallback) |
+| `bluez` | Settings (Bluetooth) | Bluetooth device management |
+| `pipewire` | Privacy, Audio | Screenshare/mic detection, audio routing |
+| `pulseaudio` / `pipewire-pulse` | Settings (Audio) | Volume control, sink/source management |
+
+> **Note:** Temperature monitoring reads the kernel `hwmon` sysfs interface directly (no extra package required). To find the correct `sensor` label for your hardware (e.g. `"acpitz temp1"`), install `lm_sensors` and run the `sensors` command.
