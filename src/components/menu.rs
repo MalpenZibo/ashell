@@ -1,7 +1,7 @@
 use crate::app::{self, App};
 use crate::components::{self, ButtonUIRef};
 use crate::config::{AppearanceStyle, Position};
-use crate::theme::backdrop_color;
+use crate::theme::{backdrop_color, use_theme};
 use iced::alignment::Vertical;
 use iced::widget::container::Style;
 use iced::{
@@ -167,27 +167,33 @@ impl App {
         content: Element<'a, app::Message>,
         button_ui_ref: ButtonUIRef,
     ) -> Element<'a, app::Message> {
+        let (space_md, menu_opacity, radius_lg, bar_style, bar_position, menu_backdrop) =
+            use_theme(|t| {
+                (
+                    t.space.md,
+                    t.menu.opacity,
+                    t.radius.lg,
+                    t.bar_style,
+                    t.bar_position,
+                    t.menu.backdrop,
+                )
+            });
+
         components::MenuWrapper::new(
             button_ui_ref.position.x,
             container(content)
-                .padding(self.theme.space.md)
+                .padding(space_md)
                 .style(move |theme: &Theme| Style {
-                    background: Some(
-                        theme
-                            .palette()
-                            .background
-                            .scale_alpha(self.theme.menu.opacity)
-                            .into(),
-                    ),
+                    background: Some(theme.palette().background.scale_alpha(menu_opacity).into()),
                     border: Border {
                         color: theme
                             .extended_palette()
                             .background
                             .weakest
                             .color
-                            .scale_alpha(self.theme.menu.opacity),
+                            .scale_alpha(menu_opacity),
                         width: 1.,
-                        radius: self.theme.radius.lg.into(),
+                        radius: radius_lg.into(),
                     },
                     ..Default::default()
                 })
@@ -195,28 +201,28 @@ impl App {
                 .into(),
         )
         .padding({
-            let v_padding = match self.theme.bar_style {
+            let v_padding = match bar_style {
                 AppearanceStyle::Solid | AppearanceStyle::Gradient => 2,
                 AppearanceStyle::Islands => 0,
             };
 
             Padding::new(0.)
-                .top(if self.theme.bar_position == Position::Top {
+                .top(if bar_position == Position::Top {
                     v_padding
                 } else {
                     0
                 })
-                .bottom(if self.theme.bar_position == Position::Bottom {
+                .bottom(if bar_position == Position::Bottom {
                     v_padding
                 } else {
                     0
                 })
         })
-        .align_y(match self.theme.bar_position {
+        .align_y(match bar_position {
             Position::Top => Vertical::Top,
             Position::Bottom => Vertical::Bottom,
         })
-        .backdrop(backdrop_color(self.theme.menu.backdrop))
+        .backdrop(backdrop_color(menu_backdrop))
         .on_click_outside(app::Message::CloseMenu(id))
         .into()
     }

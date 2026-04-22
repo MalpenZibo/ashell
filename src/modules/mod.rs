@@ -3,7 +3,7 @@ use crate::{
     components::menu::MenuType,
     components::{module_group, module_item},
     config::{ModuleDef, ModuleName},
-    theme::AshellTheme,
+    theme::use_theme,
 };
 use iced::{Alignment, Element, Length, Subscription, SurfaceId, widget::Row};
 
@@ -34,11 +34,8 @@ pub enum OnModulePress {
 }
 
 impl App {
-    pub fn modules_section<'a>(
-        &'a self,
-        id: SurfaceId,
-        theme: &'a AshellTheme,
-    ) -> [Element<'a, Message>; 3] {
+    pub fn modules_section<'a>(&'a self, id: SurfaceId) -> [Element<'a, Message>; 3] {
+        let space_xxs = use_theme(|t| t.space.xxs);
         [
             &self.general_config.modules.left,
             &self.general_config.modules.center,
@@ -48,13 +45,13 @@ impl App {
             let mut row = Row::with_capacity(modules_def.len())
                 .height(Length::Shrink)
                 .align_y(Alignment::Center)
-                .spacing(self.theme.space.xxs);
+                .spacing(space_xxs);
 
             for module_def in modules_def {
                 row = row.push(match module_def {
                     // life parsing of string to module
-                    ModuleDef::Single(module) => self.single_module_wrapper(id, theme, module),
-                    ModuleDef::Group(group) => self.group_module_wrapper(id, theme, group),
+                    ModuleDef::Single(module) => self.single_module_wrapper(id, module),
+                    ModuleDef::Group(group) => self.group_module_wrapper(id, group),
                 });
             }
 
@@ -81,13 +78,12 @@ impl App {
     fn build_module_item<'a>(
         &'a self,
         id: SurfaceId,
-        theme: &'a AshellTheme,
         content: Element<'a, Message>,
         action: Option<OnModulePress>,
     ) -> Element<'a, Message> {
         match action {
             Some(action) => {
-                let mut item = module_item(theme, content);
+                let mut item = module_item(content);
                 match action {
                     OnModulePress::Action(msg) => {
                         item = item.on_press(*msg);
@@ -119,26 +115,22 @@ impl App {
                 }
                 item.into()
             }
-            None => module_item(theme, content).into(),
+            None => module_item(content).into(),
         }
     }
 
     fn single_module_wrapper<'a>(
         &'a self,
         id: SurfaceId,
-        theme: &'a AshellTheme,
         module_name: &'a ModuleName,
     ) -> Option<Element<'a, Message>> {
         self.get_module_view(id, module_name)
-            .map(|(content, action)| {
-                module_group(theme, self.build_module_item(id, theme, content, action))
-            })
+            .map(|(content, action)| module_group(self.build_module_item(id, content, action)))
     }
 
     fn group_module_wrapper<'a>(
         &'a self,
         id: SurfaceId,
-        theme: &'a AshellTheme,
         group: &'a [ModuleName],
     ) -> Option<Element<'a, Message>> {
         let modules: Vec<_> = group
@@ -152,10 +144,10 @@ impl App {
             let items = Row::with_children(
                 modules
                     .into_iter()
-                    .map(|(content, action)| self.build_module_item(id, theme, content, action))
+                    .map(|(content, action)| self.build_module_item(id, content, action))
                     .collect::<Vec<_>>(),
             );
-            Some(module_group(theme, items.into()))
+            Some(module_group(items.into()))
         }
     }
 
@@ -176,37 +168,33 @@ impl App {
                     }
                 };
                 (
-                    custom
-                        .view(&self.theme)
-                        .map(|msg| Message::Custom(name.clone(), msg)),
+                    custom.view().map(|msg| Message::Custom(name.clone(), msg)),
                     action,
                 )
             }),
             ModuleName::Updates => self.updates.as_ref().map(|updates| {
                 (
-                    updates.view(&self.theme).map(Message::Updates),
+                    updates.view().map(Message::Updates),
                     Some(OnModulePress::ToggleMenu(MenuType::Updates)),
                 )
             }),
             ModuleName::Workspaces => Some((
                 self.workspaces
-                    .view(id, &self.theme, &self.outputs)
+                    .view(id, &self.outputs)
                     .map(Message::Workspaces),
                 None,
             )),
             ModuleName::WindowTitle => self.window_title.get_value().map(|title| {
                 (
-                    self.window_title
-                        .view(&self.theme, title)
-                        .map(Message::WindowTitle),
+                    self.window_title.view(title).map(Message::WindowTitle),
                     None,
                 )
             }),
             ModuleName::SystemInfo => Some((
-                self.system_info.view(&self.theme).map(Message::SystemInfo),
+                self.system_info.view().map(Message::SystemInfo),
                 Some(OnModulePress::ToggleMenu(MenuType::SystemInfo)),
             )),
-            ModuleName::KeyboardLayout => self.keyboard_layout.view(&self.theme).map(|view| {
+            ModuleName::KeyboardLayout => self.keyboard_layout.view().map(|view| {
                 (
                     view.map(Message::KeyboardLayout),
                     Some(OnModulePress::Action(Box::new(Message::KeyboardLayout(
@@ -216,14 +204,14 @@ impl App {
             }),
             ModuleName::KeyboardSubmap => self
                 .keyboard_submap
-                .view(&self.theme)
+                .view()
                 .map(|view| (view.map(Message::KeyboardSubmap), None)),
             ModuleName::Tray => self
                 .tray
-                .view(id, &self.theme)
+                .view(id)
                 .map(|view| (view.map(Message::Tray), None)),
             ModuleName::Tempo => Some((
-                self.tempo.view(&self.theme).map(Message::Tempo),
+                self.tempo.view().map(Message::Tempo),
                 Some(OnModulePress::ToggleMenuWithExtra {
                     menu_type: MenuType::Tempo,
                     on_right_press: Some(Box::new(Message::Tempo(tempo::Message::CycleFormat))),
@@ -237,22 +225,20 @@ impl App {
             )),
             ModuleName::Privacy => self
                 .privacy
-                .view(&self.theme)
+                .view()
                 .map(|view| (view.map(Message::Privacy), None)),
-            ModuleName::MediaPlayer => self.media_player.view(&self.theme).map(|view| {
+            ModuleName::MediaPlayer => self.media_player.view().map(|view| {
                 (
                     view.map(Message::MediaPlayer),
                     Some(OnModulePress::ToggleMenu(MenuType::MediaPlayer)),
                 )
             }),
             ModuleName::Settings => Some((
-                self.settings.view(&self.theme).map(Message::Settings),
+                self.settings.view().map(Message::Settings),
                 Some(OnModulePress::ToggleMenu(MenuType::Settings)),
             )),
             ModuleName::Notifications => Some((
-                self.notifications
-                    .view(&self.theme)
-                    .map(Message::Notifications),
+                self.notifications.view().map(Message::Notifications),
                 Some(OnModulePress::ToggleMenu(MenuType::Notifications)),
             )),
         }

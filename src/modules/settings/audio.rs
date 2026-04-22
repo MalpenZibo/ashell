@@ -10,7 +10,7 @@ use crate::{
         ReadOnlyService, Service, ServiceEvent,
         audio::{AudioCommand, AudioService, ChannelVolumesExt, DevicePortType, Port},
     },
-    theme::AshellTheme,
+    theme::use_theme,
     utils::IndicatorState,
     utils::remote_value::{self, Remote},
 };
@@ -264,7 +264,7 @@ impl AudioSettings {
         }
     }
 
-    pub fn sink_indicator<'a>(&'a self, theme: &'a AshellTheme) -> Option<Element<'a, Message>> {
+    pub fn sink_indicator<'a>(&'a self) -> Option<Element<'a, Message>> {
         self.service
             .as_ref()
             .and_then(|service| {
@@ -277,7 +277,6 @@ impl AudioSettings {
             .map(|(service, icon_type)| {
                 let volume = service.sink_slider.value();
                 format_indicator(
-                    theme,
                     self.config.indicator_format,
                     icon_type,
                     Self::vol_text(volume).into(),
@@ -289,7 +288,7 @@ impl AudioSettings {
             })
     }
 
-    pub fn source_indicator<'a>(&'a self, theme: &'a AshellTheme) -> Option<Element<'a, Message>> {
+    pub fn source_indicator<'a>(&'a self) -> Option<Element<'a, Message>> {
         self.service
             .as_ref()
             .and_then(|service| {
@@ -307,7 +306,6 @@ impl AudioSettings {
             .map(|(service, icon_type)| {
                 let volume = service.source_slider.value();
                 format_indicator(
-                    theme,
                     self.config.microphone_indicator_format,
                     icon_type,
                     Self::vol_text(volume).into(),
@@ -321,13 +319,11 @@ impl AudioSettings {
 
     pub fn sliders<'a>(
         &'a self,
-        theme: &'a AshellTheme,
         sub_menu: Option<SubMenu>,
     ) -> (Option<Element<'a, Message>>, Option<Element<'a, Message>>) {
         if let Some(service) = &self.service {
             let sink_slider = service.active_sink().map(|s| {
                 Self::audio_slider(
-                    theme,
                     SliderType::Sink,
                     s.is_mute,
                     Message::ToggleSinkMute,
@@ -343,7 +339,6 @@ impl AudioSettings {
 
             let source_slider = service.active_source().map(|s| {
                 Self::audio_slider(
-                    theme,
                     SliderType::Source,
                     s.is_mute,
                     Message::ToggleSourceMute,
@@ -363,14 +358,9 @@ impl AudioSettings {
         }
     }
 
-    pub fn sinks_submenu<'a>(
-        &'a self,
-        id: SurfaceId,
-        theme: &'a AshellTheme,
-    ) -> Option<Element<'a, Message>> {
+    pub fn sinks_submenu<'a>(&'a self, id: SurfaceId) -> Option<Element<'a, Message>> {
         self.service.as_ref().map(|service| {
             Self::submenu(
-                theme,
                 service
                     .sink_iter()
                     .map(|route| SubmenuEntry {
@@ -395,14 +385,9 @@ impl AudioSettings {
         })
     }
 
-    pub fn sources_submenu<'a>(
-        &'a self,
-        id: SurfaceId,
-        theme: &'a AshellTheme,
-    ) -> Option<Element<'a, Message>> {
+    pub fn sources_submenu<'a>(&'a self, id: SurfaceId) -> Option<Element<'a, Message>> {
         self.service.as_ref().map(|service| {
             Self::submenu(
-                theme,
                 service
                     .source_iter()
                     .map(|route| SubmenuEntry {
@@ -456,7 +441,6 @@ impl AudioSettings {
     }
 
     fn audio_slider<'a>(
-        theme: &'a AshellTheme,
         slider_type: SliderType,
         is_mute: bool,
         toggle_mute: Message,
@@ -477,7 +461,6 @@ impl AudioSettings {
         };
 
         let mut ctrl = slider_control(
-            theme,
             mute_icon,
             Volume::MUTED.0..=Volume::NORMAL.0,
             volume.value(),
@@ -525,10 +508,10 @@ impl AudioSettings {
     }
 
     fn submenu<'a>(
-        theme: &'a AshellTheme,
         entries: Vec<SubmenuEntry<Message>>,
         more_msg: Option<Message>,
     ) -> Element<'a, Message> {
+        let space = use_theme(|t| t.space);
         let entries: Element<'a, Message> = Column::with_children(
             entries
                 .into_iter()
@@ -537,8 +520,8 @@ impl AudioSettings {
                         container(
                             row![e.icon.to_text(), text(e.name)]
                                 .align_y(Alignment::Center)
-                                .spacing(theme.space.md)
-                                .padding([theme.space.xxs, theme.space.sm]),
+                                .spacing(space.md)
+                                .padding([space.xxs, space.sm]),
                         )
                         .style(|theme: &Theme| container::Style {
                             text_color: Some(theme.palette().success),
@@ -546,7 +529,7 @@ impl AudioSettings {
                         })
                         .into()
                     } else {
-                        styled_button(theme, e.name)
+                        styled_button(e.name)
                             .icon(e.icon, IconPosition::Before)
                             .on_press(e.msg)
                             .width(Length::Fill)
@@ -555,18 +538,16 @@ impl AudioSettings {
                 })
                 .collect::<Vec<_>>(),
         )
-        .spacing(theme.space.xxs)
+        .spacing(space.xxs)
         .into();
 
         match more_msg {
             Some(more_msg) => column!(
                 entries,
                 divider(),
-                styled_button(theme, "More")
-                    .on_press(more_msg)
-                    .width(Length::Fill),
+                styled_button("More").on_press(more_msg).width(Length::Fill),
             )
-            .spacing(theme.space.sm)
+            .spacing(space.sm)
             .into(),
             _ => entries,
         }

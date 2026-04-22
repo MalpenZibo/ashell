@@ -5,7 +5,7 @@ use crate::{
         styled_button,
     },
     config::{TempoModuleConfig, WeatherIndicator, WeatherLocation},
-    theme::AshellTheme,
+    theme::use_theme,
 };
 use chrono::{
     DateTime, Datelike, Days, FixedOffset, Local, Months, NaiveDate, NaiveDateTime, TimeZone, Utc,
@@ -162,14 +162,15 @@ impl Tempo {
         }
     }
 
-    pub fn view(&'_ self, theme: &AshellTheme) -> Element<'_, Message> {
+    pub fn view(&'_ self) -> Element<'_, Message> {
+        let space_sm = use_theme(|t| t.space.sm);
         let display_text = self.time_str(self.current_format(), self.current_timezone_index);
 
         Row::with_capacity(2)
-            .push(self.weather_indicator(theme))
+            .push(self.weather_indicator())
             .push(text(display_text))
             .align_y(Vertical::Center)
-            .spacing(theme.space.sm)
+            .spacing(space_sm)
             .into()
     }
 
@@ -208,7 +209,8 @@ impl Tempo {
             })
     }
 
-    pub fn weather_indicator(&'_ self, theme: &AshellTheme) -> Option<Element<'_, Message>> {
+    pub fn weather_indicator(&'_ self) -> Option<Element<'_, Message>> {
+        let (font_size_sm, space_xxs) = use_theme(|t| (t.font_size.sm, t.space.xxs));
         if self.config.weather_location.is_none()
             || self.config.weather_indicator == WeatherIndicator::None
         {
@@ -221,28 +223,29 @@ impl Tempo {
                 Row::new()
                     .push(
                         weather_icon(data.current.weather_code, data.current.is_day > 0)
-                            .width(Length::Fixed(theme.font_size.sm)),
+                            .width(Length::Fixed(font_size_sm)),
                     )
                     .push(
                         (self.config.weather_indicator == WeatherIndicator::IconAndTemperature)
                             .then(|| {
                                 text(format!("{}°C", data.current.temperature_2m))
                                     .align_y(Vertical::Center)
-                                    .size(theme.font_size.sm)
+                                    .size(font_size_sm)
                             }),
                     )
                     .align_y(Vertical::Center)
-                    .spacing(theme.space.xxs)
+                    .spacing(space_xxs)
                     .into()
             })
     }
 
-    pub fn menu_view<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
+    pub fn menu_view<'a>(&'a self) -> Element<'a, Message> {
+        let space_lg = use_theme(|t| t.space.lg);
         container(
             Row::with_capacity(2)
-                .push(self.calendar(theme))
-                .push(self.weather(theme))
-                .spacing(theme.space.lg),
+                .push(self.calendar())
+                .push(self.weather())
+                .spacing(space_lg),
         )
         .max_width(MenuSize::XLarge)
         .into()
@@ -268,7 +271,8 @@ impl Tempo {
             .unwrap_or_else(|| self.date.date_naive())
     }
 
-    fn calendar<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
+    fn calendar<'a>(&'a self) -> Element<'a, Message> {
+        let theme = use_theme(|t| t.clone());
         let selected_date = self
             .selected_date
             .unwrap_or(self.naive_date(self.current_timezone_index));
@@ -296,7 +300,7 @@ impl Tempo {
 
         let calendar = column![
             row![
-                icon_button::<Message>(theme, StaticIcon::LeftChevron)
+                icon_button::<Message>(StaticIcon::LeftChevron)
                     .kind(ButtonKind::Solid)
                     .on_press(Message::ChangeSelectDate(
                         selected_date.checked_sub_months(Months::new(1)),
@@ -309,7 +313,7 @@ impl Tempo {
                 .size(theme.font_size.md)
                 .width(Length::Fill)
                 .align_x(Horizontal::Center),
-                icon_button::<Message>(theme, StaticIcon::RightChevron)
+                icon_button::<Message>(StaticIcon::RightChevron)
                     .kind(ButtonKind::Solid)
                     .on_press(Message::ChangeSelectDate(
                         selected_date.checked_add_months(Months::new(1))
@@ -352,35 +356,30 @@ impl Tempo {
                                     let day = current;
                                     current = current.succ_opt().unwrap_or(current);
 
-                                    styled_button(
-                                        theme,
-                                        Element::from(
-                                            text(
-                                                day.format_localized("%d", self.config.locale)
-                                                    .to_string(),
-                                            )
-                                            .align_x(Horizontal::Center)
-                                            .color_maybe({
-                                                if day
-                                                    == self.naive_date(self.current_timezone_index)
-                                                {
-                                                    Some(theme.iced_theme.palette().success)
-                                                } else if day == selected_date {
-                                                    Some(theme.iced_theme.palette().primary)
-                                                } else if day.month0() != current_month {
-                                                    Some(
-                                                        theme
-                                                            .iced_theme
-                                                            .palette()
-                                                            .text
-                                                            .scale_alpha(0.2),
-                                                    )
-                                                } else {
-                                                    None
-                                                }
-                                            }),
-                                        ),
-                                    )
+                                    styled_button(Element::from(
+                                        text(
+                                            day.format_localized("%d", self.config.locale)
+                                                .to_string(),
+                                        )
+                                        .align_x(Horizontal::Center)
+                                        .color_maybe({
+                                            if day == self.naive_date(self.current_timezone_index) {
+                                                Some(theme.iced_theme.palette().success)
+                                            } else if day == selected_date {
+                                                Some(theme.iced_theme.palette().primary)
+                                            } else if day.month0() != current_month {
+                                                Some(
+                                                    theme
+                                                        .iced_theme
+                                                        .palette()
+                                                        .text
+                                                        .scale_alpha(0.2),
+                                                )
+                                            } else {
+                                                None
+                                            }
+                                        }),
+                                    ))
                                     .on_press_maybe(
                                         if day != self.naive_date(self.current_timezone_index) {
                                             Some(Message::ChangeSelectDate(Some(day)))
@@ -422,39 +421,33 @@ impl Tempo {
                         })
                         .into()
                     } else {
-                        styled_button(
-                            theme,
-                            format!("{}: {}", tz_name, self.time_str("%d %h %R", index)),
-                        )
-                        .width(Length::Fill)
-                        .on_press(Message::SetTimezone(index))
-                        .into()
+                        styled_button(format!("{}: {}", tz_name, self.time_str("%d %h %R", index)))
+                            .width(Length::Fill)
+                            .on_press(Message::SetTimezone(index))
+                            .into()
                     }
                 })
                 .collect::<Vec<Element<'a, Message>>>(),
         );
 
         column!(
-            styled_button(
-                theme,
-                Element::from(
-                    column!(
-                        text(
-                            self.date
-                                .format_localized("%A", self.config.locale)
-                                .to_string()
-                        )
-                        .size(theme.font_size.sm),
-                        text(
-                            self.date
-                                .format_localized("%d %B %Y", self.config.locale)
-                                .to_string()
-                        )
-                        .size(theme.font_size.md),
+            styled_button(Element::from(
+                column!(
+                    text(
+                        self.date
+                            .format_localized("%A", self.config.locale)
+                            .to_string()
                     )
-                    .spacing(theme.space.xs),
-                ),
-            )
+                    .size(theme.font_size.sm),
+                    text(
+                        self.date
+                            .format_localized("%d %B %Y", self.config.locale)
+                            .to_string()
+                    )
+                    .size(theme.font_size.md),
+                )
+                .spacing(theme.space.xs),
+            ),)
             .size(ButtonSize::Large)
             .kind(ButtonKind::Outline)
             .on_press_maybe(if self.selected_date.is_some() {
@@ -471,7 +464,9 @@ impl Tempo {
         .into()
     }
 
-    fn weather<'a>(&'a self, theme: &'a AshellTheme) -> Option<Element<'a, Message>> {
+    fn weather<'a>(&'a self) -> Option<Element<'a, Message>> {
+        let (space, font_size, opacity, radius_lg, radius_sm) =
+            use_theme(|t| (t.space, t.font_size, t.opacity, t.radius.lg, t.radius.sm));
         self.weather_data
             .as_ref()
             .zip(self.location.as_ref())
@@ -480,7 +475,7 @@ impl Tempo {
                     container(
                         row!(
                             weather_icon(data.current.weather_code, data.current.is_day > 0)
-                                .height(theme.font_size.xxl)
+                                .height(font_size.xxl)
                                 .width(Length::Shrink),
                             column!(
                                 text(format!(
@@ -493,7 +488,7 @@ impl Tempo {
                                     },
                                     data.current.time.format("%R")
                                 ))
-                                .size(theme.font_size.sm),
+                                .size(font_size.sm),
                                 text(weather_description(data.current.weather_code)),
                                 row!(
                                     text(format!("{} °C", data.current.temperature_2m)),
@@ -501,39 +496,39 @@ impl Tempo {
                                         "Feels like {}°C",
                                         data.current.apparent_temperature
                                     ))
-                                    .size(theme.font_size.sm)
+                                    .size(font_size.sm)
                                 )
                                 .align_y(Vertical::Bottom)
-                                .spacing(theme.space.sm),
+                                .spacing(space.sm),
                             )
                             .width(FillPortion(2))
-                            .spacing(theme.space.xs),
+                            .spacing(space.xs),
                             column!(
                                 row!(
                                     svg(Handle::from_memory(include_bytes!(
                                         "../../assets/weather_icon/drop.svg"
                                     )))
                                     .width(Length::Shrink)
-                                    .height(theme.font_size.lg),
+                                    .height(font_size.lg),
                                     column!(
                                         text("Humidity")
-                                            .size(theme.font_size.xs)
+                                            .size(font_size.xs)
                                             .align_x(Horizontal::Right)
                                             .width(Length::Fill),
                                         text(format!("{}%", data.current.relative_humidity_2m))
                                             .align_x(Horizontal::Right)
-                                            .size(theme.font_size.xs)
+                                            .size(font_size.xs)
                                             .width(Length::Fill),
                                     )
-                                    .spacing(theme.space.xxs)
+                                    .spacing(space.xxs)
                                 )
                                 .align_y(Vertical::Center)
-                                .spacing(theme.space.sm),
+                                .spacing(space.sm),
                                 row!(
                                     svg(Handle::from_memory(include_bytes!(
                                         "../../assets/weather_icon/wind.svg"
                                     )))
-                                    .height(theme.font_size.lg)
+                                    .height(font_size.lg)
                                     .width(Length::Shrink)
                                     .rotation(
                                         Rotation::Floating(
@@ -543,27 +538,27 @@ impl Tempo {
                                     ),
                                     column!(
                                         text("Wind")
-                                            .size(theme.font_size.xs)
+                                            .size(font_size.xs)
                                             .align_x(Horizontal::Right)
                                             .width(Length::Fill),
                                         text(format!("{} km/h", data.current.wind_speed_10m))
                                             .align_x(Horizontal::Right)
-                                            .size(theme.font_size.xs)
+                                            .size(font_size.xs)
                                             .width(Length::Fill),
                                     )
-                                    .spacing(theme.space.xxs)
+                                    .spacing(space.xxs)
                                 )
                                 .align_y(Vertical::Center)
-                                .spacing(theme.space.sm),
+                                .spacing(space.sm),
                             )
                             .width(Length::Fill)
-                            .spacing(theme.space.xs),
+                            .spacing(space.xs),
                         )
-                        .spacing(theme.space.lg)
+                        .spacing(space.lg)
                         .align_y(Vertical::Center)
                         .width(Length::Fill),
                     )
-                    .padding(theme.space.md)
+                    .padding(space.md)
                     .style(move |app_theme: &Theme| container::Style {
                         background: Background::Color(
                             app_theme
@@ -571,10 +566,10 @@ impl Tempo {
                                 .background
                                 .weak
                                 .color
-                                .scale_alpha(theme.opacity),
+                                .scale_alpha(opacity),
                         )
                         .into(),
-                        border: Border::default().rounded(theme.radius.lg),
+                        border: Border::default().rounded(radius_lg),
                         ..container::Style::default()
                     }),
                     container(
@@ -606,23 +601,22 @@ impl Tempo {
                                     column!(
                                         text(format!("{}°", temp.round())),
                                         weather_icon(*weather_code, *is_day > 0)
-                                            .height(theme.font_size.md)
+                                            .height(font_size.md)
                                             .width(Length::Shrink),
-                                        text(time.format("%H:%M").to_string())
-                                            .size(theme.font_size.sm)
+                                        text(time.format("%H:%M").to_string()).size(font_size.sm)
                                     )
-                                    .spacing(theme.space.xs)
+                                    .spacing(space.xs)
                                     .align_x(Horizontal::Center)
                                     .into()
                                 })
                                 .collect::<Vec<_>>()
                             })
-                            .spacing(theme.space.sm)
-                            .padding(Padding::default().bottom(theme.space.sm))
+                            .spacing(space.sm)
+                            .padding(Padding::default().bottom(space.sm))
                         )
                         .horizontal()
                     )
-                    .padding(theme.space.sm)
+                    .padding(space.sm)
                     .style(move |app_theme: &Theme| container::Style {
                         background: Background::Color(
                             app_theme
@@ -630,10 +624,10 @@ impl Tempo {
                                 .background
                                 .weak
                                 .color
-                                .scale_alpha(theme.opacity),
+                                .scale_alpha(opacity),
                         )
                         .into(),
-                        border: Border::default().rounded(theme.radius.lg),
+                        border: Border::default().rounded(radius_lg),
                         ..container::Style::default()
                     }),
                     Column::with_children(
@@ -652,6 +646,7 @@ impl Tempo {
                                 index,
                                 (time, weather_code, temp_min, temp_max, wind_dir, wind_speed),
                             )| {
+                                let last_index = data.daily.time.len() - 2;
                                 container(
                                     row!(
                                         text(
@@ -660,7 +655,7 @@ impl Tempo {
                                         )
                                         .width(Length::Fill),
                                         weather_icon(*weather_code, true)
-                                            .height(theme.font_size.md)
+                                            .height(font_size.md)
                                             .width(Length::Shrink),
                                         container(
                                             row!(
@@ -674,23 +669,23 @@ impl Tempo {
                                                     svg(Handle::from_memory(include_bytes!(
                                                         "../../assets/weather_icon/wind.svg"
                                                     )))
-                                                    .height(theme.font_size.md)
+                                                    .height(font_size.md)
                                                     .width(Length::Shrink)
                                                     .rotation(Rotation::Floating(
                                                         Degrees(*wind_dir as f32 + 90.).into()
                                                     )),
                                                     text(format!("{} km/h", wind_speed))
                                                 )
-                                                .spacing(theme.space.xxs)
+                                                .spacing(space.xxs)
                                             )
-                                            .spacing(theme.space.sm)
+                                            .spacing(space.sm)
                                         )
                                         .width(Length::FillPortion(2))
                                         .align_x(Horizontal::Right)
                                     )
-                                    .spacing(theme.space.sm),
+                                    .spacing(space.sm),
                                 )
-                                .padding(theme.space.sm)
+                                .padding(space.sm)
                                 .style(move |app_theme: &Theme| container::Style {
                                     background: Background::Color(
                                         app_theme
@@ -698,29 +693,21 @@ impl Tempo {
                                             .background
                                             .weak
                                             .color
-                                            .scale_alpha(theme.opacity),
+                                            .scale_alpha(opacity),
                                     )
                                     .into(),
                                     border: Border::default().rounded(iced::border::Radius {
-                                        top_left: if index == 0 {
-                                            theme.radius.lg
+                                        top_left: if index == 0 { radius_lg } else { radius_sm },
+                                        top_right: if index == 0 { radius_lg } else { radius_sm },
+                                        bottom_right: if index == last_index {
+                                            radius_lg
                                         } else {
-                                            theme.radius.sm
+                                            radius_sm
                                         },
-                                        top_right: if index == 0 {
-                                            theme.radius.lg
+                                        bottom_left: if index == last_index {
+                                            radius_lg
                                         } else {
-                                            theme.radius.sm
-                                        },
-                                        bottom_right: if index == data.daily.time.len() - 2 {
-                                            theme.radius.lg
-                                        } else {
-                                            theme.radius.sm
-                                        },
-                                        bottom_left: if index == data.daily.time.len() - 2 {
-                                            theme.radius.lg
-                                        } else {
-                                            theme.radius.sm
+                                            radius_sm
                                         },
                                     }),
                                     ..container::Style::default()
@@ -729,9 +716,9 @@ impl Tempo {
                             }
                         )
                     )
-                    .spacing(theme.space.xxs)
+                    .spacing(space.xxs)
                 )
-                .spacing(theme.space.sm)
+                .spacing(space.sm)
                 .into()
             })
     }

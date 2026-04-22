@@ -1,4 +1,4 @@
-use crate::{components::icons::IconKind, theme::AshellTheme};
+use crate::{components::icons::IconKind, theme::use_theme};
 use iced::{
     Alignment, Element, Length,
     widget::{button as button_fn, container, row, text},
@@ -63,7 +63,6 @@ pub(crate) enum OnPress<'a, Message> {
 }
 
 pub struct StyledButton<'a, Message> {
-    theme: &'a AshellTheme,
     label: Element<'a, Message>,
     icon: Option<(IconKind, IconPosition)>,
     kind: ButtonKind,
@@ -123,12 +122,18 @@ impl<'a, Message: 'static + Clone> StyledButton<'a, Message> {
 
 impl<'a, Message: 'static + Clone> From<StyledButton<'a, Message>> for Element<'a, Message> {
     fn from(value: StyledButton<'a, Message>) -> Self {
-        let theme = value.theme;
+        let (space, font_size, button_style) = use_theme(|theme| {
+            (
+                theme.space,
+                theme.font_size,
+                theme.button_style(value.kind, value.hierarchy),
+            )
+        });
 
         let (padding, icon_size) = match value.size {
-            ButtonSize::Small => ([theme.space.xxs, theme.space.sm], theme.font_size.sm),
-            ButtonSize::Medium => ([theme.space.xs, theme.space.md], theme.font_size.md),
-            ButtonSize::Large => ([theme.space.sm, theme.space.xl], theme.font_size.lg),
+            ButtonSize::Small => ([space.xxs, space.sm], font_size.sm),
+            ButtonSize::Medium => ([space.xs, space.md], font_size.md),
+            ButtonSize::Large => ([space.sm, space.xl], font_size.lg),
         };
 
         let (icon_element, icon_position) = match value.icon {
@@ -139,13 +144,13 @@ impl<'a, Message: 'static + Clone> From<StyledButton<'a, Message>> for Element<'
         let content = match (icon_element, icon_position) {
             (Some(icon_el), Some(IconPosition::Before)) => container(
                 row![icon_el, value.label]
-                    .spacing(theme.space.xs)
+                    .spacing(space.xs)
                     .align_y(Alignment::Center),
             )
             .into(),
             (Some(icon_el), Some(IconPosition::After)) => container(
                 row![container(value.label).width(Length::Fill), icon_el,]
-                    .spacing(theme.space.xs)
+                    .spacing(space.xs)
                     .align_y(Alignment::Center),
             )
             .into(),
@@ -154,7 +159,7 @@ impl<'a, Message: 'static + Clone> From<StyledButton<'a, Message>> for Element<'
 
         let mut btn = button_fn(content)
             .padding(padding)
-            .style(theme.button_style(value.kind, value.hierarchy))
+            .style(button_style)
             .height(value.height.unwrap_or(Length::Shrink));
 
         if let Some(width) = value.width {
@@ -172,11 +177,9 @@ impl<'a, Message: 'static + Clone> From<StyledButton<'a, Message>> for Element<'
 }
 
 pub fn styled_button<'a, Message: 'static + Clone>(
-    theme: &'a AshellTheme,
     content: impl IntoButtonContent<'a, Message>,
 ) -> StyledButton<'a, Message> {
     StyledButton {
-        theme,
         label: content.into_content(),
         icon: None,
         kind: ButtonKind::default(),

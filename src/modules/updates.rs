@@ -3,7 +3,7 @@ use crate::{
     components::icons::{StaticIcon, icon},
     components::{IconPosition, MenuSize, styled_button},
     config::UpdatesModuleConfig,
-    theme::AshellTheme,
+    theme::use_theme,
 };
 use iced::{
     Alignment, Element, Length, Padding, Subscription, SurfaceId, Task,
@@ -161,14 +161,15 @@ impl Updates {
         }
     }
 
-    pub fn view(&'_ self, theme: &AshellTheme) -> Element<'_, Message> {
+    pub fn view(&'_ self) -> Element<'_, Message> {
+        let space_xxs = use_theme(|theme| theme.space.xxs);
         let mut content = row!(container(icon(match self.state {
             State::Checking => StaticIcon::Refresh,
             State::Ready if self.updates.is_empty() => StaticIcon::NoUpdatesAvailable,
             _ => StaticIcon::UpdatesAvailable,
         })))
         .align_y(Alignment::Center)
-        .spacing(theme.space.xxs);
+        .spacing(space_xxs);
 
         if !self.updates.is_empty() {
             content = content.push(text(self.updates.len()));
@@ -177,15 +178,16 @@ impl Updates {
         content.into()
     }
 
-    pub fn menu_view<'a>(&'a self, id: SurfaceId, theme: &'a AshellTheme) -> Element<'a, Message> {
+    pub fn menu_view<'a>(&'a self, id: SurfaceId) -> Element<'a, Message> {
+        let (space, font_size) = use_theme(|theme| (theme.space, theme.font_size));
         column!(
             if self.updates.is_empty() {
                 convert::Into::<Element<'_, _>>::into(
-                    container(text("Up to date ;)")).padding(theme.space.xs),
+                    container(text("Up to date ;)")).padding(space.xs),
                 )
             } else {
                 let mut elements = column!(
-                    styled_button(theme, format!("{} Updates available", self.updates.len()),)
+                    styled_button(format!("{} Updates available", self.updates.len()),)
                         .icon(
                             if self.is_updates_list_open {
                                 StaticIcon::MenuClosed
@@ -197,7 +199,7 @@ impl Updates {
                         .on_press(Message::ToggleUpdatesList)
                         .width(Length::Fill),
                 )
-                .spacing(theme.space.xs);
+                .spacing(space.xs);
 
                 if self.is_updates_list_open {
                     elements = elements.push(
@@ -209,7 +211,7 @@ impl Updates {
                                         .map(|update| {
                                             column!(
                                                 text(update.package.clone())
-                                                    .size(theme.font_size.xs)
+                                                    .size(font_size.xs)
                                                     .width(Length::Fill),
                                                 text(format!(
                                                     "{} -> {}",
@@ -228,16 +230,16 @@ impl Updates {
                                                 ))
                                                 .width(Length::Fill)
                                                 .align_x(Horizontal::Right)
-                                                .size(theme.font_size.xs)
+                                                .size(font_size.xs)
                                             )
                                             .into()
                                         })
                                         .collect::<Vec<Element<'_, _>>>(),
                                 )
-                                .spacing(theme.space.xs)
-                                .padding(Padding::default().left(theme.space.md)),
+                                .spacing(space.xs)
+                                .padding(Padding::default().left(space.md)),
                             )
-                            .spacing(theme.space.xs),
+                            .spacing(space.xs),
                         )
                         .max_height(300),
                     );
@@ -245,19 +247,20 @@ impl Updates {
                 elements.into()
             },
             divider(),
-            self.update_buttons(id, theme),
+            self.update_buttons(id),
         )
         .width(MenuSize::Small)
-        .spacing(theme.space.xs)
+        .spacing(space.xs)
         .into()
     }
 
-    fn update_buttons<'a>(&'a self, id: SurfaceId, theme: &'a AshellTheme) -> Element<'a, Message> {
-        let mut buttons = column!().spacing(theme.space.xs);
+    fn update_buttons<'a>(&'a self, id: SurfaceId) -> Element<'a, Message> {
+        let space_xs = use_theme(|theme| theme.space.xs);
+        let mut buttons = column!().spacing(space_xs);
 
         if !self.updates.is_empty() {
             buttons = buttons.push(
-                styled_button(theme, "Update")
+                styled_button("Update")
                     .on_press(Message::Update(id))
                     .width(Length::Fill),
             );
@@ -265,11 +268,11 @@ impl Updates {
 
         buttons
             .push(
-                styled_button(theme, "Check now")
+                styled_button("Check now")
                     .on_press(Message::CheckNow)
                     .width(Length::Fill),
             )
-            .spacing(theme.space.xs)
+            .spacing(space_xs)
             .width(MenuSize::Small)
             .into()
     }

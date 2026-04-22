@@ -21,7 +21,7 @@ use crate::{
         power::{PowerSettings, PowerSettingsConfig},
     },
     services::idle_inhibitor::IdleInhibitorManager,
-    theme::AshellTheme,
+    theme::use_theme,
 };
 use iced::{
     Element, Length, Subscription, SurfaceId, Task, Theme,
@@ -514,16 +514,11 @@ impl Settings {
         }
     }
 
-    pub fn menu_view<'a>(
-        &'a self,
-        id: SurfaceId,
-        theme: &'a AshellTheme,
-        position: Position,
-    ) -> Element<'a, Message> {
+    pub fn menu_view<'a>(&'a self, id: SurfaceId, position: Position) -> Element<'a, Message> {
+        let space = use_theme(|t| t.space);
         container(if let Some(dialog) = &self.network_dialog {
             password_dialog::view(
                 id,
-                theme,
                 &dialog.ssid,
                 dialog.password.as_deref().unwrap_or(""),
                 self.network_dialog_show_password,
@@ -533,39 +528,36 @@ impl Settings {
         } else {
             let battery_data = self
                 .power
-                .battery_menu_indicator(theme)
+                .battery_menu_indicator()
                 .map(|e| e.map(Message::Power));
             let right_buttons = Row::with_capacity(2)
                 .push(
                     self.lock_cmd
                         .as_ref()
-                        .map(|_| icon_button(theme, StaticIcon::Lock).on_press(Message::Lock)),
+                        .map(|_| icon_button(StaticIcon::Lock).on_press(Message::Lock)),
                 )
                 .push(
-                    icon_button(
-                        theme,
-                        if self.sub_menu == Some(SubMenu::Power) {
-                            StaticIcon::Close
-                        } else {
-                            StaticIcon::Power
-                        },
-                    )
+                    icon_button(if self.sub_menu == Some(SubMenu::Power) {
+                        StaticIcon::Close
+                    } else {
+                        StaticIcon::Power
+                    })
                     .on_press(Message::ToggleSubMenu(SubMenu::Power)),
                 )
-                .spacing(theme.space.xs);
+                .spacing(space.xs);
 
             let header = Row::with_capacity(3)
                 .push(battery_data)
                 .push(Space::new().width(Length::Fill))
                 .push(right_buttons)
-                .spacing(theme.space.xs)
+                .spacing(space.xs)
                 .width(Length::Fill);
 
-            let (sink_slider, source_slider) = self.audio.sliders(theme, self.sub_menu);
+            let (sink_slider, source_slider) = self.audio.sliders(self.sub_menu);
 
             let wifi_setting_button = self
                 .network
-                .wifi_quick_setting_button(id, theme, self.sub_menu)
+                .wifi_quick_setting_button(id, self.sub_menu)
                 .map(|(button, submenu)| {
                     (
                         button.map(Message::Network),
@@ -573,19 +565,18 @@ impl Settings {
                     )
                 });
             let quick_settings = quick_settings_section(
-                theme,
                 vec![
                     wifi_setting_button,
-                    self.bluetooth
-                        .quick_setting_button(id, theme, self.sub_menu)
-                        .map(|(button, submenu)| {
+                    self.bluetooth.quick_setting_button(id, self.sub_menu).map(
+                        |(button, submenu)| {
                             (
                                 button.map(Message::Bluetooth),
                                 submenu.map(|e| e.map(Message::Bluetooth)),
                             )
-                        }),
+                        },
+                    ),
                     self.network
-                        .vpn_quick_setting_button(id, theme, self.sub_menu)
+                        .vpn_quick_setting_button(id, self.sub_menu)
                         .map(|(button, submenu)| {
                             (
                                 button.map(Message::Network),
@@ -593,12 +584,11 @@ impl Settings {
                             )
                         }),
                     self.network
-                        .airplane_mode_quick_setting_button(theme)
+                        .airplane_mode_quick_setting_button()
                         .map(|(button, _)| (button.map(Message::Network), None)),
                     self.idle_inhibitor.as_ref().map(|idle_inhibitor| {
                         (
                             quick_setting_button(
-                                theme,
                                 if idle_inhibitor.is_inhibited() {
                                     StaticIcon::EyeOpened
                                 } else {
@@ -614,14 +604,12 @@ impl Settings {
                             None,
                         )
                     }),
-                    self.power
-                        .quick_setting_button(theme)
-                        .map(|(button, submenu)| {
-                            (
-                                button.map(Message::Power),
-                                submenu.map(|e| e.map(Message::Power)),
-                            )
-                        }),
+                    self.power.quick_setting_button().map(|(button, submenu)| {
+                        (
+                            button.map(Message::Power),
+                            submenu.map(|e| e.map(Message::Power)),
+                        )
+                    }),
                 ]
                 .into_iter()
                 .flatten()
@@ -633,7 +621,6 @@ impl Settings {
                         .unwrap_or(false);
                     (
                         quick_setting_button(
-                            theme,
                             DynamicIcon(button.icon.clone()),
                             button.name.clone(),
                             button.tooltip.clone(),
@@ -664,16 +651,14 @@ impl Settings {
                         .filter(|menu_type| *menu_type == SubMenu::PeripheralMenu)
                         .and_then(|_| {
                             self.power
-                                .peripheral_menu(theme)
-                                .map(|e| sub_menu_wrapper(theme, e.map(Message::Power)))
+                                .peripheral_menu()
+                                .map(|e| sub_menu_wrapper(e.map(Message::Power)))
                         }),
                 )
                 .push(
                     self.sub_menu
                         .filter(|menu_type| *menu_type == SubMenu::Power)
-                        .map(|_| {
-                            sub_menu_wrapper(theme, self.power.menu(theme).map(Message::Power))
-                        }),
+                        .map(|_| sub_menu_wrapper(self.power.menu().map(Message::Power))),
                 )
                 .push(top_sink_slider)
                 .push(
@@ -681,8 +666,8 @@ impl Settings {
                         .filter(|menu_type| *menu_type == SubMenu::Sinks)
                         .and_then(|_| {
                             self.audio
-                                .sinks_submenu(id, theme)
-                                .map(|submenu| sub_menu_wrapper(theme, submenu.map(Message::Audio)))
+                                .sinks_submenu(id)
+                                .map(|submenu| sub_menu_wrapper(submenu.map(Message::Audio)))
                         }),
                 )
                 .push(bottom_sink_slider)
@@ -692,25 +677,22 @@ impl Settings {
                         .filter(|menu_type| *menu_type == SubMenu::Sources)
                         .and_then(|_| {
                             self.audio
-                                .sources_submenu(id, theme)
-                                .map(|submenu| sub_menu_wrapper(theme, submenu.map(Message::Audio)))
+                                .sources_submenu(id)
+                                .map(|submenu| sub_menu_wrapper(submenu.map(Message::Audio)))
                         }),
                 )
                 .push(bottom_source_slider)
-                .push(
-                    self.brightness
-                        .slider(theme)
-                        .map(|e| e.map(Message::Brightness)),
-                )
+                .push(self.brightness.slider().map(|e| e.map(Message::Brightness)))
                 .push(quick_settings)
-                .spacing(theme.space.md)
+                .spacing(space.md)
                 .into()
         })
         .width(MenuSize::Medium)
         .into()
     }
 
-    pub fn view<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
+    pub fn view<'a>(&'a self) -> Element<'a, Message> {
+        let space = use_theme(|t| t.space);
         let mut row = Row::with_capacity(self.indicators.len());
 
         for indicator in &self.indicators {
@@ -742,10 +724,8 @@ impl Settings {
                     }
                 }
                 SettingsIndicator::Audio => {
-                    if let Some(element) = self
-                        .audio
-                        .sink_indicator(theme)
-                        .map(|e| e.map(Message::Audio))
+                    if let Some(element) =
+                        self.audio.sink_indicator().map(|e| e.map(Message::Audio))
                     {
                         row = row.push(element);
                     }
@@ -753,7 +733,7 @@ impl Settings {
                 SettingsIndicator::Network => {
                     if let Some(element) = self
                         .network
-                        .connection_indicator(theme)
+                        .connection_indicator()
                         .map(|e| e.map(Message::Network))
                     {
                         row = row.push(element);
@@ -762,7 +742,7 @@ impl Settings {
                 SettingsIndicator::Vpn => {
                     if let Some(element) = self
                         .network
-                        .vpn_indicator(theme)
+                        .vpn_indicator()
                         .map(|e| e.map(Message::Network))
                     {
                         row = row.push(element);
@@ -771,17 +751,15 @@ impl Settings {
                 SettingsIndicator::Bluetooth => {
                     if let Some(element) = self
                         .bluetooth
-                        .bluetooth_indicator(theme)
+                        .bluetooth_indicator()
                         .map(|e| e.map(Message::Bluetooth))
                     {
                         row = row.push(element);
                     }
                 }
                 SettingsIndicator::Microphone => {
-                    if let Some(element) = self
-                        .audio
-                        .source_indicator(theme)
-                        .map(|e| e.map(Message::Audio))
+                    if let Some(element) =
+                        self.audio.source_indicator().map(|e| e.map(Message::Audio))
                     {
                         row = row.push(element);
                     }
@@ -789,7 +767,7 @@ impl Settings {
                 SettingsIndicator::Battery => {
                     if let Some(element) = self
                         .power
-                        .battery_indicator(theme)
+                        .battery_indicator()
                         .map(|e| e.map(Message::Power))
                     {
                         row = row.push(element);
@@ -798,7 +776,7 @@ impl Settings {
                 SettingsIndicator::PeripheralBattery => {
                     if let Some(element) = self
                         .power
-                        .peripheral_indicators(theme)
+                        .peripheral_indicators()
                         .map(|e| e.map(Message::Power))
                     {
                         row = row.push(element);
@@ -807,7 +785,7 @@ impl Settings {
                 SettingsIndicator::Brightness => {
                     if let Some(element) = self
                         .brightness
-                        .brightness_indicator(theme)
+                        .brightness_indicator()
                         .map(|e| e.map(Message::Brightness))
                     {
                         row = row.push(element);
@@ -816,7 +794,7 @@ impl Settings {
             }
         }
 
-        row.spacing(theme.space.xs).into()
+        row.spacing(space.xs).into()
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
@@ -831,13 +809,13 @@ impl Settings {
 }
 
 fn quick_settings_section<'a>(
-    theme: &'a AshellTheme,
     buttons: Vec<(Element<'a, Message>, Option<Element<'a, Message>>)>,
 ) -> Element<'a, Message> {
+    let space = use_theme(|t| t.space);
     // TODO trying to read this function gives me a headache; there's surely
     // a better way to do this, maybe with Iterator::chunks or something?
     // I might be way off though, I still don't fully understand how this works.
-    let mut section = Column::with_capacity(buttons.len() * 3).spacing(theme.space.xs);
+    let mut section = Column::with_capacity(buttons.len() * 3).spacing(space.xs);
 
     let mut before: Option<(Element<'a, Message>, Option<Element<'a, Message>>)> = None;
 
@@ -847,15 +825,15 @@ fn quick_settings_section<'a>(
                 section = section.push(
                     row![before_button, button]
                         .width(Length::Fill)
-                        .spacing(theme.space.xs),
+                        .spacing(space.xs),
                 );
 
                 if let Some(menu) = before_menu {
-                    section = section.push(sub_menu_wrapper(theme, menu));
+                    section = section.push(sub_menu_wrapper(menu));
                 }
 
                 if let Some(menu) = menu {
-                    section = section.push(sub_menu_wrapper(theme, menu));
+                    section = section.push(sub_menu_wrapper(menu));
                 }
             }
             _ => {
@@ -868,11 +846,11 @@ fn quick_settings_section<'a>(
         section = section.push(
             row![before_button, space::horizontal()]
                 .width(Length::Fill)
-                .spacing(theme.space.xs),
+                .spacing(space.xs),
         );
 
         if let Some(menu) = before_menu {
-            section = section.push(sub_menu_wrapper(theme, menu));
+            section = section.push(sub_menu_wrapper(menu));
         }
     }
 

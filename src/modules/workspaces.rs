@@ -5,7 +5,7 @@ use crate::{
         ReadOnlyService, Service, ServiceEvent,
         compositor::{CompositorCommand, CompositorService, CompositorState},
     },
-    theme::AshellTheme,
+    theme::use_theme,
 };
 use iced::{
     Element, Length, Subscription, SurfaceId, alignment,
@@ -395,12 +395,8 @@ impl Workspaces {
         }
     }
 
-    pub fn view<'a>(
-        &'a self,
-        id: SurfaceId,
-        theme: &'a AshellTheme,
-        outputs: &Outputs,
-    ) -> Element<'a, Message> {
+    pub fn view<'a>(&'a self, id: SurfaceId, outputs: &Outputs) -> Element<'a, Message> {
+        let theme = use_theme(|t| t.clone());
         let monitor_name = outputs.get_monitor_name(id);
 
         MouseArea::new(

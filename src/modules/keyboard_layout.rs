@@ -4,7 +4,6 @@ use crate::{
         ReadOnlyService, Service, ServiceEvent,
         compositor::{CompositorCommand, CompositorService},
     },
-    theme::AshellTheme,
 };
 use iced::{Element, Subscription, Task, widget::text};
 
@@ -57,7 +56,7 @@ impl KeyboardLayout {
         }
     }
 
-    pub fn view(&self, _: &AshellTheme) -> Option<Element<'_, Message>> {
+    pub fn view(&self) -> Option<Element<'_, Message>> {
         let service = self.service.as_ref()?;
         let active_layout = &service.keyboard_layout;
 

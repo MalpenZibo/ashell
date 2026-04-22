@@ -1,7 +1,7 @@
 use crate::{
     components::icons::{DynamicIcon, StaticIcon, icon},
     config::CustomModuleDef,
-    theme::AshellTheme,
+    theme::use_theme,
     utils::launcher::execute_command,
 };
 use iced::widget::canvas;
@@ -95,7 +95,8 @@ impl Custom {
         }
     }
 
-    pub fn view(&'_ self, theme: &AshellTheme) -> Element<'_, Message> {
+    pub fn view(&'_ self) -> Element<'_, Message> {
+        let space_xs = use_theme(|theme| theme.space.xs);
         match self.config.r#type {
             crate::config::CustomModuleType::Text => self
                 .data
@@ -137,8 +138,8 @@ impl Custom {
 
                 let icon_with_alert = if show_alert {
                     let alert_canvas = canvas(AlertIndicator)
-                        .width(Length::Fixed(theme.space.xs)) // Size of the dot
-                        .height(Length::Fixed(theme.space.xs));
+                        .width(Length::Fixed(space_xs)) // Size of the dot
+                        .height(Length::Fixed(space_xs));
 
                     // Container to position the dot at the top-right
                     let alert_indicator_container = container(alert_canvas)
@@ -164,9 +165,7 @@ impl Custom {
                 });
 
                 if let Some(text_element) = maybe_text_element {
-                    row![icon_with_alert, text_element]
-                        .spacing(theme.space.xs)
-                        .into()
+                    row![icon_with_alert, text_element].spacing(space_xs).into()
                 } else {
                     icon_with_alert
                 }
