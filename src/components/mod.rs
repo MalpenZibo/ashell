@@ -1,5 +1,6 @@
 pub mod button;
 mod centerbox;
+mod event_card;
 mod format_indicator;
 pub mod icons;
 pub mod menu;
@@ -14,6 +15,7 @@ mod sub_menu_wrapper;
 
 pub use button::*;
 pub use centerbox::*;
+pub use event_card::*;
 pub use format_indicator::*;
 pub use menu::MenuSize;
 pub use menu_wrapper::*;

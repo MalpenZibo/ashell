@@ -13,7 +13,8 @@ forecast, and a seven-day outlook.
 - **Status bar** – current time (using your preferred `clock_format`) and, when weather data is available, an icon +
   temperature badge that match the current conditions.
 - **Menu** – a resizable panel containing:
-    - A calendar with month navigation and highlighted selections.
+    - A calendar with month navigation and highlighted selections, or an agenda-style event list when `calendar_type =
+      "Events"`.
     - Current city, timestamp, weather description, feels-like temperature, humidity, and wind information.
     - A horizontally scrollable hourly forecast.
     - A vertically stacked seven-day forecast with dominant wind direction and speeds.
@@ -26,6 +27,7 @@ forecast, and a seven-day outlook.
 | `formats`           | `array`  | `[]`                 | Multiple datetime formats that can be cycled through by right-clicking the clock. When provided, clicking cycles through each format in sequence.                                                                                                |
 | `timezones`         | `array`  | `[]`                 | Timezone identifiers that can be cycled through by scrolling. Supports both IANA names (e.g., `"UTC"`, `"America/New_York"`) and fixed offsets (e.g., `"+00:00"`, `"-05:00"`).                                                                   |
 | `weather_location`  | `enum`   | `None`               | Determines which coordinates are queried when requesting weather data. `Current` geo-locates via IP using `ip-api.com`. Use the `City` variant to pin the module to a specific place. Use `Coordinates` to specify exact latitude and longitude. |
+| `calendar_type`     | `enum`   | `Calendar`           | Chooses the calendar pane layout. `Calendar` shows the month grid. `Events` shows a day selector plus matching events from configured calendars.                                                                                                 |
 | `weather_indicator` | `enum`   | `IconAndTemperature` | Determines what information about the weather is shown in the bar, valid options are `None`, `Icon`, and `IconAndTemperature`.                                                                                                                   |
 
 ### City-based weather
@@ -53,6 +55,18 @@ If you omit `weather_location`, Tempo renders just the clock and calendar UI—n
 [tempo]
 clock_format = "%a %d %b %R"
 # weather_location left unspecified on purpose
+```
+
+### Calendar type
+
+`calendar_type` controls what appears in the left side of the Tempo menu.
+
+- `Calendar` shows the month grid with day highlighting and month navigation.
+- `Events` shows a selected-day header with left/right day navigation and a list of matching calendar events.
+
+```toml
+[tempo]
+calendar_type = "Events"
 ```
 
 ### Format Cycling
