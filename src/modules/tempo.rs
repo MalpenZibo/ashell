@@ -5,6 +5,7 @@ use crate::{
         styled_button,
     },
     config::{TempoModuleConfig, WeatherIndicator, WeatherLocation},
+    i18n::chrono_locale,
     theme::{AshellTheme, use_theme},
 };
 use chrono::{
@@ -178,6 +179,7 @@ impl Tempo {
         // %Z prints timezone abbreviations; other specifiers (e.g., %z/%:z) only need numeric offsets https://docs.rs/chrono/latest/chrono/format/strftime/index.html#fn6
         let format_requests_name = format.contains("%Z");
         let utc_now = self.date.with_timezone(&Utc);
+        let locale = chrono_locale();
 
         self.config
             .timezones
@@ -187,7 +189,7 @@ impl Tempo {
                     return Some(
                         offset
                             .from_utc_datetime(&utc_now.naive_utc())
-                            .format_localized(format, self.config.locale)
+                            .format_localized(format, locale)
                             .to_string(),
                     );
                 }
@@ -195,18 +197,14 @@ impl Tempo {
                 if let Ok(tz) = tz_name.parse::<Tz>() {
                     return Some(
                         tz.from_utc_datetime(&utc_now.naive_utc())
-                            .format_localized(format, self.config.locale)
+                            .format_localized(format, locale)
                             .to_string(),
                     );
                 }
 
                 None
             })
-            .unwrap_or_else(|| {
-                self.date
-                    .format_localized(format, self.config.locale)
-                    .to_string()
-            })
+            .unwrap_or_else(|| self.date.format_localized(format, locale).to_string())
     }
 
     pub fn weather_indicator(&'_ self) -> Option<Element<'_, Message>> {
@@ -276,6 +274,7 @@ impl Tempo {
     }
 
     fn calendar_with_theme<'a>(&'a self, theme: &AshellTheme) -> Element<'a, Message> {
+        let locale = chrono_locale();
         let selected_date = self
             .selected_date
             .unwrap_or(self.naive_date(self.current_timezone_index));
@@ -308,14 +307,10 @@ impl Tempo {
                     .on_press(Message::ChangeSelectDate(
                         selected_date.checked_sub_months(Months::new(1)),
                     )),
-                text(
-                    selected_date
-                        .format_localized("%B", self.config.locale)
-                        .to_string()
-                )
-                .size(theme.font_size.md)
-                .width(Length::Fill)
-                .align_x(Horizontal::Center),
+                text(selected_date.format_localized("%B", locale).to_string())
+                    .size(theme.font_size.md)
+                    .width(Length::Fill)
+                    .align_x(Horizontal::Center),
                 icon_button::<Message>(StaticIcon::RightChevron)
                     .kind(ButtonKind::Solid)
                     .on_press(Message::ChangeSelectDate(
@@ -339,7 +334,7 @@ impl Tempo {
                     text(
                         NaiveDate::from_isoywd_opt(2000, 20, i)
                             .expect("valid NaiveDate")
-                            .format_localized("%a", self.config.locale)
+                            .format_localized("%a", locale)
                             .to_string(),
                     )
                     .align_x(Horizontal::Center)
@@ -360,28 +355,27 @@ impl Tempo {
                                     current = current.succ_opt().unwrap_or(current);
 
                                     styled_button(Element::from(
-                                        text(
-                                            day.format_localized("%d", self.config.locale)
-                                                .to_string(),
-                                        )
-                                        .align_x(Horizontal::Center)
-                                        .color_maybe({
-                                            if day == self.naive_date(self.current_timezone_index) {
-                                                Some(theme.iced_theme.palette().success)
-                                            } else if day == selected_date {
-                                                Some(theme.iced_theme.palette().primary)
-                                            } else if day.month0() != current_month {
-                                                Some(
-                                                    theme
-                                                        .iced_theme
-                                                        .palette()
-                                                        .text
-                                                        .scale_alpha(0.2),
-                                                )
-                                            } else {
-                                                None
-                                            }
-                                        }),
+                                        text(day.format_localized("%d", locale).to_string())
+                                            .align_x(Horizontal::Center)
+                                            .color_maybe({
+                                                if day
+                                                    == self.naive_date(self.current_timezone_index)
+                                                {
+                                                    Some(theme.iced_theme.palette().success)
+                                                } else if day == selected_date {
+                                                    Some(theme.iced_theme.palette().primary)
+                                                } else if day.month0() != current_month {
+                                                    Some(
+                                                        theme
+                                                            .iced_theme
+                                                            .palette()
+                                                            .text
+                                                            .scale_alpha(0.2),
+                                                    )
+                                                } else {
+                                                    None
+                                                }
+                                            }),
                                     ))
                                     .on_press_maybe(
                                         if day != self.naive_date(self.current_timezone_index) {
@@ -436,18 +430,10 @@ impl Tempo {
         column!(
             styled_button(Element::from(
                 column!(
-                    text(
-                        self.date
-                            .format_localized("%A", self.config.locale)
-                            .to_string()
-                    )
-                    .size(theme.font_size.sm),
-                    text(
-                        self.date
-                            .format_localized("%d %B %Y", self.config.locale)
-                            .to_string()
-                    )
-                    .size(theme.font_size.md),
+                    text(self.date.format_localized("%A", locale).to_string())
+                        .size(theme.font_size.sm),
+                    text(self.date.format_localized("%d %B %Y", locale).to_string())
+                        .size(theme.font_size.md),
                 )
                 .spacing(theme.space.xs),
             ),)
@@ -470,6 +456,7 @@ impl Tempo {
     fn weather<'a>(&'a self) -> Option<Element<'a, Message>> {
         let (space, font_size, opacity, radius) =
             use_theme(|t| (t.space, t.font_size, t.opacity, t.radius));
+        let locale = chrono_locale();
         self.weather_data
             .as_ref()
             .zip(self.location.as_ref())
@@ -653,8 +640,7 @@ impl Tempo {
                                 container(
                                     row!(
                                         text(
-                                            time.format_localized("%a, %d %b", self.config.locale)
-                                                .to_string()
+                                            time.format_localized("%a, %d %b", locale).to_string()
                                         )
                                         .width(Length::Fill),
                                         weather_icon(*weather_code, true)
