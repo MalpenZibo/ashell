@@ -5,6 +5,7 @@ use crate::{
         ButtonHierarchy, ButtonKind, ButtonUIRef, IconPosition, MenuSize, position_button,
         styled_button,
     },
+    config::TrayModuleConfig,
     services::{
         ReadOnlyService, Service, ServiceEvent,
         tray::{
@@ -36,13 +37,26 @@ pub enum Action {
     CloseTrayMenu(String),
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct TrayModule {
     service: Option<TrayService>,
     submenus: Vec<i32>,
+    blocklist: Vec<crate::config::RegexCfg>,
 }
 
 impl TrayModule {
+    pub fn new(config: TrayModuleConfig) -> Self {
+        Self {
+            service: None,
+            submenus: Vec::new(),
+            blocklist: config.blocklist.clone(),
+        }
+    }
+
+    fn is_blocklisted(&self, name: &str) -> bool {
+        self.blocklist.iter().any(|pattern| pattern.is_match(name))
+    }
+
     pub fn update(&mut self, message: Message) -> Action {
         match message {
             Message::Event(event) => match *event {
@@ -190,6 +204,7 @@ impl TrayModule {
                         service
                             .data
                             .iter()
+                            .filter(|item| !self.is_blocklisted(&item.name))
                             .map(|item| {
                                 position_button(match &item.icon {
                                     Some(TrayIcon::Image(handle)) => Into::<Element<_>>::into(

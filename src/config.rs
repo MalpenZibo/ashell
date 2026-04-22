@@ -34,6 +34,7 @@ pub struct Config {
     pub window_title: WindowTitleConfig,
     pub system_info: SystemInfoModuleConfig,
     pub notifications: NotificationsModuleConfig,
+    pub tray: TrayModuleConfig,
     pub tempo: TempoModuleConfig,
     pub settings: SettingsModuleConfig,
     pub appearance: Appearance,
@@ -56,6 +57,7 @@ impl Default for Config {
             window_title: WindowTitleConfig::default(),
             system_info: SystemInfoModuleConfig::default(),
             notifications: NotificationsModuleConfig::default(),
+            tray: TrayModuleConfig::default(),
             tempo: TempoModuleConfig::default(),
             settings: SettingsModuleConfig::default(),
             appearance: Appearance::default(),
@@ -440,6 +442,11 @@ impl Default for NotificationsModuleConfig {
             blocklist: vec![],
         }
     }
+}
+
+#[derive(Deserialize, Clone, Debug, Default)]
+pub struct TrayModuleConfig {
+    pub blocklist: Vec<RegexCfg>,
 }
 
 #[derive(Deserialize, Clone, Debug)]

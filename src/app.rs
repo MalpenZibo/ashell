@@ -138,7 +138,7 @@ impl App {
                     system_info: SystemInfo::new(config.system_info),
                     keyboard_layout: KeyboardLayout::new(config.keyboard_layout),
                     keyboard_submap: KeyboardSubmap::default(),
-                    tray: TrayModule::default(),
+                    tray: TrayModule::new(config.tray),
                     tempo: Tempo::new(config.tempo),
                     privacy: Privacy::default(),
                     settings: Settings::new(config.settings),
