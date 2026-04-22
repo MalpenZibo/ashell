@@ -14,6 +14,7 @@ use std::path::PathBuf;
 mod app;
 mod components;
 mod config;
+mod i18n;
 mod ipc;
 mod modules;
 mod osd;
