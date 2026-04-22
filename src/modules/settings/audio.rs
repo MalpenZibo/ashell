@@ -8,7 +8,7 @@ use crate::{
     config::SettingsFormat,
     services::{
         ReadOnlyService, Service, ServiceEvent,
-        audio::{AudioCommand, AudioService, DevicePortType, Port},
+        audio::{AudioCommand, AudioService, ChannelVolumesExt, DevicePortType, Port},
     },
     theme::AshellTheme,
     utils::IndicatorState,
@@ -97,6 +97,57 @@ impl AudioSettings {
         Self {
             config,
             service: None,
+        }
+    }
+
+    pub fn current_sink_volume(&self) -> Option<u32> {
+        self.service.as_ref().map(|s| s.sink_slider.value())
+    }
+
+    pub fn real_sink_volume(&self) -> Option<u32> {
+        self.service
+            .as_ref()
+            .and_then(|s| s.active_sink().map(|d| d.volume.get_volume()))
+    }
+
+    pub fn is_sink_muted(&self) -> Option<bool> {
+        self.service
+            .as_ref()
+            .and_then(|s| s.active_sink().map(|d| d.is_mute))
+    }
+
+    pub fn vol_max() -> u32 {
+        Volume::NORMAL.0
+    }
+
+    pub fn volume_adjust(&mut self, up: bool) -> Action {
+        let Some(cur) = self.real_sink_volume() else {
+            return Action::None;
+        };
+        let step = 5 * VOL_PERCENT;
+        let new_vol = if up {
+            (cur + step).min(Self::vol_max())
+        } else {
+            cur.saturating_sub(step)
+        };
+        self.update(Message::SinkVolumeChanged(
+            remote_value::Message::RequestAndTimeout(new_vol),
+        ))
+    }
+
+    pub fn toggle_mute(&mut self) -> Action {
+        self.update(Message::ToggleSinkMute)
+    }
+
+    pub fn speaker_icon(muted: bool, normalised: f32) -> StaticIcon {
+        if muted {
+            StaticIcon::Speaker0
+        } else {
+            match (normalised * 100.0) as u32 {
+                0..=33 => StaticIcon::Speaker1,
+                34..=66 => StaticIcon::Speaker2,
+                _ => StaticIcon::Speaker3,
+            }
         }
     }
 
@@ -218,18 +269,9 @@ impl AudioSettings {
             .as_ref()
             .and_then(|service| {
                 service.active_sink().map(|sink| {
-                    (
-                        service,
-                        if sink.is_mute {
-                            StaticIcon::Speaker0
-                        } else {
-                            match service.sink_slider.value() {
-                                v if v <= 33 * VOL_PERCENT => StaticIcon::Speaker1,
-                                v if v <= 66 * VOL_PERCENT => StaticIcon::Speaker2,
-                                _ => StaticIcon::Speaker3,
-                            }
-                        },
-                    )
+                    let vol = service.sink_slider.value();
+                    let norm = vol as f32 / Self::vol_max() as f32;
+                    (service, Self::speaker_icon(sink.is_mute, norm))
                 })
             })
             .map(|(service, icon_type)| {

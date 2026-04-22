@@ -22,6 +22,8 @@ pub struct ShellInfo {
     pub scale_factor: f64,
     /// Optional layer surface used to render toast notifications.
     pub toast_id: Option<SurfaceId>,
+    /// Optional layer surface used to render the OSD overlay.
+    pub osd_id: Option<SurfaceId>,
     /// Logical height of this output (for computing toast input regions).
     pub output_logical_height: Option<u32>,
 }
@@ -35,6 +37,9 @@ impl ShellInfo {
         if let Some(toast_id) = self.toast_id {
             tasks.push(destroy_layer_surface(toast_id));
         }
+        if let Some(osd_id) = self.osd_id {
+            tasks.push(destroy_layer_surface(osd_id));
+        }
         Task::batch(tasks)
     }
 }
@@ -46,6 +51,7 @@ pub enum HasOutput<'a> {
     Main,
     Menu(Option<&'a OpenMenu>),
     Toast,
+    Osd,
 }
 
 impl Outputs {
@@ -68,6 +74,7 @@ impl Outputs {
                 id: SurfaceId::MAIN,
                 menu: Menu::new(),
                 toast_id: None,
+                osd_id: None,
                 position,
                 layer,
                 style,
@@ -137,12 +144,10 @@ impl Outputs {
                     Some(HasOutput::Main)
                 } else if info.menu.surface_id() == Some(id) {
                     Some(HasOutput::Menu(info.menu.open.as_ref()))
-                } else if let Some(toast_id) = info.toast_id {
-                    if toast_id == id {
-                        Some(HasOutput::Toast)
-                    } else {
-                        None
-                    }
+                } else if info.toast_id == Some(id) {
+                    Some(HasOutput::Toast)
+                } else if info.osd_id == Some(id) {
+                    Some(HasOutput::Osd)
                 } else {
                     None
                 }
@@ -205,6 +210,7 @@ impl Outputs {
                     id,
                     menu: Menu::new(),
                     toast_id: None,
+                    osd_id: None,
                     position,
                     layer,
                     style,
@@ -281,6 +287,7 @@ impl Outputs {
                             id,
                             menu: Menu::new(),
                             toast_id: None,
+                            osd_id: None,
                             position,
                             layer,
                             style,
@@ -391,6 +398,7 @@ impl Outputs {
                 shell_info.id = id;
                 shell_info.menu = Menu::new();
                 shell_info.toast_id = None;
+                shell_info.osd_id = None;
                 shell_info.style = style;
                 shell_info.scale_factor = scale_factor;
 
@@ -695,6 +703,43 @@ impl Outputs {
                 && let Some(toast_id) = shell_info.toast_id.take()
             {
                 tasks.push(destroy_layer_surface(toast_id));
+            }
+        }
+        Task::batch(tasks)
+    }
+
+    /// Create a centered bottom-anchored overlay surface per output to render the OSD.
+    pub fn show_osd_layer<Message: 'static>(&mut self, width: u32, height: u32) -> Task<Message> {
+        let mut tasks = vec![];
+        for (_, shell_info, _) in &mut self.0 {
+            if let Some(shell_info) = shell_info
+                && shell_info.osd_id.is_none()
+            {
+                let (osd_id, osd_task) = new_layer_surface(LayerShellSettings {
+                    namespace: "ashell-osd-layer".to_string(),
+                    size: Some((width, height)),
+                    layer: Layer::Overlay,
+                    keyboard_interactivity: KeyboardInteractivity::None,
+                    exclusive_zone: 0,
+                    anchor: Anchor::BOTTOM,
+                    margin: (0, 0, 48, 0),
+                    ..Default::default()
+                });
+
+                shell_info.osd_id = Some(osd_id);
+                tasks.push(osd_task);
+            }
+        }
+        Task::batch(tasks)
+    }
+
+    pub fn hide_osd_layer<Message: 'static>(&mut self) -> Task<Message> {
+        let mut tasks = vec![];
+        for (_, shell_info, _) in &mut self.0 {
+            if let Some(shell_info) = shell_info
+                && let Some(osd_id) = shell_info.osd_id.take()
+            {
+                tasks.push(destroy_layer_surface(osd_id));
             }
         }
         Task::batch(tasks)

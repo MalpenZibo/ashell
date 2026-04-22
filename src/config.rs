@@ -40,6 +40,7 @@ pub struct Config {
     pub media_player: MediaPlayerModuleConfig,
     pub keyboard_layout: KeyboardLayoutModuleConfig,
     pub enable_esc_key: bool,
+    pub osd: OsdConfig,
 }
 
 impl Default for Config {
@@ -62,6 +63,7 @@ impl Default for Config {
             keyboard_layout: KeyboardLayoutModuleConfig::default(),
             custom_modules: vec![],
             enable_esc_key: false,
+            osd: OsdConfig::default(),
         }
     }
 }
@@ -1062,6 +1064,22 @@ pub struct CustomModuleDef {
     #[serde(default)]
     pub r#type: CustomModuleType,
     // .. appearance etc
+}
+
+#[derive(Deserialize, Clone, Debug)]
+#[serde(default)]
+pub struct OsdConfig {
+    pub enabled: bool,
+    pub timeout: u64,
+}
+
+impl Default for OsdConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            timeout: 1500,
+        }
+    }
 }
 
 pub fn get_config(path: Option<PathBuf>) -> Result<(Config, PathBuf), Box<dyn Error + Send>> {
