@@ -355,10 +355,6 @@ impl AshellTheme {
         }
     }
 
-    pub fn get_theme(&self) -> &Theme {
-        &self.iced_theme
-    }
-
     pub fn button_style(
         &self,
         kind: ButtonKind,

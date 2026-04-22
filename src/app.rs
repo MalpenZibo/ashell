@@ -208,7 +208,7 @@ impl App {
     }
 
     pub fn theme(&self) -> Theme {
-        use_theme(|t| t.get_theme().clone())
+        use_theme(|t| t.iced_theme.clone())
     }
 
     pub fn scale_factor(&self) -> f64 {
