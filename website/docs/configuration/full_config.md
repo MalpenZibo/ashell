@@ -6,6 +6,8 @@ sidebar_position: 4
 
 ```toml
 log_level = "warn"
+# language = "en-US"        # UI language; defaults to $LC_MESSAGES / $LANG
+# region   = "it-IT"        # date format + unit system; defaults to $LC_TIME / $LANG
 #outputs = { Targets = ["eDP-1"] }
 position = "Top"
 
