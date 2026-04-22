@@ -23,6 +23,8 @@ pub const DEFAULT_CONFIG_FILE_PATH: &str = "~/.config/ashell/config.toml";
 #[serde(default)]
 pub struct Config {
     pub log_level: String,
+    pub language: Option<String>,
+    pub region: Option<String>,
     pub position: Position,
     pub layer: Layer,
     pub outputs: Outputs,
@@ -48,6 +50,8 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             log_level: "warn".to_owned(),
+            language: None,
+            region: None,
             position: Position::default(),
             layer: Layer::default(),
             outputs: Outputs::default(),
