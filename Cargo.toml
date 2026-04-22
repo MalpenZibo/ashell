@@ -32,6 +32,7 @@ iced = { package = "iced_layershell", git = "https://github.com/MalpenZibo/iced_
   "tokio",
   "advanced",
   "wgpu",
+  "tiny-skia",
   "image",
   "svg",
   "canvas",
