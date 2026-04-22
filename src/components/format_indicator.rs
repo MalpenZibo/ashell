@@ -46,14 +46,14 @@ impl<'a, Msg: 'static + Clone> FormatIndicator<'a, Msg> {
 
 impl<'a, Msg: 'static + Clone> From<FormatIndicator<'a, Msg>> for Element<'a, Msg> {
     fn from(fi: FormatIndicator<'a, Msg>) -> Self {
-        let space_xxs = use_theme(|theme| theme.space.xxs);
+        let space = use_theme(|theme| theme.space);
 
         let content = match fi.format {
             SettingsFormat::Icon => fi.icon.to_text().into(),
             SettingsFormat::Percentage | SettingsFormat::Time => fi.label_element,
             SettingsFormat::IconAndPercentage | SettingsFormat::IconAndTime => {
                 row![fi.icon.to_text(), fi.label_element]
-                    .spacing(space_xxs)
+                    .spacing(space.xxs)
                     .align_y(Alignment::Center)
                     .into()
             }

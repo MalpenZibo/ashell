@@ -380,27 +380,26 @@ impl Notifications {
         style: NotificationStyle,
         urgency: Urgency,
     ) -> impl Fn(&Theme, iced::widget::button::Status) -> iced::widget::button::Style + use<> {
-        let (radius_lg, radius_sm, menu_opacity) =
-            use_theme(|t| (t.radius.lg, t.radius.sm, t.menu.opacity));
+        let (radius, menu_opacity) = use_theme(|t| (t.radius, t.menu.opacity));
         move |iced_theme: &Theme, status| {
             let mut border = match style {
                 NotificationStyle::Toast => Border::default()
                     .width(1)
                     .color(iced_theme.extended_palette().background.weakest.color)
-                    .rounded(radius_lg),
-                NotificationStyle::Standalone => Border::default().rounded(radius_lg),
+                    .rounded(radius.lg),
+                NotificationStyle::Standalone => Border::default().rounded(radius.lg),
                 NotificationStyle::GroupHeader => Border::default().rounded(iced::border::Radius {
-                    top_left: radius_lg,
-                    top_right: radius_lg,
-                    bottom_left: radius_sm,
-                    bottom_right: radius_sm,
+                    top_left: radius.lg,
+                    top_right: radius.lg,
+                    bottom_left: radius.sm,
+                    bottom_right: radius.sm,
                 }),
-                NotificationStyle::GroupItem => Border::default().rounded(radius_sm),
+                NotificationStyle::GroupItem => Border::default().rounded(radius.sm),
                 NotificationStyle::GroupLast => Border::default().rounded(iced::border::Radius {
                     top_left: 0.0,
                     top_right: 0.0,
-                    bottom_left: radius_lg,
-                    bottom_right: radius_lg,
+                    bottom_left: radius.lg,
+                    bottom_right: radius.lg,
                 }),
             };
 
@@ -537,19 +536,19 @@ impl Notifications {
         notification: &'a Notification,
         is_last: bool,
     ) -> Element<'a, Message> {
-        let (space_xs, font_size_sm) = use_theme(|t| (t.space.xs, t.font_size.sm));
+        let (space, font_size) = use_theme(|t| (t.space, t.font_size));
         button(
             column!(
                 row!(
                     text(&notification.summary)
                         .wrapping(text::Wrapping::WordOrGlyph)
                         .width(Length::Fill),
-                    text(self.format_timestamp(notification.timestamp)).size(font_size_sm)
+                    text(self.format_timestamp(notification.timestamp)).size(font_size.sm)
                 ),
                 text(&notification.body).wrapping(text::Wrapping::WordOrGlyph)
             )
-            .padding(space_xs)
-            .spacing(space_xs),
+            .padding(space.xs)
+            .spacing(space.xs),
         )
         .style(Self::notification_button_style(
             if is_last {
@@ -601,12 +600,12 @@ impl Notifications {
     }
 
     pub fn toast_view<'a>(&'a self) -> Element<'a, Message> {
-        let space_sm = use_theme(|t| t.space.sm);
+        let space = use_theme(|t| t.space);
         if self.toasts.is_empty() {
             return Space::new().into();
         }
 
-        let mut toast_column = column!().spacing(space_sm);
+        let mut toast_column = column!().spacing(space.sm);
 
         for &toast_id in &self.toasts {
             if let Some(notification) = self.find_notification(toast_id) {
@@ -628,7 +627,7 @@ impl Notifications {
         let toast_content = sensor(
             container(toast_column)
                 .width(MenuSize::Medium)
-                .padding(space_sm),
+                .padding(space.sm),
         )
         .on_resize(Message::ToastResized);
 

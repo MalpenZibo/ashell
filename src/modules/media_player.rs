@@ -77,8 +77,8 @@ impl MediaPlayer {
     }
 
     pub fn menu_view<'a>(&'a self) -> Element<'a, Message> {
-        let (space, font_size, opacity, radius_lg) =
-            use_theme(|theme| (theme.space, theme.font_size, theme.opacity, theme.radius.lg));
+        let (space, font_size, opacity, radius) =
+            use_theme(|theme| (theme.space, theme.font_size, theme.opacity, theme.radius));
         container(match &self.service {
             None => Into::<Element<'a, Message>>::into(text("Not connected to MPRIS service")),
             Some(service) => column!(
@@ -196,7 +196,7 @@ impl MediaPlayer {
                                     .scale_alpha(opacity),
                             )
                             .into(),
-                            border: Border::default().rounded(radius_lg),
+                            border: Border::default().rounded(radius.lg),
                             ..container::Style::default()
                         })
                         .padding(space.md)
@@ -232,7 +232,7 @@ impl MediaPlayer {
     }
 
     pub fn view(&'_ self) -> Option<Element<'_, Message>> {
-        let (space_xs, font_size_sm) = use_theme(|theme| (theme.space.xs, theme.font_size.sm));
+        let (space, font_size) = use_theme(|theme| (theme.space, theme.font_size));
         self.service.as_ref().and_then(|s| {
             s.players().first().map(|player| {
                 let title =
@@ -240,7 +240,7 @@ impl MediaPlayer {
                         container(
                             text(self.get_title(player))
                                 .wrapping(text::Wrapping::None)
-                                .size(font_size_sm),
+                                .size(font_size.sm),
                         )
                         .clip(true)
                     });
@@ -248,7 +248,7 @@ impl MediaPlayer {
                 row![icon(StaticIcon::MusicNote)]
                     .push(title)
                     .align_y(Vertical::Center)
-                    .spacing(space_xs)
+                    .spacing(space.xs)
                     .into()
             })
         })

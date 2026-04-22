@@ -167,12 +167,12 @@ impl App {
         content: Element<'a, app::Message>,
         button_ui_ref: ButtonUIRef,
     ) -> Element<'a, app::Message> {
-        let (space_md, menu_opacity, radius_lg, bar_style, bar_position, menu_backdrop) =
+        let (space, menu_opacity, radius, bar_style, bar_position, menu_backdrop) =
             use_theme(|t| {
                 (
-                    t.space.md,
+                    t.space,
                     t.menu.opacity,
-                    t.radius.lg,
+                    t.radius,
                     t.bar_style,
                     t.bar_position,
                     t.menu.backdrop,
@@ -182,7 +182,7 @@ impl App {
         components::MenuWrapper::new(
             button_ui_ref.position.x,
             container(content)
-                .padding(space_md)
+                .padding(space.md)
                 .style(move |theme: &Theme| Style {
                     background: Some(theme.palette().background.scale_alpha(menu_opacity).into()),
                     border: Border {
@@ -193,7 +193,7 @@ impl App {
                             .color
                             .scale_alpha(menu_opacity),
                         width: 1.,
-                        radius: radius_lg.into(),
+                        radius: radius.lg.into(),
                     },
                     ..Default::default()
                 })

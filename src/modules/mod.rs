@@ -35,7 +35,7 @@ pub enum OnModulePress {
 
 impl App {
     pub fn modules_section<'a>(&'a self, id: SurfaceId) -> [Element<'a, Message>; 3] {
-        let space_xxs = use_theme(|t| t.space.xxs);
+        let space = use_theme(|t| t.space);
         [
             &self.general_config.modules.left,
             &self.general_config.modules.center,
@@ -45,7 +45,7 @@ impl App {
             let mut row = Row::with_capacity(modules_def.len())
                 .height(Length::Shrink)
                 .align_y(Alignment::Center)
-                .spacing(space_xxs);
+                .spacing(space.xxs);
 
             for module_def in modules_def {
                 row = row.push(match module_def {

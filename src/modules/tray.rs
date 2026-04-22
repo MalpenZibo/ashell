@@ -173,9 +173,9 @@ impl TrayModule {
     }
 
     pub fn view<'a>(&'a self, id: SurfaceId) -> Option<Element<'a, Message>> {
-        let (space_xxs, font_size, button_style) = use_theme(|theme| {
+        let (space, font_size, button_style) = use_theme(|theme| {
             (
-                theme.space.xxs,
+                theme.space,
                 theme.font_size,
                 theme.button_style(ButtonKind::Transparent, ButtonHierarchy::Secondary),
             )
@@ -209,7 +209,7 @@ impl TrayModule {
                                 .on_press_with_position(move |button_ui_ref| {
                                     Message::ToggleMenu(item.name.to_owned(), id, button_ui_ref)
                                 })
-                                .padding(space_xxs)
+                                .padding(space.xxs)
                                 .style(move |t, s| button_style(t, s))
                                 .into()
                             })
@@ -221,7 +221,7 @@ impl TrayModule {
     }
 
     pub fn menu_view<'a>(&'a self, name: &'a str) -> Element<'a, Message> {
-        let space_xs = use_theme(|theme| theme.space.xs);
+        let space = use_theme(|theme| theme.space);
         container(
             match self
                 .service
@@ -235,7 +235,7 @@ impl TrayModule {
                         .filter(|menu| menu.1.visible != Some(false))
                         .map(|menu| self.menu_voice(name, menu)),
                 )
-                .spacing(space_xs),
+                .spacing(space.xs),
                 _ => Column::new(),
             },
         )

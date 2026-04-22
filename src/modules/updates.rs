@@ -162,14 +162,14 @@ impl Updates {
     }
 
     pub fn view(&'_ self) -> Element<'_, Message> {
-        let space_xxs = use_theme(|theme| theme.space.xxs);
+        let space = use_theme(|theme| theme.space);
         let mut content = row!(container(icon(match self.state {
             State::Checking => StaticIcon::Refresh,
             State::Ready if self.updates.is_empty() => StaticIcon::NoUpdatesAvailable,
             _ => StaticIcon::UpdatesAvailable,
         })))
         .align_y(Alignment::Center)
-        .spacing(space_xxs);
+        .spacing(space.xxs);
 
         if !self.updates.is_empty() {
             content = content.push(text(self.updates.len()));
@@ -255,8 +255,8 @@ impl Updates {
     }
 
     fn update_buttons<'a>(&'a self, id: SurfaceId) -> Element<'a, Message> {
-        let space_xs = use_theme(|theme| theme.space.xs);
-        let mut buttons = column!().spacing(space_xs);
+        let space = use_theme(|theme| theme.space);
+        let mut buttons = column!().spacing(space.xs);
 
         if !self.updates.is_empty() {
             buttons = buttons.push(
@@ -272,7 +272,7 @@ impl Updates {
                     .on_press(Message::CheckNow)
                     .width(Length::Fill),
             )
-            .spacing(space_xs)
+            .spacing(space.xs)
             .width(MenuSize::Small)
             .into()
     }

@@ -60,7 +60,7 @@ impl<'a, Msg: 'static + Clone> SliderControl<'a, Msg> {
 
 impl<'a, Msg: 'static + Clone> From<SliderControl<'a, Msg>> for Element<'a, Msg> {
     fn from(ctrl: SliderControl<'a, Msg>) -> Self {
-        let space_xs = use_theme(|theme| theme.space.xs);
+        let space = use_theme(|theme| theme.space);
 
         let icon_element: Element<'a, Msg> = if let Some(msg) = ctrl.on_icon_press {
             let btn = icon_button(ctrl.icon.clone()).on_press(msg);
@@ -100,7 +100,7 @@ impl<'a, Msg: 'static + Clone> From<SliderControl<'a, Msg>> for Element<'a, Msg>
             .push(slider_element)
             .push(trailing)
             .align_y(Alignment::Center)
-            .spacing(space_xs)
+            .spacing(space.xs)
             .into()
     }
 }

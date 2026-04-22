@@ -322,15 +322,14 @@ impl SystemInfo {
         label: String,
         value: String,
     ) -> Element<'a, Message> {
-        let (font_size_xl, space_xl, space_xs) =
-            use_theme(|t| (t.font_size.xl, t.space.xl, t.space.xs));
+        let (font_size, space) = use_theme(|t| (t.font_size, t.space));
         row!(
-            container(icon(info_icon).size(font_size_xl)).center_x(Length::Fixed(space_xl)),
+            container(icon(info_icon).size(font_size.xl)).center_x(Length::Fixed(space.xl)),
             text(label).width(Length::Fill),
             text(value)
         )
         .align_y(Alignment::Center)
-        .spacing(space_xs)
+        .spacing(space.xs)
         .into()
     }
 
@@ -340,7 +339,7 @@ impl SystemInfo {
         threshold: Option<(V, V, V)>,
         prefix: Option<&str>,
     ) -> Element<'a, Message> {
-        let space_xxs = use_theme(|t| t.space.xxs);
+        let space = use_theme(|t| t.space);
         let element = container(
             row!(
                 icon(info_icon),
@@ -350,7 +349,7 @@ impl SystemInfo {
                     text(format!("{display}{unit}"))
                 }
             )
-            .spacing(space_xxs),
+            .spacing(space.xxs),
         );
 
         if let Some((value, warn_threshold, alert_threshold)) = threshold {
@@ -372,11 +371,10 @@ impl SystemInfo {
     }
 
     pub fn menu_view(&'_ self) -> Element<'_, Message> {
-        let (font_size_lg, space_xs, space_xxs) =
-            use_theme(|t| (t.font_size.lg, t.space.xs, t.space.xxs));
+        let (font_size, space) = use_theme(|t| (t.font_size, t.space));
         container(
             column!(
-                text("System Info").size(font_size_lg),
+                text("System Info").size(font_size.lg),
                 divider(),
                 Column::with_capacity(6)
                     .push(Self::info_element(
@@ -441,7 +439,7 @@ impl SystemInfo {
                                 })
                                 .collect::<Vec<Element<_>>>(),
                         )
-                        .spacing(space_xxs),
+                        .spacing(space.xxs),
                     )
                     .push(self.data.network.as_ref().map(|network| {
                         Column::with_children(vec![
@@ -470,17 +468,17 @@ impl SystemInfo {
                             ),
                         ])
                     }))
-                    .spacing(space_xxs)
-                    .padding([0.0, space_xs])
+                    .spacing(space.xxs)
+                    .padding([0.0, space.xs])
             )
-            .spacing(space_xs),
+            .spacing(space.xs),
         )
         .width(MenuSize::Medium)
         .into()
     }
 
     pub fn view(&'_ self) -> Element<'_, Message> {
-        let space_xxs = use_theme(|t| t.space.xxs);
+        let space = use_theme(|t| t.space);
         let indicators = self.config.indicators.iter().filter_map(|i| match i {
             SystemInfoIndicator::Cpu => Some(Self::indicator_info_element(
                 StaticIcon::Cpu,
@@ -620,7 +618,7 @@ impl SystemInfo {
 
         Row::with_children(indicators)
             .align_y(Alignment::Center)
-            .spacing(space_xxs)
+            .spacing(space.xxs)
             .into()
     }
 

@@ -10,7 +10,7 @@ use crate::{
         ReadOnlyService, Service, ServiceEvent,
         bluetooth::{BluetoothCommand, BluetoothDevice, BluetoothService, BluetoothState},
     },
-    theme::use_theme,
+    theme::{AshellTheme, use_theme},
     utils::IndicatorState,
 };
 use iced::{
@@ -210,7 +210,14 @@ impl BluetoothSettings {
     }
 
     fn bluetooth_menu<'a>(&'a self, id: SurfaceId) -> Option<Element<'a, Message>> {
-        let theme = use_theme(|t| t.clone());
+        use_theme(|theme| self.bluetooth_menu_with_theme(id, theme))
+    }
+
+    fn bluetooth_menu_with_theme<'a>(
+        &'a self,
+        id: SurfaceId,
+        theme: &AshellTheme,
+    ) -> Option<Element<'a, Message>> {
         self.service.as_ref().map(|service| {
             let connected_devices = service
                 .devices
@@ -372,7 +379,7 @@ impl BluetoothSettings {
     }
 
     fn battery_level<'a>(battery: u8) -> Element<'a, Message> {
-        let space_xs = use_theme(|t| t.space.xs);
+        let space = use_theme(|t| t.space);
         container(
             row!(
                 icon(match battery {
@@ -384,7 +391,7 @@ impl BluetoothSettings {
                 }),
                 text(format!("{battery}%"))
             )
-            .spacing(space_xs)
+            .spacing(space.xs)
             .width(Length::Shrink),
         )
         .style(move |theme: &Theme| container::Style {

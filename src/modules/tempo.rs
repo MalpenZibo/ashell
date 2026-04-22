@@ -5,7 +5,7 @@ use crate::{
         styled_button,
     },
     config::{TempoModuleConfig, WeatherIndicator, WeatherLocation},
-    theme::use_theme,
+    theme::{AshellTheme, use_theme},
 };
 use chrono::{
     DateTime, Datelike, Days, FixedOffset, Local, Months, NaiveDate, NaiveDateTime, TimeZone, Utc,
@@ -163,14 +163,14 @@ impl Tempo {
     }
 
     pub fn view(&'_ self) -> Element<'_, Message> {
-        let space_sm = use_theme(|t| t.space.sm);
+        let space = use_theme(|t| t.space);
         let display_text = self.time_str(self.current_format(), self.current_timezone_index);
 
         Row::with_capacity(2)
             .push(self.weather_indicator())
             .push(text(display_text))
             .align_y(Vertical::Center)
-            .spacing(space_sm)
+            .spacing(space.sm)
             .into()
     }
 
@@ -210,7 +210,7 @@ impl Tempo {
     }
 
     pub fn weather_indicator(&'_ self) -> Option<Element<'_, Message>> {
-        let (font_size_sm, space_xxs) = use_theme(|t| (t.font_size.sm, t.space.xxs));
+        let (font_size, space) = use_theme(|t| (t.font_size, t.space));
         if self.config.weather_location.is_none()
             || self.config.weather_indicator == WeatherIndicator::None
         {
@@ -223,29 +223,29 @@ impl Tempo {
                 Row::new()
                     .push(
                         weather_icon(data.current.weather_code, data.current.is_day > 0)
-                            .width(Length::Fixed(font_size_sm)),
+                            .width(Length::Fixed(font_size.sm)),
                     )
                     .push(
                         (self.config.weather_indicator == WeatherIndicator::IconAndTemperature)
                             .then(|| {
                                 text(format!("{}°C", data.current.temperature_2m))
                                     .align_y(Vertical::Center)
-                                    .size(font_size_sm)
+                                    .size(font_size.sm)
                             }),
                     )
                     .align_y(Vertical::Center)
-                    .spacing(space_xxs)
+                    .spacing(space.xxs)
                     .into()
             })
     }
 
     pub fn menu_view<'a>(&'a self) -> Element<'a, Message> {
-        let space_lg = use_theme(|t| t.space.lg);
+        let space = use_theme(|t| t.space);
         container(
             Row::with_capacity(2)
                 .push(self.calendar())
                 .push(self.weather())
-                .spacing(space_lg),
+                .spacing(space.lg),
         )
         .max_width(MenuSize::XLarge)
         .into()
@@ -272,7 +272,10 @@ impl Tempo {
     }
 
     fn calendar<'a>(&'a self) -> Element<'a, Message> {
-        let theme = use_theme(|t| t.clone());
+        use_theme(|theme| self.calendar_with_theme(theme))
+    }
+
+    fn calendar_with_theme<'a>(&'a self, theme: &AshellTheme) -> Element<'a, Message> {
         let selected_date = self
             .selected_date
             .unwrap_or(self.naive_date(self.current_timezone_index));
@@ -465,8 +468,8 @@ impl Tempo {
     }
 
     fn weather<'a>(&'a self) -> Option<Element<'a, Message>> {
-        let (space, font_size, opacity, radius_lg, radius_sm) =
-            use_theme(|t| (t.space, t.font_size, t.opacity, t.radius.lg, t.radius.sm));
+        let (space, font_size, opacity, radius) =
+            use_theme(|t| (t.space, t.font_size, t.opacity, t.radius));
         self.weather_data
             .as_ref()
             .zip(self.location.as_ref())
@@ -569,7 +572,7 @@ impl Tempo {
                                 .scale_alpha(opacity),
                         )
                         .into(),
-                        border: Border::default().rounded(radius_lg),
+                        border: Border::default().rounded(radius.lg),
                         ..container::Style::default()
                     }),
                     container(
@@ -627,7 +630,7 @@ impl Tempo {
                                 .scale_alpha(opacity),
                         )
                         .into(),
-                        border: Border::default().rounded(radius_lg),
+                        border: Border::default().rounded(radius.lg),
                         ..container::Style::default()
                     }),
                     Column::with_children(
@@ -697,17 +700,17 @@ impl Tempo {
                                     )
                                     .into(),
                                     border: Border::default().rounded(iced::border::Radius {
-                                        top_left: if index == 0 { radius_lg } else { radius_sm },
-                                        top_right: if index == 0 { radius_lg } else { radius_sm },
+                                        top_left: if index == 0 { radius.lg } else { radius.sm },
+                                        top_right: if index == 0 { radius.lg } else { radius.sm },
                                         bottom_right: if index == last_index {
-                                            radius_lg
+                                            radius.lg
                                         } else {
-                                            radius_sm
+                                            radius.sm
                                         },
                                         bottom_left: if index == last_index {
-                                            radius_lg
+                                            radius.lg
                                         } else {
-                                            radius_sm
+                                            radius.sm
                                         },
                                     }),
                                     ..container::Style::default()
