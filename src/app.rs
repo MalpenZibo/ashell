@@ -250,6 +250,28 @@ impl App {
                     muted,
                 ))
             }
+            IpcCommand::MicrophoneUp { .. } | IpcCommand::MicrophoneDown { .. } => {
+                // Use slider value — it has the optimistic RequestAndTimeout update,
+                // which was computed from real_source_volume in microphone_adjust().
+                let vol = self.settings.audio().current_source_volume().unwrap_or(0);
+                let muted = self.settings.audio().is_source_muted().unwrap_or(false);
+                Some((
+                    OsdKind::Microphone,
+                    normalise(vol, audio::AudioSettings::mic_max()),
+                    muted,
+                ))
+            }
+            IpcCommand::MicrophoneToggleMute { .. } => {
+                let vol = self.settings.audio().real_source_volume().unwrap_or(0);
+                // Invert: the toggle was just sent but PulseAudio hasn't
+                // round-tripped yet, so the current state is stale.
+                let muted = !self.settings.audio().is_source_muted().unwrap_or(false);
+                Some((
+                    OsdKind::Microphone,
+                    normalise(vol, audio::AudioSettings::mic_max()),
+                    muted,
+                ))
+            }
             IpcCommand::BrightnessUp { .. } | IpcCommand::BrightnessDown { .. } => self
                 .settings
                 .brightness()
@@ -497,6 +519,11 @@ impl App {
                     IpcCommand::VolumeUp { .. } => self.settings.volume_adjust(true),
                     IpcCommand::VolumeDown { .. } => self.settings.volume_adjust(false),
                     IpcCommand::VolumeToggleMute { .. } => self.settings.toggle_mute(),
+                    IpcCommand::MicrophoneUp { .. } => self.settings.microphone_adjust(true),
+                    IpcCommand::MicrophoneDown { .. } => self.settings.microphone_adjust(false),
+                    IpcCommand::MicrophoneToggleMute { .. } => {
+                        self.settings.microphone_toggle_mute()
+                    }
                     IpcCommand::BrightnessUp { .. } => self.settings.brightness_adjust(true),
                     IpcCommand::BrightnessDown { .. } => self.settings.brightness_adjust(false),
                     IpcCommand::AirplaneToggle { .. } => self.settings.toggle_airplane(),

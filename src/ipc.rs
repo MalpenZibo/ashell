@@ -33,6 +33,18 @@ pub enum IpcCommand {
         #[arg(long)]
         no_osd: bool,
     },
+    MicrophoneUp {
+        #[arg(long)]
+        no_osd: bool,
+    },
+    MicrophoneDown {
+        #[arg(long)]
+        no_osd: bool,
+    },
+    MicrophoneToggleMute {
+        #[arg(long)]
+        no_osd: bool,
+    },
     BrightnessUp {
         #[arg(long)]
         no_osd: bool,
@@ -54,6 +66,9 @@ impl IpcCommand {
             IpcCommand::VolumeUp { no_osd }
             | IpcCommand::VolumeDown { no_osd }
             | IpcCommand::VolumeToggleMute { no_osd }
+            | IpcCommand::MicrophoneUp { no_osd }
+            | IpcCommand::MicrophoneDown { no_osd }
+            | IpcCommand::MicrophoneToggleMute { no_osd }
             | IpcCommand::BrightnessUp { no_osd }
             | IpcCommand::BrightnessDown { no_osd }
             | IpcCommand::AirplaneToggle { no_osd } => *no_osd,
@@ -70,6 +85,9 @@ impl fmt::Display for IpcCommand {
             IpcCommand::VolumeUp { .. } => "volume-up",
             IpcCommand::VolumeDown { .. } => "volume-down",
             IpcCommand::VolumeToggleMute { .. } => "volume-toggle-mute",
+            IpcCommand::MicrophoneUp { .. } => "microphone-up",
+            IpcCommand::MicrophoneDown { .. } => "microphone-down",
+            IpcCommand::MicrophoneToggleMute { .. } => "microphone-toggle-mute",
             IpcCommand::BrightnessUp { .. } => "brightness-up",
             IpcCommand::BrightnessDown { .. } => "brightness-down",
             IpcCommand::AirplaneToggle { .. } => "airplane-toggle",
@@ -95,6 +113,9 @@ impl FromStr for IpcCommand {
             "volume-up" => Ok(IpcCommand::VolumeUp { no_osd }),
             "volume-down" => Ok(IpcCommand::VolumeDown { no_osd }),
             "volume-toggle-mute" => Ok(IpcCommand::VolumeToggleMute { no_osd }),
+            "microphone-up" => Ok(IpcCommand::MicrophoneUp { no_osd }),
+            "microphone-down" => Ok(IpcCommand::MicrophoneDown { no_osd }),
+            "microphone-toggle-mute" => Ok(IpcCommand::MicrophoneToggleMute { no_osd }),
             "brightness-up" => Ok(IpcCommand::BrightnessUp { no_osd }),
             "brightness-down" => Ok(IpcCommand::BrightnessDown { no_osd }),
             "airplane-toggle" => Ok(IpcCommand::AirplaneToggle { no_osd }),

@@ -151,6 +151,53 @@ impl AudioSettings {
         }
     }
 
+    pub fn current_source_volume(&self) -> Option<u32> {
+        self.service.as_ref().map(|s| s.source_slider.value())
+    }
+
+    pub fn real_source_volume(&self) -> Option<u32> {
+        self.service
+            .as_ref()
+            .and_then(|s| s.active_source().map(|d| d.volume.get_volume()))
+    }
+
+    pub fn is_source_muted(&self) -> Option<bool> {
+        self.service
+            .as_ref()
+            .and_then(|s| s.active_source().map(|d| d.is_mute))
+    }
+
+    pub fn mic_max() -> u32 {
+        Volume::NORMAL.0
+    }
+
+    pub fn microphone_adjust(&mut self, up: bool) -> Action {
+        let Some(cur) = self.real_source_volume() else {
+            return Action::None;
+        };
+        let step = 5 * VOL_PERCENT;
+        let new_vol = if up {
+            (cur + step).min(Self::mic_max())
+        } else {
+            cur.saturating_sub(step)
+        };
+        self.update(Message::SourceVolumeChanged(
+            remote_value::Message::RequestAndTimeout(new_vol),
+        ))
+    }
+
+    pub fn microphone_toggle_mute(&mut self) -> Action {
+        self.update(Message::ToggleSourceMute)
+    }
+
+    pub fn microphone_icon(muted: bool) -> StaticIcon {
+        if muted {
+            StaticIcon::Mic0
+        } else {
+            StaticIcon::Mic1
+        }
+    }
+
     pub fn update(&mut self, message: Message) -> Action {
         match message {
             Message::Event(event) => match event {
@@ -293,16 +340,9 @@ impl AudioSettings {
         self.service
             .as_ref()
             .and_then(|service| {
-                service.active_source().map(|source| {
-                    (
-                        service,
-                        if source.is_mute {
-                            StaticIcon::Mic0
-                        } else {
-                            StaticIcon::Mic1
-                        },
-                    )
-                })
+                service
+                    .active_source()
+                    .map(|source| (service, Self::microphone_icon(source.is_mute)))
             })
             .map(|(service, icon_type)| {
                 let volume = service.source_slider.value();
