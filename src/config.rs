@@ -227,12 +227,22 @@ impl Default for SystemInfoMemory {
 const DEFAULT_TEMP_WARN_CELSIUS: i32 = 60;
 const DEFAULT_TEMP_ALERT_CELSIUS: i32 = 80;
 
+#[derive(Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub enum TemperatureSensorType {
+    #[default]
+    Cpu,
+    Gpu,
+    Acpi,
+    Nvme,
+}
+
 #[derive(Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct SystemInfoTemperature {
     warn_threshold: Option<i32>,
     alert_threshold: Option<i32>,
-    pub sensor: String,
+    pub sensor_type: TemperatureSensorType,
+    pub sensor: Option<String>,
     pub format: TemperatureFormat,
 }
 
@@ -265,7 +275,8 @@ impl Default for SystemInfoTemperature {
         Self {
             warn_threshold: None,
             alert_threshold: None,
-            sensor: "acpitz temp1".to_string(),
+            sensor_type: TemperatureSensorType::default(),
+            sensor: None,
             format: TemperatureFormat::Celsius,
         }
     }

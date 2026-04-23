@@ -111,8 +111,17 @@ The Temperature indicator displays the current temperature from the configured s
 
 To enable this indicator, add `Temperature` to the `indicators` configuration.
 
-By default, the temperature sensor used is `acpitz temp1` (ACPI thermal zone).
-You can configure which sensor to use with the `sensor` option in the `[system_info.temperature]` section.
+By default, the temperature sensor is auto-detected based on the `sensor_type` option.
+The default sensor type is `Cpu`, which will look for `k10temp` (AMD) or `coretemp` (Intel) sensors.
+
+You can configure the sensor type with `sensor_type`:
+
+- `"Cpu"` (default) — CPU temperature (coretemp/k10temp)
+- `"Gpu"` — GPU temperature (amdgpu/nouveau)
+- `"Acpi"` — ACPI thermal zone (acpitz)
+- `"Nvme"` — NVMe SSD temperature
+
+Alternatively, you can specify a exact sensor name with the `sensor` option to override auto-detection:
 
 You can also change the display format using the `format` option:
 
@@ -226,6 +235,7 @@ format = "Percentage"
 [system_info.temperature]
 warn_threshold = 60
 alert_threshold = 80
-sensor = "acpitz temp1"
+sensor_type = "Cpu"  # "Cpu", "Gpu", "Acpi", or "Nvme"
+# sensor = "k10temp Tctl"  # optional: override with specific sensor
 format = "Celsius"
 ```

@@ -4,7 +4,7 @@ use crate::{
     components::icons::{StaticIcon, icon},
     config::{
         CpuFormat, DiskFormat, MemoryFormat, SystemInfoIndicator, SystemInfoModuleConfig,
-        TemperatureFormat,
+        SystemInfoTemperature, TemperatureFormat, TemperatureSensorType,
     },
     theme::use_theme,
     utils,
@@ -15,6 +15,7 @@ use iced::{
     widget::{Column, Row, column, container, row, text},
 };
 use itertools::Itertools;
+use log::{info, warn};
 use std::time::{Duration, Instant};
 use sysinfo::{Components, Disks, Networks, System};
 
@@ -80,13 +81,79 @@ struct SystemInfoData {
     network: Option<NetworkData>,
 }
 
+fn find_first_sensor_label(labels: &[&str], components: &Components) -> Option<String> {
+    labels
+        .iter()
+        .find(|&&label| components.iter().any(|c| c.label() == label))
+        .map(|&label| label.to_string())
+}
+
+fn get_temperature_sensor_label(
+    temperature_config: &SystemInfoTemperature,
+    components: &Components,
+) -> Option<String> {
+    if let Some(sensor) = temperature_config.sensor.as_deref() {
+        if components.iter().any(|c| c.label() == sensor) {
+            info!(
+                "Using manually configured temperature sensor: {} (type {:?})",
+                sensor, temperature_config.sensor_type
+            );
+            Some(sensor.to_string())
+        } else {
+            warn!(
+                "Configured temperature sensor '{}' not found in component list",
+                sensor
+            );
+            None
+        }
+    } else {
+        let sensor_label = match temperature_config.sensor_type {
+            TemperatureSensorType::Cpu => {
+                find_first_sensor_label(&["coretemp Package id 0", "coretemp Core 0"], components)
+                    .or_else(|| {
+                        components
+                            .iter()
+                            .find(|c| c.label().starts_with("k10temp"))
+                            .map(|c| c.label().to_string())
+                    })
+            }
+            TemperatureSensorType::Gpu => components
+                .iter()
+                .find(|c| c.label().starts_with("xe"))
+                .map(|c| c.label().to_string())
+                .or_else(|| find_first_sensor_label(&["amdgpu edge", "nouveau temp1"], components)),
+            TemperatureSensorType::Acpi => {
+                find_first_sensor_label(&["acpitz temp1", "acpitz temp0"], components)
+            }
+            TemperatureSensorType::Nvme => components
+                .iter()
+                .find(|c| c.label().starts_with("nvme"))
+                .map(|c| c.label().to_string()),
+        };
+
+        if let Some(ref label) = sensor_label {
+            info!(
+                "Auto-detected temperature sensor for {:?}: {}",
+                temperature_config.sensor_type, label
+            );
+        } else {
+            warn!(
+                "No temperature sensor found for {:?} type",
+                temperature_config.sensor_type
+            );
+        }
+
+        sensor_label
+    }
+}
+
 fn get_system_info(
     system: &mut System,
     components: &mut Components,
     disks: &mut Disks,
     (networks, last_check): (&mut Networks, Option<Instant>),
-    temperature_sensor: &str,
-    sensor_index: Option<usize>,
+    temperature_config: &SystemInfoTemperature,
+    cached_sensor_label: &mut Option<String>,
 ) -> SystemInfoData {
     system.refresh_memory();
     system.refresh_cpu_all();
@@ -135,15 +202,38 @@ fn get_system_info(
         ),
     };
 
-    let temperature_cel = sensor_index
-        .and_then(|i| components.get(i))
-        .and_then(|c| c.temperature().map(|t| t as i32))
-        .or_else(|| {
+    let temperature_cel = if let Some(sensor) = temperature_config.sensor.as_deref() {
+        components
+            .iter()
+            .find(|c| c.label() == sensor)
+            .and_then(|c| c.temperature().map(|t| t as i32))
+    } else {
+        if cached_sensor_label.is_none() {
+            *cached_sensor_label = get_temperature_sensor_label(temperature_config, components);
+        }
+
+        let mut reading = cached_sensor_label.as_ref().and_then(|label| {
             components
                 .iter()
-                .find(|c| c.label() == temperature_sensor)
+                .find(|c| c.label() == label)
                 .and_then(|c| c.temperature().map(|t| t as i32))
         });
+
+        if reading.is_none() {
+            if let Some(label) = (*cached_sensor_label).take() {
+                warn!("Cached sensor '{}' invalid; re-detecting", label);
+            }
+            *cached_sensor_label = get_temperature_sensor_label(temperature_config, components);
+            reading = cached_sensor_label.as_ref().and_then(|label| {
+                components
+                    .iter()
+                    .find(|c| c.label() == label)
+                    .and_then(|c| c.temperature().map(|t| t as i32))
+            });
+        }
+
+        reading
+    };
 
     let temperature = Temperature {
         celsius: temperature_cel,
@@ -265,7 +355,7 @@ pub struct SystemInfo {
     disks: Disks,
     networks: Networks,
     data: SystemInfoData,
-    cached_sensor_index: Option<usize>,
+    cached_sensor_label: Option<String>,
 }
 
 impl SystemInfo {
@@ -275,18 +365,22 @@ impl SystemInfo {
         let mut disks = Disks::new_with_refreshed_list();
         let mut networks = Networks::new_with_refreshed_list();
 
-        let cached_sensor_index = components
-            .iter()
-            .position(|c| c.label() == config.temperature.sensor);
+        let mut cached_sensor_label = None;
 
         let data = get_system_info(
             &mut system,
             &mut components,
             &mut disks,
             (&mut networks, None),
-            config.temperature.sensor.as_str(),
-            cached_sensor_index,
+            &config.temperature,
+            &mut cached_sensor_label,
         );
+
+        if let Some(label) = cached_sensor_label.as_ref() {
+            info!("Using temperature sensor: {}", label);
+        } else if let Some(sensor) = config.temperature.sensor.as_deref() {
+            info!("Using temperature sensor: {}", sensor);
+        }
 
         Self {
             config,
@@ -295,7 +389,7 @@ impl SystemInfo {
             disks,
             data,
             networks,
-            cached_sensor_index,
+            cached_sensor_label,
         }
     }
 
@@ -310,8 +404,8 @@ impl SystemInfo {
                         &mut self.networks,
                         self.data.network.as_ref().map(|n| n.last_check),
                     ),
-                    &self.config.temperature.sensor,
-                    self.cached_sensor_index,
+                    &self.config.temperature,
+                    &mut self.cached_sensor_label,
                 );
             }
         }
