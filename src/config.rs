@@ -311,6 +311,7 @@ pub struct SystemInfoDisk {
     pub warn_threshold: u32,
     pub alert_threshold: u32,
     pub format: DiskFormat,
+    pub deduplicate: bool,
 }
 
 impl SystemInfoDisk {
@@ -325,6 +326,7 @@ impl Default for SystemInfoDisk {
             warn_threshold: 80,
             alert_threshold: 90,
             format: DiskFormat::Percentage,
+            deduplicate: true,
         }
     }
 }
