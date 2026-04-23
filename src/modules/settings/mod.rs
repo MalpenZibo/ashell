@@ -168,8 +168,10 @@ impl Settings {
                 config.shutdown_cmd,
                 config.logout_cmd,
                 config.battery_format,
+                config.battery_hide_when_full,
                 config.peripheral_indicators,
                 config.peripheral_battery_format,
+                config.peripheral_expanded_by_default,
             )),
             audio: AudioSettings::new(AudioSettingsConfig::new(
                 config.audio_sinks_more_cmd,
@@ -408,7 +410,11 @@ impl Settings {
                 Action::None
             }
             Message::MenuOpened => {
-                self.sub_menu = None;
+                self.sub_menu = if self.power.config.peripheral_expanded_by_default {
+                    Some(SubMenu::PeripheralMenu)
+                } else {
+                    None
+                };
 
                 let buttons = self.custom_buttons.clone();
 
@@ -475,8 +481,10 @@ impl Settings {
                         config.shutdown_cmd,
                         config.logout_cmd,
                         config.battery_format,
+                        config.battery_hide_when_full,
                         config.peripheral_indicators,
                         config.peripheral_battery_format,
+                        config.peripheral_expanded_by_default,
                     )));
                 self.audio
                     .update(audio::Message::ConfigReloaded(AudioSettingsConfig::new(

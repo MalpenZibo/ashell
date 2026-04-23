@@ -92,6 +92,17 @@ The possible values are:
 battery_format = "IconAndPercentage"
 ```
 
+### Battery Hide When Full
+
+With the `battery_hide_when_full` option you can hide the battery indicator when the battery is fully charged.
+
+The default value is `false`.
+
+```toml
+[settings]
+battery_hide_when_full = true
+```
+
 ### Battery Time Display Behavior
 
 The `Time` and `IconAndTime` formats provide intelligent time display:
@@ -144,6 +155,17 @@ audio_indicator_format = "Icon"
 microphone_indicator_format = "Icon"
 network_indicator_format = "Icon"
 bluetooth_indicator_format = "Icon"
+```
+
+### Peripheral Expanded By Default
+
+When set to `true`, the peripheral battery submenu will be open by default when opening the settings menu.
+
+The default value is `false`.
+
+```toml
+[settings]
+peripheral_expanded_by_default = true
 ```
 
 ### Audio Format

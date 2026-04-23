@@ -72,8 +72,10 @@ pub struct PowerSettingsConfig {
     pub shutdown_cmd: String,
     pub logout_cmd: String,
     pub battery_format: SettingsFormat,
+    pub battery_hide_when_full: bool,
     pub peripheral_indicators: PeripheralIndicators,
     pub peripheral_battery_format: SettingsFormat,
+    pub peripheral_expanded_by_default: bool,
 }
 
 impl PowerSettingsConfig {
@@ -85,8 +87,10 @@ impl PowerSettingsConfig {
         shutdown_cmd: String,
         logout_cmd: String,
         battery_format: SettingsFormat,
+        battery_hide_when_full: bool,
         peripheral_indicators: PeripheralIndicators,
         peripheral_battery_format: SettingsFormat,
+        peripheral_expanded_by_default: bool,
     ) -> Self {
         Self {
             suspend_cmd,
@@ -95,14 +99,16 @@ impl PowerSettingsConfig {
             shutdown_cmd,
             logout_cmd,
             battery_format,
+            battery_hide_when_full,
             peripheral_indicators,
             peripheral_battery_format,
+            peripheral_expanded_by_default,
         }
     }
 }
 
 pub struct PowerSettings {
-    config: PowerSettingsConfig,
+    pub config: PowerSettingsConfig,
     service: Option<UPowerService>,
 }
 
@@ -306,7 +312,12 @@ impl PowerSettings {
 
     pub fn battery_indicator<'a>(&self) -> Option<Element<'a, Message>> {
         self.service.as_ref().and_then(|service| {
-            service.system_battery.map(|battery| {
+            service.system_battery.and_then(|battery| {
+                if self.config.battery_hide_when_full
+                    && matches!(battery.status, BatteryStatus::Full)
+                {
+                    return None;
+                }
                 let state = battery.get_indicator_state();
                 let label: String = match self.config.battery_format {
                     SettingsFormat::Time | SettingsFormat::IconAndTime => {
@@ -315,13 +326,15 @@ impl PowerSettings {
                     _ => format!("{}%", battery.capacity),
                 };
 
-                format_indicator(
-                    self.config.battery_format,
-                    battery.get_icon(),
-                    text(label).into(),
-                    state,
+                Some(
+                    format_indicator(
+                        self.config.battery_format,
+                        battery.get_icon(),
+                        text(label).into(),
+                        state,
+                    )
+                    .into(),
                 )
-                .into()
             })
         })
     }
