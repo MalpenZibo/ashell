@@ -1720,8 +1720,8 @@ dependencies = [
 
 [[package]]
 name = "iced_layershell"
-version = "0.1.4"
-source = "git+https://github.com/MalpenZibo/iced_layershell?branch=fix%2Fsurface-recovery-and-igpu-default#155bd0073ee888927d4957a56c0f8d4d55bd7f00"
+version = "0.1.5"
+source = "git+https://github.com/MalpenZibo/iced_layershell?tag=v0.1.5#6828748159092435edb684ef4f9206306513cc8e"
 dependencies = [
  "calloop",
  "calloop-wayland-source",
