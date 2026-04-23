@@ -6,21 +6,42 @@ sidebar_position: 5
 
 Common issues and quick fixes for ashell.
 
-## NVIDIA Driver Issues
+## Visual Issues, Freezing, or Rendering Problems
 
-**Problem:** ashell freezes on startup when using NVIDIA graphics on Linux.
+**Problem:** ashell may freeze, show visual artifacts, or fail to render properly on some systems.
 
-**Cause:** The default Vulkan backend may have compatibility issues with NVIDIA drivers.
+**Cause:** Graphics driver compatibility issues. By default, ashell uses `wgpu` which uses `vulkan` as the default backend.
 
-**Solution:** Force the use of OpenGL by setting the `WGPU_BACKEND` environment variable:
+### Rendering Backends
 
-```bash
-WGPU_BACKEND=gl ashell
-```
+ashell supports two rendering paths:
 
-This uses EGL as the context creation API, bypassing Vulkan entirely.
+1. **wgpu** (default) - Uses Vulkan by default. You can force a specific backend using the `WGPU_BACKEND` environment variable:
+   ```bash
+   WGPU_BACKEND=vulkan ashell  # Force Vulkan
+   WGPU_BACKEND=gl ashell     # Force OpenGL/EGL
+   ```
 
-**If the issue persists:** Try different NVIDIA drivers or use a different compositor.
+2. **tiny-skia** (CPU renderer) - Falls back automatically if wgpu fails, or can be forced with:
+   ```bash
+   ICED_BACKEND=tiny-skia ashell
+   ```
+
+### Valid `WGPU_BACKEND` values
+
+You can use a single value or a comma-separated list (e.g. `WGPU_BACKEND=gl,vulkan`). Values are case-insensitive.
+
+| Value | Aliases | Description |
+|---|---|---|
+| `vulkan` | `vk` | Vulkan API |
+| `gl` | `gles`, `opengl` | OpenGL / OpenGL ES (EGL)
+
+### Backend Behavior
+
+- ashell tries `wgpu` first, then falls back to `tiny-skia` if wgpu fails
+- `tiny-skia` is a CPU renderer with less RAM consumption but potentially higher battery usage
+
+**If the issue persists:** Try forcing a different backend or using `ICED_BACKEND=tiny-skia`.
 
 ## Idle Inhibitor Issues
 
