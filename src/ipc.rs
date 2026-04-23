@@ -146,22 +146,48 @@ pub fn run_client(cmd: &IpcCommand) -> Result<()> {
 // Server
 // ---------------------------------------------------------------------------
 
-/// Create the Unix listener, removing any stale socket file first.
-fn create_listener() -> Result<UnixListener> {
-    let path = socket_path()?;
+enum ListenerError {
+    /// Another ashell instance is already listening on the socket.
+    AlreadyRunning,
+    Other(anyhow::Error),
+}
 
-    match std::fs::remove_file(&path) {
-        Ok(()) => {}
+/// Create the Unix listener, taking care not to steal a live server's socket.
+///
+/// The socket path is shared across instances, so we probe it first: a
+/// successful connect means a primary is already serving and we must not
+/// remove the file or bind a new listener — otherwise we'd orphan the
+/// primary's fd and break `ashell msg` until it's restarted.
+fn create_listener() -> std::result::Result<UnixListener, ListenerError> {
+    let path = socket_path().map_err(ListenerError::Other)?;
+
+    match UnixStream::connect(&path) {
+        Ok(_) => return Err(ListenerError::AlreadyRunning),
+        Err(e) if e.kind() == std::io::ErrorKind::ConnectionRefused => {
+            if let Err(e) = std::fs::remove_file(&path)
+                && e.kind() != std::io::ErrorKind::NotFound
+            {
+                return Err(ListenerError::Other(
+                    anyhow::Error::new(e)
+                        .context(format!("remove stale socket {}", path.display())),
+                ));
+            }
+        }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
         Err(e) => {
-            return Err(
-                anyhow::Error::new(e).context(format!("remove stale socket {}", path.display()))
-            );
+            return Err(ListenerError::Other(
+                anyhow::Error::new(e).context(format!("probe socket {}", path.display())),
+            ));
         }
     }
 
-    let listener = UnixListener::bind(&path).with_context(|| format!("bind {}", path.display()))?;
-    listener.set_nonblocking(true).context("set_nonblocking")?;
+    let listener = UnixListener::bind(&path)
+        .with_context(|| format!("bind {}", path.display()))
+        .map_err(ListenerError::Other)?;
+    listener
+        .set_nonblocking(true)
+        .context("set_nonblocking")
+        .map_err(ListenerError::Other)?;
     log::info!("IPC listening on {}", path.display());
     Ok(listener)
 }
@@ -200,7 +226,13 @@ fn handle_connection(mut stream: UnixStream) -> Option<IpcCommand> {
 fn init_listener() -> Option<tokio::net::UnixListener> {
     let std_listener = match create_listener() {
         Ok(l) => l,
-        Err(e) => {
+        Err(ListenerError::AlreadyRunning) => {
+            log::warn!(
+                "another ashell instance owns the IPC socket; this instance will run without IPC"
+            );
+            return None;
+        }
+        Err(ListenerError::Other(e)) => {
             log::error!("Failed to create IPC listener: {e:#}");
             return None;
         }
