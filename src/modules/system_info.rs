@@ -6,7 +6,7 @@ use crate::{
         CpuFormat, DiskFormat, MemoryFormat, SystemInfoIndicator, SystemInfoModuleConfig,
         TemperatureFormat,
     },
-    theme::AshellTheme,
+    theme::use_theme,
     utils,
 };
 use iced::{
@@ -318,29 +318,28 @@ impl SystemInfo {
     }
 
     fn info_element<'a>(
-        theme: &AshellTheme,
         info_icon: StaticIcon,
         label: String,
         value: String,
     ) -> Element<'a, Message> {
+        let (font_size, space) = use_theme(|t| (t.font_size, t.space));
         row!(
-            container(icon(info_icon).size(theme.font_size.xl))
-                .center_x(Length::Fixed(theme.space.xl)),
+            container(icon(info_icon).size(font_size.xl)).center_x(Length::Fixed(space.xl)),
             text(label).width(Length::Fill),
             text(value)
         )
         .align_y(Alignment::Center)
-        .spacing(theme.space.xs)
+        .spacing(space.xs)
         .into()
     }
 
     fn indicator_info_element<'a, V: PartialOrd + 'a>(
-        theme: &AshellTheme,
         info_icon: StaticIcon,
         (display, unit): (impl std::fmt::Display + 'a, &str),
         threshold: Option<(V, V, V)>,
         prefix: Option<&str>,
     ) -> Element<'a, Message> {
+        let space = use_theme(|t| t.space);
         let element = container(
             row!(
                 icon(info_icon),
@@ -350,7 +349,7 @@ impl SystemInfo {
                     text(format!("{display}{unit}"))
                 }
             )
-            .spacing(theme.space.xxs),
+            .spacing(space.xxs),
         );
 
         if let Some((value, warn_threshold, alert_threshold)) = threshold {
@@ -371,14 +370,14 @@ impl SystemInfo {
         }
     }
 
-    pub fn menu_view(&'_ self, theme: &AshellTheme) -> Element<'_, Message> {
+    pub fn menu_view(&'_ self) -> Element<'_, Message> {
+        let (font_size, space) = use_theme(|t| (t.font_size, t.space));
         container(
             column!(
-                text("System Info").size(theme.font_size.lg),
+                text("System Info").size(font_size.lg),
                 divider(),
                 Column::with_capacity(6)
                     .push(Self::info_element(
-                        theme,
                         StaticIcon::Cpu,
                         "CPU Usage".to_string(),
                         match self.config.cpu.format {
@@ -388,7 +387,6 @@ impl SystemInfo {
                         }
                     ))
                     .push(Self::info_element(
-                        theme,
                         StaticIcon::Mem,
                         "Memory Usage".to_string(),
                         match self.config.memory.format {
@@ -399,7 +397,6 @@ impl SystemInfo {
                         }
                     ))
                     .push(Self::info_element(
-                        theme,
                         StaticIcon::Mem,
                         "Swap memory Usage".to_string(),
                         match self.config.memory.format {
@@ -411,7 +408,6 @@ impl SystemInfo {
                     ))
                     .push(self.data.temperature.celsius.map(|cel| {
                         Self::info_element(
-                            theme,
                             StaticIcon::Temp,
                             "Temperature".to_string(),
                             match self.config.temperature.format {
@@ -429,7 +425,6 @@ impl SystemInfo {
                                 .iter()
                                 .map(|(mount_point, usage)| {
                                     Self::info_element(
-                                        theme,
                                         StaticIcon::Drive,
                                         format!("Disk Usage {mount_point}"),
                                         match self.config.disk.format {
@@ -444,18 +439,16 @@ impl SystemInfo {
                                 })
                                 .collect::<Vec<Element<_>>>(),
                         )
-                        .spacing(theme.space.xxs),
+                        .spacing(space.xxs),
                     )
                     .push(self.data.network.as_ref().map(|network| {
                         Column::with_children(vec![
                             Self::info_element(
-                                theme,
                                 StaticIcon::IpAddress,
                                 "IP Address".to_string(),
                                 network.ip.to_string(),
                             ),
                             Self::info_element(
-                                theme,
                                 StaticIcon::DownloadSpeed,
                                 "Download Speed".to_string(),
                                 if network.download_speed > 1000 {
@@ -465,7 +458,6 @@ impl SystemInfo {
                                 },
                             ),
                             Self::info_element(
-                                theme,
                                 StaticIcon::UploadSpeed,
                                 "Upload Speed".to_string(),
                                 if network.upload_speed > 1000 {
@@ -476,19 +468,19 @@ impl SystemInfo {
                             ),
                         ])
                     }))
-                    .spacing(theme.space.xxs)
-                    .padding([0.0, theme.space.xs])
+                    .spacing(space.xxs)
+                    .padding([0.0, space.xs])
             )
-            .spacing(theme.space.xs),
+            .spacing(space.xs),
         )
         .width(MenuSize::Medium)
         .into()
     }
 
-    pub fn view(&'_ self, theme: &AshellTheme) -> Element<'_, Message> {
+    pub fn view(&'_ self) -> Element<'_, Message> {
+        let space = use_theme(|t| t.space);
         let indicators = self.config.indicators.iter().filter_map(|i| match i {
             SystemInfoIndicator::Cpu => Some(Self::indicator_info_element(
-                theme,
                 StaticIcon::Cpu,
                 match self.config.cpu.format {
                     CpuFormat::Percentage => (self.data.cpu_usage.percentage.to_string(), "%"),
@@ -503,7 +495,6 @@ impl SystemInfo {
             )),
 
             SystemInfoIndicator::Memory => Some(Self::indicator_info_element(
-                theme,
                 StaticIcon::Mem,
                 match self.config.memory.format {
                     MemoryFormat::Percentage => {
@@ -520,7 +511,6 @@ impl SystemInfo {
             )),
 
             SystemInfoIndicator::MemorySwap => Some(Self::indicator_info_element(
-                theme,
                 StaticIcon::Mem,
                 match self.config.memory.format {
                     MemoryFormat::Percentage => {
@@ -544,7 +534,6 @@ impl SystemInfo {
                     TemperatureFormat::Fahrenheit => utils::celsius_to_fahrenheit(cel),
                 };
                 Self::indicator_info_element(
-                    theme,
                     StaticIcon::Temp,
                     match self.config.temperature.format {
                         TemperatureFormat::Celsius => (temp_value, "°C"),
@@ -562,7 +551,6 @@ impl SystemInfo {
                 self.data.disks.iter().find_map(|(disk_mount, disk)| {
                     if disk_mount == &config.path {
                         Some(Self::indicator_info_element(
-                            theme,
                             StaticIcon::Drive,
                             match self.config.disk.format {
                                 DiskFormat::Percentage => (disk.percentage.to_string(), "%"),
@@ -582,7 +570,6 @@ impl SystemInfo {
             }
             SystemInfoIndicator::IpAddress => self.data.network.as_ref().map(|network| {
                 Self::indicator_info_element(
-                    theme,
                     StaticIcon::IpAddress,
                     (network.ip.to_string(), ""),
                     None::<(u32, u32, u32)>,
@@ -591,7 +578,6 @@ impl SystemInfo {
             }),
             SystemInfoIndicator::DownloadSpeed => self.data.network.as_ref().map(|network| {
                 Self::indicator_info_element(
-                    theme,
                     StaticIcon::DownloadSpeed,
                     (
                         if network.download_speed > 1000 {
@@ -611,7 +597,6 @@ impl SystemInfo {
             }),
             SystemInfoIndicator::UploadSpeed => self.data.network.as_ref().map(|network| {
                 Self::indicator_info_element(
-                    theme,
                     StaticIcon::UploadSpeed,
                     (
                         if network.upload_speed > 1000 {
@@ -633,7 +618,7 @@ impl SystemInfo {
 
         Row::with_children(indicators)
             .align_y(Alignment::Center)
-            .spacing(theme.space.xxs)
+            .spacing(space.xxs)
             .into()
     }
 

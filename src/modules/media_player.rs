@@ -9,7 +9,7 @@ use crate::{
             MprisPlayerCommand, MprisPlayerData, MprisPlayerService, PlaybackStatus, PlayerCommand,
         },
     },
-    theme::AshellTheme,
+    theme::use_theme,
     utils::truncate_text,
 };
 use iced::{
@@ -76,11 +76,13 @@ impl MediaPlayer {
         }
     }
 
-    pub fn menu_view<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
+    pub fn menu_view<'a>(&'a self) -> Element<'a, Message> {
+        let (space, font_size, opacity, radius) =
+            use_theme(|theme| (theme.space, theme.font_size, theme.opacity, theme.radius));
         container(match &self.service {
             None => Into::<Element<'a, Message>>::into(text("Not connected to MPRIS service")),
             Some(service) => column!(
-                text("Players").size(theme.font_size.lg),
+                text("Players").size(font_size.lg),
                 divider(),
                 column(service.players().iter().map(|d| {
                     const LEFT_COLUMN_WIDTH: Length = Length::FillPortion(3);
@@ -101,14 +103,14 @@ impl MediaPlayer {
                         .width(Length::Fill);
                     let artists = text(truncate_text(&artists, self.config.max_title_length))
                         .wrapping(text::Wrapping::WordOrGlyph)
-                        .size(theme.font_size.sm)
+                        .size(font_size.sm)
                         .width(Length::Fill);
                     let album = text(truncate_text(&album, self.config.max_title_length))
                         .wrapping(text::Wrapping::WordOrGlyph)
-                        .size(theme.font_size.sm)
+                        .size(font_size.sm)
                         .width(Length::Fill);
                     let description = column![title, artists, album]
-                        .spacing(theme.space.xxs)
+                        .spacing(space.xxs)
                         .width(LEFT_COLUMN_WIDTH);
 
                     let play_pause_icon = match d.state {
@@ -118,18 +120,18 @@ impl MediaPlayer {
 
                     let buttons = container(
                         row![
-                            icon_button(theme, StaticIcon::SkipPrevious)
+                            icon_button(StaticIcon::SkipPrevious)
                                 .on_press(Message::Prev(d.service.clone()))
                                 .size(ButtonSize::Large),
-                            icon_button(theme, play_pause_icon)
+                            icon_button(play_pause_icon)
                                 .on_press(Message::PlayPause(d.service.clone()))
                                 .size(ButtonSize::Large),
-                            icon_button(theme, StaticIcon::SkipNext)
+                            icon_button(StaticIcon::SkipNext)
                                 .on_press(Message::Next(d.service.clone()))
                                 .size(ButtonSize::Large),
                         ]
                         .align_y(Vertical::Center)
-                        .spacing(theme.space.xs),
+                        .spacing(space.xs),
                     )
                     .center_x(RIGHT_COLUMN_WIDTH);
                     let volume_slider: Option<Element<'_, _>> = d.volume.map(|v| {
@@ -157,30 +159,29 @@ impl MediaPlayer {
                     let metadata = |description, cover| -> Element<'_, _> {
                         row![description]
                             .push(cover)
-                            .spacing(theme.space.md)
+                            .spacing(space.md)
                             .align_y(Vertical::Center)
                             .into()
                     };
                     let content: Element<'_, _> = match (volume_slider, cover) {
                         (None, None) => row![description, buttons]
-                            .spacing(theme.space.md)
+                            .spacing(space.md)
                             .align_y(Vertical::Center)
                             .into(),
                         (Some(v), cover) => {
-                            let controls = row![v, buttons]
-                                .spacing(theme.space.md)
-                                .align_y(Vertical::Center);
+                            let controls =
+                                row![v, buttons].spacing(space.md).align_y(Vertical::Center);
                             column![metadata(description, cover), controls]
-                                .spacing(theme.space.md)
+                                .spacing(space.md)
                                 .into()
                         }
                         (None, cover) => {
                             let controls =
                                 row![space::horizontal().width(LEFT_COLUMN_WIDTH), buttons]
-                                    .spacing(theme.space.md)
+                                    .spacing(space.md)
                                     .align_y(Vertical::Center);
                             column![metadata(description, cover), controls]
-                                .spacing(theme.space.md)
+                                .spacing(space.md)
                                 .into()
                         }
                     };
@@ -192,19 +193,19 @@ impl MediaPlayer {
                                     .background
                                     .weak
                                     .color
-                                    .scale_alpha(theme.opacity),
+                                    .scale_alpha(opacity),
                             )
                             .into(),
-                            border: Border::default().rounded(theme.radius.lg),
+                            border: Border::default().rounded(radius.lg),
                             ..container::Style::default()
                         })
-                        .padding(theme.space.md)
+                        .padding(space.md)
                         .width(Length::Fill)
                         .into()
                 }))
-                .spacing(theme.space.md)
+                .spacing(space.md)
             )
-            .spacing(theme.space.xs)
+            .spacing(space.xs)
             .into(),
         })
         .width(MenuSize::Large)
@@ -230,7 +231,8 @@ impl MediaPlayer {
         }
     }
 
-    pub fn view(&'_ self, theme: &AshellTheme) -> Option<Element<'_, Message>> {
+    pub fn view(&'_ self) -> Option<Element<'_, Message>> {
+        let (space, font_size) = use_theme(|theme| (theme.space, theme.font_size));
         self.service.as_ref().and_then(|s| {
             s.players().first().map(|player| {
                 let title =
@@ -238,7 +240,7 @@ impl MediaPlayer {
                         container(
                             text(self.get_title(player))
                                 .wrapping(text::Wrapping::None)
-                                .size(theme.font_size.sm),
+                                .size(font_size.sm),
                         )
                         .clip(true)
                     });
@@ -246,7 +248,7 @@ impl MediaPlayer {
                 row![icon(StaticIcon::MusicNote)]
                     .push(title)
                     .align_y(Vertical::Center)
-                    .spacing(theme.space.xs)
+                    .spacing(space.xs)
                     .into()
             })
         })

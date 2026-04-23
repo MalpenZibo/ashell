@@ -1,6 +1,6 @@
 use crate::{
     components::button::{ButtonHierarchy, ButtonKind, ButtonSize, OnPress},
-    theme::AshellTheme,
+    theme::use_theme,
 };
 use iced::{
     Color, Element, Font, Length, Theme,
@@ -368,7 +368,6 @@ pub fn icon_mono<'a>(icon: impl Icon) -> Text<'a> {
 pub type StyleFn<'a, Theme> = Box<dyn for<'b> Fn(&'b Theme, Status) -> Style + 'a>;
 
 pub struct IconButton<'a, I: Icon, Message> {
-    theme: &'a AshellTheme,
     icon: I,
     on_press: Option<OnPress<'a, Message>>,
     kind: ButtonKind,
@@ -433,20 +432,21 @@ impl<'a, I: Icon, Message: 'static + Clone> From<IconButton<'a, I, Message>>
 {
     #[inline]
     fn from(value: IconButton<'a, I, Message>) -> Self {
+        let (theme_font_size, radius) = use_theme(|theme| (theme.font_size, theme.radius));
+
         let (container_size, font_size) = match value.size {
-            ButtonSize::Small => (24., value.theme.font_size.xs),
-            ButtonSize::Medium => (32., value.theme.font_size.xs),
-            ButtonSize::Large => (38., value.theme.font_size.sm),
+            ButtonSize::Small => (24., theme_font_size.xs),
+            ButtonSize::Medium => (32., theme_font_size.xs),
+            ButtonSize::Large => (38., theme_font_size.sm),
         };
 
-        let radius = value.theme.radius.xl;
         let style: StyleFn<'a, Theme> = match value.style_override {
             Some(s) => s,
             None => {
-                let base = value.theme.button_style(value.kind, value.hierarchy);
+                let base = use_theme(|theme| theme.button_style(value.kind, value.hierarchy));
                 Box::new(move |theme: &Theme, status: Status| {
                     let mut s = base(theme, status);
-                    s.border.radius = radius.into();
+                    s.border.radius = radius.xl.into();
                     s
                 })
             }
@@ -476,12 +476,10 @@ impl<'a, I: Icon, Message: 'static + Clone> From<IconButton<'a, I, Message>>
 }
 
 pub fn icon_button<'a, Message: 'static + Clone>(
-    theme: &'a AshellTheme,
     icon: impl Into<IconKind>,
 ) -> IconButton<'a, IconKind, Message> {
     let icon = icon.into();
     IconButton {
-        theme,
         icon,
         on_press: None,
         kind: ButtonKind::Solid,

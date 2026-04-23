@@ -1,5 +1,5 @@
 use crate::{
-    components::icons::IconKind, config::SettingsFormat, theme::AshellTheme, utils::IndicatorState,
+    components::icons::IconKind, config::SettingsFormat, theme::use_theme, utils::IndicatorState,
 };
 use iced::{
     Alignment, Element, Theme,
@@ -8,7 +8,6 @@ use iced::{
 };
 
 pub struct FormatIndicator<'a, Msg> {
-    theme: &'a AshellTheme,
     format: SettingsFormat,
     icon: IconKind,
     label_element: Element<'a, Msg>,
@@ -18,14 +17,12 @@ pub struct FormatIndicator<'a, Msg> {
 }
 
 pub fn format_indicator<'a, Msg: 'static + Clone>(
-    theme: &'a AshellTheme,
     format: SettingsFormat,
     icon: impl Into<IconKind>,
     label_element: Element<'a, Msg>,
     state: IndicatorState,
 ) -> FormatIndicator<'a, Msg> {
     FormatIndicator {
-        theme,
         format,
         icon: icon.into(),
         label_element,
@@ -49,22 +46,25 @@ impl<'a, Msg: 'static + Clone> FormatIndicator<'a, Msg> {
 
 impl<'a, Msg: 'static + Clone> From<FormatIndicator<'a, Msg>> for Element<'a, Msg> {
     fn from(fi: FormatIndicator<'a, Msg>) -> Self {
+        let space = use_theme(|theme| theme.space);
+
         let content = match fi.format {
             SettingsFormat::Icon => fi.icon.to_text().into(),
             SettingsFormat::Percentage | SettingsFormat::Time => fi.label_element,
             SettingsFormat::IconAndPercentage | SettingsFormat::IconAndTime => {
                 row![fi.icon.to_text(), fi.label_element]
-                    .spacing(fi.theme.space.xxs)
+                    .spacing(space.xxs)
                     .align_y(Alignment::Center)
                     .into()
             }
         };
 
-        let colored = match fi.state {
+        let state = fi.state;
+        let colored = match state {
             IndicatorState::Normal => content,
             _ => container(content)
                 .style(move |theme: &Theme| container::Style {
-                    text_color: Some(match fi.state {
+                    text_color: Some(match state {
                         IndicatorState::Success => theme.palette().success,
                         IndicatorState::Warning => theme.palette().warning,
                         IndicatorState::Danger => theme.palette().danger,

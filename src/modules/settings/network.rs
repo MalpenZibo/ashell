@@ -13,7 +13,7 @@ use crate::{
             NetworkService, Vpn, dbus::ConnectivityState,
         },
     },
-    theme::AshellTheme,
+    theme::use_theme,
     utils::IndicatorState,
 };
 use iced::{
@@ -303,10 +303,7 @@ impl NetworkSettings {
         }
     }
 
-    pub fn connection_indicator<'a>(
-        &'a self,
-        theme: &'a AshellTheme,
-    ) -> Option<Element<'a, Message>> {
+    pub fn connection_indicator<'a>(&'a self) -> Option<Element<'a, Message>> {
         self.service.as_ref().and_then(|service| {
             if service.airplane_mode || !service.wifi_present {
                 None
@@ -327,7 +324,6 @@ impl NetworkSettings {
                     let strength_text = strength.map_or("100%".to_string(), |s| format!("{}%", s));
 
                     format_indicator(
-                        theme,
                         self.config.indicator_format,
                         icon_type,
                         text(strength_text).into(),
@@ -337,7 +333,6 @@ impl NetworkSettings {
                     .into()
                 } else {
                     format_indicator(
-                        theme,
                         self.config.indicator_format,
                         StaticIcon::Wifi0,
                         text("0%").into(),
@@ -350,7 +345,7 @@ impl NetworkSettings {
         })
     }
 
-    pub fn vpn_indicator<'a>(&'a self, _: &AshellTheme) -> Option<Element<'a, Message>> {
+    pub fn vpn_indicator<'a>(&'a self) -> Option<Element<'a, Message>> {
         self.service.as_ref().and_then(|service| {
             service
                 .active_connections
@@ -372,7 +367,6 @@ impl NetworkSettings {
     pub fn wifi_quick_setting_button<'a>(
         &'a self,
         id: SurfaceId,
-        theme: &'a AshellTheme,
         sub_menu: Option<SubMenu>,
     ) -> Option<(Element<'a, Message>, Option<Element<'a, Message>>)> {
         self.service.as_ref().and_then(|service| {
@@ -386,7 +380,6 @@ impl NetworkSettings {
 
                 Some((
                     quick_setting_button(
-                        theme,
                         active_connection.map_or_else(|| StaticIcon::Wifi0, |(_, _, icon)| icon),
                         "Wi-Fi".to_string(),
                         active_connection.map(|(name, _, _)| name.to_string()),
@@ -402,7 +395,6 @@ impl NetworkSettings {
                             Self::wifi_menu(
                                 service,
                                 id,
-                                theme,
                                 active_connection
                                     .map(|(name, strength, _)| (name.as_str(), *strength)),
                                 self.config.wifi_more_cmd.is_some(),
@@ -418,7 +410,6 @@ impl NetworkSettings {
     pub fn vpn_quick_setting_button<'a>(
         &'a self,
         id: SurfaceId,
-        theme: &'a AshellTheme,
         sub_menu: Option<SubMenu>,
     ) -> Option<(Element<'a, Message>, Option<Element<'a, Message>>)> {
         self.service.as_ref().and_then(|service| {
@@ -457,7 +448,6 @@ impl NetworkSettings {
 
                     (
                         quick_setting_button(
-                            theme,
                             StaticIcon::Vpn,
                             "VPN".to_string(),
                             subtitle,
@@ -479,12 +469,7 @@ impl NetworkSettings {
                         sub_menu
                             .filter(|menu_type| *menu_type == SubMenu::Vpn)
                             .map(|_| {
-                                Self::vpn_menu(
-                                    service,
-                                    id,
-                                    theme,
-                                    self.config.vpn_more_cmd.is_some(),
-                                )
+                                Self::vpn_menu(service, id, self.config.vpn_more_cmd.is_some())
                             }),
                     )
                 })
@@ -493,7 +478,6 @@ impl NetworkSettings {
 
     pub fn airplane_mode_quick_setting_button<'a>(
         &'a self,
-        theme: &'a AshellTheme,
     ) -> Option<(Element<'a, Message>, Option<Element<'a, Message>>)> {
         if self.config.remove_airplane_btn {
             None
@@ -501,7 +485,6 @@ impl NetworkSettings {
             self.service.as_ref().map(|service| {
                 (
                     quick_setting_button(
-                        theme,
                         StaticIcon::Airplane,
                         "Airplane Mode".to_string(),
                         None,
@@ -519,10 +502,10 @@ impl NetworkSettings {
     fn wifi_menu<'a>(
         service: &'a NetworkService,
         id: SurfaceId,
-        theme: &'a AshellTheme,
         active_connection: Option<(&str, u8)>,
         show_more_button: bool,
     ) -> Element<'a, Message> {
+        let (space, font_size) = use_theme(|t| (t.space, t.font_size));
         let main = column!(
             row!(
                 text("Nearby Wifi").width(Length::Fill),
@@ -531,10 +514,10 @@ impl NetworkSettings {
                 } else {
                     ""
                 })
-                .size(theme.font_size.sm),
-                icon_button(theme, StaticIcon::Refresh).on_press(Message::ScanNearByWiFi)
+                .size(font_size.sm),
+                icon_button(StaticIcon::Refresh).on_press(Message::ScanNearByWiFi)
             )
-            .spacing(theme.space.xs)
+            .spacing(space.xs)
             .width(Length::Fill)
             .align_y(Alignment::Center),
             divider(),
@@ -558,7 +541,6 @@ impl NetworkSettings {
                             });
 
                             styled_button(
-                                theme,
                                 Element::from(
                                     container(
                                         row!(
@@ -601,21 +583,21 @@ impl NetworkSettings {
                         })
                         .collect::<Vec<Element<'a, Message>>>()
                 })
-                .spacing(theme.space.xxs)
-            ).spacing(theme.space.xs))
+                .spacing(space.xxs)
+            ).spacing(space.xs))
             .max_height(200),
         )
-        .spacing(theme.space.xs);
+        .spacing(space.xs);
 
         if show_more_button {
             column!(
                 main,
                 divider(),
-                styled_button(theme, "More")
+                styled_button("More")
                     .on_press(Message::WiFiMore(id))
                     .width(Length::Fill)
             )
-            .spacing(theme.space.sm)
+            .spacing(space.sm)
             .into()
         } else {
             main.into()
@@ -625,9 +607,9 @@ impl NetworkSettings {
     fn vpn_menu<'a>(
         service: &'a NetworkService,
         id: SurfaceId,
-        theme: &'a AshellTheme,
         show_more_button: bool,
     ) -> Element<'a, Message> {
+        let space = use_theme(|t| t.space);
         // Create HashSet of active VPN names for O(1) lookup
         let active_vpn_names: std::collections::HashSet<&str> = service
             .active_connections
@@ -666,12 +648,8 @@ impl NetworkSettings {
                 })
                 .collect::<Vec<Element<'a, Message>>>(),
         )
-        .spacing(theme.space.xs)
-        .padding(
-            Padding::default()
-                .right(theme.space.md)
-                .left(theme.space.xs),
-        );
+        .spacing(space.xs)
+        .padding(Padding::default().right(space.md).left(space.xs));
 
         let main = container(scrollable(vpn_list))
             .height(Length::Shrink)
@@ -681,11 +659,11 @@ impl NetworkSettings {
             column!(
                 main,
                 divider(),
-                styled_button(theme, "More")
+                styled_button("More")
                     .on_press(Message::VpnMore(id))
                     .width(Length::Fill)
             )
-            .spacing(theme.space.sm)
+            .spacing(space.sm)
             .into()
         } else {
             main.into()

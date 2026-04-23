@@ -10,7 +10,7 @@ use crate::{
     components::icons::{Icon, StaticIcon},
     config::OsdConfig,
     modules::settings::audio::AudioSettings,
-    theme::AshellTheme,
+    theme::use_theme,
 };
 
 pub struct Osd {
@@ -103,10 +103,12 @@ impl Osd {
         }
     }
 
-    pub fn view<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
+    pub fn view(&self) -> Element<'_, Message> {
         let Some(state) = &self.state else {
             return row![].into();
         };
+
+        let (space, font_size, radius) = use_theme(|t| (t.space, t.font_size, t.radius));
 
         let icon = match state.kind {
             OsdKind::Volume => AudioSettings::speaker_icon(state.muted, state.value),
@@ -131,18 +133,18 @@ impl Osd {
             }
         };
 
-        let content = row![icon.to_text().size(theme.font_size.xxl), detail,]
-            .spacing(theme.space.sm)
+        let content = row![icon.to_text().size(font_size.xxl), detail,]
+            .spacing(space.sm)
             .align_y(Alignment::Center);
 
         container(content)
-            .padding([theme.space.sm, theme.space.md])
-            .style(|t: &Theme| container::Style {
+            .padding([space.sm, space.md])
+            .style(move |t: &Theme| container::Style {
                 background: Some(t.palette().background.into()),
                 border: Border::default()
                     .width(1)
-                    .color(theme.iced_theme.extended_palette().background.weakest.color)
-                    .rounded(theme.radius.xl),
+                    .color(t.extended_palette().background.weakest.color)
+                    .rounded(radius.xl),
 
                 ..Default::default()
             })

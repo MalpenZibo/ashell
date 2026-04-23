@@ -1,7 +1,6 @@
 use crate::{
     HEIGHT,
-    components::menu::MenuType,
-    components::{ButtonUIRef, Centerbox},
+    components::{ButtonUIRef, Centerbox, menu::MenuType},
     config::{self, AppearanceStyle, Config, Modules, Position},
     get_log_spec,
     ipc::IpcCommand,
@@ -24,7 +23,7 @@ use crate::{
     osd::{self, Osd, OsdKind},
     outputs::{HasOutput, Outputs},
     services::ReadOnlyService,
-    theme::{AshellTheme, backdrop_color, darken_color},
+    theme::{AshellTheme, backdrop_color, darken_color, init_theme, use_theme},
 };
 use flexi_logger::LoggerHandle;
 use iced::{
@@ -50,7 +49,6 @@ pub struct GeneralConfig {
 
 pub struct App {
     config_path: PathBuf,
-    pub theme: AshellTheme,
     logger: LoggerHandle,
     pub general_config: GeneralConfig,
     pub outputs: Outputs,
@@ -119,10 +117,11 @@ impl App {
 
             let notifications = Notifications::new(config.notifications);
 
+            init_theme(AshellTheme::new(config.position, &config.appearance));
+
             (
                 App {
                     config_path,
-                    theme: AshellTheme::new(config.position, &config.appearance),
                     logger,
                     general_config: GeneralConfig {
                         outputs: config.outputs,
@@ -159,7 +158,7 @@ impl App {
             layer: config.layer,
             enable_esc_key: config.enable_esc_key,
         };
-        self.theme = AshellTheme::new(config.position, &config.appearance);
+        init_theme(AshellTheme::new(config.position, &config.appearance));
         let custom = config
             .custom_modules
             .into_iter()
@@ -209,11 +208,11 @@ impl App {
     }
 
     pub fn theme(&self) -> Theme {
-        self.theme.get_theme().clone()
+        use_theme(|t| t.iced_theme.clone())
     }
 
     pub fn scale_factor(&self) -> f64 {
-        self.theme.scale_factor
+        use_theme(|t| t.scale_factor)
     }
 
     /// Build OSD display info (kind, normalised value, muted) for the given
@@ -274,10 +273,12 @@ impl App {
                     "Current outputs: {:?}, new outputs: {:?}",
                     self.general_config.outputs, config.outputs
                 );
+                let (bar_position, bar_style, scale_factor) =
+                    use_theme(|t| (t.bar_position, t.bar_style, t.scale_factor));
                 if self.general_config.outputs != config.outputs
-                    || self.theme.bar_position != config.position
-                    || self.theme.bar_style != config.appearance.style
-                    || self.theme.scale_factor != config.appearance.scale_factor
+                    || bar_position != config.position
+                    || bar_style != config.appearance.style
+                    || scale_factor != config.appearance.scale_factor
                     || self.general_config.layer != config.layer
                 {
                     warn!("Outputs changed, syncing");
@@ -427,24 +428,28 @@ impl App {
                         self.outputs.set_output_logical_height(info.id, h as u32);
                     }
 
+                    let (bar_style, bar_position, scale_factor) =
+                        use_theme(|t| (t.bar_style, t.bar_position, t.scale_factor));
                     self.outputs.add(
-                        self.theme.bar_style,
+                        bar_style,
                         &self.general_config.outputs,
-                        self.theme.bar_position,
+                        bar_position,
                         self.general_config.layer,
                         name,
                         info.id,
-                        self.theme.scale_factor,
+                        scale_factor,
                     )
                 }
                 OutputEvent::Removed(output_id) => {
                     info!("Output destroyed");
+                    let (bar_style, bar_position, scale_factor) =
+                        use_theme(|t| (t.bar_style, t.bar_position, t.scale_factor));
                     self.outputs.remove(
-                        self.theme.bar_style,
-                        self.theme.bar_position,
+                        bar_style,
+                        bar_position,
                         self.general_config.layer,
                         output_id,
-                        self.theme.scale_factor,
+                        scale_factor,
                     )
                 }
                 OutputEvent::InfoChanged(_) => Task::none(),
@@ -461,13 +466,17 @@ impl App {
                     Task::none()
                 }
             }
-            Message::ResumeFromSleep => self.outputs.sync(
-                self.theme.bar_style,
-                &self.general_config.outputs,
-                self.theme.bar_position,
-                self.general_config.layer,
-                self.theme.scale_factor,
-            ),
+            Message::ResumeFromSleep => {
+                let (bar_style, bar_position, scale_factor) =
+                    use_theme(|t| (t.bar_style, t.bar_position, t.scale_factor));
+                self.outputs.sync(
+                    bar_style,
+                    &self.general_config.outputs,
+                    bar_position,
+                    self.general_config.layer,
+                    scale_factor,
+                )
+            }
             Message::Notifications(message) => match self.notifications.update(message) {
                 modules::notifications::Action::None => Task::none(),
                 modules::notifications::Action::Task(task) => task.map(Message::Notifications),
@@ -528,13 +537,14 @@ impl App {
             Message::None => Task::none(),
             Message::ToggleVisibility => {
                 self.visible = !self.visible;
+                let (bar_style, scale_factor) = use_theme(|t| (t.bar_style, t.scale_factor));
                 let height = if self.visible {
                     (crate::HEIGHT
-                        - match self.theme.bar_style {
+                        - match bar_style {
                             AppearanceStyle::Solid | AppearanceStyle::Gradient => 8.,
                             AppearanceStyle::Islands => 0.,
                         })
-                        * self.theme.scale_factor
+                        * scale_factor
                 } else {
                     0.0
                 };
@@ -560,37 +570,39 @@ impl App {
                     return Row::new().into();
                 }
 
-                let [left, center, right] = self.modules_section(id, &self.theme);
+                let [left, center, right] = self.modules_section(id);
 
+                let (space, bar_style, bar_position, opacity, menu) =
+                    use_theme(|t| (t.space, t.bar_style, t.bar_position, t.opacity, t.menu));
                 let centerbox = Centerbox::new([left, center, right])
-                    .spacing(self.theme.space.xxs)
+                    .spacing(space.xxs)
                     .width(Length::Fill)
                     .align_items(Alignment::Center)
-                    .height(if self.theme.bar_style == AppearanceStyle::Islands {
+                    .height(if bar_style == AppearanceStyle::Islands {
                         HEIGHT
                     } else {
-                        HEIGHT - self.theme.space.xs as f64
+                        HEIGHT - space.xs as f64
                     } as f32)
-                    .padding(if self.theme.bar_style == AppearanceStyle::Islands {
-                        [self.theme.space.xxs, self.theme.space.xxs]
+                    .padding(if bar_style == AppearanceStyle::Islands {
+                        [space.xxs, space.xxs]
                     } else {
                         [0.0, 0.0]
                     });
 
-                let status_bar = container(centerbox).style(|t: &Theme| container::Style {
-                    background: match self.theme.bar_style {
+                let menu_is_open = self.outputs.menu_is_open();
+                let status_bar = container(centerbox).style(move |t: &Theme| container::Style {
+                    background: match bar_style {
                         AppearanceStyle::Gradient => Some({
-                            let start_color =
-                                t.palette().background.scale_alpha(self.theme.opacity);
+                            let start_color = t.palette().background.scale_alpha(opacity);
 
-                            let start_color = if self.outputs.menu_is_open() {
-                                darken_color(start_color, self.theme.menu.backdrop)
+                            let start_color = if menu_is_open {
+                                darken_color(start_color, menu.backdrop)
                             } else {
                                 start_color
                             };
 
-                            let end_color = if self.outputs.menu_is_open() {
-                                backdrop_color(self.theme.menu.backdrop)
+                            let end_color = if menu_is_open {
+                                backdrop_color(menu.backdrop)
                             } else {
                                 Color::TRANSPARENT
                             };
@@ -599,14 +611,14 @@ impl App {
                                 Linear::new(Radians(PI))
                                     .add_stop(
                                         0.0,
-                                        match self.theme.bar_position {
+                                        match bar_position {
                                             Position::Top => start_color,
                                             Position::Bottom => end_color,
                                         },
                                     )
                                     .add_stop(
                                         1.0,
-                                        match self.theme.bar_position {
+                                        match bar_position {
                                             Position::Top => end_color,
                                             Position::Bottom => start_color,
                                         },
@@ -615,17 +627,17 @@ impl App {
                             .into()
                         }),
                         AppearanceStyle::Solid => Some({
-                            let bg = t.palette().background.scale_alpha(self.theme.opacity);
-                            if self.outputs.menu_is_open() {
-                                darken_color(bg, self.theme.menu.backdrop)
+                            let bg = t.palette().background.scale_alpha(opacity);
+                            if menu_is_open {
+                                darken_color(bg, menu.backdrop)
                             } else {
                                 bg
                             }
                             .into()
                         }),
                         AppearanceStyle::Islands => {
-                            if self.outputs.menu_is_open() {
-                                Some(backdrop_color(self.theme.menu.backdrop).into())
+                            if menu_is_open {
+                                Some(backdrop_color(menu.backdrop).into())
                             } else {
                                 None
                             }
@@ -649,59 +661,46 @@ impl App {
                         if let Some(updates) = self.updates.as_ref() {
                             self.menu_wrapper(
                                 id,
-                                updates.menu_view(id, &self.theme).map(Message::Updates),
+                                updates.menu_view(id).map(Message::Updates),
                                 ui_ref,
                             )
                         } else {
                             Row::new().into()
                         }
                     }
-                    MenuType::Tray(name) => self.menu_wrapper(
-                        id,
-                        self.tray.menu_view(&self.theme, name).map(Message::Tray),
-                        ui_ref,
-                    ),
+                    MenuType::Tray(name) => {
+                        self.menu_wrapper(id, self.tray.menu_view(name).map(Message::Tray), ui_ref)
+                    }
                     MenuType::Notifications => self.menu_wrapper(
                         id,
-                        self.notifications
-                            .menu_view(&self.theme)
-                            .map(Message::Notifications),
+                        self.notifications.menu_view().map(Message::Notifications),
                         ui_ref,
                     ),
                     MenuType::Settings => self.menu_wrapper(
                         id,
                         self.settings
-                            .menu_view(id, &self.theme, self.theme.bar_position)
+                            .menu_view(id, use_theme(|t| t.bar_position))
                             .map(Message::Settings),
                         ui_ref,
                     ),
                     MenuType::MediaPlayer => self.menu_wrapper(
                         id,
-                        self.media_player
-                            .menu_view(&self.theme)
-                            .map(Message::MediaPlayer),
+                        self.media_player.menu_view().map(Message::MediaPlayer),
                         ui_ref,
                     ),
                     MenuType::SystemInfo => self.menu_wrapper(
                         id,
-                        self.system_info
-                            .menu_view(&self.theme)
-                            .map(Message::SystemInfo),
+                        self.system_info.menu_view().map(Message::SystemInfo),
                         ui_ref,
                     ),
-                    MenuType::Tempo => self.menu_wrapper(
-                        id,
-                        self.tempo.menu_view(&self.theme).map(Message::Tempo),
-                        ui_ref,
-                    ),
+                    MenuType::Tempo => {
+                        self.menu_wrapper(id, self.tempo.menu_view().map(Message::Tempo), ui_ref)
+                    }
                 }
             }
             Some(HasOutput::Menu(None)) => Row::new().into(),
-            Some(HasOutput::Toast) => self
-                .notifications
-                .toast_view(&self.theme)
-                .map(Message::Notifications),
-            Some(HasOutput::Osd) => self.osd.view(&self.theme).map(Message::Osd),
+            Some(HasOutput::Toast) => self.notifications.toast_view().map(Message::Notifications),
+            Some(HasOutput::Osd) => self.osd.view().map(Message::Osd),
             None => Row::new().into(),
         }
     }

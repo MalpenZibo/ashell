@@ -12,7 +12,7 @@ use crate::{
             dbus::{Layout, LayoutProps},
         },
     },
-    theme::AshellTheme,
+    theme::use_theme,
 };
 use iced::{
     Alignment, Element, Length, Padding, Subscription, SurfaceId, Task,
@@ -102,12 +102,8 @@ impl TrayModule {
         }
     }
 
-    fn menu_voice<'a>(
-        &'a self,
-        theme: &'a AshellTheme,
-        name: &'a str,
-        layout: &'a Layout,
-    ) -> Element<'a, Message> {
+    fn menu_voice<'a>(&'a self, name: &'a str, layout: &'a Layout) -> Element<'a, Message> {
+        let space = use_theme(|theme| theme.space);
         match &layout.1 {
             LayoutProps {
                 label: Some(label),
@@ -125,7 +121,7 @@ impl TrayModule {
                     })
                     .width(Length::Fill),
             )
-            .padding([theme.space.xs, theme.space.md])
+            .padding([space.xs, space.md])
             .into(),
             LayoutProps {
                 children_display: Some(display),
@@ -135,7 +131,7 @@ impl TrayModule {
                 let is_open = self.submenus.contains(&layout.0);
                 Column::with_capacity(2)
                     .push(
-                        styled_button(theme, label.replace("_", ""))
+                        styled_button(label.replace("_", ""))
                             .icon(
                                 if is_open {
                                     StaticIcon::MenuOpen
@@ -154,11 +150,11 @@ impl TrayModule {
                                     .2
                                     .iter()
                                     .filter(|menu| menu.1.visible != Some(false))
-                                    .map(|menu| self.menu_voice(theme, name, menu))
+                                    .map(|menu| self.menu_voice(name, menu))
                                     .collect::<Vec<_>>(),
                             )
-                            .padding(Padding::default().left(theme.space.md))
-                            .spacing(theme.space.xxs),
+                            .padding(Padding::default().left(space.md))
+                            .spacing(space.xxs),
                         )
                     } else {
                         None
@@ -167,7 +163,7 @@ impl TrayModule {
             }
             LayoutProps {
                 label: Some(label), ..
-            } if !label.is_empty() => styled_button(theme, label.replace("_", ""))
+            } if !label.is_empty() => styled_button(label.replace("_", ""))
                 .on_press(Message::MenuSelected(name.to_owned(), layout.0))
                 .width(Length::Fill)
                 .into(),
@@ -176,11 +172,16 @@ impl TrayModule {
         }
     }
 
-    pub fn view<'a>(
-        &'a self,
-        id: SurfaceId,
-        theme: &'a AshellTheme,
-    ) -> Option<Element<'a, Message>> {
+    pub fn view<'a>(&'a self, id: SurfaceId) -> Option<Element<'a, Message>> {
+        let (space, font_size, button_style) = use_theme(|theme| {
+            (
+                theme.space,
+                theme.font_size,
+                theme.button_style(ButtonKind::Transparent, ButtonHierarchy::Secondary),
+            )
+        });
+        let button_style = std::sync::Arc::new(button_style);
+
         self.service
             .as_ref()
             .filter(|s| !s.data.is_empty())
@@ -191,15 +192,16 @@ impl TrayModule {
                             .data
                             .iter()
                             .map(|item| {
+                                let button_style = button_style.clone();
                                 position_button(match &item.icon {
                                     Some(TrayIcon::Image(handle)) => Into::<Element<_>>::into(
                                         Image::new(handle.clone())
-                                            .height(Length::Fixed(theme.font_size.md - 2.0)),
+                                            .height(Length::Fixed(font_size.md - 2.0)),
                                     ),
                                     Some(TrayIcon::Svg(handle)) => Into::<Element<_>>::into(
                                         Svg::new(handle.clone())
-                                            .height(Length::Fixed(theme.font_size.md + 2.))
-                                            .width(Length::Fixed(theme.font_size.md + 2.))
+                                            .height(Length::Fixed(font_size.md + 2.))
+                                            .width(Length::Fixed(font_size.md + 2.))
                                             .content_fit(iced::ContentFit::Cover),
                                     ),
                                     _ => icon(StaticIcon::Point).into(),
@@ -207,11 +209,8 @@ impl TrayModule {
                                 .on_press_with_position(move |button_ui_ref| {
                                     Message::ToggleMenu(item.name.to_owned(), id, button_ui_ref)
                                 })
-                                .padding(theme.space.xxs)
-                                .style(theme.button_style(
-                                    ButtonKind::Transparent,
-                                    ButtonHierarchy::Secondary,
-                                ))
+                                .padding(space.xxs)
+                                .style(move |t, s| button_style(t, s))
                                 .into()
                             })
                             .collect::<Vec<_>>(),
@@ -221,7 +220,8 @@ impl TrayModule {
             })
     }
 
-    pub fn menu_view<'a>(&'a self, theme: &'a AshellTheme, name: &'a str) -> Element<'a, Message> {
+    pub fn menu_view<'a>(&'a self, name: &'a str) -> Element<'a, Message> {
+        let space = use_theme(|theme| theme.space);
         container(
             match self
                 .service
@@ -233,9 +233,9 @@ impl TrayModule {
                         .2
                         .iter()
                         .filter(|menu| menu.1.visible != Some(false))
-                        .map(|menu| self.menu_voice(theme, name, menu)),
+                        .map(|menu| self.menu_voice(name, menu)),
                 )
-                .spacing(theme.space.xs),
+                .spacing(space.xs),
                 _ => Column::new(),
             },
         )

@@ -1,4 +1,4 @@
-use crate::{components::position_button, theme::AshellTheme};
+use crate::{components::position_button, theme::use_theme};
 use iced::{Alignment, Element, Length, widget::container};
 
 use super::ButtonUIRef;
@@ -8,7 +8,6 @@ use super::ButtonUIRef;
 ///
 /// When no press handler is set, renders as a plain container.
 pub struct ModuleItem<'a, Msg> {
-    theme: &'a AshellTheme,
     content: Element<'a, Msg>,
     on_press: Option<Msg>,
     on_press_with_position: Option<Box<dyn Fn(ButtonUIRef) -> Msg + 'a>>,
@@ -17,12 +16,8 @@ pub struct ModuleItem<'a, Msg> {
     on_scroll_down: Option<Msg>,
 }
 
-pub fn module_item<'a, Msg: 'static + Clone>(
-    theme: &'a AshellTheme,
-    content: Element<'a, Msg>,
-) -> ModuleItem<'a, Msg> {
+pub fn module_item<'a, Msg: 'static + Clone>(content: Element<'a, Msg>) -> ModuleItem<'a, Msg> {
     ModuleItem {
-        theme,
         content,
         on_press: None,
         on_press_with_position: None,
@@ -61,6 +56,9 @@ impl<'a, Msg: 'static + Clone> ModuleItem<'a, Msg> {
 
 impl<'a, Msg: 'static + Clone> From<ModuleItem<'a, Msg>> for Element<'a, Msg> {
     fn from(item: ModuleItem<'a, Msg>) -> Self {
+        let (space, module_button_style) =
+            use_theme(|theme| (theme.space, theme.module_button_style()));
+
         let has_action = item.on_press.is_some() || item.on_press_with_position.is_some();
 
         if has_action {
@@ -70,9 +68,9 @@ impl<'a, Msg: 'static + Clone> From<ModuleItem<'a, Msg>> for Element<'a, Msg> {
                     .height(Length::Fill)
                     .clip(true),
             )
-            .padding([2.0, item.theme.space.xs])
+            .padding([2.0, space.xs])
             .height(Length::Fill)
-            .style(item.theme.module_button_style());
+            .style(module_button_style);
 
             if let Some(handler) = item.on_press_with_position {
                 button = button.on_press_with_position(handler);
@@ -93,7 +91,7 @@ impl<'a, Msg: 'static + Clone> From<ModuleItem<'a, Msg>> for Element<'a, Msg> {
             button.into()
         } else {
             container(item.content)
-                .padding([2.0, item.theme.space.xs])
+                .padding([2.0, space.xs])
                 .height(Length::Fill)
                 .align_y(Alignment::Center)
                 .clip(true)

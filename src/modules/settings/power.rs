@@ -14,7 +14,7 @@ use crate::{
             UPowerService,
         },
     },
-    theme::AshellTheme,
+    theme::use_theme,
     utils::{self, IndicatorState, format_duration},
 };
 use iced::{
@@ -165,37 +165,39 @@ impl PowerSettings {
         }
     }
 
-    pub fn menu<'a>(&'a self, theme: &'a AshellTheme) -> Element<'a, Message> {
+    pub fn menu<'a>(&'a self) -> Element<'a, Message> {
+        let space = use_theme(|t| t.space);
         column!(
-            styled_button(theme, "Suspend")
+            styled_button("Suspend")
                 .icon(StaticIcon::Suspend, IconPosition::Before)
                 .on_press(Message::Suspend)
                 .width(Length::Fill),
-            styled_button(theme, "Hibernate")
+            styled_button("Hibernate")
                 .icon(StaticIcon::Hibernate, IconPosition::Before)
                 .on_press(Message::Hibernate)
                 .width(Length::Fill),
-            styled_button(theme, "Reboot")
+            styled_button("Reboot")
                 .icon(StaticIcon::Reboot, IconPosition::Before)
                 .on_press(Message::Reboot)
                 .width(Length::Fill),
-            styled_button(theme, "Shutdown")
+            styled_button("Shutdown")
                 .icon(StaticIcon::Power, IconPosition::Before)
                 .on_press(Message::Shutdown)
                 .width(Length::Fill),
             divider(),
-            styled_button(theme, "Logout")
+            styled_button("Logout")
                 .icon(StaticIcon::Logout, IconPosition::Before)
                 .on_press(Message::Logout)
                 .width(Length::Fill),
         )
-        .padding(theme.space.xs)
+        .padding(space.xs)
         .width(Length::Fill)
-        .spacing(theme.space.xs)
+        .spacing(space.xs)
         .into()
     }
 
-    pub fn peripheral_menu<'a>(&'a self, theme: &'a AshellTheme) -> Option<Element<'a, Message>> {
+    pub fn peripheral_menu<'a>(&'a self) -> Option<Element<'a, Message>> {
+        let space = use_theme(|t| t.space);
         self.service
             .as_ref()
             .filter(|s| !s.peripherals.is_empty())
@@ -208,23 +210,21 @@ impl PowerSettings {
                             row![
                                 icon(p.kind.get_icon()),
                                 text(p.name.to_string()).width(Length::Fill),
-                                self.menu_indicator(theme, p.data, None),
+                                self.menu_indicator(p.data, None),
                             ]
                             .align_y(Vertical::Center)
-                            .spacing(theme.space.sm)
+                            .spacing(space.sm)
                             .into()
                         })
                         .collect::<Vec<Element<Message>>>(),
                 )
-                .spacing(theme.space.xs)
+                .spacing(space.xs)
                 .into()
             })
     }
 
-    pub fn peripheral_indicators<'a>(
-        &self,
-        ashell_theme: &AshellTheme,
-    ) -> Option<Element<'a, Message>> {
+    pub fn peripheral_indicators<'a>(&self) -> Option<Element<'a, Message>> {
+        let space = use_theme(|t| t.space);
         let get_indicators = |kinds: Option<&[PeripheralDeviceKind]>| {
             self.service
                 .as_ref()
@@ -236,7 +236,7 @@ impl PowerSettings {
                 })
                 .map(|service| {
                     let mut row = Row::with_capacity(service.peripherals.len())
-                        .spacing(ashell_theme.space.xxs)
+                        .spacing(space.xxs)
                         .align_y(Alignment::Center);
 
                     for p in service.peripherals.iter() {
@@ -255,14 +255,14 @@ impl PowerSettings {
                                             icon(p.kind.get_icon()),
                                             text(format!("{}%", p.data.capacity))
                                         )
-                                        .spacing(ashell_theme.space.xxs)
+                                        .spacing(space.xxs)
                                         .align_y(Alignment::Center)
                                         .into(),
                                         SettingsFormat::IconAndPercentage => row!(
                                             icon(p.get_icon_state()),
                                             text(format!("{}%", p.data.capacity))
                                         )
-                                        .spacing(ashell_theme.space.xxs)
+                                        .spacing(space.xxs)
                                         .align_y(Alignment::Center)
                                         .into(),
                                         SettingsFormat::Time => {
@@ -272,7 +272,7 @@ impl PowerSettings {
                                             icon(p.get_icon_state()),
                                             text(format_time_for_battery(&p.data))
                                         )
-                                        .spacing(ashell_theme.space.xxs)
+                                        .spacing(space.xxs)
                                         .align_y(Alignment::Center)
                                         .into(),
                                     })
@@ -304,10 +304,7 @@ impl PowerSettings {
         .map(|r| r.into())
     }
 
-    pub fn battery_indicator<'a>(
-        &self,
-        ashell_theme: &'a AshellTheme,
-    ) -> Option<Element<'a, Message>> {
+    pub fn battery_indicator<'a>(&self) -> Option<Element<'a, Message>> {
         self.service.as_ref().and_then(|service| {
             service.system_battery.map(|battery| {
                 let state = battery.get_indicator_state();
@@ -319,7 +316,6 @@ impl PowerSettings {
                 };
 
                 format_indicator(
-                    ashell_theme,
                     self.config.battery_format,
                     battery.get_icon(),
                     text(label).into(),
@@ -332,10 +328,10 @@ impl PowerSettings {
 
     fn menu_indicator<'a>(
         &self,
-        ashell_theme: &'a AshellTheme,
         battery: BatteryData,
         peripheral_icon: Option<StaticIcon>,
     ) -> Element<'a, Message> {
+        let space = use_theme(|t| t.space);
         let state = battery.get_indicator_state();
 
         container({
@@ -344,7 +340,7 @@ impl PowerSettings {
                     .push(peripheral_icon.map(icon))
                     .push(icon(battery.get_icon()))
                     .push(text(format!("{}%", battery.capacity)))
-                    .spacing(ashell_theme.space.xxs),
+                    .spacing(space.xxs),
             )
             .style(move |theme: &Theme| container::Style {
                 text_color: Some(match state {
@@ -360,7 +356,7 @@ impl PowerSettings {
                     battery_info,
                     text(format!("Full in {}", format_duration(&remaining)))
                 )
-                .spacing(ashell_theme.space.md),
+                .spacing(space.md),
                 BatteryStatus::Discharging(remaining)
                     if battery.capacity < 95 && !remaining.is_zero() =>
                 {
@@ -368,27 +364,24 @@ impl PowerSettings {
                         battery_info,
                         text(format!("Empty in {}", format_duration(&remaining)))
                     )
-                    .spacing(ashell_theme.space.md)
+                    .spacing(space.md)
                 }
                 _ => row!(battery_info),
             }
         })
-        .padding([ashell_theme.space.xs, ashell_theme.space.xxs])
+        .padding([space.xs, space.xxs])
         .into()
     }
 
-    pub fn battery_menu_indicator<'a>(
-        &self,
-        ashell_theme: &'a AshellTheme,
-    ) -> Option<Element<'a, Message>> {
+    pub fn battery_menu_indicator<'a>(&self) -> Option<Element<'a, Message>> {
         self.service.as_ref().and_then(|service| {
             service
                 .system_battery
                 .map(|battery| {
-                    let indicator = self.menu_indicator(ashell_theme, battery, None);
+                    let indicator = self.menu_indicator(battery, None);
 
                     if !service.peripherals.is_empty() {
-                        styled_button(ashell_theme, indicator)
+                        styled_button(indicator)
                             .kind(ButtonKind::Solid)
                             .on_press(Message::TogglePeripheralMenu)
                             .into()
@@ -398,14 +391,11 @@ impl PowerSettings {
                 })
                 .or_else(|| {
                     if let Some(peripheral) = service.peripherals.first() {
-                        let indicator = self.menu_indicator(
-                            ashell_theme,
-                            peripheral.data,
-                            Some(peripheral.kind.get_icon()),
-                        );
+                        let indicator =
+                            self.menu_indicator(peripheral.data, Some(peripheral.kind.get_icon()));
 
                         Some(if service.peripherals.len() > 1 {
-                            styled_button(ashell_theme, indicator)
+                            styled_button(indicator)
                                 .kind(ButtonKind::Solid)
                                 .on_press(Message::TogglePeripheralMenu)
                                 .into()
@@ -446,13 +436,11 @@ impl PowerSettings {
 
     pub fn quick_setting_button<'a>(
         &'a self,
-        theme: &'a AshellTheme,
     ) -> Option<(Element<'a, Message>, Option<Element<'a, Message>>)> {
         self.service.as_ref().and_then(|service| {
             if !matches!(service.power_profile, PowerProfile::Unknown) {
                 Some((
                     quick_setting_button(
-                        theme,
                         convert::Into::<StaticIcon>::into(service.power_profile),
                         match service.power_profile {
                             PowerProfile::Balanced => "Balanced",

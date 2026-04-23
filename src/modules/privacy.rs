@@ -1,7 +1,7 @@
 use crate::{
     components::icons::{StaticIcon, icon},
     services::{ReadOnlyService, ServiceEvent, privacy::PrivacyService},
-    theme::AshellTheme,
+    theme::use_theme,
 };
 use iced::{
     Alignment, Element, Subscription,
@@ -35,7 +35,8 @@ impl Privacy {
         }
     }
 
-    pub fn view(&'_ self, theme: &AshellTheme) -> Option<Element<'_, Message>> {
+    pub fn view(&'_ self) -> Option<Element<'_, Message>> {
+        let space = use_theme(|theme| theme.space);
         if let Some(service) = self.service.as_ref()
             && !service.no_access()
         {
@@ -50,7 +51,7 @@ impl Privacy {
                         .push(service.webcam_access().then(|| icon(StaticIcon::Webcam)))
                         .push(service.microphone_access().then(|| icon(StaticIcon::Mic1)))
                         .align_y(Alignment::Center)
-                        .spacing(theme.space.xs),
+                        .spacing(space.xs),
                 )
                 .style(|theme| container::Style {
                     text_color: Some(theme.palette().warning),

@@ -5,7 +5,6 @@ use crate::{
         ReadOnlyService, Service, ServiceEvent,
         brightness::{BrightnessCommand, BrightnessService},
     },
-    theme::AshellTheme,
     utils::IndicatorState,
     utils::remote_value,
 };
@@ -117,10 +116,9 @@ impl BrightnessSettings {
         }
     }
 
-    pub fn slider<'a>(&'a self, theme: &'a AshellTheme) -> Option<Element<'a, Message>> {
+    pub fn slider<'a>(&'a self) -> Option<Element<'a, Message>> {
         self.service.as_ref().map(|service| {
             slider_control(
-                theme,
                 StaticIcon::Brightness,
                 0..=service.max,
                 service.current.value(),
@@ -131,15 +129,11 @@ impl BrightnessSettings {
         })
     }
 
-    pub fn brightness_indicator<'a>(
-        &'a self,
-        theme: &'a AshellTheme,
-    ) -> Option<Element<'a, Message>> {
+    pub fn brightness_indicator<'a>(&'a self) -> Option<Element<'a, Message>> {
         self.service.as_ref().map(|service| {
             let scroll_handler = Self::on_scroll(service.current.value(), service.max);
 
             format_indicator(
-                theme,
                 self.config,
                 StaticIcon::Brightness,
                 Self::percent_text(service).into(),

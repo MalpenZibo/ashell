@@ -2,7 +2,7 @@ use std::ops::RangeInclusive;
 
 use crate::{
     components::icons::{IconKind, StaticIcon, icon_button},
-    theme::AshellTheme,
+    theme::use_theme,
     utils::remote_value,
 };
 use iced::{
@@ -12,7 +12,6 @@ use iced::{
 };
 
 pub struct SliderControl<'a, Msg> {
-    theme: &'a AshellTheme,
     icon: IconKind,
     range: RangeInclusive<u32>,
     value: u32,
@@ -24,7 +23,6 @@ pub struct SliderControl<'a, Msg> {
 }
 
 pub fn slider_control<'a, Msg: 'static + Clone>(
-    theme: &'a AshellTheme,
     icon: impl Into<IconKind>,
     range: RangeInclusive<u32>,
     value: u32,
@@ -32,7 +30,6 @@ pub fn slider_control<'a, Msg: 'static + Clone>(
     on_scroll: impl Fn(ScrollDelta) -> Msg + 'a,
 ) -> SliderControl<'a, Msg> {
     SliderControl {
-        theme,
         icon: icon.into(),
         range,
         value,
@@ -63,8 +60,10 @@ impl<'a, Msg: 'static + Clone> SliderControl<'a, Msg> {
 
 impl<'a, Msg: 'static + Clone> From<SliderControl<'a, Msg>> for Element<'a, Msg> {
     fn from(ctrl: SliderControl<'a, Msg>) -> Self {
+        let space = use_theme(|theme| theme.space);
+
         let icon_element: Element<'a, Msg> = if let Some(msg) = ctrl.on_icon_press {
-            let btn = icon_button(ctrl.theme, ctrl.icon.clone()).on_press(msg);
+            let btn = icon_button(ctrl.icon.clone()).on_press(msg);
             if let Some(right_msg) = ctrl.on_icon_right_press {
                 MouseArea::new(btn).on_right_press(right_msg).into()
             } else {
@@ -93,7 +92,7 @@ impl<'a, Msg: 'static + Clone> From<SliderControl<'a, Msg>> for Element<'a, Msg>
             } else {
                 StaticIcon::RightArrow
             };
-            icon_button(ctrl.theme, trailing_icon).on_press(msg).into()
+            icon_button(trailing_icon).on_press(msg).into()
         });
 
         Row::with_capacity(3)
@@ -101,7 +100,7 @@ impl<'a, Msg: 'static + Clone> From<SliderControl<'a, Msg>> for Element<'a, Msg>
             .push(slider_element)
             .push(trailing)
             .align_y(Alignment::Center)
-            .spacing(ctrl.theme.space.xs)
+            .spacing(space.xs)
             .into()
     }
 }
