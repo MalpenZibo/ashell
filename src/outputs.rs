@@ -263,7 +263,7 @@ impl Outputs {
             Some(index_to_remove) => {
                 debug!("Removing layer surface for output");
 
-                let (name, shell_info, output_id) = self.0.swap_remove(index_to_remove);
+                let (_name, shell_info, _output_id) = self.0.swap_remove(index_to_remove);
 
                 let destroy_task = if let Some(shell_info) = shell_info {
                     shell_info.destroy_surfaces()
@@ -271,7 +271,11 @@ impl Outputs {
                     Task::none()
                 };
 
-                self.0.push((name, None, output_id));
+                // Drop the entry entirely instead of keeping a (name, None, stale_id) marker:
+                // on resume, sync() would otherwise treat it as "needs re-add" and call add()
+                // with the stale OutputId. iced_layershell can't resolve the id, silently
+                // falls back to output=None, and the compositor binds the phantom surface
+                // to any available monitor — producing a duplicate bar.
 
                 if self.0.iter().any(|(_, shell_info, _)| shell_info.is_some()) {
                     Task::batch(vec![destroy_task])
