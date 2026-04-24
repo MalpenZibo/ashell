@@ -361,7 +361,7 @@ impl Tempo {
 
                                     styled_button(Element::from(
                                         text(
-                                            day.format_localized("%d", self.config.locale)
+                                            day.format_localized("%-d", self.config.locale)
                                                 .to_string(),
                                         )
                                         .align_x(Horizontal::Center)
