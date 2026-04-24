@@ -5,7 +5,7 @@ use crate::{
         styled_button,
     },
     config::{TempoModuleConfig, WeatherIndicator, WeatherLocation},
-    i18n::chrono_locale,
+    i18n::{UnitSystem, chrono_locale, unit_system},
     theme::{AshellTheme, use_theme},
 };
 use chrono::{
@@ -61,6 +61,20 @@ pub struct Tempo {
 }
 
 impl Tempo {
+    fn temp_unit(&self) -> &str {
+        match unit_system() {
+            UnitSystem::Metric => "°C",
+            UnitSystem::Imperial => "°F",
+        }
+    }
+
+    fn wind_speed_unit(&self) -> &str {
+        match unit_system() {
+            UnitSystem::Metric => "km/h",
+            UnitSystem::Imperial => "mph",
+        }
+    }
+
     pub fn new(config: TempoModuleConfig) -> Self {
         Self {
             config,
@@ -226,9 +240,13 @@ impl Tempo {
                     .push(
                         (self.config.weather_indicator == WeatherIndicator::IconAndTemperature)
                             .then(|| {
-                                text(format!("{}°C", data.current.temperature_2m))
-                                    .align_y(Vertical::Center)
-                                    .size(font_size.sm)
+                                text(format!(
+                                    "{}{}",
+                                    data.current.temperature_2m,
+                                    self.temp_unit()
+                                ))
+                                .align_y(Vertical::Center)
+                                .size(font_size.sm)
                             }),
                     )
                     .align_y(Vertical::Center)
@@ -481,10 +499,15 @@ impl Tempo {
                                 .size(font_size.sm),
                                 text(weather_description(data.current.weather_code)),
                                 row!(
-                                    text(format!("{} °C", data.current.temperature_2m)),
                                     text(format!(
-                                        "Feels like {}°C",
-                                        data.current.apparent_temperature
+                                        "{}{}",
+                                        data.current.temperature_2m,
+                                        self.temp_unit()
+                                    )),
+                                    text(format!(
+                                        "Feels like {}{}",
+                                        data.current.apparent_temperature,
+                                        self.temp_unit()
                                     ))
                                     .size(font_size.sm)
                                 )
@@ -531,10 +554,14 @@ impl Tempo {
                                             .size(font_size.xs)
                                             .align_x(Horizontal::Right)
                                             .width(Length::Fill),
-                                        text(format!("{} km/h", data.current.wind_speed_10m))
-                                            .align_x(Horizontal::Right)
-                                            .size(font_size.xs)
-                                            .width(Length::Fill),
+                                        text(format!(
+                                            "{} {}",
+                                            data.current.wind_speed_10m.round(),
+                                            self.wind_speed_unit()
+                                        ))
+                                        .align_x(Horizontal::Right)
+                                        .size(font_size.xs)
+                                        .width(Length::Fill),
                                     )
                                     .spacing(space.xxs)
                                 )
@@ -588,8 +615,9 @@ impl Tempo {
                                     }),
                                 )
                                 .map(|(time, weather_code, temp, is_day)| {
+                                    let unit = self.temp_unit();
                                     column!(
-                                        text(format!("{}°", temp.round())),
+                                        text(format!("{}{}", temp.round(), unit)),
                                         weather_icon(*weather_code, *is_day > 0)
                                             .height(font_size.md)
                                             .width(Length::Shrink),
@@ -646,12 +674,16 @@ impl Tempo {
                                         weather_icon(*weather_code, true)
                                             .height(font_size.md)
                                             .width(Length::Shrink),
-                                        container(
+                                        container({
+                                            let unit = self.temp_unit();
+                                            let wind_unit = self.wind_speed_unit();
                                             row!(
                                                 text(format!(
-                                                    "{}°/{}°",
+                                                    "{}{}/{}{}",
                                                     temp_min.round(),
-                                                    temp_max.round()
+                                                    unit,
+                                                    temp_max.round(),
+                                                    unit
                                                 ))
                                                 .width(Length::Shrink),
                                                 row!(
@@ -663,12 +695,16 @@ impl Tempo {
                                                     .rotation(Rotation::Floating(
                                                         Degrees(*wind_dir as f32 + 90.).into()
                                                     )),
-                                                    text(format!("{} km/h", wind_speed))
+                                                    text(format!(
+                                                        "{} {}",
+                                                        wind_speed.round(),
+                                                        wind_unit
+                                                    ))
                                                 )
                                                 .spacing(space.xxs)
                                             )
                                             .spacing(space.sm)
-                                        )
+                                        })
                                         .width(Length::FillPortion(2))
                                         .align_x(Horizontal::Right)
                                     )
@@ -748,49 +784,67 @@ impl Tempo {
         });
 
         let weather_sub = self.config.weather_location.clone().map(|location| {
-            Subscription::run_with(location, |location| {
-                let location = location.clone();
-                channel(100, async move |mut output| {
-                    let mut failed_attempt: u64 = 0;
+            let temp_unit_str = match unit_system() {
+                UnitSystem::Metric => "celsius",
+                UnitSystem::Imperial => "fahrenheit",
+            };
+            let wind_unit_str = match unit_system() {
+                UnitSystem::Metric => "kmh",
+                UnitSystem::Imperial => "mph",
+            };
+            Subscription::run_with(
+                (location, temp_unit_str, wind_unit_str),
+                |(location, temp_unit_str, wind_unit_str)| {
+                    let location = location.clone();
+                    let temp_unit_str = *temp_unit_str;
+                    let wind_unit_str = *wind_unit_str;
+                    channel(100, async move |mut output| {
+                        let mut failed_attempt: u64 = 0;
 
-                    loop {
-                        let loc = match fetch_location(&location).await {
-                            Ok(loc) => {
-                                debug!("Location fetched successfully: {:?}", loc);
-                                let (lat, lon) = (loc.latitude, loc.longitude);
-                                output.send(Message::UpdateLocation(loc)).await.ok();
-                                Some((lat, lon))
-                            }
-                            Err(e) => {
-                                warn!("Failed to fetch location: {:?}", e);
-                                None
-                            }
-                        };
-
-                        if let Some((lat, lon)) = loc {
-                            match fetch_weather_data(lat, lon).await {
-                                Ok(weather_data) => {
-                                    failed_attempt = 0;
-                                    debug!("Weather data fetched successfully: {:?}", weather_data);
-                                    output
-                                        .send(Message::UpdateWeather(Box::new(weather_data)))
-                                        .await
-                                        .ok();
-
-                                    tokio::time::sleep(Duration::from_secs(60 * 30)).await;
-                                    continue;
+                        loop {
+                            let loc = match fetch_location(&location).await {
+                                Ok(loc) => {
+                                    debug!("Location fetched successfully: {:?}", loc);
+                                    let (lat, lon) = (loc.latitude, loc.longitude);
+                                    output.send(Message::UpdateLocation(loc)).await.ok();
+                                    Some((lat, lon))
                                 }
                                 Err(e) => {
-                                    warn!("Failed to fetch weather data: {:?}", e);
+                                    warn!("Failed to fetch location: {:?}", e);
+                                    None
+                                }
+                            };
+
+                            if let Some((lat, lon)) = loc {
+                                match fetch_weather_data(lat, lon, temp_unit_str, wind_unit_str)
+                                    .await
+                                {
+                                    Ok(weather_data) => {
+                                        failed_attempt = 0;
+                                        debug!(
+                                            "Weather data fetched successfully: {:?}",
+                                            weather_data
+                                        );
+                                        output
+                                            .send(Message::UpdateWeather(Box::new(weather_data)))
+                                            .await
+                                            .ok();
+
+                                        tokio::time::sleep(Duration::from_secs(60 * 30)).await;
+                                        continue;
+                                    }
+                                    Err(e) => {
+                                        warn!("Failed to fetch weather data: {:?}", e);
+                                    }
                                 }
                             }
-                        }
 
-                        failed_attempt += 1;
-                        tokio::time::sleep(Duration::from_secs(60 * failed_attempt)).await;
-                    }
-                })
-            })
+                            failed_attempt += 1;
+                            tokio::time::sleep(Duration::from_secs(60 * failed_attempt)).await;
+                        }
+                    })
+                },
+            )
         });
 
         if let Some(weather_sub) = weather_sub {
@@ -979,19 +1033,26 @@ pub struct Location {
     region_name: String,
 }
 
-async fn fetch_weather_data(lat: f32, lon: f32) -> anyhow::Result<WeatherData> {
+async fn fetch_weather_data(
+    lat: f32,
+    lon: f32,
+    temp_unit_str: &str,
+    wind_unit_str: &str,
+) -> anyhow::Result<WeatherData> {
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(20))
         .build()?;
 
     let response = client.get(format!(
         "https://api.open-meteo.com/v1/forecast?\
-        latitude={}&longitude={}\
-        &current=weather_code,apparent_temperature,relative_humidity_2m,temperature_2m,is_day,wind_speed_10m,wind_direction_10m\
-        &hourly=weather_code,temperature_2m,is_day\
-        &daily=weather_code,temperature_2m_max,temperature_2m_min,wind_speed_10m_max,wind_direction_10m_dominant\
-        &forecast_days=7",
-        lat, lon
+latitude={}&longitude={}
+&current=weather_code,apparent_temperature,relative_humidity_2m,temperature_2m,is_day,wind_speed_10m,wind_direction_10m\
+&hourly=weather_code,temperature_2m,is_day\
+&daily=weather_code,temperature_2m_max,temperature_2m_min,wind_speed_10m_max,wind_direction_10m_dominant\
+&forecast_days=7\
+&temperature_unit={}\
+&wind_speed_unit={}",
+        lat, lon, temp_unit_str, wind_unit_str
     )).send().await?;
     let raw_data = response.text().await?;
 
