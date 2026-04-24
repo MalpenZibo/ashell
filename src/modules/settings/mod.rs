@@ -143,6 +143,18 @@ impl Settings {
         Action::None
     }
 
+    pub fn microphone_adjust(&mut self, up: bool) -> Action {
+        match self.audio.microphone_adjust(up) {
+            audio::Action::Task(task) => Action::Command(task.map(Message::Audio)),
+            _ => Action::None,
+        }
+    }
+
+    pub fn microphone_toggle_mute(&mut self) -> Action {
+        self.audio.microphone_toggle_mute();
+        Action::None
+    }
+
     pub fn brightness_adjust(&mut self, up: bool) -> Action {
         match self.brightness.brightness_adjust(up) {
             brightness::Action::Command(task) => Action::Command(task.map(Message::Brightness)),

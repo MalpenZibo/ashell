@@ -29,6 +29,7 @@ struct OsdState {
 #[derive(Debug, Clone, Copy)]
 pub enum OsdKind {
     Volume,
+    Microphone,
     Brightness,
     Airplane,
 }
@@ -112,12 +113,13 @@ impl Osd {
 
         let icon = match state.kind {
             OsdKind::Volume => AudioSettings::speaker_icon(state.muted, state.value),
+            OsdKind::Microphone => AudioSettings::microphone_icon(state.muted),
             OsdKind::Brightness => StaticIcon::Brightness,
             OsdKind::Airplane => StaticIcon::Airplane,
         };
 
         let detail: Element<'_, Message> = match state.kind {
-            OsdKind::Volume | OsdKind::Brightness => {
+            OsdKind::Volume | OsdKind::Microphone | OsdKind::Brightness => {
                 let mut bar = progress_bar(0.0..=1.0, state.value)
                     .length(160.0)
                     .girth(8.0);

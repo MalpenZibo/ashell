@@ -85,12 +85,15 @@ ashell msg toggle-visibility
 ashell msg volume-up
 ashell msg volume-down
 ashell msg volume-toggle-mute
+ashell msg microphone-up
+ashell msg microphone-down
+ashell msg microphone-toggle-mute
 ashell msg brightness-up
 ashell msg brightness-down
 ashell msg airplane-toggle
 ```
 
-Volume, brightness, and airplane commands show an OSD overlay. Add `--no-osd` to suppress it.
+Volume, microphone, brightness, and airplane commands show an OSD overlay. Add `--no-osd` to suppress it.
 
 ## Signal Handling
 

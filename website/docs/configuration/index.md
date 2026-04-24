@@ -40,17 +40,20 @@ ashell msg <command>
 
 Available commands:
 
-| Command              | Description                          |
-| -------------------- | ------------------------------------ |
-| `toggle-visibility`  | Toggle the bar on/off                |
-| `volume-up`          | Increase sink volume by 5%           |
-| `volume-down`        | Decrease sink volume by 5%           |
-| `volume-toggle-mute` | Toggle sink mute                     |
-| `brightness-up`      | Increase screen brightness by 5%     |
-| `brightness-down`    | Decrease screen brightness by 5%     |
-| `airplane-toggle`    | Toggle airplane mode                 |
+| Command                  | Description                          |
+| ------------------------ | ------------------------------------ |
+| `toggle-visibility`      | Toggle the bar on/off                |
+| `volume-up`              | Increase sink volume by 5%           |
+| `volume-down`            | Decrease sink volume by 5%           |
+| `volume-toggle-mute`     | Toggle sink mute                     |
+| `microphone-up`          | Increase source volume by 5%         |
+| `microphone-down`        | Decrease source volume by 5%         |
+| `microphone-toggle-mute` | Toggle source mute                   |
+| `brightness-up`          | Increase screen brightness by 5%     |
+| `brightness-down`        | Decrease screen brightness by 5%     |
+| `airplane-toggle`        | Toggle airplane mode                 |
 
-Volume, brightness, and airplane commands show an OSD (On-Screen Display)
+Volume, microphone, brightness, and airplane commands show an OSD (On-Screen Display)
 overlay by default. Add `--no-osd` to suppress it:
 
 ```bash
