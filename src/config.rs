@@ -1,5 +1,6 @@
 use crate::app::Message;
 use crate::services::upower::PeripheralDeviceKind;
+use crate::utils::celsius_to_fahrenheit;
 use chrono::Locale;
 use hex_color::HexColor;
 use iced::futures::StreamExt;
@@ -271,10 +272,6 @@ impl Default for SystemInfoTemperature {
             format: TemperatureFormat::Celsius,
         }
     }
-}
-
-fn celsius_to_fahrenheit(cel: i32) -> i32 {
-    cel * 9 / 5 + 32
 }
 
 #[derive(Clone, Debug, Deserialize, Default)]
