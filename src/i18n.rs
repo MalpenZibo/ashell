@@ -98,8 +98,16 @@ fn resolve_language(config: Option<&str>) -> LanguageIdentifier {
 fn resolve_region(config: Option<&str>) -> Locale {
     env_chain(config, "LC_TIME")
         .as_deref()
-        .and_then(|s| Locale::try_from(normalize_to_posix(s).as_str()).ok())
+        .and_then(chrono_locale_from_posix)
         .unwrap_or(Locale::en_US)
+}
+
+fn chrono_locale_from_posix(s: &str) -> Option<Locale> {
+    let posix = normalize_to_posix(s);
+    Locale::try_from(posix.as_str()).ok().or_else(|| {
+        let (base, _) = posix.split_once('@')?;
+        Locale::try_from(base).ok()
+    })
 }
 
 fn env_chain(config: Option<&str>, category_var: &str) -> Option<String> {
@@ -155,13 +163,51 @@ fn env_locale(var: &str) -> Option<String> {
 }
 
 fn normalize_to_bcp47(s: &str) -> String {
-    let s = s.split(['.', '@']).next().unwrap_or(s);
-    s.replace('_', "-")
+    let (body, variant) = split_variant(s);
+    let (lang_region, _encoding) = split_encoding(body);
+    let bcp = lang_region.replace('_', "-");
+
+    let Some(script) = variant.and_then(script_subtag_for_variant) else {
+        return bcp;
+    };
+    match bcp.split_once('-') {
+        Some((lang, region)) => format!("{lang}-{script}-{region}"),
+        None => format!("{bcp}-{script}"),
+    }
 }
 
 fn normalize_to_posix(s: &str) -> String {
-    let s = s.split(['.', '@']).next().unwrap_or(s);
-    s.replace('-', "_")
+    let (body, variant) = split_variant(s);
+    let (lang_region, _encoding) = split_encoding(body);
+    let posix = lang_region.replace('-', "_");
+    match variant {
+        Some(v) => format!("{posix}@{v}"),
+        None => posix,
+    }
+}
+
+fn split_variant(s: &str) -> (&str, Option<&str>) {
+    match s.split_once('@') {
+        Some((body, variant)) => (body, Some(variant)),
+        None => (s, None),
+    }
+}
+
+fn split_encoding(s: &str) -> (&str, Option<&str>) {
+    match s.split_once('.') {
+        Some((body, enc)) => (body, Some(enc)),
+        None => (s, None),
+    }
+}
+
+fn script_subtag_for_variant(variant: &str) -> Option<&'static str> {
+    if variant.eq_ignore_ascii_case("latin") {
+        Some("Latn")
+    } else if variant.eq_ignore_ascii_case("cyrillic") {
+        Some("Cyrl")
+    } else {
+        None
+    }
 }
 
 fn en_us_langid() -> LanguageIdentifier {
