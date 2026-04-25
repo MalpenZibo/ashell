@@ -1111,6 +1111,9 @@ pub fn get_config(path: Option<PathBuf>) -> Result<(Config, PathBuf), Box<dyn Er
             })
         }
         None => expand_path(PathBuf::from(DEFAULT_CONFIG_FILE_PATH)).map(|expanded| {
+            // Safety: DEFAULT_CONFIG_FILE_PATH is "~/.config/ashell/config.toml" which
+            // always has directory components. shellexpand only expands ~/$HOME and never
+            // strips path components, so .parent() always returns Some.
             let parent = expanded
                 .parent()
                 .expect("Failed to get default config parent directory");
