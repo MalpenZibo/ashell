@@ -250,7 +250,7 @@ where
 {
     AnimatedSize {
         content: content.into(),
-        duration: Duration::from_millis(400),
+        duration: Duration::from_millis(100),
         easing: Easing::EaseOutCubic,
     }
 }

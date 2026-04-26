@@ -481,7 +481,7 @@ impl Workspaces {
                                             })
                                         })
                                         .animates_layout(true)
-                                        .animation(Easing::EASE.quick())
+                                        .animation(Easing::EASE.very_quick())
                                         .into()
                                     }
                                     Some(tw) => button(
