@@ -7,6 +7,8 @@ Complete reference for all configuration options in `~/.config/ashell/config.tom
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `log_level` | String | `"warn"` | Log level ([env_logger syntax](https://docs.rs/env_logger)) |
+| `language` | Option\<String\> | auto | UI language (BCP-47 or POSIX, e.g. `"en-US"`). Auto-detected from `$LC_MESSAGES` / `$LANG` when unset |
+| `region` | Option\<String\> | auto | Regional formatting — dates and unit defaults (e.g. `"it-IT"`). Auto-detected from `$LC_TIME` / `$LANG` when unset |
 | `position` | `"Top"` \| `"Bottom"` | `"Bottom"` | Bar position on screen |
 | `layer` | `"Top"` \| `"Bottom"` \| `"Overlay"` | `"Bottom"` | Wayland layer (Bottom = below floating windows) |
 | `outputs` | `"All"` \| `"Active"` \| `{ Targets = [...] }` | `"All"` | Which monitors show the bar |
