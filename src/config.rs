@@ -1,4 +1,5 @@
 use crate::app::Message;
+use crate::i18n::UnitSystem;
 use crate::services::upower::PeripheralDeviceKind;
 use crate::utils::celsius_to_fahrenheit;
 use hex_color::HexColor;
@@ -247,26 +248,25 @@ pub struct SystemInfoTemperature {
     warn_threshold: Option<i32>,
     alert_threshold: Option<i32>,
     pub sensor: String,
-    pub format: TemperatureFormat,
 }
 
 impl SystemInfoTemperature {
     pub fn warn_threshold(&self) -> i32 {
-        self.warn_threshold.unwrap_or_else(|| match self.format {
-            TemperatureFormat::Celsius => DEFAULT_TEMP_WARN_CELSIUS,
-            TemperatureFormat::Fahrenheit => celsius_to_fahrenheit(DEFAULT_TEMP_WARN_CELSIUS),
-        })
+        self.warn_threshold
+            .unwrap_or_else(|| match crate::i18n::unit_system() {
+                UnitSystem::Metric => DEFAULT_TEMP_WARN_CELSIUS,
+                UnitSystem::Imperial => celsius_to_fahrenheit(DEFAULT_TEMP_WARN_CELSIUS),
+            })
     }
 
     pub fn alert_threshold(&self) -> i32 {
-        self.alert_threshold.unwrap_or_else(|| match self.format {
-            TemperatureFormat::Celsius => DEFAULT_TEMP_ALERT_CELSIUS,
-            TemperatureFormat::Fahrenheit => celsius_to_fahrenheit(DEFAULT_TEMP_ALERT_CELSIUS),
-        })
+        self.alert_threshold
+            .unwrap_or_else(|| match crate::i18n::unit_system() {
+                UnitSystem::Metric => DEFAULT_TEMP_ALERT_CELSIUS,
+                UnitSystem::Imperial => celsius_to_fahrenheit(DEFAULT_TEMP_ALERT_CELSIUS),
+            })
     }
-}
 
-impl SystemInfoTemperature {
     fn validate(&mut self) {
         if let (Some(warn), Some(alert)) = (&mut self.warn_threshold, &mut self.alert_threshold) {
             validate_thresholds(warn, alert, "Temperature");
@@ -280,7 +280,6 @@ impl Default for SystemInfoTemperature {
             warn_threshold: None,
             alert_threshold: None,
             sensor: "acpitz temp1".to_string(),
-            format: TemperatureFormat::Celsius,
         }
     }
 }
@@ -304,13 +303,6 @@ pub enum CpuFormat {
     #[default]
     Percentage,
     Frequency,
-}
-
-#[derive(Clone, Debug, Deserialize, Default, PartialEq, Eq)]
-pub enum TemperatureFormat {
-    #[default]
-    Celsius,
-    Fahrenheit,
 }
 
 #[derive(Deserialize, Clone, Debug)]
