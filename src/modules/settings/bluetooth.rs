@@ -191,7 +191,11 @@ impl BluetoothSettings {
 
             Some((
                 quick_setting_button(
-                    StaticIcon::Bluetooth,
+                    if service.state == BluetoothState::Active {
+                        StaticIcon::Bluetooth
+                    } else {
+                        StaticIcon::BluetoothOff
+                    },
                     "Bluetooth".to_owned(),
                     device_name,
                     service.state == BluetoothState::Active,
