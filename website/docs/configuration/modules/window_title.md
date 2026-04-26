@@ -25,6 +25,8 @@ The `truncate_title_after_length` field limits how long the displayed title can 
 - **Set to 0**: Shows the full title up to the 2048 character limit
 - **Default**: 150 characters
 
+This limit uses grapheme-aware counting, so complex scripts and combining characters are handled fairly.
+
 **Important**: Window titles are **hard-limited to 2048 characters** regardless of configuration. This prevents Wayland socket buffer overflow errors that can cause crashes when applications (like games) send very long titles.
 
 When titles are too long, they're shortened to show the beginning and end with "..." in between, so you can still see both the app name and part of the title.

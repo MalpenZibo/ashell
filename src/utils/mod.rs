@@ -1,5 +1,7 @@
 use std::time::Duration;
 
+use unicode_segmentation::UnicodeSegmentation;
+
 pub mod launcher;
 pub mod remote_value;
 
@@ -22,12 +24,13 @@ pub fn format_duration(duration: &Duration) -> String {
 }
 
 pub fn truncate_text(value: &str, max_length: u32) -> String {
-    let length = value.len();
+    let graphemes = value.graphemes(true).collect::<Vec<&str>>();
+    let length = graphemes.len();
 
     if length > max_length as usize {
         let split = max_length as usize / 2;
-        let first_part = value.chars().take(split).collect::<String>();
-        let last_part = value.chars().skip(length - split).collect::<String>();
+        let first_part = graphemes[..split].concat();
+        let last_part = graphemes[length - split..].concat();
         format!("{first_part}...{last_part}")
     } else {
         value.to_string()
