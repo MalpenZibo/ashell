@@ -55,8 +55,13 @@
         src =
           let
             assetsFilter = path: _type: builtins.match ".*assets/.*" path != null;
+            i18nFilter =
+              path: _type: builtins.match ".*(i18n\\.toml|i18n/.*)" path != null;
             srcFilter =
-              path: type: (assetsFilter path type) || (craneLib.filterCargoSources path type);
+              path: type:
+              (assetsFilter path type)
+              || (i18nFilter path type)
+              || (craneLib.filterCargoSources path type);
           in
           pkgs.lib.cleanSourceWith {
             src = ./.;

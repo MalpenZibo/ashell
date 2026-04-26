@@ -7,12 +7,15 @@ Complete reference for all configuration options in `~/.config/ashell/config.tom
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `log_level` | String | `"warn"` | Log level ([env_logger syntax](https://docs.rs/env_logger)) |
+| `language` | Option\<String\> | auto | UI language (BCP-47 or POSIX, e.g. `"en-US"`). Auto-detected from `$LC_MESSAGES` / `$LANG` when unset |
+| `region` | Option\<String\> | auto | Regional formatting — dates and unit defaults (e.g. `"it-IT"`). Auto-detected from `$LC_TIME` / `$LANG` when unset |
 | `position` | `"Top"` \| `"Bottom"` | `"Bottom"` | Bar position on screen |
 | `layer` | `"Top"` \| `"Bottom"` \| `"Overlay"` | `"Bottom"` | Wayland layer (Bottom = below floating windows) |
 | `outputs` | `"All"` \| `"Active"` \| `{ Targets = [...] }` | `"All"` | Which monitors show the bar |
 | `enable_esc_key` | bool | `false` | Whether ESC key closes menus |
 | `osd.enabled` | bool | `false` | Show OSD overlay for IPC volume/brightness/airplane commands |
 | `osd.timeout` | u64 | `1500` | OSD auto-hide delay in milliseconds |
+| `animations.enabled` | bool | `false` | Master toggle for UI animations (bar widths, menu open/close, toast slides, etc.) |
 
 ## Module Layout
 

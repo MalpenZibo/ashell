@@ -5,6 +5,7 @@ use crate::{
         styled_button,
     },
     config::{TempoModuleConfig, WeatherIndicator, WeatherLocation},
+    i18n::{UnitSystem, chrono_locale, unit_system},
     theme::{AshellTheme, use_theme},
 };
 use chrono::{
@@ -60,6 +61,20 @@ pub struct Tempo {
 }
 
 impl Tempo {
+    fn temp_unit(&self) -> &str {
+        match unit_system() {
+            UnitSystem::Metric => "°C",
+            UnitSystem::Imperial => "°F",
+        }
+    }
+
+    fn wind_speed_unit(&self) -> &str {
+        match unit_system() {
+            UnitSystem::Metric => "km/h",
+            UnitSystem::Imperial => "mph",
+        }
+    }
+
     pub fn new(config: TempoModuleConfig) -> Self {
         Self {
             config,
@@ -178,6 +193,7 @@ impl Tempo {
         // %Z prints timezone abbreviations; other specifiers (e.g., %z/%:z) only need numeric offsets https://docs.rs/chrono/latest/chrono/format/strftime/index.html#fn6
         let format_requests_name = format.contains("%Z");
         let utc_now = self.date.with_timezone(&Utc);
+        let locale = chrono_locale();
 
         self.config
             .timezones
@@ -187,7 +203,7 @@ impl Tempo {
                     return Some(
                         offset
                             .from_utc_datetime(&utc_now.naive_utc())
-                            .format_localized(format, self.config.locale)
+                            .format_localized(format, locale)
                             .to_string(),
                     );
                 }
@@ -195,18 +211,14 @@ impl Tempo {
                 if let Ok(tz) = tz_name.parse::<Tz>() {
                     return Some(
                         tz.from_utc_datetime(&utc_now.naive_utc())
-                            .format_localized(format, self.config.locale)
+                            .format_localized(format, locale)
                             .to_string(),
                     );
                 }
 
                 None
             })
-            .unwrap_or_else(|| {
-                self.date
-                    .format_localized(format, self.config.locale)
-                    .to_string()
-            })
+            .unwrap_or_else(|| self.date.format_localized(format, locale).to_string())
     }
 
     pub fn weather_indicator(&'_ self) -> Option<Element<'_, Message>> {
@@ -228,9 +240,13 @@ impl Tempo {
                     .push(
                         (self.config.weather_indicator == WeatherIndicator::IconAndTemperature)
                             .then(|| {
-                                text(format!("{}°C", data.current.temperature_2m))
-                                    .align_y(Vertical::Center)
-                                    .size(font_size.sm)
+                                text(format!(
+                                    "{}{}",
+                                    data.current.temperature_2m,
+                                    self.temp_unit()
+                                ))
+                                .align_y(Vertical::Center)
+                                .size(font_size.sm)
                             }),
                     )
                     .align_y(Vertical::Center)
@@ -276,6 +292,7 @@ impl Tempo {
     }
 
     fn calendar_with_theme<'a>(&'a self, theme: &AshellTheme) -> Element<'a, Message> {
+        let locale = chrono_locale();
         let selected_date = self
             .selected_date
             .unwrap_or(self.naive_date(self.current_timezone_index));
@@ -308,14 +325,10 @@ impl Tempo {
                     .on_press(Message::ChangeSelectDate(
                         selected_date.checked_sub_months(Months::new(1)),
                     )),
-                text(
-                    selected_date
-                        .format_localized("%B", self.config.locale)
-                        .to_string()
-                )
-                .size(theme.font_size.md)
-                .width(Length::Fill)
-                .align_x(Horizontal::Center),
+                text(selected_date.format_localized("%B", locale).to_string())
+                    .size(theme.font_size.md)
+                    .width(Length::Fill)
+                    .align_x(Horizontal::Center),
                 icon_button::<Message>(StaticIcon::RightChevron)
                     .kind(ButtonKind::Solid)
                     .on_press(Message::ChangeSelectDate(
@@ -339,7 +352,7 @@ impl Tempo {
                     text(
                         NaiveDate::from_isoywd_opt(2000, 20, i)
                             .expect("valid NaiveDate")
-                            .format_localized("%a", self.config.locale)
+                            .format_localized("%a", locale)
                             .to_string(),
                     )
                     .align_x(Horizontal::Center)
@@ -360,28 +373,27 @@ impl Tempo {
                                     current = current.succ_opt().unwrap_or(current);
 
                                     styled_button(Element::from(
-                                        text(
-                                            day.format_localized("%d", self.config.locale)
-                                                .to_string(),
-                                        )
-                                        .align_x(Horizontal::Center)
-                                        .color_maybe({
-                                            if day == self.naive_date(self.current_timezone_index) {
-                                                Some(theme.iced_theme.palette().success)
-                                            } else if day == selected_date {
-                                                Some(theme.iced_theme.palette().primary)
-                                            } else if day.month0() != current_month {
-                                                Some(
-                                                    theme
-                                                        .iced_theme
-                                                        .palette()
-                                                        .text
-                                                        .scale_alpha(0.2),
-                                                )
-                                            } else {
-                                                None
-                                            }
-                                        }),
+                                        text(day.format_localized("%-d", locale).to_string())
+                                            .align_x(Horizontal::Center)
+                                            .color_maybe({
+                                                if day
+                                                    == self.naive_date(self.current_timezone_index)
+                                                {
+                                                    Some(theme.iced_theme.palette().success)
+                                                } else if day == selected_date {
+                                                    Some(theme.iced_theme.palette().primary)
+                                                } else if day.month0() != current_month {
+                                                    Some(
+                                                        theme
+                                                            .iced_theme
+                                                            .palette()
+                                                            .text
+                                                            .scale_alpha(0.2),
+                                                    )
+                                                } else {
+                                                    None
+                                                }
+                                            }),
                                     ))
                                     .on_press_maybe(
                                         if day != self.naive_date(self.current_timezone_index) {
@@ -436,18 +448,10 @@ impl Tempo {
         column!(
             styled_button(Element::from(
                 column!(
-                    text(
-                        self.date
-                            .format_localized("%A", self.config.locale)
-                            .to_string()
-                    )
-                    .size(theme.font_size.sm),
-                    text(
-                        self.date
-                            .format_localized("%d %B %Y", self.config.locale)
-                            .to_string()
-                    )
-                    .size(theme.font_size.md),
+                    text(self.date.format_localized("%A", locale).to_string())
+                        .size(theme.font_size.sm),
+                    text(self.date.format_localized("%d %B %Y", locale).to_string())
+                        .size(theme.font_size.md),
                 )
                 .spacing(theme.space.xs),
             ),)
@@ -470,6 +474,7 @@ impl Tempo {
     fn weather<'a>(&'a self) -> Option<Element<'a, Message>> {
         let (space, font_size, opacity, radius) =
             use_theme(|t| (t.space, t.font_size, t.opacity, t.radius));
+        let locale = chrono_locale();
         self.weather_data
             .as_ref()
             .zip(self.location.as_ref())
@@ -494,10 +499,15 @@ impl Tempo {
                                 .size(font_size.sm),
                                 text(weather_description(data.current.weather_code)),
                                 row!(
-                                    text(format!("{} °C", data.current.temperature_2m)),
                                     text(format!(
-                                        "Feels like {}°C",
-                                        data.current.apparent_temperature
+                                        "{}{}",
+                                        data.current.temperature_2m,
+                                        self.temp_unit()
+                                    )),
+                                    text(format!(
+                                        "Feels like {}{}",
+                                        data.current.apparent_temperature,
+                                        self.temp_unit()
                                     ))
                                     .size(font_size.sm)
                                 )
@@ -544,10 +554,14 @@ impl Tempo {
                                             .size(font_size.xs)
                                             .align_x(Horizontal::Right)
                                             .width(Length::Fill),
-                                        text(format!("{} km/h", data.current.wind_speed_10m))
-                                            .align_x(Horizontal::Right)
-                                            .size(font_size.xs)
-                                            .width(Length::Fill),
+                                        text(format!(
+                                            "{} {}",
+                                            data.current.wind_speed_10m.round(),
+                                            self.wind_speed_unit()
+                                        ))
+                                        .align_x(Horizontal::Right)
+                                        .size(font_size.xs)
+                                        .width(Length::Fill),
                                     )
                                     .spacing(space.xxs)
                                 )
@@ -601,8 +615,9 @@ impl Tempo {
                                     }),
                                 )
                                 .map(|(time, weather_code, temp, is_day)| {
+                                    let unit = self.temp_unit();
                                     column!(
-                                        text(format!("{}°", temp.round())),
+                                        text(format!("{}{}", temp.round(), unit)),
                                         weather_icon(*weather_code, *is_day > 0)
                                             .height(font_size.md)
                                             .width(Length::Shrink),
@@ -653,19 +668,22 @@ impl Tempo {
                                 container(
                                     row!(
                                         text(
-                                            time.format_localized("%a, %d %b", self.config.locale)
-                                                .to_string()
+                                            time.format_localized("%a, %d %b", locale).to_string()
                                         )
                                         .width(Length::Fill),
                                         weather_icon(*weather_code, true)
                                             .height(font_size.md)
                                             .width(Length::Shrink),
-                                        container(
+                                        container({
+                                            let unit = self.temp_unit();
+                                            let wind_unit = self.wind_speed_unit();
                                             row!(
                                                 text(format!(
-                                                    "{}°/{}°",
+                                                    "{}{}/{}{}",
                                                     temp_min.round(),
-                                                    temp_max.round()
+                                                    unit,
+                                                    temp_max.round(),
+                                                    unit
                                                 ))
                                                 .width(Length::Shrink),
                                                 row!(
@@ -677,12 +695,16 @@ impl Tempo {
                                                     .rotation(Rotation::Floating(
                                                         Degrees(*wind_dir as f32 + 90.).into()
                                                     )),
-                                                    text(format!("{} km/h", wind_speed))
+                                                    text(format!(
+                                                        "{} {}",
+                                                        wind_speed.round(),
+                                                        wind_unit
+                                                    ))
                                                 )
                                                 .spacing(space.xxs)
                                             )
                                             .spacing(space.sm)
-                                        )
+                                        })
                                         .width(Length::FillPortion(2))
                                         .align_x(Horizontal::Right)
                                     )
@@ -762,49 +784,67 @@ impl Tempo {
         });
 
         let weather_sub = self.config.weather_location.clone().map(|location| {
-            Subscription::run_with(location, |location| {
-                let location = location.clone();
-                channel(100, async move |mut output| {
-                    let mut failed_attempt: u64 = 0;
+            let temp_unit_str = match unit_system() {
+                UnitSystem::Metric => "celsius",
+                UnitSystem::Imperial => "fahrenheit",
+            };
+            let wind_unit_str = match unit_system() {
+                UnitSystem::Metric => "kmh",
+                UnitSystem::Imperial => "mph",
+            };
+            Subscription::run_with(
+                (location, temp_unit_str, wind_unit_str),
+                |(location, temp_unit_str, wind_unit_str)| {
+                    let location = location.clone();
+                    let temp_unit_str = *temp_unit_str;
+                    let wind_unit_str = *wind_unit_str;
+                    channel(100, async move |mut output| {
+                        let mut failed_attempt: u64 = 0;
 
-                    loop {
-                        let loc = match fetch_location(&location).await {
-                            Ok(loc) => {
-                                debug!("Location fetched successfully: {:?}", loc);
-                                let (lat, lon) = (loc.latitude, loc.longitude);
-                                output.send(Message::UpdateLocation(loc)).await.ok();
-                                Some((lat, lon))
-                            }
-                            Err(e) => {
-                                warn!("Failed to fetch location: {:?}", e);
-                                None
-                            }
-                        };
-
-                        if let Some((lat, lon)) = loc {
-                            match fetch_weather_data(lat, lon).await {
-                                Ok(weather_data) => {
-                                    failed_attempt = 0;
-                                    debug!("Weather data fetched successfully: {:?}", weather_data);
-                                    output
-                                        .send(Message::UpdateWeather(Box::new(weather_data)))
-                                        .await
-                                        .ok();
-
-                                    tokio::time::sleep(Duration::from_secs(60 * 30)).await;
-                                    continue;
+                        loop {
+                            let loc = match fetch_location(&location).await {
+                                Ok(loc) => {
+                                    debug!("Location fetched successfully: {:?}", loc);
+                                    let (lat, lon) = (loc.latitude, loc.longitude);
+                                    output.send(Message::UpdateLocation(loc)).await.ok();
+                                    Some((lat, lon))
                                 }
                                 Err(e) => {
-                                    warn!("Failed to fetch weather data: {:?}", e);
+                                    warn!("Failed to fetch location: {:?}", e);
+                                    None
+                                }
+                            };
+
+                            if let Some((lat, lon)) = loc {
+                                match fetch_weather_data(lat, lon, temp_unit_str, wind_unit_str)
+                                    .await
+                                {
+                                    Ok(weather_data) => {
+                                        failed_attempt = 0;
+                                        debug!(
+                                            "Weather data fetched successfully: {:?}",
+                                            weather_data
+                                        );
+                                        output
+                                            .send(Message::UpdateWeather(Box::new(weather_data)))
+                                            .await
+                                            .ok();
+
+                                        tokio::time::sleep(Duration::from_secs(60 * 30)).await;
+                                        continue;
+                                    }
+                                    Err(e) => {
+                                        warn!("Failed to fetch weather data: {:?}", e);
+                                    }
                                 }
                             }
-                        }
 
-                        failed_attempt += 1;
-                        tokio::time::sleep(Duration::from_secs(60 * failed_attempt)).await;
-                    }
-                })
-            })
+                            failed_attempt += 1;
+                            tokio::time::sleep(Duration::from_secs(60 * failed_attempt)).await;
+                        }
+                    })
+                },
+            )
         });
 
         if let Some(weather_sub) = weather_sub {
@@ -993,19 +1033,26 @@ pub struct Location {
     region_name: String,
 }
 
-async fn fetch_weather_data(lat: f32, lon: f32) -> anyhow::Result<WeatherData> {
+async fn fetch_weather_data(
+    lat: f32,
+    lon: f32,
+    temp_unit_str: &str,
+    wind_unit_str: &str,
+) -> anyhow::Result<WeatherData> {
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(20))
         .build()?;
 
     let response = client.get(format!(
         "https://api.open-meteo.com/v1/forecast?\
-        latitude={}&longitude={}\
-        &current=weather_code,apparent_temperature,relative_humidity_2m,temperature_2m,is_day,wind_speed_10m,wind_direction_10m\
-        &hourly=weather_code,temperature_2m,is_day\
-        &daily=weather_code,temperature_2m_max,temperature_2m_min,wind_speed_10m_max,wind_direction_10m_dominant\
-        &forecast_days=7",
-        lat, lon
+latitude={}&longitude={}
+&current=weather_code,apparent_temperature,relative_humidity_2m,temperature_2m,is_day,wind_speed_10m,wind_direction_10m\
+&hourly=weather_code,temperature_2m,is_day\
+&daily=weather_code,temperature_2m_max,temperature_2m_min,wind_speed_10m_max,wind_direction_10m_dominant\
+&forecast_days=7\
+&temperature_unit={}\
+&wind_speed_unit={}",
+        lat, lon, temp_unit_str, wind_unit_str
     )).send().await?;
     let raw_data = response.text().await?;
 

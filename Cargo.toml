@@ -87,6 +87,13 @@ chrono-tz = "0.10.4"
 wayland-client = "0.31"
 wayland-protocols = { version = "0.32", features = ["client"] }
 wayland-protocols-wlr = { version = "0.3", features = ["client"] }
+i18n-embed = { version = "0.16", default-features = false, features = [
+  "fluent-system",
+  "rust-embed",
+] }
+i18n-embed-fl = "0.10"
+rust-embed = "8"
+unic-langid = "0.9"
 
 [patch.crates-io]
 # Patched softbuffer that uses wl_shm Argb8888 so the tiny-skia fallback

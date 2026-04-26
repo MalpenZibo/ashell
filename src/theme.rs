@@ -112,6 +112,9 @@ pub struct AshellTheme {
     pub workspace_colors: Vec<AppearanceColor>,
     pub special_workspace_colors: Option<Vec<AppearanceColor>>,
     pub scale_factor: f64,
+    // Read by animation call sites added in subsequent PRs.
+    #[allow(dead_code)]
+    pub animations_enabled: bool,
 }
 
 impl Default for AshellTheme {
@@ -129,6 +132,7 @@ impl Default for AshellTheme {
             workspace_colors: appearance.workspace_colors.clone(),
             special_workspace_colors: appearance.special_workspace_colors.clone(),
             scale_factor: appearance.scale_factor,
+            animations_enabled: false,
             iced_theme: Theme::custom_with_fn(
                 "local".to_string(),
                 Palette {
@@ -237,8 +241,13 @@ impl Default for AshellTheme {
 }
 
 impl AshellTheme {
-    pub fn new(position: Position, appearance: &Appearance) -> Self {
+    pub fn new(
+        position: Position,
+        appearance: &Appearance,
+        animations: &crate::config::AnimationsConfig,
+    ) -> Self {
         AshellTheme {
+            animations_enabled: animations.enabled,
             space: Space::default(),
             radius: Radius::default(),
             font_size: FontSize::default(),
