@@ -51,7 +51,7 @@ Available commands:
 | `microphone-toggle-mute` | Toggle source mute                   |
 | `brightness-up`          | Increase screen brightness by 5%     |
 | `brightness-down`        | Decrease screen brightness by 5%     |
-| `airplane-toggle`        | Toggle airplane mode                 |
+| `toggle-airplane-mode`   | Toggle airplane mode                 |
 | `toggle-idle-inhibitor`  | Toggle idle inhibitor                |
 
 

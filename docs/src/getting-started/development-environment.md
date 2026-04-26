@@ -90,7 +90,7 @@ ashell msg microphone-down
 ashell msg microphone-toggle-mute
 ashell msg brightness-up
 ashell msg brightness-down
-ashell msg airplane-toggle
+ashell msg toggle-airplane-mode
 ashell msg toggle-idle-inhibitor
 ```
 

@@ -276,7 +276,7 @@ impl App {
                 .brightness()
                 .current_brightness()
                 .map(|(cur, max)| (OsdKind::Brightness, normalise(cur, max), false)),
-            IpcCommand::AirplaneToggle { .. } => {
+            IpcCommand::ToggleAirplaneMode { .. } => {
                 // After toggle: the new state is the opposite of current.
                 // For toggles, `muted` carries the active/enabled state; `value` is unused.
                 let active = !self.settings.network().is_airplane_mode().unwrap_or(false);
@@ -543,7 +543,7 @@ impl App {
                     }
                     IpcCommand::BrightnessUp { .. } => self.settings.brightness_adjust(true),
                     IpcCommand::BrightnessDown { .. } => self.settings.brightness_adjust(false),
-                    IpcCommand::AirplaneToggle { .. } => self.settings.toggle_airplane(),
+                    IpcCommand::ToggleAirplaneMode { .. } => self.settings.toggle_airplane(),
                     IpcCommand::ToggleIdleInhibitor { .. } => self.settings.toggle_idle_inhibitor(),
                     IpcCommand::ToggleVisibility => unreachable!(),
                 };

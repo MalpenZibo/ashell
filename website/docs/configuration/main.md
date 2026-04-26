@@ -173,7 +173,7 @@ ashell msg brightness-up
 ashell msg brightness-down
 
 # Airplane mode
-ashell msg airplane-toggle
+ashell msg toggle-airplane-mode
 
 # Idle Inhibitor
 ashell msg toggle-idle-inhibitor
