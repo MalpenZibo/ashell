@@ -1,8 +1,3 @@
-// PR 1 scaffolding: `loader()`, `UnitSystem`, `unit_system()` are consumed in
-// follow-up PRs (tempo °F/mph, per-module translations). Remove this allow
-// once call sites land.
-#![allow(dead_code)]
-
 use std::borrow::Cow;
 use std::cell::RefCell;
 
