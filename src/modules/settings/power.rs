@@ -76,6 +76,7 @@ pub struct PowerSettingsConfig {
     pub peripheral_indicators: PeripheralIndicators,
     pub peripheral_battery_format: SettingsFormat,
     pub peripheral_expanded_by_default: bool,
+    pub remove_hibernate_btn: bool,
 }
 
 impl PowerSettingsConfig {
@@ -91,6 +92,7 @@ impl PowerSettingsConfig {
         peripheral_indicators: PeripheralIndicators,
         peripheral_battery_format: SettingsFormat,
         peripheral_expanded_by_default: bool,
+        remove_hibernate_btn: bool,
     ) -> Self {
         Self {
             suspend_cmd,
@@ -103,6 +105,7 @@ impl PowerSettingsConfig {
             peripheral_indicators,
             peripheral_battery_format,
             peripheral_expanded_by_default,
+            remove_hibernate_btn,
         }
     }
 }
@@ -178,10 +181,16 @@ impl PowerSettings {
                 .icon(StaticIcon::Suspend, IconPosition::Before)
                 .on_press(Message::Suspend)
                 .width(Length::Fill),
-            styled_button("Hibernate")
-                .icon(StaticIcon::Hibernate, IconPosition::Before)
-                .on_press(Message::Hibernate)
-                .width(Length::Fill),
+            if self.config.remove_hibernate_btn {
+                None
+            } else {
+                Some(
+                    styled_button("Hibernate")
+                        .icon(StaticIcon::Hibernate, IconPosition::Before)
+                        .on_press(Message::Hibernate)
+                        .width(Length::Fill),
+                )
+            },
             styled_button("Reboot")
                 .icon(StaticIcon::Reboot, IconPosition::Before)
                 .on_press(Message::Reboot)
