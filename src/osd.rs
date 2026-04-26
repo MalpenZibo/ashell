@@ -131,14 +131,15 @@ impl Osd {
                 }
                 container(bar).center_x(Length::Fill).into()
             }
-            OsdKind::Airplane => {
+            OsdKind::Airplane | OsdKind::IdleInhibitor => {
+                let subject = match state.kind {
+                    OsdKind::Airplane => "Airplane mode",
+                    OsdKind::IdleInhibitor => "Idle inhibitor",
+                    _ => "",
+                };
                 // For toggles, `muted` carries the active/enabled state.
-                let label = if state.muted { "Enabled" } else { "Disabled" };
-                container(text(label)).center_x(Length::Fill).into()
-            }
-            OsdKind::IdleInhibitor => {
                 let state = if state.muted { "on" } else { "off" };
-                container(text(format!("Idle inhibitor turned {state}")))
+                container(text(format!("{subject} turned {state}")))
                     .center_x(Length::Fill)
                     .into()
             }
@@ -161,6 +162,7 @@ impl Osd {
                     .rounded(radius.xl),
                 text_color: Some(match (state.kind, state.muted) {
                     (OsdKind::IdleInhibitor, true) => t.palette().danger,
+                    (OsdKind::Airplane, true) => t.palette().danger,
                     _ => t.palette().text,
                 }),
                 ..Default::default()
