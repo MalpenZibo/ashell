@@ -414,6 +414,7 @@ impl App {
                         .close_all_menus(self.general_config.enable_esc_key),
                     task.map(Message::Tray),
                 ]),
+                modules::tray::Action::TrayMenuCommandKeepOpen(task) => task.map(Message::Tray),
                 modules::tray::Action::CloseTrayMenu(name) => self
                     .outputs
                     .close_all_menu_if(MenuType::Tray(name), self.general_config.enable_esc_key),
