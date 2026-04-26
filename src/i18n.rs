@@ -19,6 +19,8 @@ const CATALOGS: &[(&str, &str)] = &[("en-US", include_str!("../i18n/en-US/ashell
 const FALLBACK_LANG: &str = "en-US";
 const TRANSLATION_FILE: &str = "ashell.ftl";
 
+const FALLBACK_CHRONO: Locale = Locale::en_GB;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum UnitSystem {
     Metric,
@@ -38,7 +40,7 @@ impl Default for Localizer {
         // point and on any non-main thread that ever touches LOCALIZER.
         let loader = FluentLanguageLoader::new("ashell", en_us_langid());
         Self {
-            chrono: Locale::en_US,
+            chrono: FALLBACK_CHRONO,
             loader,
         }
     }
@@ -99,7 +101,7 @@ fn resolve_region(config: Option<&str>) -> Locale {
     env_chain(config, "LC_TIME")
         .as_deref()
         .and_then(chrono_locale_from_posix)
-        .unwrap_or(Locale::en_US)
+        .unwrap_or(FALLBACK_CHRONO)
 }
 
 fn chrono_locale_from_posix(s: &str) -> Option<Locale> {
@@ -147,11 +149,14 @@ fn expected_path(lang: &str) -> String {
 
 fn load_loader(langid: &LanguageIdentifier) -> FluentLanguageLoader {
     let loader = fluent_language_loader!();
-    if let Err(e) = loader.load_languages(&StaticCatalogs, std::slice::from_ref(langid)) {
-        warn!("i18n: failed to load language {langid}: {e}; using fallback");
-        if let Err(e) = loader.load_fallback_language(&StaticCatalogs) {
-            warn!("i18n: failed to load fallback language: {e}");
-        }
+    let result = i18n_embed::select(&loader, &StaticCatalogs, std::slice::from_ref(langid));
+    if !result.as_ref().is_ok_and(|s| s.contains(langid)) {
+        warn!("i18n: ashell does not support language {langid}, using {FALLBACK_LANG}");
+    }
+    if result.is_err()
+        && let Err(e) = loader.load_fallback_language(&StaticCatalogs)
+    {
+        warn!("i18n: failed to load fallback language: {e}");
     }
     loader
 }
