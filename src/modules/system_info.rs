@@ -87,7 +87,6 @@ fn get_system_info(
     (networks, last_check): (&mut Networks, Option<Instant>),
     temperature_sensor: &str,
     sensor_index: Option<usize>,
-    deduplicate_disks: bool,
 ) -> SystemInfoData {
     system.refresh_memory();
     system.refresh_cpu_all();
@@ -153,31 +152,14 @@ fn get_system_info(
     let disks: Vec<(String, DiskView)> = disks
         .iter()
         .filter(|d| !d.is_removable() && d.total_space() != 0)
-        .unique_by(|d| {
-            if deduplicate_disks {
-                d.name().to_os_string()
-            } else {
-                d.mount_point().as_os_str().to_os_string()
-            }
-        })
         .map(|d| {
             let total_space = d.total_space();
             let avail_space = d.available_space();
 
             let space_per = (total_space - avail_space) as f32 / total_space as f32 * 100.;
 
-            let label = if deduplicate_disks {
-                std::path::Path::new(d.name())
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .unwrap_or_else(|| d.name().to_str().unwrap_or("?"))
-                    .to_string()
-            } else {
-                d.mount_point().display().to_string()
-            };
-
             (
-                label,
+                d.mount_point().display().to_string(),
                 DiskView {
                     percentage: space_per as u32,
                     fraction: format!(
@@ -304,7 +286,6 @@ impl SystemInfo {
             (&mut networks, None),
             config.temperature.sensor.as_str(),
             cached_sensor_index,
-            config.disk.deduplicate,
         );
 
         Self {
@@ -331,7 +312,6 @@ impl SystemInfo {
                     ),
                     &self.config.temperature.sensor,
                     self.cached_sensor_index,
-                    self.config.disk.deduplicate,
                 );
             }
         }

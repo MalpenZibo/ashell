@@ -69,17 +69,6 @@ You can change the display format using the `format` option in `[system_info.dis
 - `"Percentage"` (default) — shows disk usage as a percentage (e.g., `54%`)
 - `"Fraction"` — shows used and total disk space in GB (e.g., `256.00/512.00 GB`)
 
-#### Deduplication
-
-When multiple mount points share the same underlying block device, the Disk indicator can show a separate entry for each mount point, which may be redundant.
-
-Setting `deduplicate = true` in `[system_info.disk]` collapses these into a single entry per device, labelled by the device name (e.g., `sda`) rather than the mount path. Defaults to `true`.
-
-```toml
-[system_info.disk]
-deduplicate = false
-```
-
 #### Example
 
 To monitor the home directory disk space, you can add the following to your configuration:
@@ -233,7 +222,6 @@ format = "Percentage"
 warn_threshold = 80
 alert_threshold = 90
 format = "Percentage"
-deduplicate = true
 
 [system_info.temperature]
 warn_threshold = 60
