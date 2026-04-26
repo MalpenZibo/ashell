@@ -52,8 +52,10 @@ Available commands:
 | `brightness-up`          | Increase screen brightness by 5%     |
 | `brightness-down`        | Decrease screen brightness by 5%     |
 | `airplane-toggle`        | Toggle airplane mode                 |
+| `toggle-idle-inhibitor`  | Toggle idle inhibitor                |
 
-Volume, microphone, brightness, and airplane commands show an OSD (On-Screen Display)
+
+Volume, microphone, brightness, airplane and idle inhibitor commands show an OSD (On-Screen Display)
 overlay by default. Add `--no-osd` to suppress it:
 
 ```bash

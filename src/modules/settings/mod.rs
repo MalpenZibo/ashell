@@ -131,6 +131,10 @@ impl Settings {
         &self.network
     }
 
+    pub fn idle_inhibitor(&self) -> &Option<IdleInhibitorManager> {
+        &self.idle_inhibitor
+    }
+
     pub fn volume_adjust(&mut self, up: bool) -> Action {
         match self.audio.volume_adjust(up) {
             audio::Action::Task(task) => Action::Command(task.map(Message::Audio)),
@@ -168,6 +172,13 @@ impl Settings {
             network::Action::Command(task) => Action::Command(task.map(Message::Network)),
             _ => Action::None,
         }
+    }
+
+    pub fn toggle_idle_inhibitor(&mut self) -> Action {
+        if let Some(idle_inhibitor) = &mut self.idle_inhibitor {
+            idle_inhibitor.toggle();
+        }
+        Action::None
     }
 
     pub fn new(config: SettingsModuleConfig) -> Self {
@@ -609,11 +620,9 @@ impl Settings {
                     self.idle_inhibitor.as_ref().map(|idle_inhibitor| {
                         (
                             quick_setting_button(
-                                if idle_inhibitor.is_inhibited() {
-                                    StaticIcon::EyeOpened
-                                } else {
-                                    StaticIcon::EyeClosed
-                                },
+                                IdleInhibitorManager::idle_inhibitor_icon(
+                                    idle_inhibitor.is_inhibited(),
+                                ),
                                 "Idle Inhibitor".to_string(),
                                 None,
                                 idle_inhibitor.is_inhibited(),
@@ -718,18 +727,17 @@ impl Settings {
         for indicator in &self.indicators {
             match indicator {
                 SettingsIndicator::IdleInhibitor => {
-                    if let Some(element) = self
-                        .idle_inhibitor
-                        .as_ref()
-                        .filter(|i| i.is_inhibited())
-                        .map(|_| {
-                            container(icon(StaticIcon::EyeOpened)).style(|theme: &Theme| {
-                                container::Style {
-                                    text_color: Some(theme.palette().danger),
-                                    ..Default::default()
-                                }
+                    if let Some(element) =
+                        self.idle_inhibitor
+                            .as_ref()
+                            .filter(|i| i.is_inhibited())
+                            .map(|_| {
+                                container(icon(IdleInhibitorManager::idle_inhibitor_icon(true)))
+                                    .style(|theme: &Theme| container::Style {
+                                        text_color: Some(theme.palette().danger),
+                                        ..Default::default()
+                                    })
                             })
-                        })
                     {
                         row = row.push(element);
                     }

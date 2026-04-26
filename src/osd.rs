@@ -10,6 +10,7 @@ use crate::{
     components::icons::{Icon, StaticIcon},
     config::OsdConfig,
     modules::settings::audio::AudioSettings,
+    services::idle_inhibitor::IdleInhibitorManager,
     theme::use_theme,
 };
 
@@ -32,6 +33,7 @@ pub enum OsdKind {
     Microphone,
     Brightness,
     Airplane,
+    IdleInhibitor,
 }
 
 #[derive(Debug, Clone)]
@@ -116,6 +118,7 @@ impl Osd {
             OsdKind::Microphone => AudioSettings::microphone_icon(state.muted),
             OsdKind::Brightness => StaticIcon::Brightness,
             OsdKind::Airplane => StaticIcon::Airplane,
+            OsdKind::IdleInhibitor => IdleInhibitorManager::idle_inhibitor_icon(state.muted),
         };
 
         let detail: Element<'_, Message> = match state.kind {
@@ -133,6 +136,12 @@ impl Osd {
                 let label = if state.muted { "Enabled" } else { "Disabled" };
                 container(text(label)).center_x(Length::Fill).into()
             }
+            OsdKind::IdleInhibitor => {
+                let state = if state.muted { "on" } else { "off" };
+                container(text(format!("Idle inhibitor turned {state}")))
+                    .center_x(Length::Fill)
+                    .into()
+            }
         };
 
         let content = row![icon.to_text().size(font_size.xxl), detail,]
@@ -147,7 +156,10 @@ impl Osd {
                     .width(1)
                     .color(t.extended_palette().background.weakest.color)
                     .rounded(radius.xl),
-
+                text_color: Some(match (state.kind, state.muted) {
+                    (OsdKind::IdleInhibitor, true) => t.palette().danger,
+                    _ => t.palette().text,
+                }),
                 ..Default::default()
             })
             .center_x(Length::Fill)

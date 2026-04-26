@@ -282,6 +282,14 @@ impl App {
                 let active = !self.settings.network().is_airplane_mode().unwrap_or(false);
                 Some((OsdKind::Airplane, 0.0, active))
             }
+            IpcCommand::ToggleIdleInhibitor { .. } => {
+                if let Some(idle_inhibitor) = self.settings.idle_inhibitor() {
+                    let active = idle_inhibitor.is_inhibited();
+                    Some((OsdKind::IdleInhibitor, 0.0, active))
+                } else {
+                    None
+                }
+            }
             IpcCommand::ToggleVisibility => None,
         }
     }
@@ -536,6 +544,7 @@ impl App {
                     IpcCommand::BrightnessUp { .. } => self.settings.brightness_adjust(true),
                     IpcCommand::BrightnessDown { .. } => self.settings.brightness_adjust(false),
                     IpcCommand::AirplaneToggle { .. } => self.settings.toggle_airplane(),
+                    IpcCommand::ToggleIdleInhibitor { .. } => self.settings.toggle_idle_inhibitor(),
                     IpcCommand::ToggleVisibility => unreachable!(),
                 };
                 if let settings::Action::Command(task) = action {

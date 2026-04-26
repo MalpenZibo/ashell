@@ -154,8 +154,8 @@ kill -SIGUSR1 $(pidof ashell)
 
 ## OSD (On-Screen Display)
 
-Ashell can show a transient overlay when volume, microphone, brightness, or airplane mode
-changes via IPC commands. This is useful for binding compositor keys to ashell:
+Ashell can show a transient overlay when volume, microphone, brightness, airplane mode
+or idle inhibitor changes via IPC commands. This is useful for binding compositor keys to ashell:
 
 ```bash
 # Volume
@@ -174,6 +174,9 @@ ashell msg brightness-down
 
 # Airplane mode
 ashell msg airplane-toggle
+
+# Idle Inhibitor
+ashell msg toggle-idle-inhibitor
 ```
 
 The OSD appears at center-bottom and auto-hides after a timeout. To suppress

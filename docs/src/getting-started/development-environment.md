@@ -91,9 +91,10 @@ ashell msg microphone-toggle-mute
 ashell msg brightness-up
 ashell msg brightness-down
 ashell msg airplane-toggle
+ashell msg toggle-idle-inhibitor
 ```
 
-Volume, microphone, brightness, and airplane commands show an OSD overlay. Add `--no-osd` to suppress it.
+Volume, microphone, brightness, airplane and idle inhibitor commands show an OSD overlay. Add `--no-osd` to suppress it.
 
 ## Signal Handling
 

@@ -57,6 +57,10 @@ pub enum IpcCommand {
         #[arg(long)]
         no_osd: bool,
     },
+    ToggleIdleInhibitor {
+        #[arg(long)]
+        no_osd: bool,
+    },
 }
 
 impl IpcCommand {
@@ -71,7 +75,8 @@ impl IpcCommand {
             | IpcCommand::MicrophoneToggleMute { no_osd }
             | IpcCommand::BrightnessUp { no_osd }
             | IpcCommand::BrightnessDown { no_osd }
-            | IpcCommand::AirplaneToggle { no_osd } => *no_osd,
+            | IpcCommand::AirplaneToggle { no_osd }
+            | IpcCommand::ToggleIdleInhibitor { no_osd } => *no_osd,
         }
     }
 }
@@ -91,6 +96,7 @@ impl fmt::Display for IpcCommand {
             IpcCommand::BrightnessUp { .. } => "brightness-up",
             IpcCommand::BrightnessDown { .. } => "brightness-down",
             IpcCommand::AirplaneToggle { .. } => "airplane-toggle",
+            IpcCommand::ToggleIdleInhibitor { .. } => "toggle-idle-inhibitor",
         };
         write!(f, "{base}")?;
         if self.no_osd() {
@@ -119,6 +125,7 @@ impl FromStr for IpcCommand {
             "brightness-up" => Ok(IpcCommand::BrightnessUp { no_osd }),
             "brightness-down" => Ok(IpcCommand::BrightnessDown { no_osd }),
             "airplane-toggle" => Ok(IpcCommand::AirplaneToggle { no_osd }),
+            "toggle-idle-inhibitor" => Ok(IpcCommand::ToggleIdleInhibitor { no_osd }),
             _ => Err(anyhow!("unknown IPC command: {s:?}")),
         }
     }
