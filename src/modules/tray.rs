@@ -27,6 +27,7 @@ pub enum Message {
     ToggleMenu(String, SurfaceId, ButtonUIRef),
     ToggleSubmenu(i32),
     MenuSelected(String, i32),
+    MenuToggled(String, i32),
     MenuOpened(String),
 }
 
@@ -34,6 +35,7 @@ pub enum Action {
     None,
     ToggleMenu(String, SurfaceId, ButtonUIRef),
     TrayMenuCommand(Task<Message>),
+    TrayMenuCommandKeepOpen(Task<Message>),
     CloseTrayMenu(String),
 }
 
@@ -102,6 +104,17 @@ impl TrayModule {
                 }
                 _ => Action::None,
             },
+            Message::MenuToggled(name, id) => match self.service.as_mut() {
+                Some(service) => {
+                    debug!("Tray menu toggle: {id}");
+                    Action::TrayMenuCommandKeepOpen(
+                        service
+                            .command(TrayCommand::MenuSelected(name, id))
+                            .map(|event| Message::Event(Box::new(event))),
+                    )
+                }
+                _ => Action::None,
+            },
             Message::MenuOpened(name) => {
                 if let Some(_tray) = self
                     .service
@@ -131,7 +144,7 @@ impl TrayModule {
                         let name = name.to_owned();
                         let id = layout.0;
 
-                        move |_| Message::MenuSelected(name.to_owned(), id)
+                        move |_| Message::MenuToggled(name.to_owned(), id)
                     })
                     .width(Length::Fill),
             )
