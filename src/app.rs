@@ -3,6 +3,7 @@ use crate::{
     components::{ButtonUIRef, Centerbox, menu::MenuType},
     config::{self, AppearanceStyle, Config, Modules, Position},
     get_log_spec,
+    i18n::{Localizer, init_localizer},
     ipc::IpcCommand,
     modules::{
         self,
@@ -39,6 +40,10 @@ use std::{collections::HashMap, f32::consts::PI, path::PathBuf};
 
 const OSD_WIDTH: u32 = 250;
 const OSD_HEIGHT: u32 = 64;
+
+fn resolve_localizer(config: &Config) -> Localizer {
+    Localizer::resolve(config.language.as_deref(), config.region.as_deref())
+}
 
 pub struct GeneralConfig {
     outputs: config::Outputs,
@@ -115,9 +120,10 @@ impl App {
                 .map(|o| (o.name.clone(), Custom::new(o)))
                 .collect();
 
-            let notifications = Notifications::new(config.notifications);
-
             init_theme(AshellTheme::new(config.position, &config.appearance));
+            init_localizer(resolve_localizer(&config));
+
+            let notifications = Notifications::new(config.notifications);
 
             (
                 App {
@@ -152,13 +158,14 @@ impl App {
     }
 
     fn refresh_config(&mut self, config: Box<Config>) {
+        init_theme(AshellTheme::new(config.position, &config.appearance));
+        init_localizer(resolve_localizer(&config));
         self.general_config = GeneralConfig {
             outputs: config.outputs,
             modules: config.modules,
             layer: config.layer,
             enable_esc_key: config.enable_esc_key,
         };
-        init_theme(AshellTheme::new(config.position, &config.appearance));
         let custom = config
             .custom_modules
             .into_iter()

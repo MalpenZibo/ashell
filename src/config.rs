@@ -1,6 +1,5 @@
 use crate::app::Message;
 use crate::services::upower::PeripheralDeviceKind;
-use chrono::Locale;
 use hex_color::HexColor;
 use iced::futures::StreamExt;
 use iced::{Color, Subscription, futures::SinkExt, stream::channel, theme::palette};
@@ -23,6 +22,8 @@ pub const DEFAULT_CONFIG_FILE_PATH: &str = "~/.config/ashell/config.toml";
 #[serde(default)]
 pub struct Config {
     pub log_level: String,
+    pub language: Option<String>,
+    pub region: Option<String>,
     pub position: Position,
     pub layer: Layer,
     pub outputs: Outputs,
@@ -48,6 +49,8 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             log_level: "warn".to_owned(),
+            language: None,
+            region: None,
             position: Position::default(),
             layer: Layer::default(),
             outputs: Outputs::default(),
@@ -298,7 +301,7 @@ pub enum CpuFormat {
     Frequency,
 }
 
-#[derive(Clone, Debug, Deserialize, Default)]
+#[derive(Clone, Debug, Deserialize, Default, PartialEq, Eq)]
 pub enum TemperatureFormat {
     #[default]
     Celsius,
@@ -398,13 +401,6 @@ impl Default for SystemInfoModuleConfig {
     }
 }
 
-fn deserialize_locale<'de, D>(deserializer: D) -> Result<Locale, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let s: String = Deserialize::deserialize(deserializer)?;
-    Ok(Locale::try_from(s.as_str()).unwrap_or(Locale::en_US))
-}
 #[derive(Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum ToastPosition {
@@ -462,8 +458,6 @@ pub struct TempoModuleConfig {
     #[serde(default)]
     pub weather_location: Option<WeatherLocation>,
     pub weather_indicator: WeatherIndicator,
-    #[serde(deserialize_with = "deserialize_locale")]
-    pub locale: Locale,
 }
 
 #[derive(Deserialize, Default, Clone, Debug, PartialEq, Eq)]
@@ -504,7 +498,6 @@ impl Default for TempoModuleConfig {
             timezones: vec![],
             weather_location: None,
             weather_indicator: WeatherIndicator::IconAndTemperature,
-            locale: Locale::en_US,
         }
     }
 }
@@ -1111,6 +1104,9 @@ pub fn get_config(path: Option<PathBuf>) -> Result<(Config, PathBuf), Box<dyn Er
             })
         }
         None => expand_path(PathBuf::from(DEFAULT_CONFIG_FILE_PATH)).map(|expanded| {
+            // Safety: DEFAULT_CONFIG_FILE_PATH is "~/.config/ashell/config.toml" which
+            // always has directory components. shellexpand only expands ~/$HOME and never
+            // strips path components, so .parent() always returns Some.
             let parent = expanded
                 .parent()
                 .expect("Failed to get default config parent directory");
