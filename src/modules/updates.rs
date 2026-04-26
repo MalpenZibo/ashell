@@ -3,6 +3,7 @@ use crate::{
     components::icons::{StaticIcon, icon},
     components::{IconPosition, MenuSize, styled_button},
     config::UpdatesModuleConfig,
+    t,
     theme::use_theme,
 };
 use iced::{
@@ -183,11 +184,11 @@ impl Updates {
         column!(
             if self.updates.is_empty() {
                 convert::Into::<Element<'_, _>>::into(
-                    container(text("Up to date ;)")).padding(space.xs),
+                    container(text(t!("updates-up-to-date"))).padding(space.xs),
                 )
             } else {
                 let mut elements = column!(
-                    styled_button(format!("{} Updates available", self.updates.len()),)
+                    styled_button(t!("updates-available", count = self.updates.len()))
                         .icon(
                             if self.is_updates_list_open {
                                 StaticIcon::MenuClosed
@@ -260,7 +261,7 @@ impl Updates {
 
         if !self.updates.is_empty() {
             buttons = buttons.push(
-                styled_button("Update")
+                styled_button(t!("updates-button-update"))
                     .on_press(Message::Update(id))
                     .width(Length::Fill),
             );
@@ -268,7 +269,7 @@ impl Updates {
 
         buttons
             .push(
-                styled_button("Check now")
+                styled_button(t!("updates-button-check-now"))
                     .on_press(Message::CheckNow)
                     .width(Length::Fill),
             )
