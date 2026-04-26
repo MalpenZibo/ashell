@@ -1,3 +1,4 @@
+use crate::components::icons::StaticIcon;
 use log::{debug, info, warn};
 use std::os::fd::{AsFd, AsRawFd, FromRawFd};
 use wayland_client::{
@@ -191,6 +192,14 @@ impl IdleInhibitorManager {
         }
 
         Ok(())
+    }
+
+    pub fn idle_inhibitor_icon(active: bool) -> StaticIcon {
+        if active {
+            StaticIcon::EyeOpened
+        } else {
+            StaticIcon::EyeClosed
+        }
     }
 }
 
