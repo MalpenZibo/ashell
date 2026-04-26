@@ -301,7 +301,7 @@ pub enum CpuFormat {
     Frequency,
 }
 
-#[derive(Clone, Debug, Deserialize, Default)]
+#[derive(Clone, Debug, Deserialize, Default, PartialEq, Eq)]
 pub enum TemperatureFormat {
     #[default]
     Celsius,
