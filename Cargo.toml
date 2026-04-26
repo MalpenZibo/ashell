@@ -37,6 +37,7 @@ iced = { package = "iced_layershell", git = "https://github.com/MalpenZibo/iced_
   "svg",
   "canvas",
 ] }
+iced_anim = "0.3"
 chrono = { version = "0.4", default-features = false, features = [
   "clock",
   "serde",
