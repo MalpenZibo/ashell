@@ -373,7 +373,7 @@ impl Tempo {
                                     current = current.succ_opt().unwrap_or(current);
 
                                     styled_button(Element::from(
-                                        text(day.format_localized("%d", locale).to_string())
+                                        text(day.format_localized("%-d", locale).to_string())
                                             .align_x(Horizontal::Center)
                                             .color_maybe({
                                                 if day
