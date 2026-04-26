@@ -2,7 +2,7 @@ use super::{ReadOnlyService, Service, ServiceEvent};
 use crate::utils::remote_value::Remote;
 use iced::{
     Subscription, Task,
-    futures::{SinkExt, StreamExt, channel::mpsc::Sender, stream::pending},
+    futures::{SinkExt, channel::mpsc::Sender},
     stream::channel,
 };
 use itertools::Either;
@@ -34,8 +34,10 @@ use std::{
     rc::Rc,
     sync::Arc,
     thread::{self, JoinHandle},
+    time::Duration,
 };
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio::time::sleep;
 
 #[derive(Debug, Clone)]
 pub struct Device {
@@ -207,10 +209,11 @@ impl AudioService {
                 None => State::Active(handle),
             },
             State::Error => {
-                error!("Audio service error");
+                error!("Audio service error, retrying in 5 seconds");
 
-                let _ = pending::<u8>().next().await;
-                State::Error
+                sleep(Duration::from_secs(5)).await;
+
+                State::Init
             }
         }
     }
@@ -500,9 +503,20 @@ impl PulseAudioServer {
 
         // Single thread for both listening and commanding — avoids PulseAudio
         // mainloop assertion failures from concurrent connections.
+        let from_server_tx_for_panic = from_server_tx.clone();
         let handle = thread::spawn({
             let from_server_tx = from_server_tx.clone();
             let mut to_server_rx = to_server_rx;
+
+            // Set up panic handler to gracefully handle PulseAudio thread crashes
+            let panic_tx = from_server_tx_for_panic.clone();
+            let old_hook = std::panic::take_hook();
+            std::panic::set_hook(Box::new(move |panic_info| {
+                error!("PulseAudio thread panicked: {}", panic_info);
+                let _ = panic_tx.send(PulseAudioServerEvent::Error);
+                old_hook(panic_info);
+            }));
+
             move || match Self::new() {
                 Ok(mut server) => {
                     let _ = init_tx.send(true);
