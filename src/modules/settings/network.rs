@@ -485,7 +485,7 @@ impl NetworkSettings {
             self.service.as_ref().map(|service| {
                 (
                     quick_setting_button(
-                        StaticIcon::Airplane,
+                        Self::airplane_mode_icon(service.airplane_mode),
                         "Airplane Mode".to_string(),
                         None,
                         service.airplane_mode,
@@ -672,5 +672,13 @@ impl NetworkSettings {
 
     pub fn subscription(&self) -> Subscription<Message> {
         NetworkService::subscribe().map(Message::Event)
+    }
+
+    pub fn airplane_mode_icon(active: bool) -> StaticIcon {
+        if active {
+            StaticIcon::AirplaneOn
+        } else {
+            StaticIcon::AirplaneOff
+        }
     }
 }

@@ -10,6 +10,7 @@ use crate::{
     components::icons::{Icon, StaticIcon},
     config::OsdConfig,
     modules::settings::audio::AudioSettings,
+    modules::settings::network::NetworkSettings,
     services::idle_inhibitor::IdleInhibitorManager,
     theme::use_theme,
 };
@@ -117,7 +118,7 @@ impl Osd {
             OsdKind::Volume => AudioSettings::speaker_icon(state.muted, state.value),
             OsdKind::Microphone => AudioSettings::microphone_icon(state.muted),
             OsdKind::Brightness => StaticIcon::Brightness,
-            OsdKind::Airplane => StaticIcon::Airplane,
+            OsdKind::Airplane => NetworkSettings::airplane_mode_icon(state.muted),
             OsdKind::IdleInhibitor => IdleInhibitorManager::idle_inhibitor_icon(state.muted),
         };
 
