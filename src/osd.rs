@@ -144,9 +144,12 @@ impl Osd {
             }
         };
 
-        let content = row![icon.to_text().size(font_size.xxl), detail,]
-            .spacing(space.sm)
-            .align_y(Alignment::Center);
+        let content = row![
+            container(icon.to_text().size(font_size.xxl)).center_x(font_size.xxl),
+            detail,
+        ]
+        .spacing(space.sm)
+        .align_y(Alignment::Center);
 
         container(content)
             .padding([space.sm, space.md])
