@@ -190,3 +190,15 @@ ashell msg volume-up --no-osd
 enabled = true   # Disabled by default; set to true to enable the OSD overlay
 timeout = 1500   # Auto-hide delay in milliseconds
 ```
+
+## Animations
+
+Ashell ships a master toggle for UI animations (bar module width transitions,
+menu open/close, toast slides, sub-menu accordion, toggle color fades, etc.).
+It defaults to `false`, so ashell keeps its historical static behavior unless
+you opt in:
+
+```toml
+[animations]
+enabled = true
+```

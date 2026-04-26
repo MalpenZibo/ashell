@@ -42,6 +42,7 @@ pub struct Config {
     pub appearance: Appearance,
     pub media_player: MediaPlayerModuleConfig,
     pub keyboard_layout: KeyboardLayoutModuleConfig,
+    pub animations: AnimationsConfig,
     pub enable_esc_key: bool,
     pub osd: OsdConfig,
 }
@@ -67,11 +68,18 @@ impl Default for Config {
             appearance: Appearance::default(),
             media_player: MediaPlayerModuleConfig::default(),
             keyboard_layout: KeyboardLayoutModuleConfig::default(),
+            animations: AnimationsConfig::default(),
             custom_modules: vec![],
             enable_esc_key: false,
             osd: OsdConfig::default(),
         }
     }
+}
+
+#[derive(Deserialize, Clone, Debug, Default)]
+#[serde(default)]
+pub struct AnimationsConfig {
+    pub enabled: bool,
 }
 
 impl Config {

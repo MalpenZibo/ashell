@@ -15,6 +15,7 @@ Complete reference for all configuration options in `~/.config/ashell/config.tom
 | `enable_esc_key` | bool | `false` | Whether ESC key closes menus |
 | `osd.enabled` | bool | `false` | Show OSD overlay for IPC volume/brightness/airplane commands |
 | `osd.timeout` | u64 | `1500` | OSD auto-hide delay in milliseconds |
+| `animations.enabled` | bool | `false` | Master toggle for UI animations (bar widths, menu open/close, toast slides, etc.) |
 
 ## Module Layout
 

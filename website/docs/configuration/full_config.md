@@ -94,6 +94,9 @@ tooltip = "Toggle On-Screen Keyboard"
 enabled = true   # disabled by default
 timeout = 1500
 
+[animations]
+enabled = true   # disabled by default
+
 [appearance]
 style = "Islands"
 
