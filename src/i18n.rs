@@ -1,6 +1,5 @@
-// PR 1 scaffolding: `loader()`, `UnitSystem`, `unit_system()` are consumed in
-// follow-up PRs (tempo °F/mph, per-module translations). Remove this allow
-// once call sites land.
+// Translation-catalog consumers land in follow-up PRs; gate the unused
+// `loader()`/`t!` machinery here so clippy stays quiet until call sites exist.
 #![allow(dead_code)]
 
 use std::borrow::Cow;
@@ -21,10 +20,26 @@ const TRANSLATION_FILE: &str = "ashell.ftl";
 
 const FALLBACK_CHRONO: Locale = Locale::en_GB;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum UnitSystem {
     Metric,
     Imperial,
+}
+
+impl UnitSystem {
+    pub fn temperature_symbol(self) -> &'static str {
+        match self {
+            Self::Metric => "°C",
+            Self::Imperial => "°F",
+        }
+    }
+
+    pub fn wind_speed_symbol(self) -> &'static str {
+        match self {
+            Self::Metric => "km/h",
+            Self::Imperial => "mph",
+        }
+    }
 }
 
 pub struct Localizer {
