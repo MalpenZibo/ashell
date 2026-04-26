@@ -445,21 +445,17 @@ struct PulseAudioServer {
 impl PulseAudioServer {
     fn new() -> anyhow::Result<Self> {
         let name = format!("{:?}", TypeId::of::<Self>());
-        let mut proplist = Proplist::new().unwrap();
+        let mut proplist = Proplist::new()
+            .ok_or_else(|| anyhow::anyhow!("Failed to create PulseAudio property list"))?;
         proplist
             .set_str(APPLICATION_NAME, name.as_str())
             .map_err(|_| anyhow::anyhow!("Failed to set application name"))?;
 
-        let mut mainloop = Mainloop::new().map_or_else(
-            || Err(anyhow::anyhow!("Failed to create Pulse audio main loop")),
-            Ok,
-        )?;
+        let mut mainloop = Mainloop::new()
+            .ok_or_else(|| anyhow::anyhow!("Failed to create Pulse audio main loop"))?;
 
         let mut context = Context::new_with_proplist(&mainloop, name.as_str(), &proplist)
-            .map_or_else(
-                || Err(anyhow::anyhow!("Failed to create Pulse audio context")),
-                Ok,
-            )?;
+            .ok_or_else(|| anyhow::anyhow!("Failed to create Pulse audio context"))?;
 
         context.connect(None, FlagSet::NOFLAGS, None)?;
 
@@ -795,7 +791,10 @@ impl From<&SinkInfo<'_>> for Device {
                                 .name
                                 .as_ref()
                                 .map_or_else(String::default, |n| n.to_string()),
-                            description: port.description.as_ref().unwrap().to_string(),
+                            description: port
+                                .description
+                                .as_ref()
+                                .map_or_else(String::default, |d| d.to_string()),
                             device_type: port.r#type,
                         })
                     } else {
@@ -831,7 +830,10 @@ impl From<&SourceInfo<'_>> for Device {
                                 .name
                                 .as_ref()
                                 .map_or_else(String::default, |n| n.to_string()),
-                            description: port.description.as_ref().unwrap().to_string(),
+                            description: port
+                                .description
+                                .as_ref()
+                                .map_or_else(String::default, |d| d.to_string()),
                             device_type: port.r#type,
                         })
                     } else {
