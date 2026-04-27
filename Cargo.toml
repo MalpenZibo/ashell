@@ -52,6 +52,7 @@ log = { version = "0.4", features = [] }
 flexi_logger = "0.31"
 pipewire = "0.9"
 itertools = "0.14"
+unicode-segmentation = "1.13.2"
 hex_color = { version = "3", features = ["serde"] }
 anyhow = "1"
 udev = { version = "0.9", features = ["send", "sync"] }
