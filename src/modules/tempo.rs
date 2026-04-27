@@ -5,6 +5,7 @@ use crate::{
         styled_button,
     },
     config::{TempoModuleConfig, WeatherIndicator, WeatherLocation},
+    i18n::{UnitSystem, chrono_locale, unit_system},
     theme::{AshellTheme, use_theme},
 };
 use chrono::{
@@ -178,6 +179,7 @@ impl Tempo {
         // %Z prints timezone abbreviations; other specifiers (e.g., %z/%:z) only need numeric offsets https://docs.rs/chrono/latest/chrono/format/strftime/index.html#fn6
         let format_requests_name = format.contains("%Z");
         let utc_now = self.date.with_timezone(&Utc);
+        let locale = chrono_locale();
 
         self.config
             .timezones
@@ -187,7 +189,7 @@ impl Tempo {
                     return Some(
                         offset
                             .from_utc_datetime(&utc_now.naive_utc())
-                            .format_localized(format, self.config.locale)
+                            .format_localized(format, locale)
                             .to_string(),
                     );
                 }
@@ -195,18 +197,14 @@ impl Tempo {
                 if let Ok(tz) = tz_name.parse::<Tz>() {
                     return Some(
                         tz.from_utc_datetime(&utc_now.naive_utc())
-                            .format_localized(format, self.config.locale)
+                            .format_localized(format, locale)
                             .to_string(),
                     );
                 }
 
                 None
             })
-            .unwrap_or_else(|| {
-                self.date
-                    .format_localized(format, self.config.locale)
-                    .to_string()
-            })
+            .unwrap_or_else(|| self.date.format_localized(format, locale).to_string())
     }
 
     pub fn weather_indicator(&'_ self) -> Option<Element<'_, Message>> {
@@ -216,6 +214,7 @@ impl Tempo {
         {
             return None;
         }
+        let temp = unit_system().temperature_symbol();
         self.weather_data
             .as_ref()
             .zip(self.location.as_ref())
@@ -228,7 +227,7 @@ impl Tempo {
                     .push(
                         (self.config.weather_indicator == WeatherIndicator::IconAndTemperature)
                             .then(|| {
-                                text(format!("{}°C", data.current.temperature_2m))
+                                text(format!("{}{temp}", data.current.temperature_2m))
                                     .align_y(Vertical::Center)
                                     .size(font_size.sm)
                             }),
@@ -276,6 +275,7 @@ impl Tempo {
     }
 
     fn calendar_with_theme<'a>(&'a self, theme: &AshellTheme) -> Element<'a, Message> {
+        let locale = chrono_locale();
         let selected_date = self
             .selected_date
             .unwrap_or(self.naive_date(self.current_timezone_index));
@@ -308,14 +308,10 @@ impl Tempo {
                     .on_press(Message::ChangeSelectDate(
                         selected_date.checked_sub_months(Months::new(1)),
                     )),
-                text(
-                    selected_date
-                        .format_localized("%B", self.config.locale)
-                        .to_string()
-                )
-                .size(theme.font_size.md)
-                .width(Length::Fill)
-                .align_x(Horizontal::Center),
+                text(selected_date.format_localized("%B", locale).to_string())
+                    .size(theme.font_size.md)
+                    .width(Length::Fill)
+                    .align_x(Horizontal::Center),
                 icon_button::<Message>(StaticIcon::RightChevron)
                     .kind(ButtonKind::Solid)
                     .on_press(Message::ChangeSelectDate(
@@ -339,7 +335,7 @@ impl Tempo {
                     text(
                         NaiveDate::from_isoywd_opt(2000, 20, i)
                             .expect("valid NaiveDate")
-                            .format_localized("%a", self.config.locale)
+                            .format_localized("%a", locale)
                             .to_string(),
                     )
                     .align_x(Horizontal::Center)
@@ -360,28 +356,27 @@ impl Tempo {
                                     current = current.succ_opt().unwrap_or(current);
 
                                     styled_button(Element::from(
-                                        text(
-                                            day.format_localized("%d", self.config.locale)
-                                                .to_string(),
-                                        )
-                                        .align_x(Horizontal::Center)
-                                        .color_maybe({
-                                            if day == self.naive_date(self.current_timezone_index) {
-                                                Some(theme.iced_theme.palette().success)
-                                            } else if day == selected_date {
-                                                Some(theme.iced_theme.palette().primary)
-                                            } else if day.month0() != current_month {
-                                                Some(
-                                                    theme
-                                                        .iced_theme
-                                                        .palette()
-                                                        .text
-                                                        .scale_alpha(0.2),
-                                                )
-                                            } else {
-                                                None
-                                            }
-                                        }),
+                                        text(day.format_localized("%-d", locale).to_string())
+                                            .align_x(Horizontal::Center)
+                                            .color_maybe({
+                                                if day
+                                                    == self.naive_date(self.current_timezone_index)
+                                                {
+                                                    Some(theme.iced_theme.palette().success)
+                                                } else if day == selected_date {
+                                                    Some(theme.iced_theme.palette().primary)
+                                                } else if day.month0() != current_month {
+                                                    Some(
+                                                        theme
+                                                            .iced_theme
+                                                            .palette()
+                                                            .text
+                                                            .scale_alpha(0.2),
+                                                    )
+                                                } else {
+                                                    None
+                                                }
+                                            }),
                                     ))
                                     .on_press_maybe(
                                         if day != self.naive_date(self.current_timezone_index) {
@@ -436,18 +431,10 @@ impl Tempo {
         column!(
             styled_button(Element::from(
                 column!(
-                    text(
-                        self.date
-                            .format_localized("%A", self.config.locale)
-                            .to_string()
-                    )
-                    .size(theme.font_size.sm),
-                    text(
-                        self.date
-                            .format_localized("%d %B %Y", self.config.locale)
-                            .to_string()
-                    )
-                    .size(theme.font_size.md),
+                    text(self.date.format_localized("%A", locale).to_string())
+                        .size(theme.font_size.sm),
+                    text(self.date.format_localized("%d %B %Y", locale).to_string())
+                        .size(theme.font_size.md),
                 )
                 .spacing(theme.space.xs),
             ),)
@@ -470,6 +457,10 @@ impl Tempo {
     fn weather<'a>(&'a self) -> Option<Element<'a, Message>> {
         let (space, font_size, opacity, radius) =
             use_theme(|t| (t.space, t.font_size, t.opacity, t.radius));
+        let locale = chrono_locale();
+        let units = unit_system();
+        let temp = units.temperature_symbol();
+        let wind = units.wind_speed_symbol();
         self.weather_data
             .as_ref()
             .zip(self.location.as_ref())
@@ -494,9 +485,9 @@ impl Tempo {
                                 .size(font_size.sm),
                                 text(weather_description(data.current.weather_code)),
                                 row!(
-                                    text(format!("{} °C", data.current.temperature_2m)),
+                                    text(format!("{}{temp}", data.current.temperature_2m)),
                                     text(format!(
-                                        "Feels like {}°C",
+                                        "Feels like {}{temp}",
                                         data.current.apparent_temperature
                                     ))
                                     .size(font_size.sm)
@@ -544,10 +535,13 @@ impl Tempo {
                                             .size(font_size.xs)
                                             .align_x(Horizontal::Right)
                                             .width(Length::Fill),
-                                        text(format!("{} km/h", data.current.wind_speed_10m))
-                                            .align_x(Horizontal::Right)
-                                            .size(font_size.xs)
-                                            .width(Length::Fill),
+                                        text(format!(
+                                            "{} {wind}",
+                                            data.current.wind_speed_10m.round()
+                                        ))
+                                        .align_x(Horizontal::Right)
+                                        .size(font_size.xs)
+                                        .width(Length::Fill),
                                     )
                                     .spacing(space.xxs)
                                 )
@@ -600,9 +594,9 @@ impl Tempo {
                                         if i >= start_index { Some(v) } else { None }
                                     }),
                                 )
-                                .map(|(time, weather_code, temp, is_day)| {
+                                .map(|(time, weather_code, temp_value, is_day)| {
                                     column!(
-                                        text(format!("{}°", temp.round())),
+                                        text(format!("{}{temp}", temp_value.round())),
                                         weather_icon(*weather_code, *is_day > 0)
                                             .height(font_size.md)
                                             .width(Length::Shrink),
@@ -653,8 +647,7 @@ impl Tempo {
                                 container(
                                     row!(
                                         text(
-                                            time.format_localized("%a, %d %b", self.config.locale)
-                                                .to_string()
+                                            time.format_localized("%a, %d %b", locale).to_string()
                                         )
                                         .width(Length::Fill),
                                         weather_icon(*weather_code, true)
@@ -663,7 +656,7 @@ impl Tempo {
                                         container(
                                             row!(
                                                 text(format!(
-                                                    "{}°/{}°",
+                                                    "{}{temp}/{}{temp}",
                                                     temp_min.round(),
                                                     temp_max.round()
                                                 ))
@@ -677,7 +670,7 @@ impl Tempo {
                                                     .rotation(Rotation::Floating(
                                                         Degrees(*wind_dir as f32 + 90.).into()
                                                     )),
-                                                    text(format!("{} km/h", wind_speed))
+                                                    text(format!("{} {wind}", wind_speed.round()))
                                                 )
                                                 .spacing(space.xxs)
                                             )
@@ -762,8 +755,10 @@ impl Tempo {
         });
 
         let weather_sub = self.config.weather_location.clone().map(|location| {
-            Subscription::run_with(location, |location| {
+            let key = (location, unit_system());
+            Subscription::run_with(key, |(location, units)| {
                 let location = location.clone();
+                let units = *units;
                 channel(100, async move |mut output| {
                     let mut failed_attempt: u64 = 0;
 
@@ -782,7 +777,7 @@ impl Tempo {
                         };
 
                         if let Some((lat, lon)) = loc {
-                            match fetch_weather_data(lat, lon).await {
+                            match fetch_weather_data(lat, lon, units).await {
                                 Ok(weather_data) => {
                                     failed_attempt = 0;
                                     debug!("Weather data fetched successfully: {:?}", weather_data);
@@ -993,19 +988,25 @@ pub struct Location {
     region_name: String,
 }
 
-async fn fetch_weather_data(lat: f32, lon: f32) -> anyhow::Result<WeatherData> {
+async fn fetch_weather_data(lat: f32, lon: f32, units: UnitSystem) -> anyhow::Result<WeatherData> {
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(20))
         .build()?;
 
+    let (temp_param, wind_param) = match units {
+        UnitSystem::Metric => ("celsius", "kmh"),
+        UnitSystem::Imperial => ("fahrenheit", "mph"),
+    };
+
     let response = client.get(format!(
         "https://api.open-meteo.com/v1/forecast?\
-        latitude={}&longitude={}\
-        &current=weather_code,apparent_temperature,relative_humidity_2m,temperature_2m,is_day,wind_speed_10m,wind_direction_10m\
-        &hourly=weather_code,temperature_2m,is_day\
-        &daily=weather_code,temperature_2m_max,temperature_2m_min,wind_speed_10m_max,wind_direction_10m_dominant\
-        &forecast_days=7",
-        lat, lon
+latitude={lat}&longitude={lon}\
+&current=weather_code,apparent_temperature,relative_humidity_2m,temperature_2m,is_day,wind_speed_10m,wind_direction_10m\
+&hourly=weather_code,temperature_2m,is_day\
+&daily=weather_code,temperature_2m_max,temperature_2m_min,wind_speed_10m_max,wind_direction_10m_dominant\
+&forecast_days=7\
+&temperature_unit={temp_param}\
+&wind_speed_unit={wind_param}"
     )).send().await?;
     let raw_data = response.text().await?;
 

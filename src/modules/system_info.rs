@@ -2,10 +2,8 @@ use crate::{
     components::MenuSize,
     components::divider,
     components::icons::{StaticIcon, icon},
-    config::{
-        CpuFormat, DiskFormat, MemoryFormat, SystemInfoIndicator, SystemInfoModuleConfig,
-        TemperatureFormat,
-    },
+    config::{CpuFormat, DiskFormat, MemoryFormat, SystemInfoIndicator, SystemInfoModuleConfig},
+    i18n::{UnitSystem, unit_system},
     theme::use_theme,
     utils,
 };
@@ -427,16 +425,14 @@ impl SystemInfo {
                         }
                     ))
                     .push(self.data.temperature.celsius.map(|cel| {
-                        Self::info_element(
-                            StaticIcon::Temp,
-                            "Temperature".to_string(),
-                            match self.config.temperature.format {
-                                TemperatureFormat::Celsius => format!("{cel}°C"),
-                                TemperatureFormat::Fahrenheit => {
-                                    format!("{}°F", utils::celsius_to_fahrenheit(cel))
-                                }
-                            },
-                        )
+                        Self::info_element(StaticIcon::Temp, "Temperature".to_string(), {
+                            let units = unit_system();
+                            let value = match units {
+                                UnitSystem::Metric => cel,
+                                UnitSystem::Imperial => utils::celsius_to_fahrenheit(cel),
+                            };
+                            format!("{value}{}", units.temperature_symbol())
+                        })
                     }))
                     .push(
                         Column::with_children(
@@ -549,16 +545,14 @@ impl SystemInfo {
             )),
 
             SystemInfoIndicator::Temperature => self.data.temperature.celsius.map(|cel| {
-                let temp_value = match self.config.temperature.format {
-                    TemperatureFormat::Celsius => cel,
-                    TemperatureFormat::Fahrenheit => utils::celsius_to_fahrenheit(cel),
+                let units = unit_system();
+                let temp_value = match units {
+                    UnitSystem::Metric => cel,
+                    UnitSystem::Imperial => utils::celsius_to_fahrenheit(cel),
                 };
                 Self::indicator_info_element(
                     StaticIcon::Temp,
-                    match self.config.temperature.format {
-                        TemperatureFormat::Celsius => (temp_value, "°C"),
-                        TemperatureFormat::Fahrenheit => (temp_value, "°F"),
-                    },
+                    (temp_value, units.temperature_symbol()),
                     Some((
                         temp_value,
                         self.config.temperature.warn_threshold(),

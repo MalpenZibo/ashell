@@ -1,6 +1,7 @@
 use crate::app::Message;
+use crate::i18n::UnitSystem;
 use crate::services::upower::PeripheralDeviceKind;
-use chrono::Locale;
+use crate::utils::celsius_to_fahrenheit;
 use hex_color::HexColor;
 use iced::futures::StreamExt;
 use iced::{Color, Subscription, futures::SinkExt, stream::channel, theme::palette};
@@ -23,6 +24,8 @@ pub const DEFAULT_CONFIG_FILE_PATH: &str = "~/.config/ashell/config.toml";
 #[serde(default)]
 pub struct Config {
     pub log_level: String,
+    pub language: Option<String>,
+    pub region: Option<String>,
     pub position: Position,
     pub layer: Layer,
     pub outputs: Outputs,
@@ -40,6 +43,7 @@ pub struct Config {
     pub appearance: Appearance,
     pub media_player: MediaPlayerModuleConfig,
     pub keyboard_layout: KeyboardLayoutModuleConfig,
+    pub animations: AnimationsConfig,
     pub enable_esc_key: bool,
     pub osd: OsdConfig,
 }
@@ -48,6 +52,8 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             log_level: "warn".to_owned(),
+            language: None,
+            region: None,
             position: Position::default(),
             layer: Layer::default(),
             outputs: Outputs::default(),
@@ -63,11 +69,18 @@ impl Default for Config {
             appearance: Appearance::default(),
             media_player: MediaPlayerModuleConfig::default(),
             keyboard_layout: KeyboardLayoutModuleConfig::default(),
+            animations: AnimationsConfig::default(),
             custom_modules: vec![],
             enable_esc_key: false,
             osd: OsdConfig::default(),
         }
     }
+}
+
+#[derive(Deserialize, Clone, Debug, Default)]
+#[serde(default)]
+pub struct AnimationsConfig {
+    pub enabled: bool,
 }
 
 impl Config {
@@ -235,26 +248,25 @@ pub struct SystemInfoTemperature {
     warn_threshold: Option<i32>,
     alert_threshold: Option<i32>,
     pub sensor: String,
-    pub format: TemperatureFormat,
 }
 
 impl SystemInfoTemperature {
     pub fn warn_threshold(&self) -> i32 {
-        self.warn_threshold.unwrap_or_else(|| match self.format {
-            TemperatureFormat::Celsius => DEFAULT_TEMP_WARN_CELSIUS,
-            TemperatureFormat::Fahrenheit => celsius_to_fahrenheit(DEFAULT_TEMP_WARN_CELSIUS),
-        })
+        self.warn_threshold
+            .unwrap_or_else(|| match crate::i18n::unit_system() {
+                UnitSystem::Metric => DEFAULT_TEMP_WARN_CELSIUS,
+                UnitSystem::Imperial => celsius_to_fahrenheit(DEFAULT_TEMP_WARN_CELSIUS),
+            })
     }
 
     pub fn alert_threshold(&self) -> i32 {
-        self.alert_threshold.unwrap_or_else(|| match self.format {
-            TemperatureFormat::Celsius => DEFAULT_TEMP_ALERT_CELSIUS,
-            TemperatureFormat::Fahrenheit => celsius_to_fahrenheit(DEFAULT_TEMP_ALERT_CELSIUS),
-        })
+        self.alert_threshold
+            .unwrap_or_else(|| match crate::i18n::unit_system() {
+                UnitSystem::Metric => DEFAULT_TEMP_ALERT_CELSIUS,
+                UnitSystem::Imperial => celsius_to_fahrenheit(DEFAULT_TEMP_ALERT_CELSIUS),
+            })
     }
-}
 
-impl SystemInfoTemperature {
     fn validate(&mut self) {
         if let (Some(warn), Some(alert)) = (&mut self.warn_threshold, &mut self.alert_threshold) {
             validate_thresholds(warn, alert, "Temperature");
@@ -268,13 +280,8 @@ impl Default for SystemInfoTemperature {
             warn_threshold: None,
             alert_threshold: None,
             sensor: "acpitz temp1".to_string(),
-            format: TemperatureFormat::Celsius,
         }
     }
-}
-
-fn celsius_to_fahrenheit(cel: i32) -> i32 {
-    cel * 9 / 5 + 32
 }
 
 #[derive(Clone, Debug, Deserialize, Default)]
@@ -296,13 +303,6 @@ pub enum CpuFormat {
     #[default]
     Percentage,
     Frequency,
-}
-
-#[derive(Clone, Debug, Deserialize, Default)]
-pub enum TemperatureFormat {
-    #[default]
-    Celsius,
-    Fahrenheit,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -398,13 +398,6 @@ impl Default for SystemInfoModuleConfig {
     }
 }
 
-fn deserialize_locale<'de, D>(deserializer: D) -> Result<Locale, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let s: String = Deserialize::deserialize(deserializer)?;
-    Ok(Locale::try_from(s.as_str()).unwrap_or(Locale::en_US))
-}
 #[derive(Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum ToastPosition {
@@ -462,8 +455,6 @@ pub struct TempoModuleConfig {
     #[serde(default)]
     pub weather_location: Option<WeatherLocation>,
     pub weather_indicator: WeatherIndicator,
-    #[serde(deserialize_with = "deserialize_locale")]
-    pub locale: Locale,
 }
 
 #[derive(Deserialize, Default, Clone, Debug, PartialEq, Eq)]
@@ -504,7 +495,6 @@ impl Default for TempoModuleConfig {
             timezones: vec![],
             weather_location: None,
             weather_indicator: WeatherIndicator::IconAndTemperature,
-            locale: Locale::en_US,
         }
     }
 }
@@ -1113,6 +1103,9 @@ pub fn get_config(path: Option<PathBuf>) -> Result<(Config, PathBuf), Box<dyn Er
             })
         }
         None => expand_path(PathBuf::from(DEFAULT_CONFIG_FILE_PATH)).map(|expanded| {
+            // Safety: DEFAULT_CONFIG_FILE_PATH is "~/.config/ashell/config.toml" which
+            // always has directory components. shellexpand only expands ~/$HOME and never
+            // strips path components, so .parent() always returns Some.
             let parent = expanded
                 .parent()
                 .expect("Failed to get default config parent directory");

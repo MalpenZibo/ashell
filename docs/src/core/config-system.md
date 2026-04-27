@@ -32,6 +32,7 @@ pub struct Config {
     pub appearance: Appearance,
     pub media_player: MediaPlayerModuleConfig,
     pub keyboard_layout: KeyboardLayoutModuleConfig,
+    pub animations: AnimationsConfig,               // Master toggle for UI animations
     pub enable_esc_key: bool,                       // Default: false
 }
 ```

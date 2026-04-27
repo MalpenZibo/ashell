@@ -154,8 +154,8 @@ kill -SIGUSR1 $(pidof ashell)
 
 ## OSD (On-Screen Display)
 
-Ashell can show a transient overlay when volume, microphone, brightness, or airplane mode
-changes via IPC commands. This is useful for binding compositor keys to ashell:
+Ashell can show a transient overlay when volume, microphone, brightness, airplane mode
+or idle inhibitor changes via IPC commands. This is useful for binding compositor keys to ashell:
 
 ```bash
 # Volume
@@ -173,7 +173,10 @@ ashell msg brightness-up
 ashell msg brightness-down
 
 # Airplane mode
-ashell msg airplane-toggle
+ashell msg toggle-airplane-mode
+
+# Idle Inhibitor
+ashell msg toggle-idle-inhibitor
 ```
 
 The OSD appears at center-bottom and auto-hides after a timeout. To suppress
@@ -189,4 +192,16 @@ ashell msg volume-up --no-osd
 [osd]
 enabled = true   # Disabled by default; set to true to enable the OSD overlay
 timeout = 1500   # Auto-hide delay in milliseconds
+```
+
+## Animations
+
+Ashell ships a master toggle for UI animations (bar module width transitions,
+menu open/close, toast slides, sub-menu accordion, toggle color fades, etc.).
+It defaults to `false`, so ashell keeps its historical static behavior unless
+you opt in:
+
+```toml
+[animations]
+enabled = true
 ```

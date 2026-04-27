@@ -3,6 +3,7 @@ use crate::{
     components::{ButtonUIRef, Centerbox, menu::MenuType},
     config::{self, AppearanceStyle, Config, Modules, Position},
     get_log_spec,
+    i18n::{Localizer, init_localizer},
     ipc::IpcCommand,
     modules::{
         self,
@@ -39,6 +40,10 @@ use std::{collections::HashMap, f32::consts::PI, path::PathBuf};
 
 const OSD_WIDTH: u32 = 250;
 const OSD_HEIGHT: u32 = 64;
+
+fn resolve_localizer(config: &Config) -> Localizer {
+    Localizer::resolve(config.language.as_deref(), config.region.as_deref())
+}
 
 pub struct GeneralConfig {
     outputs: config::Outputs,
@@ -115,9 +120,14 @@ impl App {
                 .map(|o| (o.name.clone(), Custom::new(o)))
                 .collect();
 
-            let notifications = Notifications::new(config.notifications);
+            init_theme(AshellTheme::new(
+                config.position,
+                &config.appearance,
+                &config.animations,
+            ));
+            init_localizer(resolve_localizer(&config));
 
-            init_theme(AshellTheme::new(config.position, &config.appearance));
+            let notifications = Notifications::new(config.notifications);
 
             (
                 App {
@@ -152,13 +162,18 @@ impl App {
     }
 
     fn refresh_config(&mut self, config: Box<Config>) {
+        init_theme(AshellTheme::new(
+            config.position,
+            &config.appearance,
+            &config.animations,
+        ));
+        init_localizer(resolve_localizer(&config));
         self.general_config = GeneralConfig {
             outputs: config.outputs,
             modules: config.modules,
             layer: config.layer,
             enable_esc_key: config.enable_esc_key,
         };
-        init_theme(AshellTheme::new(config.position, &config.appearance));
         let custom = config
             .custom_modules
             .into_iter()
@@ -276,11 +291,19 @@ impl App {
                 .brightness()
                 .current_brightness()
                 .map(|(cur, max)| (OsdKind::Brightness, normalise(cur, max), false)),
-            IpcCommand::AirplaneToggle { .. } => {
+            IpcCommand::ToggleAirplaneMode { .. } => {
                 // After toggle: the new state is the opposite of current.
                 // For toggles, `muted` carries the active/enabled state; `value` is unused.
                 let active = !self.settings.network().is_airplane_mode().unwrap_or(false);
                 Some((OsdKind::Airplane, 0.0, active))
+            }
+            IpcCommand::ToggleIdleInhibitor { .. } => {
+                if let Some(idle_inhibitor) = self.settings.idle_inhibitor() {
+                    let active = idle_inhibitor.is_inhibited();
+                    Some((OsdKind::IdleInhibitor, 0.0, active))
+                } else {
+                    None
+                }
             }
             IpcCommand::ToggleVisibility => None,
         }
@@ -535,7 +558,8 @@ impl App {
                     }
                     IpcCommand::BrightnessUp { .. } => self.settings.brightness_adjust(true),
                     IpcCommand::BrightnessDown { .. } => self.settings.brightness_adjust(false),
-                    IpcCommand::AirplaneToggle { .. } => self.settings.toggle_airplane(),
+                    IpcCommand::ToggleAirplaneMode { .. } => self.settings.toggle_airplane(),
+                    IpcCommand::ToggleIdleInhibitor { .. } => self.settings.toggle_idle_inhibitor(),
                     IpcCommand::ToggleVisibility => unreachable!(),
                 };
                 if let settings::Action::Command(task) = action {
