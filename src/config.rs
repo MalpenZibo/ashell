@@ -557,6 +557,7 @@ pub struct SettingsModuleConfig {
     pub vpn_more_cmd: Option<String>,
     pub bluetooth_more_cmd: Option<String>,
     pub remove_airplane_btn: bool,
+    pub remove_hibernate_btn: bool,
     pub remove_idle_btn: bool,
     pub indicators: Vec<SettingsIndicator>,
     #[serde(rename = "CustomButton")]
@@ -588,6 +589,7 @@ impl Default for SettingsModuleConfig {
             vpn_more_cmd: Default::default(),
             bluetooth_more_cmd: Default::default(),
             remove_airplane_btn: Default::default(),
+            remove_hibernate_btn: Default::default(),
             remove_idle_btn: Default::default(),
             indicators: vec![
                 SettingsIndicator::IdleInhibitor,

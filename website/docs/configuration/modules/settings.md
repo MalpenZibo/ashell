@@ -63,6 +63,9 @@ Right-clicking the Wi-Fi, VPN, Bluetooth or airplane-mode quick settings buttons
 
 With the `remove_airplane_btn` option you can remove the airplane mode button.
 
+With the `remove_hibernate_btn` option you can remove the hibernate button from the power menu.  
+Useful on systems where hibernation is unavailable, for example devices that use zram.
+
 With the `remove_idle_btn` option you can remove the idle inhibitor button.
 
 ## Indicator Format Options
@@ -365,6 +368,7 @@ wifi_more_cmd = "nm-connection-editor"
 vpn_more_cmd = "nm-connection-editor"
 bluetooth_more_cmd = "blueman-manager"
 remove_airplane_btn = true
+remove_hibernate_btn = true
 remove_idle_btn = true
 indicators = ["Battery", "Bluetooth", "Network", "Audio", "Microphone", "Brightness"]
 
