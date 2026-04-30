@@ -22,7 +22,7 @@ use iced::{
     core::svg::Handle,
     futures::SinkExt,
     stream::channel,
-    widget::{Column, Row, Svg, column, container, row, scrollable, svg, text},
+    widget::{Column, MouseArea, Row, Svg, column, container, row, scrollable, svg, text},
 };
 use itertools::izip;
 use log::{debug, warn};
@@ -39,6 +39,7 @@ pub enum Message {
     CycleTimezone(TimezoneDirection),
     SetTimezone(usize),
     ConfigReloaded(TempoModuleConfig),
+    ToggleLocationVisibility,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -59,6 +60,7 @@ pub struct Tempo {
     location: Option<Location>,
     current_format_index: usize,
     current_timezone_index: usize,
+    location_visible: bool,
 }
 
 impl Tempo {
@@ -71,6 +73,7 @@ impl Tempo {
             location: None,
             current_format_index: 0,
             current_timezone_index: 0,
+            location_visible: true,
         }
     }
 
@@ -159,6 +162,10 @@ impl Tempo {
                 }
 
                 self.config = new_config;
+                Action::None
+            }
+            Message::ToggleLocationVisibility => {
+                self.location_visible = !self.location_visible;
                 Action::None
             }
         }
@@ -462,10 +469,40 @@ impl Tempo {
         let units = unit_system();
         let temp = units.temperature_symbol();
         let wind = units.wind_speed_symbol();
+        let location_visible = self.location_visible;
         self.weather_data
             .as_ref()
             .zip(self.location.as_ref())
             .map(|(data, location)| {
+                let inner_element: Element<'a, Message> = if location_visible {
+                    text(format!(
+                        "{}{} - {}",
+                        location.city,
+                        if location.region_name.is_empty() {
+                            String::new()
+                        } else {
+                            format!(", {}", location.region_name)
+                        },
+                        data.current.time.format("%R")
+                    ))
+                    .size(font_size.sm)
+                    .into()
+                } else {
+                    container(text("•••••").size(font_size.sm))
+                        .style(move |theme: &Theme| container::Style {
+                            background: Some(Background::Color(
+                                theme.extended_palette().background.strong.color,
+                            )),
+                            border: Border::default().rounded(radius.sm),
+                            ..Default::default()
+                        })
+                        .into()
+                };
+
+                let location_element: Element<'a, Message> = MouseArea::new(inner_element)
+                    .on_press(Message::ToggleLocationVisibility)
+                    .into();
+
                 column!(
                     container(
                         row!(
@@ -473,17 +510,7 @@ impl Tempo {
                                 .height(font_size.xxl)
                                 .width(Length::Shrink),
                             column!(
-                                text(format!(
-                                    "{}{} - {}",
-                                    location.city,
-                                    if location.region_name.is_empty() {
-                                        String::new()
-                                    } else {
-                                        format!(", {}", location.region_name)
-                                    },
-                                    data.current.time.format("%R")
-                                ))
-                                .size(font_size.sm),
+                                location_element,
                                 text(weather_description(data.current.weather_code)),
                                 row!(
                                     text(format!("{}{temp}", data.current.temperature_2m)),
