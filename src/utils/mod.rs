@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use unicode_segmentation::UnicodeSegmentation;
 
+pub mod audio_feedback;
 pub mod launcher;
 pub mod remote_value;
 
