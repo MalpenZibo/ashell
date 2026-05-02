@@ -115,3 +115,19 @@ could be different
 | ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/tray-menu.png)       | ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/power-menu.png)   |
 | ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/sinks-selection.png) | ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/network-menu.png) |
 | ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/bluetooth-menu.png)  | ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/vpn-menu.png)     |
+## Building from Source
+To build Ashell from source, ensure the following dependencies are installed:
+
+-Rust (with cargo)
+-wayland-protocols
+-clang
+-libxkbcommon
+-wayland
+-dbus
+-libpipewire
+-libpulse
+### Then, from the root of the repository, run:
+
+```sh
+cargo build --release
+    sudo cp target/release/ashell /usr/local/bin/ashell ``` 
