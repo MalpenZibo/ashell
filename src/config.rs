@@ -953,6 +953,8 @@ impl<'de> Deserialize<'de> for ModuleName {
                     "KeyboardSubmap" => ModuleName::KeyboardSubmap,
                     "Tray" => ModuleName::Tray,
                     "Notifications" => ModuleName::Notifications,
+                    "ClipboardHistory" => ModuleName::ClipboardHistory,  // <-- ваша вставка
+                    other => ModuleName::Custom(other.to_string()),
                     "Tempo" => ModuleName::Tempo,
                     "Privacy" => ModuleName::Privacy,
                     "Settings" => ModuleName::Settings,
