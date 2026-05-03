@@ -114,6 +114,7 @@ impl App {
                 config.layer,
                 config.appearance.scale_factor,
             );
+            let clipboard_history = crate::modules::clipboard::ClipboardModule::new();
 
             let custom = config
                 .custom_modules
@@ -142,6 +143,7 @@ impl App {
                         enable_esc_key: config.enable_esc_key,
                     },
                     outputs,
+                    clipboard_history,
                     custom,
                     updates: config.updates.map(Updates::new),
                     workspaces: Workspaces::new(config.workspaces),
