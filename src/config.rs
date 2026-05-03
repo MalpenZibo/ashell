@@ -924,6 +924,7 @@ pub enum ModuleName {
     Privacy,
     Settings,
     MediaPlayer,
+    ClipboardHistory,
     Custom(String),
     Notifications,
 }
