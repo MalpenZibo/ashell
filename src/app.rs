@@ -99,6 +99,7 @@ pub enum Message {
     CloseAllMenus,
     ResumeFromSleep,
     None,
+    Clipboard(crate::modules::clipboard::ClipboardMessage),
     ToggleVisibility,
 }
 
