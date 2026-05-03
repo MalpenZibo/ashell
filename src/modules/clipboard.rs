@@ -66,7 +66,7 @@ impl ClipboardModule {
     }
 
     pub fn view(&self, is_menu: bool) -> Element<ClipboardMessage> {
-        let toggle_button = button("📋").on_press(ClipboardMessage::Toggle);
+        let toggle_button = button("󰅍").on_press(ClipboardMessage::Toggle);
 
         if is_menu {
             // Вид только для меню (список записей)
