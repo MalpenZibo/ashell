@@ -15,6 +15,7 @@ pub enum MenuType {
     Updates,
     Settings,
     Notifications,
+    ClipboardHistory,
     Tray(String),
     MediaPlayer,
     SystemInfo,
