@@ -315,6 +315,8 @@ impl App {
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
+            Message::Clipboard(msg) => {
+            self.clipboard_history.update(msg)
             Message::ConfigChanged(config) => {
                 info!("New config: {config:?}");
                 let mut tasks = Vec::new();
@@ -731,6 +733,13 @@ impl App {
                         self.notifications.menu_view().map(Message::Notifications),
                         ui_ref,
                     ),
+                    MenuType::ClipboardHistory => {
+                    self.menu_wrapper(
+                        id,
+                        self.clipboard_history.view(true).map(Message::Clipboard),
+                        ui_ref,
+                        )
+                    }
                     MenuType::Settings => self.menu_wrapper(
                         id,
                         self.settings
