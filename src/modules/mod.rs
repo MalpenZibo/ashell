@@ -7,6 +7,7 @@ use crate::{
 };
 use iced::{Alignment, Element, Length, Subscription, SurfaceId, widget::Row};
 
+pub mod clipboard;
 pub mod custom_module;
 pub mod keyboard_layout;
 pub mod keyboard_submap;
