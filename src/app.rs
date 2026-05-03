@@ -66,6 +66,7 @@ pub struct App {
     pub keyboard_submap: KeyboardSubmap,
     pub tray: TrayModule,
     pub tempo: Tempo,
+    pub clipboard_history: crate::modules::clipboard::ClipboardModule,
     pub privacy: Privacy,
     pub settings: Settings,
     pub media_player: MediaPlayer,
