@@ -127,3 +127,9 @@ weather-unknown = Unknown weather condition
 notifications-heading = Notifications
 notifications-empty = No notifications
 notifications-group-count = { $count } new
+
+## Clipboard module
+clipboard-heading = Clipboard History
+clipboard-empty = Clipboard is empty
+clipboard-loading = Loading clipboard...
+clipboard-image-entry = [Image]
