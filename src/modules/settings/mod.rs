@@ -16,7 +16,7 @@ use crate::{
     modules::settings::{
         audio::{AudioSettings, AudioSettingsConfig},
         bluetooth::{BluetoothSettings, BluetoothSettingsConfig},
-        brightness::BrightnessSettings,
+        brightness::{BrightnessSettings, BrightnessSettingsConfig},
         network::{NetworkSettings, NetworkSettingsConfig},
         power::{PowerSettings, PowerSettingsConfig},
     },
@@ -202,8 +202,12 @@ impl Settings {
                 config.audio_sources_more_cmd,
                 config.audio_indicator_format,
                 config.microphone_indicator_format,
+                config.audio_step,
             )),
-            brightness: BrightnessSettings::new(config.brightness_indicator_format),
+            brightness: BrightnessSettings::new(BrightnessSettingsConfig::new(
+                config.brightness_indicator_format,
+                config.brightness_step,
+            )),
             network: NetworkSettings::new(NetworkSettingsConfig::new(
                 config.wifi_more_cmd,
                 config.vpn_more_cmd,
@@ -516,6 +520,7 @@ impl Settings {
                         config.audio_sources_more_cmd,
                         config.audio_indicator_format,
                         config.microphone_indicator_format,
+                        config.audio_step,
                     )));
                 self.network.update(network::Message::ConfigReloaded(
                     NetworkSettingsConfig::new(
@@ -532,7 +537,10 @@ impl Settings {
                     ),
                 ));
                 self.brightness.update(brightness::Message::ConfigReloaded(
-                    config.brightness_indicator_format,
+                    BrightnessSettingsConfig::new(
+                        config.brightness_indicator_format,
+                        config.brightness_step,
+                    ),
                 ));
                 if config.remove_idle_btn {
                     self.idle_inhibitor = None;

@@ -548,9 +548,13 @@ pub struct SettingsModuleConfig {
     pub peripheral_expanded_by_default: bool,
     pub audio_indicator_format: SettingsFormat,
     pub microphone_indicator_format: SettingsFormat,
+    #[serde(deserialize_with = "step_deserializer")]
+    pub audio_step: u32,
     pub network_indicator_format: SettingsFormat,
     pub bluetooth_indicator_format: SettingsFormat,
     pub brightness_indicator_format: SettingsFormat,
+    #[serde(deserialize_with = "step_deserializer")]
+    pub brightness_step: u32,
     #[serde(default, deserialize_with = "empty_string_as_none")]
     pub audio_sinks_more_cmd: Option<String>,
     #[serde(default, deserialize_with = "empty_string_as_none")]
@@ -566,6 +570,27 @@ pub struct SettingsModuleConfig {
     pub indicators: Vec<SettingsIndicator>,
     #[serde(rename = "CustomButton")]
     pub custom_buttons: Vec<SettingsCustomButton>,
+}
+
+fn step_deserializer<'de, D>(deserializer: D) -> Result<u32, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let v = u32::deserialize(deserializer)?;
+
+    if v < 1 {
+        return Err(serde::de::Error::custom(
+            "Audio step must be greater than 0",
+        ));
+    }
+
+    if v > 10 {
+        return Err(serde::de::Error::custom(
+            "Audio step cannot be greater than 10",
+        ));
+    }
+
+    Ok(v)
 }
 
 impl Default for SettingsModuleConfig {
@@ -584,9 +609,11 @@ impl Default for SettingsModuleConfig {
             peripheral_expanded_by_default: false,
             audio_indicator_format: SettingsFormat::Icon,
             microphone_indicator_format: SettingsFormat::Icon,
+            audio_step: 5,
             network_indicator_format: SettingsFormat::Icon,
             bluetooth_indicator_format: SettingsFormat::Icon,
             brightness_indicator_format: SettingsFormat::Icon,
+            brightness_step: 5,
             audio_sinks_more_cmd: Default::default(),
             audio_sources_more_cmd: Default::default(),
             wifi_more_cmd: Default::default(),

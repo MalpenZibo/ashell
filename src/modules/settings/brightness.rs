@@ -19,7 +19,7 @@ pub enum Message {
     Event(ServiceEvent<BrightnessService>),
     Changed(remote_value::Message<u32>),
     MenuOpened,
-    ConfigReloaded(SettingsFormat),
+    ConfigReloaded(BrightnessSettingsConfig),
 }
 
 pub enum Action {
@@ -27,13 +27,28 @@ pub enum Action {
     Command(Task<Message>),
 }
 
+#[derive(Debug, Clone)]
+pub struct BrightnessSettingsConfig {
+    pub indicator_format: SettingsFormat,
+    pub step: u32,
+}
+
+impl BrightnessSettingsConfig {
+    pub fn new(indicator_format: SettingsFormat, step: u32) -> Self {
+        Self {
+            indicator_format,
+            step,
+        }
+    }
+}
+
 pub struct BrightnessSettings {
-    config: SettingsFormat,
+    config: BrightnessSettingsConfig,
     service: Option<BrightnessService>,
 }
 
 impl BrightnessSettings {
-    pub fn new(config: SettingsFormat) -> Self {
+    pub fn new(config: BrightnessSettingsConfig) -> Self {
         Self {
             config,
             service: None,
@@ -44,15 +59,11 @@ impl BrightnessSettings {
         self.service.as_ref().map(|s| (s.current.value(), s.max))
     }
 
-    fn step(max: u32) -> u32 {
-        (5 * max / 100).max(1)
-    }
-
     pub fn brightness_adjust(&mut self, up: bool) -> Action {
         let Some((cur, max)) = self.current_brightness() else {
             return Action::None;
         };
-        let step = Self::step(max);
+        let step = (self.config.step * max / 100).max(1);
         let new_val = if up {
             (cur + step).min(max)
         } else {
@@ -69,7 +80,7 @@ impl BrightnessSettings {
                 ScrollDelta::Lines { y, .. } => y,
                 ScrollDelta::Pixels { y, .. } => y,
             };
-            let step = Self::step(max);
+            let step = (max / 100).max(1);
             let new = if y > 0.0 {
                 (current + step).min(max)
             } else {
@@ -109,8 +120,8 @@ impl BrightnessSettings {
                 }
                 Action::None
             }
-            Message::ConfigReloaded(format) => {
-                self.config = format;
+            Message::ConfigReloaded(config) => {
+                self.config = config;
                 Action::None
             }
         }
@@ -134,7 +145,7 @@ impl BrightnessSettings {
             let scroll_handler = Self::on_scroll(service.current.value(), service.max);
 
             format_indicator(
-                self.config,
+                self.config.indicator_format,
                 StaticIcon::Brightness,
                 Self::percent_text(service).into(),
                 IndicatorState::Normal,

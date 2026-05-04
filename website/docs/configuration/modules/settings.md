@@ -193,6 +193,18 @@ The default value is `Icon`.
 microphone_indicator_format = "IconAndPercentage"
 ```
 
+### Audio Step
+
+With the `audio_step` option you can customize how many steps source and sink volume changes when using
+ipc commands.
+
+The default value is 5. Valid values are in the range of 1 to 10.
+
+```toml
+[settings]
+audio_step = 1
+```
+
 ### Network Format
 
 With the `network_indicator_format` option you can customize the network connection indicator format.
@@ -226,6 +238,18 @@ The default value is `Icon`.
 ```toml
 [settings]
 brightness_indicator_format = "IconAndPercentage"
+```
+
+### Brightness Step
+
+With the `brightness_step` option you can customize how many steps screen brightness changes when using
+ipc commands.
+
+The default value is 5.	Valid values are in the	range of 1 to 10.
+
+```toml
+[settings]
+brightness_step = 1
 ```
 
 ## Peripheral Indicators

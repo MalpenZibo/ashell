@@ -57,6 +57,7 @@ pub struct AudioSettingsConfig {
     pub sources_more_cmd: Option<String>,
     pub indicator_format: SettingsFormat,
     pub microphone_indicator_format: SettingsFormat,
+    pub step: u32,
 }
 
 impl AudioSettingsConfig {
@@ -65,12 +66,14 @@ impl AudioSettingsConfig {
         sources_more_cmd: Option<String>,
         indicator_format: SettingsFormat,
         microphone_indicator_format: SettingsFormat,
+        step: u32,
     ) -> Self {
         Self {
             sinks_more_cmd,
             sources_more_cmd,
             indicator_format,
             microphone_indicator_format,
+            step,
         }
     }
 }
@@ -125,7 +128,7 @@ impl AudioSettings {
         let Some(cur) = self.real_sink_volume() else {
             return Action::None;
         };
-        let step = 5 * VOL_PERCENT;
+        let step = self.config.step * VOL_PERCENT;
         let new_vol = if up {
             (cur + step).min(Self::vol_max())
         } else {
@@ -176,7 +179,7 @@ impl AudioSettings {
         let Some(cur) = self.real_source_volume() else {
             return Action::None;
         };
-        let step = 5 * VOL_PERCENT;
+        let step = self.config.step * VOL_PERCENT;
         let new_vol = if up {
             (cur + step).min(Self::mic_max())
         } else {
@@ -534,11 +537,10 @@ impl AudioSettings {
                 ScrollDelta::Lines { y, .. } => y,
                 ScrollDelta::Pixels { y, .. } => y,
             };
-            let step = 5 * VOL_PERCENT;
             let new_volume = if y > 0.0 {
-                (cur_volume + step).min(Volume::NORMAL.0)
+                (cur_volume + VOL_PERCENT).min(Volume::NORMAL.0)
             } else {
-                cur_volume.saturating_sub(step)
+                cur_volume.saturating_sub(VOL_PERCENT)
             };
             make_msg(remote_value::Message::RequestAndTimeout(new_volume))
         }
