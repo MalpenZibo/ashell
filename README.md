@@ -15,7 +15,7 @@
 </p>
 
 ## ✨ Features
-
+- 2 languages support (en, ru)
 - Automatic Hyprland/Niri compositor detection
 - Multi-monitor support (all monitors, active monitor, or specific targets)
 - Hot-reload configuration (changes apply automatically via file watch)
@@ -106,6 +106,9 @@ could be different
 
 <img src="https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/ashell-gradient.png"></img>
 
+### Clipboard history
+<img width="437" height="568" alt="2026-05-04-204343_hyprshot" src="https://github.com/user-attachments/assets/d2efca45-9559-4af2-ace9-b31dd3953a3a" />
+
 #### opacity settings
 
 <img src="https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/opacity.png"></img>
@@ -130,4 +133,4 @@ To build Ashell from source, ensure the following dependencies are installed:
 
 ```sh
 cargo build --release
-    sudo cp target/release/ashell /usr/local/bin/ashell ``` 
+sudo cp target/release/ashell /usr/local/bin/ashell  
