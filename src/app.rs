@@ -66,7 +66,6 @@ pub struct App {
     pub keyboard_submap: KeyboardSubmap,
     pub tray: TrayModule,
     pub tempo: Tempo,
-  
     pub privacy: Privacy,
     pub settings: Settings,
     pub media_player: MediaPlayer,
@@ -99,7 +98,6 @@ pub enum Message {
     CloseAllMenus,
     ResumeFromSleep,
     None,
-  
     ToggleVisibility,
 }
 
@@ -114,7 +112,6 @@ impl App {
                 config.layer,
                 config.appearance.scale_factor,
             );
-      
 
             let custom = config
                 .custom_modules
@@ -143,7 +140,6 @@ impl App {
                         enable_esc_key: config.enable_esc_key,
                     },
                     outputs,
-                  
                     custom,
                     updates: config.updates.map(Updates::new),
                     workspaces: Workspaces::new(config.workspaces),
@@ -315,7 +311,6 @@ impl App {
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-          
             Message::ConfigChanged(config) => {
                 info!("New config: {config:?}");
                 let mut tasks = Vec::new();
@@ -732,7 +727,6 @@ impl App {
                         self.notifications.menu_view().map(Message::Notifications),
                         ui_ref,
                     ),
-                  
                     MenuType::Settings => self.menu_wrapper(
                         id,
                         self.settings
