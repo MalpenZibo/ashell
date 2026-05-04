@@ -7,7 +7,7 @@ use crate::{
 };
 use iced::{Alignment, Element, Length, Subscription, SurfaceId, widget::Row};
 
-pub mod clipboard;
+
 pub mod custom_module;
 pub mod keyboard_layout;
 pub mod keyboard_submap;
@@ -185,14 +185,7 @@ impl App {
                     .map(Message::Workspaces),
                 None,
             )),
-            ModuleName::ClipboardHistory => {
-                let msg = crate::app::Message::Clipboard(
-                clipboard::ClipboardMessage::Toggle, // временно, реальное сообщение будет позже
-                );
-                let view = self.clipboard_history.view(false).map(crate::app::Message::Clipboard);
-                let action = Some(OnModulePress::ToggleMenu(MenuType::ClipboardHistory));
-                Some((view, action))
-                }
+           
             ModuleName::WindowTitle => self.window_title.get_value().map(|title| {
                 (
                     self.window_title.view(title).map(Message::WindowTitle),
