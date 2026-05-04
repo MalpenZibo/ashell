@@ -136,6 +136,7 @@ cargo build --release
 sudo cp target/release/ashell /usr/local/bin/ashell  
 ```
 ## Clipboard history config
+you need install cliphist before
 ```
 [modules]
 right = ["Clipboard", "Tempo", "Privacy", "Settings"]
