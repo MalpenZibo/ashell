@@ -66,7 +66,7 @@ pub struct App {
     pub keyboard_submap: KeyboardSubmap,
     pub tray: TrayModule,
     pub tempo: Tempo,
-    pub clipboard_history: crate::modules::clipboard::ClipboardModule,
+  
     pub privacy: Privacy,
     pub settings: Settings,
     pub media_player: MediaPlayer,
@@ -99,7 +99,7 @@ pub enum Message {
     CloseAllMenus,
     ResumeFromSleep,
     None,
-    Clipboard(crate::modules::clipboard::ClipboardMessage),
+  
     ToggleVisibility,
 }
 
@@ -114,7 +114,7 @@ impl App {
                 config.layer,
                 config.appearance.scale_factor,
             );
-            let clipboard_history = crate::modules::clipboard::ClipboardModule::new();
+      
 
             let custom = config
                 .custom_modules
@@ -143,7 +143,7 @@ impl App {
                         enable_esc_key: config.enable_esc_key,
                     },
                     outputs,
-                    clipboard_history,
+                  
                     custom,
                     updates: config.updates.map(Updates::new),
                     workspaces: Workspaces::new(config.workspaces),
@@ -315,8 +315,7 @@ impl App {
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::Clipboard(msg) => {
-            self.clipboard_history.update(msg)
+          
             Message::ConfigChanged(config) => {
                 info!("New config: {config:?}");
                 let mut tasks = Vec::new();
@@ -733,13 +732,7 @@ impl App {
                         self.notifications.menu_view().map(Message::Notifications),
                         ui_ref,
                     ),
-                    MenuType::ClipboardHistory => {
-                    self.menu_wrapper(
-                        id,
-                        self.clipboard_history.view(true).map(Message::Clipboard),
-                        ui_ref,
-                        )
-                    }
+                  
                     MenuType::Settings => self.menu_wrapper(
                         id,
                         self.settings
