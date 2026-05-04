@@ -134,3 +134,12 @@ To build Ashell from source, ensure the following dependencies are installed:
 ```sh
 cargo build --release
 sudo cp target/release/ashell /usr/local/bin/ashell  
+```
+## Clipboard history config
+```
+[modules]
+right = ["Clipboard", "Tempo", "Privacy", "Settings"]
+
+[clipboard]
+max_entries = 8 
+```
