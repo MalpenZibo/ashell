@@ -690,6 +690,7 @@ impl ReadOnlyService for TrayService {
 #[derive(Debug, Clone)]
 pub enum TrayCommand {
     MenuSelected(String, i32),
+    Activate(String),
 }
 
 impl Service for TrayService {
@@ -717,6 +718,23 @@ impl Service for TrayService {
                             )),
                             _ => ServiceEvent::Update(TrayEvent::None),
                         },
+                    )
+                } else {
+                    Task::none()
+                }
+            }
+            TrayCommand::Activate(name) => {
+                let item = self.data.iter().find(|item| item.name == name);
+                if let Some(item) = item {
+                    Task::perform(
+                        {
+                            let proxy = item.item_proxy.clone();
+                            async move {
+                                debug!("Activate tray item {name}");
+                                let _ = proxy.activate(0, 0).await;
+                            }
+                        },
+                        |_| ServiceEvent::Update(TrayEvent::None),
                     )
                 } else {
                     Task::none()
