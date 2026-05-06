@@ -109,7 +109,7 @@ pub enum Action {
     ReleaseKeyboardWithCommand(SurfaceId, Task<Message>),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy)]
 pub enum EventSource {
     VolumeIndicator,
     MicrophoneIndicator,
