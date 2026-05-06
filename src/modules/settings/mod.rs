@@ -102,10 +102,18 @@ pub enum Message {
 pub enum Action {
     None,
     Command(Task<Message>),
+    SourceTaggedCommand(Task<Message>, EventSource),
     CloseMenu(SurfaceId),
     RequestKeyboard(SurfaceId),
     ReleaseKeyboard(SurfaceId),
     ReleaseKeyboardWithCommand(SurfaceId, Task<Message>),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum EventSource {
+    VolumeIndicator,
+    MicrophoneIndicator,
+    Irelevant,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -138,7 +146,9 @@ impl Settings {
 
     pub fn volume_adjust(&mut self, up: bool) -> Action {
         match self.audio.volume_adjust(up) {
-            audio::Action::Task(task) => Action::Command(task.map(Message::Audio)),
+            audio::Action::SourceTaggedTask(task, event_source) => {
+                Action::SourceTaggedCommand(task.map(Message::Audio), event_source)
+            }
             _ => Action::None,
         }
     }
@@ -150,7 +160,9 @@ impl Settings {
 
     pub fn microphone_adjust(&mut self, up: bool) -> Action {
         match self.audio.microphone_adjust(up) {
-            audio::Action::Task(task) => Action::Command(task.map(Message::Audio)),
+            audio::Action::SourceTaggedTask(task, event_source) => {
+                Action::SourceTaggedCommand(task.map(Message::Audio), event_source)
+            }
             _ => Action::None,
         }
     }
@@ -273,7 +285,9 @@ impl Settings {
                     Action::None
                 }
                 audio::Action::CloseMenu(id) => Action::CloseMenu(id),
-                audio::Action::Task(task) => Action::Command(task.map(Message::Audio)),
+                audio::Action::SourceTaggedTask(task, event_source) => {
+                    Action::SourceTaggedCommand(task.map(Message::Audio), event_source)
+                }
             },
             Message::Network(msg) => match self.network.update(msg) {
                 network::Action::None => Action::None,

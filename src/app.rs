@@ -13,7 +13,7 @@ use crate::{
         media_player::MediaPlayer,
         notifications::Notifications,
         privacy::Privacy,
-        settings::{self, Settings, audio},
+        settings::{self, EventSource, Settings, audio},
         system_info::SystemInfo,
         tempo::Tempo,
         tray::TrayModule,
@@ -230,26 +230,26 @@ impl App {
         use_theme(|t| t.scale_factor)
     }
 
+    fn normalise(cur: u32, max: u32) -> f32 {
+        if max > 0 {
+            cur as f32 / max as f32
+        } else {
+            0.0
+        }
+    }
+
     /// Build OSD display info (kind, normalised value, muted) for the given
     /// IPC command, reading current state from the Settings services.
     fn osd_info_for(&self, cmd: &IpcCommand) -> Option<(OsdKind, f32, bool)> {
-        fn normalise(cur: u32, max: u32) -> f32 {
-            if max > 0 {
-                cur as f32 / max as f32
-            } else {
-                0.0
-            }
-        }
-
         match cmd {
             IpcCommand::VolumeUp { .. } | IpcCommand::VolumeDown { .. } => {
                 // Use slider value — it has the optimistic RequestAndTimeout update,
                 // which was computed from real_sink_volume in volume_adjust().
                 let vol = self.settings.audio().current_sink_volume().unwrap_or(0);
-                let muted = self.settings.audio().is_sink_muted().unwrap_or(false);
+                let muted = self.settings.audio().is_sink_muted();
                 Some((
                     OsdKind::Volume,
-                    normalise(vol, audio::AudioSettings::vol_max()),
+                    Self::normalise(vol, audio::AudioSettings::vol_max()),
                     muted,
                 ))
             }
@@ -257,10 +257,10 @@ impl App {
                 let vol = self.settings.audio().real_sink_volume().unwrap_or(0);
                 // Invert: the toggle was just sent but PulseAudio hasn't
                 // round-tripped yet, so the current state is stale.
-                let muted = !self.settings.audio().is_sink_muted().unwrap_or(false);
+                let muted = !self.settings.audio().is_sink_muted();
                 Some((
                     OsdKind::Volume,
-                    normalise(vol, audio::AudioSettings::vol_max()),
+                    Self::normalise(vol, audio::AudioSettings::vol_max()),
                     muted,
                 ))
             }
@@ -268,10 +268,10 @@ impl App {
                 // Use slider value — it has the optimistic RequestAndTimeout update,
                 // which was computed from real_source_volume in microphone_adjust().
                 let vol = self.settings.audio().current_source_volume().unwrap_or(0);
-                let muted = self.settings.audio().is_source_muted().unwrap_or(false);
+                let muted = self.settings.audio().is_source_muted();
                 Some((
                     OsdKind::Microphone,
-                    normalise(vol, audio::AudioSettings::mic_max()),
+                    Self::normalise(vol, audio::AudioSettings::mic_max()),
                     muted,
                 ))
             }
@@ -279,10 +279,10 @@ impl App {
                 let vol = self.settings.audio().real_source_volume().unwrap_or(0);
                 // Invert: the toggle was just sent but PulseAudio hasn't
                 // round-tripped yet, so the current state is stale.
-                let muted = !self.settings.audio().is_source_muted().unwrap_or(false);
+                let muted = !self.settings.audio().is_source_muted();
                 Some((
                     OsdKind::Microphone,
-                    normalise(vol, audio::AudioSettings::mic_max()),
+                    Self::normalise(vol, audio::AudioSettings::mic_max()),
                     muted,
                 ))
             }
@@ -290,7 +290,7 @@ impl App {
                 .settings
                 .brightness()
                 .current_brightness()
-                .map(|(cur, max)| (OsdKind::Brightness, normalise(cur, max), false)),
+                .map(|(cur, max)| (OsdKind::Brightness, Self::normalise(cur, max), false)),
             IpcCommand::ToggleAirplaneMode { .. } => {
                 // After toggle: the new state is the opposite of current.
                 // For toggles, `muted` carries the active/enabled state; `value` is unused.
@@ -451,6 +451,39 @@ impl App {
             Message::Settings(message) => match self.settings.update(message) {
                 modules::settings::Action::None => Task::none(),
                 modules::settings::Action::Command(task) => task.map(Message::Settings),
+                modules::settings::Action::SourceTaggedCommand(task, event_source) => {
+                    let mut tasks = vec![task.map(Message::Settings)];
+
+                    if self.osd.config().enabled && !self.outputs.menu_is_open() {
+                        if let Some(message) = match event_source {
+                            EventSource::VolumeIndicator => {
+                                let vol = self.settings.audio().current_sink_volume().unwrap_or(0);
+                                Some(osd::Message::Show {
+                                    kind: OsdKind::Volume,
+                                    value: Self::normalise(vol, audio::AudioSettings::vol_max()),
+                                    muted: false,
+                                })
+                            }
+                            EventSource::MicrophoneIndicator => {
+                                let vol =
+                                    self.settings.audio().current_source_volume().unwrap_or(0);
+                                Some(osd::Message::Show {
+                                    kind: OsdKind::Microphone,
+                                    value: Self::normalise(vol, audio::AudioSettings::mic_max()),
+                                    muted: false,
+                                })
+                            }
+                            EventSource::Irelevant => None,
+                        } {
+                            if let osd::Action::Show(timer) = self.osd.update(message) {
+                                tasks.push(timer.map(Message::Osd));
+                                tasks.push(self.outputs.show_osd_layer(OSD_WIDTH, OSD_HEIGHT));
+                            }
+                        }
+                    }
+
+                    Task::batch(tasks)
+                }
                 modules::settings::Action::CloseMenu(id) => {
                     self.outputs
                         .close_menu(id, None, self.general_config.enable_esc_key)

@@ -2,6 +2,7 @@ use std::ops::RangeInclusive;
 
 use crate::{
     components::icons::{IconKind, StaticIcon, icon_button},
+    modules::settings::EventSource,
     theme::use_theme,
     utils::remote_value,
 };
@@ -15,7 +16,7 @@ pub struct SliderControl<'a, Msg> {
     icon: IconKind,
     range: RangeInclusive<u32>,
     value: u32,
-    on_change: Box<dyn Fn(remote_value::Message<u32>) -> Msg + 'a>,
+    on_change: Box<dyn Fn(remote_value::Message<u32>, EventSource) -> Msg + 'a>,
     on_scroll: Box<dyn Fn(ScrollDelta) -> Msg + 'a>,
     on_icon_press: Option<Msg>,
     on_icon_right_press: Option<Msg>,
@@ -26,7 +27,7 @@ pub fn slider_control<'a, Msg: 'static + Clone>(
     icon: impl Into<IconKind>,
     range: RangeInclusive<u32>,
     value: u32,
-    on_change: impl Fn(remote_value::Message<u32>) -> Msg + 'a,
+    on_change: impl Fn(remote_value::Message<u32>, EventSource) -> Msg + 'a,
     on_scroll: impl Fn(ScrollDelta) -> Msg + 'a,
 ) -> SliderControl<'a, Msg> {
     SliderControl {
@@ -82,7 +83,7 @@ impl<'a, Msg: 'static + Clone> From<SliderControl<'a, Msg>> for Element<'a, Msg>
                 slider(ctrl.range, ctrl.value, remote_value::Message::Request)
                     .on_release(remote_value::Message::Timeout),
             )
-            .map(ctrl.on_change),
+            .map(move |msg| (ctrl.on_change)(msg, EventSource::Irelevant)),
         )
         .on_scroll(ctrl.on_scroll);
 

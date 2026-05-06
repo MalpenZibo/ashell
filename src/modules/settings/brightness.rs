@@ -1,6 +1,7 @@
 use crate::{
     components::{format_indicator, icons::StaticIcon, slider_control},
     config::SettingsFormat,
+    modules::settings::EventSource,
     services::{
         ReadOnlyService, Service, ServiceEvent,
         brightness::{BrightnessCommand, BrightnessService},
@@ -17,7 +18,7 @@ use iced::{
 #[derive(Debug, Clone)]
 pub enum Message {
     Event(ServiceEvent<BrightnessService>),
-    Changed(remote_value::Message<u32>),
+    Changed(remote_value::Message<u32>, EventSource),
     MenuOpened,
     ConfigReloaded(BrightnessSettingsConfig),
 }
@@ -69,12 +70,17 @@ impl BrightnessSettings {
         } else {
             cur.saturating_sub(step)
         };
-        self.update(Message::Changed(remote_value::Message::RequestAndTimeout(
-            new_val,
-        )))
+        self.update(Message::Changed(
+            remote_value::Message::RequestAndTimeout(new_val),
+            EventSource::Irelevant,
+        ))
     }
 
-    fn on_scroll(current: u32, max: u32) -> impl Fn(ScrollDelta) -> Message {
+    fn on_scroll(
+        current: u32,
+        max: u32,
+        event_source: EventSource,
+    ) -> impl Fn(ScrollDelta) -> Message {
         move |delta| {
             let y = match delta {
                 ScrollDelta::Lines { y, .. } => y,
@@ -86,7 +92,7 @@ impl BrightnessSettings {
             } else {
                 current.saturating_sub(step)
             };
-            Message::Changed(remote_value::Message::RequestAndTimeout(new))
+            Message::Changed(remote_value::Message::RequestAndTimeout(new), event_source)
         }
     }
 
@@ -105,12 +111,17 @@ impl BrightnessSettings {
                 }
                 _ => Action::None,
             },
-            Message::Changed(message) => {
+            Message::Changed(message, event_source) => {
                 if let Some(service) = self.service.as_mut() {
                     if let Some(value) = message.value() {
                         let _ = service.command(BrightnessCommand(value));
                     }
-                    return Action::Command(service.current.update(message).map(Message::Changed));
+                    return Action::Command(
+                        service
+                            .current
+                            .update(message)
+                            .map(move |msg| Message::Changed(msg, event_source)),
+                    );
                 }
                 Action::None
             }
@@ -134,7 +145,7 @@ impl BrightnessSettings {
                 0..=service.max,
                 service.current.value(),
                 Message::Changed,
-                Self::on_scroll(service.current.value(), service.max),
+                Self::on_scroll(service.current.value(), service.max, EventSource::Irelevant),
             )
             .into()
         })
@@ -142,7 +153,8 @@ impl BrightnessSettings {
 
     pub fn brightness_indicator<'a>(&'a self) -> Option<Element<'a, Message>> {
         self.service.as_ref().map(|service| {
-            let scroll_handler = Self::on_scroll(service.current.value(), service.max);
+            let scroll_handler =
+                Self::on_scroll(service.current.value(), service.max, EventSource::Irelevant);
 
             format_indicator(
                 self.config.indicator_format,

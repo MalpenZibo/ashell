@@ -6,6 +6,7 @@ use crate::{
         slider_control, styled_button,
     },
     config::SettingsFormat,
+    modules::settings::EventSource,
     services::{
         ReadOnlyService, Service, ServiceEvent,
         audio::{AudioCommand, AudioService, ChannelVolumesExt, DevicePortType, Port},
@@ -30,9 +31,9 @@ pub enum Message {
     DefaultSinkChanged(String, Option<String>),
     DefaultSourceChanged(String, Option<String>),
     ToggleSinkMute,
-    SinkVolumeChanged(remote_value::Message<u32>),
+    SinkVolumeChanged(remote_value::Message<u32>, EventSource),
     ToggleSourceMute,
-    SourceVolumeChanged(remote_value::Message<u32>),
+    SourceVolumeChanged(remote_value::Message<u32>, EventSource),
     SinksMore(SurfaceId),
     SourcesMore(SurfaceId),
     OpenMore,
@@ -44,7 +45,7 @@ pub enum Message {
 
 pub enum Action {
     None,
-    Task(Task<Message>),
+    SourceTaggedTask(Task<Message>, EventSource),
     ToggleSinksMenu,
     ToggleSourcesMenu,
     CloseMenu(SurfaceId),
@@ -114,10 +115,11 @@ impl AudioSettings {
             .and_then(|s| s.active_sink().map(|d| d.volume.get_volume()))
     }
 
-    pub fn is_sink_muted(&self) -> Option<bool> {
+    pub fn is_sink_muted(&self) -> bool {
         self.service
             .as_ref()
             .and_then(|s| s.active_sink().map(|d| d.is_mute))
+            .unwrap_or(false)
     }
 
     pub fn vol_max() -> u32 {
@@ -136,6 +138,7 @@ impl AudioSettings {
         };
         self.update(Message::SinkVolumeChanged(
             remote_value::Message::RequestAndTimeout(new_vol),
+            EventSource::Irelevant,
         ))
     }
 
@@ -165,10 +168,11 @@ impl AudioSettings {
             .and_then(|s| s.active_source().map(|d| d.volume.get_volume()))
     }
 
-    pub fn is_source_muted(&self) -> Option<bool> {
+    pub fn is_source_muted(&self) -> bool {
         self.service
             .as_ref()
             .and_then(|s| s.active_source().map(|d| d.is_mute))
+            .unwrap_or(false)
     }
 
     pub fn mic_max() -> u32 {
@@ -187,6 +191,7 @@ impl AudioSettings {
         };
         self.update(Message::SourceVolumeChanged(
             remote_value::Message::RequestAndTimeout(new_vol),
+            EventSource::Irelevant,
         ))
     }
 
@@ -232,16 +237,19 @@ impl AudioSettings {
                 }
                 Action::None
             }
-            Message::SinkVolumeChanged(message) => {
-                if let Some(service) = self.service.as_mut() {
+            Message::SinkVolumeChanged(message, event_source) => {
+                if !self.is_sink_muted()
+                    && let Some(service) = self.service.as_mut()
+                {
                     if let Some(value) = message.value() {
                         let _ = service.command(AudioCommand::SinkVolume(value));
                     }
-                    return Action::Task(
+                    return Action::SourceTaggedTask(
                         service
                             .sink_slider
                             .update(message)
-                            .map(Message::SinkVolumeChanged),
+                            .map(move |msg| Message::SinkVolumeChanged(msg, event_source)),
+                        event_source,
                     );
                 }
                 Action::None
@@ -258,16 +266,19 @@ impl AudioSettings {
                 }
                 Action::None
             }
-            Message::SourceVolumeChanged(message) => {
-                if let Some(service) = self.service.as_mut() {
+            Message::SourceVolumeChanged(message, event_source) => {
+                if !self.is_source_muted()
+                    && let Some(service) = self.service.as_mut()
+                {
                     if let Some(value) = message.value() {
                         let _ = service.command(AudioCommand::SourceVolume(value));
                     }
-                    return Action::Task(
+                    return Action::SourceTaggedTask(
                         service
                             .source_slider
                             .update(message)
-                            .map(Message::SourceVolumeChanged),
+                            .map(move |msg| Message::SourceVolumeChanged(msg, event_source)),
+                        event_source,
                     );
                 }
                 Action::None
@@ -334,7 +345,11 @@ impl AudioSettings {
                     IndicatorState::Normal,
                 )
                 .on_right_press(Message::OpenMore)
-                .on_scroll(Self::on_scroll(volume, Message::SinkVolumeChanged))
+                .on_scroll(Self::on_scroll(
+                    volume,
+                    Message::SinkVolumeChanged,
+                    EventSource::VolumeIndicator,
+                ))
                 .into()
             })
     }
@@ -356,7 +371,11 @@ impl AudioSettings {
                     IndicatorState::Normal,
                 )
                 .on_right_press(Message::OpenSourceMore)
-                .on_scroll(Self::on_scroll(volume, Message::SourceVolumeChanged))
+                .on_scroll(Self::on_scroll(
+                    volume,
+                    Message::SourceVolumeChanged,
+                    EventSource::MicrophoneIndicator,
+                ))
                 .into()
             })
     }
@@ -489,7 +508,7 @@ impl AudioSettings {
         is_mute: bool,
         toggle_mute: Message,
         volume: &'a Remote<u32>,
-        volume_changed: &'a dyn Fn(remote_value::Message<u32>) -> Message,
+        volume_changed: &'a dyn Fn(remote_value::Message<u32>, EventSource) -> Message,
         with_submenu: Option<(Option<SubMenu>, Message)>,
     ) -> Element<'a, Message> {
         let mute_icon = if is_mute {
@@ -509,7 +528,7 @@ impl AudioSettings {
             Volume::MUTED.0..=Volume::NORMAL.0,
             volume.value(),
             volume_changed,
-            Self::on_scroll(volume.value(), volume_changed),
+            Self::on_scroll(volume.value(), volume_changed, EventSource::Irelevant),
         )
         .on_icon_press(toggle_mute)
         .on_icon_right_press(match slider_type {
@@ -528,9 +547,13 @@ impl AudioSettings {
         ctrl.into()
     }
 
-    fn on_scroll<F>(cur_volume: u32, make_msg: F) -> impl Fn(ScrollDelta) -> Message
+    fn on_scroll<F>(
+        cur_volume: u32,
+        make_msg: F,
+        event_source: EventSource,
+    ) -> impl Fn(ScrollDelta) -> Message
     where
-        F: Fn(remote_value::Message<u32>) -> Message,
+        F: Fn(remote_value::Message<u32>, EventSource) -> Message,
     {
         move |delta| {
             let y = match delta {
@@ -542,7 +565,10 @@ impl AudioSettings {
             } else {
                 cur_volume.saturating_sub(VOL_PERCENT)
             };
-            make_msg(remote_value::Message::RequestAndTimeout(new_volume))
+            make_msg(
+                remote_value::Message::RequestAndTimeout(new_volume),
+                event_source,
+            )
         }
     }
 
