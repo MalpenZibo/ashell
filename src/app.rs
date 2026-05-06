@@ -454,8 +454,9 @@ impl App {
                 modules::settings::Action::SourceTaggedCommand(task, event_source) => {
                     let mut tasks = vec![task.map(Message::Settings)];
 
-                    if self.osd.config().enabled && !self.outputs.menu_is_open() {
-                        if let Some(message) = match event_source {
+                    if self.osd.config().enabled
+                        && !self.outputs.menu_is_open()
+                        && let Some(message) = match event_source {
                             EventSource::VolumeIndicator => {
                                 let vol = self.settings.audio().current_sink_volume().unwrap_or(0);
                                 Some(osd::Message::Show {
@@ -473,23 +474,21 @@ impl App {
                                     muted: false,
                                 })
                             }
-                            EventSource::BrightnessIndicator => {
-                                match self.settings.brightness().current_brightness() {
-                                    Some((cur, max)) => Some(osd::Message::Show {
-                                        kind: OsdKind::Brightness,
-                                        value: Self::normalise(cur, max),
-                                        muted: false,
-                                    }),
-                                    None => None,
-                                }
-                            }
+                            EventSource::BrightnessIndicator => self
+                                .settings
+                                .brightness()
+                                .current_brightness()
+                                .map(|(cur, max)| osd::Message::Show {
+                                    kind: OsdKind::Brightness,
+                                    value: Self::normalise(cur, max),
+                                    muted: false,
+                                }),
                             EventSource::Irelevant => None,
-                        } {
-                            if let osd::Action::Show(timer) = self.osd.update(message) {
-                                tasks.push(timer.map(Message::Osd));
-                                tasks.push(self.outputs.show_osd_layer(OSD_WIDTH, OSD_HEIGHT));
-                            }
                         }
+                        && let osd::Action::Show(timer) = self.osd.update(message)
+                    {
+                        tasks.push(timer.map(Message::Osd));
+                        tasks.push(self.outputs.show_osd_layer(OSD_WIDTH, OSD_HEIGHT));
                     }
 
                     Task::batch(tasks)
