@@ -20,10 +20,6 @@ pub struct ShellInfo {
     pub style: AppearanceStyle,
     pub menu: Menu,
     pub scale_factor: f64,
-    /// Optional layer surface used to render toast notifications.
-    pub toast_id: Option<SurfaceId>,
-    /// Optional layer surface used to render the OSD overlay.
-    pub osd_id: Option<SurfaceId>,
     /// Logical height of this output (for computing toast input regions).
     pub output_logical_height: Option<u32>,
 }
@@ -34,18 +30,46 @@ impl ShellInfo {
         if let Some(menu_id) = self.menu.surface_id() {
             tasks.push(destroy_layer_surface(menu_id));
         }
-        if let Some(toast_id) = self.toast_id {
-            tasks.push(destroy_layer_surface(toast_id));
-        }
-        if let Some(osd_id) = self.osd_id {
-            tasks.push(destroy_layer_surface(osd_id));
-        }
         Task::batch(tasks)
     }
 }
 
+/// A floating overlay surface (toast or OSD) with `output: None`. `output` is
+/// filled in by `OutputEvent::SurfaceEnteredOutput` and used to look up the
+/// correct logical height for input-region positioning.
+#[derive(Debug, Clone, Copy)]
+struct OverlaySurface {
+    id: SurfaceId,
+    output: Option<OutputId>,
+}
+
+impl OverlaySurface {
+    fn show<Message: 'static>(
+        slot: &mut Option<Self>,
+        settings: LayerShellSettings,
+    ) -> Option<(SurfaceId, Task<Message>)> {
+        if slot.is_some() {
+            return None;
+        }
+        let (id, task) = new_layer_surface(settings);
+        *slot = Some(Self { id, output: None });
+        Some((id, task))
+    }
+
+    fn hide<Message: 'static>(slot: &mut Option<Self>) -> Task<Message> {
+        match slot.take() {
+            Some(s) => destroy_layer_surface(s.id),
+            None => Task::none(),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
-pub struct Outputs(Vec<(String, Option<ShellInfo>, Option<OutputId>)>);
+pub struct Outputs {
+    entries: Vec<(String, Option<ShellInfo>, Option<OutputId>)>,
+    toast: Option<OverlaySurface>,
+    osd: Option<OverlaySurface>,
+}
 
 pub enum HasOutput<'a> {
     Main,
@@ -56,7 +80,7 @@ pub enum HasOutput<'a> {
 
 impl Outputs {
     pub fn iter(&self) -> std::slice::Iter<'_, (String, Option<ShellInfo>, Option<OutputId>)> {
-        self.0.iter()
+        self.entries.iter()
     }
 
     pub fn new(
@@ -68,21 +92,23 @@ impl Outputs {
         // Use the initial surface created by .layer_shell() in main.rs as a
         // fallback until real outputs are detected. Menu surfaces are created
         // on demand when a menu is opened.
-        Self(vec![(
-            "Fallback".to_string(),
-            Some(ShellInfo {
-                id: SurfaceId::MAIN,
-                menu: Menu::new(),
-                toast_id: None,
-                osd_id: None,
-                position,
-                layer,
-                style,
-                scale_factor,
-                output_logical_height: None,
-            }),
-            None,
-        )])
+        Self {
+            entries: vec![(
+                "Fallback".to_string(),
+                Some(ShellInfo {
+                    id: SurfaceId::MAIN,
+                    menu: Menu::new(),
+                    position,
+                    layer,
+                    style,
+                    scale_factor,
+                    output_logical_height: None,
+                }),
+                None,
+            )],
+            toast: None,
+            osd: None,
+        }
     }
 
     pub fn get_height(style: AppearanceStyle, scale_factor: f64) -> f64 {
@@ -138,16 +164,18 @@ impl Outputs {
     }
 
     pub fn has(&'_ self, id: SurfaceId) -> Option<HasOutput<'_>> {
-        self.0.iter().find_map(|(_, info, _)| {
+        if self.toast.is_some_and(|t| t.id == id) {
+            return Some(HasOutput::Toast);
+        }
+        if self.osd.is_some_and(|o| o.id == id) {
+            return Some(HasOutput::Osd);
+        }
+        self.entries.iter().find_map(|(_, info, _)| {
             info.as_ref().and_then(|info| {
                 if info.id == id {
                     Some(HasOutput::Main)
                 } else if info.menu.surface_id() == Some(id) {
                     Some(HasOutput::Menu(info.menu.open.as_ref()))
-                } else if info.toast_id == Some(id) {
-                    Some(HasOutput::Toast)
-                } else if info.osd_id == Some(id) {
-                    Some(HasOutput::Osd)
                 } else {
                     None
                 }
@@ -156,7 +184,7 @@ impl Outputs {
     }
 
     pub fn get_monitor_name(&self, id: SurfaceId) -> Option<&str> {
-        self.0.iter().find_map(|(name, info, _)| {
+        self.entries.iter().find_map(|(name, info, _)| {
             info.as_ref().and_then(|info| {
                 if info.id == id {
                     Some(name.as_str())
@@ -168,7 +196,7 @@ impl Outputs {
     }
 
     pub fn has_name(&self, name: &str) -> bool {
-        self.0
+        self.entries
             .iter()
             .any(|(n, info, _)| info.is_some() && n.as_str().contains(name))
     }
@@ -192,9 +220,13 @@ impl Outputs {
             let (id, task) =
                 Self::create_output_layers(style, Some(output_id), position, layer, scale_factor);
 
-            let destroy_task = match self.0.iter().position(|(key, _, _)| key.as_str() == name) {
+            let destroy_task = match self
+                .entries
+                .iter()
+                .position(|(key, _, _)| key.as_str() == name)
+            {
                 Some(index) => {
-                    let old_output = self.0.swap_remove(index);
+                    let old_output = self.entries.swap_remove(index);
 
                     match old_output.1 {
                         Some(shell_info) => shell_info.destroy_surfaces(),
@@ -204,13 +236,11 @@ impl Outputs {
                 _ => Task::none(),
             };
 
-            self.0.push((
+            self.entries.push((
                 name.to_owned(),
                 Some(ShellInfo {
                     id,
                     menu: Menu::new(),
-                    toast_id: None,
-                    osd_id: None,
                     position,
                     layer,
                     style,
@@ -221,18 +251,21 @@ impl Outputs {
             ));
 
             // remove fallback layer surface
-            let destroy_fallback_task =
-                match self.0.iter().position(|(_, _, output)| output.is_none()) {
-                    Some(index) => {
-                        let old_output = self.0.swap_remove(index);
+            let destroy_fallback_task = match self
+                .entries
+                .iter()
+                .position(|(_, _, output)| output.is_none())
+            {
+                Some(index) => {
+                    let old_output = self.entries.swap_remove(index);
 
-                        match old_output.1 {
-                            Some(shell_info) => shell_info.destroy_surfaces(),
-                            _ => Task::none(),
-                        }
+                    match old_output.1 {
+                        Some(shell_info) => shell_info.destroy_surfaces(),
+                        _ => Task::none(),
                     }
-                    _ => Task::none(),
-                };
+                }
+                _ => Task::none(),
+            };
 
             Task::batch(vec![destroy_task, destroy_fallback_task, task])
         } else {
@@ -241,7 +274,7 @@ impl Outputs {
                 name, request_outputs
             );
 
-            self.0.push((name.to_owned(), None, Some(output_id)));
+            self.entries.push((name.to_owned(), None, Some(output_id)));
 
             Task::none()
         }
@@ -255,7 +288,7 @@ impl Outputs {
         output_id: OutputId,
         scale_factor: f64,
     ) -> Task<Message> {
-        match self.0.iter().position(|(_, _, assigned_output_id)| {
+        match self.entries.iter().position(|(_, _, assigned_output_id)| {
             assigned_output_id
                 .as_ref()
                 .is_some_and(|assigned| *assigned == output_id)
@@ -263,7 +296,7 @@ impl Outputs {
             Some(index_to_remove) => {
                 debug!("Removing layer surface for output");
 
-                let (_name, shell_info, _output_id) = self.0.swap_remove(index_to_remove);
+                let (_name, shell_info, _output_id) = self.entries.swap_remove(index_to_remove);
 
                 let destroy_task = if let Some(shell_info) = shell_info {
                     shell_info.destroy_surfaces()
@@ -277,7 +310,11 @@ impl Outputs {
                 // falls back to output=None, and the compositor binds the phantom surface
                 // to any available monitor — producing a duplicate bar.
 
-                if self.0.iter().any(|(_, shell_info, _)| shell_info.is_some()) {
+                if self
+                    .entries
+                    .iter()
+                    .any(|(_, shell_info, _)| shell_info.is_some())
+                {
                     Task::batch(vec![destroy_task])
                 } else {
                     debug!("No outputs left, creating a fallback layer surface");
@@ -285,13 +322,11 @@ impl Outputs {
                     let (id, task) =
                         Self::create_output_layers(style, None, position, layer, scale_factor);
 
-                    self.0.push((
+                    self.entries.push((
                         "Fallback".to_string(),
                         Some(ShellInfo {
                             id,
                             menu: Menu::new(),
-                            toast_id: None,
-                            osd_id: None,
                             position,
                             layer,
                             style,
@@ -319,7 +354,7 @@ impl Outputs {
         debug!("Syncing outputs: {self:?}, request_outputs: {request_outputs:?}");
 
         let to_remove = self
-            .0
+            .entries
             .iter()
             .filter_map(|(name, shell_info, output_id)| {
                 if !Self::name_in_config(name, request_outputs) && shell_info.is_some() {
@@ -332,7 +367,7 @@ impl Outputs {
         debug!("Removing outputs: {to_remove:?}");
 
         let to_add = self
-            .0
+            .entries
             .iter()
             .filter_map(|(name, shell_info, output_id)| {
                 if Self::name_in_config(name, request_outputs) && shell_info.is_none() {
@@ -364,7 +399,7 @@ impl Outputs {
             tasks.push(self.remove(style, position, layer, output_id, scale_factor));
         }
 
-        for shell_info in self.0.iter_mut().filter_map(|(_, shell_info, _)| {
+        for shell_info in self.entries.iter_mut().filter_map(|(_, shell_info, _)| {
             if let Some(shell_info) = shell_info
                 && shell_info.position != position
             {
@@ -389,7 +424,7 @@ impl Outputs {
         }
 
         // Handle layer changes - only recreate surfaces when layer actually changes
-        for (_name, shell_info, output_id) in &mut self.0 {
+        for (_name, shell_info, output_id) in &mut self.entries {
             if let Some(shell_info) = shell_info
                 && shell_info.layer != layer
             {
@@ -401,8 +436,6 @@ impl Outputs {
 
                 shell_info.id = id;
                 shell_info.menu = Menu::new();
-                shell_info.toast_id = None;
-                shell_info.osd_id = None;
                 shell_info.style = style;
                 shell_info.scale_factor = scale_factor;
 
@@ -410,7 +443,7 @@ impl Outputs {
             }
         }
 
-        for shell_info in self.0.iter_mut().filter_map(|(_, shell_info, _)| {
+        for shell_info in self.entries.iter_mut().filter_map(|(_, shell_info, _)| {
             if let Some(shell_info) = shell_info
                 && (shell_info.style != style || shell_info.scale_factor != scale_factor)
             {
@@ -439,7 +472,7 @@ impl Outputs {
         &self,
         id: SurfaceId,
     ) -> Option<&(String, Option<ShellInfo>, Option<OutputId>)> {
-        self.0.iter().find(|(_, shell_info, _)| {
+        self.entries.iter().find(|(_, shell_info, _)| {
             shell_info
                 .as_ref()
                 .is_some_and(|si| si.id == id || si.menu.surface_id() == Some(id))
@@ -450,7 +483,7 @@ impl Outputs {
         &mut self,
         id: SurfaceId,
     ) -> Option<&mut (String, Option<ShellInfo>, Option<OutputId>)> {
-        self.0.iter_mut().find(|(_, shell_info, _)| {
+        self.entries.iter_mut().find(|(_, shell_info, _)| {
             shell_info
                 .as_ref()
                 .is_some_and(|si| si.id == id || si.menu.surface_id() == Some(id))
@@ -458,7 +491,7 @@ impl Outputs {
     }
 
     pub fn menu_is_open(&self) -> bool {
-        self.0
+        self.entries
             .iter()
             .any(|(_, shell_info, _)| shell_info.as_ref().is_some_and(|si| si.menu.is_open()))
     }
@@ -478,7 +511,7 @@ impl Outputs {
                         .menu
                         .toggle(menu_type, button_ui_ref, request_keyboard, output_id);
                 let mut tasks = self
-                    .0
+                    .entries
                     .iter_mut()
                     .filter_map(|(_, shell_info, _)| {
                         if let Some(shell_info) = shell_info {
@@ -524,7 +557,7 @@ impl Outputs {
     ) -> Task<Message> {
         if esc_button_enabled && !self.menu_is_open() {
             let keyboard_tasks = self
-                .0
+                .entries
                 .iter()
                 .filter_map(|(_, shell_info, _)| {
                     shell_info
@@ -561,7 +594,7 @@ impl Outputs {
         esc_button_enabled: bool,
     ) -> Task<Message> {
         let task = Task::batch(
-            self.0
+            self.entries
                 .iter_mut()
                 .filter_map(|(_, shell_info, _)| {
                     shell_info
@@ -576,7 +609,7 @@ impl Outputs {
 
     pub fn close_all_menus<Message: 'static>(&mut self, esc_button_enabled: bool) -> Task<Message> {
         let task = Task::batch(
-            self.0
+            self.entries
                 .iter_mut()
                 .filter_map(|(_, shell_info, _)| {
                     shell_info
@@ -604,94 +637,86 @@ impl Outputs {
         }
     }
 
-    /// Show the toast layer(s) for every output.
-    ///
-    /// Creates a full-height surface anchored at `position`. Height is 0 so
-    /// the compositor fills the output height. The surface starts with an
-    /// empty input region (fully click-through); `update_toast_input_region`
-    /// restricts input to just the rendered toast area after layout.
+    /// Create a single full-height overlay surface for toast notifications.
+    /// Starts with an empty input region (fully click-through);
+    /// `update_toast_input_region` restricts input to the rendered toast area.
     pub fn show_toast_layer<Message: 'static>(
         &mut self,
         width: u32,
         position: config::ToastPosition,
     ) -> Task<Message> {
-        let mut tasks = vec![];
-
-        for (_, shell_info, _) in &mut self.0 {
-            if let Some(shell_info) = shell_info
-                && shell_info.toast_id.is_none()
-            {
-                // Anchor both vertical edges so height 0 → full output height.
-                let anchor = match position {
-                    config::ToastPosition::TopLeft => Anchor::TOP | Anchor::BOTTOM | Anchor::LEFT,
-                    config::ToastPosition::TopRight => Anchor::TOP | Anchor::BOTTOM | Anchor::RIGHT,
-                    config::ToastPosition::BottomLeft => {
-                        Anchor::TOP | Anchor::BOTTOM | Anchor::LEFT
-                    }
-                    config::ToastPosition::BottomRight => {
-                        Anchor::TOP | Anchor::BOTTOM | Anchor::RIGHT
-                    }
-                };
-
-                let (toast_id, toast_task) = new_layer_surface(LayerShellSettings {
-                    namespace: "ashell-toast-layer".to_string(),
-                    size: Some((width, 0)),
-                    layer: Layer::Overlay,
-                    keyboard_interactivity: KeyboardInteractivity::None,
-                    exclusive_zone: 0,
-                    anchor,
-                    ..Default::default()
-                });
-
-                shell_info.toast_id = Some(toast_id);
-                tasks.push(toast_task);
-                // Start fully click-through until sensor reports content size.
-                tasks.push(set_input_region(toast_id, Some(vec![])));
+        // Anchor both vertical edges so height 0 → full output height.
+        let anchor = match position {
+            config::ToastPosition::TopLeft | config::ToastPosition::BottomLeft => {
+                Anchor::TOP | Anchor::BOTTOM | Anchor::LEFT
             }
-        }
+            config::ToastPosition::TopRight | config::ToastPosition::BottomRight => {
+                Anchor::TOP | Anchor::BOTTOM | Anchor::RIGHT
+            }
+        };
 
-        Task::batch(tasks)
+        let Some((toast_id, toast_task)) = OverlaySurface::show(
+            &mut self.toast,
+            LayerShellSettings {
+                namespace: "ashell-toast-layer".to_string(),
+                size: Some((width, 0)),
+                layer: Layer::Overlay,
+                keyboard_interactivity: KeyboardInteractivity::None,
+                exclusive_zone: 0,
+                anchor,
+                output: None,
+                ..Default::default()
+            },
+        ) else {
+            return Task::none();
+        };
+
+        Task::batch(vec![toast_task, set_input_region(toast_id, Some(vec![]))])
     }
 
-    /// Update the input region of the toast surface(s) so only the rendered
+    /// Update the input region of the toast surface so only the rendered
     /// toast content accepts pointer input. Everything else is click-through.
     pub fn update_toast_input_region<Message: 'static>(
         &self,
         content_size: iced::Size,
         position: config::ToastPosition,
     ) -> Task<Message> {
+        let Some(toast) = self.toast else {
+            return Task::none();
+        };
         let content_w = content_size.width.ceil() as i32;
         let content_h = content_size.height.ceil() as i32;
-        let mut tasks = vec![];
-        for (_, shell_info, _) in &self.0 {
-            if let Some(shell_info) = shell_info
-                && let Some(toast_id) = shell_info.toast_id
-            {
-                let y = match position {
-                    config::ToastPosition::TopLeft | config::ToastPosition::TopRight => 0,
-                    config::ToastPosition::BottomLeft | config::ToastPosition::BottomRight => {
-                        shell_info
-                            .output_logical_height
-                            .map_or(0, |h| (h as i32) - content_h)
-                    }
-                };
-                tasks.push(set_input_region(
-                    toast_id,
-                    Some(vec![InputRegionRect {
-                        x: 0,
-                        y,
-                        width: content_w,
-                        height: content_h,
-                    }]),
-                ));
+        let y = match position {
+            config::ToastPosition::TopLeft | config::ToastPosition::TopRight => 0,
+            config::ToastPosition::BottomLeft | config::ToastPosition::BottomRight => self
+                .logical_height_for_output(toast.output)
+                .map_or(0, |h| (h as i32) - content_h),
+        };
+        set_input_region(
+            toast.id,
+            Some(vec![InputRegionRect {
+                x: 0,
+                y,
+                width: content_w,
+                height: content_h,
+            }]),
+        )
+    }
+
+    fn logical_height_for_output(&self, output_id: Option<OutputId>) -> Option<u32> {
+        let target = output_id?;
+        self.entries.iter().find_map(|(_, info, oid)| {
+            if *oid == Some(target) {
+                info.as_ref().and_then(|i| i.output_logical_height)
+            } else {
+                None
             }
-        }
-        Task::batch(tasks)
+        })
     }
 
     /// Store the logical height for an output (used for bottom-aligned toast input regions).
     pub fn set_output_logical_height(&mut self, output_id: OutputId, height: u32) {
-        for (_, shell_info, oid) in &mut self.0 {
+        for (_, shell_info, oid) in &mut self.entries {
             if *oid == Some(output_id)
                 && let Some(info) = shell_info
             {
@@ -700,52 +725,48 @@ impl Outputs {
         }
     }
 
-    pub fn hide_toast_layer<Message: 'static>(&mut self) -> Task<Message> {
-        let mut tasks = vec![];
-        for (_, shell_info, _) in &mut self.0 {
-            if let Some(shell_info) = shell_info
-                && let Some(toast_id) = shell_info.toast_id.take()
-            {
-                tasks.push(destroy_layer_surface(toast_id));
+    /// Track which output the toast/OSD overlay is mapped on, populated from
+    /// `OutputEvent::SurfaceEnteredOutput` after the compositor maps the
+    /// surface.
+    pub fn surface_entered_output(&mut self, surface_id: SurfaceId, output_id: OutputId) {
+        for slot in [&mut self.toast, &mut self.osd].into_iter().flatten() {
+            if slot.id == surface_id {
+                slot.output = Some(output_id);
             }
         }
-        Task::batch(tasks)
     }
 
-    /// Create a centered bottom-anchored overlay surface per output to render the OSD.
-    pub fn show_osd_layer<Message: 'static>(&mut self, width: u32, height: u32) -> Task<Message> {
-        let mut tasks = vec![];
-        for (_, shell_info, _) in &mut self.0 {
-            if let Some(shell_info) = shell_info
-                && shell_info.osd_id.is_none()
-            {
-                let (osd_id, osd_task) = new_layer_surface(LayerShellSettings {
-                    namespace: "ashell-osd-layer".to_string(),
-                    size: Some((width, height)),
-                    layer: Layer::Overlay,
-                    keyboard_interactivity: KeyboardInteractivity::None,
-                    exclusive_zone: 0,
-                    anchor: Anchor::BOTTOM,
-                    margin: (0, 0, 48, 0),
-                    ..Default::default()
-                });
-
-                shell_info.osd_id = Some(osd_id);
-                tasks.push(osd_task);
+    pub fn surface_left_output(&mut self, surface_id: SurfaceId, output_id: OutputId) {
+        for slot in [&mut self.toast, &mut self.osd].into_iter().flatten() {
+            if slot.id == surface_id && slot.output == Some(output_id) {
+                slot.output = None;
             }
         }
-        Task::batch(tasks)
+    }
+
+    pub fn hide_toast_layer<Message: 'static>(&mut self) -> Task<Message> {
+        OverlaySurface::hide(&mut self.toast)
+    }
+
+    /// Create a centered bottom-anchored overlay surface for the OSD.
+    pub fn show_osd_layer<Message: 'static>(&mut self, width: u32, height: u32) -> Task<Message> {
+        OverlaySurface::show(
+            &mut self.osd,
+            LayerShellSettings {
+                namespace: "ashell-osd-layer".to_string(),
+                size: Some((width, height)),
+                layer: Layer::Overlay,
+                keyboard_interactivity: KeyboardInteractivity::None,
+                exclusive_zone: 0,
+                anchor: Anchor::BOTTOM,
+                margin: (0, 0, 48, 0),
+                output: None,
+            },
+        )
+        .map_or(Task::none(), |(_, task)| task)
     }
 
     pub fn hide_osd_layer<Message: 'static>(&mut self) -> Task<Message> {
-        let mut tasks = vec![];
-        for (_, shell_info, _) in &mut self.0 {
-            if let Some(shell_info) = shell_info
-                && let Some(osd_id) = shell_info.osd_id.take()
-            {
-                tasks.push(destroy_layer_surface(osd_id));
-            }
-        }
-        Task::batch(tasks)
+        OverlaySurface::hide(&mut self.osd)
     }
 }
