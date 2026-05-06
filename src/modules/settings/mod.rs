@@ -113,6 +113,7 @@ pub enum Action {
 pub enum EventSource {
     VolumeIndicator,
     MicrophoneIndicator,
+    BrightnessIndicator,
     Irelevant,
 }
 
@@ -174,7 +175,9 @@ impl Settings {
 
     pub fn brightness_adjust(&mut self, up: bool) -> Action {
         match self.brightness.brightness_adjust(up) {
-            brightness::Action::Command(task) => Action::Command(task.map(Message::Brightness)),
+            brightness::Action::SourceTaggedCommand(task, event_source) => {
+                Action::SourceTaggedCommand(task.map(Message::Brightness), event_source)
+            }
             brightness::Action::None => Action::None,
         }
     }
@@ -354,7 +357,9 @@ impl Settings {
             },
             Message::Brightness(msg) => match self.brightness.update(msg) {
                 brightness::Action::None => Action::None,
-                brightness::Action::Command(task) => Action::Command(task.map(Message::Brightness)),
+                brightness::Action::SourceTaggedCommand(task, event_source) => {
+                    Action::SourceTaggedCommand(task.map(Message::Brightness), event_source)
+                }
             },
             Message::ToggleSubMenu(menu_type) => {
                 if self.sub_menu == Some(menu_type) {

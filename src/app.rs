@@ -473,6 +473,16 @@ impl App {
                                     muted: false,
                                 })
                             }
+                            EventSource::BrightnessIndicator => {
+                                match self.settings.brightness().current_brightness() {
+                                    Some((cur, max)) => Some(osd::Message::Show {
+                                        kind: OsdKind::Brightness,
+                                        value: Self::normalise(cur, max),
+                                        muted: false,
+                                    }),
+                                    None => None,
+                                }
+                            }
                             EventSource::Irelevant => None,
                         } {
                             if let osd::Action::Show(timer) = self.osd.update(message) {

@@ -25,7 +25,7 @@ pub enum Message {
 
 pub enum Action {
     None,
-    Command(Task<Message>),
+    SourceTaggedCommand(Task<Message>, EventSource),
 }
 
 #[derive(Debug, Clone)]
@@ -116,11 +116,12 @@ impl BrightnessSettings {
                     if let Some(value) = message.value() {
                         let _ = service.command(BrightnessCommand(value));
                     }
-                    return Action::Command(
+                    return Action::SourceTaggedCommand(
                         service
                             .current
                             .update(message)
                             .map(move |msg| Message::Changed(msg, event_source)),
+                        event_source,
                     );
                 }
                 Action::None
@@ -153,8 +154,11 @@ impl BrightnessSettings {
 
     pub fn brightness_indicator<'a>(&'a self) -> Option<Element<'a, Message>> {
         self.service.as_ref().map(|service| {
-            let scroll_handler =
-                Self::on_scroll(service.current.value(), service.max, EventSource::Irelevant);
+            let scroll_handler = Self::on_scroll(
+                service.current.value(),
+                service.max,
+                EventSource::BrightnessIndicator,
+            );
 
             format_indicator(
                 self.config.indicator_format,
