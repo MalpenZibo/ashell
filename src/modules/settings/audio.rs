@@ -344,7 +344,10 @@ impl AudioSettings {
                     Self::vol_text(volume).into(),
                     IndicatorState::Normal,
                 )
-                .on_right_press(Message::OpenMore)
+                .on_right_press(match self.config.sinks_more_cmd {
+                    Some(_) => Message::OpenSourceMore,
+                    None => Message::ToggleSinkMute,
+                })
                 .on_scroll(Self::on_scroll(
                     volume,
                     Message::SinkVolumeChanged,
@@ -370,7 +373,10 @@ impl AudioSettings {
                     Self::vol_text(volume).into(),
                     IndicatorState::Normal,
                 )
-                .on_right_press(Message::OpenSourceMore)
+                .on_right_press(match self.config.sinks_more_cmd {
+                    Some(_) => Message::OpenMore,
+                    None => Message::ToggleSourceMute,
+                })
                 .on_scroll(Self::on_scroll(
                     volume,
                     Message::SourceVolumeChanged,
