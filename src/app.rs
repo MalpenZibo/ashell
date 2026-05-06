@@ -757,6 +757,25 @@ impl App {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
+        use crate::config::{ModuleDef, ModuleName};
+
+        let mut all_modules = self
+            .general_config
+            .modules
+            .left
+            .iter()
+            .chain(&self.general_config.modules.center)
+            .chain(&self.general_config.modules.right);
+
+        let settings_in_module_list = all_modules
+            .any(|module_def| matches!(module_def, ModuleDef::Single(ModuleName::Settings)));
+
+        let settings_subscription = if settings_in_module_list {
+            Subscription::none()
+        } else {
+            self.settings.subscription().map(Message::Settings)
+        };
+
         Subscription::batch(vec![
             Subscription::batch(self.modules_subscriptions(&self.general_config.modules.left)),
             Subscription::batch(self.modules_subscriptions(&self.general_config.modules.center)),
@@ -791,9 +810,9 @@ impl App {
                         }
                     })
             }),
-            // Always subscribe to audio/brightness services so OSD works
-            // even when the Settings module isn't in the module list.
-            self.settings.subscription().map(Message::Settings),
+            // Only subscribe explicitly if Settings is NOT in the module list
+            // (if it is in the module list, modules_subscriptions already subscribes)
+            settings_subscription,
             crate::ipc::subscription().map(|cmd| match cmd {
                 IpcCommand::ToggleVisibility => Message::ToggleVisibility,
                 other => Message::IpcOsdCommand(other),
