@@ -190,19 +190,19 @@ format = "{artist} - {title}"
 
 ## Custom Modules
 
+Custom modules allow you to create arbitrary modules with custom commands and icons.
+
 ```toml
 [[CustomModule]]
-name = "mymodule"
-type = "Text"                   # "Text" or "Button"
-cmd = "echo Hello"
-interval = 5
-format = "Result: {}"
-
-[[CustomModule]]
-name = "launcher"
-type = "Button"
-icon = "\u{f0e7}"
-on_click = "rofi -show drun"
+name = "volume"
+type = "Button"                        # "Text" or "Button"
+icon = "\u{f026}"                      # Nerd Font icon
+command = "pactl get-sink-volume @DEFAULT_SINK@"  # Left-click command
+on_right_click = "pactl set-sink-mute @DEFAULT_SINK@ toggle"
+on_middle_click = "pavucontrol"
+on_scroll_up = "pactl set-sink-volume @DEFAULT_SINK@ +5%"
+on_scroll_down = "pactl set-sink-volume @DEFAULT_SINK@ -5%"
+listen_cmd = "pactl subscribe"         # Optional: stream JSON updates
 ```
 
 Custom module fields:
@@ -210,16 +210,25 @@ Custom module fields:
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `name` | String | Yes | Unique identifier |
-| `type` | `"Text"` \| `"Button"` | No | Display mode |
-| `cmd` | String | No | Command to execute for display text |
-| `on_click` | String | No | Command on click (Button type) |
-| `icon` | String | No | Icon character |
-| `interval` | u64 | No | Refresh interval in seconds |
-| `format` | String | No | Output format string |
+| `type` | `"Text"` \| `"Button"` | No | Display mode (default: `"Button"`) |
+| `icon` | String | No | Nerd Font icon character |
+| `command` | String | No | Command to execute on left-click (Button type) |
+| `on_right_click` | String | No | Command on right-click |
+| `on_middle_click` | String | No | Command on middle-click |
+| `on_scroll_up` | String | No | Command on scroll up |
+| `on_scroll_down` | String | No | Command on scroll down |
+| `listen_cmd` | String | No | Command that outputs JSON lines for dynamic updates |
+| `icons` | Map | No | Regex → icon mapping for dynamic icons |
+| `alert` | String (regex) | No | Regex to show alert indicator |
+
+The `listen_cmd` output must be JSON lines with `text` and `alt` fields:
+```json
+{"text": "50%", "alt": "volume"}
+```
 
 Reference a custom module in the layout as `"Custom:name"`:
 
 ```toml
 [modules]
-right = ["Custom:mymodule", "Settings"]
+right = ["Custom:volume", "Settings"]
 ```
