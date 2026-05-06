@@ -10,7 +10,7 @@ use crate::{
     services::{
         ReadOnlyService, Service, ServiceEvent,
         upower::{
-            BatteryData, BatteryStatus, PeripheralDeviceKind, PowerProfile, PowerProfileCommand,
+            BatteryData, BatteryStatus, Peripheral, PowerProfile, PowerProfileCommand,
             UPowerService,
         },
     },
@@ -234,85 +234,65 @@ impl PowerSettings {
             })
     }
 
-    pub fn peripheral_indicators<'a>(&self) -> Option<Element<'a, Message>> {
+    pub fn peripheral_indicators<'a>(&self) -> Vec<Element<'a, Message>> {
         let space = use_theme(|t| t.space);
-        let get_indicators = |kinds: Option<&[PeripheralDeviceKind]>| {
-            self.service
-                .as_ref()
-                .filter(|p| {
-                    !p.peripherals.is_empty()
-                        && kinds.is_none_or(|kinds| {
-                            p.peripherals.iter().any(|p| kinds.contains(&p.kind))
-                        })
-                })
-                .map(|service| {
-                    let mut row = Row::with_capacity(service.peripherals.len())
-                        .spacing(space.xxs)
-                        .align_y(Alignment::Center);
-
-                    for p in service.peripherals.iter() {
-                        row = row.push({
-                            if kinds.as_ref().is_none_or(|kinds| kinds.contains(&p.kind)) {
-                                let state = p.data.get_indicator_state();
-
-                                Some(
-                                    container(match self.config.peripheral_battery_format {
-                                        SettingsFormat::Icon => {
-                                            convert::Into::<Element<'a, Message>>::into(icon(
-                                                p.get_icon_state(),
-                                            ))
-                                        }
-                                        SettingsFormat::Percentage => row!(
-                                            icon(p.kind.get_icon()),
-                                            text(format!("{}%", p.data.capacity))
-                                        )
-                                        .spacing(space.xxs)
-                                        .align_y(Alignment::Center)
-                                        .into(),
-                                        SettingsFormat::IconAndPercentage => row!(
-                                            icon(p.get_icon_state()),
-                                            text(format!("{}%", p.data.capacity))
-                                        )
-                                        .spacing(space.xxs)
-                                        .align_y(Alignment::Center)
-                                        .into(),
-                                        SettingsFormat::Time => {
-                                            text(format_time_for_battery(&p.data)).into()
-                                        }
-                                        SettingsFormat::IconAndTime => row!(
-                                            icon(p.get_icon_state()),
-                                            text(format_time_for_battery(&p.data))
-                                        )
-                                        .spacing(space.xxs)
-                                        .align_y(Alignment::Center)
-                                        .into(),
-                                    })
-                                    .style(
-                                        move |theme: &Theme| container::Style {
-                                            text_color: Some(match state {
-                                                IndicatorState::Success => theme.palette().success,
-                                                IndicatorState::Danger => theme.palette().danger,
-                                                _ => theme.palette().text,
-                                            }),
-                                            ..Default::default()
-                                        },
-                                    ),
-                                )
-                            } else {
-                                None
-                            }
-                        });
-                    }
-
-                    row
-                })
+        let kinds_filter = match &self.config.peripheral_indicators {
+            PeripheralIndicators::All => None,
+            PeripheralIndicators::Specific(kinds) => Some(kinds.as_slice()),
         };
 
-        match &self.config.peripheral_indicators {
-            PeripheralIndicators::All => get_indicators(None),
-            PeripheralIndicators::Specific(kinds) => get_indicators(Some(kinds)),
-        }
-        .map(|r| r.into())
+        let Some(service) = self.service.as_ref().filter(|p| {
+            !p.peripherals.is_empty()
+                && kinds_filter
+                    .is_none_or(|kinds| p.peripherals.iter().any(|p| kinds.contains(&p.kind)))
+        }) else {
+            return Vec::new();
+        };
+
+        service
+            .peripherals
+            .iter()
+            .filter(|p| kinds_filter.is_none_or(|kinds| kinds.contains(&p.kind)))
+            .map(|p| {
+                let state = p.data.get_indicator_state();
+                container(match self.config.peripheral_battery_format {
+                    SettingsFormat::Icon => {
+                        convert::Into::<Element<'a, Message>>::into(icon(p.get_icon_state()))
+                    }
+                    SettingsFormat::Percentage => row!(
+                        icon(p.kind.get_icon()),
+                        text(format!("{}%", p.data.capacity))
+                    )
+                    .spacing(space.xxs)
+                    .align_y(Alignment::Center)
+                    .into(),
+                    SettingsFormat::IconAndPercentage => row!(
+                        icon(p.get_icon_state()),
+                        text(format!("{}%", p.data.capacity))
+                    )
+                    .spacing(space.xxs)
+                    .align_y(Alignment::Center)
+                    .into(),
+                    SettingsFormat::Time => text(format_time_for_battery(&p.data)).into(),
+                    SettingsFormat::IconAndTime => row!(
+                        icon(p.get_icon_state()),
+                        text(format_time_for_battery(&p.data))
+                    )
+                    .spacing(space.xxs)
+                    .align_y(Alignment::Center)
+                    .into(),
+                })
+                .style(move |theme: &Theme| container::Style {
+                    text_color: Some(match state {
+                        IndicatorState::Success => theme.palette().success,
+                        IndicatorState::Danger => theme.palette().danger,
+                        _ => theme.palette().text,
+                    }),
+                    ..Default::default()
+                })
+                .into()
+            })
+            .collect()
     }
 
     pub fn battery_indicator<'a>(&self) -> Option<Element<'a, Message>> {
@@ -488,5 +468,54 @@ impl PowerSettings {
 
     pub fn subscription(&self) -> Subscription<Message> {
         UPowerService::subscribe().map(Message::Event)
+    }
+
+    pub fn battery_tooltip_info(&self) -> Option<(u32, String, String)> {
+        self.service.as_ref().and_then(|service| {
+            service.system_battery.map(|battery| {
+                let capacity = battery.capacity as u32;
+                let status_label = match battery.status {
+                    BatteryStatus::Charging(_) => t!("settings-power-status-charging"),
+                    BatteryStatus::Discharging(_) => t!("settings-power-status-discharging"),
+                    BatteryStatus::Full => t!("settings-power-status-full"),
+                };
+                let details = if battery.capacity < 95 {
+                    format_time_for_battery(&battery)
+                } else {
+                    String::new()
+                };
+                (capacity, status_label, details)
+            })
+        })
+    }
+
+    pub fn get_peripherals_for_tooltip(&self) -> Vec<&Peripheral> {
+        let kinds_filter = match &self.config.peripheral_indicators {
+            PeripheralIndicators::All => None,
+            PeripheralIndicators::Specific(kinds) => Some(kinds.as_slice()),
+        };
+
+        self.service
+            .as_ref()
+            .map(|service| {
+                service
+                    .peripherals
+                    .iter()
+                    .filter(|p| kinds_filter.is_none_or(|kinds| kinds.contains(&p.kind)))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    pub fn peripheral_battery_tooltip_info(
+        &self,
+        index: usize,
+    ) -> Option<(String, u32, StaticIcon)> {
+        self.service.as_ref().and_then(|service| {
+            service.peripherals.get(index).map(|p| {
+                let capacity = p.data.capacity as u32;
+                (p.name.clone(), capacity, p.get_icon_state())
+            })
+        })
     }
 }

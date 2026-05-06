@@ -464,6 +464,12 @@ impl App {
                         self.outputs.release_keyboard(id),
                     ])
                 }
+                modules::settings::Action::OpenTooltipMenu(id, menu_type, ui_ref) => {
+                    self.outputs.toggle_menu(id, menu_type, ui_ref, false)
+                }
+                modules::settings::Action::CloseTooltipMenu(id, menu_type) => self
+                    .outputs
+                    .close_menu(id, Some(menu_type), self.general_config.enable_esc_key),
             },
             Message::OutputEvent(event) => match event {
                 OutputEvent::Added(info) => {
@@ -758,6 +764,17 @@ impl App {
                     MenuType::Tempo => {
                         self.menu_wrapper(id, self.tempo.menu_view().map(Message::Tempo), ui_ref)
                     }
+                    MenuType::AudioTooltip
+                    | MenuType::BluetoothTooltip
+                    | MenuType::WifiTooltip
+                    | MenuType::BatteryTooltip
+                    | MenuType::PeripheralBatteryTooltip(_) => self.menu_wrapper(
+                        id,
+                        self.settings
+                            .tooltip_view(&open_menu.menu_type)
+                            .map(Message::Settings),
+                        ui_ref,
+                    ),
                 }
             }
             Some(HasOutput::Menu(None)) => Row::new().into(),

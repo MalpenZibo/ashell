@@ -682,4 +682,13 @@ impl NetworkSettings {
             StaticIcon::AirplaneOff
         }
     }
+
+    pub fn connected_wifi_label(&self) -> Option<String> {
+        self.service.as_ref().and_then(|service| {
+            service.active_connections.iter().find_map(|c| match c {
+                ActiveConnectionInfo::WiFi { name, .. } => Some(name.clone()),
+                _ => None,
+            })
+        })
+    }
 }

@@ -19,6 +19,11 @@ pub enum MenuType {
     MediaPlayer,
     SystemInfo,
     Tempo,
+    AudioTooltip,
+    BluetoothTooltip,
+    WifiTooltip,
+    BatteryTooltip,
+    PeripheralBatteryTooltip(usize),
 }
 
 #[derive(Clone, Debug)]
@@ -92,13 +97,38 @@ impl Menu {
         request_keyboard: bool,
         output_id: Option<OutputId>,
     ) -> Task<Message> {
+        let menu_is_tooltip = matches!(
+            menu_type,
+            MenuType::AudioTooltip
+                | MenuType::BluetoothTooltip
+                | MenuType::WifiTooltip
+                | MenuType::BatteryTooltip
+                | MenuType::PeripheralBatteryTooltip(_)
+        );
         match &mut self.open {
             None => self.open(menu_type, button_ui_ref, request_keyboard, output_id),
-            Some(open) if open.menu_type == menu_type => self.close(),
-            Some(open) => {
-                open.menu_type = menu_type;
-                open.button_ui_ref = button_ui_ref;
+            Some(open)
+                if open.menu_type == menu_type
+                    && open.button_ui_ref.position == button_ui_ref.position =>
+            {
+                self.close()
+            }
+            Some(open)
+                if !matches!(
+                    open.menu_type,
+                    MenuType::AudioTooltip
+                        | MenuType::BluetoothTooltip
+                        | MenuType::WifiTooltip
+                        | MenuType::BatteryTooltip
+                        | MenuType::PeripheralBatteryTooltip(_)
+                ) && menu_is_tooltip =>
+            {
                 Task::none()
+            }
+            _ => {
+                let close_task = self.close();
+                let open_task = self.open(menu_type, button_ui_ref, request_keyboard, output_id);
+                Task::batch(vec![close_task, open_task])
             }
         }
     }

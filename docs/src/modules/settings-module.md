@@ -92,3 +92,29 @@ These execute shell commands and display the result as a status indicator.
 ## Idle Inhibitor
 
 The Settings panel includes an idle inhibitor toggle that prevents the system from going to sleep. This uses the `IdleInhibitorManager` service, which interacts with systemd-logind's inhibit API.
+
+## Status Indicator Tooltips
+
+The Settings module displays compact status indicators in the bar (audio, bluetooth, wifi, battery, peripheral battery). Hovering over these indicators shows a tooltip popup with detailed information.
+
+### Tooltip Menu Types
+
+Each indicator maps to a dedicated `MenuType` variant:
+
+| Indicator | Menu Type | Content |
+|-----------|-----------|---------|
+| Audio / Microphone | `AudioTooltip` | Active sink and source device names |
+| Bluetooth | `BluetoothTooltip` | Connected peripheral devices with battery level and device-specific battery icon |
+| Network / VPN | `WifiTooltip` | Connected WiFi network name |
+| Battery | `BatteryTooltip` | Charge percentage, charging/discharging/full status, time remaining |
+| Peripheral Battery | `PeripheralBatteryTooltip(index)` | Device name, capacity percentage, and device-specific battery icon |
+
+### Hover Interaction
+
+Tooltips use the `PositionButton` hover events (`on_hover_with_position` / `on_unhover`). When the cursor enters an indicator, the module opens a tooltip menu positioned relative to the button. When the cursor leaves, the tooltip closes.
+
+Tooltips are suppressed when a non-tooltip menu (e.g., the Settings panel) is already open, to avoid conflicting popups.
+
+### Peripheral Battery Icons
+
+Bluetooth and peripheral battery tooltips use device-specific battery icons from `Peripheral::get_icon_state()` (e.g., `KeyboardBatteryCharging`, `MouseBatteryMedium`, `HeadphoneBatteryLow`). These icons encode both the device type and battery level in a single glyph.

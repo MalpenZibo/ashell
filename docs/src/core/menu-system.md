@@ -14,6 +14,12 @@ pub enum MenuType {
     MediaPlayer,
     SystemInfo,
     Tempo,
+    // Tooltip menus (opened on hover, not click)
+    AudioTooltip,
+    BluetoothTooltip,
+    WifiTooltip,
+    BatteryTooltip,
+    PeripheralBatteryTooltip(usize),
 }
 ```
 
