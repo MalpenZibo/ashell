@@ -1,24 +1,24 @@
 # Widgets Overview
 
-ashell includes three custom iced widgets in `src/widgets/` that provide functionality not available in iced's built-in widget set.
+ashell includes custom widgets in `src/components/` that provide functionality not available in iced's built-in widget set.
 
 ## Custom Widgets
 
 | Widget | File | Purpose |
 |--------|------|---------|
-| [Centerbox](centerbox.md) | `widgets/centerbox.rs` | Three-column layout that keeps the center truly centered |
-| [PositionButton](position-button.md) | `widgets/position_button.rs` | Button that reports its screen position on press |
-| [MenuWrapper](menu-wrapper.md) | `widgets/menu_wrapper.rs` | Menu container with backdrop and click-outside-to-close |
+| [Centerbox](centerbox.md) | `components/centerbox.rs` | Three-column layout that keeps the center truly centered |
+| [PositionButton](position-button.md) | `components/position_button.rs` | Button that reports its screen position on press |
+| [MenuWrapper](menu-wrapper.md) | `components/menu_wrapper.rs` | Menu container with backdrop and click-outside-to-close |
 
 ## ButtonUIRef
 
-Defined in `widgets/mod.rs`, this type carries a button's screen position and size:
+Defined in `components/mod.rs`, this type carries a button's screen position and viewport info:
 
 ```rust
 #[derive(Debug, Clone, Default)]
 pub struct ButtonUIRef {
     pub position: Point,
-    pub size: Size,
+    pub viewport: (f32, f32),
 }
 ```
 
