@@ -107,7 +107,8 @@ could be different
 <img src="https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/ashell-gradient.png"></img>
 
 ### Clipboard history
-<img width="437" height="568" alt="2026-05-04-204343_hyprshot" src="https://github.com/user-attachments/assets/d2efca45-9559-4af2-ace9-b31dd3953a3a" />
+<img width="433" height="569" alt="image" src="https://github.com/user-attachments/assets/77bbf77d-6791-4147-825c-1469a7869c9e" />
+
 
 #### opacity settings
 
