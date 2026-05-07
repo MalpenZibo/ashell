@@ -443,7 +443,7 @@ impl Workspaces {
                                         .align_x(alignment::Horizontal::Center)
                                         .align_y(alignment::Vertical::Center),
                                 )
-                                .style(theme.workspace_button_style(empty, color))
+                                .style(theme.workspace_button_style(empty, color, w.displayed == Displayed::Active))
                                 .padding([0.0, theme.space.xxs])
                                 .on_press(if w.id > 0 {
                                     Message::ChangeWorkspace(w.id)

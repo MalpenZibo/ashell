@@ -625,6 +625,7 @@ impl AshellTheme {
         &self,
         is_empty: bool,
         colors: Option<Option<AppearanceColor>>,
+        active: bool,
     ) -> impl Fn(&Theme, Status) -> button::Style + use<> {
         let radius_lg = self.radius.lg;
         move |theme: &Theme, status: Status| {
@@ -654,63 +655,40 @@ impl AshellTheme {
                     )
                 },
             );
-            let mut base = button::Style {
-                background: Some(Background::Color(if is_empty {
-                    theme.extended_palette().background.weak.color
+
+            let base = button::Style {
+                background: Some(Background::Color(if active {
+                    fg_color
                 } else {
                     bg_color
                 })),
                 border: Border {
                     width: if is_empty { 1.0 } else { 0.0 },
-                    color: bg_color,
+                    color: if active { fg_color } else { bg_color },
                     radius: radius_lg.into(),
                 },
                 text_color: if is_empty {
                     theme.extended_palette().background.weak.text
+                } else if active {
+                    bg_color
                 } else {
                     fg_color
                 },
                 ..button::Style::default()
             };
+            let mut base = base;
             match status {
                 Status::Active => base,
                 Status::Hovered => {
-                    let (bg_color, fg_color) = colors.map_or_else(
-                        || {
-                            (
-                                theme.extended_palette().background.strong.color,
-                                theme.palette().text,
-                            )
-                        },
-                        |c| {
-                            c.map_or_else(
-                                || {
-                                    (
-                                        theme.extended_palette().primary.strong.color,
-                                        theme.extended_palette().primary.strong.text,
-                                    )
-                                },
-                                |c| {
-                                    let color = palette::Primary::generate(
-                                        c.get_base(),
-                                        theme.palette().background,
-                                        c.get_text().unwrap_or_else(|| theme.palette().text),
-                                    );
-                                    (color.strong.color, color.strong.text)
-                                },
-                            )
-                        },
-                    );
-
-                    base.background = Some(Background::Color(if is_empty {
+                    base.background = Some(Background::Color(if is_empty || active {
                         theme.extended_palette().background.strong.color
                     } else {
-                        bg_color
+                        theme.extended_palette().background.strong.color
                     }));
                     base.text_color = if is_empty {
-                        theme.extended_palette().background.weak.text
+                        theme.palette().text
                     } else {
-                        fg_color
+                        theme.extended_palette().background.strong.text
                     };
                     base
                 }
