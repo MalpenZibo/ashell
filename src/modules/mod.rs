@@ -7,6 +7,8 @@ use crate::{
 };
 use iced::{Alignment, Element, Length, Subscription, SurfaceId, widget::Row};
 
+
+pub mod clipboard;
 pub mod custom_module;
 pub mod keyboard_layout;
 pub mod keyboard_submap;
@@ -184,6 +186,7 @@ impl App {
                     .map(Message::Workspaces),
                 None,
             )),
+           
             ModuleName::WindowTitle => self.window_title.get_value().map(|title| {
                 (
                     self.window_title.view(title).map(Message::WindowTitle),
@@ -241,6 +244,10 @@ impl App {
                 self.notifications.view().map(Message::Notifications),
                 Some(OnModulePress::ToggleMenu(MenuType::Notifications)),
             )),
+            ModuleName::Clipboard => Some((
+                self.clipboard.view().map(Message::Clipboard),
+                Some(OnModulePress::ToggleMenu(MenuType::Clipboard)),
+            )),
         }
     }
 
@@ -283,6 +290,9 @@ impl App {
                 self.notifications
                     .subscription()
                     .map(Message::Notifications),
+            ),
+            ModuleName::Clipboard => Some(
+                self.clipboard.subscription().map(Message::Clipboard),
             ),
         }
     }

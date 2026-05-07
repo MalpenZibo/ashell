@@ -43,6 +43,7 @@ pub struct Config {
     pub appearance: Appearance,
     pub media_player: MediaPlayerModuleConfig,
     pub keyboard_layout: KeyboardLayoutModuleConfig,
+    pub clipboard: ClipboardModuleConfig,
     pub animations: AnimationsConfig,
     pub enable_esc_key: bool,
     pub osd: OsdConfig,
@@ -69,6 +70,7 @@ impl Default for Config {
             appearance: Appearance::default(),
             media_player: MediaPlayerModuleConfig::default(),
             keyboard_layout: KeyboardLayoutModuleConfig::default(),
+            clipboard: ClipboardModuleConfig::default(),
             animations: AnimationsConfig::default(),
             custom_modules: vec![],
             enable_esc_key: false,
@@ -311,7 +313,6 @@ pub struct SystemInfoDisk {
     pub warn_threshold: u32,
     pub alert_threshold: u32,
     pub format: DiskFormat,
-    pub mounts: Option<Vec<String>>,
 }
 
 impl SystemInfoDisk {
@@ -326,7 +327,6 @@ impl Default for SystemInfoDisk {
             warn_threshold: 80,
             alert_threshold: 90,
             format: DiskFormat::Percentage,
-            mounts: None,
         }
     }
 }
@@ -395,6 +395,28 @@ impl Default for SystemInfoModuleConfig {
             temperature: SystemInfoTemperature::default(),
             disk: SystemInfoDisk::default(),
         }
+    }
+}
+
+/// Configuration for the clipboard history module.
+#[derive(Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(default)]
+pub struct ClipboardModuleConfig {
+    #[serde(default = "ClipboardModuleConfig::default_max_entries")]
+    pub max_entries: usize,
+}
+
+impl Default for ClipboardModuleConfig {
+    fn default() -> Self {
+        Self {
+            max_entries: Self::default_max_entries(),
+        }
+    }
+}
+
+impl ClipboardModuleConfig {
+    const fn default_max_entries() -> usize {
+        8
     }
 }
 
@@ -926,6 +948,8 @@ pub enum ModuleName {
     Privacy,
     Settings,
     MediaPlayer,
+    Clipboard,
+
     Custom(String),
     Notifications,
 }
@@ -958,6 +982,7 @@ impl<'de> Deserialize<'de> for ModuleName {
                     "Privacy" => ModuleName::Privacy,
                     "Settings" => ModuleName::Settings,
                     "MediaPlayer" => ModuleName::MediaPlayer,
+                    "Clipboard" => ModuleName::Clipboard,
                     other => ModuleName::Custom(other.to_string()),
                 })
             }

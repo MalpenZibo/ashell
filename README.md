@@ -15,7 +15,7 @@
 </p>
 
 ## ✨ Features
-
+- 2 languages support (en, ru)
 - Automatic Hyprland/Niri compositor detection
 - Multi-monitor support (all monitors, active monitor, or specific targets)
 - Hot-reload configuration (changes apply automatically via file watch)
@@ -106,6 +106,9 @@ could be different
 
 <img src="https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/ashell-gradient.png"></img>
 
+### Clipboard history
+<img width="437" height="568" alt="2026-05-04-204343_hyprshot" src="https://github.com/user-attachments/assets/d2efca45-9559-4af2-ace9-b31dd3953a3a" />
+
 #### opacity settings
 
 <img src="https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/opacity.png"></img>
@@ -115,3 +118,19 @@ could be different
 | ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/tray-menu.png)       | ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/power-menu.png)   |
 | ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/sinks-selection.png) | ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/network-menu.png) |
 | ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/bluetooth-menu.png)  | ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/vpn-menu.png)     |
+## Building from Source
+To build Ashell from source, ensure the following dependencies are installed:
+
+-Rust (with cargo)
+-wayland-protocols
+-clang
+-libxkbcommon
+-wayland
+-dbus
+-libpipewire
+-libpulse
+### Then, from the root of the repository, run:
+
+```sh
+cargo build --release
+sudo cp target/release/ashell /usr/local/bin/ashell  

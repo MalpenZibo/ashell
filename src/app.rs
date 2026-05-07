@@ -7,6 +7,7 @@ use crate::{
     ipc::IpcCommand,
     modules::{
         self,
+        clipboard::Clipboard,
         custom_module::{self, Custom},
         keyboard_layout::KeyboardLayout,
         keyboard_submap::KeyboardSubmap,
@@ -70,6 +71,7 @@ pub struct App {
     pub settings: Settings,
     pub media_player: MediaPlayer,
     pub notifications: Notifications,
+    pub clipboard: Clipboard,
     pub osd: Osd,
     pub visible: bool,
 }
@@ -92,6 +94,7 @@ pub enum Message {
     Settings(modules::settings::Message),
     MediaPlayer(modules::media_player::Message),
     Notifications(modules::notifications::Message),
+    Clipboard(modules::clipboard::Message),
     Osd(osd::Message),
     IpcOsdCommand(IpcCommand),
     OutputEvent(OutputEvent),
@@ -153,6 +156,7 @@ impl App {
                     settings: Settings::new(config.settings),
                     notifications,
                     media_player: MediaPlayer::new(config.media_player),
+                    clipboard: Clipboard::new(config.clipboard),
                     osd: Osd::new(config.osd),
                     visible: true,
                 },
@@ -214,6 +218,7 @@ impl App {
             .update(modules::media_player::Message::ConfigReloaded(
                 config.media_player,
             ));
+        self.clipboard = Clipboard::new(config.clipboard);
         let _ = self
             .notifications
             .update(modules::notifications::Message::ConfigReloaded(
@@ -360,6 +365,16 @@ impl App {
                                     task.map(Message::Settings)
                                 }
                                 _ => Task::none(),
+                            },
+                        );
+                    }
+                    MenuType::Clipboard => {
+                        cmd.push(
+                            match self.clipboard.update(modules::clipboard::Message::MenuOpened) {
+                                modules::clipboard::Action::None => Task::none(),
+                                modules::clipboard::Action::Command(task) => {
+                                    task.map(Message::Clipboard)
+                                }
                             },
                         );
                     }
@@ -542,6 +557,10 @@ impl App {
                     self.outputs
                         .update_toast_input_region(content_size, position)
                 }
+            },
+            Message::Clipboard(message) => match self.clipboard.update(message) {
+                modules::clipboard::Action::None => Task::none(),
+                modules::clipboard::Action::Command(task) => task.map(Message::Clipboard),
             },
             Message::IpcOsdCommand(cmd) => {
                 let mut tasks = vec![];
@@ -747,6 +766,11 @@ impl App {
                     MenuType::Tempo => {
                         self.menu_wrapper(id, self.tempo.menu_view().map(Message::Tempo), ui_ref)
                     }
+                    MenuType::Clipboard => self.menu_wrapper(
+                        id,
+                        self.clipboard.menu_view().map(Message::Clipboard),
+                        ui_ref,
+                    ),
                 }
             }
             Some(HasOutput::Menu(None)) => Row::new().into(),

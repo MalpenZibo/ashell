@@ -130,3 +130,9 @@ weather-unknown = Погодные условия не определены
 notifications-heading = Уведомления
 notifications-empty = Нет уведомлений
 notifications-group-count = { $count } новых
+
+## Clipboard module
+clipboard-heading = История буфера обмена
+clipboard-empty = Буфер обмена пуст
+clipboard-loading = Загрузка буфера обмена...
+clipboard-image-entry = [Изображение]
