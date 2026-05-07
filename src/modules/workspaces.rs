@@ -443,28 +443,15 @@ impl Workspaces {
                                         .align_x(alignment::Horizontal::Center)
                                         .align_y(alignment::Vertical::Center),
                                 )
-                                .style(theme.workspace_button_style(empty, color))
-                                .padding(if w.id < 0 {
-                                    match w.displayed {
-                                        Displayed::Active => [0.0, theme.space.md],
-                                        Displayed::Visible => [0.0, theme.space.sm],
-                                        Displayed::Hidden => [0.0, theme.space.xs],
-                                    }
-                                } else {
-                                    [0.0, 0.0]
-                                })
+                                .style(theme.workspace_button_style(empty, color, w.displayed == Displayed::Active))
+                                .padding([0.0, theme.space.xxs])
                                 .on_press(if w.id > 0 {
                                     Message::ChangeWorkspace(w.id)
                                 } else {
                                     Message::ToggleSpecialWorkspace(w.id)
                                 })
-                                .width(match (w.id < 0, &w.displayed) {
-                                    (true, _) => Length::Shrink,
-                                    (_, Displayed::Active) => Length::Fixed(theme.space.xl),
-                                    (_, Displayed::Visible) => Length::Fixed(theme.space.lg),
-                                    (_, Displayed::Hidden) => Length::Fixed(theme.space.md),
-                                })
                                 .height(theme.space.md)
+                                .width(Length::Shrink)
                                 .into(),
                             )
                         } else {
