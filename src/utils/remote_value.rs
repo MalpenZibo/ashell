@@ -68,7 +68,7 @@ where
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Message<Value> {
     /// Emitted during user interaction
     Request(Value),

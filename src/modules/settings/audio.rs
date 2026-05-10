@@ -6,6 +6,7 @@ use crate::{
         slider_control, styled_button,
     },
     config::SettingsFormat,
+    osd,
     services::{
         ReadOnlyService, Service, ServiceEvent,
         audio::{AudioCommand, AudioService, ChannelVolumesExt, DevicePortType, Port},
@@ -29,10 +30,10 @@ pub enum Message {
     Event(ServiceEvent<AudioService>),
     DefaultSinkChanged(String, Option<String>),
     DefaultSourceChanged(String, Option<String>),
-    ToggleSinkMute,
-    SinkVolumeChanged(remote_value::Message<u32>),
-    ToggleSourceMute,
-    SourceVolumeChanged(remote_value::Message<u32>),
+    ToggleSinkMute(bool),
+    SinkVolumeChanged(remote_value::Message<u32>, bool),
+    ToggleSourceMute(bool),
+    SourceVolumeChanged(remote_value::Message<u32>, bool),
     SinksMore(SurfaceId),
     SourcesMore(SurfaceId),
     OpenMore,
@@ -44,7 +45,7 @@ pub enum Message {
 
 pub enum Action {
     None,
-    Task(Task<Message>),
+    Response(Option<Task<Message>>, Option<osd::OsdMessage>),
     ToggleSinksMenu,
     ToggleSourcesMenu,
     CloseMenu(SurfaceId),
@@ -104,20 +105,10 @@ impl AudioSettings {
         }
     }
 
-    pub fn current_sink_volume(&self) -> Option<u32> {
-        self.service.as_ref().map(|s| s.sink_slider.value())
-    }
-
     pub fn real_sink_volume(&self) -> Option<u32> {
         self.service
             .as_ref()
             .and_then(|s| s.active_sink().map(|d| d.volume.get_volume()))
-    }
-
-    pub fn is_sink_muted(&self) -> Option<bool> {
-        self.service
-            .as_ref()
-            .and_then(|s| s.active_sink().map(|d| d.is_mute))
     }
 
     pub fn vol_max() -> u32 {
@@ -136,14 +127,15 @@ impl AudioSettings {
         };
         self.update(Message::SinkVolumeChanged(
             remote_value::Message::RequestAndTimeout(new_vol),
+            true,
         ))
     }
 
     pub fn toggle_mute(&mut self) -> Action {
-        self.update(Message::ToggleSinkMute)
+        self.update(Message::ToggleSinkMute(true))
     }
 
-    pub fn speaker_icon(muted: bool, normalised: f32) -> StaticIcon {
+    pub fn speaker_icon(normalised: f32, muted: bool) -> StaticIcon {
         if muted {
             StaticIcon::Speaker0
         } else {
@@ -155,20 +147,10 @@ impl AudioSettings {
         }
     }
 
-    pub fn current_source_volume(&self) -> Option<u32> {
-        self.service.as_ref().map(|s| s.source_slider.value())
-    }
-
     pub fn real_source_volume(&self) -> Option<u32> {
         self.service
             .as_ref()
             .and_then(|s| s.active_source().map(|d| d.volume.get_volume()))
-    }
-
-    pub fn is_source_muted(&self) -> Option<bool> {
-        self.service
-            .as_ref()
-            .and_then(|s| s.active_source().map(|d| d.is_mute))
     }
 
     pub fn mic_max() -> u32 {
@@ -187,11 +169,12 @@ impl AudioSettings {
         };
         self.update(Message::SourceVolumeChanged(
             remote_value::Message::RequestAndTimeout(new_vol),
+            true,
         ))
     }
 
     pub fn microphone_toggle_mute(&mut self) -> Action {
-        self.update(Message::ToggleSourceMute)
+        self.update(Message::ToggleSourceMute(true))
     }
 
     pub fn microphone_icon(muted: bool) -> StaticIcon {
@@ -226,22 +209,40 @@ impl AudioSettings {
                 }
                 ServiceEvent::Error(_) => Action::None,
             },
-            Message::ToggleSinkMute => {
+            Message::ToggleSinkMute(show_osd) => {
                 if let Some(service) = self.service.as_mut() {
                     let _ = service.command(AudioCommand::ToggleSinkMute);
-                }
-                Action::None
-            }
-            Message::SinkVolumeChanged(message) => {
-                if let Some(service) = self.service.as_mut() {
-                    if let Some(value) = message.value() {
-                        let _ = service.command(AudioCommand::SinkVolume(value));
+                    if show_osd {
+                        let osd = osd::OsdMessage::Volume {
+                            value: service.sink_slider.value() as f32 / Volume::NORMAL.0 as f32,
+                            muted: !service.active_sink().map(|d| d.is_mute).unwrap_or(false),
+                        };
+                        return Action::Response(None, Some(osd));
                     }
-                    return Action::Task(
-                        service
-                            .sink_slider
-                            .update(message)
-                            .map(Message::SinkVolumeChanged),
+                }
+                Action::Response(None, None)
+            }
+            Message::SinkVolumeChanged(message, show_osd) => {
+                if let Some(service) = self.service.as_mut()
+                    && let Some(value) = message.value()
+                {
+                    let _ = service.command(AudioCommand::SinkVolume(value));
+                    let osd = if show_osd && message != remote_value::Message::ShowReceived {
+                        Some(osd::OsdMessage::Volume {
+                            value: value as f32 / Volume::NORMAL.0 as f32,
+                            muted: service.active_sink().map(|d| d.is_mute).unwrap_or(false),
+                        })
+                    } else {
+                        None
+                    };
+                    return Action::Response(
+                        Some(
+                            service
+                                .sink_slider
+                                .update(message)
+                                .map(move |msg| Message::SinkVolumeChanged(msg, show_osd)),
+                        ),
+                        osd,
                     );
                 }
                 Action::None
@@ -252,22 +253,40 @@ impl AudioSettings {
                 }
                 Action::None
             }
-            Message::ToggleSourceMute => {
+            Message::ToggleSourceMute(show_osd) => {
                 if let Some(service) = self.service.as_mut() {
                     let _ = service.command(AudioCommand::ToggleSourceMute);
-                }
-                Action::None
-            }
-            Message::SourceVolumeChanged(message) => {
-                if let Some(service) = self.service.as_mut() {
-                    if let Some(value) = message.value() {
-                        let _ = service.command(AudioCommand::SourceVolume(value));
+                    if show_osd {
+                        let osd = osd::OsdMessage::Microphone {
+                            value: service.source_slider.value() as f32 / Volume::NORMAL.0 as f32,
+                            muted: !service.active_source().map(|d| d.is_mute).unwrap_or(false),
+                        };
+                        return Action::Response(None, Some(osd));
                     }
-                    return Action::Task(
-                        service
-                            .source_slider
-                            .update(message)
-                            .map(Message::SourceVolumeChanged),
+                }
+                Action::Response(None, None)
+            }
+            Message::SourceVolumeChanged(message, show_osd) => {
+                if let Some(service) = self.service.as_mut()
+                    && let Some(value) = message.value()
+                {
+                    let _ = service.command(AudioCommand::SourceVolume(value));
+                    let osd = if show_osd && message != remote_value::Message::ShowReceived {
+                        Some(osd::OsdMessage::Microphone {
+                            value: value as f32 / Volume::NORMAL.0 as f32,
+                            muted: service.active_source().map(|d| d.is_mute).unwrap_or(false),
+                        })
+                    } else {
+                        None
+                    };
+                    return Action::Response(
+                        Some(
+                            service
+                                .source_slider
+                                .update(message)
+                                .map(move |msg| Message::SourceVolumeChanged(msg, show_osd)),
+                        ),
+                        osd,
                     );
                 }
                 Action::None
@@ -322,7 +341,7 @@ impl AudioSettings {
                 service.active_sink().map(|sink| {
                     let vol = service.sink_slider.value();
                     let norm = vol as f32 / Self::vol_max() as f32;
-                    (service, Self::speaker_icon(sink.is_mute, norm))
+                    (service, Self::speaker_icon(norm, sink.is_mute))
                 })
             })
             .map(|(service, icon_type)| {
@@ -333,8 +352,11 @@ impl AudioSettings {
                     Self::vol_text(volume).into(),
                     IndicatorState::Normal,
                 )
-                .on_right_press(Message::OpenMore)
-                .on_scroll(Self::on_scroll(volume, Message::SinkVolumeChanged))
+                .on_right_press(match self.config.sinks_more_cmd {
+                    Some(_) => Message::OpenSourceMore,
+                    None => Message::ToggleSinkMute(true),
+                })
+                .on_scroll(Self::on_scroll(volume, Message::SinkVolumeChanged, true))
                 .into()
             })
     }
@@ -355,8 +377,11 @@ impl AudioSettings {
                     Self::vol_text(volume).into(),
                     IndicatorState::Normal,
                 )
-                .on_right_press(Message::OpenSourceMore)
-                .on_scroll(Self::on_scroll(volume, Message::SourceVolumeChanged))
+                .on_right_press(match self.config.sinks_more_cmd {
+                    Some(_) => Message::OpenMore,
+                    None => Message::ToggleSourceMute(true),
+                })
+                .on_scroll(Self::on_scroll(volume, Message::SourceVolumeChanged, true))
                 .into()
             })
     }
@@ -370,7 +395,7 @@ impl AudioSettings {
                 Self::audio_slider(
                     SliderType::Sink,
                     s.is_mute,
-                    Message::ToggleSinkMute,
+                    Message::ToggleSinkMute(false),
                     &service.sink_slider,
                     &Message::SinkVolumeChanged,
                     if service.has_multiple_sinks() {
@@ -385,7 +410,7 @@ impl AudioSettings {
                 Self::audio_slider(
                     SliderType::Source,
                     s.is_mute,
-                    Message::ToggleSourceMute,
+                    Message::ToggleSourceMute(false),
                     &service.source_slider,
                     &Message::SourceVolumeChanged,
                     if service.has_multiple_sources() {
@@ -489,7 +514,7 @@ impl AudioSettings {
         is_mute: bool,
         toggle_mute: Message,
         volume: &'a Remote<u32>,
-        volume_changed: &'a dyn Fn(remote_value::Message<u32>) -> Message,
+        volume_changed: &'a dyn Fn(remote_value::Message<u32>, bool) -> Message,
         with_submenu: Option<(Option<SubMenu>, Message)>,
     ) -> Element<'a, Message> {
         let mute_icon = if is_mute {
@@ -509,7 +534,7 @@ impl AudioSettings {
             Volume::MUTED.0..=Volume::NORMAL.0,
             volume.value(),
             volume_changed,
-            Self::on_scroll(volume.value(), volume_changed),
+            Self::on_scroll(volume.value(), volume_changed, false),
         )
         .on_icon_press(toggle_mute)
         .on_icon_right_press(match slider_type {
@@ -528,9 +553,9 @@ impl AudioSettings {
         ctrl.into()
     }
 
-    fn on_scroll<F>(cur_volume: u32, make_msg: F) -> impl Fn(ScrollDelta) -> Message
+    fn on_scroll<F>(cur_volume: u32, make_msg: F, show_osd: bool) -> impl Fn(ScrollDelta) -> Message
     where
-        F: Fn(remote_value::Message<u32>) -> Message,
+        F: Fn(remote_value::Message<u32>, bool) -> Message,
     {
         move |delta| {
             let y = match delta {
@@ -542,7 +567,10 @@ impl AudioSettings {
             } else {
                 cur_volume.saturating_sub(VOL_PERCENT)
             };
-            make_msg(remote_value::Message::RequestAndTimeout(new_volume))
+            make_msg(
+                remote_value::Message::RequestAndTimeout(new_volume),
+                show_osd,
+            )
         }
     }
 

@@ -218,13 +218,7 @@ impl AudioService {
     pub fn update_source_volume(&mut self) {
         let volume = self
             .active_source()
-            .map(|source| {
-                if source.is_mute {
-                    0
-                } else {
-                    source.volume.get_volume()
-                }
-            })
+            .map(|source| source.volume.get_volume())
             .unwrap_or_default();
         self.source_slider.receive(volume);
     }
@@ -232,13 +226,7 @@ impl AudioService {
     pub fn update_sink_volume(&mut self) {
         let volume = self
             .active_sink()
-            .map(|sink| {
-                if sink.is_mute {
-                    0
-                } else {
-                    sink.volume.get_volume()
-                }
-            })
+            .map(|sink| sink.volume.get_volume())
             .unwrap_or_default();
         self.sink_slider.receive(volume);
     }

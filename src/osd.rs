@@ -18,33 +18,22 @@ use crate::{
 
 pub struct Osd {
     config: OsdConfig,
-    state: Option<OsdState>,
+    message: Option<OsdMessage>,
     timeout_handle: Option<iced::task::Handle>,
 }
 
-struct OsdState {
-    kind: OsdKind,
-    /// Normalised value in 0.0..=1.0
-    value: f32,
-    muted: bool,
-}
-
 #[derive(Debug, Clone, Copy)]
-pub enum OsdKind {
-    Volume,
-    Microphone,
-    Brightness,
-    Airplane,
-    IdleInhibitor,
+pub enum OsdMessage {
+    Volume { value: f32, muted: bool },
+    Microphone { value: f32, muted: bool },
+    Brightness { value: f32 },
+    Airplane { active: bool },
+    IdleInhibitor { active: bool },
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    Show {
-        kind: OsdKind,
-        value: f32,
-        muted: bool,
-    },
+    Show(OsdMessage),
     Hide,
     ConfigReloaded(OsdConfig),
 }
@@ -62,7 +51,7 @@ impl Osd {
     pub fn new(config: OsdConfig) -> Self {
         Self {
             config,
-            state: None,
+            message: None,
             timeout_handle: None,
         }
     }
@@ -73,8 +62,8 @@ impl Osd {
 
     pub fn update(&mut self, message: Message) -> Action {
         match message {
-            Message::Show { kind, value, muted } => {
-                self.state = Some(OsdState { kind, value, muted });
+            Message::Show(message) => {
+                self.message = Some(message);
 
                 if let Some(handle) = self.timeout_handle.take() {
                     handle.abort();
@@ -94,7 +83,7 @@ impl Osd {
             }
 
             Message::Hide => {
-                self.state = None;
+                self.message = None;
                 if let Some(handle) = self.timeout_handle.take() {
                     handle.abort();
                 }
@@ -109,66 +98,72 @@ impl Osd {
     }
 
     pub fn view(&self) -> Element<'_, Message> {
-        let Some(state) = &self.state else {
-            return row![].into();
-        };
+        if let Some(message) = self.message {
+            let (space, font_size, radius) = use_theme(|t| (t.space, t.font_size, t.radius));
 
-        let (space, font_size, radius) = use_theme(|t| (t.space, t.font_size, t.radius));
-
-        let icon = match state.kind {
-            OsdKind::Volume => AudioSettings::speaker_icon(state.muted, state.value),
-            OsdKind::Microphone => AudioSettings::microphone_icon(state.muted),
-            OsdKind::Brightness => StaticIcon::Brightness,
-            OsdKind::Airplane => NetworkSettings::airplane_mode_icon(state.muted),
-            OsdKind::IdleInhibitor => IdleInhibitorManager::idle_inhibitor_icon(state.muted),
-        };
-
-        let detail: Element<'_, Message> = match state.kind {
-            OsdKind::Volume | OsdKind::Microphone | OsdKind::Brightness => {
-                let mut bar = progress_bar(0.0..=1.0, state.value)
-                    .length(160.0)
-                    .girth(8.0);
-                if state.muted {
-                    bar = bar.style(progress_bar::secondary);
+            let icon = match message {
+                OsdMessage::Volume { value, muted } => AudioSettings::speaker_icon(value, muted),
+                OsdMessage::Microphone { muted, .. } => AudioSettings::microphone_icon(muted),
+                OsdMessage::Brightness { .. } => StaticIcon::Brightness,
+                OsdMessage::Airplane { active } => NetworkSettings::airplane_mode_icon(active),
+                OsdMessage::IdleInhibitor { active } => {
+                    IdleInhibitorManager::idle_inhibitor_icon(active)
                 }
-                container(bar).center_x(Length::Fill).into()
-            }
-            OsdKind::Airplane | OsdKind::IdleInhibitor => {
-                // For toggles, `muted` carries the active/enabled state.
-                let state_key = if state.muted { "on" } else { "off" };
-                let label = match state.kind {
-                    OsdKind::Airplane => t!("osd-airplane-toggle", state = state_key),
-                    OsdKind::IdleInhibitor => t!("osd-idle-inhibitor-toggle", state = state_key),
-                    _ => unreachable!(),
-                };
-                container(text(label)).center_x(Length::Fill).into()
-            }
-        };
+            };
 
-        let content = row![
-            container(icon.to_text().size(font_size.xxl)).center_x(font_size.xxl),
-            detail,
-        ]
-        .spacing(space.sm)
-        .align_y(Alignment::Center);
+            let detail: Element<'_, Message> = match message {
+                OsdMessage::Volume { value, muted } | OsdMessage::Microphone { value, muted } => {
+                    let mut bar = progress_bar(0.0..=1.0, value).length(160.0).girth(8.0);
+                    if muted {
+                        bar = bar.style(progress_bar::secondary);
+                    }
+                    container(bar).center_x(Length::Fill).into()
+                }
+                OsdMessage::Brightness { value } => {
+                    let bar = progress_bar(0.0..=1.0, value).length(160.0).girth(8.0);
+                    container(bar).center_x(Length::Fill).into()
+                }
+                OsdMessage::Airplane { active } | OsdMessage::IdleInhibitor { active } => {
+                    // For toggles, `muted` carries the active/enabled state.
+                    let state_key = if active { "on" } else { "off" };
+                    let label = match message {
+                        OsdMessage::Airplane { .. } => t!("osd-airplane-toggle", state = state_key),
+                        OsdMessage::IdleInhibitor { .. } => {
+                            t!("osd-idle-inhibitor-toggle", state = state_key)
+                        }
+                        _ => unreachable!(),
+                    };
+                    container(text(label)).center_x(Length::Fill).into()
+                }
+            };
 
-        container(content)
-            .padding([space.sm, space.md])
-            .style(move |t: &Theme| container::Style {
-                background: Some(t.palette().background.into()),
-                border: Border::default()
-                    .width(1)
-                    .color(t.extended_palette().background.weakest.color)
-                    .rounded(radius.xl),
-                text_color: Some(match (state.kind, state.muted) {
-                    (OsdKind::IdleInhibitor, true) => t.palette().danger,
-                    (OsdKind::Airplane, true) => t.palette().danger,
-                    _ => t.palette().text,
-                }),
-                ..Default::default()
-            })
-            .center_x(Length::Fill)
-            .center_y(Length::Fill)
-            .into()
+            let content = row![
+                container(icon.to_text().size(font_size.xxl)).center_x(font_size.xxl),
+                detail,
+            ]
+            .spacing(space.sm)
+            .align_y(Alignment::Center);
+
+            container(content)
+                .padding([space.sm, space.md])
+                .style(move |t: &Theme| container::Style {
+                    background: Some(t.palette().background.into()),
+                    border: Border::default()
+                        .width(1)
+                        .color(t.extended_palette().background.weakest.color)
+                        .rounded(radius.xl),
+                    text_color: Some(match message {
+                        OsdMessage::IdleInhibitor { active: true } => t.palette().danger,
+                        OsdMessage::Airplane { active: true } => t.palette().danger,
+                        _ => t.palette().text,
+                    }),
+                    ..Default::default()
+                })
+                .center_x(Length::Fill)
+                .center_y(Length::Fill)
+                .into()
+        } else {
+            row![].into()
+        }
     }
 }

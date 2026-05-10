@@ -20,6 +20,7 @@ use crate::{
         network::{NetworkSettings, NetworkSettingsConfig},
         power::{PowerSettings, PowerSettingsConfig},
     },
+    osd,
     services::idle_inhibitor::IdleInhibitorManager,
     t,
     theme::use_theme,
@@ -102,6 +103,7 @@ pub enum Message {
 pub enum Action {
     None,
     Command(Task<Message>),
+    Response(Option<Task<Message>>, Option<osd::OsdMessage>),
     CloseMenu(SurfaceId),
     RequestKeyboard(SurfaceId),
     ReleaseKeyboard(SurfaceId),
@@ -120,64 +122,74 @@ pub enum SubMenu {
 }
 
 impl Settings {
-    pub fn audio(&self) -> &AudioSettings {
-        &self.audio
-    }
-
-    pub fn brightness(&self) -> &BrightnessSettings {
-        &self.brightness
-    }
-
-    pub fn network(&self) -> &NetworkSettings {
-        &self.network
-    }
-
-    pub fn idle_inhibitor(&self) -> &Option<IdleInhibitorManager> {
-        &self.idle_inhibitor
-    }
-
     pub fn volume_adjust(&mut self, up: bool) -> Action {
         match self.audio.volume_adjust(up) {
-            audio::Action::Task(task) => Action::Command(task.map(Message::Audio)),
+            audio::Action::Response(task, osd) => match task {
+                Some(task) => Action::Response(Some(task.map(Message::Audio)), osd),
+                None => Action::Response(None, osd),
+            },
             _ => Action::None,
         }
     }
 
     pub fn toggle_mute(&mut self) -> Action {
-        self.audio.toggle_mute();
-        Action::None
+        match self.audio.toggle_mute() {
+            audio::Action::Response(task, osd) => match task {
+                Some(task) => Action::Response(Some(task.map(Message::Audio)), osd),
+                None => Action::Response(None, osd),
+            },
+            _ => Action::None,
+        }
     }
 
     pub fn microphone_adjust(&mut self, up: bool) -> Action {
         match self.audio.microphone_adjust(up) {
-            audio::Action::Task(task) => Action::Command(task.map(Message::Audio)),
+            audio::Action::Response(task, osd) => match task {
+                Some(task) => Action::Response(Some(task.map(Message::Audio)), osd),
+                None => Action::Response(None, osd),
+            },
             _ => Action::None,
         }
     }
 
     pub fn microphone_toggle_mute(&mut self) -> Action {
-        self.audio.microphone_toggle_mute();
-        Action::None
+        match self.audio.microphone_toggle_mute() {
+            audio::Action::Response(task, osd) => match task {
+                Some(task) => Action::Response(Some(task.map(Message::Audio)), osd),
+                None => Action::Response(None, osd),
+            },
+            _ => Action::None,
+        }
     }
 
     pub fn brightness_adjust(&mut self, up: bool) -> Action {
         match self.brightness.brightness_adjust(up) {
-            brightness::Action::Command(task) => Action::Command(task.map(Message::Brightness)),
+            brightness::Action::Command(task, osd) => {
+                Action::Response(Some(task.map(Message::Brightness)), osd)
+            }
             brightness::Action::None => Action::None,
         }
     }
 
     pub fn toggle_airplane(&mut self) -> Action {
-        match self.network.update(network::Message::ToggleAirplaneMode) {
-            network::Action::CloseSubMenu(task) => Action::Command(task.map(Message::Network)),
-            network::Action::Command(task) => Action::Command(task.map(Message::Network)),
-            _ => Action::None,
-        }
+        let action = match self.network.update(network::Message::ToggleAirplaneMode) {
+            network::Action::CloseSubMenu(task) => Some(task.map(Message::Network)),
+            network::Action::Command(task) => Some(task.map(Message::Network)),
+            _ => None,
+        };
+        let osd = osd::OsdMessage::Airplane {
+            active: !self.network.is_airplane_mode().unwrap_or(false),
+        };
+        Action::Response(action, Some(osd))
     }
 
     pub fn toggle_idle_inhibitor(&mut self) -> Action {
         if let Some(idle_inhibitor) = &mut self.idle_inhibitor {
             idle_inhibitor.toggle();
+            let osd = osd::OsdMessage::IdleInhibitor {
+                active: idle_inhibitor.is_inhibited(),
+            };
+            return Action::Response(None, Some(osd));
         }
         Action::None
     }
@@ -273,7 +285,10 @@ impl Settings {
                     Action::None
                 }
                 audio::Action::CloseMenu(id) => Action::CloseMenu(id),
-                audio::Action::Task(task) => Action::Command(task.map(Message::Audio)),
+                audio::Action::Response(task, osd) => match task {
+                    Some(task) => Action::Response(Some(task.map(Message::Audio)), osd),
+                    None => Action::Response(None, osd),
+                },
             },
             Message::Network(msg) => match self.network.update(msg) {
                 network::Action::None => Action::None,
@@ -340,7 +355,9 @@ impl Settings {
             },
             Message::Brightness(msg) => match self.brightness.update(msg) {
                 brightness::Action::None => Action::None,
-                brightness::Action::Command(task) => Action::Command(task.map(Message::Brightness)),
+                brightness::Action::Command(task, osd) => {
+                    Action::Response(Some(task.map(Message::Brightness)), osd)
+                }
             },
             Message::ToggleSubMenu(menu_type) => {
                 if self.sub_menu == Some(menu_type) {
