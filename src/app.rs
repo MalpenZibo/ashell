@@ -74,6 +74,11 @@ pub struct App {
     pub visible: bool,
 }
 
+// App::Message is an aggregator enum dispatching to many sub-modules. Sub-
+// messages naturally vary in size (network/bluetooth service events are
+// large; transient unit variants are tiny). Boxing every "big" variant would
+// just shift verbosity to call sites without meaningful runtime benefit.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 pub enum Message {
     ConfigChanged(Box<Config>),

@@ -79,7 +79,7 @@ impl ReadOnlyService for CompositorService {
     fn update(&mut self, event: Self::UpdateEvent) {
         match event {
             CompositorEvent::StateChanged(new_state) => {
-                self.state = *new_state;
+                self.state = new_state;
             }
             CompositorEvent::ActionPerformed => {}
         }
@@ -94,7 +94,7 @@ impl ReadOnlyService for CompositorService {
                 // - assumes detect_backend is cheap
                 if let Some(backend) = detect_backend() {
                     let empty_init = CompositorService {
-                        state: CompositorState::default(),
+                        state: Box::new(CompositorState::default()),
                         backend,
                     };
                     if output.send(ServiceEvent::Init(empty_init)).await.is_err() {

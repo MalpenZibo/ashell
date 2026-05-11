@@ -88,7 +88,10 @@ pub enum CompositorChoice {
 
 #[derive(Debug, Clone)]
 pub struct CompositorService {
-    pub state: CompositorState,
+    /// State is boxed so `ServiceEvent<CompositorService>` stays small —
+    /// otherwise `Message` enums embedding it trip clippy's
+    /// `large_enum_variant` lint.
+    pub state: Box<CompositorState>,
     pub backend: CompositorChoice,
 }
 
