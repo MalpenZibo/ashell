@@ -45,7 +45,10 @@ impl ShellInfo {
 }
 
 #[derive(Debug, Clone)]
-pub struct Outputs(Vec<(String, Option<ShellInfo>, Option<OutputId>)>);
+pub struct Outputs {
+    inner: Vec<(String, Option<ShellInfo>, Option<OutputId>)>,
+    animations_enabled: bool,
+}
 
 pub enum HasOutput<'a> {
     Main,
@@ -56,7 +59,7 @@ pub enum HasOutput<'a> {
 
 impl Outputs {
     pub fn iter(&self) -> std::slice::Iter<'_, (String, Option<ShellInfo>, Option<OutputId>)> {
-        self.0.iter()
+        self.inner.iter()
     }
 
     pub fn new(
@@ -68,21 +71,30 @@ impl Outputs {
         // Use the initial surface created by .layer_shell() in main.rs as a
         // fallback until real outputs are detected. Menu surfaces are created
         // on demand when a menu is opened.
-        Self(vec![(
-            "Fallback".to_string(),
-            Some(ShellInfo {
-                id: SurfaceId::MAIN,
-                menu: Menu::new(),
-                toast_id: None,
-                osd_id: None,
-                position,
-                layer,
-                style,
-                scale_factor,
-                output_logical_height: None,
-            }),
-            None,
-        )])
+        Self {
+            inner: vec![(
+                "Fallback".to_string(),
+                Some(ShellInfo {
+                    id: SurfaceId::MAIN,
+                    menu: Menu::new(),
+                    toast_id: None,
+                    osd_id: None,
+                    position,
+                    layer,
+                    style,
+                    scale_factor,
+                    output_logical_height: None,
+                }),
+                None,
+            )],
+            animations_enabled: false,
+        }
+    }
+
+    fn make_menu(&self) -> Menu {
+        let mut menu = Menu::new();
+        menu.set_animations_enabled(self.animations_enabled);
+        menu
     }
 
     pub fn get_height(style: AppearanceStyle, scale_factor: f64) -> f64 {
@@ -138,7 +150,7 @@ impl Outputs {
     }
 
     pub fn has(&'_ self, id: SurfaceId) -> Option<HasOutput<'_>> {
-        self.0.iter().find_map(|(_, info, _)| {
+        self.inner.iter().find_map(|(_, info, _)| {
             info.as_ref().and_then(|info| {
                 if info.id == id {
                     Some(HasOutput::Main)
@@ -156,7 +168,7 @@ impl Outputs {
     }
 
     pub fn get_monitor_name(&self, id: SurfaceId) -> Option<&str> {
-        self.0.iter().find_map(|(name, info, _)| {
+        self.inner.iter().find_map(|(name, info, _)| {
             info.as_ref().and_then(|info| {
                 if info.id == id {
                     Some(name.as_str())
@@ -168,7 +180,7 @@ impl Outputs {
     }
 
     pub fn has_name(&self, name: &str) -> bool {
-        self.0
+        self.inner
             .iter()
             .any(|(n, info, _)| info.is_some() && n.as_str().contains(name))
     }
@@ -192,9 +204,13 @@ impl Outputs {
             let (id, task) =
                 Self::create_output_layers(style, Some(output_id), position, layer, scale_factor);
 
-            let destroy_task = match self.0.iter().position(|(key, _, _)| key.as_str() == name) {
+            let destroy_task = match self
+                .inner
+                .iter()
+                .position(|(key, _, _)| key.as_str() == name)
+            {
                 Some(index) => {
-                    let old_output = self.0.swap_remove(index);
+                    let old_output = self.inner.swap_remove(index);
 
                     match old_output.1 {
                         Some(shell_info) => shell_info.destroy_surfaces(),
@@ -204,11 +220,12 @@ impl Outputs {
                 _ => Task::none(),
             };
 
-            self.0.push((
+            let menu = self.make_menu();
+            self.inner.push((
                 name.to_owned(),
                 Some(ShellInfo {
                     id,
-                    menu: Menu::new(),
+                    menu,
                     toast_id: None,
                     osd_id: None,
                     position,
@@ -221,18 +238,21 @@ impl Outputs {
             ));
 
             // remove fallback layer surface
-            let destroy_fallback_task =
-                match self.0.iter().position(|(_, _, output)| output.is_none()) {
-                    Some(index) => {
-                        let old_output = self.0.swap_remove(index);
+            let destroy_fallback_task = match self
+                .inner
+                .iter()
+                .position(|(_, _, output)| output.is_none())
+            {
+                Some(index) => {
+                    let old_output = self.inner.swap_remove(index);
 
-                        match old_output.1 {
-                            Some(shell_info) => shell_info.destroy_surfaces(),
-                            _ => Task::none(),
-                        }
+                    match old_output.1 {
+                        Some(shell_info) => shell_info.destroy_surfaces(),
+                        _ => Task::none(),
                     }
-                    _ => Task::none(),
-                };
+                }
+                _ => Task::none(),
+            };
 
             Task::batch(vec![destroy_task, destroy_fallback_task, task])
         } else {
@@ -241,7 +261,7 @@ impl Outputs {
                 name, request_outputs
             );
 
-            self.0.push((name.to_owned(), None, Some(output_id)));
+            self.inner.push((name.to_owned(), None, Some(output_id)));
 
             Task::none()
         }
@@ -255,7 +275,7 @@ impl Outputs {
         output_id: OutputId,
         scale_factor: f64,
     ) -> Task<Message> {
-        match self.0.iter().position(|(_, _, assigned_output_id)| {
+        match self.inner.iter().position(|(_, _, assigned_output_id)| {
             assigned_output_id
                 .as_ref()
                 .is_some_and(|assigned| *assigned == output_id)
@@ -263,7 +283,7 @@ impl Outputs {
             Some(index_to_remove) => {
                 debug!("Removing layer surface for output");
 
-                let (_name, shell_info, _output_id) = self.0.swap_remove(index_to_remove);
+                let (_name, shell_info, _output_id) = self.inner.swap_remove(index_to_remove);
 
                 let destroy_task = if let Some(shell_info) = shell_info {
                     shell_info.destroy_surfaces()
@@ -277,7 +297,11 @@ impl Outputs {
                 // falls back to output=None, and the compositor binds the phantom surface
                 // to any available monitor — producing a duplicate bar.
 
-                if self.0.iter().any(|(_, shell_info, _)| shell_info.is_some()) {
+                if self
+                    .inner
+                    .iter()
+                    .any(|(_, shell_info, _)| shell_info.is_some())
+                {
                     Task::batch(vec![destroy_task])
                 } else {
                     debug!("No outputs left, creating a fallback layer surface");
@@ -285,11 +309,12 @@ impl Outputs {
                     let (id, task) =
                         Self::create_output_layers(style, None, position, layer, scale_factor);
 
-                    self.0.push((
+                    let menu = self.make_menu();
+                    self.inner.push((
                         "Fallback".to_string(),
                         Some(ShellInfo {
                             id,
-                            menu: Menu::new(),
+                            menu,
                             toast_id: None,
                             osd_id: None,
                             position,
@@ -319,7 +344,7 @@ impl Outputs {
         debug!("Syncing outputs: {self:?}, request_outputs: {request_outputs:?}");
 
         let to_remove = self
-            .0
+            .inner
             .iter()
             .filter_map(|(name, shell_info, output_id)| {
                 if !Self::name_in_config(name, request_outputs) && shell_info.is_some() {
@@ -332,7 +357,7 @@ impl Outputs {
         debug!("Removing outputs: {to_remove:?}");
 
         let to_add = self
-            .0
+            .inner
             .iter()
             .filter_map(|(name, shell_info, output_id)| {
                 if Self::name_in_config(name, request_outputs) && shell_info.is_none() {
@@ -364,7 +389,7 @@ impl Outputs {
             tasks.push(self.remove(style, position, layer, output_id, scale_factor));
         }
 
-        for shell_info in self.0.iter_mut().filter_map(|(_, shell_info, _)| {
+        for shell_info in self.inner.iter_mut().filter_map(|(_, shell_info, _)| {
             if let Some(shell_info) = shell_info
                 && shell_info.position != position
             {
@@ -389,7 +414,8 @@ impl Outputs {
         }
 
         // Handle layer changes - only recreate surfaces when layer actually changes
-        for (_name, shell_info, output_id) in &mut self.0 {
+        let animations_enabled = self.animations_enabled;
+        for (_name, shell_info, output_id) in &mut self.inner {
             if let Some(shell_info) = shell_info
                 && shell_info.layer != layer
             {
@@ -399,8 +425,10 @@ impl Outputs {
                 let (id, create_task) =
                     Self::create_output_layers(style, *output_id, position, layer, scale_factor);
 
+                let mut menu = Menu::new();
+                menu.set_animations_enabled(animations_enabled);
                 shell_info.id = id;
-                shell_info.menu = Menu::new();
+                shell_info.menu = menu;
                 shell_info.toast_id = None;
                 shell_info.osd_id = None;
                 shell_info.style = style;
@@ -410,7 +438,7 @@ impl Outputs {
             }
         }
 
-        for shell_info in self.0.iter_mut().filter_map(|(_, shell_info, _)| {
+        for shell_info in self.inner.iter_mut().filter_map(|(_, shell_info, _)| {
             if let Some(shell_info) = shell_info
                 && (shell_info.style != style || shell_info.scale_factor != scale_factor)
             {
@@ -439,7 +467,7 @@ impl Outputs {
         &self,
         id: SurfaceId,
     ) -> Option<&(String, Option<ShellInfo>, Option<OutputId>)> {
-        self.0.iter().find(|(_, shell_info, _)| {
+        self.inner.iter().find(|(_, shell_info, _)| {
             shell_info
                 .as_ref()
                 .is_some_and(|si| si.id == id || si.menu.surface_id() == Some(id))
@@ -450,7 +478,7 @@ impl Outputs {
         &mut self,
         id: SurfaceId,
     ) -> Option<&mut (String, Option<ShellInfo>, Option<OutputId>)> {
-        self.0.iter_mut().find(|(_, shell_info, _)| {
+        self.inner.iter_mut().find(|(_, shell_info, _)| {
             shell_info
                 .as_ref()
                 .is_some_and(|si| si.id == id || si.menu.surface_id() == Some(id))
@@ -458,18 +486,50 @@ impl Outputs {
     }
 
     pub fn menu_is_open(&self) -> bool {
-        self.0
+        self.inner
             .iter()
             .any(|(_, shell_info, _)| shell_info.as_ref().is_some_and(|si| si.menu.is_open()))
     }
 
-    pub fn toggle_menu<Message: 'static>(
+    /// True if the menu rendered on the given surface is mid-close animation
+    /// (surface still alive, but `MenuWrapper` should animate progress 1→0).
+    pub fn menu_is_closing(&self, id: SurfaceId) -> bool {
+        self.inner.iter().any(|(_, shell_info, _)| {
+            shell_info
+                .as_ref()
+                .is_some_and(|si| si.menu.surface_id() == Some(id) && si.menu.is_closing())
+        })
+    }
+
+    /// Propagate the global `animations.enabled` flag to every existing menu
+    /// and remember it for any menus created later (when new outputs are
+    /// added). Called on startup and on config hot-reload.
+    pub fn set_animations_enabled(&mut self, enabled: bool) {
+        self.animations_enabled = enabled;
+        for (_, shell_info, _) in self.inner.iter_mut() {
+            if let Some(si) = shell_info.as_mut() {
+                si.menu.set_animations_enabled(enabled);
+            }
+        }
+    }
+
+    /// Second phase of `close_menu` — actually destroys the surface after
+    /// the close animation has played. Driven by `Message::FinishCloseMenu`.
+    pub fn finish_close_menu(&mut self, id: SurfaceId) -> Task<crate::app::Message> {
+        if let Some((_, Some(shell_info), _)) = self.find_by_surface_id_mut(id) {
+            shell_info.menu.finish_close()
+        } else {
+            Task::none()
+        }
+    }
+
+    pub fn toggle_menu(
         &mut self,
         id: SurfaceId,
         menu_type: MenuType,
         button_ui_ref: ButtonUIRef,
         request_keyboard: bool,
-    ) -> Task<Message> {
+    ) -> Task<crate::app::Message> {
         let task = match self.find_by_surface_id_mut(id) {
             Some((_, Some(shell_info), output_id)) => {
                 let output_id = *output_id;
@@ -478,7 +538,7 @@ impl Outputs {
                         .menu
                         .toggle(menu_type, button_ui_ref, request_keyboard, output_id);
                 let mut tasks = self
-                    .0
+                    .inner
                     .iter_mut()
                     .filter_map(|(_, shell_info, _)| {
                         if let Some(shell_info) = shell_info {
@@ -517,14 +577,14 @@ impl Outputs {
     }
 
     /// Disable keyboard interactivity on all outputs if no menus remain open.
-    fn maybe_release_all_keyboards<Message: 'static>(
+    fn maybe_release_all_keyboards(
         &self,
-        task: Task<Message>,
+        task: Task<crate::app::Message>,
         esc_button_enabled: bool,
-    ) -> Task<Message> {
+    ) -> Task<crate::app::Message> {
         if esc_button_enabled && !self.menu_is_open() {
             let keyboard_tasks = self
-                .0
+                .inner
                 .iter()
                 .filter_map(|(_, shell_info, _)| {
                     shell_info
@@ -538,12 +598,12 @@ impl Outputs {
         }
     }
 
-    pub fn close_menu<Message: 'static>(
+    pub fn close_menu(
         &mut self,
         id: SurfaceId,
         menu_type: Option<MenuType>,
         esc_button_enabled: bool,
-    ) -> Task<Message> {
+    ) -> Task<crate::app::Message> {
         let task = match self.find_by_surface_id_mut(id) {
             Some((_, Some(shell_info), _)) => match menu_type {
                 Some(mt) => shell_info.menu.close_if(mt),
@@ -555,13 +615,13 @@ impl Outputs {
         self.maybe_release_all_keyboards(task, esc_button_enabled)
     }
 
-    pub fn close_all_menu_if<Message: 'static>(
+    pub fn close_all_menu_if(
         &mut self,
         menu_type: MenuType,
         esc_button_enabled: bool,
-    ) -> Task<Message> {
+    ) -> Task<crate::app::Message> {
         let task = Task::batch(
-            self.0
+            self.inner
                 .iter_mut()
                 .filter_map(|(_, shell_info, _)| {
                     shell_info
@@ -574,9 +634,9 @@ impl Outputs {
         self.maybe_release_all_keyboards(task, esc_button_enabled)
     }
 
-    pub fn close_all_menus<Message: 'static>(&mut self, esc_button_enabled: bool) -> Task<Message> {
+    pub fn close_all_menus(&mut self, esc_button_enabled: bool) -> Task<crate::app::Message> {
         let task = Task::batch(
-            self.0
+            self.inner
                 .iter_mut()
                 .filter_map(|(_, shell_info, _)| {
                     shell_info
@@ -617,7 +677,7 @@ impl Outputs {
     ) -> Task<Message> {
         let mut tasks = vec![];
 
-        for (_, shell_info, _) in &mut self.0 {
+        for (_, shell_info, _) in &mut self.inner {
             if let Some(shell_info) = shell_info
                 && shell_info.toast_id.is_none()
             {
@@ -663,7 +723,7 @@ impl Outputs {
         let content_w = content_size.width.ceil() as i32;
         let content_h = content_size.height.ceil() as i32;
         let mut tasks = vec![];
-        for (_, shell_info, _) in &self.0 {
+        for (_, shell_info, _) in &self.inner {
             if let Some(shell_info) = shell_info
                 && let Some(toast_id) = shell_info.toast_id
             {
@@ -691,7 +751,7 @@ impl Outputs {
 
     /// Store the logical height for an output (used for bottom-aligned toast input regions).
     pub fn set_output_logical_height(&mut self, output_id: OutputId, height: u32) {
-        for (_, shell_info, oid) in &mut self.0 {
+        for (_, shell_info, oid) in &mut self.inner {
             if *oid == Some(output_id)
                 && let Some(info) = shell_info
             {
@@ -702,7 +762,7 @@ impl Outputs {
 
     pub fn hide_toast_layer<Message: 'static>(&mut self) -> Task<Message> {
         let mut tasks = vec![];
-        for (_, shell_info, _) in &mut self.0 {
+        for (_, shell_info, _) in &mut self.inner {
             if let Some(shell_info) = shell_info
                 && let Some(toast_id) = shell_info.toast_id.take()
             {
@@ -715,7 +775,7 @@ impl Outputs {
     /// Create a centered bottom-anchored overlay surface per output to render the OSD.
     pub fn show_osd_layer<Message: 'static>(&mut self, width: u32, height: u32) -> Task<Message> {
         let mut tasks = vec![];
-        for (_, shell_info, _) in &mut self.0 {
+        for (_, shell_info, _) in &mut self.inner {
             if let Some(shell_info) = shell_info
                 && shell_info.osd_id.is_none()
             {
@@ -739,7 +799,7 @@ impl Outputs {
 
     pub fn hide_osd_layer<Message: 'static>(&mut self) -> Task<Message> {
         let mut tasks = vec![];
-        for (_, shell_info, _) in &mut self.0 {
+        for (_, shell_info, _) in &mut self.inner {
             if let Some(shell_info) = shell_info
                 && let Some(osd_id) = shell_info.osd_id.take()
             {
