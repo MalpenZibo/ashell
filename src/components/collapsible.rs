@@ -10,18 +10,22 @@ use std::time::{Duration, Instant};
 
 type Element<'a, Message, Theme, Renderer> = iced::core::Element<'a, Message, Theme, Renderer>;
 
+pub const DEFAULT_DURATION: Duration = Duration::from_millis(200);
+
 struct State {
     height_anim: Animation<f32>,
     last_expanded: bool,
     initialized: bool,
+    key: u64,
 }
 
 impl State {
-    fn new() -> Self {
+    fn new(key: u64) -> Self {
         Self {
             height_anim: Animation::new(0.0),
             last_expanded: false,
             initialized: false,
+            key,
         }
     }
 }
@@ -40,6 +44,7 @@ where
     duration: Duration,
     easing: Easing,
     animated: bool,
+    key: u64,
     open_padding_top: f32,
     open_padding_bottom: f32,
 }
@@ -62,6 +67,12 @@ where
     /// expanded/collapsed states instead of tweening.
     pub fn animated(mut self, animated: bool) -> Self {
         self.animated = animated;
+        self
+    }
+
+    /// Sets a unique key for state reset when the content identity changes.
+    pub fn key(mut self, key: u64) -> Self {
+        self.key = key;
         self
     }
 
@@ -94,7 +105,7 @@ where
     }
 
     fn state(&self) -> tree::State {
-        tree::State::new(State::new())
+        tree::State::new(State::new(self.key))
     }
 
     fn children(&self) -> Vec<Tree> {
@@ -102,6 +113,15 @@ where
     }
 
     fn diff(&self, tree: &mut Tree) {
+        let state = tree.state.downcast_mut::<State>();
+        if state.key != self.key {
+            // Different content occupies this slot; settle at current target
+            // without animating so we don't replay expand on position shifts.
+            state.height_anim = Animation::new(0.0);
+            state.last_expanded = self.expanded;
+            state.initialized = true;
+            state.key = self.key;
+        }
         tree.diff_children(std::slice::from_ref(&self.content));
     }
 
@@ -313,9 +333,10 @@ where
     Collapsible {
         content: content.into(),
         expanded,
-        duration: Duration::from_millis(200),
+        duration: DEFAULT_DURATION,
         easing: Easing::EaseOutCubic,
         animated: true,
+        key: 0,
         open_padding_top: 0.0,
         open_padding_bottom: 0.0,
     }

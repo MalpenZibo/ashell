@@ -127,7 +127,7 @@ impl App {
             ));
             init_localizer(resolve_localizer(&config));
 
-            let notifications = Notifications::new(config.notifications);
+            let notifications = Notifications::new(config.notifications, config.animations.enabled);
 
             (
                 App {
@@ -214,6 +214,8 @@ impl App {
             .update(modules::media_player::Message::ConfigReloaded(
                 config.media_player,
             ));
+        self.notifications
+            .set_animations_enabled(config.animations.enabled);
         let _ = self
             .notifications
             .update(modules::notifications::Message::ConfigReloaded(
@@ -528,7 +530,10 @@ impl App {
                 modules::notifications::Action::Task(task) => task.map(Message::Notifications),
                 modules::notifications::Action::Show(task) => {
                     let position = self.notifications.toast_position();
-                    let width = crate::components::MenuSize::Medium.size() as u32;
+                    // Surface width = card width + slide runway (card_width so card fully
+                    // exits during slide-out).
+                    let card_width = crate::components::MenuSize::Medium.size() as u32;
+                    let width = card_width * 2;
                     Task::batch(vec![
                         task.map(Message::Notifications),
                         self.outputs.show_toast_layer(width, position),
