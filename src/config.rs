@@ -627,6 +627,8 @@ pub enum MediaPlayerFormat {
     Icon,
     #[default]
     IconAndTitle,
+    Cover,
+    CoverAndTitle
 }
 
 #[derive(Deserialize, Clone, Debug)]

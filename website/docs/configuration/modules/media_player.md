@@ -14,12 +14,14 @@ using the `max_title_length` field (default: `100`).
 The tray indicator can show either the media icon alone or the icon together with
 the current title. Configure this with the `indicator_format` field:
 
-| Value          | Description                                                |
-| -------------- | ---------------------------------------------------------- |
-| `Icon`         | Displays only the media icon in the status bar.            |
-| `IconAndTitle` | Displays the icon followed by the current title (default). |
+| Value          | Description                                                                                                  |
+| -------------- | ------------------------------------------------------------------------------------------------------------ |
+| `Icon`         | Displays only the media icon in the status bar.                                                              |
+| `IconAndTitle` | Displays the icon followed by the current title (default).                                                   |
+| `Cover`        | Displays cover art when available; otherwise falls back to the media icon.                                   |
+| `CoverAndTitle`| Displays cover art followed by the current title; if cover art is unavailable, falls back to icon and title. |
 
-Use `Icon` if you want a compact indicator or have limited space.
+Use `Icon` or `Cover` if you want a compact indicator or have limited space.
 
 ## Menu
 
