@@ -38,17 +38,8 @@ impl State {
     }
 }
 
-/// A widget that automatically animates width changes of its content.
-///
-/// Wrap any element in `AnimatedSize` and it will smoothly transition
-/// when the content's natural width changes. No messages, subscriptions,
-/// or manual state management needed.
-///
-/// # Example
-/// ```ignore
-/// animated_size(text("Hello"))
-///     .duration(Duration::from_millis(400))
-/// ```
+/// Smoothly animates size changes of its content along one or both axes.
+/// Defaults to width-only; configure with [`axis`](Self::axis).
 pub struct AnimatedSize<'a, Message, Theme = iced::Theme, Renderer = iced::Renderer>
 where
     Renderer: iced::core::Renderer,
@@ -79,8 +70,7 @@ where
         self
     }
 
-    /// When true, the first layout animates from zero size.
-    /// Useful for elements that appear/disappear (sub-menus, toasts).
+    /// Animate from zero on the first layout (for appear/disappear elements).
     pub fn animate_initial(mut self, animate: bool) -> Self {
         self.animate_initial = animate;
         self
@@ -306,7 +296,7 @@ where
     }
 }
 
-/// Wraps content in a widget that automatically animates width changes.
+/// Wraps content in an [`AnimatedSize`] with default settings (width-only, 100ms).
 pub fn animated_size<'a, Message, Theme, Renderer>(
     content: impl Into<Element<'a, Message, Theme, Renderer>>,
 ) -> AnimatedSize<'a, Message, Theme, Renderer>
@@ -315,7 +305,7 @@ where
 {
     AnimatedSize {
         content: content.into(),
-        duration: Duration::from_millis(200),
+        duration: Duration::from_millis(100),
         easing: Easing::EaseOutCubic,
         axis: AnimationAxis::Width,
         animate_initial: false,
