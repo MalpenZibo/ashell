@@ -63,7 +63,7 @@ impl Localizer {
     pub fn resolve(language: Option<&str>, region: Option<&str>) -> Self {
         let langid = resolve_language(language);
         let chrono = resolve_region(region);
-        let units = resolve_units(chrono);
+        let units = resolve_units(region, chrono);
         let loader = load_loader(&langid);
         Self {
             chrono,
@@ -154,9 +154,10 @@ fn derive_units(c: Locale) -> UnitSystem {
 
 // `LC_MEASUREMENT` is independent from `LC_TIME` in glibc, so users with
 // `LANG=en_US.UTF-8` + `LC_MEASUREMENT=de_DE.UTF-8` get metric without
-// having to override their date-format locale.
-fn resolve_units(chrono: Locale) -> UnitSystem {
-    env_chain(None, "LC_MEASUREMENT")
+// having to override their date-format locale. The `config` override (from
+// `region` in config.toml) wins over env, mirroring `resolve_region`.
+fn resolve_units(config: Option<&str>, chrono: Locale) -> UnitSystem {
+    env_chain(config, "LC_MEASUREMENT")
         .as_deref()
         .map(units_from_locale_name)
         .unwrap_or_else(|| derive_units(chrono))
