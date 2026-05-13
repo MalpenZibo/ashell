@@ -507,7 +507,8 @@ impl NetworkSettings {
         active_connection: Option<(&str, u8)>,
         show_more_button: bool,
     ) -> Element<'a, Message> {
-        let (space, font_size) = use_theme(|t| (t.space, t.font_size));
+        let (space, font_size, animated) =
+            use_theme(|t| (t.space, t.font_size, t.animations_enabled));
         let main = column!(
             row!(
                 text(t!("settings-network-nearby-wifi")).width(Length::Fill),
@@ -517,7 +518,18 @@ impl NetworkSettings {
                     String::new()
                 })
                 .size(font_size.sm),
-                icon_button(StaticIcon::Refresh).on_press(Message::ScanNearByWiFi)
+                if service.scanning_nearby_wifi {
+                    crate::components::spinning_icon::spinning_icon(
+                        true,
+                        font_size.xs,
+                        animated,
+                    )
+                    .map(|_| Message::ScanNearByWiFi)
+                } else {
+                    icon_button(StaticIcon::Refresh)
+                        .on_press(Message::ScanNearByWiFi)
+                        .into()
+                }
             )
             .spacing(space.xs)
             .width(Length::Fill)
