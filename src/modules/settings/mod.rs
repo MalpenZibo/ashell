@@ -35,8 +35,7 @@ pub(crate) mod brightness;
 pub(crate) mod network;
 mod power;
 
-/// A quick-setting button paired with an optional collapsible sub-menu.
-/// The tuple contains (expanded, submenu_content) when a sub-menu exists.
+/// Button + optional `(expanded, sub-menu content)` pair.
 type QuickSettingEntry<'a> = (Element<'a, Message>, Option<(bool, Element<'a, Message>)>);
 
 pub struct Settings {
@@ -232,15 +231,12 @@ impl Settings {
         }
     }
 
-    /// Close the currently-open sub-menu (if any). The close animation plays
-    /// via the Collapsible widget, which stays in the tree at height 0 between
-    /// toggles. No task is needed — the Collapsible's own animation absorbs
-    /// the neighboring spacing too, so removal timing doesn't matter.
+    /// The Collapsible owns the close animation and the surrounding spacing,
+    /// so this is just a state flip.
     fn close_submenu(&mut self) {
         self.sub_menu = None;
     }
 
-    /// Toggle a sub-menu: open it if it's not the current one, close it if it is.
     fn toggle_submenu_to(&mut self, target: SubMenu) {
         if self.sub_menu == Some(target) {
             self.sub_menu = None;
@@ -653,13 +649,10 @@ impl Settings {
                 .collect::<Vec<_>>(),
             );
 
-            // Each "group" is a nested Column (spacing=0) that bundles a
-            // trigger widget with its Collapsible sub-menu. The Collapsible's
-            // own animated height includes the space.md gap that would have
-            // sat between trigger and sub-menu, so the outer Column's
-            // spacing=space.md only ever applies *between* groups. That
-            // keeps layout stable when sub-menus toggle — no Column spacing
-            // appearing or vanishing around a zero-height child.
+            // Each group is a Column(spacing=0) bundling a trigger with its
+            // Collapsible sub-menu. The Collapsible bakes in the inter-row gap,
+            // so the outer space.md spacing applies only *between* groups —
+            // no spacing jumps when a sub-menu collapses to zero height.
             let animated = use_theme(|t| t.animations_enabled);
             let header_group = {
                 let mut col = Column::<'a, Message>::with_capacity(3).spacing(0);
@@ -840,10 +833,8 @@ impl Settings {
     }
 }
 
-/// Bundle an audio slider with its optional sub-menu. The sub-menu sits below
-/// the slider in Top-bar mode and above it in Bottom-bar mode; in both cases
-/// the Collapsible's animated padding holds the gap between slider and content
-/// so the outer Column's spacing applies only between groups.
+/// Slider + optional sub-menu as one group. Sub-menu sits below (Top bar) or
+/// above (Bottom bar); the Collapsible's animated padding holds the inter-row gap.
 fn audio_group<'a>(
     position: Position,
     slider: Element<'a, Message>,
@@ -874,11 +865,8 @@ fn quick_settings_section<'a>(buttons: Vec<QuickSettingEntry<'a>>) -> Element<'a
 
     let mut buttons_iter = buttons.into_iter();
     while let Some((left_button, left_menu)) = buttons_iter.next() {
-        // Bundle the button row with any collapsibles as one group so the
-        // outer section's `spacing(space.xs)` only applies between groups.
-        // Inside each group, spacing=0 and each Collapsible owns its own
-        // animated top padding — that way a settled-collapsed sub-menu
-        // contributes zero height instead of leaving orphan Column spacing.
+        // Bundle button row + Collapsibles as one group; outer spacing.xs
+        // applies between groups only.
         let mut group = Column::<'a, Message>::with_capacity(3).spacing(0);
 
         let (button_row, right_menu): (Element<'a, Message>, _) =

@@ -26,11 +26,8 @@ impl State {
     }
 }
 
-/// A widget that smoothly collapses/expands its content vertically.
-///
-/// Unlike `AnimatedSize`, this widget is state-driven: it takes an `expanded`
-/// boolean and always stays in the tree, animating height between 0 and the
-/// content's natural height.
+/// State-driven collapse/expand: stays in the tree and animates height
+/// between 0 and the child's natural height based on `expanded`.
 pub struct Collapsible<'a, Message, Theme = iced::Theme, Renderer = iced::Renderer>
 where
     Renderer: iced::core::Renderer,
@@ -58,24 +55,21 @@ where
         self
     }
 
-    /// Disables the height animation; the widget snaps between
-    /// expanded/collapsed states instead of tweening.
+    /// When false, snap between expanded/collapsed without tweening.
     pub fn animated(mut self, animated: bool) -> Self {
         self.animated = animated;
         self
     }
 
-    /// Extra empty space above the content when expanded. This space is part
-    /// of the animated height, so neighboring widgets can sit flush against
-    /// the Collapsible (with spacing=0) and still see a proper gap open up.
+    /// Top padding baked into the animated height, so neighbors with
+    /// `spacing=0` still see a gap open up.
     pub fn open_padding_top(mut self, padding: f32) -> Self {
         self.open_padding_top = padding;
         self
     }
 
-    /// Extra empty space below the content when expanded. Mirror of
-    /// `open_padding_top` for cases where the Collapsible sits above its
-    /// trigger instead of below it.
+    /// Bottom counterpart of [`open_padding_top`](Self::open_padding_top),
+    /// for Collapsibles sitting above their trigger.
     pub fn open_padding_bottom(mut self, padding: f32) -> Self {
         self.open_padding_bottom = padding;
         self
@@ -118,8 +112,8 @@ where
         let state = tree.state.downcast_mut::<State>();
         let now = Instant::now();
 
-        // When fully collapsed, not transitioning, and not animating, skip child
-        // layout to avoid issues with complex widgets (scrollables) in zero-height space
+        // Skip child layout when settled-collapsed: some widgets (scrollables)
+        // misbehave in zero-height limits.
         if !self.expanded
             && state.initialized
             && !state.last_expanded
@@ -185,7 +179,6 @@ where
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
     ) {
-        // Only forward events when child is laid out (not fully collapsed)
         if let Some(child_layout) = layout.children().next() {
             self.content.as_widget_mut().update(
                 &mut tree.children[0],
