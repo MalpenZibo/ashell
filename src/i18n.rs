@@ -9,7 +9,10 @@ use i18n_embed::{
 use log::warn;
 use unic_langid::LanguageIdentifier;
 
-const CATALOGS: &[(&str, &str)] = &[("en-US", include_str!("../i18n/en-US/ashell.ftl"))];
+const CATALOGS: &[(&str, &str)] = &[
+    ("en-US", include_str!("../i18n/en-US/ashell.ftl")),
+    ("ru-RU", include_str!("../i18n/ru-RU/ashell.ftl")),
+];
 
 const FALLBACK_LANG: &str = "en-US";
 const TRANSLATION_FILE: &str = "ashell.ftl";

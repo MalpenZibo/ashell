@@ -128,14 +128,8 @@ notifications-heading = Notifications
 notifications-empty = No notifications
 notifications-group-count = { $count } new
 
-## System info module
-system-info-heading = System Info
-system-info-cpu-usage = CPU Usage
-system-info-memory-usage = Memory Usage
-system-info-swap-memory-usage = Swap Memory Usage
-system-info-swap-indicator-prefix = swap
-system-info-temperature = Temperature
-system-info-disk-usage = Disk Usage { $mount }
-system-info-ip-address = IP Address
-system-info-download-speed = Download Speed
-system-info-upload-speed = Upload Speed
+## Clipboard module
+clipboard-heading = Clipboard History
+clipboard-empty = Clipboard is empty
+clipboard-loading = Loading clipboard...
+clipboard-image-entry = [Image]
