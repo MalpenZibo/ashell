@@ -19,6 +19,7 @@ pub enum Message {
     WindowTitle(modules::window_title::Message),
     SystemInfo(modules::system_info::Message),
     KeyboardLayout(modules::keyboard_layout::Message),
+    KeyboardLocks(modules::keyboard_locks::Message),
     KeyboardSubmap(modules::keyboard_submap::Message),
     Tray(modules::tray::Message),
     Tempo(modules::tempo::Message),

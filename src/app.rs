@@ -9,6 +9,7 @@ use crate::{
         self,
         custom_module::Custom,
         keyboard_layout::KeyboardLayout,
+        keyboard_locks::KeyboardLocks,
         keyboard_submap::KeyboardSubmap,
         media_player::MediaPlayer,
         notifications::Notifications,
@@ -62,6 +63,7 @@ pub struct App {
     pub window_title: WindowTitle,
     pub system_info: SystemInfo,
     pub keyboard_layout: KeyboardLayout,
+    pub keyboard_locks: KeyboardLocks,
     pub keyboard_submap: KeyboardSubmap,
     pub tray: TrayModule,
     pub tempo: Tempo,
@@ -132,6 +134,7 @@ impl App {
                     window_title: WindowTitle::new(config.window_title),
                     system_info: SystemInfo::new(config.system_info),
                     keyboard_layout: KeyboardLayout::new(config.keyboard_layout),
+                    keyboard_locks: KeyboardLocks::new(config.keyboard_locks),
                     keyboard_submap: KeyboardSubmap::default(),
                     tray: TrayModule::new(config.tray),
                     tempo: Tempo::new(config.tempo),
@@ -197,6 +200,10 @@ impl App {
             .map(Message::KeyboardLayout);
 
         self.keyboard_submap = KeyboardSubmap::default();
+        self.keyboard_locks
+            .update(modules::keyboard_locks::Message::ConfigReloaded(
+                config.keyboard_locks,
+            ));
         self.tempo
             .update(modules::tempo::Message::ConfigReloaded(config.tempo));
         self.settings
@@ -340,6 +347,10 @@ impl App {
                 .map(Message::KeyboardLayout),
             Message::KeyboardSubmap(message) => {
                 self.keyboard_submap.update(message);
+                Task::none()
+            }
+            Message::KeyboardLocks(message) => {
+                self.keyboard_locks.update(message);
                 Task::none()
             }
             Message::Tray(msg) => match self.tray.update(msg) {
