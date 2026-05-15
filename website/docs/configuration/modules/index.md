@@ -66,6 +66,10 @@ Displays the current keyboard layout and allows switching between layouts.
 
 Displays the current keyboard submap.
 
+### KeyboardLocks
+
+Displays the state of the keyboard lock keys (Caps Lock, Num Lock, Scroll Lock).
+
 ### CustomModule
 
 Allows creating custom modules with user-defined functionality.

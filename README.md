@@ -27,6 +27,7 @@
 - System Information (CPU, RAM, Disk, IP address, Network speed, Temperature) with warn/alert thresholds
 - Hyprland/Niri Keyboard Layout with custom labels
 - Hyprland Keyboard Submap
+- Keyboard Locks indicator (Caps Lock, Num Lock, Scroll Lock)
 - System Tray with context menus
 - Clock with calendar, weather, timezone cycling, and format cycling (Tempo)
 - Privacy indicators (microphone, camera, and screenshare usage)
