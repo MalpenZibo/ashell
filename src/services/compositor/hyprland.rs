@@ -14,7 +14,22 @@ use itertools::Itertools;
 use std::sync::{Arc, RwLock};
 use tokio::sync::broadcast;
 
-pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
+/// Detect whether Hyprland is using Lua or hyprlang config.
+/// Checks `hyprctl status` for the `configProvider` field.
+/// Falls back to hyprlang (false) if detection fails.
+fn is_lua_config() -> bool {
+    std::process::Command::new("hyprctl")
+        .arg("status")
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.lines().any(|l| l.starts_with("configProvider: lua")))
+        .unwrap_or(false)
+}
+
+/// Dispatch a command using the old hyprlang socket protocol.
+/// Works on all Hyprland versions but is broken on 0.55+ with Lua config.
+fn dispatch_hyprlang(cmd: CompositorCommand) -> Result<()> {
     match cmd {
         CompositorCommand::FocusWorkspace(id) => {
             Dispatch::call(DispatchType::Workspace(WorkspaceIdentifierWithSpecial::Id(
@@ -49,6 +64,51 @@ pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// Dispatch a command using the new Lua eval protocol.
+/// Required for Hyprland 0.55+ with Lua config.
+fn dispatch_lua(cmd: CompositorCommand) -> Result<()> {
+    let lua = match cmd {
+        CompositorCommand::FocusWorkspace(id) => {
+            format!("hl.dispatch(hl.dsp.focus({{ workspace = {id} }}))")
+        }
+        CompositorCommand::FocusSpecialWorkspace(name) => {
+            format!("hl.dispatch(hl.dsp.focus({{ workspace = \"special:{name}\" }}))")
+        }
+        CompositorCommand::ToggleSpecialWorkspace(name) => {
+            format!("hl.dispatch(hl.dsp.workspace.toggle_special(\"{name}\"))")
+        }
+        CompositorCommand::FocusMonitor(id) => {
+            format!("hl.dispatch(hl.dsp.focus({{ monitor = {id} }}))")
+        }
+        CompositorCommand::ScrollWorkspace(dir) => {
+            let d = if dir > 0 { "+1" } else { "-1" };
+            format!("hl.dispatch(hl.dsp.focus({{ workspace = \"{d}\" }}))")
+        }
+        CompositorCommand::NextLayout => {
+            hyprland::ctl::switch_xkb_layout::call(
+                "all",
+                hyprland::ctl::switch_xkb_layout::SwitchXKBLayoutCmdTypes::Next,
+            )?;
+            return Ok(());
+        }
+        CompositorCommand::CustomDispatch(dispatcher, args) => {
+            format!("hl.dispatch(hl.dsp.{dispatcher}({args}))")
+        }
+    };
+    std::process::Command::new("hyprctl")
+        .args(["eval", &lua])
+        .output()?;
+    Ok(())
+}
+
+pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
+    if is_lua_config() {
+        dispatch_lua(cmd)
+    } else {
+        dispatch_hyprlang(cmd)
+    }
 }
 
 #[derive(Debug, Clone, Default)]
