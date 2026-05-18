@@ -682,8 +682,8 @@ impl Tempo {
                                             row!(
                                                 text(format!(
                                                     "{}{temp}/{}{temp}",
-                                                    temp_min.round(),
-                                                    temp_max.round()
+                                                    temp_max.round(),
+                                                    temp_min.round()
                                                 ))
                                                 .width(Length::Shrink),
                                                 row!(
