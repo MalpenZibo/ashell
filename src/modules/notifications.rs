@@ -514,7 +514,7 @@ impl Notifications {
         );
 
         if toast {
-            card = card.max_height(self.config.toast_max_height);
+            card = card.max_height(self.config.toast_max_height).clip(true);
         }
 
         button(card)
