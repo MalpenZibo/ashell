@@ -95,6 +95,7 @@ i18n-embed = { version = "0.16", default-features = false, features = [
 i18n-embed-fl = "0.10"
 rust-embed = "8"
 unic-langid = "0.9"
+xdg = "2.5.2"
 
 [patch.crates-io]
 # Patched softbuffer that uses wl_shm Argb8888 so the tiny-skia fallback

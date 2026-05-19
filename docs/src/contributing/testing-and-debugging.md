@@ -6,10 +6,10 @@ ashell does not currently have an automated test suite. Testing is done manually
 
 ## Debugging with Logs
 
-ashell writes logs to `/tmp/ashell/`. To watch logs in real time:
+ashell writes logs to `$XDG_STATE_HOME/ashell/`. To watch logs in real time:
 
 ```bash
-tail -f /tmp/ashell/*.log
+tail -f $XDG_STATE_HOME/ashell/*.log
 ```
 
 ### Adjusting Log Level
@@ -39,7 +39,7 @@ In debug builds (`cargo build` without `--release`), all logs are also printed t
 Check logs for initialization errors:
 
 ```bash
-grep -i "error\|failed\|panic" /tmp/ashell/*.log
+grep -i "error\|failed\|panic" $XDG_STATE_HOME/ashell/*.log
 ```
 
 ### D-Bus Issues
@@ -76,7 +76,7 @@ WGPU_BACKEND=gl ashell
 You can run ashell with a custom config for testing:
 
 ```bash
-ashell --config-path /tmp/test-config.toml
+ashell --config-path $XDG_STATE_HOME/test-config.toml
 ```
 
 Create a minimal config to test specific features in isolation.

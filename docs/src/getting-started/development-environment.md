@@ -62,7 +62,7 @@ The default config path is `~/.config/ashell/config.toml`.
 
 ## Logging
 
-ashell uses [flexi_logger](https://docs.rs/flexi_logger) and writes logs to `/tmp/ashell/`.
+ashell uses [flexi_logger](https://docs.rs/flexi_logger) and writes logs to `$XDG_STATE_HOME/ashell/`.
 
 - Log files rotate daily and are kept for 7 days.
 - In debug builds, logs are also printed to stdout.
@@ -72,7 +72,7 @@ ashell uses [flexi_logger](https://docs.rs/flexi_logger) and writes logs to `/tm
 To watch logs in real time:
 
 ```bash
-tail -f /tmp/ashell/*.log
+tail -f $XDG_STATE_HOME/ashell/*.log
 ```
 
 ## IPC Socket

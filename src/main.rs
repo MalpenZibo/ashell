@@ -8,8 +8,10 @@ use flexi_logger::{
 use iced::{Anchor, Font, KeyboardInteractivity, Layer, LayerShellSettings};
 use log::{debug, error, warn};
 use std::backtrace::Backtrace;
+use std::env;
 use std::panic;
 use std::path::PathBuf;
+use xdg::BaseDirectories;
 
 mod app;
 mod components;
@@ -78,12 +80,16 @@ fn main() -> iced::Result {
 
     debug!("args: {args:?}");
 
+    let logdir = match BaseDirectories::with_prefix("ashell") {
+        Ok(dirs) => dirs.get_state_home(),
+        Err(_) => [env::temp_dir(), PathBuf::from("ashell")].iter().collect(),
+    };
     let logger = Logger::with(
         LogSpecBuilder::new()
             .default(log::LevelFilter::Info)
             .build(),
     )
-    .log_to_file(FileSpec::default().directory("/tmp/ashell"))
+    .log_to_file(FileSpec::default().directory(logdir))
     .duplicate_to_stdout(flexi_logger::Duplicate::All)
     .rotate(
         Criterion::AgeOrSize(Age::Day, TMP_FILE_SIZE),

@@ -91,4 +91,4 @@ log_level = "warn,ashell::modules::my_module=debug"
 1. Start ashell: `make start`
 2. Edit `~/.config/ashell/config.toml` in another terminal
 3. Save — changes should appear immediately
-4. Check logs if changes don't apply: `tail -f /tmp/ashell/*.log`
+4. Check logs if changes don't apply: `tail -f $XDG_STATE_HOME/ashell/*.log`
