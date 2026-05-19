@@ -43,7 +43,7 @@ pub struct TrayModule {
     service: Option<TrayService>,
     submenus: Vec<i32>,
     blocklist: Vec<crate::config::RegexCfg>,
-    right_click: TrayClickAction,
+    right_click: Option<TrayClickAction>,
 }
 
 impl TrayModule {
@@ -239,13 +239,11 @@ impl TrayModule {
 
                                 let mut btn = position_button(icon_content);
                                 btn = match &self.right_click {
-                                    TrayClickAction::None => {
-                                        btn.on_press_with_position(toggle_menu.clone())
-                                    }
-                                    TrayClickAction::Open => btn
+                                    None => btn.on_press_with_position(toggle_menu.clone()),
+                                    Some(TrayClickAction::Open) => btn
                                         .on_press_with_position(toggle_menu.clone())
                                         .on_right_press(open_app.clone()),
-                                    TrayClickAction::Menu => btn
+                                    Some(TrayClickAction::Menu) => btn
                                         .on_press(open_app.clone())
                                         .on_right_press_with_position(toggle_menu.clone()),
                                 };

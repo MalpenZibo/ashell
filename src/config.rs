@@ -439,11 +439,9 @@ impl Default for NotificationsModuleConfig {
     }
 }
 
-#[derive(Deserialize, Default, Clone, Debug, PartialEq, Eq)]
+#[derive(Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum TrayClickAction {
-    #[default]
-    None,
     Open,
     Menu,
 }
@@ -452,7 +450,7 @@ pub enum TrayClickAction {
 #[serde(default)]
 pub struct TrayModuleConfig {
     pub blocklist: Vec<RegexCfg>,
-    pub right_click: TrayClickAction,
+    pub right_click: Option<TrayClickAction>,
 }
 
 #[derive(Deserialize, Clone, Debug)]

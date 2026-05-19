@@ -16,9 +16,8 @@ You can filter which tray icons are displayed using the `blocklist` option. If a
 
 ## Click Behavior
 
-You can configure what happens when right-clicking a tray icon using `right_click`. The left click behavior is automatically set to the complement.
+You can configure what happens when right-clicking a tray icon using `right_click`. The left click behavior is automatically set to the complement. If omitted, only left click is active and opens the context menu.
 
-- `"none"` — no right click action; left click opens the context menu (default)
 - `"open"` — right click activates the application (e.g. show/raise its window); left click opens the context menu
 - `"menu"` — right click opens the context menu; left click activates the application
 
@@ -45,5 +44,4 @@ The default configuration is:
 ```toml
 [tray]
 blocklist = []
-right_click = "none"
 ```
