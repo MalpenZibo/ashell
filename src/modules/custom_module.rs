@@ -27,7 +27,7 @@ use tokio::{
 
 #[derive(Debug, Clone)]
 pub struct Custom {
-    config: CustomModuleDef,
+    pub config: CustomModuleDef,
     data: CustomListenData,
 }
 
@@ -40,6 +40,10 @@ pub struct CustomListenData {
 #[derive(Debug, Clone)]
 pub enum Message {
     LaunchCommand,
+    LaunchRightClickCommand,
+    LaunchMiddleClickCommand,
+    LaunchScrollUpCommand,
+    LaunchScrollDownCommand,
     Update(CustomListenData),
 }
 
@@ -86,6 +90,26 @@ impl Custom {
         match msg {
             Message::LaunchCommand => {
                 if let Some(cmd) = &self.config.command {
+                    execute_command(cmd.clone());
+                }
+            }
+            Message::LaunchRightClickCommand => {
+                if let Some(cmd) = &self.config.on_right_click {
+                    execute_command(cmd.clone());
+                }
+            }
+            Message::LaunchMiddleClickCommand => {
+                if let Some(cmd) = &self.config.on_middle_click {
+                    execute_command(cmd.clone());
+                }
+            }
+            Message::LaunchScrollUpCommand => {
+                if let Some(cmd) = &self.config.on_scroll_up {
+                    execute_command(cmd.clone());
+                }
+            }
+            Message::LaunchScrollDownCommand => {
+                if let Some(cmd) = &self.config.on_scroll_down {
                     execute_command(cmd.clone());
                 }
             }

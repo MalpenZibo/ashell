@@ -4,7 +4,7 @@ use iced::{Alignment, Element, Length, widget::container};
 use super::ButtonUIRef;
 
 /// Builder for a bar module item: content wrapped in a position_button
-/// with optional press, right-press, scroll-up, and scroll-down handlers.
+/// with optional press, right-press, middle-press, scroll-up, and scroll-down handlers.
 ///
 /// When no press handler is set, renders as a plain container.
 pub struct ModuleItem<'a, Msg> {
@@ -12,6 +12,7 @@ pub struct ModuleItem<'a, Msg> {
     on_press: Option<Msg>,
     on_press_with_position: Option<Box<dyn Fn(ButtonUIRef) -> Msg + 'a>>,
     on_right_press: Option<Msg>,
+    on_middle_press: Option<Msg>,
     on_scroll_up: Option<Msg>,
     on_scroll_down: Option<Msg>,
 }
@@ -22,6 +23,7 @@ pub fn module_item<'a, Msg: 'static + Clone>(content: Element<'a, Msg>) -> Modul
         on_press: None,
         on_press_with_position: None,
         on_right_press: None,
+        on_middle_press: None,
         on_scroll_up: None,
         on_scroll_down: None,
     }
@@ -40,6 +42,11 @@ impl<'a, Msg: 'static + Clone> ModuleItem<'a, Msg> {
 
     pub fn on_right_press(mut self, msg: Msg) -> Self {
         self.on_right_press = Some(msg);
+        self
+    }
+
+    pub fn on_middle_press(mut self, msg: Msg) -> Self {
+        self.on_middle_press = Some(msg);
         self
     }
 
@@ -80,6 +87,9 @@ impl<'a, Msg: 'static + Clone> From<ModuleItem<'a, Msg>> for Element<'a, Msg> {
 
             if let Some(msg) = item.on_right_press {
                 button = button.on_right_press(msg);
+            }
+            if let Some(msg) = item.on_middle_press {
+                button = button.on_middle_press(msg);
             }
             if let Some(msg) = item.on_scroll_up {
                 button = button.on_scroll_up(msg);

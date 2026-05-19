@@ -32,6 +32,13 @@ pub enum OnModulePress {
         on_scroll_up: Option<Box<Message>>,
         on_scroll_down: Option<Box<Message>>,
     },
+    CustomAction {
+        on_press: Box<Message>,
+        on_right_press: Option<Box<Message>>,
+        on_middle_press: Option<Box<Message>>,
+        on_scroll_up: Option<Box<Message>>,
+        on_scroll_down: Option<Box<Message>>,
+    },
 }
 
 impl App {
@@ -118,6 +125,27 @@ impl App {
                             item = item.on_scroll_down(*msg);
                         }
                     }
+                    OnModulePress::CustomAction {
+                        on_press,
+                        on_right_press,
+                        on_middle_press,
+                        on_scroll_up,
+                        on_scroll_down,
+                    } => {
+                        item = item.on_press(*on_press);
+                        if let Some(msg) = on_right_press {
+                            item = item.on_right_press(*msg);
+                        }
+                        if let Some(msg) = on_middle_press {
+                            item = item.on_middle_press(*msg);
+                        }
+                        if let Some(msg) = on_scroll_up {
+                            item = item.on_scroll_up(*msg);
+                        }
+                        if let Some(msg) = on_scroll_down {
+                            item = item.on_scroll_down(*msg);
+                        }
+                    }
                 }
                 item.into()
             }
@@ -167,10 +195,57 @@ impl App {
                 let action = match custom.module_type() {
                     crate::config::CustomModuleType::Text => None,
                     crate::config::CustomModuleType::Button => {
-                        Some(OnModulePress::Action(Box::new(Message::Custom(
-                            name.clone(),
-                            custom_module::Message::LaunchCommand,
-                        ))))
+                        let name = name.clone();
+                        Some(OnModulePress::CustomAction {
+                            on_press: Box::new(Message::Custom(
+                                name.clone(),
+                                custom_module::Message::LaunchCommand,
+                            )),
+                            on_right_press: custom
+                                .config
+                                .on_right_click
+                                .as_ref()
+                                .map(|_| {
+                                    Message::Custom(
+                                        name.clone(),
+                                        custom_module::Message::LaunchRightClickCommand,
+                                    )
+                                })
+                                .map(Box::new),
+                            on_middle_press: custom
+                                .config
+                                .on_middle_click
+                                .as_ref()
+                                .map(|_| {
+                                    Message::Custom(
+                                        name.clone(),
+                                        custom_module::Message::LaunchMiddleClickCommand,
+                                    )
+                                })
+                                .map(Box::new),
+                            on_scroll_up: custom
+                                .config
+                                .on_scroll_up
+                                .as_ref()
+                                .map(|_| {
+                                    Message::Custom(
+                                        name.clone(),
+                                        custom_module::Message::LaunchScrollUpCommand,
+                                    )
+                                })
+                                .map(Box::new),
+                            on_scroll_down: custom
+                                .config
+                                .on_scroll_down
+                                .as_ref()
+                                .map(|_| {
+                                    Message::Custom(
+                                        name,
+                                        custom_module::Message::LaunchScrollDownCommand,
+                                    )
+                                })
+                                .map(Box::new),
+                        })
                     }
                 };
                 (

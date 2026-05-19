@@ -31,30 +31,41 @@ The return type is `Option<(Element, Option<OnModulePress>)>`:
 
 ## OnModulePress
 
-Defines what happens when a user clicks a module:
+Defines what happens when a user clicks or interacts with a module:
 
 ```rust
 pub enum OnModulePress {
-    // Emit a specific message on click
+    // Emit a specific message on left-click
     Action(Box<Message>),
 
-    // Toggle a popup menu
+    // Toggle a popup menu on left-click
     ToggleMenu(MenuType),
 
-    // Toggle menu + right-click and scroll handlers
+    // Toggle menu with right-click and scroll event handlers
     ToggleMenuWithExtra {
         menu_type: MenuType,
         on_right_press: Option<Box<Message>>,
         on_scroll_up: Option<Box<Message>>,
         on_scroll_down: Option<Box<Message>>,
     },
+
+    // Execute arbitrary commands (for custom modules without menus)
+    CustomAction {
+        on_press: Box<Message>,
+        on_right_press: Option<Box<Message>>,
+        on_middle_press: Option<Box<Message>>,
+        on_scroll_up: Option<Box<Message>>,
+        on_scroll_down: Option<Box<Message>>,
+    },
 }
 ```
 
-For example, the Tempo module uses `ToggleMenuWithExtra` to:
-- Left-click: Open the calendar/weather menu
-- Right-click: Cycle the time format
-- Scroll: Cycle through timezones
+### Usage Notes
+
+- **`Action`**: Simple left-click handler, no menu.
+- **`ToggleMenu`**: Left-click opens/closes a popup menu.
+- **`ToggleMenuWithExtra`**: For modules with a menu that also need right-click or scroll handlers (e.g., Tempo: left-click opens calendar, right-click cycles time format, scroll cycles timezones). Middle-click is not supported in this variant.
+- **`CustomAction`**: For custom modules (or any module) that need multiple mouse buttons and scroll events without a menu. Supports left-click, right-click, middle-click, scroll up, and scroll down.
 
 ## get_module_subscription
 
