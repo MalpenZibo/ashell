@@ -37,8 +37,10 @@ fn create_transparent_buffer(
 
     // 4 bytes = one ARGB8888 pixel (all zeros = fully transparent).
     const PIXEL_SIZE: i32 = 4;
-    unsafe {
-        libc::ftruncate(file.as_fd().as_raw_fd(), PIXEL_SIZE as libc::off_t);
+    let ret = unsafe { libc::ftruncate(file.as_fd().as_raw_fd(), PIXEL_SIZE as libc::off_t) };
+    if ret < 0 {
+        warn!("ftruncate failed; cannot size shm buffer for idle inhibitor");
+        return None;
     }
 
     let pool = shm.create_pool(file.as_fd(), PIXEL_SIZE, handle, ());

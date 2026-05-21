@@ -17,7 +17,7 @@ use iced::{
         container,
     },
 };
-use log::{error, info};
+use log::{error, info, warn};
 use serde::Deserialize;
 use std::process::Stdio;
 use tokio::{
@@ -193,12 +193,10 @@ impl Custom {
                                 // Ensure the child process is spawned in the runtime so it can
                                 // make progress on its own while we await for any output.
                                 tokio::spawn(async move {
-                                    let status = child
-                                        .wait()
-                                        .await
-                                        .expect("child process encountered an error");
-
-                                    info!("child status was: {status}");
+                                    match child.wait().await {
+                                        Ok(status) => info!("child status was: {status}"),
+                                        Err(e) => warn!("child process encountered an error: {e}"),
+                                    }
                                 });
 
                                 while let Some(line) = reader.next_line().await.ok().flatten() {
