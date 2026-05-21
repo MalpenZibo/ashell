@@ -86,7 +86,7 @@ impl Custom {
         match msg {
             Message::LaunchCommand => {
                 if let Some(cmd) = &self.config.command {
-                    execute_command(cmd.clone());
+                    execute_command(cmd);
                 }
             }
             Message::Update(data) => {
