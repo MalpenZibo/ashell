@@ -238,11 +238,8 @@ format = "Percentage"
 warn_threshold = 80
 alert_threshold = 90
 format = "Percentage"
-<<<<<<< HEAD
-=======
 deduplicate = true
 # mounts = ["/", "/home"]  # uncomment to whitelist specific mount points
->>>>>>> 41b4dcfe (system_info add mounts option to filter disk display)
 
 [system_info.temperature]
 warn_threshold = 60
