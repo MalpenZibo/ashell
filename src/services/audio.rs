@@ -88,7 +88,7 @@ impl ChannelVolumesExt for ChannelVolumes {
 
     fn scaled(&self, max: u32) -> Option<ChannelVolumes> {
         let mut cv = *self; // Implicit copy
-        if cv.scale(Volume(max).min(Volume::NORMAL)).is_some() {
+        if cv.scale(Volume(max)).is_some() {
             Some(cv)
         } else {
             error!("Failed scaling volume: {cv}");

@@ -249,7 +249,7 @@ impl App {
                 let muted = self.settings.audio().is_sink_muted().unwrap_or(false);
                 Some((
                     OsdKind::Volume,
-                    normalise(vol, audio::AudioSettings::vol_max()),
+                    normalise(vol, audio::NORMAL_VOLUME),
                     muted,
                 ))
             }
@@ -260,7 +260,7 @@ impl App {
                 let muted = !self.settings.audio().is_sink_muted().unwrap_or(false);
                 Some((
                     OsdKind::Volume,
-                    normalise(vol, audio::AudioSettings::vol_max()),
+                    normalise(vol, audio::NORMAL_VOLUME),
                     muted,
                 ))
             }
@@ -572,8 +572,11 @@ impl App {
                     let osd_info = self.osd_info_for(&cmd);
 
                     if let Some((kind, value, muted)) = osd_info
-                        && let osd::Action::Show(timer) =
-                            self.osd.update(osd::Message::Show { kind, value, muted })
+                        && let osd::Action::Show(timer) = self.osd.update(osd::Message::Show {
+                            kind,
+                            value,
+                            muted,
+                        })
                     {
                         tasks.push(timer.map(Message::Osd));
                         tasks.push(self.outputs.show_osd_layer(OSD_WIDTH, OSD_HEIGHT));

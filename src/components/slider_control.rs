@@ -6,7 +6,7 @@ use crate::{
     utils::remote_value,
 };
 use iced::{
-    Alignment, Element,
+    Alignment, Element, Theme,
     mouse::ScrollDelta,
     widget::{MouseArea, Row, slider},
 };
@@ -20,6 +20,7 @@ pub struct SliderControl<'a, Msg> {
     on_icon_press: Option<Msg>,
     on_icon_right_press: Option<Msg>,
     trailing_toggle: Option<(bool, Msg)>,
+    overdrive: bool,
 }
 
 pub fn slider_control<'a, Msg: 'static + Clone>(
@@ -38,6 +39,7 @@ pub fn slider_control<'a, Msg: 'static + Clone>(
         on_icon_press: None,
         on_icon_right_press: None,
         trailing_toggle: None,
+        overdrive: false,
     }
 }
 
@@ -54,6 +56,11 @@ impl<'a, Msg: 'static + Clone> SliderControl<'a, Msg> {
 
     pub fn trailing_toggle(mut self, expanded: bool, on_press: Msg) -> Self {
         self.trailing_toggle = Some((expanded, on_press));
+        self
+    }
+
+    pub fn overdrive(mut self, overdrive: bool) -> Self {
+        self.overdrive = overdrive;
         self
     }
 }
@@ -77,12 +84,18 @@ impl<'a, Msg: 'static + Clone> From<SliderControl<'a, Msg>> for Element<'a, Msg>
                 .into()
         };
 
+        let overdrive = ctrl.overdrive;
+        let mut s = slider(ctrl.range, ctrl.value, remote_value::Message::Request)
+            .on_release(remote_value::Message::Timeout);
+        if overdrive {
+            s = s.style(|t: &Theme, status| {
+                let mut style = slider::default(t, status);
+                style.rail.backgrounds.0 = t.palette().danger.into();
+                style
+            });
+        }
         let slider_element = MouseArea::new(
-            Element::<'a, remote_value::Message<u32>>::from(
-                slider(ctrl.range, ctrl.value, remote_value::Message::Request)
-                    .on_release(remote_value::Message::Timeout),
-            )
-            .map(ctrl.on_change),
+            Element::<'a, remote_value::Message<u32>>::from(s).map(ctrl.on_change),
         )
         .on_scroll(ctrl.on_scroll);
 

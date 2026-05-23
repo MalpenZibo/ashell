@@ -83,6 +83,8 @@ microphone_indicator_format = "Icon"
 network_indicator_format = "Icon"
 bluetooth_indicator_format = "Icon"
 brightness_indicator_format = "Icon"
+volume_step = 5
+max_volume = 100
 indicators = [ "IdleInhibitor", "PowerProfile", "Audio", "Microphone", "Bluetooth", "Network", "Vpn", "Battery", "Brightness" ]
 
 [[settings.CustomButton]]
@@ -95,6 +97,8 @@ tooltip = "Toggle On-Screen Keyboard"
 [osd]
 enabled = true   # disabled by default
 timeout = 1500
+show_volume_percentage = false
+show_brightness_percentage = false
 
 [animations]
 enabled = true   # disabled by default

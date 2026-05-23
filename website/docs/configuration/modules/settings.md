@@ -182,6 +182,28 @@ The default value is `Icon`.
 audio_indicator_format = "IconAndPercentage"
 ```
 
+### Volume Step
+
+With the `volume_step` option you can configure the increment/decrement step for volume IPC commands (`volume-up` / `volume-down`).
+
+The default value is `5` (percent). Valid range: 1–50.
+
+```toml
+[settings]
+volume_step = 10
+```
+
+### Max Volume
+
+With the `max_volume` option you can allow volume to exceed 100% hardware level. When set above 100, the slider extends beyond normal range and visual overdrive indicators appear (red slider fill, overdrive icon).
+
+The default value is `100`. Valid range: 1–200.
+
+```toml
+[settings]
+max_volume = 150
+```
+
 ### Microphone Format
 
 With the `microphone_indicator_format` option you can customize the microphone volume indicator format.
