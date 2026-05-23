@@ -94,10 +94,9 @@ impl<'a, Msg: 'static + Clone> From<SliderControl<'a, Msg>> for Element<'a, Msg>
                 style
             });
         }
-        let slider_element = MouseArea::new(
-            Element::<'a, remote_value::Message<u32>>::from(s).map(ctrl.on_change),
-        )
-        .on_scroll(ctrl.on_scroll);
+        let slider_element =
+            MouseArea::new(Element::<'a, remote_value::Message<u32>>::from(s).map(ctrl.on_change))
+                .on_scroll(ctrl.on_scroll);
 
         let trailing: Option<Element<'a, Msg>> = ctrl.trailing_toggle.map(|(expanded, msg)| {
             let trailing_icon = if expanded {

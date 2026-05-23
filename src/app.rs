@@ -247,22 +247,14 @@ impl App {
                 // which was computed from real_sink_volume in volume_adjust().
                 let vol = self.settings.audio().current_sink_volume().unwrap_or(0);
                 let muted = self.settings.audio().is_sink_muted().unwrap_or(false);
-                Some((
-                    OsdKind::Volume,
-                    normalise(vol, audio::NORMAL_VOLUME),
-                    muted,
-                ))
+                Some((OsdKind::Volume, normalise(vol, audio::NORMAL_VOLUME), muted))
             }
             IpcCommand::VolumeToggleMute { .. } => {
                 let vol = self.settings.audio().real_sink_volume().unwrap_or(0);
                 // Invert: the toggle was just sent but PulseAudio hasn't
                 // round-tripped yet, so the current state is stale.
                 let muted = !self.settings.audio().is_sink_muted().unwrap_or(false);
-                Some((
-                    OsdKind::Volume,
-                    normalise(vol, audio::NORMAL_VOLUME),
-                    muted,
-                ))
+                Some((OsdKind::Volume, normalise(vol, audio::NORMAL_VOLUME), muted))
             }
             IpcCommand::MicrophoneUp { .. } | IpcCommand::MicrophoneDown { .. } => {
                 // Use slider value — it has the optimistic RequestAndTimeout update,
@@ -572,11 +564,8 @@ impl App {
                     let osd_info = self.osd_info_for(&cmd);
 
                     if let Some((kind, value, muted)) = osd_info
-                        && let osd::Action::Show(timer) = self.osd.update(osd::Message::Show {
-                            kind,
-                            value,
-                            muted,
-                        })
+                        && let osd::Action::Show(timer) =
+                            self.osd.update(osd::Message::Show { kind, value, muted })
                     {
                         tasks.push(timer.map(Message::Osd));
                         tasks.push(self.outputs.show_osd_layer(OSD_WIDTH, OSD_HEIGHT));

@@ -118,9 +118,7 @@ impl Osd {
         let overdrive = matches!(state.kind, OsdKind::Volume) && state.value > 1.0;
 
         let icon = match state.kind {
-            OsdKind::Volume => {
-                AudioSettings::speaker_icon(state.muted, state.value, overdrive)
-            }
+            OsdKind::Volume => AudioSettings::speaker_icon(state.muted, state.value, overdrive),
             OsdKind::Microphone => AudioSettings::microphone_icon(state.muted),
             OsdKind::Brightness => StaticIcon::Brightness,
             OsdKind::Airplane => NetworkSettings::airplane_mode_icon(state.muted),
