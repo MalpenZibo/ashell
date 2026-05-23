@@ -13,7 +13,7 @@ You can install Ashell using the following methods:
 Officially maintained: Arch Linux package and the Nix configuration
 included in the repository.
 
-Community packaging: Fedora via Copr (see below). If a package is broken,
+Community packaging: Fedora via Copr and Gentoo Linux via GURU (see below). If a package is broken,
 try building from source first.
 
 :::
@@ -85,6 +85,22 @@ Unofficial Copr repository (maintained by @killcrb):
 ```bash
 sudo dnf -y copr enable killcrb/ashell
 sudo dnf -y install ashell
+```
+
+### Gentoo Linux (GURU)
+
+First, [add the GURU repository](https://wiki.gentoo.org/wiki/Project:GURU/Information_for_End_Users#Adding_the_GURU_repository)
+
+Next, unmask ashell package in any file in ```/etc/portage/package.accept_keywords/```
+
+```bash
+gui-apps/ashell ~amd64
+```
+
+And finally install:
+
+```bash
+emerge gui-apps/ashell
 ```
 
 ## Building from Source
