@@ -431,14 +431,9 @@ impl SystemInfo {
                                 format!("{} GiB", self.data.memory_swap_usage.fraction),
                         }
                     ))
-                    .push(self.data.temperature.celsius.map(|cel| {
+                    .push(self.data.temperature.celsius.map(|temp| {
                         Self::info_element(StaticIcon::Temp, t!("system-info-temperature"), {
-                            let units = unit_system();
-                            let value = match units {
-                                UnitSystem::Metric => cel,
-                                UnitSystem::Imperial => utils::celsius_to_fahrenheit(cel),
-                            };
-                            format!("{value}{}", units.temperature_symbol())
+                            format!("{temp}{}", UnitSystem::Metric.temperature_symbol())
                         })
                     }))
                     .push(
@@ -551,17 +546,12 @@ impl SystemInfo {
                 Some(t!("system-info-swap-indicator-prefix")),
             )),
 
-            SystemInfoIndicator::Temperature => self.data.temperature.celsius.map(|cel| {
-                let units = unit_system();
-                let temp_value = match units {
-                    UnitSystem::Metric => cel,
-                    UnitSystem::Imperial => utils::celsius_to_fahrenheit(cel),
-                };
+            SystemInfoIndicator::Temperature => self.data.temperature.celsius.map(|temp| {
                 Self::indicator_info_element(
                     StaticIcon::Temp,
-                    (temp_value, units.temperature_symbol()),
+                    (temp, UnitSystem::Metric.temperature_symbol()),
                     Some((
-                        temp_value,
+                        temp,
                         self.config.temperature.warn_threshold(),
                         self.config.temperature.alert_threshold(),
                     )),
