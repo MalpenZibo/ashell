@@ -52,6 +52,7 @@ pub struct Settings {
     indicators: Vec<SettingsIndicator>,
     custom_buttons: Vec<SettingsCustomButton>,
     custom_buttons_status: HashMap<String, Option<bool>>,
+    enable_tooltips: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -236,6 +237,7 @@ impl Settings {
             custom_buttons: config.custom_buttons,
             custom_buttons_status: HashMap::new(),
             network_dialog_show_password: false,
+            enable_tooltips: config.enable_tooltips,
         }
     }
 
@@ -507,6 +509,7 @@ impl Settings {
                 Action::Command(custom_buttons_task)
             }
             Message::ConfigReloaded(config) => {
+                self.enable_tooltips = config.enable_tooltips;
                 self.lock_cmd = config.lock_cmd;
                 self.power
                     .update(power::Message::ConfigReloaded(PowerSettingsConfig::new(
@@ -555,19 +558,39 @@ impl Settings {
                 Action::None
             }
             Message::AudioTooltipHover(ui_ref, id) => {
-                Action::OpenTooltipMenu(id, MenuType::AudioTooltip, ui_ref)
+                if self.enable_tooltips {
+                    Action::OpenTooltipMenu(id, MenuType::AudioTooltip, ui_ref)
+                } else {
+                    Action::None
+                }
             }
             Message::BluetoothTooltipHover(ui_ref, id) => {
-                Action::OpenTooltipMenu(id, MenuType::BluetoothTooltip, ui_ref)
+                if self.enable_tooltips {
+                    Action::OpenTooltipMenu(id, MenuType::BluetoothTooltip, ui_ref)
+                } else {
+                    Action::None
+                }
             }
             Message::WifiTooltipHover(ui_ref, id) => {
-                Action::OpenTooltipMenu(id, MenuType::WifiTooltip, ui_ref)
+                if self.enable_tooltips {
+                    Action::OpenTooltipMenu(id, MenuType::WifiTooltip, ui_ref)
+                } else {
+                    Action::None
+                }
             }
             Message::BatteryTooltipHover(ui_ref, id) => {
-                Action::OpenTooltipMenu(id, MenuType::BatteryTooltip, ui_ref)
+                if self.enable_tooltips {
+                    Action::OpenTooltipMenu(id, MenuType::BatteryTooltip, ui_ref)
+                } else {
+                    Action::None
+                }
             }
             Message::PeripheralBatteryTooltipHover(ui_ref, id, index) => {
-                Action::OpenTooltipMenu(id, MenuType::PeripheralBatteryTooltip(index), ui_ref)
+                if self.enable_tooltips {
+                    Action::OpenTooltipMenu(id, MenuType::PeripheralBatteryTooltip(index), ui_ref)
+                } else {
+                    Action::None
+                }
             }
             Message::TooltipUnhover(id, menu_type) => Action::CloseTooltipMenu(id, menu_type),
         }

@@ -97,6 +97,13 @@ The Settings panel includes an idle inhibitor toggle that prevents the system fr
 
 The Settings module displays compact status indicators in the bar (audio, bluetooth, wifi, battery, peripheral battery). Hovering over these indicators shows a tooltip popup with detailed information.
 
+Tooltips can be enabled or disabled via the `enable_tooltips` setting inside `[settings]` (default: `true`). When disabled, hovering over indicators produces no tooltip popup.
+
+```toml
+[settings]
+enable_tooltips = false
+```
+
 ### Tooltip Menu Types
 
 Each indicator maps to a dedicated `MenuType` variant:

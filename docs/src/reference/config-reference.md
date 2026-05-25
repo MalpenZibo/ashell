@@ -161,6 +161,9 @@ weather_format = "{temp}°C"
 
 ```toml
 [settings]
+# Enable/disable hover tooltips on status indicators (audio, bluetooth, wifi, battery)
+enable_tooltips = true
+
 # Custom buttons in the settings panel
 [[settings.custom_buttons]]
 icon = "\u{f023}"
