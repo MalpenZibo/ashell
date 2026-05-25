@@ -2,6 +2,15 @@ name: Copr Build
 
 on:
   workflow_dispatch:
+    inputs:
+      chroots:
+        description: "Space-separated Copr chroots"
+        required: false
+        default: >-
+          fedora-42-x86_64 fedora-42-aarch64
+          fedora-43-x86_64 fedora-43-aarch64
+          fedora-44-x86_64 fedora-44-aarch64
+          fedora-rawhide-x86_64 fedora-rawhide-aarch64
   push:
     tags:
       - "v*"
@@ -9,38 +18,31 @@ on:
 jobs:
   copr:
     runs-on: ubuntu-latest
-    container:
-      image: fedora:42
     env:
       COPR_CONFIG: ${{ secrets.COPR_CONFIG }}
     steps:
-      - uses: actions/checkout@v6
-      - name: Install deps
-        run: |
-          dnf -y install git cargo rust rpm-build copr-cli gcc make pkgconf-pkg-config \
-            pipewire-devel libinput-devel systemd-devel dbus-devel wayland-devel \
-            libxkbcommon-devel mesa-libEGL-devel pango-devel cairo-devel glib2-devel \
-            openssl-devel fontconfig-devel freetype-devel clang-devel
-          dnf -y clean all
+      - name: Install copr-cli
+        run: pip install copr-cli --quiet
+
       - name: Configure copr-cli
         if: env.COPR_CONFIG != ''
         run: |
           mkdir -p ~/.config
           printf "%s" "$COPR_CONFIG" > ~/.config/copr
           chmod 600 ~/.config/copr
-      - name: Ensure cargo-rpm
-        run: cargo install cargo-rpm --locked
-      - name: Prepare RPM packaging
-        run: |
-          if [ ! -d .rpm ]; then cargo rpm init; fi
-      - name: Build SRPM
-        run: cargo rpm build -v
-      - name: Locate SRPM
-        id: srpm
-        run: echo "path=$(ls -1 target/release/rpmbuild/SRPMS/*.src.rpm | head -n1)" >> $GITHUB_OUTPUT
+
       - name: Trigger Copr build
         if: env.COPR_CONFIG != ''
-        run: copr-cli build killcrb/ashell "${{ steps.srpm.outputs.path }}"
-      - name: List builds
-        if: env.COPR_CONFIG != ''
-        run: copr-cli list-builds killcrb/ashell
+        env:
+          CHROOTS: ${{ github.event.inputs.chroots }}
+        run: |
+          CHROOTS="${CHROOTS:-fedora-42-x86_64 fedora-42-aarch64 fedora-43-x86_64 fedora-43-aarch64 fedora-44-x86_64 fedora-44-aarch64 fedora-rawhide-x86_64 fedora-rawhide-aarch64}"
+          REF="${GITHUB_REF_NAME:-main}"
+          args=()
+          for c in $CHROOTS; do args+=( -r "$c" ); done
+          copr buildscm "${args[@]}" \
+            --clone-url https://github.com/MalpenZibo/ashell \
+            --commit "$REF" \
+            --spec .rpm/ashell.spec \
+            --method make_srpm \
+            killcrb/ashell
