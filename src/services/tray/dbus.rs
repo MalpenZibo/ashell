@@ -242,6 +242,8 @@ pub trait StatusNotifierItem {
 
     #[zbus(property)]
     fn menu(&self) -> zbus::Result<OwnedObjectPath>;
+
+    fn activate(&self, x: i32, y: i32) -> zbus::Result<()>;
 }
 
 #[derive(Clone, Debug, Type)]
