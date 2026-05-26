@@ -365,16 +365,17 @@ impl PowerSettings {
                 {
                     return None;
                 }
-                let charge_limit_enabled = service
+                let charge_limit_active = service
                     .charge_limit
                     .as_ref()
-                    .is_some_and(|charge_limit| charge_limit.enabled);
-                let state = if charge_limit_enabled {
+                    .is_some_and(|charge_limit| charge_limit.enabled)
+                    && !matches!(battery.status, BatteryStatus::Discharging(_));
+                let state = if charge_limit_active {
                     IndicatorState::Success
                 } else {
                     battery.get_indicator_state()
                 };
-                let indicator_icon = if charge_limit_enabled {
+                let indicator_icon = if charge_limit_active {
                     StaticIcon::BatteryLimit
                 } else {
                     battery.get_icon()
@@ -406,7 +407,9 @@ impl PowerSettings {
         charge_limit_enabled: Option<bool>,
     ) -> Element<'a, Message> {
         let space = use_theme(|t| t.space);
-        let state = if charge_limit_enabled == Some(true) {
+        let charge_limit_active = charge_limit_enabled == Some(true)
+            && !matches!(battery.status, BatteryStatus::Discharging(_));
+        let state = if charge_limit_active {
             IndicatorState::Success
         } else {
             battery.get_indicator_state()
@@ -416,7 +419,7 @@ impl PowerSettings {
             let battery_info = container(
                 Row::with_capacity(3)
                     .push(peripheral_icon.map(icon))
-                    .push(icon(if charge_limit_enabled == Some(true) {
+                    .push(icon(if charge_limit_active {
                         StaticIcon::BatteryLimit
                     } else {
                         battery.get_icon()
