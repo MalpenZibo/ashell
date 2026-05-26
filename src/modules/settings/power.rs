@@ -369,7 +369,7 @@ impl PowerSettings {
                     .charge_limit
                     .as_ref()
                     .is_some_and(|charge_limit| charge_limit.enabled)
-                    && !matches!(battery.status, BatteryStatus::Discharging(_));
+                    && !battery.is_discharging;
                 let state = if charge_limit_active {
                     IndicatorState::Success
                 } else {
@@ -407,8 +407,7 @@ impl PowerSettings {
         charge_limit_enabled: Option<bool>,
     ) -> Element<'a, Message> {
         let space = use_theme(|t| t.space);
-        let charge_limit_active = charge_limit_enabled == Some(true)
-            && !matches!(battery.status, BatteryStatus::Discharging(_));
+        let charge_limit_active = charge_limit_enabled == Some(true) && !battery.is_discharging;
         let state = if charge_limit_active {
             IndicatorState::Success
         } else {

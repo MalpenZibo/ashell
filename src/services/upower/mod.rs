@@ -66,6 +66,7 @@ enum BatLevel {
 pub struct BatteryData {
     pub capacity: i64,
     pub status: BatteryStatus,
+    pub is_discharging: bool,
 }
 
 impl BatteryData {
@@ -78,6 +79,7 @@ impl BatteryData {
             BatteryData {
                 status: BatteryStatus::Discharging(_),
                 capacity,
+                ..
             } if *capacity < 20 => IndicatorState::Danger,
             _ => IndicatorState::Normal,
         }
@@ -92,18 +94,22 @@ impl BatteryData {
             BatteryData {
                 status: BatteryStatus::Discharging(_),
                 capacity,
+                ..
             } if *capacity < 20 => StaticIcon::Battery0,
             BatteryData {
                 status: BatteryStatus::Discharging(_),
                 capacity,
+                ..
             } if *capacity < 40 => StaticIcon::Battery1,
             BatteryData {
                 status: BatteryStatus::Discharging(_),
                 capacity,
+                ..
             } if *capacity < 60 => StaticIcon::Battery2,
             BatteryData {
                 status: BatteryStatus::Discharging(_),
                 capacity,
+                ..
             } if *capacity < 80 => StaticIcon::Battery3,
             _ => StaticIcon::Battery4,
         }
@@ -131,14 +137,17 @@ impl Peripheral {
             BatteryData {
                 status: BatteryStatus::Discharging(_),
                 capacity,
+                ..
             } if capacity < 10 => get_type_icon(BatLevel::Alert),
             BatteryData {
                 status: BatteryStatus::Discharging(_),
                 capacity,
+                ..
             } if capacity < 40 => get_type_icon(BatLevel::Low),
             BatteryData {
                 status: BatteryStatus::Discharging(_),
                 capacity,
+                ..
             } if capacity < 70 => get_type_icon(BatLevel::Medium),
             BatteryData {
                 status: BatteryStatus::Discharging(_),
@@ -368,8 +377,9 @@ impl UPowerService {
 
         match battery {
             Some(battery) => {
-                let state = battery.state().await;
-                let state = match state {
+                let state_raw = battery.state().await;
+                let is_discharging = matches!(state_raw, dbus::DeviceState::Discharging);
+                let state = match state_raw {
                     dbus::DeviceState::Charging => BatteryStatus::Charging(Duration::from_secs(
                         battery.time_to_full().await as u64,
                     )),
@@ -391,6 +401,7 @@ impl UPowerService {
                     BatteryData {
                         capacity: percentage,
                         status: state,
+                        is_discharging,
                     },
                     battery,
                 )))
@@ -429,10 +440,10 @@ impl UPowerService {
                 Err(_) => device_kind.to_string(),
             };
 
-            let Ok(state) = device.state().await else {
+            let Ok(state_raw) = device.state().await else {
                 continue;
             };
-            let state = match state {
+            let state = match state_raw {
                 1 => {
                     let Ok(time_to_full) = device.time_to_full().await else {
                         warn!(
@@ -470,6 +481,7 @@ impl UPowerService {
                 data: BatteryData {
                     capacity: percentage as i64,
                     status: state,
+                    is_discharging: state_raw == 2,
                 },
                 device,
             });
