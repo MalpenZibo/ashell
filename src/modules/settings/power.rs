@@ -10,7 +10,7 @@ use crate::{
     services::{
         ReadOnlyService, Service, ServiceEvent,
         upower::{
-            BatteryData, BatteryStatus, PeripheralDeviceKind, PowerProfile, PowerProfileCommand,
+            BatteryData, BatteryStatus, PeripheralDeviceKind, PowerProfile, UPowerCommand,
             UPowerService,
         },
     },
@@ -51,6 +51,7 @@ pub enum Message {
     Event(ServiceEvent<UPowerService>),
     TogglePeripheralMenu,
     TogglePowerProfile,
+    ToggleChargeLimit,
     Suspend,
     Hibernate,
     Reboot,
@@ -140,7 +141,15 @@ impl PowerSettings {
             Message::TogglePowerProfile => match self.service.as_mut() {
                 Some(service) => Action::Command(
                     service
-                        .command(PowerProfileCommand::Toggle)
+                        .command(UPowerCommand::TogglePowerProfile)
+                        .map(Message::Event),
+                ),
+                _ => Action::None,
+            },
+            Message::ToggleChargeLimit => match self.service.as_mut() {
+                Some(service) => Action::Command(
+                    service
+                        .command(UPowerCommand::ToggleChargeLimit)
                         .map(Message::Event),
                 ),
                 _ => Action::None,
@@ -430,6 +439,42 @@ impl PowerSettings {
                         None
                     }
                 })
+        })
+    }
+
+    pub fn charge_limit_menu_indicator<'a>(&self) -> Option<Element<'a, Message>> {
+        let space = use_theme(|t| t.space);
+        self.service.as_ref().and_then(|service| {
+            service.charge_limit.as_ref().map(|charge_limit| {
+                let enabled = charge_limit.enabled;
+                let indicator = container(
+                    row!(
+                        icon(StaticIcon::BatteryLimit),
+                        text(if enabled {
+                            t!("settings-power-enabled")
+                        } else {
+                            t!("settings-power-disabled")
+                        })
+                    )
+                    .align_y(Alignment::Center)
+                    .spacing(space.xxs),
+                )
+                .style(move |theme: &Theme| container::Style {
+                    text_color: Some(if enabled {
+                        theme.palette().success
+                    } else {
+                        theme.palette().text
+                    }),
+                    ..Default::default()
+                });
+
+                let indicator: Element<'a, Message> = indicator.into();
+
+                styled_button(indicator)
+                    .kind(ButtonKind::Solid)
+                    .on_press(Message::ToggleChargeLimit)
+                    .into()
+            })
         })
     }
 
