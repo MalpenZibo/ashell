@@ -21,7 +21,7 @@ use crate::{
 use iced::{
     Alignment, Element, Length, Subscription, Task, Theme,
     alignment::Vertical,
-    widget::{Column, Row, column, container, row, text},
+    widget::{Column, MouseArea, Row, column, container, row, text},
 };
 
 fn format_time_for_battery(battery: &BatteryData) -> String {
@@ -230,7 +230,7 @@ impl PowerSettings {
                             row![
                                 icon(p.kind.get_icon()),
                                 text(p.name.to_string()).width(Length::Fill),
-                                self.menu_indicator(p.data, None),
+                                self.menu_indicator(p.data, None, None),
                             ]
                             .align_y(Vertical::Center)
                             .spacing(space.sm)
@@ -357,15 +357,24 @@ impl PowerSettings {
         &self,
         battery: BatteryData,
         peripheral_icon: Option<StaticIcon>,
+        charge_limit_enabled: Option<bool>,
     ) -> Element<'a, Message> {
         let space = use_theme(|t| t.space);
-        let state = battery.get_indicator_state();
+        let state = if charge_limit_enabled == Some(true) {
+            IndicatorState::Success
+        } else {
+            battery.get_indicator_state()
+        };
 
         container({
             let battery_info = container(
                 Row::with_capacity(3)
                     .push(peripheral_icon.map(icon))
-                    .push(icon(battery.get_icon()))
+                    .push(icon(if charge_limit_enabled == Some(true) {
+                        StaticIcon::BatteryLimit
+                    } else {
+                        battery.get_icon()
+                    }))
                     .push(text(format!("{}%", battery.capacity)))
                     .spacing(space.xxs),
             )
@@ -411,12 +420,21 @@ impl PowerSettings {
             service
                 .system_battery
                 .map(|battery| {
-                    let indicator = self.menu_indicator(battery, None);
+                    let charge_limit_enabled = service.charge_limit.as_ref().map(|c| c.enabled);
+                    let indicator = self.menu_indicator(battery, None, charge_limit_enabled);
 
-                    if !service.peripherals.is_empty() {
+                    let indicator: Element<_> = if !service.peripherals.is_empty() {
                         styled_button(indicator)
                             .kind(ButtonKind::Solid)
                             .on_press(Message::TogglePeripheralMenu)
+                            .into()
+                    } else {
+                        indicator
+                    };
+
+                    if service.charge_limit.is_some() {
+                        MouseArea::new(indicator)
+                            .on_right_press(Message::ToggleChargeLimit)
                             .into()
                     } else {
                         indicator
@@ -424,8 +442,11 @@ impl PowerSettings {
                 })
                 .or_else(|| {
                     if let Some(peripheral) = service.peripherals.first() {
-                        let indicator =
-                            self.menu_indicator(peripheral.data, Some(peripheral.kind.get_icon()));
+                        let indicator = self.menu_indicator(
+                            peripheral.data,
+                            Some(peripheral.kind.get_icon()),
+                            None,
+                        );
 
                         Some(if service.peripherals.len() > 1 {
                             styled_button(indicator)
@@ -439,42 +460,6 @@ impl PowerSettings {
                         None
                     }
                 })
-        })
-    }
-
-    pub fn charge_limit_menu_indicator<'a>(&self) -> Option<Element<'a, Message>> {
-        let space = use_theme(|t| t.space);
-        self.service.as_ref().and_then(|service| {
-            service.charge_limit.as_ref().map(|charge_limit| {
-                let enabled = charge_limit.enabled;
-                let indicator = container(
-                    row!(
-                        icon(StaticIcon::BatteryLimit),
-                        text(if enabled {
-                            t!("settings-power-enabled")
-                        } else {
-                            t!("settings-power-disabled")
-                        })
-                    )
-                    .align_y(Alignment::Center)
-                    .spacing(space.xxs),
-                )
-                .style(move |theme: &Theme| container::Style {
-                    text_color: Some(if enabled {
-                        theme.palette().success
-                    } else {
-                        theme.palette().text
-                    }),
-                    ..Default::default()
-                });
-
-                let indicator: Element<'a, Message> = indicator.into();
-
-                styled_button(indicator)
-                    .kind(ButtonKind::Solid)
-                    .on_press(Message::ToggleChargeLimit)
-                    .into()
-            })
         })
     }
 

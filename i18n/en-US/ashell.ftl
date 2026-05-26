@@ -83,8 +83,6 @@ settings-power-empty-in = Empty in { $duration }
 settings-power-profile-balanced = Balanced
 settings-power-profile-performance = Performance
 settings-power-profile-power-saver = Power Saver
-settings-power-enabled = Enabled
-settings-power-disabled = Disabled
 
 ## Settings — idle inhibitor
 settings-idle-inhibitor = Idle Inhibitor

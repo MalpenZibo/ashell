@@ -25,7 +25,7 @@ use crate::{
     theme::use_theme,
 };
 use iced::{
-    Alignment, Element, Length, Subscription, SurfaceId, Task, Theme,
+    Element, Length, Subscription, SurfaceId, Task, Theme,
     widget::{Column, Row, Space, container, row, space},
 };
 
@@ -562,19 +562,6 @@ impl Settings {
                 .power
                 .battery_menu_indicator()
                 .map(|e| e.map(Message::Power));
-            let charge_limit_data = self
-                .power
-                .charge_limit_menu_indicator()
-                .map(|e| e.map(Message::Power));
-            let battery_data = if battery_data.is_some() || charge_limit_data.is_some() {
-                Some(
-                    row![battery_data, charge_limit_data]
-                        .align_y(Alignment::Center)
-                        .spacing(space.xs),
-                )
-            } else {
-                None
-            };
             let right_buttons = Row::with_capacity(2)
                 .push(
                     self.lock_cmd

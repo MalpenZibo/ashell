@@ -83,8 +83,6 @@ settings-power-empty-in = Vide dans { $duration }
 settings-power-profile-balanced = Équilibré
 settings-power-profile-performance = Performance
 settings-power-profile-power-saver = Économie d'énergie
-settings-power-enabled = Activé
-settings-power-disabled = Désactivé
 
 ## Paramètres — inhibiteur de veille
 settings-idle-inhibitor = Inhibiteur de veille
