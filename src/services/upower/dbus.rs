@@ -26,7 +26,7 @@ impl SystemBattery {
                 continue;
             };
 
-            if !has_charge_threshold_support(&introspection) {
+            if !has_enable_charge_threshold_method(&introspection) {
                 continue;
             }
 
@@ -150,7 +150,7 @@ impl SystemBattery {
     }
 }
 
-fn has_charge_threshold_support(introspection: &str) -> bool {
+fn has_enable_charge_threshold_method(introspection: &str) -> bool {
     introspection
         .split("<interface ")
         .find(|section| section.contains("name=\"org.freedesktop.UPower.Device\""))

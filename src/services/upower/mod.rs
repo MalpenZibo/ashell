@@ -578,7 +578,11 @@ impl UPowerService {
                 );
             }
 
-            select_all(events).boxed()
+            if events.is_empty() {
+                pending().boxed()
+            } else {
+                select_all(events).boxed()
+            }
         } else {
             pending().boxed()
         };
@@ -806,12 +810,20 @@ impl Service for UPowerService {
                                 return UPowerEvent::UpdateChargeLimit(Some(charge_limit));
                             }
 
-                            UPowerEvent::UpdateChargeLimit(
-                                Self::initialize_charge_limit_data(&conn)
-                                    .await
-                                    .ok()
-                                    .flatten(),
-                            )
+                            match Self::initialize_charge_limit_data(&conn).await {
+                                Ok(Some(new_data)) => {
+                                    UPowerEvent::UpdateChargeLimit(Some(new_data))
+                                }
+                                _ => {
+                                    warn!(
+                                        "Failed to refresh charge limit data after toggle, using optimistic state"
+                                    );
+                                    UPowerEvent::UpdateChargeLimit(Some(ChargeLimit {
+                                        enabled: target_enabled,
+                                        ..charge_limit
+                                    }))
+                                }
+                            }
                         }
                     }
                 }
