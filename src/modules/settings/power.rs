@@ -2,7 +2,7 @@ use std::convert;
 
 use crate::{
     components::{
-        ButtonKind, IconPosition, divider, format_indicator,
+        ButtonHierarchy, ButtonKind, IconPosition, divider, format_indicator,
         icons::{StaticIcon, icon},
         quick_setting_button, styled_button,
     },
@@ -21,7 +21,7 @@ use crate::{
 use iced::{
     Alignment, Element, Length, Subscription, Task, Theme,
     alignment::Vertical,
-    widget::{Column, MouseArea, Row, column, container, row, text},
+    widget::{Column, Row, button as button_fn, column, container, row, text},
 };
 
 fn format_time_for_battery(battery: &BatteryData) -> String {
@@ -216,26 +216,57 @@ impl PowerSettings {
         .into()
     }
 
+    fn battery_detail_row<'a>(
+        &self,
+        item_icon: StaticIcon,
+        label: String,
+        value: Element<'a, Message>,
+    ) -> Element<'a, Message> {
+        let space = use_theme(|t| t.space);
+
+        row![icon(item_icon), text(label).width(Length::Fill), value,]
+            .align_y(Vertical::Center)
+            .spacing(space.sm)
+            .into()
+    }
+
     pub fn peripheral_menu<'a>(&'a self) -> Option<Element<'a, Message>> {
         let space = use_theme(|t| t.space);
         self.service
             .as_ref()
-            .filter(|s| !s.peripherals.is_empty())
+            .filter(|s| !s.peripherals.is_empty() || s.charge_limit.is_some())
             .map(|service| {
+                let charge_limit = service.charge_limit.as_ref().map(|charge_limit| {
+                    let state = if charge_limit.enabled {
+                        t!("settings-power-charge-limit-enabled")
+                    } else {
+                        t!("settings-power-charge-limit-disabled")
+                    };
+
+                    button_fn(self.battery_detail_row(
+                        StaticIcon::BatteryLimit,
+                        t!("settings-power-charge-limit"),
+                        text(state).into(),
+                    ))
+                    .padding(0)
+                    .style(use_theme(|t| {
+                        t.button_style(ButtonKind::Transparent, ButtonHierarchy::Secondary)
+                    }))
+                    .on_press(Message::ToggleChargeLimit)
+                    .width(Length::Fill)
+                    .into()
+                });
+
                 Column::with_children(
-                    service
-                        .peripherals
-                        .iter()
-                        .map(|p| {
-                            row![
-                                icon(p.kind.get_icon()),
-                                text(p.name.to_string()).width(Length::Fill),
+                    charge_limit
+                        .into_iter()
+                        .chain(service.peripherals.iter().map(|p| {
+                            self.battery_detail_row(
+                                p.kind.get_icon(),
+                                p.name.to_string(),
                                 self.menu_indicator(p.data, None, None),
-                            ]
-                            .align_y(Vertical::Center)
-                            .spacing(space.sm)
-                            .into()
-                        })
+                            )
+                        }))
                         .collect::<Vec<Element<Message>>>(),
                 )
                 .spacing(space.xs)
@@ -423,22 +454,17 @@ impl PowerSettings {
                     let charge_limit_enabled = service.charge_limit.as_ref().map(|c| c.enabled);
                     let indicator = self.menu_indicator(battery, None, charge_limit_enabled);
 
-                    let indicator: Element<_> = if !service.peripherals.is_empty() {
-                        styled_button(indicator)
-                            .kind(ButtonKind::Solid)
-                            .on_press(Message::TogglePeripheralMenu)
-                            .into()
-                    } else {
-                        indicator
-                    };
+                    let indicator: Element<_> =
+                        if !service.peripherals.is_empty() || service.charge_limit.is_some() {
+                            styled_button(indicator)
+                                .kind(ButtonKind::Solid)
+                                .on_press(Message::TogglePeripheralMenu)
+                                .into()
+                        } else {
+                            indicator
+                        };
 
-                    if service.charge_limit.is_some() {
-                        MouseArea::new(indicator)
-                            .on_right_press(Message::ToggleChargeLimit)
-                            .into()
-                    } else {
-                        indicator
-                    }
+                    indicator
                 })
                 .or_else(|| {
                     if let Some(peripheral) = service.peripherals.first() {
