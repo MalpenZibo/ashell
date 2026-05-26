@@ -222,11 +222,13 @@ impl PowerSettings {
         label: String,
         value: Element<'a, Message>,
     ) -> Element<'a, Message> {
-        let space = use_theme(|t| t.space);
+        let (space, font_size) = use_theme(|t| (t.space, t.font_size));
 
         row![icon(item_icon), text(label).width(Length::Fill), value,]
             .align_y(Vertical::Center)
             .spacing(space.sm)
+            .width(Length::Fill)
+            .height(Length::Fixed(font_size.md + space.xs * 2.0))
             .into()
     }
 
