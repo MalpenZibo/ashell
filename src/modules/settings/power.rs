@@ -363,7 +363,20 @@ impl PowerSettings {
                 {
                     return None;
                 }
-                let state = battery.get_indicator_state();
+                let charge_limit_enabled = service
+                    .charge_limit
+                    .as_ref()
+                    .is_some_and(|charge_limit| charge_limit.enabled);
+                let state = if charge_limit_enabled {
+                    IndicatorState::Success
+                } else {
+                    battery.get_indicator_state()
+                };
+                let indicator_icon = if charge_limit_enabled {
+                    StaticIcon::BatteryLimit
+                } else {
+                    battery.get_icon()
+                };
                 let label: String = match self.config.battery_format {
                     SettingsFormat::Time | SettingsFormat::IconAndTime => {
                         format_time_for_battery(&battery)
@@ -374,7 +387,7 @@ impl PowerSettings {
                 Some(
                     format_indicator(
                         self.config.battery_format,
-                        battery.get_icon(),
+                        indicator_icon,
                         text(label).into(),
                         state,
                     )
