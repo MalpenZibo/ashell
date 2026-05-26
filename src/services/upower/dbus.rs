@@ -34,7 +34,9 @@ impl SystemBattery {
                 continue;
             }
 
-            let enabled = device.charge_threshold_enabled().await.ok()?;
+            let Ok(enabled) = device.charge_threshold_enabled().await else {
+                continue;
+            };
 
             return Some(ChargeLimit {
                 enabled,
