@@ -1,12 +1,31 @@
 //! Distribute content horizontally.
+use iced::Animation;
 use iced::advanced::layout::{self, Layout, Limits, Node};
 use iced::advanced::overlay;
 use iced::advanced::renderer;
-use iced::advanced::widget::{Operation, Tree};
+use iced::advanced::widget::{Operation, Tree, tree};
 use iced::advanced::{Clipboard, Shell, Widget, mouse};
+use iced::animation::Easing;
 use iced::{Alignment, Length, Padding, Pixels, Point, Rectangle, Size, Vector, event};
+use std::time::{Duration, Instant};
 
 type Element<'a, Message, Theme, Renderer> = iced::core::Element<'a, Message, Theme, Renderer>;
+
+struct State {
+    center_x_anim: Animation<f32>,
+    last_center_x: f32,
+    initialized: bool,
+}
+
+impl State {
+    fn new() -> Self {
+        Self {
+            center_x_anim: Animation::new(0.0),
+            last_center_x: 0.0,
+            initialized: false,
+        }
+    }
+}
 
 /// A container that distributes its contents horizontally.
 #[allow(missing_debug_implementations)]
@@ -16,6 +35,7 @@ pub struct Centerbox<'a, Message, Theme = iced::Theme, Renderer = iced::Renderer
     width: Length,
     height: Length,
     align_items: Alignment,
+    animated: bool,
     children: [Element<'a, Message, Theme, Renderer>; 3],
 }
 
@@ -31,8 +51,16 @@ where
             width: Length::Shrink,
             height: Length::Shrink,
             align_items: Alignment::Start,
+            animated: true,
             children,
         }
+    }
+
+    /// Enables or disables the x-position animation of the center element.
+    /// When `false`, the center snaps to its target position instead.
+    pub fn animated(mut self, animated: bool) -> Self {
+        self.animated = animated;
+        self
     }
 
     /// Sets the horizontal spacing _between_ elements.
@@ -75,6 +103,14 @@ impl<'a, Message, Theme, Renderer> Widget<Message, Theme, Renderer>
 where
     Renderer: iced::advanced::Renderer,
 {
+    fn tag(&self) -> tree::Tag {
+        tree::Tag::of::<State>()
+    }
+
+    fn state(&self) -> tree::State {
+        tree::State::new(State::new())
+    }
+
     fn children(&self) -> Vec<Tree> {
         self.children.iter().map(Tree::new).collect()
     }
@@ -161,22 +197,42 @@ where
         let half_available = available / 2.0;
         let half_center_width = nodes[1].size().width / 2.0;
 
-        if half_available - nodes[0].size().width < half_center_width
+        let target_center_x = if half_available - nodes[0].size().width < half_center_width
             || half_available - nodes[2].size().width < half_center_width
         {
-            nodes[1].move_to_mut(Point::new(
-                self.padding.left
-                    + self.spacing
-                    + nodes[0].size().width
-                    + (available - nodes[0].size().width - nodes[2].size().width) / 2.0,
-                self.padding.top,
-            ));
+            self.padding.left
+                + self.spacing
+                + nodes[0].size().width
+                + (available - nodes[0].size().width - nodes[2].size().width) / 2.0
         } else {
-            nodes[1].move_to_mut(Point::new(
-                limits.max().width / 2. + (self.padding.left + self.padding.right) / 2.0,
-                self.padding.top,
-            ));
-        }
+            limits.max().width / 2. + (self.padding.left + self.padding.right) / 2.0
+        };
+
+        let state = tree.state.downcast_mut::<State>();
+        let now = Instant::now();
+
+        let display_center_x = if !self.animated {
+            state.last_center_x = target_center_x;
+            state.initialized = true;
+            target_center_x
+        } else if !state.initialized {
+            state.center_x_anim = Animation::new(target_center_x)
+                .duration(Duration::from_millis(200))
+                .easing(Easing::EaseOutCubic);
+            state.last_center_x = target_center_x;
+            state.initialized = true;
+            target_center_x
+        } else if (target_center_x - state.last_center_x).abs() > 0.5 {
+            state.last_center_x = target_center_x;
+            state.center_x_anim.go_mut(target_center_x, now);
+            state.center_x_anim.interpolate_with(|v| v, now)
+        } else if state.center_x_anim.is_animating(now) {
+            state.center_x_anim.interpolate_with(|v| v, now)
+        } else {
+            target_center_x
+        };
+
+        nodes[1].move_to_mut(Point::new(display_center_x, self.padding.top));
         nodes[1].align_mut(Alignment::Center, self.align_items, Size::new(0.0, cross));
 
         let main =
@@ -233,6 +289,14 @@ where
             child.as_widget_mut().update(
                 state, event, layout, cursor, renderer, clipboard, shell, viewport,
             );
+        }
+
+        if let event::Event::Window(iced::core::window::Event::RedrawRequested(now)) = event {
+            let state = tree.state.downcast_mut::<State>();
+            if state.center_x_anim.is_animating(*now) {
+                shell.request_redraw();
+                shell.invalidate_layout();
+            }
         }
     }
 

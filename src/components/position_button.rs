@@ -99,6 +99,14 @@ where
         self
     }
 
+    pub fn on_right_press_with_position(
+        mut self,
+        on_right_press: impl Fn(ButtonUIRef) -> Message + 'a,
+    ) -> Self {
+        self.on_right_press = Some(OnPress::MessageWithPosition(Box::new(on_right_press)));
+        self
+    }
+
     pub fn on_scroll_up(mut self, on_scroll_up: Message) -> Self {
         self.on_scroll_up = Some(OnPress::Message(on_scroll_up));
         self

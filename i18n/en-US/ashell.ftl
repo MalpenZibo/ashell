@@ -122,3 +122,20 @@ weather-thunderstorm = Slight or moderate thunderstorm
 weather-thunderstorm-hail-slight = Thunderstorm with slight hail
 weather-thunderstorm-hail-heavy = Thunderstorm with heavy hail
 weather-unknown = Unknown weather condition
+
+## Notifications module
+notifications-heading = Notifications
+notifications-empty = No notifications
+notifications-group-count = { $count } new
+
+## System info module
+system-info-heading = System Info
+system-info-cpu-usage = CPU Usage
+system-info-memory-usage = Memory Usage
+system-info-swap-memory-usage = Swap Memory Usage
+system-info-swap-indicator-prefix = swap
+system-info-temperature = Temperature
+system-info-disk-usage = Disk Usage { $mount }
+system-info-ip-address = IP Address
+system-info-download-speed = Download Speed
+system-info-upload-speed = Upload Speed

@@ -533,7 +533,7 @@ impl AshellTheme {
 
     pub fn quick_settings_submenu_button_style(
         &self,
-        is_active: bool,
+        active: f32,
     ) -> impl Fn(&Theme, Status) -> button::Style + use<> {
         let radius_lg = self.radius.lg;
         let opacity = self.opacity;
@@ -545,11 +545,11 @@ impl AshellTheme {
                     radius: radius_lg.into(),
                     color: Color::TRANSPARENT,
                 },
-                text_color: if is_active {
-                    theme.extended_palette().primary.base.text
-                } else {
-                    theme.palette().text
-                },
+                text_color: lerp_color(
+                    theme.palette().text,
+                    theme.extended_palette().primary.base.text,
+                    active,
+                ),
                 ..button::Style::default()
             };
             match status {
@@ -574,45 +574,38 @@ impl AshellTheme {
 
     pub fn quick_settings_button_style(
         &self,
-        is_active: bool,
+        active: f32,
     ) -> impl Fn(&Theme, Status) -> button::Style + use<> {
-        let radius_xl = self.radius.xl;
         let opacity = self.opacity;
+        let radius = self.radius.xl;
         move |theme: &Theme, status: Status| {
+            let inactive_bg = theme.extended_palette().background.weak.color;
+            let active_bg = theme.palette().primary;
+            let bg = lerp_color(inactive_bg, active_bg, active).scale_alpha(opacity);
+
             let mut base = button::Style {
-                background: Some(
-                    if is_active {
-                        theme.palette().primary
-                    } else {
-                        theme.extended_palette().background.weak.color
-                    }
-                    .scale_alpha(opacity)
-                    .into(),
-                ),
+                background: Some(bg.into()),
                 border: Border {
                     width: 0.0,
-                    radius: radius_xl.into(),
+                    radius: radius.into(),
                     color: Color::TRANSPARENT,
                 },
-                text_color: if is_active {
-                    theme.extended_palette().primary.base.text
-                } else {
-                    theme.palette().text
-                },
+                text_color: lerp_color(
+                    theme.palette().text,
+                    theme.extended_palette().primary.base.text,
+                    active,
+                ),
                 ..button::Style::default()
             };
             match status {
                 Status::Active => base,
                 Status::Hovered => {
-                    let peach = theme.extended_palette().primary.weak.color;
+                    let inactive_hover = theme.extended_palette().background.strong.color;
+                    let active_hover = theme.extended_palette().primary.weak.color;
                     base.background = Some(
-                        if is_active {
-                            peach
-                        } else {
-                            theme.extended_palette().background.strong.color
-                        }
-                        .scale_alpha(opacity)
-                        .into(),
+                        lerp_color(inactive_hover, active_hover, active)
+                            .scale_alpha(opacity)
+                            .into(),
                     );
                     base
                 }
@@ -798,4 +791,13 @@ pub fn darken_color(color: Color, darkening_alpha: f32) -> Color {
     let new_a = color.a + (1.0 - color.a) * darkening_alpha;
 
     Color::from([new_r, new_g, new_b, new_a])
+}
+
+pub fn lerp_color(from: Color, to: Color, t: f32) -> Color {
+    Color {
+        r: from.r + (to.r - from.r) * t,
+        g: from.g + (to.g - from.g) * t,
+        b: from.b + (to.b - from.b) * t,
+        a: from.a + (to.a - from.a) * t,
+    }
 }

@@ -437,6 +437,7 @@ impl App {
                         .close_all_menus(self.general_config.enable_esc_key),
                     task.map(Message::Tray),
                 ]),
+                modules::tray::Action::TrayMenuCommandKeepOpen(task) => task.map(Message::Tray),
                 modules::tray::Action::CloseTrayMenu(name) => self
                     .outputs
                     .close_all_menu_if(MenuType::Tray(name), self.general_config.enable_esc_key),
@@ -623,9 +624,19 @@ impl App {
 
                 let [left, center, right] = self.modules_section(id);
 
-                let (space, bar_style, bar_position, opacity, menu) =
-                    use_theme(|t| (t.space, t.bar_style, t.bar_position, t.opacity, t.menu));
+                let (space, bar_style, bar_position, opacity, menu, animations_enabled) =
+                    use_theme(|t| {
+                        (
+                            t.space,
+                            t.bar_style,
+                            t.bar_position,
+                            t.opacity,
+                            t.menu,
+                            t.animations_enabled,
+                        )
+                    });
                 let centerbox = Centerbox::new([left, center, right])
+                    .animated(animations_enabled)
                     .spacing(space.xxs)
                     .width(Length::Fill)
                     .align_items(Alignment::Center)

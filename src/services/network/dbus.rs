@@ -163,8 +163,8 @@ impl super::NetworkBackend for NetworkDbus<'_> {
             debug!("Activating VPN: {connection:?}");
             self.activate_connection(
                 connection,
-                OwnedObjectPath::try_from("/").unwrap(),
-                OwnedObjectPath::try_from("/").unwrap(),
+                OwnedObjectPath::try_from("/").expect("D-Bus root path is always valid"),
+                OwnedObjectPath::try_from("/").expect("D-Bus root path is always valid"),
             )
             .await?;
         } else {
@@ -781,15 +781,21 @@ impl NetworkSettingsDbus<'_> {
                 .await?;
 
             let s = connection.get_settings().await?;
-            let id = s["connection"]
-                .get("id")
-                .map(|v| match v.deref() {
-                    Value::Str(v) => v.to_string(),
-                    _ => "".to_string(),
-                })
-                .unwrap();
-            if id == name {
+            let id = s
+                .get("connection")
+                .and_then(|c| c.get("id"))
+                .and_then(|v| match v.deref() {
+                    Value::Str(v) => Some(v.to_string()),
+                    _ => {
+                        debug!("connection settings 'id' field is not a string");
+                        None
+                    }
+                });
+            if id.as_deref() == Some(name) {
                 return Ok(Some(connection.inner().path().to_owned().into()));
+            }
+            if id.is_none() {
+                debug!("skipping connection with missing or invalid 'id' field");
             }
         }
 
