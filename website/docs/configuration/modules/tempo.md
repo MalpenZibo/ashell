@@ -144,6 +144,16 @@ weather_location = "Current"
   access.
 - If an API call fails the module keeps showing the last successful reading and logs a warning.
 
+## Screenshot protection
+
+The tempo module provides privacy protection for your location in the weather menu. By default, the **location is visible**.
+
+To protect your privacy when taking screenshots:
+- **Click on the location text** to blur it (shows as "•••••")
+- **Click again** to reveal the location
+
+This user-controlled toggle ensures you can quickly hide your location before taking a screenshot.
+
 ## Tips
 
 1. Include seconds in `clock_format` (e.g., `%T`) only if you need them—the module automatically increases the refresh
