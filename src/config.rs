@@ -251,14 +251,26 @@ pub enum TemperatureSensorType {
     Nvme,
 }
 
-#[derive(Deserialize, Clone, Debug)]
+/// A type keyword (auto-detected) or an exact sensor label.
+#[derive(Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(untagged)]
+pub enum TemperatureSensor {
+    Type(TemperatureSensorType),
+    Label(String),
+}
+
+impl Default for TemperatureSensor {
+    fn default() -> Self {
+        Self::Type(TemperatureSensorType::default())
+    }
+}
+
+#[derive(Deserialize, Clone, Debug, Default)]
 #[serde(default)]
 pub struct SystemInfoTemperature {
     warn_threshold: Option<i32>,
     alert_threshold: Option<i32>,
-    pub sensor_type: TemperatureSensorType,
-    pub sensor: Option<String>,
-    pub format: TemperatureFormat,
+    pub sensor: TemperatureSensor,
 }
 
 impl SystemInfoTemperature {
@@ -285,18 +297,6 @@ impl SystemInfoTemperature {
     }
 }
 
-impl Default for SystemInfoTemperature {
-    fn default() -> Self {
-        Self {
-            warn_threshold: None,
-            alert_threshold: None,
-            sensor_type: TemperatureSensorType::default(),
-            sensor: None,
-            format: TemperatureFormat::Celsius,
-        }
-    }
-}
-
 #[derive(Clone, Debug, Deserialize, Default)]
 pub enum DiskFormat {
     #[default]
@@ -316,13 +316,6 @@ pub enum CpuFormat {
     #[default]
     Percentage,
     Frequency,
-}
-
-#[derive(Clone, Debug, Deserialize, Default)]
-pub enum TemperatureFormat {
-    #[default]
-    Celsius,
-    Fahrenheit,
 }
 
 #[derive(Deserialize, Clone, Debug)]

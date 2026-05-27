@@ -50,7 +50,7 @@ alert_threshold = 85
 [system_info.temperature]
 warn_threshold = 60
 alert_threshold = 80
-sensor = "acpitz temp1"
+sensor = "Cpu"             # type keyword or exact label, e.g. "acpitz temp1"
 
 [tempo]
 clock_format = "%a %d %b %R"

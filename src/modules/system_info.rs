@@ -4,7 +4,7 @@ use crate::{
     components::icons::{StaticIcon, icon},
     config::{
         CpuFormat, DiskFormat, MemoryFormat, SystemInfoIndicator, SystemInfoModuleConfig,
-        SystemInfoTemperature, TemperatureSensorType,
+        SystemInfoTemperature, TemperatureSensor, TemperatureSensorType,
     },
     i18n::{UnitSystem, unit_system},
     t,
@@ -152,26 +152,24 @@ static ACPI_MATCHES: [SensorMatch<'static>; 1] =
 static NVME_MATCHES: [SensorMatch<'static>; 1] = [SensorMatch::StartsWith(&["nvme"])];
 
 fn get_temperature_sensor_label(
-    temperature_config: &SystemInfoTemperature,
+    sensor: &TemperatureSensor,
     components: &Components,
 ) -> Option<String> {
-    // Try manual sensor first if specified
-    if let Some(sensor) = temperature_config.sensor.as_deref() {
-        if components.iter().any(|c| c.label() == sensor) {
-            info!(
-                "Using manually configured temperature sensor: {} (type {:?})",
-                sensor, temperature_config.sensor_type
-            );
-            return Some(sensor.to_string());
-        } else {
+    let sensor_type = match sensor {
+        TemperatureSensor::Label(label) => {
+            if components.iter().any(|c| c.label() == label) {
+                info!("Using manually configured temperature sensor: {label}");
+                return Some(label.clone());
+            }
             warn!(
-                "Configured temperature sensor '{}' not found, falling back to auto-detection for {:?}",
-                sensor, temperature_config.sensor_type
+                "Configured temperature sensor '{label}' not found, falling back to Cpu auto-detection"
             );
+            &TemperatureSensorType::Cpu
         }
-    }
+        TemperatureSensor::Type(sensor_type) => sensor_type,
+    };
 
-    let matches: &[SensorMatch] = match temperature_config.sensor_type {
+    let matches: &[SensorMatch] = match sensor_type {
         TemperatureSensorType::Cpu => &CPU_MATCHES,
         TemperatureSensorType::Gpu => &GPU_MATCHES,
         TemperatureSensorType::Acpi => &ACPI_MATCHES,
@@ -181,15 +179,9 @@ fn get_temperature_sensor_label(
     let sensor_label = find_sensor(components, matches);
 
     if let Some(ref label) = sensor_label {
-        info!(
-            "Auto-detected temperature sensor for {:?}: {}",
-            temperature_config.sensor_type, label
-        );
+        info!("Auto-detected temperature sensor for {sensor_type:?}: {label}");
     } else {
-        warn!(
-            "No temperature sensor found for {:?} type",
-            temperature_config.sensor_type
-        );
+        warn!("No temperature sensor found for {sensor_type:?} type");
     }
 
     sensor_label
@@ -254,7 +246,8 @@ fn get_system_info(
 
     let temperature_cel = {
         if cached_sensor_label.is_none() {
-            *cached_sensor_label = get_temperature_sensor_label(temperature_config, components);
+            *cached_sensor_label =
+                get_temperature_sensor_label(&temperature_config.sensor, components);
         }
 
         let mut reading = cached_sensor_label.as_ref().and_then(|label| {
@@ -268,7 +261,8 @@ fn get_system_info(
             if let Some(label) = (*cached_sensor_label).take() {
                 warn!("Cached sensor '{}' invalid; re-detecting", label);
             }
-            *cached_sensor_label = get_temperature_sensor_label(temperature_config, components);
+            *cached_sensor_label =
+                get_temperature_sensor_label(&temperature_config.sensor, components);
             reading = cached_sensor_label.as_ref().and_then(|label| {
                 components
                     .iter()
@@ -445,9 +439,7 @@ impl SystemInfo {
         );
 
         if let Some(label) = cached_sensor_label.as_ref() {
-            info!("Using temperature sensor: {}", label);
-        } else if let Some(sensor) = config.temperature.sensor.as_deref() {
-            info!("Using temperature sensor: {}", sensor);
+            info!("Using temperature sensor: {label}");
         }
 
         Self {

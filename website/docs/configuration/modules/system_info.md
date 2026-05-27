@@ -127,22 +127,24 @@ The Temperature indicator displays the current temperature from the configured s
 
 To enable this indicator, add `Temperature` to the `indicators` configuration.
 
-By default, the temperature sensor is auto-detected based on the `sensor_type` option.
-The default sensor type is `Cpu`, which will look for `k10temp` (AMD) or `coretemp` (Intel) sensors.
+The sensor is configured with a single `sensor` option that accepts either a sensor **type** keyword (auto-detected) or an **exact sensor label** (manual override).
 
-You can configure the sensor type with `sensor_type`:
+Sensor type keywords (auto-detected):
 
 - `"Cpu"` (default) — CPU temperature (coretemp/k10temp)
 - `"Gpu"` — GPU temperature (amdgpu/nouveau)
 - `"Acpi"` — ACPI thermal zone (acpitz)
 - `"Nvme"` — NVMe SSD temperature
 
-Alternatively, you can specify an exact sensor name with the `sensor` option to override auto-detection:
+Any other string is treated as an exact sensor label, overriding auto-detection (e.g. `sensor = "k10temp Tctl"`). If the configured label isn't found on your system, ashell falls back to `Cpu` auto-detection.
 
-You can also change the display format using the `format` option:
+```toml
+[system_info.temperature]
+sensor = "Cpu"              # auto-detect by type
+# sensor = "k10temp Tctl"   # or pin an exact sensor label
+```
 
-- `"Celsius"` (default) — shows temperature in Celsius (e.g., `52°C`)
-- `"Fahrenheit"` — shows temperature in Fahrenheit (e.g., `125°F`)
+The temperature **unit** (Celsius or Fahrenheit) follows your locale / unit system (the global `region` option), so there is no separate temperature format option.
 
 To see available sensors on your system, you can check the output of `sensors` command or
 look at the component labels returned by the sysinfo library.
@@ -182,7 +184,7 @@ Higher values reduce CPU usage at the cost of less frequent updates.
 Each indicator type supports a `format` option that controls how its value is displayed in the status bar and menu. The format is configured in the corresponding `[system_info.<type>]` section.
 
 :::info
-Warning and alert color thresholds remain active regardless of the display format. For temperature, thresholds are interpreted in the configured unit — so if you use `"Fahrenheit"`, set your thresholds in Fahrenheit (e.g., `warn_threshold = 140`).
+Warning and alert color thresholds remain active regardless of the display format. For temperature, thresholds are interpreted in the unit determined by your locale / unit system — so if your locale uses Fahrenheit, set your thresholds in Fahrenheit (e.g., `warn_threshold = 140`).
 :::
 
 #### Example
@@ -193,9 +195,6 @@ format = "Frequency"
 
 [system_info.memory]
 format = "Fraction"
-
-[system_info.temperature]
-format = "Fahrenheit"
 
 [system_info.disk]
 format = "Fraction"
@@ -252,7 +251,6 @@ format = "Percentage"
 [system_info.temperature]
 warn_threshold = 60
 alert_threshold = 80
-sensor_type = "Cpu"  # "Cpu", "Gpu", "Acpi", or "Nvme"
-# sensor = "k10temp Tctl"  # optional: override with specific sensor
-format = "Celsius"
+sensor = "Cpu"  # type keyword ("Cpu", "Gpu", "Acpi", "Nvme") or an exact sensor label
+# sensor = "k10temp Tctl"  # example: pin an exact sensor label
 ```
