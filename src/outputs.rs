@@ -69,6 +69,9 @@ pub struct Outputs {
     entries: Vec<(String, Option<ShellInfo>, Option<OutputId>)>,
     toast: Option<OverlaySurface>,
     osd: Option<OverlaySurface>,
+    /// Last toast input-region request, replayed once the toast's output is
+    /// known (the enter event may arrive after the first layout).
+    toast_region: Option<(iced::Size, config::ToastPosition)>,
 }
 
 pub enum HasOutput<'a> {
@@ -108,6 +111,7 @@ impl Outputs {
             )],
             toast: None,
             osd: None,
+            toast_region: None,
         }
     }
 
@@ -677,13 +681,14 @@ impl Outputs {
     /// Update the input region of the toast surface so only the rendered
     /// toast content accepts pointer input. Everything else is click-through.
     pub fn update_toast_input_region<Message: 'static>(
-        &self,
+        &mut self,
         content_size: iced::Size,
         position: config::ToastPosition,
     ) -> Task<Message> {
         let Some(toast) = self.toast else {
             return Task::none();
         };
+        self.toast_region = Some((content_size, position));
         let content_w = content_size.width.ceil() as i32;
         let content_h = content_size.height.ceil() as i32;
         let y = match position {
@@ -728,11 +733,30 @@ impl Outputs {
     /// Track which output the toast/OSD overlay is mapped on, populated from
     /// `OutputEvent::SurfaceEnteredOutput` after the compositor maps the
     /// surface.
-    pub fn surface_entered_output(&mut self, surface_id: SurfaceId, output_id: OutputId) {
-        for slot in [&mut self.toast, &mut self.osd].into_iter().flatten() {
-            if slot.id == surface_id {
-                slot.output = Some(output_id);
-            }
+    pub fn surface_entered_output<Message: 'static>(
+        &mut self,
+        surface_id: SurfaceId,
+        output_id: OutputId,
+    ) -> Task<Message> {
+        let mut toast_output_changed = false;
+        if let Some(toast) = self.toast.as_mut()
+            && toast.id == surface_id
+            && toast.output != Some(output_id)
+        {
+            toast.output = Some(output_id);
+            toast_output_changed = true;
+        }
+        if let Some(osd) = self.osd.as_mut()
+            && osd.id == surface_id
+        {
+            osd.output = Some(output_id);
+        }
+
+        // Replay the input region now the output's logical height is known.
+        if toast_output_changed && let Some((content_size, position)) = self.toast_region {
+            self.update_toast_input_region(content_size, position)
+        } else {
+            Task::none()
         }
     }
 
@@ -745,6 +769,7 @@ impl Outputs {
     }
 
     pub fn hide_toast_layer<Message: 'static>(&mut self) -> Task<Message> {
+        self.toast_region = None;
         OverlaySurface::hide(&mut self.toast)
     }
 

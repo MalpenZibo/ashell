@@ -499,8 +499,7 @@ impl App {
                 }
                 OutputEvent::InfoChanged(_) => Task::none(),
                 OutputEvent::SurfaceEnteredOutput { surface, output } => {
-                    self.outputs.surface_entered_output(surface, output);
-                    Task::none()
+                    self.outputs.surface_entered_output(surface, output)
                 }
                 OutputEvent::SurfaceLeftOutput { surface, output } => {
                     self.outputs.surface_left_output(surface, output);
