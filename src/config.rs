@@ -242,12 +242,35 @@ impl Default for SystemInfoMemory {
 const DEFAULT_TEMP_WARN_CELSIUS: i32 = 60;
 const DEFAULT_TEMP_ALERT_CELSIUS: i32 = 80;
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub enum TemperatureSensorType {
+    #[default]
+    Cpu,
+    Gpu,
+    Acpi,
+    Nvme,
+}
+
+/// A type keyword (auto-detected) or an exact sensor label.
+#[derive(Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(untagged)]
+pub enum TemperatureSensor {
+    Type(TemperatureSensorType),
+    Label(String),
+}
+
+impl Default for TemperatureSensor {
+    fn default() -> Self {
+        Self::Type(TemperatureSensorType::default())
+    }
+}
+
+#[derive(Deserialize, Clone, Debug, Default)]
 #[serde(default)]
 pub struct SystemInfoTemperature {
     warn_threshold: Option<i32>,
     alert_threshold: Option<i32>,
-    pub sensor: String,
+    pub sensor: TemperatureSensor,
 }
 
 impl SystemInfoTemperature {
@@ -270,16 +293,6 @@ impl SystemInfoTemperature {
     fn validate(&mut self) {
         if let (Some(warn), Some(alert)) = (&mut self.warn_threshold, &mut self.alert_threshold) {
             validate_thresholds(warn, alert, "Temperature");
-        }
-    }
-}
-
-impl Default for SystemInfoTemperature {
-    fn default() -> Self {
-        Self {
-            warn_threshold: None,
-            alert_threshold: None,
-            sensor: "acpitz temp1".to_string(),
         }
     }
 }
