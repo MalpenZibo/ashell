@@ -149,6 +149,7 @@ dependencies = [
  "hyprland",
  "i18n-embed",
  "i18n-embed-fl",
+ "iced_anim",
  "iced_layershell",
  "inotify",
  "itertools 0.14.0",
@@ -1727,8 +1728,7 @@ dependencies = [
 [[package]]
 name = "hyprland"
 version = "0.4.0-beta.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "62fc24052f578592af91e5c60da1893ba6aea266b6ab86ffb72a644cf213fea9"
+source = "git+https://github.com/hyprland-community/hyprland-rs?branch=master#330b8d3b6906817377dbcb161ce3e221c0414a40"
 dependencies = [
  "async-stream",
  "derive_more",
@@ -1745,8 +1745,7 @@ dependencies = [
 [[package]]
 name = "hyprland-macros"
 version = "0.4.0-beta.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "31157e6ccefbad4b0cd7e549db6696691a70c11b108f26bf6bf76eef26af8c10"
+source = "git+https://github.com/hyprland-community/hyprland-rs?branch=master#330b8d3b6906817377dbcb161ce3e221c0414a40"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1841,6 +1840,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f31827a206f56af32e590ba56d5d2d085f558508192593743f16b2306495269f"
 dependencies = [
  "cc",
+]
+
+[[package]]
+name = "iced_anim"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ea7e0f5f848b041abf2907eda96a4c21cbd5c3aee4ade434bd650d898f39e95b"
+dependencies = [
+ "iced_core",
 ]
 
 [[package]]
@@ -3384,7 +3392,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.60.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]

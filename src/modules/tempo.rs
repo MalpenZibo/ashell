@@ -173,7 +173,7 @@ impl Tempo {
 
     pub fn view(&'_ self) -> Element<'_, Message> {
         let space = use_theme(|t| t.space);
-        let display_text = self.time_str(self.current_format(), self.current_timezone_index);
+        let display_text = self.time_str(self.current_format(), self.current_timezone_index, None);
 
         Row::with_capacity(2)
             .push(self.weather_indicator())
@@ -183,10 +183,16 @@ impl Tempo {
             .into()
     }
 
-    fn time_str(&'_ self, format: &str, timezone_index: usize) -> String {
+    fn time_str(
+        &'_ self,
+        format: &str,
+        timezone_index: usize,
+        utc_datetime: Option<NaiveDateTime>,
+    ) -> String {
         // %Z prints timezone abbreviations; other specifiers (e.g., %z/%:z) only need numeric offsets https://docs.rs/chrono/latest/chrono/format/strftime/index.html#fn6
         let format_requests_name = format.contains("%Z");
         let utc_now = self.date.with_timezone(&Utc);
+        let naive_utc = utc_datetime.unwrap_or_else(|| utc_now.naive_utc());
         let locale = chrono_locale();
 
         self.config
@@ -196,7 +202,7 @@ impl Tempo {
                 if !format_requests_name && let Ok(offset) = tz_name.parse::<FixedOffset>() {
                     return Some(
                         offset
-                            .from_utc_datetime(&utc_now.naive_utc())
+                            .from_utc_datetime(&naive_utc)
                             .format_localized(format, locale)
                             .to_string(),
                     );
@@ -204,7 +210,7 @@ impl Tempo {
 
                 if let Ok(tz) = tz_name.parse::<Tz>() {
                     return Some(
-                        tz.from_utc_datetime(&utc_now.naive_utc())
+                        tz.from_utc_datetime(&naive_utc)
                             .format_localized(format, locale)
                             .to_string(),
                     );
@@ -212,7 +218,12 @@ impl Tempo {
 
                 None
             })
-            .unwrap_or_else(|| self.date.format_localized(format, locale).to_string())
+            .unwrap_or_else(|| {
+                Local
+                    .from_utc_datetime(&naive_utc)
+                    .format_localized(format, locale)
+                    .to_string()
+            })
     }
 
     pub fn weather_indicator(&'_ self) -> Option<Element<'_, Message>> {
@@ -416,8 +427,12 @@ impl Tempo {
                 .map(|(index, tz_name)| {
                     if self.current_timezone_index == index {
                         container(
-                            text(format!("{}: {}", tz_name, self.time_str("%d %h %R", index)))
-                                .wrapping(text::Wrapping::Word),
+                            text(format!(
+                                "{}: {}",
+                                tz_name,
+                                self.time_str("%d %h %R", index, None)
+                            ))
+                            .wrapping(text::Wrapping::Word),
                         )
                         .padding([theme.space.xxs, theme.space.sm])
                         .width(Length::Fill)
@@ -427,10 +442,14 @@ impl Tempo {
                         })
                         .into()
                     } else {
-                        styled_button(format!("{}: {}", tz_name, self.time_str("%d %h %R", index)))
-                            .width(Length::Fill)
-                            .on_press(Message::SetTimezone(index))
-                            .into()
+                        styled_button(format!(
+                            "{}: {}",
+                            tz_name,
+                            self.time_str("%d %h %R", index, None)
+                        ))
+                        .width(Length::Fill)
+                        .on_press(Message::SetTimezone(index))
+                        .into()
                     }
                 })
                 .collect::<Vec<Element<'a, Message>>>(),
@@ -483,7 +502,7 @@ impl Tempo {
                         } else {
                             format!(", {}", location.region_name)
                         },
-                        data.current.time.format("%R")
+                        self.time_str("%R", self.current_timezone_index, Some(data.current.time))
                     ))
                     .size(font_size.sm)
                     .into()
@@ -516,7 +535,7 @@ impl Tempo {
                                     text(format!("{}{temp}", data.current.temperature_2m)),
                                     text(t!(
                                         "tempo-feels-like",
-                                        value = data.current.apparent_temperature,
+                                        value = data.current.apparent_temperature.round(),
                                         unit = temp,
                                     ))
                                     .size(font_size.sm)
@@ -686,8 +705,8 @@ impl Tempo {
                                             row!(
                                                 text(format!(
                                                     "{}{temp}/{}{temp}",
-                                                    temp_min.round(),
-                                                    temp_max.round()
+                                                    temp_max.round(),
+                                                    temp_min.round()
                                                 ))
                                                 .width(Length::Shrink),
                                                 row!(

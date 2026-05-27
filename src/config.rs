@@ -311,6 +311,7 @@ pub struct SystemInfoDisk {
     pub warn_threshold: u32,
     pub alert_threshold: u32,
     pub format: DiskFormat,
+    pub mounts: Option<Vec<String>>,
 }
 
 impl SystemInfoDisk {
@@ -325,6 +326,7 @@ impl Default for SystemInfoDisk {
             warn_threshold: 80,
             alert_threshold: 90,
             format: DiskFormat::Percentage,
+            mounts: None,
         }
     }
 }
@@ -437,9 +439,18 @@ impl Default for NotificationsModuleConfig {
     }
 }
 
+#[derive(Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum TrayClickAction {
+    Open,
+    Menu,
+}
+
 #[derive(Deserialize, Clone, Debug, Default)]
+#[serde(default)]
 pub struct TrayModuleConfig {
     pub blocklist: Vec<RegexCfg>,
+    pub right_click: Option<TrayClickAction>,
 }
 
 #[derive(Deserialize, Clone, Debug)]

@@ -69,6 +69,22 @@ You can change the display format using the `format` option in `[system_info.dis
 - `"Percentage"` (default) — shows disk usage as a percentage (e.g., `54%`)
 - `"Fraction"` — shows used and total disk space in GB (e.g., `256.00/512.00 GB`)
 
+#### Filtering Disk Mounts
+
+By default, all non-removable disks with available space are shown in the system info menu. You can use the `mounts` option in `[system_info.disk]` to specify which mount points to display.
+
+If `mounts` is not specified, all disks are shown (default behavior).
+
+```toml
+[system_info.disk]
+mounts = ["/", "/home"]
+warn_threshold = 80
+alert_threshold = 90
+format = "Percentage"
+```
+
+With the above configuration, only the disks mounted at `/` and `/home` will be displayed in the menu.
+
 #### Example
 
 To monitor the home directory disk space, you can add the following to your configuration:
@@ -222,6 +238,11 @@ format = "Percentage"
 warn_threshold = 80
 alert_threshold = 90
 format = "Percentage"
+<<<<<<< HEAD
+=======
+deduplicate = true
+# mounts = ["/", "/home"]  # uncomment to whitelist specific mount points
+>>>>>>> 41b4dcfe (system_info add mounts option to filter disk display)
 
 [system_info.temperature]
 warn_threshold = 60

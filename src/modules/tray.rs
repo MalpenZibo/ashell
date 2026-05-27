@@ -5,7 +5,7 @@ use crate::{
         ButtonHierarchy, ButtonKind, ButtonUIRef, IconPosition, MenuSize, position_button,
         styled_button,
     },
-    config::TrayModuleConfig,
+    config::{TrayClickAction, TrayModuleConfig},
     services::{
         ReadOnlyService, Service, ServiceEvent,
         tray::{
@@ -27,13 +27,16 @@ pub enum Message {
     ToggleMenu(String, SurfaceId, ButtonUIRef),
     ToggleSubmenu(i32),
     MenuSelected(String, i32),
+    MenuToggled(String, i32),
     MenuOpened(String),
+    Activate(String),
 }
 
 pub enum Action {
     None,
     ToggleMenu(String, SurfaceId, ButtonUIRef),
     TrayMenuCommand(Task<Message>),
+    TrayMenuCommandKeepOpen(Task<Message>),
     CloseTrayMenu(String),
 }
 
@@ -42,6 +45,7 @@ pub struct TrayModule {
     service: Option<TrayService>,
     submenus: Vec<i32>,
     blocklist: Vec<crate::config::RegexCfg>,
+    right_click: Option<TrayClickAction>,
 }
 
 impl TrayModule {
@@ -50,6 +54,7 @@ impl TrayModule {
             service: None,
             submenus: Vec::new(),
             blocklist: config.blocklist.clone(),
+            right_click: config.right_click,
         }
     }
 
@@ -102,6 +107,17 @@ impl TrayModule {
                 }
                 _ => Action::None,
             },
+            Message::MenuToggled(name, id) => match self.service.as_mut() {
+                Some(service) => {
+                    debug!("Tray menu toggle: {id}");
+                    Action::TrayMenuCommandKeepOpen(
+                        service
+                            .command(TrayCommand::MenuSelected(name, id))
+                            .map(|event| Message::Event(Box::new(event))),
+                    )
+                }
+                _ => Action::None,
+            },
             Message::MenuOpened(name) => {
                 if let Some(_tray) = self
                     .service
@@ -113,6 +129,17 @@ impl TrayModule {
 
                 Action::None
             }
+            Message::Activate(name) => match self.service.as_mut() {
+                Some(service) => {
+                    debug!("Tray item activate: {name}");
+                    Action::TrayMenuCommand(
+                        service
+                            .command(TrayCommand::Activate(name))
+                            .map(|event| Message::Event(Box::new(event))),
+                    )
+                }
+                _ => Action::None,
+            },
         }
     }
 
@@ -131,7 +158,7 @@ impl TrayModule {
                         let name = name.to_owned();
                         let id = layout.0;
 
-                        move |_| Message::MenuSelected(name.to_owned(), id)
+                        move |_| Message::MenuToggled(name.to_owned(), id)
                     })
                     .width(Length::Fill),
             )
@@ -207,26 +234,35 @@ impl TrayModule {
                             .iter()
                             .filter(|item| !self.is_blocklisted(&item.name))
                             .map(|item| {
+                                let name = item.name.to_owned();
                                 let button_style = button_style.clone();
-                                position_button(match &item.icon {
-                                    Some(TrayIcon::Image(handle)) => Into::<Element<_>>::into(
-                                        Image::new(handle.clone())
-                                            .height(Length::Fixed(font_size.md - 2.0)),
-                                    ),
-                                    Some(TrayIcon::Svg(handle)) => Into::<Element<_>>::into(
-                                        Svg::new(handle.clone())
-                                            .height(Length::Fixed(font_size.md + 2.))
-                                            .width(Length::Fixed(font_size.md + 2.))
-                                            .content_fit(iced::ContentFit::Cover),
-                                    ),
+                                let icon_content: Element<'_, Message> = match &item.icon {
+                                    Some(TrayIcon::Image(handle)) => Image::new(handle.clone())
+                                        .height(Length::Fixed(font_size.md - 2.0))
+                                        .into(),
+                                    Some(TrayIcon::Svg(handle)) => Svg::new(handle.clone())
+                                        .height(Length::Fixed(font_size.md + 2.))
+                                        .width(Length::Fixed(font_size.md + 2.))
+                                        .content_fit(iced::ContentFit::Cover)
+                                        .into(),
                                     _ => icon(StaticIcon::Point).into(),
-                                })
-                                .on_press_with_position(move |button_ui_ref| {
-                                    Message::ToggleMenu(item.name.to_owned(), id, button_ui_ref)
-                                })
-                                .padding(space.xxs)
-                                .style(move |t, s| button_style(t, s))
-                                .into()
+                                };
+                                let open_app = Message::Activate(name.clone());
+                                let toggle_menu = move |r| Message::ToggleMenu(name.clone(), id, r);
+
+                                let mut btn = position_button(icon_content);
+                                btn = match &self.right_click {
+                                    None => btn.on_press_with_position(toggle_menu.clone()),
+                                    Some(TrayClickAction::Open) => btn
+                                        .on_press_with_position(toggle_menu.clone())
+                                        .on_right_press(open_app.clone()),
+                                    Some(TrayClickAction::Menu) => btn
+                                        .on_press(open_app.clone())
+                                        .on_right_press_with_position(toggle_menu.clone()),
+                                };
+                                btn.padding(space.xxs)
+                                    .style(move |t, s| button_style(t, s))
+                                    .into()
                             })
                             .collect::<Vec<_>>(),
                     )

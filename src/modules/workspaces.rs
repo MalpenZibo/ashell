@@ -11,6 +11,7 @@ use iced::{
     Element, Length, Subscription, SurfaceId, alignment,
     widget::{MouseArea, Row, button, container, text},
 };
+use iced_anim::{AnimationBuilder, transition::Easing};
 use itertools::Itertools;
 use std::collections::HashMap;
 
@@ -437,14 +438,15 @@ impl Workspaces {
                                 }
                             });
 
-                            Some(
-                                button(
-                                    container(text(w.name.as_str()).size(theme.font_size.xs))
-                                        .align_x(alignment::Horizontal::Center)
-                                        .align_y(alignment::Vertical::Center),
-                                )
-                                .style(theme.workspace_button_style(empty, color))
-                                .padding(if w.id < 0 {
+                            {
+                                let target_width = match (w.id < 0, &w.displayed) {
+                                    (true, _) => None,
+                                    (_, Displayed::Active) => Some(theme.space.xl),
+                                    (_, Displayed::Visible) => Some(theme.space.lg),
+                                    (_, Displayed::Hidden) => Some(theme.space.md),
+                                };
+                                let name = w.name.clone();
+                                let padding = if w.id < 0 {
                                     match w.displayed {
                                         Displayed::Active => [0.0, theme.space.md],
                                         Displayed::Visible => [0.0, theme.space.sm],
@@ -452,21 +454,60 @@ impl Workspaces {
                                     }
                                 } else {
                                     [0.0, 0.0]
-                                })
-                                .on_press(if w.id > 0 {
+                                };
+                                let on_press = if w.id > 0 {
                                     Message::ChangeWorkspace(w.id)
                                 } else {
                                     Message::ToggleSpecialWorkspace(w.id)
+                                };
+                                let font_size = theme.font_size.xs;
+                                let height = theme.space.md;
+
+                                Some(match target_width {
+                                    Some(tw) if theme.animations_enabled => {
+                                        AnimationBuilder::new(tw, move |w| {
+                                            use_theme(|theme| {
+                                                button(
+                                                    container(text(name.clone()).size(font_size))
+                                                        .align_x(alignment::Horizontal::Center)
+                                                        .align_y(alignment::Vertical::Center),
+                                                )
+                                                .style(theme.workspace_button_style(empty, color))
+                                                .padding(padding)
+                                                .on_press(on_press.clone())
+                                                .width(Length::Fixed(w))
+                                                .height(height)
+                                                .into()
+                                            })
+                                        })
+                                        .animates_layout(true)
+                                        .animation(Easing::EASE.very_quick())
+                                        .into()
+                                    }
+                                    Some(tw) => button(
+                                        container(text(name).size(font_size))
+                                            .align_x(alignment::Horizontal::Center)
+                                            .align_y(alignment::Vertical::Center),
+                                    )
+                                    .style(theme.workspace_button_style(empty, color))
+                                    .padding(padding)
+                                    .on_press(on_press)
+                                    .width(Length::Fixed(tw))
+                                    .height(height)
+                                    .into(),
+                                    None => button(
+                                        container(text(name).size(font_size))
+                                            .align_x(alignment::Horizontal::Center)
+                                            .align_y(alignment::Vertical::Center),
+                                    )
+                                    .style(theme.workspace_button_style(empty, color))
+                                    .padding(padding)
+                                    .on_press(on_press)
+                                    .width(Length::Shrink)
+                                    .height(height)
+                                    .into(),
                                 })
-                                .width(match (w.id < 0, &w.displayed) {
-                                    (true, _) => Length::Shrink,
-                                    (_, Displayed::Active) => Length::Fixed(theme.space.xl),
-                                    (_, Displayed::Visible) => Length::Fixed(theme.space.lg),
-                                    (_, Displayed::Hidden) => Length::Fixed(theme.space.md),
-                                })
-                                .height(theme.space.md)
-                                .into(),
-                            )
+                            }
                         } else {
                             None
                         }
