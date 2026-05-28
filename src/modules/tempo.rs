@@ -494,6 +494,8 @@ impl Tempo {
             .zip(self.location.as_ref())
             .map(|(data, location)| {
                 let inner_element: Element<'a, Message> = if location_visible {
+                    let display_time =
+                        self.time_str("%R", self.current_timezone_index, Some(data.current.time));
                     text(format!(
                         "{}{} - {}",
                         location.city,
@@ -502,7 +504,7 @@ impl Tempo {
                         } else {
                             format!(", {}", location.region_name)
                         },
-                        self.time_str("%R", self.current_timezone_index, Some(data.current.time))
+                        display_time
                     ))
                     .size(font_size.sm)
                     .into()
@@ -625,7 +627,7 @@ impl Tempo {
                                     .time
                                     .iter()
                                     .enumerate()
-                                    .filter(|(_, t)| **t > self.date.naive_local())
+                                    .filter(|(_, t)| **t > data.current.time)
                                     .take(23)
                                     .peekable();
                                 let start_index = time.peek().map(|(index, _)| *index).unwrap_or(0);
@@ -642,13 +644,18 @@ impl Tempo {
                                         if i >= start_index { Some(v) } else { None }
                                     }),
                                 )
-                                .map(|(time, weather_code, temp_value, is_day)| {
+                                .map(|(hour_time, weather_code, temp_value, is_day)| {
+                                    let display_time = self.time_str(
+                                        "%H:%M",
+                                        self.current_timezone_index,
+                                        Some(*hour_time),
+                                    );
                                     column!(
                                         text(format!("{}{temp}", temp_value.round())),
                                         weather_icon(*weather_code, *is_day > 0)
                                             .height(font_size.md)
                                             .width(Length::Shrink),
-                                        text(time.format("%H:%M").to_string()).size(font_size.sm)
+                                        text(display_time).size(font_size.sm)
                                     )
                                     .spacing(space.xs)
                                     .align_x(Horizontal::Center)
@@ -1056,7 +1063,8 @@ latitude={lat}&longitude={lon}\
 &daily=weather_code,temperature_2m_max,temperature_2m_min,wind_speed_10m_max,wind_direction_10m_dominant\
 &forecast_days=7\
 &temperature_unit={temp_param}\
-&wind_speed_unit={wind_param}"
+&wind_speed_unit={wind_param}\
+&timezone=UTC"
     )).send().await?;
     let raw_data = response.text().await?;
 
