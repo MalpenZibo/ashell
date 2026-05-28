@@ -277,19 +277,19 @@ impl AudioSettings {
             }
             Message::OpenMore => {
                 if let Some(cmd) = &self.config.sinks_more_cmd {
-                    crate::utils::launcher::execute_command(cmd.to_string());
+                    crate::utils::launcher::execute_command(cmd);
                 }
                 Action::None
             }
             Message::OpenSourceMore => {
                 if let Some(cmd) = &self.config.sources_more_cmd {
-                    crate::utils::launcher::execute_command(cmd.to_string());
+                    crate::utils::launcher::execute_command(cmd);
                 }
                 Action::None
             }
             Message::SinksMore(id) => {
                 if let Some(cmd) = &self.config.sinks_more_cmd {
-                    crate::utils::launcher::execute_command(cmd.to_string());
+                    crate::utils::launcher::execute_command(cmd);
                     Action::CloseMenu(id)
                 } else {
                     Action::None
@@ -297,7 +297,7 @@ impl AudioSettings {
             }
             Message::SourcesMore(id) => {
                 if let Some(cmd) = &self.config.sources_more_cmd {
-                    crate::utils::launcher::execute_command(cmd.to_string());
+                    crate::utils::launcher::execute_command(cmd);
                     Action::CloseMenu(id)
                 } else {
                     Action::None

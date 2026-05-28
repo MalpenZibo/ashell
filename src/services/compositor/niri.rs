@@ -31,10 +31,8 @@ pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
                 ));
             }
         },
-        CompositorCommand::FocusSpecialWorkspace(_) => {
-            return Err(anyhow!("Special workspaces not supported in Niri backend"));
-        }
-        CompositorCommand::ToggleSpecialWorkspace(_) => {
+        CompositorCommand::FocusSpecialWorkspace(_)
+        | CompositorCommand::ToggleSpecialWorkspace(_) => {
             return Err(anyhow!("Special workspaces not supported in Niri backend"));
         }
         CompositorCommand::FocusMonitor(_) => {
