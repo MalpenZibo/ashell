@@ -25,7 +25,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
           cache-dependency-path: ./website/pnpm-lock.yaml
 
@@ -38,9 +38,9 @@ jobs:
         working-directory: ./website
 
       - name: Install mdbook
-        uses: peaceiris/actions-mdbook@v2
+        uses: taiki-e/install-action@v2
         with:
-          mdbook-version: latest
+          tool: mdbook
 
       - name: Build developer guide
         run: mdbook build docs/
