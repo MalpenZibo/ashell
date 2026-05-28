@@ -289,7 +289,10 @@ impl GenericState {
             workspaces,
             monitors,
             active_workspace_ids,
+            // ext-workspace exposes no global focus (see above).
+            focused_workspace_id: None,
             active_window,
+            windows: Vec::new(),
             keyboard_layout: String::new(),
             submap: None,
         }

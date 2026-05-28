@@ -219,7 +219,11 @@ fn build_state(all: AllMonitors) -> CompositorState {
         workspaces,
         monitors,
         active_workspace_ids,
+        // Several tags can be shown at once and Mango doesn't report which one
+        // holds focus.
+        focused_workspace_id: None,
         active_window,
+        windows: Vec::new(),
         keyboard_layout: keyboard_layout.unwrap_or_else(|| "Unknown".to_string()),
         submap,
     }

@@ -374,11 +374,8 @@ fn fetch_full_state(internal_state: &HyprInternalState) -> Result<CompositorStat
         })
         .collect();
 
-    let active_workspace_ids = Workspace::get_active()
-        .ok()
-        .map(|w| w.id)
-        .into_iter()
-        .collect();
+    let focused_workspace_id = Workspace::get_active().ok().map(|w| w.id);
+    let active_workspace_ids = focused_workspace_id.into_iter().collect();
 
     let active_window = Client::get_active().ok().flatten().map(|w| {
         ActiveWindow::Hyprland(ActiveWindowHyprland {
@@ -404,7 +401,9 @@ fn fetch_full_state(internal_state: &HyprInternalState) -> Result<CompositorStat
         workspaces,
         monitors,
         active_workspace_ids,
+        focused_workspace_id,
         active_window,
+        windows: Vec::new(),
         keyboard_layout,
         submap: if internal_state.submap.is_empty() {
             None
