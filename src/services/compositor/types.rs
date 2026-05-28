@@ -70,12 +70,30 @@ impl ActiveWindow {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct CompositorWindow {
+    pub id: u64,
+    pub workspace_id: Option<i32>,
+    pub is_focused: bool,
+    pub is_floating: bool,
+    pub is_urgent: bool,
+    /// Position in a tile grid (column, row), if the compositor lays this
+    /// window out in a grid. Only relative ordering is meaningful; the
+    /// origin index is compositor-defined.
+    pub tile_position: Option<(u32, u32)>,
+    /// Tile dimensions in compositor pixels (including decorations), used
+    /// for proportional minimap sizing.
+    pub tile_width: f32,
+    pub tile_height: f32,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct CompositorState {
     pub workspaces: Vec<CompositorWorkspace>,
     pub monitors: Vec<CompositorMonitor>,
     pub active_workspace_id: Option<i32>,
     pub active_window: Option<ActiveWindow>,
+    pub windows: Vec<CompositorWindow>,
     pub keyboard_layout: String,
     pub submap: Option<String>,
 }
