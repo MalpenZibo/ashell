@@ -1854,6 +1854,7 @@ pub enum ModuleName {
     Updates,
     Workspaces,
     WindowTitle,
+    Minimap,
     SystemInfo,
     KeyboardLayout,
     KeyboardSubmap,
@@ -1868,10 +1869,11 @@ pub enum ModuleName {
 
 /// Each builtin module's layout name and its snake_case name, used for its
 /// settings section and its `[appearance.modules]` key.
-const BUILTIN_MODULES: [(&str, &str, ModuleName); 12] = [
+const BUILTIN_MODULES: [(&str, &str, ModuleName); 13] = [
     ("Updates", "updates", ModuleName::Updates),
     ("Workspaces", "workspaces", ModuleName::Workspaces),
     ("WindowTitle", "window_title", ModuleName::WindowTitle),
+    ("Minimap", "minimap", ModuleName::Minimap),
     ("SystemInfo", "system_info", ModuleName::SystemInfo),
     (
         "KeyboardLayout",
