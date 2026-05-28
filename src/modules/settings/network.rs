@@ -387,8 +387,11 @@ impl NetworkSettings {
                         service.wifi_enabled,
                         Message::ToggleWiFi,
                         Some(Message::OpenMore),
-                        Some((SubMenu::Wifi, sub_menu, Message::ToggleWifiMenu))
-                            .filter(|_| service.wifi_enabled),
+                        service.wifi_enabled.then_some((
+                            SubMenu::Wifi,
+                            sub_menu,
+                            Message::ToggleWifiMenu,
+                        )),
                     ),
                     sub_menu
                         .filter(|menu_type| *menu_type == SubMenu::Wifi)
