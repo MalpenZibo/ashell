@@ -767,6 +767,7 @@ impl App {
                     MenuType::AudioTooltip
                     | MenuType::BluetoothTooltip
                     | MenuType::WifiTooltip
+                    | MenuType::VpnTooltip
                     | MenuType::BatteryTooltip
                     | MenuType::PeripheralBatteryTooltip(_) => self.menu_wrapper(
                         id,

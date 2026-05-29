@@ -387,8 +387,11 @@ impl NetworkSettings {
                         service.wifi_enabled,
                         Message::ToggleWiFi,
                         Some(Message::OpenMore),
-                        Some((SubMenu::Wifi, sub_menu, Message::ToggleWifiMenu))
-                            .filter(|_| service.wifi_enabled),
+                        service.wifi_enabled.then_some((
+                            SubMenu::Wifi,
+                            sub_menu,
+                            Message::ToggleWifiMenu,
+                        )),
                     ),
                     sub_menu
                         .filter(|menu_type| *menu_type == SubMenu::Wifi)
@@ -689,6 +692,27 @@ impl NetworkSettings {
                 ActiveConnectionInfo::WiFi { name, .. } => Some(name.clone()),
                 _ => None,
             })
+        })
+    }
+
+    pub fn vpn_tooltip_label(&self) -> Option<String> {
+        self.service.as_ref().and_then(|service| {
+            let active_vpns: Vec<_> = service
+                .active_connections
+                .iter()
+                .filter_map(|c| match c {
+                    ActiveConnectionInfo::Vpn { name, .. } => Some(name.clone()),
+                    _ => None,
+                })
+                .collect();
+
+            if active_vpns.is_empty() {
+                None
+            } else if active_vpns.len() == 1 {
+                Some(active_vpns[0].clone())
+            } else {
+                Some(format!("{} VPNs connected", active_vpns.len()))
+            }
         })
     }
 }

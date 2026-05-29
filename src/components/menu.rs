@@ -22,6 +22,7 @@ pub enum MenuType {
     AudioTooltip,
     BluetoothTooltip,
     WifiTooltip,
+    VpnTooltip,
     BatteryTooltip,
     PeripheralBatteryTooltip(usize),
 }
@@ -102,16 +103,20 @@ impl Menu {
             MenuType::AudioTooltip
                 | MenuType::BluetoothTooltip
                 | MenuType::WifiTooltip
+                | MenuType::VpnTooltip
                 | MenuType::BatteryTooltip
                 | MenuType::PeripheralBatteryTooltip(_)
         );
         match &mut self.open {
             None => self.open(menu_type, button_ui_ref, request_keyboard, output_id),
-            Some(open)
-                if open.menu_type == menu_type
-                    && open.button_ui_ref.position == button_ui_ref.position =>
-            {
-                self.close()
+            Some(open) if open.menu_type == menu_type => {
+                if menu_is_tooltip {
+                    // For tooltips, just update the button reference without closing/reopening
+                    open.button_ui_ref = button_ui_ref;
+                    Task::none()
+                } else {
+                    self.close()
+                }
             }
             Some(open)
                 if !matches!(
@@ -119,10 +124,16 @@ impl Menu {
                     MenuType::AudioTooltip
                         | MenuType::BluetoothTooltip
                         | MenuType::WifiTooltip
+                        | MenuType::VpnTooltip
                         | MenuType::BatteryTooltip
                         | MenuType::PeripheralBatteryTooltip(_)
                 ) && menu_is_tooltip =>
             {
+                Task::none()
+            }
+            Some(open) if menu_is_tooltip => {
+                open.menu_type = menu_type;
+                open.button_ui_ref = button_ui_ref;
                 Task::none()
             }
             _ => {

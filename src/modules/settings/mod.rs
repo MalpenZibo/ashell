@@ -104,6 +104,7 @@ pub enum Message {
     AudioTooltipHover(ButtonUIRef, SurfaceId),
     BluetoothTooltipHover(ButtonUIRef, SurfaceId),
     WifiTooltipHover(ButtonUIRef, SurfaceId),
+    VpnTooltipHover(ButtonUIRef, SurfaceId),
     BatteryTooltipHover(ButtonUIRef, SurfaceId),
     PeripheralBatteryTooltipHover(ButtonUIRef, SurfaceId, usize),
     TooltipUnhover(SurfaceId, MenuType),
@@ -558,39 +559,22 @@ impl Settings {
                 Action::None
             }
             Message::AudioTooltipHover(ui_ref, id) => {
-                if self.enable_tooltips {
-                    Action::OpenTooltipMenu(id, MenuType::AudioTooltip, ui_ref)
-                } else {
-                    Action::None
-                }
+                Action::OpenTooltipMenu(id, MenuType::AudioTooltip, ui_ref)
             }
             Message::BluetoothTooltipHover(ui_ref, id) => {
-                if self.enable_tooltips {
-                    Action::OpenTooltipMenu(id, MenuType::BluetoothTooltip, ui_ref)
-                } else {
-                    Action::None
-                }
+                Action::OpenTooltipMenu(id, MenuType::BluetoothTooltip, ui_ref)
             }
             Message::WifiTooltipHover(ui_ref, id) => {
-                if self.enable_tooltips {
-                    Action::OpenTooltipMenu(id, MenuType::WifiTooltip, ui_ref)
-                } else {
-                    Action::None
-                }
+                Action::OpenTooltipMenu(id, MenuType::WifiTooltip, ui_ref)
+            }
+            Message::VpnTooltipHover(ui_ref, id) => {
+                Action::OpenTooltipMenu(id, MenuType::VpnTooltip, ui_ref)
             }
             Message::BatteryTooltipHover(ui_ref, id) => {
-                if self.enable_tooltips {
-                    Action::OpenTooltipMenu(id, MenuType::BatteryTooltip, ui_ref)
-                } else {
-                    Action::None
-                }
+                Action::OpenTooltipMenu(id, MenuType::BatteryTooltip, ui_ref)
             }
             Message::PeripheralBatteryTooltipHover(ui_ref, id, index) => {
-                if self.enable_tooltips {
-                    Action::OpenTooltipMenu(id, MenuType::PeripheralBatteryTooltip(index), ui_ref)
-                } else {
-                    Action::None
-                }
+                Action::OpenTooltipMenu(id, MenuType::PeripheralBatteryTooltip(index), ui_ref)
             }
             Message::TooltipUnhover(id, menu_type) => Action::CloseTooltipMenu(id, menu_type),
         }
@@ -819,20 +803,24 @@ impl Settings {
                     let peripherals = self.power.peripheral_indicators();
                     for (index, element) in peripherals.into_iter().enumerate() {
                         let element = element.map(Message::Power);
-                        row = row.push(
-                            position_button(element)
-                                .width(Length::Shrink)
-                                .height(Length::Shrink)
-                                .padding(0)
-                                .style(transparent_button_style)
-                                .on_hover_with_position(move |ui_ref| {
-                                    Message::PeripheralBatteryTooltipHover(ui_ref, id, index)
-                                })
-                                .on_unhover(Message::TooltipUnhover(
-                                    id,
-                                    MenuType::PeripheralBatteryTooltip(index),
-                                )),
-                        );
+                        if self.enable_tooltips {
+                            row = row.push(
+                                position_button(element)
+                                    .width(Length::Shrink)
+                                    .height(Length::Shrink)
+                                    .padding(0)
+                                    .style(transparent_button_style)
+                                    .on_hover_with_position(move |ui_ref| {
+                                        Message::PeripheralBatteryTooltipHover(ui_ref, id, index)
+                                    })
+                                    .on_unhover(Message::TooltipUnhover(
+                                        id,
+                                        MenuType::PeripheralBatteryTooltip(index),
+                                    )),
+                            );
+                        } else {
+                            row = row.push(element);
+                        }
                     }
                     None
                 }
@@ -843,20 +831,27 @@ impl Settings {
             };
 
             if let Some(element) = element {
-                let tooltip_config: Option<TooltipConfig> = match indicator {
-                    SettingsIndicator::Audio | SettingsIndicator::Microphone => {
-                        Some((Message::AudioTooltipHover, MenuType::AudioTooltip))
+                let tooltip_config: Option<TooltipConfig> = if self.enable_tooltips {
+                    match indicator {
+                        SettingsIndicator::Audio | SettingsIndicator::Microphone => {
+                            Some((Message::AudioTooltipHover, MenuType::AudioTooltip))
+                        }
+                        SettingsIndicator::Network => {
+                            Some((Message::WifiTooltipHover, MenuType::WifiTooltip))
+                        }
+                        SettingsIndicator::Vpn => {
+                            Some((Message::VpnTooltipHover, MenuType::VpnTooltip))
+                        }
+                        SettingsIndicator::Bluetooth => {
+                            Some((Message::BluetoothTooltipHover, MenuType::BluetoothTooltip))
+                        }
+                        SettingsIndicator::Battery => {
+                            Some((Message::BatteryTooltipHover, MenuType::BatteryTooltip))
+                        }
+                        _ => None,
                     }
-                    SettingsIndicator::Network | SettingsIndicator::Vpn => {
-                        Some((Message::WifiTooltipHover, MenuType::WifiTooltip))
-                    }
-                    SettingsIndicator::Bluetooth => {
-                        Some((Message::BluetoothTooltipHover, MenuType::BluetoothTooltip))
-                    }
-                    SettingsIndicator::Battery => {
-                        Some((Message::BatteryTooltipHover, MenuType::BatteryTooltip))
-                    }
-                    _ => None,
+                } else {
+                    None
                 };
 
                 if let Some((hover_msg, menu_type)) = tooltip_config {
@@ -910,17 +905,20 @@ impl Settings {
                 column.into()
             }
             MenuType::BluetoothTooltip => {
-                let peripherals = self.power.get_peripherals_for_tooltip();
-                if !peripherals.is_empty() {
-                    Column::with_capacity(peripherals.len())
-                        .extend(peripherals.into_iter().map(|p| {
-                            row![
-                                p.get_icon_state().to_text(),
-                                iced::widget::text(&p.name),
-                                iced::widget::text(format!("{}%", p.data.capacity as u32))
-                            ]
-                            .spacing(space.xs)
-                            .into()
+                let devices = self.bluetooth.connected_devices_for_tooltip();
+                if !devices.is_empty() {
+                    Column::with_capacity(devices.len())
+                        .extend(devices.into_iter().map(|(name, battery)| {
+                            if let Some(bat) = battery {
+                                row![
+                                    iced::widget::text(name),
+                                    iced::widget::text(format!("{}%", bat))
+                                ]
+                                .spacing(space.xs)
+                                .into()
+                            } else {
+                                row![iced::widget::text(name)].spacing(space.xs).into()
+                            }
                         }))
                         .spacing(space.xs)
                         .into()
@@ -931,6 +929,15 @@ impl Settings {
             MenuType::WifiTooltip => {
                 if let Some(label) = self.network.connected_wifi_label() {
                     row![StaticIcon::Wifi4.to_text(), iced::widget::text(label)]
+                        .spacing(space.xs)
+                        .into()
+                } else {
+                    Row::new().into()
+                }
+            }
+            MenuType::VpnTooltip => {
+                if let Some(label) = self.network.vpn_tooltip_label() {
+                    row![StaticIcon::Vpn.to_text(), iced::widget::text(label)]
                         .spacing(space.xs)
                         .into()
                 } else {

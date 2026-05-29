@@ -382,7 +382,7 @@ impl NetworkDbus<'_> {
                         let path = path.clone();
                         async move {
                             let value = val.get().await.unwrap_or_default();
-                            debug!("Strength changed value: {}, {}", &ssid, value);
+                            debug!("Strength changed value: {}, {}", ssid, value);
                             NetworkEvent::Strength((Some(path.clone()), ssid.clone(), value))
                         }
                     })

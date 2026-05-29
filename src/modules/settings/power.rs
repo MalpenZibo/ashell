@@ -9,10 +9,7 @@ use crate::{
     config::{PeripheralIndicators, SettingsFormat},
     services::{
         ReadOnlyService, Service, ServiceEvent,
-        upower::{
-            BatteryData, BatteryStatus, Peripheral, PowerProfile, PowerProfileCommand,
-            UPowerService,
-        },
+        upower::{BatteryData, BatteryStatus, PowerProfile, PowerProfileCommand, UPowerService},
     },
     t,
     theme::use_theme,
@@ -487,24 +484,6 @@ impl PowerSettings {
                 (capacity, status_label, details)
             })
         })
-    }
-
-    pub fn get_peripherals_for_tooltip(&self) -> Vec<&Peripheral> {
-        let kinds_filter = match &self.config.peripheral_indicators {
-            PeripheralIndicators::All => None,
-            PeripheralIndicators::Specific(kinds) => Some(kinds.as_slice()),
-        };
-
-        self.service
-            .as_ref()
-            .map(|service| {
-                service
-                    .peripherals
-                    .iter()
-                    .filter(|p| kinds_filter.is_none_or(|kinds| kinds.contains(&p.kind)))
-                    .collect()
-            })
-            .unwrap_or_default()
     }
 
     pub fn peripheral_battery_tooltip_info(
