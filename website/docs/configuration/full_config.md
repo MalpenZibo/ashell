@@ -68,6 +68,8 @@ max_notifications = 10
 show_bodies = true
 
 [settings]
+# Optional: disable hover tooltips on status indicators
+# enable_tooltips = false
 lock_cmd = "playerctl --all-players pause; nixGL hyprlock &"
 audio_sinks_more_cmd = "pavucontrol -t 3"
 audio_sources_more_cmd = "pavucontrol -t 4"
