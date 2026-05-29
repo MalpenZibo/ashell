@@ -202,8 +202,11 @@ impl BluetoothSettings {
                     service.state == BluetoothState::Active,
                     Message::Toggle,
                     Some(Message::OpenMore),
-                    Some((SubMenu::Bluetooth, sub_menu, Message::ToggleSubMenu))
-                        .filter(|_| service.state == BluetoothState::Active),
+                    (service.state == BluetoothState::Active).then_some((
+                        SubMenu::Bluetooth,
+                        sub_menu,
+                        Message::ToggleSubMenu,
+                    )),
                 ),
                 sub_menu
                     .filter(|menu_type| *menu_type == SubMenu::Bluetooth)
