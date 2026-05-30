@@ -34,7 +34,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
           cache-dependency-path: ./website/pnpm-lock.yaml
 
@@ -45,9 +45,9 @@ jobs:
         run: pnpm build
 
       - name: Install mdbook
-        uses: peaceiris/actions-mdbook@v2
+        uses: taiki-e/install-action@v2
         with:
-          mdbook-version: latest
+          tool: mdbook
 
       - name: Build developer guide
         run: mdbook build docs/
@@ -73,4 +73,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

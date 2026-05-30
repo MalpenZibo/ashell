@@ -499,6 +499,13 @@ impl App {
                     )
                 }
                 OutputEvent::InfoChanged(_) => Task::none(),
+                OutputEvent::SurfaceEnteredOutput { surface, output } => {
+                    self.outputs.surface_entered_output(surface, output)
+                }
+                OutputEvent::SurfaceLeftOutput { surface, output } => {
+                    self.outputs.surface_left_output(surface, output);
+                    Task::none()
+                }
             },
             Message::MediaPlayer(msg) => match self.media_player.update(msg) {
                 modules::media_player::Action::None => Task::none(),
