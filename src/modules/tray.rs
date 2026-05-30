@@ -17,9 +17,11 @@ use crate::{
 };
 use iced::{
     Alignment, Element, Length, Padding, Subscription, SurfaceId, Task,
-    widget::{Column, Image, Row, Svg, container, toggler},
+    widget::{Column, Image, Row, Svg, container, scrollable, text, toggler},
 };
 use log::debug;
+
+const MENU_MAX_HEIGHT: f32 = 600.;
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -150,9 +152,10 @@ impl TrayModule {
                 label: Some(label),
                 toggle_type: Some(toggle_type),
                 toggle_state: Some(state),
+                children_display: None,
                 ..
-            } if toggle_type == "checkmark" => container(
-                toggler(*state > 0)
+            } if toggle_type == "checkmark" => {
+                let content: Element<'a, Message> = toggler(*state > 0)
                     .label(label.replace("_", "").to_owned())
                     .on_toggle({
                         let name = name.to_owned();
@@ -160,19 +163,38 @@ impl TrayModule {
 
                         move |_| Message::MenuToggled(name.to_owned(), id)
                     })
-                    .width(Length::Fill),
-            )
-            .padding([space.xs, space.md])
-            .into(),
+                    .width(Length::Fill)
+                    .into();
+                styled_button(content)
+                    .on_press(Message::MenuToggled(name.to_owned(), layout.0))
+                    .width(Length::Fill)
+                    .into()
+            }
             LayoutProps {
                 children_display: Some(display),
                 label: Some(label),
+                toggle_type,
+                toggle_state,
                 ..
             } if display == "submenu" => {
                 let is_open = self.submenus.contains(&layout.0);
+                let content: Element<'a, Message> = match (toggle_type.as_deref(), toggle_state) {
+                    (Some("checkmark"), &Some(state)) => Row::new()
+                        .push(toggler(state > 0).on_toggle({
+                            let name = name.to_owned();
+                            let id = layout.0;
+
+                            move |_| Message::MenuToggled(name.to_owned(), id)
+                        }))
+                        .push(text(label.replace("_", "")))
+                        .spacing(space.sm)
+                        .align_y(Alignment::Center)
+                        .into(),
+                    _ => text(label.replace("_", "")).into(),
+                };
                 Column::with_capacity(2)
                     .push(
-                        styled_button(label.replace("_", ""))
+                        styled_button(content)
                             .icon(
                                 if is_open {
                                     StaticIcon::MenuOpen
@@ -273,25 +295,26 @@ impl TrayModule {
 
     pub fn menu_view<'a>(&'a self, name: &'a str) -> Element<'a, Message> {
         let space = use_theme(|theme| theme.space);
-        container(
-            match self
-                .service
-                .as_ref()
-                .and_then(|service| service.data.iter().find(|item| item.name == name))
-            {
-                Some(item) => Column::with_children(
-                    item.menu
-                        .2
-                        .iter()
-                        .filter(|menu| menu.1.visible != Some(false))
-                        .map(|menu| self.menu_voice(name, menu)),
-                )
-                .spacing(space.xs),
-                _ => Column::new(),
-            },
-        )
-        .width(MenuSize::Medium)
-        .into()
+        let items = match self
+            .service
+            .as_ref()
+            .and_then(|service| service.data.iter().find(|item| item.name == name))
+        {
+            Some(item) => Column::with_children(
+                item.menu
+                    .2
+                    .iter()
+                    .filter(|menu| menu.1.visible != Some(false))
+                    .map(|menu| self.menu_voice(name, menu)),
+            )
+            .spacing(space.xs),
+            _ => Column::new(),
+        };
+
+        container(scrollable(items).spacing(space.xs))
+            .width(MenuSize::Medium)
+            .max_height(MENU_MAX_HEIGHT)
+            .into()
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
