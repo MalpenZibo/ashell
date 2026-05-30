@@ -10,6 +10,7 @@ use iced::{Alignment, Element, Length, Subscription, SurfaceId, widget::Row};
 
 pub mod custom_module;
 pub mod keyboard_layout;
+pub mod keyboard_locks;
 pub mod keyboard_submap;
 pub mod media_player;
 pub mod notifications;
@@ -212,6 +213,10 @@ impl App {
                 .keyboard_submap
                 .view()
                 .map(|view| (view.map(Message::KeyboardSubmap), None)),
+            ModuleName::KeyboardLocks => self
+                .keyboard_locks
+                .view()
+                .map(|view| (view.map(Message::KeyboardLocks), None)),
             ModuleName::Tray => self
                 .tray
                 .view(id)
@@ -277,6 +282,11 @@ impl App {
                 self.keyboard_submap
                     .subscription()
                     .map(Message::KeyboardSubmap),
+            ),
+            ModuleName::KeyboardLocks => Some(
+                self.keyboard_locks
+                    .subscription()
+                    .map(Message::KeyboardLocks),
             ),
             ModuleName::Tray => Some(self.tray.subscription().map(Message::Tray)),
             ModuleName::Tempo => Some(self.tempo.subscription().map(Message::Tempo)),
