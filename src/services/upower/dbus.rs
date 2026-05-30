@@ -1,3 +1,4 @@
+use super::ChargeLimit;
 use log::debug;
 use std::ops::Deref;
 use zbus::{
@@ -19,6 +20,33 @@ impl<'a> Deref for UPowerDbus<'a> {
 pub struct SystemBattery(Vec<DeviceProxy<'static>>);
 
 impl SystemBattery {
+    pub async fn charge_limit(&self) -> Option<ChargeLimit> {
+        for device in &self.0 {
+            let Ok(introspection) = device.inner().introspect().await else {
+                continue;
+            };
+
+            if !has_enable_charge_threshold_method(&introspection) {
+                continue;
+            }
+
+            if !device.charge_threshold_supported().await.unwrap_or(false) {
+                continue;
+            }
+
+            let Ok(enabled) = device.charge_threshold_enabled().await else {
+                continue;
+            };
+
+            return Some(ChargeLimit {
+                enabled,
+                device_path: device.inner().path().to_owned(),
+            });
+        }
+
+        None
+    }
+
     pub async fn state(&self) -> DeviceState {
         let mut charging = false;
         let mut discharging = false;
@@ -120,6 +148,14 @@ impl SystemBattery {
             .map(|device| device.inner().path().to_owned())
             .collect()
     }
+}
+
+fn has_enable_charge_threshold_method(introspection: &str) -> bool {
+    introspection
+        .split("<interface ")
+        .find(|section| section.contains("name=\"org.freedesktop.UPower.Device\""))
+        .and_then(|section| section.split("</interface>").next())
+        .is_some_and(|section| section.contains("<method name=\"EnableChargeThreshold\""))
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
@@ -398,6 +434,14 @@ pub trait Device {
 
     #[zbus(property, name = "Model")]
     fn model(&self) -> zbus::Result<String>;
+
+    #[zbus(property)]
+    fn charge_threshold_supported(&self) -> zbus::Result<bool>;
+
+    #[zbus(property)]
+    fn charge_threshold_enabled(&self) -> zbus::Result<bool>;
+
+    fn enable_charge_threshold(&self, enable: bool) -> zbus::Result<()>;
 }
 
 #[proxy(
