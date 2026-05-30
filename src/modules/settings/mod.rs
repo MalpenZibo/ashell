@@ -640,6 +640,14 @@ impl Settings {
                             submenu.map(|e| e.map(Message::Power)),
                         )
                     }),
+                    self.power
+                        .charge_limit_quick_setting_button()
+                        .map(|(button, submenu)| {
+                            (
+                                button.map(Message::Power),
+                                submenu.map(|e| e.map(Message::Power)),
+                            )
+                        }),
                 ]
                 .into_iter()
                 .flatten()

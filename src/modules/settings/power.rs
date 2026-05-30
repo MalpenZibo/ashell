@@ -2,7 +2,7 @@ use std::convert;
 
 use crate::{
     components::{
-        ButtonHierarchy, ButtonKind, IconPosition, divider, format_indicator,
+        ButtonKind, IconPosition, divider, format_indicator,
         icons::{StaticIcon, icon},
         quick_setting_button, styled_button,
     },
@@ -21,7 +21,7 @@ use crate::{
 use iced::{
     Alignment, Element, Length, Subscription, Task, Theme,
     alignment::Vertical,
-    widget::{Column, Row, button as button_fn, column, container, row, text},
+    widget::{Column, Row, column, container, row, text},
 };
 
 fn format_time_for_battery(battery: &BatteryData) -> String {
@@ -236,39 +236,19 @@ impl PowerSettings {
         let space = use_theme(|t| t.space);
         self.service
             .as_ref()
-            .filter(|s| !s.peripherals.is_empty() || s.charge_limit.is_some())
+            .filter(|s| !s.peripherals.is_empty())
             .map(|service| {
-                let charge_limit = service.charge_limit.as_ref().map(|charge_limit| {
-                    let state = if charge_limit.enabled {
-                        t!("settings-power-charge-limit-enabled")
-                    } else {
-                        t!("settings-power-charge-limit-disabled")
-                    };
-
-                    button_fn(self.battery_detail_row(
-                        StaticIcon::BatteryLimit,
-                        t!("settings-power-charge-limit"),
-                        text(state).into(),
-                    ))
-                    .padding(0)
-                    .style(use_theme(|t| {
-                        t.button_style(ButtonKind::Transparent, ButtonHierarchy::Secondary)
-                    }))
-                    .on_press(Message::ToggleChargeLimit)
-                    .width(Length::Fill)
-                    .into()
-                });
-
                 Column::with_children(
-                    charge_limit
-                        .into_iter()
-                        .chain(service.peripherals.iter().map(|p| {
+                    service
+                        .peripherals
+                        .iter()
+                        .map(|p| {
                             self.battery_detail_row(
                                 p.kind.get_icon(),
                                 p.name.to_string(),
                                 self.menu_indicator(p.data, None, None),
                             )
-                        }))
+                        })
                         .collect::<Vec<Element<Message>>>(),
                 )
                 .spacing(space.xs)
@@ -471,15 +451,14 @@ impl PowerSettings {
                     let charge_limit_enabled = service.charge_limit.as_ref().map(|c| c.enabled);
                     let indicator = self.menu_indicator(battery, None, charge_limit_enabled);
 
-                    let indicator: Element<_> =
-                        if !service.peripherals.is_empty() || service.charge_limit.is_some() {
-                            styled_button(indicator)
-                                .kind(ButtonKind::Solid)
-                                .on_press(Message::TogglePeripheralMenu)
-                                .into()
-                        } else {
-                            indicator
-                        };
+                    let indicator: Element<_> = if !service.peripherals.is_empty() {
+                        styled_button(indicator)
+                            .kind(ButtonKind::Solid)
+                            .on_press(Message::TogglePeripheralMenu)
+                            .into()
+                    } else {
+                        indicator
+                    };
 
                     indicator
                 })
@@ -556,6 +535,32 @@ impl PowerSettings {
             } else {
                 None
             }
+        })
+    }
+
+    pub fn charge_limit_quick_setting_button<'a>(
+        &'a self,
+    ) -> Option<(Element<'a, Message>, Option<Element<'a, Message>>)> {
+        self.service.as_ref().and_then(|service| {
+            service.charge_limit.as_ref().map(|charge_limit| {
+                let active = charge_limit.enabled
+                    && !service
+                        .system_battery
+                        .is_some_and(|battery| battery.is_discharging);
+
+                (
+                    quick_setting_button(
+                        StaticIcon::BatteryLimit,
+                        t!("settings-power-charge-limit"),
+                        None,
+                        active,
+                        Message::ToggleChargeLimit,
+                        None,
+                        None,
+                    ),
+                    None,
+                )
+            })
         })
     }
 
