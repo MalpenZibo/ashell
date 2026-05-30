@@ -8,7 +8,7 @@ use tokio::time::timeout;
 
 use crate::{
     components::{
-        MenuSize,
+        MenuSize, collapsible,
         icons::{DynamicIcon, StaticIcon, icon, icon_button},
         password_dialog, quick_setting_button, sub_menu_wrapper,
     },
@@ -34,6 +34,9 @@ mod bluetooth;
 pub(crate) mod brightness;
 pub(crate) mod network;
 mod power;
+
+/// Button + optional `(expanded, sub-menu content)` pair.
+type QuickSettingEntry<'a> = (Element<'a, Message>, Option<(bool, Element<'a, Message>)>);
 
 pub struct Settings {
     lock_cmd: Option<String>,
@@ -108,7 +111,7 @@ pub enum Action {
     ReleaseKeyboardWithCommand(SurfaceId, Task<Message>),
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum SubMenu {
     PeripheralMenu,
     Power,
@@ -228,16 +231,26 @@ impl Settings {
         }
     }
 
+    /// The Collapsible owns the close animation and the surrounding spacing,
+    /// so this is just a state flip.
+    fn close_submenu(&mut self) {
+        self.sub_menu = None;
+    }
+
+    fn toggle_submenu_to(&mut self, target: SubMenu) {
+        if self.sub_menu == Some(target) {
+            self.sub_menu = None;
+        } else {
+            self.sub_menu = Some(target);
+        }
+    }
+
     pub fn update(&mut self, message: Message) -> Action {
         match message {
             Message::Power(msg) => match self.power.update(msg) {
                 power::Action::None => Action::None,
                 power::Action::TogglePeripheralMenu => {
-                    if self.sub_menu == Some(SubMenu::PeripheralMenu) {
-                        self.sub_menu.take();
-                    } else {
-                        self.sub_menu.replace(SubMenu::PeripheralMenu);
-                    }
+                    self.toggle_submenu_to(SubMenu::PeripheralMenu);
                     Action::None
                 }
                 power::Action::Command(task) => Action::Command(task.map(Message::Power)),
@@ -245,26 +258,18 @@ impl Settings {
             Message::Audio(msg) => match self.audio.update(msg) {
                 audio::Action::None => Action::None,
                 audio::Action::ToggleSinksMenu => {
-                    if self.sub_menu == Some(SubMenu::Sinks) {
-                        self.sub_menu.take();
-                    } else {
-                        self.sub_menu.replace(SubMenu::Sinks);
-                    }
+                    self.toggle_submenu_to(SubMenu::Sinks);
                     Action::None
                 }
                 audio::Action::ToggleSourcesMenu => {
-                    if self.sub_menu == Some(SubMenu::Sources) {
-                        self.sub_menu.take();
-                    } else {
-                        self.sub_menu.replace(SubMenu::Sources);
-                    }
+                    self.toggle_submenu_to(SubMenu::Sources);
                     Action::None
                 }
                 audio::Action::CloseSubMenu => {
                     if self.sub_menu == Some(SubMenu::Sinks)
                         || self.sub_menu == Some(SubMenu::Sources)
                     {
-                        self.sub_menu.take();
+                        self.close_submenu();
                     }
                     Action::None
                 }
@@ -290,26 +295,17 @@ impl Settings {
                 }
                 network::Action::Command(task) => Action::Command(task.map(Message::Network)),
                 network::Action::ToggleWifiMenu => {
-                    if self.sub_menu == Some(SubMenu::Wifi) {
-                        self.sub_menu.take();
-                    } else {
-                        self.sub_menu.replace(SubMenu::Wifi);
-                    }
+                    self.toggle_submenu_to(SubMenu::Wifi);
                     Action::None
                 }
                 network::Action::ToggleVpnMenu => {
-                    if self.sub_menu == Some(SubMenu::Vpn) {
-                        self.sub_menu.take();
-                    } else {
-                        self.sub_menu.replace(SubMenu::Vpn);
-                    }
+                    self.toggle_submenu_to(SubMenu::Vpn);
                     Action::None
                 }
                 network::Action::CloseSubMenu(task) => {
                     if self.sub_menu == Some(SubMenu::Wifi) || self.sub_menu == Some(SubMenu::Vpn) {
-                        self.sub_menu.take();
+                        self.close_submenu();
                     }
-
                     Action::Command(task.map(Message::Network))
                 }
                 network::Action::CloseMenu(id) => Action::CloseMenu(id),
@@ -317,18 +313,13 @@ impl Settings {
             Message::Bluetooth(msg) => match self.bluetooth.update(msg) {
                 bluetooth::Action::None => Action::None,
                 bluetooth::Action::ToggleBluetoothMenu => {
-                    if self.sub_menu == Some(SubMenu::Bluetooth) {
-                        self.sub_menu.take();
-                    } else {
-                        self.sub_menu.replace(SubMenu::Bluetooth);
-                    }
+                    self.toggle_submenu_to(SubMenu::Bluetooth);
                     Action::None
                 }
                 bluetooth::Action::CloseSubMenu(task) => {
                     if self.sub_menu == Some(SubMenu::Bluetooth) {
-                        self.sub_menu.take();
+                        self.close_submenu();
                     }
-
                     Action::Command(task.map(Message::Bluetooth))
                 }
                 bluetooth::Action::Command(task) => Action::Command(task.map(Message::Bluetooth)),
@@ -339,23 +330,16 @@ impl Settings {
                 brightness::Action::Command(task) => Action::Command(task.map(Message::Brightness)),
             },
             Message::ToggleSubMenu(menu_type) => {
-                if self.sub_menu == Some(menu_type) {
-                    self.sub_menu.take();
-
-                    Action::None
-                } else {
-                    self.sub_menu.replace(menu_type);
-
-                    if menu_type == SubMenu::Wifi {
-                        match self.network.update(network::Message::WifiMenuOpened) {
-                            network::Action::Command(task) => {
-                                Action::Command(task.map(Message::Network))
-                            }
-                            _ => Action::None,
+                self.toggle_submenu_to(menu_type);
+                if self.sub_menu == Some(menu_type) && menu_type == SubMenu::Wifi {
+                    match self.network.update(network::Message::WifiMenuOpened) {
+                        network::Action::Command(task) => {
+                            Action::Command(task.map(Message::Network))
                         }
-                    } else {
-                        Action::None
+                        _ => Action::None,
                     }
+                } else {
+                    Action::None
                 }
             }
             Message::ToggleInhibitIdle => {
@@ -593,7 +577,7 @@ impl Settings {
                 .map(|(button, submenu)| {
                     (
                         button.map(Message::Network),
-                        submenu.map(|e| e.map(Message::Network)),
+                        submenu.map(|(expanded, e)| (expanded, e.map(Message::Network))),
                     )
                 });
             let quick_settings = quick_settings_section(
@@ -603,7 +587,7 @@ impl Settings {
                         |(button, submenu)| {
                             (
                                 button.map(Message::Bluetooth),
-                                submenu.map(|e| e.map(Message::Bluetooth)),
+                                submenu.map(|(expanded, e)| (expanded, e.map(Message::Bluetooth))),
                             )
                         },
                     ),
@@ -612,7 +596,7 @@ impl Settings {
                         .map(|(button, submenu)| {
                             (
                                 button.map(Message::Network),
-                                submenu.map(|e| e.map(Message::Network)),
+                                submenu.map(|(expanded, e)| (expanded, e.map(Message::Network))),
                             )
                         }),
                     self.network
@@ -637,7 +621,7 @@ impl Settings {
                     self.power.quick_setting_button().map(|(button, submenu)| {
                         (
                             button.map(Message::Power),
-                            submenu.map(|e| e.map(Message::Power)),
+                            submenu.map(|(expanded, e)| (expanded, e.map(Message::Power))),
                         )
                     }),
                 ]
@@ -665,53 +649,65 @@ impl Settings {
                 .collect::<Vec<_>>(),
             );
 
-            let (top_sink_slider, bottom_sink_slider) = match position {
-                Position::Top => (sink_slider.map(|e| e.map(Message::Audio)), None),
-                Position::Bottom => (None, sink_slider.map(|e| e.map(Message::Audio))),
-            };
-            let (top_source_slider, bottom_source_slider) = match position {
-                Position::Top => (source_slider.map(|e| e.map(Message::Audio)), None),
-                Position::Bottom => (None, source_slider.map(|e| e.map(Message::Audio))),
+            // Each group is a Column(spacing=0) bundling a trigger with its
+            // Collapsible sub-menu. The Collapsible bakes in the inter-row gap,
+            // so the outer space.md spacing applies only *between* groups —
+            // no spacing jumps when a sub-menu collapses to zero height.
+            let animated = use_theme(|t| t.animations_enabled);
+            let header_group = {
+                let mut col = Column::<'a, Message>::with_capacity(3).spacing(0);
+                col = col.push(header);
+                if let Some(e) = self.power.peripheral_menu() {
+                    col = col.push(
+                        collapsible(
+                            self.sub_menu == Some(SubMenu::PeripheralMenu),
+                            sub_menu_wrapper(e.map(Message::Power)),
+                        )
+                        .animated(animated)
+                        .open_padding_top(space.md),
+                    );
+                }
+                col = col.push(
+                    collapsible(
+                        self.sub_menu == Some(SubMenu::Power),
+                        sub_menu_wrapper(self.power.menu().map(Message::Power)),
+                    )
+                    .animated(animated)
+                    .open_padding_top(space.md),
+                );
+                col
             };
 
-            Column::with_capacity(11)
-                .push(header)
-                .push(
-                    self.sub_menu
-                        .filter(|menu_type| *menu_type == SubMenu::PeripheralMenu)
-                        .and_then(|_| {
-                            self.power
-                                .peripheral_menu()
-                                .map(|e| sub_menu_wrapper(e.map(Message::Power)))
-                        }),
+            let audio_sinks_group = sink_slider.map(|slider| {
+                audio_group(
+                    position,
+                    slider.map(Message::Audio),
+                    self.audio.sinks_submenu(id).map(|submenu| {
+                        (
+                            self.sub_menu == Some(SubMenu::Sinks),
+                            sub_menu_wrapper(submenu.map(Message::Audio)),
+                        )
+                    }),
                 )
-                .push(
-                    self.sub_menu
-                        .filter(|menu_type| *menu_type == SubMenu::Power)
-                        .map(|_| sub_menu_wrapper(self.power.menu().map(Message::Power))),
+            });
+
+            let audio_sources_group = source_slider.map(|slider| {
+                audio_group(
+                    position,
+                    slider.map(Message::Audio),
+                    self.audio.sources_submenu(id).map(|submenu| {
+                        (
+                            self.sub_menu == Some(SubMenu::Sources),
+                            sub_menu_wrapper(submenu.map(Message::Audio)),
+                        )
+                    }),
                 )
-                .push(top_sink_slider)
-                .push(
-                    self.sub_menu
-                        .filter(|menu_type| *menu_type == SubMenu::Sinks)
-                        .and_then(|_| {
-                            self.audio
-                                .sinks_submenu(id)
-                                .map(|submenu| sub_menu_wrapper(submenu.map(Message::Audio)))
-                        }),
-                )
-                .push(bottom_sink_slider)
-                .push(top_source_slider)
-                .push(
-                    self.sub_menu
-                        .filter(|menu_type| *menu_type == SubMenu::Sources)
-                        .and_then(|_| {
-                            self.audio
-                                .sources_submenu(id)
-                                .map(|submenu| sub_menu_wrapper(submenu.map(Message::Audio)))
-                        }),
-                )
-                .push(bottom_source_slider)
+            });
+
+            Column::with_capacity(5)
+                .push(header_group)
+                .push(audio_sinks_group)
+                .push(audio_sources_group)
                 .push(self.brightness.slider().map(|e| e.map(Message::Brightness)))
                 .push(quick_settings)
                 .spacing(space.md)
@@ -837,50 +833,79 @@ impl Settings {
     }
 }
 
-fn quick_settings_section<'a>(
-    buttons: Vec<(Element<'a, Message>, Option<Element<'a, Message>>)>,
+/// Slider + optional sub-menu as one group. Sub-menu sits below (Top bar) or
+/// above (Bottom bar); the Collapsible's animated padding holds the inter-row gap.
+fn audio_group<'a>(
+    position: Position,
+    slider: Element<'a, Message>,
+    submenu: Option<(bool, Element<'a, Message>)>,
 ) -> Element<'a, Message> {
-    let space = use_theme(|t| t.space);
-    // TODO trying to read this function gives me a headache; there's surely
-    // a better way to do this, maybe with Iterator::chunks or something?
-    // I might be way off though, I still don't fully understand how this works.
-    let mut section = Column::with_capacity(buttons.len() * 3).spacing(space.xs);
-
-    let mut before: Option<(Element<'a, Message>, Option<Element<'a, Message>>)> = None;
-
-    for (button, menu) in buttons.into_iter() {
-        match before.take() {
-            Some((before_button, before_menu)) => {
-                section = section.push(
-                    row![before_button, button]
-                        .width(Length::Fill)
-                        .spacing(space.xs),
-                );
-
-                if let Some(menu) = before_menu {
-                    section = section.push(sub_menu_wrapper(menu));
-                }
-
-                if let Some(menu) = menu {
-                    section = section.push(sub_menu_wrapper(menu));
-                }
+    let pad = use_theme(|t| t.space.md);
+    let mut col = Column::<'a, Message>::with_capacity(2).spacing(0);
+    match position {
+        Position::Top => {
+            col = col.push(slider);
+            if let Some((expanded, content)) = submenu {
+                col = col.push(collapsible(expanded, content).open_padding_top(pad));
             }
-            _ => {
-                before = Some((button, menu));
+        }
+        Position::Bottom => {
+            if let Some((expanded, content)) = submenu {
+                col = col.push(collapsible(expanded, content).open_padding_bottom(pad));
             }
+            col = col.push(slider);
         }
     }
+    col.into()
+}
 
-    if let Some((before_button, before_menu)) = before.take() {
-        section = section.push(
-            row![before_button, space::horizontal()]
-                .width(Length::Fill)
-                .spacing(space.xs),
-        );
+fn quick_settings_section<'a>(buttons: Vec<QuickSettingEntry<'a>>) -> Element<'a, Message> {
+    let (space, animated) = use_theme(|t| (t.space, t.animations_enabled));
+    let mut section = Column::with_capacity(buttons.len().div_ceil(2)).spacing(space.xs);
 
-        if let Some(menu) = before_menu {
-            section = section.push(sub_menu_wrapper(menu));
+    let mut buttons_iter = buttons.into_iter();
+    while let Some((left_button, left_menu)) = buttons_iter.next() {
+        // Bundle button row + Collapsibles as one group; outer spacing.xs
+        // applies between groups only.
+        let mut group = Column::<'a, Message>::with_capacity(3).spacing(0);
+
+        let (button_row, right_menu): (Element<'a, Message>, _) =
+            if let Some((right_button, right_menu)) = buttons_iter.next() {
+                (
+                    row![left_button, right_button]
+                        .width(Length::Fill)
+                        .spacing(space.xs)
+                        .into(),
+                    right_menu,
+                )
+            } else {
+                (
+                    row![left_button, space::horizontal()]
+                        .width(Length::Fill)
+                        .spacing(space.xs)
+                        .into(),
+                    None,
+                )
+            };
+
+        group = group.push(button_row);
+
+        if let Some((expanded, content)) = left_menu {
+            group = group.push(
+                collapsible(expanded, sub_menu_wrapper(content))
+                    .animated(animated)
+                    .open_padding_top(space.xs),
+            );
         }
+        if let Some((expanded, content)) = right_menu {
+            group = group.push(
+                collapsible(expanded, sub_menu_wrapper(content))
+                    .animated(animated)
+                    .open_padding_top(space.xs),
+            );
+        }
+
+        section = section.push(group);
     }
 
     section.into()
