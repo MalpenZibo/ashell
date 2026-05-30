@@ -200,6 +200,8 @@ impl Settings {
             audio: AudioSettings::new(AudioSettingsConfig::new(
                 config.audio_sinks_more_cmd,
                 config.audio_sources_more_cmd,
+                config.volume_step,
+                config.max_volume,
                 config.audio_indicator_format,
                 config.microphone_indicator_format,
             )),
@@ -514,6 +516,8 @@ impl Settings {
                     .update(audio::Message::ConfigReloaded(AudioSettingsConfig::new(
                         config.audio_sinks_more_cmd,
                         config.audio_sources_more_cmd,
+                        config.volume_step,
+                        config.max_volume,
                         config.audio_indicator_format,
                         config.microphone_indicator_format,
                     )));

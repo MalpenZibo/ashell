@@ -22,7 +22,9 @@ use iced::{
 };
 use libpulse_binding::volume::Volume;
 
-const VOL_PERCENT: u32 = Volume::NORMAL.0 / 100;
+pub const NORMAL_VOLUME: u32 = Volume::NORMAL.0;
+
+const VOL_PERCENT: u32 = NORMAL_VOLUME / 100;
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -55,6 +57,8 @@ pub enum Action {
 pub struct AudioSettingsConfig {
     pub sinks_more_cmd: Option<String>,
     pub sources_more_cmd: Option<String>,
+    pub volume_step: u8,
+    pub max_volume: u8,
     pub indicator_format: SettingsFormat,
     pub microphone_indicator_format: SettingsFormat,
 }
@@ -63,12 +67,16 @@ impl AudioSettingsConfig {
     pub fn new(
         sinks_more_cmd: Option<String>,
         sources_more_cmd: Option<String>,
+        volume_step: u8,
+        max_volume: u8,
         indicator_format: SettingsFormat,
         microphone_indicator_format: SettingsFormat,
     ) -> Self {
         Self {
             sinks_more_cmd,
             sources_more_cmd,
+            volume_step,
+            max_volume,
             indicator_format,
             microphone_indicator_format,
         }
@@ -117,17 +125,17 @@ impl AudioSettings {
             .and_then(|s| s.active_sink().map(|d| d.is_mute))
     }
 
-    pub fn vol_max() -> u32 {
-        Volume::NORMAL.0
+    pub fn vol_max(&self) -> u32 {
+        NORMAL_VOLUME * u32::from(self.config.max_volume) / 100
     }
 
     pub fn volume_adjust(&mut self, up: bool) -> Action {
         let Some(cur) = self.real_sink_volume() else {
             return Action::None;
         };
-        let step = 5 * VOL_PERCENT;
+        let step = u32::from(self.config.volume_step) * VOL_PERCENT;
         let new_vol = if up {
-            (cur + step).min(Self::vol_max())
+            (cur + step).min(self.vol_max())
         } else {
             cur.saturating_sub(step)
         };
@@ -140,9 +148,11 @@ impl AudioSettings {
         self.update(Message::ToggleSinkMute)
     }
 
-    pub fn speaker_icon(muted: bool, normalised: f32) -> StaticIcon {
+    pub fn speaker_icon(muted: bool, normalised: f32, overdrive: bool) -> StaticIcon {
         if muted {
             StaticIcon::Speaker0
+        } else if overdrive {
+            StaticIcon::SpeakerOverdrive
         } else {
             match (normalised * 100.0) as u32 {
                 0..=33 => StaticIcon::Speaker1,
@@ -169,7 +179,7 @@ impl AudioSettings {
     }
 
     pub fn mic_max() -> u32 {
-        Volume::NORMAL.0
+        NORMAL_VOLUME
     }
 
     pub fn microphone_adjust(&mut self, up: bool) -> Action {
@@ -318,8 +328,9 @@ impl AudioSettings {
             .and_then(|service| {
                 service.active_sink().map(|sink| {
                     let vol = service.sink_slider.value();
-                    let norm = vol as f32 / Self::vol_max() as f32;
-                    (service, Self::speaker_icon(sink.is_mute, norm))
+                    let norm = (vol as f32 / NORMAL_VOLUME as f32).min(1.0);
+                    let overdrive = vol > NORMAL_VOLUME;
+                    (service, Self::speaker_icon(sink.is_mute, norm, overdrive))
                 })
             })
             .map(|(service, icon_type)| {
@@ -331,7 +342,12 @@ impl AudioSettings {
                     IndicatorState::Normal,
                 )
                 .on_right_press(Message::OpenMore)
-                .on_scroll(Self::on_scroll(volume, Message::SinkVolumeChanged))
+                .on_scroll(Self::on_scroll(
+                    volume,
+                    u32::from(self.config.volume_step) * VOL_PERCENT,
+                    self.vol_max(),
+                    Message::SinkVolumeChanged,
+                ))
                 .into()
             })
     }
@@ -353,7 +369,12 @@ impl AudioSettings {
                     IndicatorState::Normal,
                 )
                 .on_right_press(Message::OpenSourceMore)
-                .on_scroll(Self::on_scroll(volume, Message::SourceVolumeChanged))
+                .on_scroll(Self::on_scroll(
+                    volume,
+                    5 * VOL_PERCENT,
+                    Self::mic_max(),
+                    Message::SourceVolumeChanged,
+                ))
                 .into()
             })
     }
@@ -370,6 +391,8 @@ impl AudioSettings {
                     Message::ToggleSinkMute,
                     &service.sink_slider,
                     &Message::SinkVolumeChanged,
+                    u32::from(self.config.volume_step) * VOL_PERCENT,
+                    self.vol_max(),
                     if service.has_multiple_sinks() {
                         Some((sub_menu, Message::ToggleSinksMenu))
                     } else {
@@ -385,6 +408,8 @@ impl AudioSettings {
                     Message::ToggleSourceMute,
                     &service.source_slider,
                     &Message::SourceVolumeChanged,
+                    5 * VOL_PERCENT,
+                    Self::mic_max(),
                     if service.has_multiple_sources() {
                         Some((sub_menu, Message::ToggleSourcesMenu))
                     } else {
@@ -481,12 +506,15 @@ impl AudioSettings {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn audio_slider<'a>(
         slider_type: SliderType,
         is_mute: bool,
         toggle_mute: Message,
         volume: &'a Remote<u32>,
         volume_changed: &'a dyn Fn(remote_value::Message<u32>) -> Message,
+        step: u32,
+        max: u32,
         with_submenu: Option<(Option<SubMenu>, Message)>,
     ) -> Element<'a, Message> {
         let mute_icon = if is_mute {
@@ -503,16 +531,20 @@ impl AudioSettings {
 
         let mut ctrl = slider_control(
             mute_icon,
-            Volume::MUTED.0..=Volume::NORMAL.0,
+            Volume::MUTED.0..=max,
             volume.value(),
             volume_changed,
-            Self::on_scroll(volume.value(), volume_changed),
+            Self::on_scroll(volume.value(), step, max, volume_changed),
         )
         .on_icon_press(toggle_mute)
         .on_icon_right_press(match slider_type {
             SliderType::Sink => Message::OpenMore,
             SliderType::Source => Message::OpenSourceMore,
         });
+
+        if max > NORMAL_VOLUME {
+            ctrl = ctrl.overdrive(volume.value() > NORMAL_VOLUME);
+        }
 
         if let Some((submenu, msg)) = with_submenu {
             let expanded = match slider_type {
@@ -525,7 +557,12 @@ impl AudioSettings {
         ctrl.into()
     }
 
-    fn on_scroll<F>(cur_volume: u32, make_msg: F) -> impl Fn(ScrollDelta) -> Message
+    fn on_scroll<F>(
+        cur_volume: u32,
+        step: u32,
+        max: u32,
+        make_msg: F,
+    ) -> impl Fn(ScrollDelta) -> Message
     where
         F: Fn(remote_value::Message<u32>) -> Message,
     {
@@ -534,9 +571,8 @@ impl AudioSettings {
                 ScrollDelta::Lines { y, .. } => y,
                 ScrollDelta::Pixels { y, .. } => y,
             };
-            let step = 5 * VOL_PERCENT;
             let new_volume = if y > 0.0 {
-                (cur_volume + step).min(Volume::NORMAL.0)
+                (cur_volume + step).min(max)
             } else {
                 cur_volume.saturating_sub(step)
             };

@@ -24,7 +24,7 @@ pub struct Osd {
 
 struct OsdState {
     kind: OsdKind,
-    /// Normalised value in 0.0..=1.0
+    /// Normalised value relative to 100% hardware (can exceed 1.0 for overdrive)
     value: f32,
     muted: bool,
 }
@@ -115,12 +115,20 @@ impl Osd {
 
         let (space, font_size, radius) = use_theme(|t| (t.space, t.font_size, t.radius));
 
+        let overdrive = matches!(state.kind, OsdKind::Volume) && state.value > 1.0;
+
         let icon = match state.kind {
-            OsdKind::Volume => AudioSettings::speaker_icon(state.muted, state.value),
+            OsdKind::Volume => AudioSettings::speaker_icon(state.muted, state.value, overdrive),
             OsdKind::Microphone => AudioSettings::microphone_icon(state.muted),
             OsdKind::Brightness => StaticIcon::Brightness,
             OsdKind::Airplane => NetworkSettings::airplane_mode_icon(state.muted),
             OsdKind::IdleInhibitor => IdleInhibitorManager::idle_inhibitor_icon(state.muted),
+        };
+
+        let show_percentage = match state.kind {
+            OsdKind::Volume | OsdKind::Microphone => self.config.show_volume_percentage,
+            OsdKind::Brightness => self.config.show_brightness_percentage,
+            _ => false,
         };
 
         let detail: Element<'_, Message> = match state.kind {
@@ -130,8 +138,21 @@ impl Osd {
                     .girth(8.0);
                 if state.muted {
                     bar = bar.style(progress_bar::secondary);
+                } else if overdrive {
+                    bar = bar.style(progress_bar::danger);
                 }
-                container(bar).center_x(Length::Fill).into()
+                if show_percentage {
+                    let pct = (state.value * 100.0).round() as u32;
+                    row![
+                        container(bar).center_x(Length::Fill),
+                        text(format!("{pct}%")).size(font_size.sm),
+                    ]
+                    .spacing(space.sm)
+                    .align_y(Alignment::Center)
+                    .into()
+                } else {
+                    container(bar).center_x(Length::Fill).into()
+                }
             }
             OsdKind::Airplane | OsdKind::IdleInhibitor => {
                 // For toggles, `muted` carries the active/enabled state.
