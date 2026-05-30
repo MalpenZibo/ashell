@@ -216,22 +216,6 @@ impl PowerSettings {
         .into()
     }
 
-    fn battery_detail_row<'a>(
-        &self,
-        item_icon: StaticIcon,
-        label: String,
-        value: Element<'a, Message>,
-    ) -> Element<'a, Message> {
-        let (space, font_size) = use_theme(|t| (t.space, t.font_size));
-
-        row![icon(item_icon), text(label).width(Length::Fill), value,]
-            .align_y(Vertical::Center)
-            .spacing(space.sm)
-            .width(Length::Fill)
-            .height(Length::Fixed(font_size.md + space.xs * 2.0))
-            .into()
-    }
-
     pub fn peripheral_menu<'a>(&'a self) -> Option<Element<'a, Message>> {
         let space = use_theme(|t| t.space);
         self.service
@@ -243,11 +227,14 @@ impl PowerSettings {
                         .peripherals
                         .iter()
                         .map(|p| {
-                            self.battery_detail_row(
-                                p.kind.get_icon(),
-                                p.name.to_string(),
+                            row![
+                                icon(p.kind.get_icon()),
+                                text(p.name.to_string()).width(Length::Fill),
                                 self.menu_indicator(p.data, None, None),
-                            )
+                            ]
+                            .align_y(Vertical::Center)
+                            .spacing(space.sm)
+                            .into()
                         })
                         .collect::<Vec<Element<Message>>>(),
                 )
@@ -543,17 +530,12 @@ impl PowerSettings {
     ) -> Option<(Element<'a, Message>, Option<Element<'a, Message>>)> {
         self.service.as_ref().and_then(|service| {
             service.charge_limit.as_ref().map(|charge_limit| {
-                let active = charge_limit.enabled
-                    && !service
-                        .system_battery
-                        .is_some_and(|battery| battery.is_discharging);
-
                 (
                     quick_setting_button(
                         StaticIcon::BatteryLimit,
                         t!("settings-power-charge-limit"),
                         None,
-                        active,
+                        charge_limit.enabled,
                         Message::ToggleChargeLimit,
                         None,
                         None,
