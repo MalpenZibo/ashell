@@ -11,16 +11,17 @@ use hyprland::{
     prelude::*,
 };
 use itertools::Itertools;
-use std::sync::{Arc, RwLock};
-use tokio::sync::broadcast;
+use std::sync::Arc;
+use tokio::sync::{RwLock, broadcast};
 
 /// Detect whether Hyprland is using Lua or hyprlang config.
 /// Checks `hyprctl status` for the `configProvider` field.
 /// Falls back to hyprlang (false) if detection fails.
-fn is_lua_config() -> bool {
-    std::process::Command::new("hyprctl")
+async fn is_lua_config() -> bool {
+    tokio::process::Command::new("hyprctl")
         .arg("status")
         .output()
+        .await
         .ok()
         .and_then(|o| String::from_utf8(o.stdout).ok())
         .map(|s| s.lines().any(|l| l.starts_with("configProvider: lua")))
@@ -68,7 +69,7 @@ fn dispatch_hyprlang(cmd: CompositorCommand) -> Result<()> {
 
 /// Dispatch a command using the new Lua eval protocol.
 /// Required for Hyprland 0.55+ with Lua config.
-fn dispatch_lua(cmd: CompositorCommand) -> Result<()> {
+async fn dispatch_lua(cmd: CompositorCommand) -> Result<()> {
     let lua = match cmd {
         CompositorCommand::FocusWorkspace(id) => {
             format!("hl.dispatch(hl.dsp.focus({{ workspace = {id} }}))")
@@ -97,15 +98,16 @@ fn dispatch_lua(cmd: CompositorCommand) -> Result<()> {
             format!("hl.dispatch(hl.dsp.{dispatcher}({args}))")
         }
     };
-    std::process::Command::new("hyprctl")
+    tokio::process::Command::new("hyprctl")
         .args(["eval", &lua])
-        .output()?;
+        .output()
+        .await?;
     Ok(())
 }
 
 pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
-    if is_lua_config() {
-        dispatch_lua(cmd)
+    if is_lua_config().await {
+        dispatch_lua(cmd).await
     } else {
         dispatch_hyprlang(cmd)
     }
@@ -127,9 +129,7 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
 
     // Initial fetch
     {
-        let state_guard = internal_state
-            .read()
-            .map_err(|e| anyhow::anyhow!(e.to_string()))?;
+        let state_guard = internal_state.read().await;
 
         match fetch_full_state(&state_guard) {
             Ok(state) => {
@@ -154,9 +154,8 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
                     let tx = tx.clone();
                     let internal_state = Arc::clone(&internal_state);
                     Box::pin(async move {
-                        if let Ok(state_guard) = internal_state.read()
-                            && let Ok(state) = fetch_full_state(&*state_guard)
-                        {
+                        let state_guard = internal_state.read().await;
+                        if let Ok(state) = fetch_full_state(&*state_guard) {
                             let _ = tx.send(ServiceEvent::Update(CompositorEvent::StateChanged(
                                 Box::new(state),
                             )));
@@ -189,13 +188,12 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
             let tx = tx.clone();
             let internal_state = Arc::clone(&internal_state);
             Box::pin(async move {
-                if let Ok(mut state_guard) = internal_state.write() {
-                    state_guard.submap = new_submap;
-                    if let Ok(state) = fetch_full_state(&state_guard) {
-                        let _ = tx.send(ServiceEvent::Update(CompositorEvent::StateChanged(
-                            Box::new(state),
-                        )));
-                    }
+                let mut state_guard = internal_state.write().await;
+                state_guard.submap = new_submap;
+                if let Ok(state) = fetch_full_state(&state_guard) {
+                    let _ = tx.send(ServiceEvent::Update(CompositorEvent::StateChanged(
+                        Box::new(state),
+                    )));
                 }
             })
         }

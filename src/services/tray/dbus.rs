@@ -73,14 +73,21 @@ impl StatusNotifierWatcher {
                                 .iter()
                                 .position(|(unique_name, _)| unique_name == name)
                             {
-                                let emitter =
-                                    SignalEmitter::new(&internal_connection, OBJECT_PATH).unwrap();
+                                let emitter = match
+                                    SignalEmitter::new(&internal_connection, OBJECT_PATH) {
+                                Ok(e) => e,
+                                Err(e) => {
+                                    warn!("Failed to create signal emitter: {e}");
+                                    continue;
+                                }
+                            };
                                 let service = interface.items.remove(idx).1;
-                                StatusNotifierWatcher::status_notifier_item_unregistered(
+                                if let Err(e) = StatusNotifierWatcher::status_notifier_item_unregistered(
                                     &emitter, &service,
                                 )
-                                .await
-                                .unwrap();
+                                .await {
+                                    warn!("Failed to emit item_unregistered signal: {e}");
+                                }
                             }
                         }
                     }
@@ -124,7 +131,13 @@ impl StatusNotifierWatcher {
                 };
 
                 let mut watcher = interface.get_mut().await;
-                let emitter = SignalEmitter::new(conn, OBJECT_PATH).unwrap();
+                let emitter = match SignalEmitter::new(conn, OBJECT_PATH) {
+                    Ok(e) => e,
+                    Err(e) => {
+                        warn!("Failed to create signal emitter: {e}");
+                        continue;
+                    }
+                };
                 watcher
                     .register_status_notifier_item_manual(
                         "/StatusNotifierItem",
@@ -157,7 +170,7 @@ impl StatusNotifierWatcher {
 
         Self::status_notifier_item_registered(emitter, &service)
             .await
-            .unwrap();
+            .unwrap_or_else(|e| warn!("Failed to emit item_registered signal: {e}"));
 
         self.items.push((sender, service));
     }
@@ -178,7 +191,13 @@ impl StatusNotifierWatcher {
         #[zbus(header)] header: Header<'_>,
         #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
     ) {
-        let sender = header.sender().unwrap().to_owned();
+        let sender = match header.sender() {
+            Some(s) => s.to_owned(),
+            None => {
+                warn!("D-Bus message has no sender");
+                return;
+            }
+        };
         self.register_status_notifier_item_manual(service, sender, &emitter)
             .await;
     }

@@ -1258,7 +1258,12 @@ pub fn subscription(path: &Path) -> Subscription<Message> {
                                 Some(Event::Changed) => {
                                     info!("Reload config file");
 
-                                    let new_config = read_config(&path).unwrap_or_default();
+                                    let path_clone = path.clone();
+                                    let new_config = tokio::task::spawn_blocking(move || {
+                                        read_config(&path_clone).unwrap_or_default()
+                                    })
+                                    .await
+                                    .unwrap_or_default();
 
                                     let _ = output
                                         .send(Message::ConfigChanged(Box::new(new_config)))
