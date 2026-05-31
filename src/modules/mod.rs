@@ -82,10 +82,14 @@ impl App {
         id: SurfaceId,
         content: Element<'a, Message>,
         action: Option<OnModulePress>,
+        module_name: Option<&'a ModuleName>,
     ) -> Element<'a, Message> {
         match action {
             Some(action) => {
                 let mut item = module_item(content);
+                if let Some(name) = module_name {
+                    item = item.module_name(name);
+                }
                 match action {
                     OnModulePress::Action(msg) => {
                         item = item.on_press(*msg);
@@ -117,7 +121,13 @@ impl App {
                 }
                 item.into()
             }
-            None => module_item(content).into(),
+            None => {
+                let mut item = module_item(content);
+                if let Some(name) = module_name {
+                    item = item.module_name(name);
+                }
+                item.into()
+            }
         }
     }
 
@@ -127,7 +137,7 @@ impl App {
         module_name: &'a ModuleName,
     ) -> Option<Element<'a, Message>> {
         self.get_module_view(id, module_name)
-            .map(|(content, action)| module_group(self.build_module_item(id, content, action)))
+            .map(|(content, action)| module_group(self.build_module_item(id, content, action, Some(module_name)), Some(module_name)))
     }
 
     fn group_module_wrapper<'a>(
@@ -137,7 +147,9 @@ impl App {
     ) -> Option<Element<'a, Message>> {
         let modules: Vec<_> = group
             .iter()
-            .filter_map(|module| self.get_module_view(id, module))
+            .filter_map(|module_name| {
+                self.get_module_view(id, module_name).map(|view| (module_name, view))
+            })
             .collect();
 
         if modules.is_empty() {
@@ -146,10 +158,13 @@ impl App {
             let items = Row::with_children(
                 modules
                     .into_iter()
-                    .map(|(content, action)| self.build_module_item(id, content, action))
+                    .map(|(name, (content, action))| self.build_module_item(id, content, action, Some(name)))
                     .collect::<Vec<_>>(),
             );
-            Some(module_group(items.into()))
+            // Use the first module name for group styling; individual modules
+            // within the group can still have their own per-module text color.
+            let first_name = group.first();
+            Some(module_group(items.into(), first_name))
         }
     }
 

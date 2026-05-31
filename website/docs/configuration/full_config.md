@@ -61,10 +61,12 @@ weather_location = { City = "Rome" }
 # weather_location = "Current"
 weather_indicator = "IconAndTemperature"
 
+[clipboard]
+max_entries = 8
+
 [notifications]
 format = "%H:%M"
 show_timestamps = true
-max_notifications = 10
 show_bodies = true
 
 [settings]
@@ -114,5 +116,25 @@ special_workspace_colors = [ "#7aa2f7", "#9ece6a" ]
 base = "#1a1b26"
 weak = "#24273a"
 strong = "#414868"
+
+# Per-module styling overrides
+[appearance.modules.Workspaces]
+opacity = 1.0
+background_color = "#2ac3de"
+
+[appearance.modules.SystemInfo]
+text_color = "#f7768e"
+border_radius = 8
+
+# Per-popup styling overrides
+[appearance.popups.Notifications]
+opacity = 0.9
+backdrop = 0.2
+width = "Large"
+
+[appearance.popups.Settings]
+background_color = "#1a1b26"
+border_radius = 16
+width = "Medium"
 
 ```

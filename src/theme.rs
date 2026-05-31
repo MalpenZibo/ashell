@@ -3,7 +3,8 @@ use std::cell::RefCell;
 use crate::{
     components::button::{ButtonHierarchy, ButtonKind},
     config::{
-        Appearance, AppearanceColor, AppearanceStyle, BackgroundLevel, MenuAppearance, Position,
+        Appearance, AppearanceColor, AppearanceStyle, BackgroundAppearanceColor, BackgroundLevel,
+        MenuAppearance, ModuleAppearance, PopupAppearance, PopupStyleKey, Position,
     },
 };
 use iced::{
@@ -27,7 +28,6 @@ pub fn use_theme<R, F: FnOnce(&AshellTheme) -> R>(f: F) -> R {
     THEME.with_borrow(f)
 }
 
-#[allow(unused)]
 #[derive(Debug, Copy, Clone)]
 pub struct Space {
     pub xxs: f32,
@@ -53,10 +53,10 @@ impl Default for Space {
     }
 }
 
-#[allow(unused)]
 #[derive(Debug, Clone, Copy)]
 pub struct Radius {
     pub sm: f32,
+    #[allow(dead_code)]
     pub md: f32,
     pub lg: f32,
     pub xl: f32,
@@ -73,9 +73,9 @@ impl Default for Radius {
     }
 }
 
-#[allow(unused)]
 #[derive(Debug, Copy, Clone)]
 pub struct FontSize {
+    #[allow(dead_code)]
     pub xxs: f32,
     pub xs: f32,
     pub sm: f32,
@@ -115,128 +115,19 @@ pub struct AshellTheme {
     // Read by animation call sites added in subsequent PRs.
     #[allow(dead_code)]
     pub animations_enabled: bool,
+    /// Per-module appearance overrides.
+    pub module_styles: std::collections::HashMap<crate::config::ModuleName, ModuleAppearance>,
+    /// Per-popup appearance overrides.
+    pub popup_styles: std::collections::HashMap<PopupStyleKey, PopupAppearance>,
 }
 
 impl Default for AshellTheme {
     fn default() -> Self {
-        let appearance = Appearance::default();
-
-        AshellTheme {
-            space: Space::default(),
-            radius: Radius::default(),
-            font_size: FontSize::default(),
-            bar_position: Position::default(),
-            bar_style: appearance.style,
-            opacity: appearance.opacity,
-            menu: appearance.menu,
-            workspace_colors: appearance.workspace_colors.clone(),
-            special_workspace_colors: appearance.special_workspace_colors.clone(),
-            scale_factor: appearance.scale_factor,
-            animations_enabled: false,
-            iced_theme: Theme::custom_with_fn(
-                "local".to_string(),
-                Palette {
-                    background: appearance.background_color.get_base(),
-                    text: appearance.text_color.get_base(),
-                    primary: appearance.primary_color.get_base(),
-                    success: appearance.success_color.get_base(),
-                    warning: appearance.warning_color.get_base(),
-                    danger: appearance.danger_color.get_base(),
-                },
-                |palette| {
-                    let text = palette.text;
-                    let bg_text = appearance.background_color.get_text().unwrap_or(text);
-
-                    let default_bg = palette::Background::new(palette.background, bg_text);
-                    let bg = |level, fallback| {
-                        appearance
-                            .background_color
-                            .get_pair(level, text)
-                            .unwrap_or(fallback)
-                    };
-
-                    let default_primary = palette::Primary::generate(
-                        palette.primary,
-                        palette.background,
-                        appearance.primary_color.get_text().unwrap_or(text),
-                    );
-                    let default_success = palette::Success::generate(
-                        palette.success,
-                        palette.background,
-                        appearance.success_color.get_text().unwrap_or(text),
-                    );
-                    let default_warning = palette::Warning::generate(
-                        palette.warning,
-                        palette.background,
-                        appearance.warning_color.get_text().unwrap_or(text),
-                    );
-                    let default_danger = palette::Danger::generate(
-                        palette.danger,
-                        palette.background,
-                        appearance.danger_color.get_text().unwrap_or(text),
-                    );
-
-                    palette::Extended {
-                        background: palette::Background {
-                            base: default_bg.base,
-                            weakest: bg(BackgroundLevel::Weakest, default_bg.weakest),
-                            weaker: bg(BackgroundLevel::Weaker, default_bg.weaker),
-                            weak: bg(BackgroundLevel::Weak, default_bg.weak),
-                            neutral: bg(BackgroundLevel::Neutral, default_bg.neutral),
-                            strong: bg(BackgroundLevel::Strong, default_bg.strong),
-                            stronger: bg(BackgroundLevel::Stronger, default_bg.stronger),
-                            strongest: bg(BackgroundLevel::Strongest, default_bg.strongest),
-                        },
-                        primary: palette::Primary {
-                            base: default_primary.base,
-                            weak: appearance
-                                .primary_color
-                                .get_weak_pair(text)
-                                .unwrap_or(default_primary.weak),
-                            strong: appearance
-                                .primary_color
-                                .get_strong_pair(text)
-                                .unwrap_or(default_primary.strong),
-                        },
-                        secondary: palette::Secondary::generate(palette.background, text),
-                        success: palette::Success {
-                            base: default_success.base,
-                            weak: appearance
-                                .success_color
-                                .get_weak_pair(text)
-                                .unwrap_or(default_success.weak),
-                            strong: appearance
-                                .success_color
-                                .get_strong_pair(text)
-                                .unwrap_or(default_success.strong),
-                        },
-                        warning: palette::Warning {
-                            base: default_warning.base,
-                            weak: appearance
-                                .warning_color
-                                .get_weak_pair(text)
-                                .unwrap_or(default_warning.weak),
-                            strong: appearance
-                                .warning_color
-                                .get_strong_pair(text)
-                                .unwrap_or(default_warning.strong),
-                        },
-                        danger: palette::Danger {
-                            base: default_danger.base,
-                            weak: appearance
-                                .danger_color
-                                .get_weak_pair(text)
-                                .unwrap_or(default_danger.weak),
-                            strong: appearance
-                                .danger_color
-                                .get_strong_pair(text)
-                                .unwrap_or(default_danger.strong),
-                        },
-                        is_dark: true,
-                    }
-                },
-            ),
-        }
+        Self::new(
+            Position::default(),
+            &Appearance::default(),
+            &crate::config::AnimationsConfig::default(),
+        )
     }
 }
 
@@ -248,6 +139,8 @@ impl AshellTheme {
     ) -> Self {
         AshellTheme {
             animations_enabled: animations.enabled,
+            module_styles: appearance.module_styles.clone(),
+            popup_styles: appearance.popup_styles.clone(),
             space: Space::default(),
             radius: Radius::default(),
             font_size: FontSize::default(),
@@ -364,6 +257,91 @@ impl AshellTheme {
         }
     }
 
+
+    /// Get the effective opacity for a module, considering per-module overrides.
+    pub fn module_opacity(&self, module_name: &crate::config::ModuleName) -> f32 {
+        self.module_styles
+            .get(module_name)
+            .and_then(|s| s.opacity)
+            .unwrap_or(self.opacity)
+    }
+
+    /// Get the effective background color for a module, considering per-module overrides.
+    pub fn module_background_color(
+        &self,
+        module_name: &crate::config::ModuleName,
+    ) -> Option<&BackgroundAppearanceColor> {
+        self.module_styles
+            .get(module_name)
+            .and_then(|s| s.background_color.as_ref())
+    }
+
+    /// Get the effective text color for a module, considering per-module overrides.
+    pub fn module_text_color(
+        &self,
+        module_name: &crate::config::ModuleName,
+    ) -> Option<&AppearanceColor> {
+        self.module_styles
+            .get(module_name)
+            .and_then(|s| s.text_color.as_ref())
+    }
+
+    /// Get the effective hover background color for a module.
+    ///
+    /// Resolution order:
+    /// 1. Explicit `hover_background_color` in the module's style config.
+    /// 2. `weak` level of the module's `background_color` (if it's a
+    ///    `BackgroundAppearanceColor::Complete` with a `weak` field).
+    /// 3. Falls back to `None` (caller should use the global palette).
+    pub fn module_hover_background_color(
+        &self,
+        module_name: &crate::config::ModuleName,
+    ) -> Option<Color> {
+        let style = self.module_styles.get(module_name)?;
+        // 1. Explicit hover background colour
+        if let Some(ref hover_bg) = style.hover_background_color {
+            return Some(hover_bg.get_base());
+        }
+        // 2. Derive from the module's background colour
+        if let Some(ref bg) = style.background_color {
+            // Try the `weak` level first (gives a slightly lighter shade)
+            if let Some(weak_pair) = bg.get_pair(BackgroundLevel::Weak, Color::TRANSPARENT) {
+                return Some(weak_pair.color);
+            }
+            // For Simple colours, brighten the base colour by ~15 %
+            let base = bg.get_base();
+            return Some(brighten_color(base, 0.15));
+        }
+        None
+    }
+
+    /// Get the effective border radius for a module, considering per-module overrides.
+    pub fn module_border_radius(
+        &self,
+        module_name: &crate::config::ModuleName,
+    ) -> Option<f32> {
+        self.module_styles
+            .get(module_name)
+            .and_then(|s| s.border_radius)
+    }
+
+    /// Get the effective popup appearance for a popup type, considering per-popup overrides.
+    /// Returns (opacity, backdrop, border_radius, background_color, width).
+    pub fn popup_appearance(
+        &self,
+        popup_key: &PopupStyleKey,
+    ) -> ResolvedPopupAppearance {
+        let global = &self.menu;
+        let override_style = self.popup_styles.get(popup_key);
+
+        ResolvedPopupAppearance {
+            opacity: override_style.and_then(|s| s.opacity).unwrap_or(global.opacity),
+            backdrop: override_style.and_then(|s| s.backdrop).unwrap_or(global.backdrop),
+            border_radius: override_style.and_then(|s| s.border_radius).unwrap_or(self.radius.lg),
+            background_color: override_style.and_then(|s| s.background_color),
+            width: override_style.and_then(|s| s.width.map(|w| w.size())),
+        }
+    }
     pub fn button_style(
         &self,
         kind: ButtonKind,
@@ -753,10 +731,19 @@ impl AshellTheme {
 
     /// Module button style: transparent base with hover highlight.
     /// The Islands background is handled by `module_group`, not the button.
-    pub fn module_button_style(&self) -> impl Fn(&Theme, Status) -> button::Style + use<> {
+    ///
+    /// When a `module_name` is provided, per-module opacity, text color and
+    /// hover background overrides are applied so the button matches the
+    /// module's appearance.
+    pub fn module_button_style(&self, module_name: Option<&crate::config::ModuleName>) -> impl Fn(&Theme, Status) -> button::Style + use<> {
         let radius_lg = self.radius.lg;
-        let opacity = self.opacity;
+        let opacity = module_name
+            .map(|name| self.module_opacity(name))
+            .unwrap_or(self.opacity);
+        let text_color_override = module_name.and_then(|name| self.module_text_color(name).map(|c| c.get_base()));
+        let hover_bg_override = module_name.and_then(|name| self.module_hover_background_color(name));
         move |theme, status| {
+            let text_color = text_color_override.unwrap_or_else(|| theme.palette().text);
             let mut base = button::Style {
                 background: None,
                 border: Border {
@@ -764,27 +751,83 @@ impl AshellTheme {
                     radius: radius_lg.into(),
                     color: Color::TRANSPARENT,
                 },
-                text_color: theme.palette().text,
+                text_color,
                 ..button::Style::default()
             };
             match status {
                 Status::Active => base,
                 Status::Hovered => {
-                    base.background = Some(
-                        theme
-                            .extended_palette()
-                            .background
-                            .weak
-                            .color
-                            .scale_alpha(opacity)
-                            .into(),
-                    );
+                    let hover_color = hover_bg_override
+                        .unwrap_or_else(|| theme.extended_palette().background.weak.color);
+                    base.background = Some(hover_color.scale_alpha(opacity).into());
                     base
                 }
                 _ => base,
             }
         }
     }
+
+    /// Notification action button style — follows the project design:
+    /// rounded corners, subtle background, border that matches the
+    /// notification card aesthetic, and a brighter hover state.
+    ///
+    /// Note: due to iced's lifetime constraints, action buttons in the
+    /// notification module currently create this style inline. This method
+    /// is kept for documentation/reference and future use.
+    #[allow(dead_code)]
+    pub fn notification_action_button_style(
+        &self,
+    ) -> impl Fn(&Theme, Status) -> button::Style + use<> {
+        let radius = self.radius.lg;
+        let opacity = self.menu.opacity;
+        move |theme: &Theme, status: Status| {
+            let ext = theme.extended_palette();
+            match status {
+                Status::Active => button::Style {
+                    background: Some(ext.background.weak.color.scale_alpha(opacity).into()),
+                    border: Border {
+                        width: 1.0,
+                        radius: radius.into(),
+                        color: ext.background.strong.color.scale_alpha(0.5),
+                    },
+                    text_color: theme.palette().text,
+                    ..button::Style::default()
+                },
+                Status::Hovered => button::Style {
+                    background: Some(ext.background.strong.color.scale_alpha(opacity).into()),
+                    border: Border {
+                        width: 1.0,
+                        radius: radius.into(),
+                        color: ext.background.strong.color,
+                    },
+                    text_color: theme.palette().text,
+                    ..button::Style::default()
+                },
+                _ => button::Style {
+                    background: Some(ext.background.weak.color.scale_alpha(opacity).into()),
+                    border: Border {
+                        width: 1.0,
+                        radius: radius.into(),
+                        color: ext.background.strong.color.scale_alpha(0.5),
+                    },
+                    text_color: theme.palette().text,
+                    ..button::Style::default()
+                },
+            }
+        }
+    }
+}
+
+/// Resolved popup appearance values, with per-popup overrides already
+/// merged into the global defaults.
+#[derive(Debug, Clone)]
+pub struct ResolvedPopupAppearance {
+    pub opacity: f32,
+    pub backdrop: f32,
+    pub border_radius: f32,
+    pub background_color: Option<BackgroundAppearanceColor>,
+    #[allow(dead_code)]
+    pub width: Option<f32>,
 }
 
 pub fn backdrop_color(backdrop: f32) -> Color {
@@ -796,6 +839,17 @@ pub fn darken_color(color: Color, darkening_alpha: f32) -> Color {
     let new_g = color.g * (1.0 - darkening_alpha);
     let new_b = color.b * (1.0 - darkening_alpha);
     let new_a = color.a + (1.0 - color.a) * darkening_alpha;
+
+    Color::from([new_r, new_g, new_b, new_a])
+}
+
+/// Brighten a colour by blending it towards white.
+/// `amount` is in `[0, 1]` — 0 leaves the colour unchanged, 1 makes it white.
+pub fn brighten_color(color: Color, amount: f32) -> Color {
+    let new_r = color.r + (1.0 - color.r) * amount;
+    let new_g = color.g + (1.0 - color.g) * amount;
+    let new_b = color.b + (1.0 - color.b) * amount;
+    let new_a = color.a + (1.0 - color.a) * amount;
 
     Color::from([new_r, new_g, new_b, new_a])
 }

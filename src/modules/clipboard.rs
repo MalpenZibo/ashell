@@ -36,7 +36,7 @@ use iced::{
         button, column, container, image, row, scrollable, text,
     },
 };
-use log::error;
+use log::{debug, error, warn};
 use std::collections::VecDeque;
 
 /// Maximum image size in bytes (2 MB). Larger images are skipped.
@@ -67,14 +67,24 @@ pub enum ClipboardContent {
 
 impl ClipboardContent {
     /// Returns a short preview string suitable for the popup list.
+    ///
+    /// Uses char-based truncation to avoid panicking on multi-byte UTF-8
+    /// characters (e.g. Cyrillic, CJK) where a byte index would fall
+    /// inside a character boundary.
     fn preview_text(&self) -> String {
         match self {
             ClipboardContent::Text(t) => {
                 let first_line = t.lines().next().unwrap_or("");
-                if first_line.len() > PREVIEW_TEXT_LENGTH {
-                    format!("{}…", &first_line[..PREVIEW_TEXT_LENGTH])
-                } else if first_line.is_empty() && t.len() > PREVIEW_TEXT_LENGTH {
-                    format!("{}…", &t[..PREVIEW_TEXT_LENGTH])
+                if first_line.chars().count() > PREVIEW_TEXT_LENGTH {
+                    format!(
+                        "{}…",
+                        first_line.chars().take(PREVIEW_TEXT_LENGTH).collect::<String>()
+                    )
+                } else if first_line.is_empty() && t.chars().count() > PREVIEW_TEXT_LENGTH {
+                    format!(
+                        "{}…",
+                        t.chars().take(PREVIEW_TEXT_LENGTH).collect::<String>()
+                    )
                 } else {
                     first_line.to_string()
                 }
@@ -143,7 +153,7 @@ pub struct Clipboard {
 impl Clipboard {
     /// Creates a new `Clipboard` module with the given configuration.
     pub fn new(config: ClipboardModuleConfig) -> Self {
-        eprintln!("[clipboard] Module created, max_entries={}", config.max_entries);
+        debug!("Module created, max_entries={}", config.max_entries);
         Self {
             config,
             history: VecDeque::new(),
@@ -158,7 +168,7 @@ impl Clipboard {
     pub fn update(&mut self, message: Message) -> Action {
         match message {
             Message::MenuOpened => {
-                eprintln!("[clipboard] MenuOpened received — loading history...");
+                debug!("MenuOpened received — loading history...");
                 self.loading = true;
                 self.pending_images.clear();
                 let max_entries = self.config.max_entries;
@@ -172,12 +182,12 @@ impl Clipboard {
             }
 
             Message::HistoryListed(entries) => {
-                eprintln!("[clipboard] HistoryListed: received {} entries", entries.len());
+                debug!("HistoryListed: received {} entries", entries.len());
                 self.history.clear();
                 self.pending_images.clear();
 
                 for (id, preview) in entries {
-                    eprintln!("[clipboard]   id={}, preview={:?}", id, &preview[..preview.len().min(60)]);
+                    debug!("  id={}, preview={:?}", id, &preview.chars().take(60).collect::<String>());
                     if preview.starts_with(BINARY_DATA_PREFIX) {
                         // Image entry — store as text placeholder, schedule decode
                         let index = self.history.len();
@@ -195,13 +205,13 @@ impl Clipboard {
                     }
                 }
 
-                eprintln!("[clipboard] Parsed {} entries, {} are images",
+                debug!("Parsed {} entries, {} are images",
                     self.history.len(), self.pending_images.len());
 
                 // Decode image entries in parallel
                 if self.pending_images.is_empty() {
                     self.loading = false;
-                    eprintln!("[clipboard] No images to decode, loading complete");
+                    debug!("No images to decode, loading complete");
                     Action::None
                 } else {
                     let pending = self.pending_images.clone();
@@ -213,7 +223,7 @@ impl Clipboard {
                                 |result| match result {
                                     Ok((index, id, data)) => Message::ImageDecoded { index, id, data },
                                     Err(e) => {
-                                        eprintln!("[clipboard] Failed to decode image: {e}");
+                                        debug!("Failed to decode image: {e}");
                                         // Return a no-op message
                                         Message::EntryCopied
                                     }
@@ -221,29 +231,29 @@ impl Clipboard {
                             )
                         })
                         .collect();
-                    eprintln!("[clipboard] Starting {} image decode tasks", tasks.len());
+                    debug!("Starting {} image decode tasks", tasks.len());
                     Action::Command(Task::batch(tasks))
                 }
             }
 
             Message::ImageDecoded { index, id, data } => {
-                eprintln!("[clipboard] ImageDecoded: id={}, index={}, {} bytes", id, index, data.len());
+                debug!("ImageDecoded: id={}, index={}, {} bytes", id, index, data.len());
                 // Replace the text placeholder with actual image data
                 if let Some(entry) = self.history.get_mut(index) {
                     if entry.id == id {
                         entry.content = ClipboardContent::Image(data);
                     } else {
-                        eprintln!("[clipboard] WARNING: id mismatch at index {} (expected {}, got {})", index, entry.id, id);
+                        warn!("id mismatch at index {} (expected {}, got {})", index, entry.id, id);
                     }
                 } else {
-                    eprintln!("[clipboard] WARNING: index {} out of bounds (history len={})", index, self.history.len());
+                    warn!("index {} out of bounds (history len={})", index, self.history.len());
                 }
 
                 // Check if all images are decoded
                 self.pending_images.retain(|(_, pid)| *pid != id);
                 if self.pending_images.is_empty() {
                     self.loading = false;
-                    eprintln!("[clipboard] All images decoded, loading complete");
+                    debug!("All images decoded, loading complete");
                 }
                 Action::None
             }
@@ -251,13 +261,12 @@ impl Clipboard {
             Message::HistoryLoadFailed(e) => {
                 self.loading = false;
                 self.history.clear();
-                eprintln!("[clipboard] ERROR: Failed to load clipboard history: {e}");
                 error!("Failed to load clipboard history: {e}");
                 Action::None
             }
 
             Message::CopyEntry(id) => {
-                eprintln!("[clipboard] CopyEntry: id={}", id);
+                debug!("CopyEntry: id={}", id);
                 Action::Command(Task::perform(
                     copy_entry_to_clipboard(id),
                     |_| Message::EntryCopied,
@@ -265,13 +274,12 @@ impl Clipboard {
             }
 
             Message::ClearHistory => {
-                eprintln!("[clipboard] ClearHistory");
+                debug!("ClearHistory");
                 Action::Command(Task::perform(
                     clear_clipboard_history(),
                     |result| match result {
                         Ok(()) => Message::HistoryCleared,
                         Err(e) => {
-                            eprintln!("[clipboard] ERROR: Failed to clear: {e}");
                             error!("Failed to clear clipboard history: {e}");
                             Message::HistoryCleared
                         }
@@ -281,7 +289,7 @@ impl Clipboard {
 
             Message::HistoryCleared => {
                 self.history.clear();
-                eprintln!("[clipboard] HistoryCleared");
+                debug!("HistoryCleared");
                 Action::None
             }
 
@@ -447,10 +455,10 @@ impl Clipboard {
 /// Uses `std::process::Command` via `tokio::task::spawn_blocking` to avoid
 /// any issues with the async process spawning.
 async fn list_clipboard_history(max_entries: usize) -> Result<Vec<(u64, String)>, String> {
-    eprintln!("[clipboard] list_clipboard_history: starting (max_entries={})", max_entries);
+    debug!("list_clipboard_history: starting (max_entries={})", max_entries);
 
     let result = tokio::task::spawn_blocking(move || {
-        eprintln!("[clipboard] spawn_blocking: running 'cliphist list'...");
+        debug!("spawn_blocking: running 'cliphist list'...");
 
         let output = match std::process::Command::new("cliphist")
             .arg("list")
@@ -459,23 +467,23 @@ async fn list_clipboard_history(max_entries: usize) -> Result<Vec<(u64, String)>
             Ok(o) => o,
             Err(e) => {
                 let msg = format!("failed to spawn 'cliphist list': {e}");
-                eprintln!("[clipboard] ERROR: {msg}");
+                error!("{msg}");
                 return Err(msg);
             }
         };
 
-        eprintln!("[clipboard] cliphist list: exit={:?}, stdout={} bytes, stderr={} bytes",
+        debug!("cliphist list: exit={:?}, stdout={} bytes, stderr={} bytes",
             output.status.code(), output.stdout.len(), output.stderr.len());
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             let msg = format!("cliphist list failed (exit {:?}): {}", output.status.code(), stderr.trim());
-            eprintln!("[clipboard] ERROR: {msg}");
+            error!("{msg}");
             return Err(msg);
         }
 
         let stdout = String::from_utf8_lossy(&output.stdout);
-        eprintln!("[clipboard] cliphist list raw output (first 500 chars):\n{}", &stdout[..stdout.len().min(500)]);
+        debug!("cliphist list raw output (first 500 chars):\n{}", stdout.chars().take(500).collect::<String>());
 
         let mut entries = Vec::new();
 
@@ -493,15 +501,15 @@ async fn list_clipboard_history(max_entries: usize) -> Result<Vec<(u64, String)>
             // Try tab first, then spaces as fallback
             if let Some((id_str, preview)) = line.split_once('\t') {
                 if let Ok(id) = id_str.trim().parse::<u64>() {
-                    eprintln!("[clipboard]   parsed entry: id={}, preview={:?}", id, &preview[..preview.len().min(40)]);
+                    debug!("  parsed entry: id={}, preview={:?}", id, &preview.chars().take(40).collect::<String>());
                     entries.push((id, preview.to_string()));
                 } else {
-                    eprintln!("[clipboard]   SKIPPING line {} (non-numeric id): {:?}", line_num, line);
+                    debug!("  SKIPPING line {} (non-numeric id): {:?}", line_num, line);
                 }
             } else {
                 // Fallback: no tab separator found.
                 // Try splitting by whitespace: "<number> <text>"
-                eprintln!("[clipboard]   SKIPPING line {} (no tab separator): {:?}", line_num, line);
+                debug!("  SKIPPING line {} (no tab separator): {:?}", line_num, line);
 
                 // Try finding the first space and treating everything before as ID
                 if let Some(space_pos) = line.find(|c: char| c.is_whitespace()) {
@@ -509,7 +517,7 @@ async fn list_clipboard_history(max_entries: usize) -> Result<Vec<(u64, String)>
                     let rest = line[space_pos..].trim_start();
                     if let Ok(id) = id_str.parse::<u64>() {
                         if !rest.is_empty() {
-                            eprintln!("[clipboard]   FALLBACK parsed: id={}, rest={:?}", id, &rest[..rest.len().min(40)]);
+                            debug!("  FALLBACK parsed: id={}, rest={:?}", id, rest.chars().take(40).collect::<String>());
                             entries.push((id, rest.to_string()));
                         }
                     }
@@ -517,13 +525,13 @@ async fn list_clipboard_history(max_entries: usize) -> Result<Vec<(u64, String)>
             }
         }
 
-        eprintln!("[clipboard] list_clipboard_history: returning {} entries", entries.len());
+        debug!("list_clipboard_history: returning {} entries", entries.len());
         Ok(entries)
     })
     .await
     .map_err(|e| {
         let msg = format!("spawn_blocking panicked: {e}");
-        eprintln!("[clipboard] ERROR: {msg}");
+        error!("{msg}");
         msg
     })?;
 
@@ -534,7 +542,7 @@ async fn list_clipboard_history(max_entries: usize) -> Result<Vec<(u64, String)>
 ///
 /// Returns the raw image bytes (PNG, JPEG, etc.).
 async fn decode_clipboard_image(id: u64, index: usize) -> Result<(usize, u64, Vec<u8>), String> {
-    eprintln!("[clipboard] decode_clipboard_image: id={}, index={}", id, index);
+    debug!("decode_clipboard_image: id={}, index={}", id, index);
 
     let result = tokio::task::spawn_blocking(move || {
         let id_str = id.to_string();
@@ -546,7 +554,7 @@ async fn decode_clipboard_image(id: u64, index: usize) -> Result<(usize, u64, Ve
             Ok(o) => o,
             Err(e) => {
                 let msg = format!("failed to spawn 'cliphist decode {id}': {e}");
-                eprintln!("[clipboard] ERROR: {msg}");
+                error!("{msg}");
                 return Err(msg);
             }
         };
@@ -554,30 +562,30 @@ async fn decode_clipboard_image(id: u64, index: usize) -> Result<(usize, u64, Ve
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             let msg = format!("cliphist decode {id} failed (exit {:?}): {}", output.status.code(), stderr.trim());
-            eprintln!("[clipboard] ERROR: {msg}");
+            error!("{msg}");
             return Err(msg);
         }
 
         let data = output.stdout;
         if data.is_empty() {
             let msg = format!("cliphist decode {id} returned empty data");
-            eprintln!("[clipboard] ERROR: {msg}");
+            error!("{msg}");
             return Err(msg);
         }
 
         if data.len() > MAX_IMAGE_SIZE {
             let msg = format!("cliphist decode {id} returned {} bytes (max {})", data.len(), MAX_IMAGE_SIZE);
-            eprintln!("[clipboard] WARNING: {msg}");
+            warn!("{msg}");
             return Err(msg);
         }
 
-        eprintln!("[clipboard] Decoded image for id {id}: {} bytes", data.len());
+        debug!("Decoded image for id {id}: {} bytes", data.len());
         Ok((index, id, data))
     })
     .await
     .map_err(|e| {
         let msg = format!("spawn_blocking panicked for decode: {e}");
-        eprintln!("[clipboard] ERROR: {msg}");
+        error!("{msg}");
         msg
     })?;
 
@@ -587,7 +595,7 @@ async fn decode_clipboard_image(id: u64, index: usize) -> Result<(usize, u64, Ve
 /// Copies a clipboard entry back to the active clipboard using
 /// `cliphist decode <id>` piped into `wl-copy`.
 async fn copy_entry_to_clipboard(id: u64) {
-    eprintln!("[clipboard] copy_entry_to_clipboard: id={}", id);
+    debug!("copy_entry_to_clipboard: id={}", id);
 
     let result = tokio::task::spawn_blocking(move || {
         let id_str = id.to_string();
@@ -599,12 +607,12 @@ async fn copy_entry_to_clipboard(id: u64) {
         {
             Ok(o) if o.status.success() && !o.stdout.is_empty() => o,
             Ok(o) => {
-                eprintln!("[clipboard] cliphist decode {} failed (exit {:?})",
+                debug!("cliphist decode {} failed (exit {:?})",
                     id, o.status.code());
                 return;
             }
             Err(e) => {
-                eprintln!("[clipboard] cliphist decode error: {e}");
+                debug!("cliphist decode error: {e}");
                 return;
             }
         };
@@ -626,7 +634,7 @@ async fn copy_entry_to_clipboard(id: u64) {
         {
             Ok(c) => c,
             Err(e) => {
-                eprintln!("[clipboard] failed to spawn wl-copy: {e}");
+                debug!("failed to spawn wl-copy: {e}");
                 return;
             }
         };
@@ -634,7 +642,7 @@ async fn copy_entry_to_clipboard(id: u64) {
         if let Some(mut stdin) = child.stdin.take() {
             use std::io::Write;
             if let Err(e) = stdin.write_all(&data) {
-                eprintln!("[clipboard] failed to write to wl-copy stdin: {e}");
+                debug!("failed to write to wl-copy stdin: {e}");
                 return;
             }
             drop(stdin); // Close pipe to signal EOF
@@ -642,17 +650,17 @@ async fn copy_entry_to_clipboard(id: u64) {
 
         match child.wait() {
             Ok(status) => {
-                eprintln!("[clipboard] wl-copy exited with {:?}", status.code());
+                debug!("wl-copy exited with {:?}", status.code());
             }
             Err(e) => {
-                eprintln!("[clipboard] wl-copy wait error: {e}");
+                debug!("wl-copy wait error: {e}");
             }
         }
     })
     .await;
 
     if let Err(e) = result {
-        eprintln!("[clipboard] copy_entry_to_clipboard spawn_blocking error: {e}");
+        debug!("copy_entry_to_clipboard spawn_blocking error: {e}");
     }
 }
 
@@ -688,7 +696,7 @@ fn detect_mime_type(data: &[u8]) -> Option<String> {
 
 /// Clears the entire clipboard history using `cliphist wipe`.
 async fn clear_clipboard_history() -> Result<(), String> {
-    eprintln!("[clipboard] clear_clipboard_history: running 'cliphist wipe'...");
+    debug!("clear_clipboard_history: running 'cliphist wipe'...");
 
     let result = tokio::task::spawn_blocking(move || {
         let output = match std::process::Command::new("cliphist")
@@ -698,7 +706,7 @@ async fn clear_clipboard_history() -> Result<(), String> {
             Ok(o) => o,
             Err(e) => {
                 let msg = format!("failed to spawn 'cliphist wipe': {e}");
-                eprintln!("[clipboard] ERROR: {msg}");
+                error!("{msg}");
                 return Err(msg);
             }
         };
@@ -706,17 +714,17 @@ async fn clear_clipboard_history() -> Result<(), String> {
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             let msg = format!("cliphist wipe failed: {}", stderr.trim());
-            eprintln!("[clipboard] ERROR: {msg}");
+            error!("{msg}");
             return Err(msg);
         }
 
-        eprintln!("[clipboard] cliphist wipe succeeded");
+        debug!("cliphist wipe succeeded");
         Ok(())
     })
     .await
     .map_err(|e| {
         let msg = format!("spawn_blocking panicked for wipe: {e}");
-        eprintln!("[clipboard] ERROR: {msg}");
+        error!("{msg}");
         msg
     })?;
 

@@ -1,7 +1,7 @@
 use crate::app::{self, App};
 use crate::components::{self, ButtonUIRef};
 use crate::config::{AppearanceStyle, Position};
-use crate::theme::{backdrop_color, use_theme};
+use crate::theme::{ResolvedPopupAppearance, backdrop_color, use_theme};
 use iced::alignment::Vertical;
 use iced::widget::container::Style;
 use iced::{
@@ -162,30 +162,68 @@ impl From<MenuSize> for Pixels {
 
 impl App {
     #[allow(clippy::too_many_arguments)]
+
+    /// Convert a MenuType to a PopupStyleKey for per-popup style lookups.
+    fn popup_style_key(menu_type: &MenuType) -> crate::config::PopupStyleKey {
+        match menu_type {
+            MenuType::Updates => crate::config::PopupStyleKey::Updates,
+            MenuType::Settings => crate::config::PopupStyleKey::Settings,
+            MenuType::Notifications => crate::config::PopupStyleKey::Notifications,
+            MenuType::Tray(_) => crate::config::PopupStyleKey::Tray,
+            MenuType::MediaPlayer => crate::config::PopupStyleKey::MediaPlayer,
+            MenuType::SystemInfo => crate::config::PopupStyleKey::SystemInfo,
+            MenuType::Tempo => crate::config::PopupStyleKey::Tempo,
+            MenuType::Clipboard => crate::config::PopupStyleKey::Clipboard,
+        }
+    }
     pub fn menu_wrapper<'a>(
         &'a self,
         id: SurfaceId,
         content: Element<'a, app::Message>,
         button_ui_ref: ButtonUIRef,
     ) -> Element<'a, app::Message> {
-        let (space, menu_opacity, radius, bar_style, bar_position, menu_backdrop) =
+        // Get the current open menu type for per-popup styling
+        let menu_type = self.outputs.get_open_menu_type();
+        let popup_key = menu_type.as_ref().map(Self::popup_style_key);
+
+        let (space, resolved_popup, bar_style, bar_position) =
             use_theme(|t| {
+                let popup = match &popup_key {
+                    Some(key) => t.popup_appearance(key),
+                    None => ResolvedPopupAppearance {
+                        opacity: t.menu.opacity,
+                        backdrop: t.menu.backdrop,
+                        border_radius: t.radius.lg,
+                        background_color: None,
+                        width: None,
+                    },
+                };
                 (
                     t.space,
-                    t.menu.opacity,
-                    t.radius,
+                    popup,
                     t.bar_style,
                     t.bar_position,
-                    t.menu.backdrop,
                 )
             });
+
+        let menu_opacity = resolved_popup.opacity;
+        let menu_border_radius = resolved_popup.border_radius;
+        let menu_backdrop = resolved_popup.backdrop;
+        let custom_bg = resolved_popup.background_color;
 
         components::MenuWrapper::new(
             button_ui_ref.position.x,
             container(content)
                 .padding(space.md)
                 .style(move |theme: &Theme| Style {
-                    background: Some(theme.palette().background.scale_alpha(menu_opacity).into()),
+                    background: Some(
+                        if let Some(ref custom_bg) = custom_bg {
+                            custom_bg.get_base().scale_alpha(menu_opacity)
+                        } else {
+                            theme.palette().background.scale_alpha(menu_opacity)
+                        }
+                        .into()
+                    ),
                     border: Border {
                         color: theme
                             .extended_palette()
@@ -194,7 +232,7 @@ impl App {
                             .color
                             .scale_alpha(menu_opacity),
                         width: 1.,
-                        radius: radius.lg.into(),
+                        radius: menu_border_radius.into(),
                     },
                     ..Default::default()
                 })

@@ -133,3 +133,14 @@ clipboard-heading = Clipboard History
 clipboard-empty = Clipboard is empty
 clipboard-loading = Loading clipboard...
 clipboard-image-entry = [Image]
+
+## System Info module
+system-info-heading = System Info
+system-info-cpu-usage = CPU Usage
+system-info-memory-usage = Memory Usage
+system-info-swap-usage = Swap Memory Usage
+system-info-temperature = Temperature
+system-info-disk-usage = Disk Usage { $mount_point }
+system-info-ip-address = IP Address
+system-info-download-speed = Download Speed
+system-info-upload-speed = Upload Speed

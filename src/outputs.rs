@@ -463,6 +463,17 @@ impl Outputs {
             .any(|(_, shell_info, _)| shell_info.as_ref().is_some_and(|si| si.menu.is_open()))
     }
 
+
+    /// Get the type of the currently open menu, if any.
+    pub fn get_open_menu_type(&self) -> Option<MenuType> {
+        self.0
+            .iter()
+            .find_map(|(_, shell_info, _)| {
+                shell_info
+                    .as_ref()
+                    .and_then(|si| si.menu.open.as_ref().map(|o| o.menu_type.clone()))
+            })
+    }
     pub fn toggle_menu<Message: 'static>(
         &mut self,
         id: SurfaceId,

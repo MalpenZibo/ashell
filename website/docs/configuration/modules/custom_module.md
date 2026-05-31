@@ -201,8 +201,8 @@ command = "cliphist-rofi-img | wl-copy"
 
 ## Migration from Deprecated Modules
 
-The `AppLauncher` and `Clipboard` modules have been deprecated in favor of custom modules.
-To migrate from the deprecated modules:
+The `AppLauncher` module has been deprecated in favor of custom modules.
+To migrate from the deprecated module:
 
 ### Previous App Launcher Configuration
 
@@ -217,30 +217,32 @@ app_launcher_cmd = "walker"
 # New recommended way
 [[CustomModule]]
 name = "AppLauncher"
-icon = "�"
+icon = "󱗼"
 command = "walker"
 ```
 
-### Previous Clipboard Configuration
-
-```toml
-# Old deprecated way
-clipboard_cmd = "cliphist-rofi-img | wl-copy"
-```
-
-### New Custom Module Configuration
-
-```toml
-# New recommended way
-[[CustomModule]]
-name = "Clipboard"
-icon = "󰅏"
-command = "cliphist-rofi-img | wl-copy"
-```
-
-Then add the custom modules to your modules configuration:
+Then add the custom module to your modules configuration:
 
 ```toml
 [modules]
-right = [ [ "Tempo", "Privacy", "Settings", "AppLauncher", "Clipboard" ] ]
+right = [ [ "Tempo", "Privacy", "Settings", "AppLauncher" ] ]
 ```
+
+:::note
+
+The `Clipboard` module was previously deprecated in favor of a custom module, but is now
+a **built-in module** with its own `[clipboard]` configuration section. You no longer need
+to create a custom module for clipboard functionality — simply use the built-in `Clipboard`
+module and configure it under `[clipboard]`.
+
+```toml
+[clipboard]
+max_entries = 8
+```
+
+```toml
+[modules]
+right = [ [ "Tempo", "Privacy", "Settings", "Clipboard" ] ]
+```
+
+:::

@@ -91,3 +91,74 @@ opacity = 0.8
 opacity = 0.7
 backdrop = 0.3
 ```
+
+## Per-Module Styling
+
+You can override the global appearance settings for individual modules. This allows
+you to give specific modules a different look from the rest of the status bar.
+
+Each key under `[appearance.modules]` is the module name. The available module names
+are: `Workspaces`, `Tempo`, `SystemInfo`, `Tray`, `Privacy`, `Settings`,
+`MediaPlayer`, `Notifications`, `Clipboard`, `Updates`, `WindowTitle`,
+`KeyboardLayout`, `KeyboardSubmap`, or a custom module name.
+
+### Available fields
+
+| Field | Description |
+|---|---|
+| `opacity` | Override the bar component opacity for this module (`0.0`–`1.0`) |
+| `background_color` | Override the background color for this module |
+| `text_color` | Override the text color for this module |
+| `border_radius` | Override the border radius for this module (in pixels) |
+
+### Example
+
+```toml
+[appearance.modules.Workspaces]
+opacity = 1.0
+background_color = "#2ac3de"
+
+[appearance.modules.SystemInfo]
+text_color = "#f7768e"
+border_radius = 8
+
+[appearance.modules."my-custom-module"]
+opacity = 0.9
+```
+
+## Per-Popup Styling
+
+You can override the popup (menu) appearance for specific menu types. This lets you
+style individual popups differently from the global menu settings.
+
+Each key under `[appearance.popups]` is the popup name. The available popup names
+are: `Updates`, `Settings`, `Notifications`, `Tray`, `MediaPlayer`, `SystemInfo`,
+`Tempo`, `Clipboard`.
+
+### Available fields
+
+| Field | Description |
+|---|---|
+| `opacity` | Override the popup opacity for this menu (`0.0`–`1.0`) |
+| `backdrop` | Override the backdrop effect for this menu (`0.0`–`1.0`) |
+| `background_color` | Override the popup background color for this menu |
+| `border_radius` | Override the popup border radius (in pixels) |
+| `width` | Override the popup width. Can be `Small`, `Medium`, `Large`, or `XLarge` |
+
+### Example
+
+```toml
+[appearance.popups.Notifications]
+opacity = 0.9
+backdrop = 0.2
+width = "Large"
+
+[appearance.popups.Settings]
+background_color = "#1a1b26"
+border_radius = 16
+width = "Medium"
+
+[appearance.popups.Clipboard]
+opacity = 0.85
+width = "Small"
+```

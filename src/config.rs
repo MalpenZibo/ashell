@@ -821,6 +821,118 @@ impl Default for MenuAppearance {
     }
 }
 
+
+/// Per-module appearance overrides. Any field set here will override the
+/// global appearance setting for a specific module. Fields left unset
+/// (None) fall back to the global appearance values.
+#[derive(Deserialize, Clone, Debug, Default)]
+#[serde(default)]
+pub struct ModuleAppearance {
+    /// Module-specific opacity. Falls back to global `appearance.opacity`.
+    #[serde(default, deserialize_with = "optional_opacity_deserializer")]
+    pub opacity: Option<f32>,
+    /// Module-specific background color (used in Islands style).
+    /// Falls back to `appearance.background_color`.
+    pub background_color: Option<BackgroundAppearanceColor>,
+    /// Module-specific hover background color (shown when the cursor
+    /// hovers over the module in the bar). When unset and a
+    /// `background_color` is configured, a slightly brighter shade is
+    /// derived automatically. When both are unset, the global
+    /// `background.weak` palette colour is used.
+    pub hover_background_color: Option<BackgroundAppearanceColor>,
+    /// Module-specific text color.
+    /// Falls back to `appearance.text_color`.
+    pub text_color: Option<AppearanceColor>,
+    /// Module-specific border radius override (in pixels).
+    pub border_radius: Option<f32>,
+}
+
+fn optional_opacity_deserializer<'de, D>(deserializer: D) -> Result<Option<f32>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let v: Option<f32> = Option::deserialize(deserializer)?;
+    if let Some(val) = v {
+        if val < 0.0 {
+            return Err(serde::de::Error::custom("Opacity cannot be negative"));
+        }
+        if val > 1.0 {
+            return Err(serde::de::Error::custom(
+                "Opacity cannot be greater than 1.0",
+            ));
+        }
+    }
+    Ok(v)
+}
+
+/// Per-popup (menu) appearance overrides. Any field set here will override
+/// the global `appearance.menu` settings for a specific popup type.
+/// Fields left unset (None) fall back to the global menu appearance.
+#[derive(Deserialize, Clone, Debug, Default)]
+#[serde(default)]
+pub struct PopupAppearance {
+    /// Popup-specific opacity. Falls back to `appearance.menu.opacity`.
+    #[serde(default, deserialize_with = "optional_opacity_deserializer")]
+    pub opacity: Option<f32>,
+    /// Popup-specific backdrop. Falls back to `appearance.menu.backdrop`.
+    pub backdrop: Option<f32>,
+    /// Popup-specific background color.
+    /// Falls back to `appearance.background_color`.
+    pub background_color: Option<BackgroundAppearanceColor>,
+    /// Popup-specific border radius override (in pixels).
+    pub border_radius: Option<f32>,
+    /// Popup-specific width category.
+    pub width: Option<MenuSizeConfig>,
+}
+
+/// Popup width configuration for per-popup sizing.
+#[derive(Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MenuSizeConfig {
+    Small,
+    Medium,
+    Large,
+    XLarge,
+}
+
+impl MenuSizeConfig {
+    pub fn size(&self) -> f32 {
+        match self {
+            MenuSizeConfig::Small => 250.,
+            MenuSizeConfig::Medium => 350.,
+            MenuSizeConfig::Large => 450.,
+            MenuSizeConfig::XLarge => 650.,
+        }
+    }
+}
+
+/// Key type for per-popup style lookups. Matches the MenuType variants.
+#[derive(Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum PopupStyleKey {
+    Updates,
+    Settings,
+    Notifications,
+    Tray,
+    MediaPlayer,
+    SystemInfo,
+    Tempo,
+    Clipboard,
+}
+
+impl std::fmt::Display for PopupStyleKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PopupStyleKey::Updates => write!(f, "Updates"),
+            PopupStyleKey::Settings => write!(f, "Settings"),
+            PopupStyleKey::Notifications => write!(f, "Notifications"),
+            PopupStyleKey::Tray => write!(f, "Tray"),
+            PopupStyleKey::MediaPlayer => write!(f, "MediaPlayer"),
+            PopupStyleKey::SystemInfo => write!(f, "SystemInfo"),
+            PopupStyleKey::Tempo => write!(f, "Tempo"),
+            PopupStyleKey::Clipboard => write!(f, "Clipboard"),
+        }
+    }
+}
+
 #[derive(Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct Appearance {
@@ -839,6 +951,10 @@ pub struct Appearance {
     pub text_color: AppearanceColor,
     pub workspace_colors: Vec<AppearanceColor>,
     pub special_workspace_colors: Option<Vec<AppearanceColor>>,
+    /// Per-module appearance overrides. Key is the module name (e.g. "Workspaces", "Tempo").
+    pub module_styles: HashMap<ModuleName, ModuleAppearance>,
+    /// Per-popup appearance overrides. Key is the popup type name (e.g. "Settings", "Notifications").
+    pub popup_styles: HashMap<PopupStyleKey, PopupAppearance>,
 }
 
 static PRIMARY: HexColor = HexColor::rgb(122, 162, 247);
@@ -916,6 +1032,8 @@ impl Default for Appearance {
                 AppearanceColor::Simple(HexColor::rgb(158, 206, 106)),
             ],
             special_workspace_colors: None,
+            module_styles: HashMap::new(),
+            popup_styles: HashMap::new(),
         }
     }
 }
@@ -935,7 +1053,7 @@ pub enum Layer {
     Overlay,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum ModuleName {
     Updates,
     Workspaces,

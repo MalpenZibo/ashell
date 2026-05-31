@@ -12,10 +12,29 @@ use crate::{
     t,
     theme::use_theme,
 };
+
+/// Parse the flat freedesktop actions array `[key, label, key, label, ...]`
+/// into a list of `(action_key, label)` pairs.
+///
+/// Per the freedesktop.org Notification spec, the action with key `"default"`
+/// is the default action invoked when the notification body is clicked.
+/// It is NOT shown as a separate button — the outer card click handles it.
+fn parse_action_pairs(actions: &[String]) -> Vec<(&str, &str)> {
+    let mut pairs = Vec::new();
+    let mut iter = actions.iter();
+    while let Some(key) = iter.next() {
+        let label = iter.next().map(|s| s.as_str()).unwrap_or(key.as_str());
+        // Skip empty keys and the special "default" action (invoked by card click).
+        if !key.is_empty() && key != "default" {
+            pairs.push((key.as_str(), label));
+        }
+    }
+    pairs
+}
 use chrono::{DateTime, Local};
 use iced::{
     Alignment, Border, Column, Element, Length, Padding, Row, Size, Subscription, Task, Theme,
-    widget::{Space, button, column, container, image, row, scrollable, sensor, svg, text},
+    widget::{Space, button, button::Status, column, container, image, row, scrollable, sensor, svg, text},
 };
 use itertools::Itertools;
 use log::error;
@@ -112,6 +131,7 @@ pub enum Message {
     ExpireToast(u32),
     DismissToast(u32),
     ToastResized(Size),
+    InvokeAction(u32, String),
 }
 
 #[derive(Debug, PartialEq)]
@@ -164,10 +184,19 @@ impl Notifications {
     }
 
     fn find_first_action_key(&self, id: u32) -> Option<String> {
-        self.find_notification(id)
-            .filter(|n| !n.actions.is_empty())
-            .and_then(|n| n.actions.first())
-            .cloned()
+        self.find_notification(id).filter(|n| !n.actions.is_empty()).and_then(|n| {
+            // Per the freedesktop spec, prefer the "default" action key
+            // (invoked when the notification body is clicked).
+            let mut iter = n.actions.iter();
+            while let Some(key) = iter.next() {
+                let _label = iter.next();
+                if key == "default" {
+                    return Some(key.clone());
+                }
+            }
+            // Fall back to the first action key if no "default" exists.
+            n.actions.first().cloned()
+        })
     }
 
     fn clear_toasts(&mut self) -> bool {
@@ -310,6 +339,12 @@ impl Notifications {
                 let connection = self.connection.clone();
                 let action_key = self.find_first_action_key(id);
                 Action::Task(invoke_and_close_task(connection, id, action_key))
+            }
+            Message::InvokeAction(id, action_key) => {
+                let connection = self.connection.clone();
+                let task = invoke_and_close_task(connection, id, Some(action_key));
+                let had_toasts = self.remove_toast(id);
+                self.hide_toasts_if_empty_with_task(had_toasts, task)
             }
             Message::NotificationClosed => Action::None,
             Message::ClearNotifications => {
@@ -478,6 +513,67 @@ impl Notifications {
 
         let notification_id = notification.id;
 
+        // Build action buttons from the freedesktop actions array.
+        let action_pairs = parse_action_pairs(&notification.actions);
+        // In toast mode, limit to 3 action buttons to keep the toast compact.
+        let max_actions = if toast { 3 } else { usize::MAX };
+        let (action_btn_radius, action_btn_opacity) = use_theme(|t| (t.radius.lg, t.menu.opacity));
+        let actions_element: Option<Element<'a, Message>> = if action_pairs.is_empty() {
+            None
+        } else {
+            let mut actions_row = Row::new()
+                .spacing(space.xxs)
+                .width(Length::Fill)
+                .align_y(Alignment::Center);
+            for (action_key, label) in action_pairs.iter().take(max_actions) {
+                let nid = notification_id;
+                let key = action_key.to_string();
+                let radius = action_btn_radius;
+                let opacity = action_btn_opacity;
+                actions_row = actions_row.push(
+                    button(text(*label).size(font_size.xs))
+                        .padding([space.xxs, space.sm])
+                        .on_press(Message::InvokeAction(nid, key))
+                        .style(move |theme: &Theme, status| {
+                            let ext = theme.extended_palette();
+                            match status {
+                                Status::Active => button::Style {
+                                    background: Some(ext.background.weak.color.scale_alpha(opacity).into()),
+                                    border: Border {
+                                        width: 1.0,
+                                        radius: radius.into(),
+                                        color: ext.background.strong.color.scale_alpha(0.5),
+                                    },
+                                    text_color: theme.palette().text,
+                                    ..button::Style::default()
+                                },
+                                Status::Hovered => button::Style {
+                                    background: Some(ext.background.strong.color.scale_alpha(opacity).into()),
+                                    border: Border {
+                                        width: 1.0,
+                                        radius: radius.into(),
+                                        color: ext.background.strong.color,
+                                    },
+                                    text_color: theme.palette().text,
+                                    ..button::Style::default()
+                                },
+                                _ => button::Style {
+                                    background: Some(ext.background.weak.color.scale_alpha(opacity).into()),
+                                    border: Border {
+                                        width: 1.0,
+                                        radius: radius.into(),
+                                        color: ext.background.strong.color.scale_alpha(0.5),
+                                    },
+                                    text_color: theme.palette().text,
+                                    ..button::Style::default()
+                                },
+                            }
+                        }),
+                );
+            }
+            Some(actions_row.into())
+        };
+
         let app_icon_button = notification_icon(notification.icon.as_ref());
 
         let mut card = container(
@@ -506,6 +602,7 @@ impl Notifications {
                 column!(
                     text(&notification.summary).wrapping(text::Wrapping::WordOrGlyph),
                     body_element,
+                    actions_element,
                 )
                 .spacing(space.xxs)
                 .padding(Padding::new(space.xs).top(0.))
@@ -538,6 +635,66 @@ impl Notifications {
         is_last: bool,
     ) -> Element<'a, Message> {
         let (space, font_size) = use_theme(|t| (t.space, t.font_size));
+
+        let action_pairs = parse_action_pairs(&notification.actions);
+        let notification_id = notification.id;
+        let (action_btn_radius, action_btn_opacity) = use_theme(|t| (t.radius.lg, t.menu.opacity));
+        let actions_element: Option<Element<'a, Message>> = if action_pairs.is_empty() {
+            None
+        } else {
+            let mut actions_row = Row::new()
+                .spacing(space.xxs)
+                .width(Length::Fill)
+                .align_y(Alignment::Center);
+            for (action_key, label) in action_pairs.iter() {
+                let nid = notification_id;
+                let key = action_key.to_string();
+                let radius = action_btn_radius;
+                let opacity = action_btn_opacity;
+                actions_row = actions_row.push(
+                    button(text(*label).size(font_size.xs))
+                        .padding([space.xxs, space.sm])
+                        .on_press(Message::InvokeAction(nid, key))
+                        .style(move |theme: &Theme, status| {
+                            let ext = theme.extended_palette();
+                            match status {
+                                Status::Active => button::Style {
+                                    background: Some(ext.background.weak.color.scale_alpha(opacity).into()),
+                                    border: Border {
+                                        width: 1.0,
+                                        radius: radius.into(),
+                                        color: ext.background.strong.color.scale_alpha(0.5),
+                                    },
+                                    text_color: theme.palette().text,
+                                    ..button::Style::default()
+                                },
+                                Status::Hovered => button::Style {
+                                    background: Some(ext.background.strong.color.scale_alpha(opacity).into()),
+                                    border: Border {
+                                        width: 1.0,
+                                        radius: radius.into(),
+                                        color: ext.background.strong.color,
+                                    },
+                                    text_color: theme.palette().text,
+                                    ..button::Style::default()
+                                },
+                                _ => button::Style {
+                                    background: Some(ext.background.weak.color.scale_alpha(opacity).into()),
+                                    border: Border {
+                                        width: 1.0,
+                                        radius: radius.into(),
+                                        color: ext.background.strong.color.scale_alpha(0.5),
+                                    },
+                                    text_color: theme.palette().text,
+                                    ..button::Style::default()
+                                },
+                            }
+                        }),
+                );
+            }
+            Some(actions_row.into())
+        };
+
         button(
             column!(
                 row!(
@@ -546,7 +703,8 @@ impl Notifications {
                         .width(Length::Fill),
                     text(self.format_timestamp(notification.timestamp)).size(font_size.sm)
                 ),
-                text(&notification.body).wrapping(text::Wrapping::WordOrGlyph)
+                text(&notification.body).wrapping(text::Wrapping::WordOrGlyph),
+                actions_element,
             )
             .padding(space.xs)
             .spacing(space.xs),

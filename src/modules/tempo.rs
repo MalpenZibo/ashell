@@ -489,7 +489,7 @@ impl Tempo {
                                     text(format!("{}{temp}", data.current.temperature_2m)),
                                     text(t!(
                                         "tempo-feels-like",
-                                        value = data.current.apparent_temperature,
+                                        value = (data.current.apparent_temperature.round() as i32),
                                         unit = temp,
                                     ))
                                     .size(font_size.sm)

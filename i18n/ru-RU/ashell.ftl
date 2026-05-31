@@ -136,3 +136,14 @@ clipboard-heading = История буфера обмена
 clipboard-empty = Буфер обмена пуст
 clipboard-loading = Загрузка буфера обмена...
 clipboard-image-entry = [Изображение]
+
+## System Info module
+system-info-heading = Системная информация
+system-info-cpu-usage = Использование ЦП
+system-info-memory-usage = Использование ОЗУ
+system-info-swap-usage = Использование подкачки
+system-info-temperature = Температура
+system-info-disk-usage = Диск { $mount_point }
+system-info-ip-address = IP-адрес
+system-info-download-speed = Скорость загрузки
+system-info-upload-speed = Скорость отдачи
