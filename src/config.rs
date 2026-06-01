@@ -1,5 +1,5 @@
 use crate::app::Message;
-use crate::i18n::UnitSystem;
+use crate::i18n::{UnitSystem, unit_system};
 use crate::services::upower::PeripheralDeviceKind;
 use crate::utils::celsius_to_fahrenheit;
 use hex_color::HexColor;
@@ -477,6 +477,46 @@ pub struct TempoModuleConfig {
     #[serde(default)]
     pub weather_location: Option<WeatherLocation>,
     pub weather_indicator: WeatherIndicator,
+    #[serde(default)]
+    pub wind_speed_unit: Option<WindSpeedUnit>,
+}
+
+impl TempoModuleConfig {
+    pub fn resolved_wind_speed_unit(&self) -> WindSpeedUnit {
+        match self.wind_speed_unit {
+            Some(unit) => unit,
+            None => match unit_system() {
+                UnitSystem::Imperial => WindSpeedUnit::Mph,
+                UnitSystem::Metric => WindSpeedUnit::Kmh,
+            },
+        }
+    }
+}
+
+#[derive(Deserialize, Default, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum WindSpeedUnit {
+    #[default]
+    Kmh,
+    Mph,
+    Ms,
+}
+
+impl WindSpeedUnit {
+    pub fn symbol(self) -> &'static str {
+        match self {
+            Self::Kmh => "km/h",
+            Self::Mph => "mph",
+            Self::Ms => "m/s",
+        }
+    }
+
+    pub fn api_param(self) -> &'static str {
+        match self {
+            Self::Kmh => "kmh",
+            Self::Mph => "mph",
+            Self::Ms => "ms",
+        }
+    }
 }
 
 #[derive(Deserialize, Default, Clone, Debug, PartialEq, Eq)]
@@ -517,6 +557,7 @@ impl Default for TempoModuleConfig {
             timezones: vec![],
             weather_location: None,
             weather_indicator: WeatherIndicator::IconAndTemperature,
+            wind_speed_unit: None,
         }
     }
 }
