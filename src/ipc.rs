@@ -13,6 +13,8 @@ use anyhow::{Context, Result, anyhow};
 use clap::Subcommand;
 use iced::Subscription;
 
+use crate::xdg;
+
 /// Maximum bytes to read from a client connection.
 const MAX_REQUEST_LEN: u64 = 4096;
 
@@ -132,11 +134,14 @@ impl FromStr for IpcCommand {
 }
 
 pub fn socket_path() -> PathBuf {
-    if let Some(dir) = std::env::var_os("XDG_RUNTIME_DIR") {
-        return PathBuf::from(dir).join("ashell.sock");
-    }
     let uid = unsafe { libc::getuid() };
-    PathBuf::from(format!("/tmp/ashell-{uid}.sock"))
+    match xdg::get_runtime_dir() {
+        Some(dir) => [dir, PathBuf::from("ashell.sock")],
+        None => [
+            std::env::temp_dir(),
+            PathBuf::from(format!("ashell-{uid}.sock")),
+        ]
+    }.iter().collect()
 }
 
 // ---------------------------------------------------------------------------
