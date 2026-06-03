@@ -85,6 +85,10 @@ settings-power-profile-balanced = Balanced
 settings-power-profile-performance = Performance
 settings-power-profile-power-saver = Power Saver
 
+settings-power-status-charging = Charging
+settings-power-status-discharging = Discharging
+settings-power-status-full = Full
+
 ## Settings — idle inhibitor
 settings-idle-inhibitor = Idle Inhibitor
 

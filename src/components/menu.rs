@@ -19,6 +19,12 @@ pub enum MenuType {
     MediaPlayer,
     SystemInfo,
     Tempo,
+    AudioTooltip,
+    BluetoothTooltip,
+    WifiTooltip,
+    VpnTooltip,
+    BatteryTooltip,
+    PeripheralBatteryTooltip(usize),
 }
 
 #[derive(Clone, Debug)]
@@ -92,13 +98,48 @@ impl Menu {
         request_keyboard: bool,
         output_id: Option<OutputId>,
     ) -> Task<Message> {
+        let menu_is_tooltip = matches!(
+            menu_type,
+            MenuType::AudioTooltip
+                | MenuType::BluetoothTooltip
+                | MenuType::WifiTooltip
+                | MenuType::VpnTooltip
+                | MenuType::BatteryTooltip
+                | MenuType::PeripheralBatteryTooltip(_)
+        );
         match &mut self.open {
             None => self.open(menu_type, button_ui_ref, request_keyboard, output_id),
-            Some(open) if open.menu_type == menu_type => self.close(),
-            Some(open) => {
+            Some(open) if open.menu_type == menu_type => {
+                if menu_is_tooltip {
+                    // For tooltips, just update the button reference without closing/reopening
+                    open.button_ui_ref = button_ui_ref;
+                    Task::none()
+                } else {
+                    self.close()
+                }
+            }
+            Some(open)
+                if !matches!(
+                    open.menu_type,
+                    MenuType::AudioTooltip
+                        | MenuType::BluetoothTooltip
+                        | MenuType::WifiTooltip
+                        | MenuType::VpnTooltip
+                        | MenuType::BatteryTooltip
+                        | MenuType::PeripheralBatteryTooltip(_)
+                ) && menu_is_tooltip =>
+            {
+                Task::none()
+            }
+            Some(open) if menu_is_tooltip => {
                 open.menu_type = menu_type;
                 open.button_ui_ref = button_ui_ref;
                 Task::none()
+            }
+            _ => {
+                let close_task = self.close();
+                let open_task = self.open(menu_type, button_ui_ref, request_keyboard, output_id);
+                Task::batch(vec![close_task, open_task])
             }
         }
     }

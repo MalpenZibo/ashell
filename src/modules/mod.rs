@@ -240,7 +240,7 @@ impl App {
                 )
             }),
             ModuleName::Settings => Some((
-                self.settings.view().map(Message::Settings),
+                self.settings.view(id).map(Message::Settings),
                 Some(OnModulePress::ToggleMenu(MenuType::Settings)),
             )),
             ModuleName::Notifications => Some((
