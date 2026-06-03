@@ -599,4 +599,16 @@ impl AudioSettings {
     pub fn subscription(&self) -> Subscription<Message> {
         AudioService::subscribe().map(Message::Event)
     }
+
+    pub fn active_sink_label(&self) -> Option<String> {
+        self.service
+            .as_ref()
+            .and_then(|s| s.active_sink().map(|d| d.description.clone()))
+    }
+
+    pub fn active_source_label(&self) -> Option<String> {
+        self.service
+            .as_ref()
+            .and_then(|s| s.active_source().map(|d| d.description.clone()))
+    }
 }

@@ -587,6 +587,7 @@ pub struct SettingsModuleConfig {
     pub bluetooth_more_cmd: Option<String>,
     pub remove_airplane_btn: bool,
     pub remove_idle_btn: bool,
+    pub enable_tooltips: bool,
     pub indicators: Vec<SettingsIndicator>,
     #[serde(rename = "CustomButton")]
     pub custom_buttons: Vec<SettingsCustomButton>,
@@ -618,6 +619,7 @@ impl Default for SettingsModuleConfig {
             bluetooth_more_cmd: Default::default(),
             remove_airplane_btn: Default::default(),
             remove_idle_btn: Default::default(),
+            enable_tooltips: true,
             indicators: vec![
                 SettingsIndicator::IdleInhibitor,
                 SettingsIndicator::PowerProfile,
@@ -1171,7 +1173,7 @@ fn read_config(path: &Path) -> Result<Config, Box<dyn Error + Send>> {
 
     info!("Decoding config file {path:?}");
 
-    let res = toml::from_str(&content);
+    let res = toml::from_str::<Config>(&content);
 
     match res {
         Ok(config) => {
