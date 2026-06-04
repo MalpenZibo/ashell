@@ -697,37 +697,37 @@ impl Tempo {
                                         text(
                                             time.format_localized("%a, %d %b", locale).to_string()
                                         )
-                                        .width(Length::Fill),
-                                        weather_icon(*weather_code, true)
-                                            .height(font_size.md)
-                                            .width(Length::Shrink),
-                                        container(
-                                            row!(
-                                                text(format!(
-                                                    "{}{temp}/{}{temp}",
-                                                    temp_max.round(),
-                                                    temp_min.round()
-                                                ))
-                                                .width(Length::Shrink),
-                                                row!(
-                                                    svg(Handle::from_memory(include_bytes!(
-                                                        "../../assets/weather_icon/wind.svg"
-                                                    )))
-                                                    .height(font_size.md)
-                                                    .width(Length::Shrink)
-                                                    .rotation(Rotation::Floating(
-                                                        Degrees(*wind_dir as f32 + 90.).into()
-                                                    )),
-                                                    text(format!("{} {wind}", wind_speed.round()))
-                                                )
-                                                .spacing(space.xxs)
-                                            )
-                                            .spacing(space.sm)
+                                        .width(Length::FillPortion(5)),
+                                        row!(
+                                            weather_icon(*weather_code, true)
+                                                .height(font_size.md)
+                                                .width(Length::Fixed(font_size.md)),
+                                            text(format!(
+                                                "{}{temp}/{}{temp}",
+                                                temp_max.round(),
+                                                temp_min.round()
+                                            ))
                                         )
-                                        .width(Length::FillPortion(2))
-                                        .align_x(Horizontal::Right)
+                                        .spacing(space.xxs)
+                                        .align_y(Vertical::Center)
+                                        .width(Length::FillPortion(4)),
+                                        row!(
+                                            svg(Handle::from_memory(include_bytes!(
+                                                "../../assets/weather_icon/wind.svg"
+                                            )))
+                                            .height(font_size.md)
+                                            .width(Length::Fixed(font_size.md))
+                                            .rotation(Rotation::Floating(
+                                                Degrees(*wind_dir as f32 + 90.).into()
+                                            )),
+                                            text(format!("{} {wind}", wind_speed.round()))
+                                        )
+                                        .spacing(space.xxs)
+                                        .align_y(Vertical::Center)
+                                        .width(Length::FillPortion(3))
                                     )
-                                    .spacing(space.sm),
+                                    .spacing(space.sm)
+                                    .align_y(Vertical::Center),
                                 )
                                 .padding(space.sm)
                                 .style(move |app_theme: &Theme| container::Style {
