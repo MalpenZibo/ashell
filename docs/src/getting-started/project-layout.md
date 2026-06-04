@@ -17,7 +17,7 @@ ashell/
 ├── dist-workspace.toml      # cargo-dist release configuration
 ├── README.md                # Project overview
 ├── CHANGELOG.md             # Version history
-└── LICENSE                  # MIT License
+└── LICENSE                  # GPL-3.0-or-later License
 ```
 
 ## Source Tree

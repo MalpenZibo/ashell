@@ -16,7 +16,7 @@ ashell is a Wayland status bar for Hyprland and Niri, written in Rust with the i
 It follows the Elm architecture (model → update → view) with a modular design separating UI modules from backend services.
 
 - **Edition:** 2024, **MSRV:** 1.89
-- **License:** MIT
+- **License:** GPL-3.0-or-later
 - **iced fork:** custom fork with multi-window, wayland, wgpu support
 
 ## Code quality
