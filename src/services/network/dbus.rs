@@ -563,17 +563,31 @@ impl NetworkDbus<'_> {
         }
 
         info.sort_by(|a, b| {
-            let helper = |conn: &ActiveConnectionInfo| match conn {
-                ActiveConnectionInfo::Vpn { name, .. } => format!("0{name}"),
-                ActiveConnectionInfo::Wired { name, .. } => format!("1{name}"),
-                ActiveConnectionInfo::WiFi { name, .. } => format!("2{name}"),
-            };
-            helper(a).cmp(&helper(b))
+            fn key(conn: &ActiveConnectionInfo) -> (u8, &str) {
+                match conn {
+                    ActiveConnectionInfo::Vpn { name, .. } => (0, name),
+                    ActiveConnectionInfo::Wired { name, .. } => (1, name),
+                    ActiveConnectionInfo::WiFi { name, .. } => (2, name),
+                }
+            }
+            key(a).cmp(&key(b))
         });
 
         Ok(info)
     }
+}
 
+fn connection_id(settings: &HashMap<String, HashMap<String, OwnedValue>>) -> Option<String> {
+    settings
+        .get("connection")?
+        .get("id")
+        .and_then(|v| match v.deref() {
+            Value::Str(v) => Some(v.to_string()),
+            _ => None,
+        })
+}
+
+impl NetworkDbus<'_> {
     pub async fn known_connections_internal(
         &self,
         wireless_access_points: &[AccessPoint],
@@ -597,29 +611,13 @@ impl NetworkDbus<'_> {
             let wifi = s.get("802-11-wireless");
 
             if wifi.is_some() {
-                let ssid = s
-                    .get("connection")
-                    .and_then(|c| c.get("id"))
-                    .map(|s| match s.deref() {
-                        Value::Str(v) => v.to_string(),
-                        _ => "".to_string(),
-                    });
-
-                if let Some(cur_ssid) = ssid {
+                if let Some(cur_ssid) = connection_id(&s) {
                     known_ssid.push(cur_ssid);
                 }
-            } else if s.contains_key("vpn") || s.contains_key("wireguard") {
-                let id = s
-                    .get("connection")
-                    .and_then(|c| c.get("id"))
-                    .map(|v| match v.deref() {
-                        Value::Str(v) => v.to_string(),
-                        _ => "".to_string(),
-                    });
-
-                if let Some(id) = id {
-                    known_vpn.push(Vpn { name: id, path: c });
-                }
+            } else if (s.contains_key("vpn") || s.contains_key("wireguard"))
+                && let Some(id) = connection_id(&s)
+            {
+                known_vpn.push(Vpn { name: id, path: c });
             }
         }
         let known_connections: Vec<_> = wireless_access_points
@@ -801,16 +799,7 @@ impl NetworkSettingsDbus<'_> {
                 .await?;
 
             let s = connection.get_settings().await?;
-            let id = s
-                .get("connection")
-                .and_then(|c| c.get("id"))
-                .and_then(|v| match v.deref() {
-                    Value::Str(v) => Some(v.to_string()),
-                    _ => {
-                        debug!("connection settings 'id' field is not a string");
-                        None
-                    }
-                });
+            let id = connection_id(&s);
             if id.as_deref() == Some(name) {
                 return Ok(Some(connection.inner().path().to_owned().into()));
             }
@@ -851,28 +840,6 @@ impl From<u32> for DeviceType {
     }
 }
 
-#[allow(unused)]
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ActiveConnectionState {
-    #[default]
-    Unknown,
-    Activating,
-    Activated,
-    Deactivating,
-    Deactivated,
-}
-
-impl From<u32> for ActiveConnectionState {
-    fn from(device_state: u32) -> Self {
-        match device_state {
-            1 => ActiveConnectionState::Activating,
-            2 => ActiveConnectionState::Activated,
-            3 => ActiveConnectionState::Deactivating,
-            4 => ActiveConnectionState::Deactivated,
-            _ => ActiveConnectionState::Unknown,
-        }
-    }
-}
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConnectivityState {
     None,
@@ -1056,32 +1023,6 @@ pub trait Device {
 
     #[zbus(property)]
     fn state(&self) -> Result<u32>;
-}
-
-#[proxy(
-    interface = "org.freedesktop.NetworkManager.Device.Wired",
-    default_service = "org.freedesktop.NetworkManager"
-)]
-trait WiredDevice {
-    /// Carrier property
-    #[zbus(property)]
-    fn carrier(&self) -> zbus::Result<bool>;
-
-    /// `HwAddress` property
-    #[zbus(property)]
-    fn hw_address(&self) -> zbus::Result<String>;
-
-    /// `PermHwAddress` property
-    #[zbus(property)]
-    fn perm_hw_address(&self) -> zbus::Result<String>;
-
-    /// `S390Subchannels` property
-    #[zbus(property)]
-    fn s390subchannels(&self) -> zbus::Result<Vec<String>>;
-
-    /// Speed property
-    #[zbus(property)]
-    fn speed(&self) -> zbus::Result<u32>;
 }
 
 #[proxy(

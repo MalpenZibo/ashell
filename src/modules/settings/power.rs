@@ -143,25 +143,25 @@ impl PowerSettings {
                 _ => Action::None,
             },
             Message::Suspend => {
-                utils::launcher::suspend(self.config.suspend_cmd.clone());
+                utils::launcher::suspend(&self.config.suspend_cmd);
                 Action::None
             }
             Message::Hibernate => {
                 if let Some(hibernate_cmd) = &self.config.hibernate_cmd {
-                    utils::launcher::hibernate(hibernate_cmd.to_string());
+                    utils::launcher::hibernate(hibernate_cmd);
                 }
                 Action::None
             }
             Message::Reboot => {
-                utils::launcher::reboot(self.config.reboot_cmd.clone());
+                utils::launcher::reboot(&self.config.reboot_cmd);
                 Action::None
             }
             Message::Shutdown => {
-                utils::launcher::shutdown(self.config.shutdown_cmd.clone());
+                utils::launcher::shutdown(&self.config.shutdown_cmd);
                 Action::None
             }
             Message::Logout => {
-                utils::launcher::logout(self.config.logout_cmd.clone());
+                utils::launcher::logout(&self.config.logout_cmd);
                 Action::None
             }
             Message::ConfigReloaded(config) => {
