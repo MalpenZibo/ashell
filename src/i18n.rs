@@ -32,13 +32,6 @@ impl UnitSystem {
             Self::Imperial => "°F",
         }
     }
-
-    pub fn wind_speed_symbol(self) -> &'static str {
-        match self {
-            Self::Metric => "km/h",
-            Self::Imperial => "mph",
-        }
-    }
 }
 
 pub struct Localizer {

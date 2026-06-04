@@ -4,7 +4,7 @@ use crate::{
         icons::{StaticIcon, icon_button},
         styled_button,
     },
-    config::{TempoModuleConfig, WeatherIndicator, WeatherLocation},
+    config::{TempoModuleConfig, WeatherIndicator, WeatherLocation, WindSpeedUnit},
     i18n::{UnitSystem, chrono_locale, language_subtag, unit_system},
     t,
     theme::{AshellTheme, use_theme},
@@ -487,7 +487,7 @@ impl Tempo {
         let locale = chrono_locale();
         let units = unit_system();
         let temp = units.temperature_symbol();
-        let wind = units.wind_speed_symbol();
+        let wind = self.config.resolved_wind_speed_unit().symbol();
         let location_visible = self.location_visible;
         self.weather_data
             .as_ref()
@@ -810,10 +810,12 @@ impl Tempo {
         });
 
         let weather_sub = self.config.weather_location.clone().map(|location| {
-            let key = (location, unit_system(), language_subtag());
-            Subscription::run_with(key, |(location, units, lang)| {
+            let wind_unit = self.config.resolved_wind_speed_unit();
+            let key = (location, unit_system(), wind_unit, language_subtag());
+            Subscription::run_with(key, |(location, units, wind_unit, lang)| {
                 let location = location.clone();
                 let units = *units;
+                let wind_unit = *wind_unit;
                 let lang = lang.clone();
                 channel(100, async move |mut output| {
                     let mut failed_attempt: u64 = 0;
@@ -833,7 +835,7 @@ impl Tempo {
                         };
 
                         if let Some((lat, lon)) = loc {
-                            match fetch_weather_data(lat, lon, units).await {
+                            match fetch_weather_data(lat, lon, units, wind_unit).await {
                                 Ok(weather_data) => {
                                     failed_attempt = 0;
                                     debug!("Weather data fetched successfully: {:?}", weather_data);
@@ -1045,15 +1047,21 @@ pub struct Location {
     region_name: String,
 }
 
-async fn fetch_weather_data(lat: f32, lon: f32, units: UnitSystem) -> anyhow::Result<WeatherData> {
+async fn fetch_weather_data(
+    lat: f32,
+    lon: f32,
+    units: UnitSystem,
+    wind_unit: WindSpeedUnit,
+) -> anyhow::Result<WeatherData> {
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(20))
         .build()?;
 
-    let (temp_param, wind_param) = match units {
-        UnitSystem::Metric => ("celsius", "kmh"),
-        UnitSystem::Imperial => ("fahrenheit", "mph"),
+    let temp_param = match units {
+        UnitSystem::Metric => "celsius",
+        UnitSystem::Imperial => "fahrenheit",
     };
+    let wind_param = wind_unit.api_param();
 
     let response = client.get(format!(
         "https://api.open-meteo.com/v1/forecast?\
