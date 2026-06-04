@@ -1,11 +1,13 @@
 use crate::{
-    config::{InvertScrollDirection, WorkspaceVisibilityMode, WorkspacesModuleConfig},
+    config::{
+        AppearanceColor, InvertScrollDirection, WorkspaceVisibilityMode, WorkspacesModuleConfig,
+    },
     outputs::Outputs,
     services::{
         ReadOnlyService, Service, ServiceEvent,
         compositor::{CompositorCommand, CompositorService, CompositorState},
     },
-    theme::use_theme,
+    theme::{AshellTheme, use_theme},
 };
 use iced::{
     Element, Length, Subscription, SurfaceId, alignment,
@@ -248,6 +250,32 @@ fn calculate_ui_workspaces(
     result
 }
 
+#[allow(clippy::too_many_arguments)]
+fn workspace_button<'a>(
+    theme: &AshellTheme,
+    name: String,
+    font_size: f32,
+    empty: bool,
+    urgent: bool,
+    color: Option<Option<AppearanceColor>>,
+    width: Length,
+    padding: f32,
+    height: f32,
+    on_press: Message,
+) -> Element<'a, Message> {
+    button(
+        container(text(name).size(font_size))
+            .align_x(alignment::Horizontal::Center)
+            .align_y(alignment::Vertical::Center),
+    )
+    .style(theme.workspace_button_style(empty, urgent, color))
+    .padding([0.0, padding])
+    .on_press(on_press)
+    .width(width)
+    .height(height)
+    .into()
+}
+
 impl Workspaces {
     pub fn new(config: WorkspacesModuleConfig) -> Self {
         Self {
@@ -448,23 +476,7 @@ impl Workspaces {
                             });
 
                             {
-                                let target_width = match (w.id < 0, &w.displayed) {
-                                    (true, _) => None,
-                                    (_, Displayed::Active) => Some(theme.space.xl),
-                                    (_, Displayed::Visible) => Some(theme.space.lg),
-                                    (_, Displayed::Hidden) if urgent => Some(theme.space.lg),
-                                    (_, Displayed::Hidden) => Some(theme.space.md),
-                                };
                                 let name = w.name.clone();
-                                let padding = if w.id < 0 {
-                                    match w.displayed {
-                                        Displayed::Active => [0.0, theme.space.md],
-                                        Displayed::Visible => [0.0, theme.space.sm],
-                                        Displayed::Hidden => [0.0, theme.space.xs],
-                                    }
-                                } else {
-                                    [0.0, 0.0]
-                                };
                                 let on_press = if w.id > 0 {
                                     Message::ChangeWorkspace(w.id)
                                 } else {
@@ -473,53 +485,96 @@ impl Workspaces {
                                 let font_size = theme.font_size.xs;
                                 let height = theme.space.md;
 
-                                Some(match target_width {
-                                    Some(tw) if theme.animations_enabled => {
-                                        AnimationBuilder::new(tw, move |w| {
+                                let numbered = w.id > 0
+                                    && !w.name.is_empty()
+                                    && w.name.chars().all(|c| c.is_ascii_digit());
+
+                                Some(if numbered {
+                                    let target_width = match (&w.displayed, urgent) {
+                                        (Displayed::Active, _) => theme.space.xl,
+                                        (Displayed::Visible, _) | (Displayed::Hidden, true) => {
+                                            theme.space.lg
+                                        }
+                                        (Displayed::Hidden, false) => theme.space.md,
+                                    };
+
+                                    if theme.animations_enabled {
+                                        AnimationBuilder::new(target_width, move |width| {
                                             use_theme(|theme| {
-                                                button(
-                                                    container(text(name.clone()).size(font_size))
-                                                        .align_x(alignment::Horizontal::Center)
-                                                        .align_y(alignment::Vertical::Center),
+                                                workspace_button(
+                                                    theme,
+                                                    name.clone(),
+                                                    font_size,
+                                                    empty,
+                                                    urgent,
+                                                    color,
+                                                    Length::Fixed(width),
+                                                    0.0,
+                                                    height,
+                                                    on_press.clone(),
                                                 )
-                                                .style(
-                                                    theme.workspace_button_style(
-                                                        empty, urgent, color,
-                                                    ),
-                                                )
-                                                .padding(padding)
-                                                .on_press(on_press.clone())
-                                                .width(Length::Fixed(w))
-                                                .height(height)
-                                                .into()
                                             })
                                         })
                                         .animates_layout(true)
                                         .animation(Easing::EASE.very_quick())
                                         .into()
+                                    } else {
+                                        workspace_button(
+                                            theme,
+                                            name,
+                                            font_size,
+                                            empty,
+                                            urgent,
+                                            color,
+                                            Length::Fixed(target_width),
+                                            0.0,
+                                            height,
+                                            on_press,
+                                        )
                                     }
-                                    Some(tw) => button(
-                                        container(text(name).size(font_size))
-                                            .align_x(alignment::Horizontal::Center)
-                                            .align_y(alignment::Vertical::Center),
-                                    )
-                                    .style(theme.workspace_button_style(empty, urgent, color))
-                                    .padding(padding)
-                                    .on_press(on_press)
-                                    .width(Length::Fixed(tw))
-                                    .height(height)
-                                    .into(),
-                                    None => button(
-                                        container(text(name).size(font_size))
-                                            .align_x(alignment::Horizontal::Center)
-                                            .align_y(alignment::Vertical::Center),
-                                    )
-                                    .style(theme.workspace_button_style(empty, urgent, color))
-                                    .padding(padding)
-                                    .on_press(on_press)
-                                    .width(Length::Shrink)
-                                    .height(height)
-                                    .into(),
+                                } else {
+                                    let target_padding = match (&w.displayed, urgent) {
+                                        (Displayed::Active, _) => theme.space.md,
+                                        (Displayed::Visible, _) | (Displayed::Hidden, true) => {
+                                            theme.space.sm
+                                        }
+                                        (Displayed::Hidden, false) => theme.space.xs,
+                                    };
+
+                                    if theme.animations_enabled {
+                                        AnimationBuilder::new(target_padding, move |padding| {
+                                            use_theme(|theme| {
+                                                workspace_button(
+                                                    theme,
+                                                    name.clone(),
+                                                    font_size,
+                                                    empty,
+                                                    urgent,
+                                                    color,
+                                                    Length::Shrink,
+                                                    padding,
+                                                    height,
+                                                    on_press.clone(),
+                                                )
+                                            })
+                                        })
+                                        .animates_layout(true)
+                                        .animation(Easing::EASE.very_quick())
+                                        .into()
+                                    } else {
+                                        workspace_button(
+                                            theme,
+                                            name,
+                                            font_size,
+                                            empty,
+                                            urgent,
+                                            color,
+                                            Length::Shrink,
+                                            target_padding,
+                                            height,
+                                            on_press,
+                                        )
+                                    }
                                 })
                             }
                         } else {
