@@ -64,13 +64,40 @@ The `listen_cmd` should output JSON in
 the [Waybar format](https://github.com/Alexays/Waybar/wiki/Module:-Custom#script-output),
 using `text` and `alt` fields.
 
-### Example Output
+:::warning JSON must be compact (single-line)
 
+The `listen_cmd` output is read line-by-line and each line is parsed as JSON.
+**Pretty-printed JSON will not work** because each line would be parsed separately.
+
+Always output compact JSON, or pipe through `jq -c --unbuffered .` to compact it:
+
+```bash
+your-command | jq -c --unbuffered .
+```
+
+For example, this pretty-printed JSON:
 ```json
 {
   "text": "3",
   "alt": "notification"
 }
+```
+
+Can be converted to compact format with:
+```bash
+echo '{
+  "text": "3",
+  "alt": "notification"
+}' | jq -c --unbuffered .
+# Output: {"text":"3","alt":"notification"}
+```
+
+:::
+
+### Example Output (compact JSON)
+
+```json
+{"text": "3", "alt": "notification"}
 ```
 
 ---
@@ -112,12 +139,6 @@ Text modules display only the text output from `listen_cmd` without any click ac
 [[CustomModule]]
 name = "MyClock"
 type = "Text"
-listen_cmd = "echo '{\"text\": \"$(date +'%H:%M')\", \"alt\": \"\"}'"
-```
-
-**Note for Fish Shell Users**: If you use Fish shell, wrap the command in `sh -c` for POSIX compatibility:
-
-```toml
 listen_cmd = "sh -c 'while true; do echo \"{\\\"text\\\": \\\"$(date +\"%H:%M\")\\\", \\\"alt\\\": \\\"\\\"}\"; sleep 1; done'"
 ```
 
