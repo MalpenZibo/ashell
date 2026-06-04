@@ -255,8 +255,13 @@ impl NetworkDbus<'_> {
                 move |_| {
                     let conn = conn.clone();
                     async move {
-                        let nm = NetworkDbus::new(&conn).await.unwrap();
-                        let value = nm.active_connections_info().await.unwrap_or_default();
+                        let value = match NetworkDbus::new(&conn).await {
+                            Ok(nm) => nm.active_connections_info().await.unwrap_or_default(),
+                            Err(e) => {
+                                warn!("Failed to create NetworkDbus proxy: {e}");
+                                Vec::new()
+                            }
+                        };
 
                         debug!("Active connections changed: {value:?}");
                         NetworkEvent::ActiveConnections(value)
@@ -277,7 +282,13 @@ impl NetworkDbus<'_> {
                     let conn = conn.clone();
                     let devices = devices.clone();
                     async move {
-                        let nm = NetworkDbus::new(&conn).await.unwrap();
+                        let nm = match NetworkDbus::new(&conn).await {
+                            Ok(nm) => nm,
+                            Err(e) => {
+                                warn!("Failed to create NetworkDbus proxy: {e}");
+                                return None;
+                            }
+                        };
 
                         let current_devices = nm.wireless_devices().await.unwrap_or_default();
                         if current_devices != devices {
@@ -348,9 +359,13 @@ impl NetworkDbus<'_> {
                         move |_| {
                             let conn = conn.clone();
                             async move {
-                                let nm = NetworkDbus::new(&conn).await.unwrap();
-                                let wireless_access_point =
-                                    nm.wireless_access_points().await.unwrap_or_default();
+                                let wireless_access_point = match NetworkDbus::new(&conn).await {
+                                    Ok(nm) => nm.wireless_access_points().await.unwrap_or_default(),
+                                    Err(e) => {
+                                        warn!("Failed to create NetworkDbus proxy: {e}");
+                                        Vec::new()
+                                    }
+                                };
                                 debug!(
                                     "access_points_changed event received, count: {}",
                                     wireless_access_point.len()
@@ -424,8 +439,13 @@ impl NetworkDbus<'_> {
                 move |_| {
                     let conn = conn.clone();
                     async move {
-                        let nm = NetworkDbus::new(&conn).await.unwrap();
-                        let known_connections = nm.known_connections().await.unwrap_or_default();
+                        let known_connections = match NetworkDbus::new(&conn).await {
+                            Ok(nm) => nm.known_connections().await.unwrap_or_default(),
+                            Err(e) => {
+                                warn!("Failed to create NetworkDbus proxy: {e}");
+                                Vec::new()
+                            }
+                        };
 
                         debug!("Known connections changed");
                         NetworkEvent::KnownConnections(known_connections)
