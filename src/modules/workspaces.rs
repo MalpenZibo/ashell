@@ -31,12 +31,14 @@ pub struct UiWorkspace {
     pub monitor: String,
     pub displayed: Displayed,
     pub windows: u16,
+    pub has_urgent: bool,
 }
 
 #[derive(Debug, Clone)]
 struct VirtualDesktop {
     pub active: bool,
     pub windows: u16,
+    pub has_urgent: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -100,6 +102,7 @@ fn calculate_ui_workspaces(
                     Displayed::Hidden
                 },
                 windows: w.windows,
+                has_urgent: w.has_urgent,
             });
         }
     }
@@ -115,12 +118,14 @@ fn calculate_ui_workspaces(
             if let Some(vdesk) = virtual_desktops.get_mut(&vdesk_id) {
                 vdesk.windows += w.windows;
                 vdesk.active = vdesk.active || is_active;
+                vdesk.has_urgent = vdesk.has_urgent || w.has_urgent;
             } else {
                 virtual_desktops.insert(
                     vdesk_id,
                     VirtualDesktop {
                         active: is_active,
                         windows: w.windows,
+                        has_urgent: w.has_urgent,
                     },
                 );
             }
@@ -146,6 +151,7 @@ fn calculate_ui_workspaces(
                     Displayed::Hidden
                 },
                 windows: vdesk.windows,
+                has_urgent: vdesk.has_urgent,
             });
         });
     } else {
@@ -177,6 +183,7 @@ fn calculate_ui_workspaces(
                     (false, false) => Displayed::Hidden,
                 },
                 windows: w.windows,
+                has_urgent: w.has_urgent,
             });
         }
     }
@@ -219,6 +226,7 @@ fn calculate_ui_workspaces(
                 monitor: "".to_string(),
                 displayed: Displayed::Hidden,
                 windows: 0,
+                has_urgent: false,
             });
         }
     }
@@ -419,6 +427,7 @@ impl Workspaces {
 
                         if show {
                             let empty = w.windows == 0;
+                            let urgent = w.has_urgent;
                             let color_index = if self.config.enable_virtual_desktops {
                                 Some(w.id as i128)
                             } else {
@@ -443,6 +452,7 @@ impl Workspaces {
                                     (true, _) => None,
                                     (_, Displayed::Active) => Some(theme.space.xl),
                                     (_, Displayed::Visible) => Some(theme.space.lg),
+                                    (_, Displayed::Hidden) if urgent => Some(theme.space.lg),
                                     (_, Displayed::Hidden) => Some(theme.space.md),
                                 };
                                 let name = w.name.clone();
@@ -472,7 +482,11 @@ impl Workspaces {
                                                         .align_x(alignment::Horizontal::Center)
                                                         .align_y(alignment::Vertical::Center),
                                                 )
-                                                .style(theme.workspace_button_style(empty, color))
+                                                .style(
+                                                    theme.workspace_button_style(
+                                                        empty, urgent, color,
+                                                    ),
+                                                )
                                                 .padding(padding)
                                                 .on_press(on_press.clone())
                                                 .width(Length::Fixed(w))
@@ -489,7 +503,7 @@ impl Workspaces {
                                             .align_x(alignment::Horizontal::Center)
                                             .align_y(alignment::Vertical::Center),
                                     )
-                                    .style(theme.workspace_button_style(empty, color))
+                                    .style(theme.workspace_button_style(empty, urgent, color))
                                     .padding(padding)
                                     .on_press(on_press)
                                     .width(Length::Fixed(tw))
@@ -500,7 +514,7 @@ impl Workspaces {
                                             .align_x(alignment::Horizontal::Center)
                                             .align_y(alignment::Vertical::Center),
                                     )
-                                    .style(theme.workspace_button_style(empty, color))
+                                    .style(theme.workspace_button_style(empty, urgent, color))
                                     .padding(padding)
                                     .on_press(on_press)
                                     .width(Length::Shrink)

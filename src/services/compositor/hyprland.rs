@@ -219,6 +219,7 @@ fn fetch_full_state(internal_state: &HyprInternalState) -> Result<CompositorStat
             monitor_id: w.monitor_id,
             windows: w.windows,
             is_special: w.id < 0,
+            has_urgent: false,
         })
         .collect();
 

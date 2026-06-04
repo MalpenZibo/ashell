@@ -203,11 +203,13 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
                 }),
                 windows: 0,
                 is_special: false,
+                has_urgent: w.is_urgent,
             }
         })
         .collect();
 
-    // Calculate window counts
+    // Calculate window counts; also propagate per-window urgency to workspaces
+    // since older niri versions may only emit window-level urgency events.
     for win in niri.windows.windows.values() {
         if let Some(ws_id) = win.workspace_id {
             // Resolve Niri Workspace ID (u64) -> Visual Index (u8) -> Generic ID (i32)
@@ -215,6 +217,9 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
                 && let Some(generic_ws) = workspaces.iter_mut().find(|w| w.id == ws.id as i32)
             {
                 generic_ws.windows += 1;
+                if win.is_urgent {
+                    generic_ws.has_urgent = true;
+                }
             }
         }
     }
