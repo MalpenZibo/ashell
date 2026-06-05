@@ -117,6 +117,12 @@ enabled.
 enable_virtual_desktops = true
 ```
 
+## Urgent Workspace Highlighting
+
+On Niri, when a window on a non-focused workspace requests attention, that
+workspace is highlighted with the danger palette color until you visit it.
+Hyprland support is not implemented yet.
+
 ## Workspace Scrolling Direction
 
 You can use the `invert_scroll_direction` field to choose whether to invert the scrolling direction for mice and trackpads:

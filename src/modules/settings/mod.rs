@@ -8,9 +8,10 @@ use tokio::time::timeout;
 
 use crate::{
     components::{
-        MenuSize,
-        icons::{DynamicIcon, StaticIcon, icon, icon_button},
-        password_dialog, quick_setting_button, sub_menu_wrapper,
+        ButtonUIRef, MenuSize,
+        icons::{DynamicIcon, Icon, StaticIcon, icon, icon_button},
+        menu::MenuType,
+        password_dialog, position_button, quick_setting_button, sub_menu_wrapper,
     },
     config::{Position, SettingsCustomButton, SettingsIndicator, SettingsModuleConfig},
     modules::settings::{
@@ -25,7 +26,7 @@ use crate::{
     theme::use_theme,
 };
 use iced::{
-    Element, Length, Subscription, SurfaceId, Task, Theme,
+    Border, Color, Element, Length, Shadow, Subscription, SurfaceId, Task, Theme, Vector,
     widget::{Column, Row, Space, container, row, space},
 };
 
@@ -34,6 +35,8 @@ mod bluetooth;
 pub(crate) mod brightness;
 pub(crate) mod network;
 mod power;
+
+type TooltipConfig = (fn(ButtonUIRef, SurfaceId) -> Message, MenuType);
 
 pub struct Settings {
     lock_cmd: Option<String>,
@@ -49,6 +52,7 @@ pub struct Settings {
     indicators: Vec<SettingsIndicator>,
     custom_buttons: Vec<SettingsCustomButton>,
     custom_buttons_status: HashMap<String, Option<bool>>,
+    enable_tooltips: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -97,6 +101,13 @@ pub enum Message {
     CustomButtonsStatus(Vec<(String, Option<bool>)>),
     MenuOpened,
     ConfigReloaded(SettingsModuleConfig),
+    AudioTooltipHover(ButtonUIRef, SurfaceId),
+    BluetoothTooltipHover(ButtonUIRef, SurfaceId),
+    WifiTooltipHover(ButtonUIRef, SurfaceId),
+    VpnTooltipHover(ButtonUIRef, SurfaceId),
+    BatteryTooltipHover(ButtonUIRef, SurfaceId),
+    PeripheralBatteryTooltipHover(ButtonUIRef, SurfaceId, usize),
+    TooltipUnhover(SurfaceId, MenuType),
 }
 
 pub enum Action {
@@ -106,6 +117,8 @@ pub enum Action {
     RequestKeyboard(SurfaceId),
     ReleaseKeyboard(SurfaceId),
     ReleaseKeyboardWithCommand(SurfaceId, Task<Message>),
+    OpenTooltipMenu(SurfaceId, MenuType, ButtonUIRef),
+    CloseTooltipMenu(SurfaceId, MenuType),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -227,6 +240,15 @@ impl Settings {
             custom_buttons: config.custom_buttons,
             custom_buttons_status: HashMap::new(),
             network_dialog_show_password: false,
+            enable_tooltips: config.enable_tooltips,
+        }
+    }
+
+    fn toggle_sub_menu(&mut self, target: SubMenu) {
+        if self.sub_menu == Some(target) {
+            self.sub_menu.take();
+        } else {
+            self.sub_menu.replace(target);
         }
     }
 
@@ -235,11 +257,7 @@ impl Settings {
             Message::Power(msg) => match self.power.update(msg) {
                 power::Action::None => Action::None,
                 power::Action::TogglePeripheralMenu => {
-                    if self.sub_menu == Some(SubMenu::PeripheralMenu) {
-                        self.sub_menu.take();
-                    } else {
-                        self.sub_menu.replace(SubMenu::PeripheralMenu);
-                    }
+                    self.toggle_sub_menu(SubMenu::PeripheralMenu);
                     Action::None
                 }
                 power::Action::Command(task) => Action::Command(task.map(Message::Power)),
@@ -247,19 +265,11 @@ impl Settings {
             Message::Audio(msg) => match self.audio.update(msg) {
                 audio::Action::None => Action::None,
                 audio::Action::ToggleSinksMenu => {
-                    if self.sub_menu == Some(SubMenu::Sinks) {
-                        self.sub_menu.take();
-                    } else {
-                        self.sub_menu.replace(SubMenu::Sinks);
-                    }
+                    self.toggle_sub_menu(SubMenu::Sinks);
                     Action::None
                 }
                 audio::Action::ToggleSourcesMenu => {
-                    if self.sub_menu == Some(SubMenu::Sources) {
-                        self.sub_menu.take();
-                    } else {
-                        self.sub_menu.replace(SubMenu::Sources);
-                    }
+                    self.toggle_sub_menu(SubMenu::Sources);
                     Action::None
                 }
                 audio::Action::CloseSubMenu => {
@@ -292,19 +302,11 @@ impl Settings {
                 }
                 network::Action::Command(task) => Action::Command(task.map(Message::Network)),
                 network::Action::ToggleWifiMenu => {
-                    if self.sub_menu == Some(SubMenu::Wifi) {
-                        self.sub_menu.take();
-                    } else {
-                        self.sub_menu.replace(SubMenu::Wifi);
-                    }
+                    self.toggle_sub_menu(SubMenu::Wifi);
                     Action::None
                 }
                 network::Action::ToggleVpnMenu => {
-                    if self.sub_menu == Some(SubMenu::Vpn) {
-                        self.sub_menu.take();
-                    } else {
-                        self.sub_menu.replace(SubMenu::Vpn);
-                    }
+                    self.toggle_sub_menu(SubMenu::Vpn);
                     Action::None
                 }
                 network::Action::CloseSubMenu(task) => {
@@ -319,11 +321,7 @@ impl Settings {
             Message::Bluetooth(msg) => match self.bluetooth.update(msg) {
                 bluetooth::Action::None => Action::None,
                 bluetooth::Action::ToggleBluetoothMenu => {
-                    if self.sub_menu == Some(SubMenu::Bluetooth) {
-                        self.sub_menu.take();
-                    } else {
-                        self.sub_menu.replace(SubMenu::Bluetooth);
-                    }
+                    self.toggle_sub_menu(SubMenu::Bluetooth);
                     Action::None
                 }
                 bluetooth::Action::CloseSubMenu(task) => {
@@ -341,23 +339,18 @@ impl Settings {
                 brightness::Action::Command(task) => Action::Command(task.map(Message::Brightness)),
             },
             Message::ToggleSubMenu(menu_type) => {
-                if self.sub_menu == Some(menu_type) {
-                    self.sub_menu.take();
+                let was_open = self.sub_menu == Some(menu_type);
+                self.toggle_sub_menu(menu_type);
 
-                    Action::None
-                } else {
-                    self.sub_menu.replace(menu_type);
-
-                    if menu_type == SubMenu::Wifi {
-                        match self.network.update(network::Message::WifiMenuOpened) {
-                            network::Action::Command(task) => {
-                                Action::Command(task.map(Message::Network))
-                            }
-                            _ => Action::None,
+                if !was_open && menu_type == SubMenu::Wifi {
+                    match self.network.update(network::Message::WifiMenuOpened) {
+                        network::Action::Command(task) => {
+                            Action::Command(task.map(Message::Network))
                         }
-                    } else {
-                        Action::None
+                        _ => Action::None,
                     }
+                } else {
+                    Action::None
                 }
             }
             Message::ToggleInhibitIdle => {
@@ -368,7 +361,7 @@ impl Settings {
             }
             Message::Lock => {
                 if let Some(lock_cmd) = &self.lock_cmd {
-                    crate::utils::launcher::execute_command(lock_cmd.to_string());
+                    crate::utils::launcher::execute_command(lock_cmd);
                 }
                 Action::None
             }
@@ -420,7 +413,7 @@ impl Settings {
             },
             Message::CustomButton(name) => {
                 if let Some(button) = self.custom_buttons.iter().find(|b| b.name == name) {
-                    crate::utils::launcher::execute_command(button.command.clone());
+                    crate::utils::launcher::execute_command(&button.command);
 
                     // Toggle button state immediately
                     let current_status = self.custom_buttons_status.get(&name).and_then(|v| *v);
@@ -498,6 +491,7 @@ impl Settings {
                 Action::Command(custom_buttons_task)
             }
             Message::ConfigReloaded(config) => {
+                self.enable_tooltips = config.enable_tooltips;
                 self.lock_cmd = config.lock_cmd;
                 self.power
                     .update(power::Message::ConfigReloaded(PowerSettingsConfig::new(
@@ -547,6 +541,25 @@ impl Settings {
                 self.custom_buttons = config.custom_buttons;
                 Action::None
             }
+            Message::AudioTooltipHover(ui_ref, id) => {
+                Action::OpenTooltipMenu(id, MenuType::AudioTooltip, ui_ref)
+            }
+            Message::BluetoothTooltipHover(ui_ref, id) => {
+                Action::OpenTooltipMenu(id, MenuType::BluetoothTooltip, ui_ref)
+            }
+            Message::WifiTooltipHover(ui_ref, id) => {
+                Action::OpenTooltipMenu(id, MenuType::WifiTooltip, ui_ref)
+            }
+            Message::VpnTooltipHover(ui_ref, id) => {
+                Action::OpenTooltipMenu(id, MenuType::VpnTooltip, ui_ref)
+            }
+            Message::BatteryTooltipHover(ui_ref, id) => {
+                Action::OpenTooltipMenu(id, MenuType::BatteryTooltip, ui_ref)
+            }
+            Message::PeripheralBatteryTooltipHover(ui_ref, id, index) => {
+                Action::OpenTooltipMenu(id, MenuType::PeripheralBatteryTooltip(index), ui_ref)
+            }
+            Message::TooltipUnhover(id, menu_type) => Action::CloseTooltipMenu(id, menu_type),
         }
     }
 
@@ -725,104 +738,117 @@ impl Settings {
         .into()
     }
 
-    pub fn view<'a>(&'a self) -> Element<'a, Message> {
+    pub fn view<'a>(&'a self, id: SurfaceId) -> Element<'a, Message> {
         let space = use_theme(|t| t.space);
         let mut row = Row::with_capacity(self.indicators.len());
 
         for indicator in &self.indicators {
-            match indicator {
-                SettingsIndicator::IdleInhibitor => {
-                    if let Some(element) =
-                        self.idle_inhibitor
-                            .as_ref()
-                            .filter(|i| i.is_inhibited())
-                            .map(|_| {
-                                container(icon(IdleInhibitorManager::idle_inhibitor_icon(true)))
-                                    .style(|theme: &Theme| container::Style {
-                                        text_color: Some(theme.palette().danger),
-                                        ..Default::default()
-                                    })
+            let element: Option<Element<'a, Message>> = match indicator {
+                SettingsIndicator::IdleInhibitor => self
+                    .idle_inhibitor
+                    .as_ref()
+                    .filter(|i| i.is_inhibited())
+                    .map(|_| {
+                        container(icon(IdleInhibitorManager::idle_inhibitor_icon(true)))
+                            .style(|theme: &Theme| container::Style {
+                                text_color: Some(theme.palette().danger),
+                                ..Default::default()
                             })
-                    {
-                        row = row.push(element);
-                    }
-                }
-                SettingsIndicator::PowerProfile => {
-                    if let Some(element) = self
-                        .power
-                        .power_profile_indicator()
-                        .map(|e| e.map(Message::Power))
-                    {
-                        row = row.push(element);
-                    }
-                }
+                            .into()
+                    }),
+                SettingsIndicator::PowerProfile => self
+                    .power
+                    .power_profile_indicator()
+                    .map(|e| e.map(Message::Power)),
                 SettingsIndicator::Audio => {
-                    if let Some(element) =
-                        self.audio.sink_indicator().map(|e| e.map(Message::Audio))
-                    {
-                        row = row.push(element);
-                    }
+                    self.audio.sink_indicator().map(|e| e.map(Message::Audio))
                 }
-                SettingsIndicator::Network => {
-                    if let Some(element) = self
-                        .network
-                        .connection_indicator()
-                        .map(|e| e.map(Message::Network))
-                    {
-                        row = row.push(element);
-                    }
-                }
-                SettingsIndicator::Vpn => {
-                    if let Some(element) = self
-                        .network
-                        .vpn_indicator()
-                        .map(|e| e.map(Message::Network))
-                    {
-                        row = row.push(element);
-                    }
-                }
-                SettingsIndicator::Bluetooth => {
-                    if let Some(element) = self
-                        .bluetooth
-                        .bluetooth_indicator()
-                        .map(|e| e.map(Message::Bluetooth))
-                    {
-                        row = row.push(element);
-                    }
-                }
+                SettingsIndicator::Network => self
+                    .network
+                    .connection_indicator()
+                    .map(|e| e.map(Message::Network)),
+                SettingsIndicator::Vpn => self
+                    .network
+                    .vpn_indicator()
+                    .map(|e| e.map(Message::Network)),
+                SettingsIndicator::Bluetooth => self
+                    .bluetooth
+                    .bluetooth_indicator()
+                    .map(|e| e.map(Message::Bluetooth)),
                 SettingsIndicator::Microphone => {
-                    if let Some(element) =
-                        self.audio.source_indicator().map(|e| e.map(Message::Audio))
-                    {
-                        row = row.push(element);
-                    }
+                    self.audio.source_indicator().map(|e| e.map(Message::Audio))
                 }
-                SettingsIndicator::Battery => {
-                    if let Some(element) = self
-                        .power
-                        .battery_indicator()
-                        .map(|e| e.map(Message::Power))
-                    {
-                        row = row.push(element);
-                    }
-                }
+                SettingsIndicator::Battery => self
+                    .power
+                    .battery_indicator()
+                    .map(|e| e.map(Message::Power)),
                 SettingsIndicator::PeripheralBattery => {
-                    if let Some(element) = self
-                        .power
-                        .peripheral_indicators()
-                        .map(|e| e.map(Message::Power))
-                    {
-                        row = row.push(element);
+                    let peripherals = self.power.peripheral_indicators();
+                    for (index, element) in peripherals.into_iter().enumerate() {
+                        let element = element.map(Message::Power);
+                        if self.enable_tooltips {
+                            row = row.push(
+                                position_button(element)
+                                    .width(Length::Shrink)
+                                    .height(Length::Shrink)
+                                    .padding(0)
+                                    .style(transparent_button_style)
+                                    .on_hover_with_position(move |ui_ref| {
+                                        Message::PeripheralBatteryTooltipHover(ui_ref, id, index)
+                                    })
+                                    .on_unhover(Message::TooltipUnhover(
+                                        id,
+                                        MenuType::PeripheralBatteryTooltip(index),
+                                    )),
+                            );
+                        } else {
+                            row = row.push(element);
+                        }
                     }
+                    None
                 }
-                SettingsIndicator::Brightness => {
-                    if let Some(element) = self
-                        .brightness
-                        .brightness_indicator()
-                        .map(|e| e.map(Message::Brightness))
-                    {
-                        row = row.push(element);
+                SettingsIndicator::Brightness => self
+                    .brightness
+                    .brightness_indicator()
+                    .map(|e| e.map(Message::Brightness)),
+            };
+
+            if let Some(element) = element {
+                let tooltip_config: Option<TooltipConfig> = if self.enable_tooltips {
+                    match indicator {
+                        SettingsIndicator::Audio | SettingsIndicator::Microphone => {
+                            Some((Message::AudioTooltipHover, MenuType::AudioTooltip))
+                        }
+                        SettingsIndicator::Network => {
+                            Some((Message::WifiTooltipHover, MenuType::WifiTooltip))
+                        }
+                        SettingsIndicator::Vpn => {
+                            Some((Message::VpnTooltipHover, MenuType::VpnTooltip))
+                        }
+                        SettingsIndicator::Bluetooth => {
+                            Some((Message::BluetoothTooltipHover, MenuType::BluetoothTooltip))
+                        }
+                        SettingsIndicator::Battery => {
+                            Some((Message::BatteryTooltipHover, MenuType::BatteryTooltip))
+                        }
+                        _ => None,
                     }
+                } else {
+                    None
+                };
+
+                if let Some((hover_msg, menu_type)) = tooltip_config {
+                    row = row.push(
+                        position_button(element)
+                            .width(Length::Shrink)
+                            .height(Length::Shrink)
+                            .padding(0)
+                            .style(transparent_button_style)
+                            .on_hover_with_position(move |ui_ref| hover_msg(ui_ref, id))
+                            .on_unhover(Message::TooltipUnhover(id, menu_type)),
+                    );
+                } else {
+                    row = row.push(element);
                 }
             }
         }
@@ -838,6 +864,122 @@ impl Settings {
             self.network.subscription().map(Message::Network),
             self.bluetooth.subscription().map(Message::Bluetooth),
         ])
+    }
+
+    pub fn tooltip_view<'a>(&'a self, menu_type: &MenuType) -> Element<'a, Message> {
+        let space = use_theme(|t| t.space);
+        match menu_type {
+            MenuType::AudioTooltip => {
+                let sink = self.audio.active_sink_label();
+                let source = self.audio.active_source_label();
+                let mut column = Column::new().spacing(space.xs);
+                if let Some(sink) = sink {
+                    column = column.push(
+                        row![StaticIcon::Speaker3.to_text(), iced::widget::text(sink)]
+                            .spacing(space.xs),
+                    );
+                }
+                if let Some(source) = source {
+                    column = column.push(
+                        row![StaticIcon::Mic1.to_text(), iced::widget::text(source)]
+                            .spacing(space.xs),
+                    );
+                }
+                column.into()
+            }
+            MenuType::BluetoothTooltip => {
+                let devices = self.bluetooth.connected_devices_for_tooltip();
+                if !devices.is_empty() {
+                    Column::with_capacity(devices.len())
+                        .extend(devices.into_iter().map(|(name, battery)| {
+                            if let Some(bat) = battery {
+                                row![
+                                    iced::widget::text(name),
+                                    iced::widget::text(format!("{}%", bat))
+                                ]
+                                .spacing(space.xs)
+                                .into()
+                            } else {
+                                row![iced::widget::text(name)].spacing(space.xs).into()
+                            }
+                        }))
+                        .spacing(space.xs)
+                        .into()
+                } else {
+                    Row::new().into()
+                }
+            }
+            MenuType::WifiTooltip => {
+                if let Some(label) = self.network.connected_wifi_label() {
+                    row![StaticIcon::Wifi4.to_text(), iced::widget::text(label)]
+                        .spacing(space.xs)
+                        .into()
+                } else {
+                    Row::new().into()
+                }
+            }
+            MenuType::VpnTooltip => {
+                if let Some(label) = self.network.vpn_tooltip_label() {
+                    row![StaticIcon::Vpn.to_text(), iced::widget::text(label)]
+                        .spacing(space.xs)
+                        .into()
+                } else {
+                    Row::new().into()
+                }
+            }
+            MenuType::BatteryTooltip => {
+                if let Some((capacity, status_label, details)) = self.power.battery_tooltip_info() {
+                    let mut r = Row::new()
+                        .push(StaticIcon::Battery4.to_text())
+                        .push(iced::widget::text(format!("{capacity}%")))
+                        .push(iced::widget::text(status_label))
+                        .spacing(space.xs);
+                    if !details.is_empty() {
+                        r = r.push(iced::widget::text(details));
+                    }
+                    r.into()
+                } else {
+                    Row::new().into()
+                }
+            }
+            MenuType::PeripheralBatteryTooltip(index) => {
+                if let Some((name, capacity, device_icon)) =
+                    self.power.peripheral_battery_tooltip_info(*index)
+                {
+                    row![
+                        device_icon.to_text(),
+                        iced::widget::text(name),
+                        iced::widget::text(format!("{capacity}%"))
+                    ]
+                    .spacing(space.xs)
+                    .into()
+                } else {
+                    Row::new().into()
+                }
+            }
+            _ => Row::new().into(),
+        }
+    }
+}
+
+fn transparent_button_style(
+    theme: &Theme,
+    _status: iced::widget::button::Status,
+) -> iced::widget::button::Style {
+    iced::widget::button::Style {
+        background: None,
+        border: Border {
+            color: Color::TRANSPARENT,
+            width: 0.,
+            radius: 0.into(),
+        },
+        shadow: Shadow {
+            color: Color::TRANSPARENT,
+            offset: Vector::default(),
+            blur_radius: 0.,
+        },
+        text_color: theme.palette().text,
+        snap: true,
     }
 }
 

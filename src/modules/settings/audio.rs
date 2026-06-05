@@ -287,19 +287,19 @@ impl AudioSettings {
             }
             Message::OpenMore => {
                 if let Some(cmd) = &self.config.sinks_more_cmd {
-                    crate::utils::launcher::execute_command(cmd.to_string());
+                    crate::utils::launcher::execute_command(cmd);
                 }
                 Action::None
             }
             Message::OpenSourceMore => {
                 if let Some(cmd) = &self.config.sources_more_cmd {
-                    crate::utils::launcher::execute_command(cmd.to_string());
+                    crate::utils::launcher::execute_command(cmd);
                 }
                 Action::None
             }
             Message::SinksMore(id) => {
                 if let Some(cmd) = &self.config.sinks_more_cmd {
-                    crate::utils::launcher::execute_command(cmd.to_string());
+                    crate::utils::launcher::execute_command(cmd);
                     Action::CloseMenu(id)
                 } else {
                     Action::None
@@ -307,7 +307,7 @@ impl AudioSettings {
             }
             Message::SourcesMore(id) => {
                 if let Some(cmd) = &self.config.sources_more_cmd {
-                    crate::utils::launcher::execute_command(cmd.to_string());
+                    crate::utils::launcher::execute_command(cmd);
                     Action::CloseMenu(id)
                 } else {
                     Action::None
@@ -634,5 +634,17 @@ impl AudioSettings {
 
     pub fn subscription(&self) -> Subscription<Message> {
         AudioService::subscribe().map(Message::Event)
+    }
+
+    pub fn active_sink_label(&self) -> Option<String> {
+        self.service
+            .as_ref()
+            .and_then(|s| s.active_sink().map(|d| d.description.clone()))
+    }
+
+    pub fn active_source_label(&self) -> Option<String> {
+        self.service
+            .as_ref()
+            .and_then(|s| s.active_source().map(|d| d.description.clone()))
     }
 }

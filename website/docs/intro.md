@@ -21,13 +21,14 @@ Wayland compositors.
 - OS Updates indicator
 - Hyprland/Niri Active Window
 - Hyprland/Niri Workspaces
-- System Information (CPU, RAM, Temperature)
+- System Information (CPU, RAM, Temperature, Disk, Network)
 - Hyprland/Niri Keyboard Layout
 - Hyprland Keyboard Submap
 - Tray
-- Date and Time
+- Date and Time (with weather support)
 - Privacy indicators (microphone, camera, and screen sharing usage)
 - Media Player
+- Notifications
 - Settings Panel
   - Power menu
   - Battery information

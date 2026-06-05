@@ -5,7 +5,7 @@ use crate::{
         ButtonHierarchy, ButtonKind, ButtonUIRef, IconPosition, MenuSize, position_button,
         styled_button,
     },
-    config::TrayModuleConfig,
+    config::{TrayClickAction, TrayModuleConfig},
     services::{
         ReadOnlyService, Service, ServiceEvent,
         tray::{
@@ -17,9 +17,11 @@ use crate::{
 };
 use iced::{
     Alignment, Element, Length, Padding, Subscription, SurfaceId, Task,
-    widget::{Column, Image, Row, Svg, container, toggler},
+    widget::{Column, Image, Row, Svg, container, scrollable, text, toggler},
 };
 use log::debug;
+
+const MENU_MAX_HEIGHT: f32 = 600.;
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -29,6 +31,7 @@ pub enum Message {
     MenuSelected(String, i32),
     MenuToggled(String, i32),
     MenuOpened(String),
+    Activate(String),
 }
 
 pub enum Action {
@@ -44,6 +47,7 @@ pub struct TrayModule {
     service: Option<TrayService>,
     submenus: Vec<i32>,
     blocklist: Vec<crate::config::RegexCfg>,
+    right_click: Option<TrayClickAction>,
 }
 
 impl TrayModule {
@@ -52,6 +56,7 @@ impl TrayModule {
             service: None,
             submenus: Vec::new(),
             blocklist: config.blocklist.clone(),
+            right_click: config.right_click,
         }
     }
 
@@ -126,6 +131,17 @@ impl TrayModule {
 
                 Action::None
             }
+            Message::Activate(name) => match self.service.as_mut() {
+                Some(service) => {
+                    debug!("Tray item activate: {name}");
+                    Action::TrayMenuCommand(
+                        service
+                            .command(TrayCommand::Activate(name))
+                            .map(|event| Message::Event(Box::new(event))),
+                    )
+                }
+                _ => Action::None,
+            },
         }
     }
 
@@ -136,9 +152,10 @@ impl TrayModule {
                 label: Some(label),
                 toggle_type: Some(toggle_type),
                 toggle_state: Some(state),
+                children_display: None,
                 ..
-            } if toggle_type == "checkmark" => container(
-                toggler(*state > 0)
+            } if toggle_type == "checkmark" => {
+                let content: Element<'a, Message> = toggler(*state > 0)
                     .label(label.replace("_", "").to_owned())
                     .on_toggle({
                         let name = name.to_owned();
@@ -146,19 +163,38 @@ impl TrayModule {
 
                         move |_| Message::MenuToggled(name.to_owned(), id)
                     })
-                    .width(Length::Fill),
-            )
-            .padding([space.xs, space.md])
-            .into(),
+                    .width(Length::Fill)
+                    .into();
+                styled_button(content)
+                    .on_press(Message::MenuToggled(name.to_owned(), layout.0))
+                    .width(Length::Fill)
+                    .into()
+            }
             LayoutProps {
                 children_display: Some(display),
                 label: Some(label),
+                toggle_type,
+                toggle_state,
                 ..
             } if display == "submenu" => {
                 let is_open = self.submenus.contains(&layout.0);
+                let content: Element<'a, Message> = match (toggle_type.as_deref(), toggle_state) {
+                    (Some("checkmark"), &Some(state)) => Row::new()
+                        .push(toggler(state > 0).on_toggle({
+                            let name = name.to_owned();
+                            let id = layout.0;
+
+                            move |_| Message::MenuToggled(name.to_owned(), id)
+                        }))
+                        .push(text(label.replace("_", "")))
+                        .spacing(space.sm)
+                        .align_y(Alignment::Center)
+                        .into(),
+                    _ => text(label.replace("_", "")).into(),
+                };
                 Column::with_capacity(2)
                     .push(
-                        styled_button(label.replace("_", ""))
+                        styled_button(content)
                             .icon(
                                 if is_open {
                                     StaticIcon::MenuOpen
@@ -220,26 +256,35 @@ impl TrayModule {
                             .iter()
                             .filter(|item| !self.is_blocklisted(&item.name))
                             .map(|item| {
+                                let name = item.name.to_owned();
                                 let button_style = button_style.clone();
-                                position_button(match &item.icon {
-                                    Some(TrayIcon::Image(handle)) => Into::<Element<_>>::into(
-                                        Image::new(handle.clone())
-                                            .height(Length::Fixed(font_size.md - 2.0)),
-                                    ),
-                                    Some(TrayIcon::Svg(handle)) => Into::<Element<_>>::into(
-                                        Svg::new(handle.clone())
-                                            .height(Length::Fixed(font_size.md + 2.))
-                                            .width(Length::Fixed(font_size.md + 2.))
-                                            .content_fit(iced::ContentFit::Cover),
-                                    ),
+                                let icon_content: Element<'_, Message> = match &item.icon {
+                                    Some(TrayIcon::Image(handle)) => Image::new(handle.clone())
+                                        .height(Length::Fixed(font_size.md - 2.0))
+                                        .into(),
+                                    Some(TrayIcon::Svg(handle)) => Svg::new(handle.clone())
+                                        .height(Length::Fixed(font_size.md + 2.))
+                                        .width(Length::Fixed(font_size.md + 2.))
+                                        .content_fit(iced::ContentFit::Cover)
+                                        .into(),
                                     _ => icon(StaticIcon::Point).into(),
-                                })
-                                .on_press_with_position(move |button_ui_ref| {
-                                    Message::ToggleMenu(item.name.to_owned(), id, button_ui_ref)
-                                })
-                                .padding(space.xxs)
-                                .style(move |t, s| button_style(t, s))
-                                .into()
+                                };
+                                let open_app = Message::Activate(name.clone());
+                                let toggle_menu = move |r| Message::ToggleMenu(name.clone(), id, r);
+
+                                let mut btn = position_button(icon_content);
+                                btn = match &self.right_click {
+                                    None => btn.on_press_with_position(toggle_menu.clone()),
+                                    Some(TrayClickAction::Open) => btn
+                                        .on_press_with_position(toggle_menu.clone())
+                                        .on_right_press(open_app.clone()),
+                                    Some(TrayClickAction::Menu) => btn
+                                        .on_press(open_app.clone())
+                                        .on_right_press_with_position(toggle_menu.clone()),
+                                };
+                                btn.padding(space.xxs)
+                                    .style(move |t, s| button_style(t, s))
+                                    .into()
                             })
                             .collect::<Vec<_>>(),
                     )
@@ -250,25 +295,26 @@ impl TrayModule {
 
     pub fn menu_view<'a>(&'a self, name: &'a str) -> Element<'a, Message> {
         let space = use_theme(|theme| theme.space);
-        container(
-            match self
-                .service
-                .as_ref()
-                .and_then(|service| service.data.iter().find(|item| item.name == name))
-            {
-                Some(item) => Column::with_children(
-                    item.menu
-                        .2
-                        .iter()
-                        .filter(|menu| menu.1.visible != Some(false))
-                        .map(|menu| self.menu_voice(name, menu)),
-                )
-                .spacing(space.xs),
-                _ => Column::new(),
-            },
-        )
-        .width(MenuSize::Medium)
-        .into()
+        let items = match self
+            .service
+            .as_ref()
+            .and_then(|service| service.data.iter().find(|item| item.name == name))
+        {
+            Some(item) => Column::with_children(
+                item.menu
+                    .2
+                    .iter()
+                    .filter(|menu| menu.1.visible != Some(false))
+                    .map(|menu| self.menu_voice(name, menu)),
+            )
+            .spacing(space.xs),
+            _ => Column::new(),
+        };
+
+        container(scrollable(items).spacing(space.xs))
+            .width(MenuSize::Medium)
+            .max_height(MENU_MAX_HEIGHT)
+            .into()
     }
 
     pub fn subscription(&self) -> Subscription<Message> {

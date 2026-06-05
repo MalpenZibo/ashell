@@ -988,7 +988,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -1728,7 +1728,7 @@ dependencies = [
 [[package]]
 name = "hyprland"
 version = "0.4.0-beta.3"
-source = "git+https://github.com/hyprland-community/hyprland-rs?branch=master#330b8d3b6906817377dbcb161ce3e221c0414a40"
+source = "git+https://github.com/hyprland-community/hyprland-rs?branch=master#2d11487cf4c1f333db9df6b6f291b96cc6daf1f7"
 dependencies = [
  "async-stream",
  "derive_more",
@@ -1745,7 +1745,7 @@ dependencies = [
 [[package]]
 name = "hyprland-macros"
 version = "0.4.0-beta.3"
-source = "git+https://github.com/hyprland-community/hyprland-rs?branch=master#330b8d3b6906817377dbcb161ce3e221c0414a40"
+source = "git+https://github.com/hyprland-community/hyprland-rs?branch=master#2d11487cf4c1f333db9df6b6f291b96cc6daf1f7"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1920,7 +1920,7 @@ dependencies = [
 [[package]]
 name = "iced_layershell"
 version = "0.1.5"
-source = "git+https://github.com/MalpenZibo/iced_layershell?tag=v0.1.5#6828748159092435edb684ef4f9206306513cc8e"
+source = "git+https://github.com/MalpenZibo/iced_layershell?tag=v0.2.0#568ae5d2e7e7365ad83dce71d2373a6980953c47"
 dependencies = [
  "calloop",
  "calloop-wayland-source",
@@ -3722,7 +3722,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3779,7 +3779,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -4335,7 +4335,7 @@ dependencies = [
  "getrandom 0.3.4",
  "once_cell",
  "rustix",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -5318,7 +5318,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]

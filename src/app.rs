@@ -456,6 +456,12 @@ impl App {
                         self.outputs.release_keyboard(id),
                     ])
                 }
+                modules::settings::Action::OpenTooltipMenu(id, menu_type, ui_ref) => {
+                    self.outputs.toggle_menu(id, menu_type, ui_ref, false)
+                }
+                modules::settings::Action::CloseTooltipMenu(id, menu_type) => self
+                    .outputs
+                    .close_menu(id, Some(menu_type), self.general_config.enable_esc_key),
             },
             Message::OutputEvent(event) => match event {
                 OutputEvent::Added(info) => {
@@ -491,6 +497,13 @@ impl App {
                     )
                 }
                 OutputEvent::InfoChanged(_) => Task::none(),
+                OutputEvent::SurfaceEnteredOutput { surface, output } => {
+                    self.outputs.surface_entered_output(surface, output)
+                }
+                OutputEvent::SurfaceLeftOutput { surface, output } => {
+                    self.outputs.surface_left_output(surface, output);
+                    Task::none()
+                }
             },
             Message::MediaPlayer(msg) => match self.media_player.update(msg) {
                 modules::media_player::Action::None => Task::none(),
@@ -750,6 +763,18 @@ impl App {
                     MenuType::Tempo => {
                         self.menu_wrapper(id, self.tempo.menu_view().map(Message::Tempo), ui_ref)
                     }
+                    MenuType::AudioTooltip
+                    | MenuType::BluetoothTooltip
+                    | MenuType::WifiTooltip
+                    | MenuType::VpnTooltip
+                    | MenuType::BatteryTooltip
+                    | MenuType::PeripheralBatteryTooltip(_) => self.menu_wrapper(
+                        id,
+                        self.settings
+                            .tooltip_view(&open_menu.menu_type)
+                            .map(Message::Settings),
+                        ui_ref,
+                    ),
                 }
             }
             Some(HasOutput::Menu(None)) => Row::new().into(),
@@ -784,15 +809,21 @@ impl App {
             }),
             Subscription::run(|| {
                 use iced::futures::StreamExt;
-                signal_hook_tokio::Signals::new([libc::SIGUSR1])
-                    .expect("Failed to create signal stream")
-                    .filter_map(|sig| {
-                        if sig == libc::SIGUSR1 {
-                            iced::futures::future::ready(Some(Message::ToggleVisibility))
-                        } else {
-                            iced::futures::future::ready(None)
-                        }
-                    })
+                match signal_hook_tokio::Signals::new([libc::SIGUSR1]) {
+                    Ok(signals) => signals
+                        .filter_map(|sig| {
+                            if sig == libc::SIGUSR1 {
+                                iced::futures::future::ready(Some(Message::ToggleVisibility))
+                            } else {
+                                iced::futures::future::ready(None)
+                            }
+                        })
+                        .boxed(),
+                    Err(e) => {
+                        log::error!("Failed to create signal stream: {e}");
+                        iced::futures::stream::empty().boxed()
+                    }
+                }
             }),
             // Always subscribe to audio/brightness services so OSD works
             // even when the Settings module isn't in the module list.

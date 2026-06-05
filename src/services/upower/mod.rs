@@ -172,7 +172,7 @@ impl fmt::Display for PeripheralDeviceKind {
 }
 
 impl PeripheralDeviceKind {
-    pub fn get_icon(&self) -> StaticIcon {
+    pub fn get_icon(self) -> StaticIcon {
         match self {
             PeripheralDeviceKind::Keyboard => StaticIcon::Keyboard,
             PeripheralDeviceKind::Mouse => StaticIcon::Mouse,
@@ -181,7 +181,7 @@ impl PeripheralDeviceKind {
         }
     }
 
-    fn get_battery_icon(&self, level: BatLevel) -> StaticIcon {
+    fn get_battery_icon(self, level: BatLevel) -> StaticIcon {
         let icons = match self {
             PeripheralDeviceKind::Keyboard => &KEYBOARD_BATTERY_ICONS,
             PeripheralDeviceKind::Mouse => &MOUSE_BATTERY_ICONS,
@@ -460,7 +460,7 @@ impl UPowerService {
 
     async fn events(
         conn: &zbus::Connection,
-        system_battery_devices: &Option<Vec<ObjectPath<'static>>>,
+        system_battery_devices: Option<&Vec<ObjectPath<'static>>>,
         peripheral_paths: &[ObjectPath<'static>],
     ) -> anyhow::Result<impl Stream<Item = UPowerEvent> + use<>> {
         let system_battery_event = if let Some(battery_devices) = system_battery_devices {
@@ -641,12 +641,14 @@ impl UPowerService {
                     }
                 },
                 Err(err) => {
-                    error!("Failed to connect to system bus for upower: {err}",);
+                    error!("Failed to connect to system bus for upower: {err}");
                     State::Error
                 }
             },
             State::Active(conn, system_battery_paths, peripheral_paths) => {
-                match UPowerService::events(&conn, &system_battery_paths, &peripheral_paths).await {
+                match UPowerService::events(&conn, system_battery_paths.as_ref(), &peripheral_paths)
+                    .await
+                {
                     Ok(mut events) => {
                         while let Some(event) = events.next().await {
                             let _ = output.send(ServiceEvent::Update(event)).await;

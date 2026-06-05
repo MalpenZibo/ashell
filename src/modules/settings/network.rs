@@ -211,7 +211,7 @@ impl NetworkSettings {
             },
             Message::WiFiMore(id) => {
                 if let Some(cmd) = &self.config.wifi_more_cmd {
-                    crate::utils::launcher::execute_command(cmd.to_string());
+                    crate::utils::launcher::execute_command(cmd);
                     Action::CloseMenu(id)
                 } else {
                     Action::None
@@ -219,7 +219,7 @@ impl NetworkSettings {
             }
             Message::VpnMore(id) => {
                 if let Some(cmd) = &self.config.vpn_more_cmd {
-                    crate::utils::launcher::execute_command(cmd.to_string());
+                    crate::utils::launcher::execute_command(cmd);
                     Action::CloseMenu(id)
                 } else {
                     Action::None
@@ -235,7 +235,7 @@ impl NetworkSettings {
             },
             Message::OpenMore => {
                 if let Some(cmd) = &self.config.wifi_more_cmd {
-                    crate::utils::launcher::execute_command(cmd.to_string());
+                    crate::utils::launcher::execute_command(cmd);
                 }
                 Action::None
             }
@@ -387,8 +387,11 @@ impl NetworkSettings {
                         service.wifi_enabled,
                         Message::ToggleWiFi,
                         Some(Message::OpenMore),
-                        Some((SubMenu::Wifi, sub_menu, Message::ToggleWifiMenu))
-                            .filter(|_| service.wifi_enabled),
+                        service.wifi_enabled.then_some((
+                            SubMenu::Wifi,
+                            sub_menu,
+                            Message::ToggleWifiMenu,
+                        )),
                     ),
                     sub_menu
                         .filter(|menu_type| *menu_type == SubMenu::Wifi)
@@ -681,5 +684,35 @@ impl NetworkSettings {
         } else {
             StaticIcon::AirplaneOff
         }
+    }
+
+    pub fn connected_wifi_label(&self) -> Option<String> {
+        self.service.as_ref().and_then(|service| {
+            service.active_connections.iter().find_map(|c| match c {
+                ActiveConnectionInfo::WiFi { name, .. } => Some(name.clone()),
+                _ => None,
+            })
+        })
+    }
+
+    pub fn vpn_tooltip_label(&self) -> Option<String> {
+        self.service.as_ref().and_then(|service| {
+            let active_vpns: Vec<_> = service
+                .active_connections
+                .iter()
+                .filter_map(|c| match c {
+                    ActiveConnectionInfo::Vpn { name, .. } => Some(name.clone()),
+                    _ => None,
+                })
+                .collect();
+
+            if active_vpns.is_empty() {
+                None
+            } else if active_vpns.len() == 1 {
+                Some(active_vpns[0].clone())
+            } else {
+                Some(format!("{} VPNs connected", active_vpns.len()))
+            }
+        })
     }
 }

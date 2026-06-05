@@ -1,5 +1,5 @@
 use crate::app::Message;
-use crate::i18n::UnitSystem;
+use crate::i18n::{UnitSystem, unit_system};
 use crate::services::upower::PeripheralDeviceKind;
 use crate::utils::celsius_to_fahrenheit;
 use hex_color::HexColor;
@@ -243,12 +243,35 @@ impl Default for SystemInfoMemory {
 const DEFAULT_TEMP_WARN_CELSIUS: i32 = 60;
 const DEFAULT_TEMP_ALERT_CELSIUS: i32 = 80;
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub enum TemperatureSensorType {
+    #[default]
+    Cpu,
+    Gpu,
+    Acpi,
+    Nvme,
+}
+
+/// A type keyword (auto-detected) or an exact sensor label.
+#[derive(Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(untagged)]
+pub enum TemperatureSensor {
+    Type(TemperatureSensorType),
+    Label(String),
+}
+
+impl Default for TemperatureSensor {
+    fn default() -> Self {
+        Self::Type(TemperatureSensorType::default())
+    }
+}
+
+#[derive(Deserialize, Clone, Debug, Default)]
 #[serde(default)]
 pub struct SystemInfoTemperature {
     warn_threshold: Option<i32>,
     alert_threshold: Option<i32>,
-    pub sensor: String,
+    pub sensor: TemperatureSensor,
 }
 
 impl SystemInfoTemperature {
@@ -271,16 +294,6 @@ impl SystemInfoTemperature {
     fn validate(&mut self) {
         if let (Some(warn), Some(alert)) = (&mut self.warn_threshold, &mut self.alert_threshold) {
             validate_thresholds(warn, alert, "Temperature");
-        }
-    }
-}
-
-impl Default for SystemInfoTemperature {
-    fn default() -> Self {
-        Self {
-            warn_threshold: None,
-            alert_threshold: None,
-            sensor: "acpitz temp1".to_string(),
         }
     }
 }
@@ -440,9 +453,18 @@ impl Default for NotificationsModuleConfig {
     }
 }
 
+#[derive(Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum TrayClickAction {
+    Open,
+    Menu,
+}
+
 #[derive(Deserialize, Clone, Debug, Default)]
+#[serde(default)]
 pub struct TrayModuleConfig {
     pub blocklist: Vec<RegexCfg>,
+    pub right_click: Option<TrayClickAction>,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -456,6 +478,46 @@ pub struct TempoModuleConfig {
     #[serde(default)]
     pub weather_location: Option<WeatherLocation>,
     pub weather_indicator: WeatherIndicator,
+    #[serde(default)]
+    pub wind_speed_unit: Option<WindSpeedUnit>,
+}
+
+impl TempoModuleConfig {
+    pub fn resolved_wind_speed_unit(&self) -> WindSpeedUnit {
+        match self.wind_speed_unit {
+            Some(unit) => unit,
+            None => match unit_system() {
+                UnitSystem::Imperial => WindSpeedUnit::Mph,
+                UnitSystem::Metric => WindSpeedUnit::Kmh,
+            },
+        }
+    }
+}
+
+#[derive(Deserialize, Default, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum WindSpeedUnit {
+    #[default]
+    Kmh,
+    Mph,
+    Ms,
+}
+
+impl WindSpeedUnit {
+    pub fn symbol(self) -> &'static str {
+        match self {
+            Self::Kmh => "km/h",
+            Self::Mph => "mph",
+            Self::Ms => "m/s",
+        }
+    }
+
+    pub fn api_param(self) -> &'static str {
+        match self {
+            Self::Kmh => "kmh",
+            Self::Mph => "mph",
+            Self::Ms => "ms",
+        }
+    }
 }
 
 #[derive(Deserialize, Default, Clone, Debug, PartialEq, Eq)]
@@ -496,6 +558,7 @@ impl Default for TempoModuleConfig {
             timezones: vec![],
             weather_location: None,
             weather_indicator: WeatherIndicator::IconAndTemperature,
+            wind_speed_unit: None,
         }
     }
 }
@@ -568,6 +631,7 @@ pub struct SettingsModuleConfig {
     pub bluetooth_more_cmd: Option<String>,
     pub remove_airplane_btn: bool,
     pub remove_idle_btn: bool,
+    pub enable_tooltips: bool,
     pub indicators: Vec<SettingsIndicator>,
     #[serde(rename = "CustomButton")]
     pub custom_buttons: Vec<SettingsCustomButton>,
@@ -601,6 +665,7 @@ impl Default for SettingsModuleConfig {
             bluetooth_more_cmd: Default::default(),
             remove_airplane_btn: Default::default(),
             remove_idle_btn: Default::default(),
+            enable_tooltips: true,
             indicators: vec![
                 SettingsIndicator::IdleInhibitor,
                 SettingsIndicator::PowerProfile,
@@ -1177,7 +1242,7 @@ fn read_config(path: &Path) -> Result<Config, Box<dyn Error + Send>> {
 
     info!("Decoding config file {path:?}");
 
-    let res = toml::from_str(&content);
+    let res = toml::from_str::<Config>(&content);
 
     match res {
         Ok(config) => {
@@ -1264,7 +1329,12 @@ pub fn subscription(path: &Path) -> Subscription<Message> {
                                 Some(Event::Changed) => {
                                     info!("Reload config file");
 
-                                    let new_config = read_config(&path).unwrap_or_default();
+                                    let path_clone = path.clone();
+                                    let new_config = tokio::task::spawn_blocking(move || {
+                                        read_config(&path_clone).unwrap_or_default()
+                                    })
+                                    .await
+                                    .unwrap_or_default();
 
                                     let _ = output
                                         .send(Message::ConfigChanged(Box::new(new_config)))

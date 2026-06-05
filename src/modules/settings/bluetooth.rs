@@ -148,13 +148,13 @@ impl BluetoothSettings {
             },
             Message::OpenMore => {
                 if let Some(cmd) = &self.config.more_cmd {
-                    crate::utils::launcher::execute_command(cmd.to_string());
+                    crate::utils::launcher::execute_command(cmd);
                 }
                 Action::None
             }
             Message::More(id) => {
                 if let Some(cmd) = &self.config.more_cmd {
-                    crate::utils::launcher::execute_command(cmd.to_string());
+                    crate::utils::launcher::execute_command(cmd);
 
                     Action::CloseMenu(id)
                 } else {
@@ -202,8 +202,11 @@ impl BluetoothSettings {
                     service.state == BluetoothState::Active,
                     Message::Toggle,
                     Some(Message::OpenMore),
-                    Some((SubMenu::Bluetooth, sub_menu, Message::ToggleSubMenu))
-                        .filter(|_| service.state == BluetoothState::Active),
+                    (service.state == BluetoothState::Active).then_some((
+                        SubMenu::Bluetooth,
+                        sub_menu,
+                        Message::ToggleSubMenu,
+                    )),
                 ),
                 sub_menu
                     .filter(|menu_type| *menu_type == SubMenu::Bluetooth)
@@ -442,5 +445,19 @@ impl BluetoothSettings {
 
     pub fn subscription(&self) -> Subscription<Message> {
         BluetoothService::subscribe().map(Message::Event)
+    }
+
+    pub fn connected_devices_for_tooltip(&self) -> Vec<(String, Option<u8>)> {
+        self.service
+            .as_ref()
+            .map(|service| {
+                service
+                    .devices
+                    .iter()
+                    .filter(|d| d.connected)
+                    .map(|d| (d.name.clone(), d.battery))
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 }

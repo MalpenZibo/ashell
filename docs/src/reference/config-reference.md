@@ -136,7 +136,7 @@ alert_threshold = 80
 ```
 
 **Dependencies:**
-- Temperature monitoring reads the kernel `hwmon` sysfs interface directly (no extra package required). The `sensor` label (e.g. `"acpitz temp1"`) must match a hwmon device on your system — run `sensors` (from `lm_sensors`) to find the right name.
+- Temperature monitoring reads the kernel `hwmon` sysfs interface directly (no extra package required). The `sensor` option is either a type keyword (`"Cpu"`, `"Gpu"`, `"Acpi"`, `"Nvme"`) for auto-detection or an exact hwmon label (e.g. `"acpitz temp1"`) — run `sensors` (from `lm_sensors`) to find the right name. The displayed unit follows the locale / unit system, not a per-module option.
 - CPU, memory, disk, and network info use standard kernel interfaces and do not need extra packages.
 
 ## Clock Module (Deprecated)
@@ -161,6 +161,9 @@ weather_format = "{temp}°C"
 
 ```toml
 [settings]
+# Enable/disable hover tooltips on status indicators (audio, bluetooth, wifi, battery)
+enable_tooltips = true
+
 # Custom buttons in the settings panel
 [[settings.custom_buttons]]
 icon = "\u{f023}"

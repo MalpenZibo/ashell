@@ -27,8 +27,25 @@ forecast, and a seven-day outlook.
 | `timezones`         | `array`  | `[]`                 | Timezone identifiers that can be cycled through by scrolling. Supports both IANA names (e.g., `"UTC"`, `"America/New_York"`) and fixed offsets (e.g., `"+00:00"`, `"-05:00"`).                                                                   |
 | `weather_location`  | `enum`   | `None`               | Determines which coordinates are queried when requesting weather data. `Current` geo-locates via IP using `ip-api.com`. Use the `City` variant to pin the module to a specific place. Use `Coordinates` to specify exact latitude and longitude. |
 | `weather_indicator` | `enum`   | `IconAndTemperature` | Determines what information about the weather is shown in the bar, valid options are `None`, `Icon`, and `IconAndTemperature`.                                                                                                                   |
+| `wind_speed_unit`   | `string` | `null`               | Override wind speed unit for both display and API requests. Options: `"Kmh"`, `"Mph"`, `"Ms"`. When omitted, derives from locale (Metric → `Kmh`, Imperial → `Mph`). Temperature unit is not affected.                                           |
 
 ### City-based weather
+
+```toml
+[tempo]
+clock_format = "%a %d %b %R"
+weather_location = { City = "Rome" }
+weather_indicator = "Icon"
+```
+
+### Wind speed in m/s
+
+```toml
+[tempo]
+clock_format = "%a %d %b %R"
+weather_location = { City = "Stockholm" }
+wind_speed_unit = "Ms"
+```
 
 ```toml
 [tempo]
@@ -143,6 +160,16 @@ weather_location = "Current"
 - Weather observations and forecasts are requested from the Open-Meteo API every 30 minutes. Ensure `ashell` has network
   access.
 - If an API call fails the module keeps showing the last successful reading and logs a warning.
+
+## Screenshot protection
+
+The tempo module provides privacy protection for your location in the weather menu. By default, the **location is visible**.
+
+To protect your privacy when taking screenshots:
+- **Click on the location text** to blur it (shows as "•••••")
+- **Click again** to reveal the location
+
+This user-controlled toggle ensures you can quickly hide your location before taking a screenshot.
 
 ## Tips
 

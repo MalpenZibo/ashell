@@ -463,7 +463,7 @@ impl PulseAudioServer {
         loop {
             match mainloop.iterate(true) {
                 IterateResult::Quit(_) | IterateResult::Err(_) => {
-                    panic!("PulseAudio: iterate state was not success")
+                    return Err(anyhow::anyhow!("PulseAudio: iterate state was not success"));
                 }
                 IterateResult::Success(_) => {
                     if context.get_state() == context::State::Ready {

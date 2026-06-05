@@ -20,6 +20,11 @@ enum OnPress<'a, Message> {
     MessageWithPosition(Box<dyn Fn(ButtonUIRef) -> Message + 'a>),
 }
 
+enum OnHover<'a, Message> {
+    Message(Message),
+    MessageWithPosition(Box<dyn Fn(ButtonUIRef) -> Message + 'a>),
+}
+
 pub struct PositionButton<'a, Message, Theme = iced::Theme, Renderer = iced::Renderer>
 where
     Renderer: iced::core::Renderer,
@@ -30,6 +35,8 @@ where
     on_right_press: Option<OnPress<'a, Message>>,
     on_scroll_up: Option<OnPress<'a, Message>>,
     on_scroll_down: Option<OnPress<'a, Message>>,
+    on_hover: Option<OnHover<'a, Message>>,
+    on_unhover: Option<Message>,
     width: Length,
     height: Length,
     padding: Padding,
@@ -52,6 +59,8 @@ where
             on_right_press: None,
             on_scroll_up: None,
             on_scroll_down: None,
+            on_hover: None,
+            on_unhover: None,
             width: size.width.fluid(),
             height: size.height.fluid(),
             padding: DEFAULT_PADDING,
@@ -99,6 +108,14 @@ where
         self
     }
 
+    pub fn on_right_press_with_position(
+        mut self,
+        on_right_press: impl Fn(ButtonUIRef) -> Message + 'a,
+    ) -> Self {
+        self.on_right_press = Some(OnPress::MessageWithPosition(Box::new(on_right_press)));
+        self
+    }
+
     pub fn on_scroll_up(mut self, on_scroll_up: Message) -> Self {
         self.on_scroll_up = Some(OnPress::Message(on_scroll_up));
         self
@@ -106,6 +123,24 @@ where
 
     pub fn on_scroll_down(mut self, on_scroll_down: Message) -> Self {
         self.on_scroll_down = Some(OnPress::Message(on_scroll_down));
+        self
+    }
+
+    pub fn on_hover(mut self, on_hover: Message) -> Self {
+        self.on_hover = Some(OnHover::Message(on_hover));
+        self
+    }
+
+    pub fn on_hover_with_position(
+        mut self,
+        on_hover: impl Fn(ButtonUIRef) -> Message + 'a,
+    ) -> Self {
+        self.on_hover = Some(OnHover::MessageWithPosition(Box::new(on_hover)));
+        self
+    }
+
+    pub fn on_unhover(mut self, on_unhover: Message) -> Self {
+        self.on_unhover = Some(on_unhover);
         self
     }
 
@@ -148,6 +183,32 @@ where
                     viewport: (viewport.width, viewport.height),
                 };
                 shell.publish(on_press_with_position(ui_data));
+            }
+        }
+    }
+
+    fn publish_on_hover(
+        &self,
+        on_hover: &OnHover<'a, Message>,
+        layout: Layout<'_>,
+        viewport: &Rectangle,
+        shell: &mut Shell<'_, Message>,
+    ) where
+        Message: Clone,
+    {
+        match on_hover {
+            OnHover::Message(message) => {
+                shell.publish(message.clone());
+            }
+            OnHover::MessageWithPosition(on_hover_with_position) => {
+                let ui_data = ButtonUIRef {
+                    position: Point::new(
+                        layout.bounds().width / 2. + layout.position().x,
+                        layout.bounds().height / 2. + layout.position().y,
+                    ),
+                    viewport: (viewport.width, viewport.height),
+                };
+                shell.publish(on_hover_with_position(ui_data));
             }
         }
     }
@@ -364,10 +425,33 @@ where
                     }
                 }
             }
+            event::Event::Mouse(mouse::Event::CursorMoved { .. }) => {
+                let bounds = layout.bounds();
+                let is_over = cursor.is_over(bounds);
+                let state = tree.state.downcast_mut::<State>();
+                if is_over {
+                    if !state.is_hovered
+                        && let Some(on_hover) = self.on_hover.as_ref()
+                    {
+                        state.is_hovered = true;
+                        self.publish_on_hover(on_hover, layout, viewport, shell);
+                    }
+                } else if state.is_hovered {
+                    state.is_hovered = false;
+                    if let Some(on_unhover) = self.on_unhover.as_ref() {
+                        shell.publish(on_unhover.clone());
+                    }
+                }
+            }
             event::Event::Touch(touch::Event::FingerLost { .. })
             | event::Event::Mouse(mouse::Event::CursorLeft) => {
                 let state = tree.state.downcast_mut::<State>();
-                state.is_hovered = false;
+                if state.is_hovered {
+                    state.is_hovered = false;
+                    if let Some(on_unhover) = self.on_unhover.as_ref() {
+                        shell.publish(on_unhover.clone());
+                    }
+                }
                 state.is_pressed = false;
             }
             _ => {}
@@ -375,7 +459,8 @@ where
 
         // Reactive rendering: track hover state and request redraw on change
         let state = tree.state.downcast_mut::<State>();
-        let is_hovered = self.on_press.is_some() && cursor.is_over(layout.bounds());
+        let is_hovered =
+            (self.on_press.is_some() || self.on_hover.is_some()) && cursor.is_over(layout.bounds());
         if is_hovered != state.is_hovered {
             state.is_hovered = is_hovered;
             shell.request_redraw();
@@ -396,7 +481,7 @@ where
         let content_layout = layout.children().next().unwrap();
         let state = tree.state.downcast_ref::<State>();
 
-        let status = if self.on_press.is_none() {
+        let status = if self.on_press.is_none() && self.on_hover.is_none() {
             Status::Disabled
         } else if state.is_hovered {
             if state.is_pressed {

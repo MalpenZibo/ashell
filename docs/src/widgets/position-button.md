@@ -29,6 +29,11 @@ impl PositionButton {
     pub fn on_scroll_up(self, msg: Message) -> Self;
     pub fn on_scroll_down(self, msg: Message) -> Self;
 
+    // Hover handlers (used for tooltip popups)
+    pub fn on_hover(self, msg: Message) -> Self;
+    pub fn on_hover_with_position(self, f: impl Fn(ButtonUIRef) -> Message) -> Self;
+    pub fn on_unhover(self, msg: Message) -> Self;
+
     // Styling
     pub fn padding(self, padding: impl Into<Padding>) -> Self;
     pub fn height(self, height: impl Into<Length>) -> Self;
