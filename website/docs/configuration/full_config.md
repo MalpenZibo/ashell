@@ -136,6 +136,8 @@ microphone_indicator_format = "Icon"   # (default)
 network_indicator_format = "Icon"      # (default)
 bluetooth_indicator_format = "Icon"    # (default)
 brightness_indicator_format = "Icon"   # (default)
+volume_step = 5    # (default) step size for IPC volume up/down, range 1..=50
+max_volume = 100   # (default) max volume level, range 1..=200 (>100 enables overdrive)
 # remove_airplane_btn = false   # (default) set true to hide airplane mode button
 # remove_idle_btn = false       # (default) set true to hide idle inhibitor button
 indicators = [ "IdleInhibitor", "PowerProfile", "Audio", "Microphone", "Bluetooth", "Network", "Vpn", "Battery", "Brightness" ]
@@ -151,6 +153,8 @@ tooltip = "Toggle On-Screen Keyboard"
 [osd]
 enabled = false   # (default)
 timeout = 1500    # milliseconds
+show_volume_percentage = false      # (default) show numeric volume value in the OSD
+show_brightness_percentage = false  # (default) show numeric brightness value in the OSD
 
 [animations]
 enabled = false   # (default)

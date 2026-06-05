@@ -89,6 +89,7 @@ impl Config {
             updates.validate();
         }
         self.system_info.validate();
+        self.settings.validate();
     }
 }
 
@@ -611,6 +612,8 @@ pub struct SettingsModuleConfig {
     pub peripheral_indicators: PeripheralIndicators,
     pub peripheral_battery_format: SettingsFormat,
     pub peripheral_expanded_by_default: bool,
+    pub volume_step: u8,
+    pub max_volume: u8,
     pub audio_indicator_format: SettingsFormat,
     pub microphone_indicator_format: SettingsFormat,
     pub network_indicator_format: SettingsFormat,
@@ -648,6 +651,8 @@ impl Default for SettingsModuleConfig {
             peripheral_indicators: Default::default(),
             peripheral_battery_format: SettingsFormat::Icon,
             peripheral_expanded_by_default: false,
+            volume_step: 5,
+            max_volume: 100,
             audio_indicator_format: SettingsFormat::Icon,
             microphone_indicator_format: SettingsFormat::Icon,
             network_indicator_format: SettingsFormat::Icon,
@@ -673,6 +678,25 @@ impl Default for SettingsModuleConfig {
                 SettingsIndicator::Brightness,
             ],
             custom_buttons: Default::default(),
+        }
+    }
+}
+
+impl SettingsModuleConfig {
+    fn validate(&mut self) {
+        if self.max_volume == 0 || self.max_volume > 200 {
+            warn!(
+                "settings.max_volume ({}) out of range 1..=200, clamping to 100",
+                self.max_volume
+            );
+            self.max_volume = 100;
+        }
+        if self.volume_step == 0 || self.volume_step > 50 {
+            warn!(
+                "settings.volume_step ({}) out of range 1..=50, clamping to 5",
+                self.volume_step
+            );
+            self.volume_step = 5;
         }
     }
 }
@@ -1156,6 +1180,8 @@ pub struct CustomModuleDef {
 pub struct OsdConfig {
     pub enabled: bool,
     pub timeout: u64,
+    pub show_volume_percentage: bool,
+    pub show_brightness_percentage: bool,
 }
 
 impl Default for OsdConfig {
@@ -1163,6 +1189,8 @@ impl Default for OsdConfig {
         Self {
             enabled: false,
             timeout: 1500,
+            show_volume_percentage: false,
+            show_brightness_percentage: false,
         }
     }
 }
