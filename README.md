@@ -284,12 +284,6 @@ opacity = 0.7
 [appearance.module_styles.Settings]
 text_color = "#2E3440"
 background_color = "#FADADD"
-
-
-
-
-
-
 ```
 
 ## 💬 Community
@@ -327,16 +321,9 @@ could be different
 <img width="433" height="476" alt="image" src="https://github.com/user-attachments/assets/0c138885-209e-4fa4-9cb3-85e826518d02" />
 
 ### История буфера обмена
-<img width="433" height="569" alt="image" src="https://github.com/user-attachments/assets/77bbf77d-6791-4147-825c-1469a7869c9e" />
+<img width="447" height="575" alt="image" src="https://github.com/user-attachments/assets/b46d2b1a-d09f-47b9-bc14-eb1a18098e52" />
 
 
-#### opacity settings
-
-<img src="https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/opacity.png"></img>
-
-| ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/updates-panel.png)   | ![](https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/system-menu.png)  |
-| ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
-   |
 ## Building from Source
 To build Ashell from source, ensure the following dependencies are installed:
 
