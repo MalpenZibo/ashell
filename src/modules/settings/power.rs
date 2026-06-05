@@ -509,7 +509,7 @@ impl PowerSettings {
             service.charge_limit.as_ref().map(|charge_limit| {
                 (
                     quick_setting_button(
-                        StaticIcon::BatteryLimit,
+                        StaticIcon::BatteryLimitQuickSetting,
                         t!("settings-power-charge-limit"),
                         None,
                         charge_limit.enabled,
