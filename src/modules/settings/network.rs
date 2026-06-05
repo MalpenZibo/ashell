@@ -211,7 +211,7 @@ impl NetworkSettings {
             },
             Message::WiFiMore(id) => {
                 if let Some(cmd) = &self.config.wifi_more_cmd {
-                    crate::utils::launcher::execute_command(cmd.to_string());
+                    crate::utils::launcher::execute_command(cmd);
                     Action::CloseMenu(id)
                 } else {
                     Action::None
@@ -219,7 +219,7 @@ impl NetworkSettings {
             }
             Message::VpnMore(id) => {
                 if let Some(cmd) = &self.config.vpn_more_cmd {
-                    crate::utils::launcher::execute_command(cmd.to_string());
+                    crate::utils::launcher::execute_command(cmd);
                     Action::CloseMenu(id)
                 } else {
                     Action::None
@@ -235,7 +235,7 @@ impl NetworkSettings {
             },
             Message::OpenMore => {
                 if let Some(cmd) = &self.config.wifi_more_cmd {
-                    crate::utils::launcher::execute_command(cmd.to_string());
+                    crate::utils::launcher::execute_command(cmd);
                 }
                 Action::None
             }

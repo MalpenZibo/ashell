@@ -242,16 +242,20 @@ impl Settings {
         }
     }
 
+    fn toggle_sub_menu(&mut self, target: SubMenu) {
+        if self.sub_menu == Some(target) {
+            self.sub_menu.take();
+        } else {
+            self.sub_menu.replace(target);
+        }
+    }
+
     pub fn update(&mut self, message: Message) -> Action {
         match message {
             Message::Power(msg) => match self.power.update(msg) {
                 power::Action::None => Action::None,
                 power::Action::TogglePeripheralMenu => {
-                    if self.sub_menu == Some(SubMenu::PeripheralMenu) {
-                        self.sub_menu.take();
-                    } else {
-                        self.sub_menu.replace(SubMenu::PeripheralMenu);
-                    }
+                    self.toggle_sub_menu(SubMenu::PeripheralMenu);
                     Action::None
                 }
                 power::Action::Command(task) => Action::Command(task.map(Message::Power)),
@@ -259,19 +263,11 @@ impl Settings {
             Message::Audio(msg) => match self.audio.update(msg) {
                 audio::Action::None => Action::None,
                 audio::Action::ToggleSinksMenu => {
-                    if self.sub_menu == Some(SubMenu::Sinks) {
-                        self.sub_menu.take();
-                    } else {
-                        self.sub_menu.replace(SubMenu::Sinks);
-                    }
+                    self.toggle_sub_menu(SubMenu::Sinks);
                     Action::None
                 }
                 audio::Action::ToggleSourcesMenu => {
-                    if self.sub_menu == Some(SubMenu::Sources) {
-                        self.sub_menu.take();
-                    } else {
-                        self.sub_menu.replace(SubMenu::Sources);
-                    }
+                    self.toggle_sub_menu(SubMenu::Sources);
                     Action::None
                 }
                 audio::Action::CloseSubMenu => {
@@ -304,19 +300,11 @@ impl Settings {
                 }
                 network::Action::Command(task) => Action::Command(task.map(Message::Network)),
                 network::Action::ToggleWifiMenu => {
-                    if self.sub_menu == Some(SubMenu::Wifi) {
-                        self.sub_menu.take();
-                    } else {
-                        self.sub_menu.replace(SubMenu::Wifi);
-                    }
+                    self.toggle_sub_menu(SubMenu::Wifi);
                     Action::None
                 }
                 network::Action::ToggleVpnMenu => {
-                    if self.sub_menu == Some(SubMenu::Vpn) {
-                        self.sub_menu.take();
-                    } else {
-                        self.sub_menu.replace(SubMenu::Vpn);
-                    }
+                    self.toggle_sub_menu(SubMenu::Vpn);
                     Action::None
                 }
                 network::Action::CloseSubMenu(task) => {
@@ -331,11 +319,7 @@ impl Settings {
             Message::Bluetooth(msg) => match self.bluetooth.update(msg) {
                 bluetooth::Action::None => Action::None,
                 bluetooth::Action::ToggleBluetoothMenu => {
-                    if self.sub_menu == Some(SubMenu::Bluetooth) {
-                        self.sub_menu.take();
-                    } else {
-                        self.sub_menu.replace(SubMenu::Bluetooth);
-                    }
+                    self.toggle_sub_menu(SubMenu::Bluetooth);
                     Action::None
                 }
                 bluetooth::Action::CloseSubMenu(task) => {
@@ -353,23 +337,18 @@ impl Settings {
                 brightness::Action::Command(task) => Action::Command(task.map(Message::Brightness)),
             },
             Message::ToggleSubMenu(menu_type) => {
-                if self.sub_menu == Some(menu_type) {
-                    self.sub_menu.take();
+                let was_open = self.sub_menu == Some(menu_type);
+                self.toggle_sub_menu(menu_type);
 
-                    Action::None
-                } else {
-                    self.sub_menu.replace(menu_type);
-
-                    if menu_type == SubMenu::Wifi {
-                        match self.network.update(network::Message::WifiMenuOpened) {
-                            network::Action::Command(task) => {
-                                Action::Command(task.map(Message::Network))
-                            }
-                            _ => Action::None,
+                if !was_open && menu_type == SubMenu::Wifi {
+                    match self.network.update(network::Message::WifiMenuOpened) {
+                        network::Action::Command(task) => {
+                            Action::Command(task.map(Message::Network))
                         }
-                    } else {
-                        Action::None
+                        _ => Action::None,
                     }
+                } else {
+                    Action::None
                 }
             }
             Message::ToggleInhibitIdle => {
@@ -380,7 +359,7 @@ impl Settings {
             }
             Message::Lock => {
                 if let Some(lock_cmd) = &self.lock_cmd {
-                    crate::utils::launcher::execute_command(lock_cmd.to_string());
+                    crate::utils::launcher::execute_command(lock_cmd);
                 }
                 Action::None
             }
@@ -432,7 +411,7 @@ impl Settings {
             },
             Message::CustomButton(name) => {
                 if let Some(button) = self.custom_buttons.iter().find(|b| b.name == name) {
-                    crate::utils::launcher::execute_command(button.command.clone());
+                    crate::utils::launcher::execute_command(&button.command);
 
                     // Toggle button state immediately
                     let current_status = self.custom_buttons_status.get(&name).and_then(|v| *v);

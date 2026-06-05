@@ -27,6 +27,7 @@ forecast, and a seven-day outlook.
 | `timezones`         | `array`  | `[]`                 | Timezone identifiers that can be cycled through by scrolling. Supports both IANA names (e.g., `"UTC"`, `"America/New_York"`) and fixed offsets (e.g., `"+00:00"`, `"-05:00"`).                                                                   |
 | `weather_location`  | `enum`   | `None`               | Determines which coordinates are queried when requesting weather data. `Current` geo-locates via IP using `ip-api.com`. Use the `City` variant to pin the module to a specific place. Use `Coordinates` to specify exact latitude and longitude. |
 | `weather_indicator` | `enum`   | `IconAndTemperature` | Determines what information about the weather is shown in the bar, valid options are `None`, `Icon`, and `IconAndTemperature`.                                                                                                                   |
+| `wind_speed_unit`   | `string` | `null`               | Override wind speed unit for both display and API requests. Options: `"Kmh"`, `"Mph"`, `"Ms"`. When omitted, derives from locale (Metric → `Kmh`, Imperial → `Mph`). Temperature unit is not affected.                                           |
 
 ### City-based weather
 

@@ -249,7 +249,7 @@ impl UpDeviceKind {
     }
 
     /// Check if this device type is a peripheral input device.
-    pub fn is_peripheral(&self) -> bool {
+    pub fn is_peripheral(self) -> bool {
         matches!(
             self,
             Self::Mouse | Self::Keyboard | Self::GamingInput | Self::Headset | Self::Headphones
@@ -257,12 +257,12 @@ impl UpDeviceKind {
     }
 
     /// Check if this device type is a system power source.
-    pub fn is_power_source(&self) -> bool {
+    pub fn is_power_source(self) -> bool {
         matches!(self, Self::Battery)
     }
 
     /// Get a human-readable description.
-    pub fn description(&self) -> &'static str {
+    pub fn description(self) -> &'static str {
         match self {
             Self::Unknown => "Unknown",
             Self::LinePower => "Line Power",

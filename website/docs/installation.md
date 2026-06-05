@@ -36,24 +36,32 @@ yay -S ashell-git
 
 ### Nix
 
-To install Ashell using the Nix package manager, make sure flakes are enabled,
-then run:
+Ashell is available in nixpkgs:
 
-#### Tagged Release
+- **nixpkgs unstable**: version 0.8.0
+- **nixpkgs 25.11 (stable)**: version 0.6.0
 
-```bash
-nix profile install github:MalpenZibo/ashell?ref=0.5.0
-```
+#### nix profile (flake)
 
-#### Main Branch
+To install directly from the repository using flakes:
 
 ```bash
 nix profile install github:MalpenZibo/ashell
 ```
 
+#### nixpkgs (cached, no build required)
+
+```bash
+# Unstable
+nix profile install nixpkgs#ashell
+
+# Or with nix-shell for a temporary session
+nix shell nixpkgs#ashell
+```
+
 ### NixOS / Home Manager
 
-To use this flake, add the input to your `flake.nix`:
+Using the flake directly:
 
 ```nix
 inputs = {
@@ -75,8 +83,16 @@ And in your `configuration.nix`:
 }
 ```
 
-This will build Ashell from source.  
-Alternatively, you can use `pkgs.ashell` from `nixpkgs`, which is cached.
+Or using nixpkgs (cached, recommended):
+
+```nix
+{ pkgs, ... }:
+
+{
+  environment.systemPackages = [pkgs.ashell];
+  # or home.packages = ...
+}
+```
 
 ### Fedora (Copr)
 

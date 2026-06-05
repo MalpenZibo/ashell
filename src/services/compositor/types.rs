@@ -7,6 +7,7 @@ pub struct CompositorWorkspace {
     pub monitor_id: Option<i128>,
     pub windows: u16,
     pub is_special: bool,
+    pub has_urgent: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]

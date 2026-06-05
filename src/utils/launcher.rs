@@ -1,12 +1,11 @@
-use std::process::Command;
-
 use log::error;
+use tokio::process::Command;
 
 fn run_command(cmd: String, context: &'static str) {
     tokio::spawn(async move {
         match Command::new("bash").arg("-c").arg(&cmd).spawn() {
-            Ok(mut child) => {
-                if let Err(e) = child.wait() {
+            Ok(child) => {
+                if let Err(e) = child.wait_with_output().await {
                     error!("{context} command failed: {e}");
                 }
             }
@@ -17,26 +16,26 @@ fn run_command(cmd: String, context: &'static str) {
     });
 }
 
-pub fn execute_command(command: String) {
-    run_command(command, "execute");
+pub fn execute_command(command: &str) {
+    run_command(command.to_owned(), "execute");
 }
 
-pub fn suspend(cmd: String) {
-    run_command(cmd, "suspend");
+pub fn suspend(cmd: &str) {
+    run_command(cmd.to_owned(), "suspend");
 }
 
-pub fn hibernate(cmd: String) {
-    run_command(cmd, "hibernate");
+pub fn hibernate(cmd: &str) {
+    run_command(cmd.to_owned(), "hibernate");
 }
 
-pub fn shutdown(cmd: String) {
-    run_command(cmd, "shutdown");
+pub fn shutdown(cmd: &str) {
+    run_command(cmd.to_owned(), "shutdown");
 }
 
-pub fn reboot(cmd: String) {
-    run_command(cmd, "reboot");
+pub fn reboot(cmd: &str) {
+    run_command(cmd.to_owned(), "reboot");
 }
 
-pub fn logout(cmd: String) {
-    run_command(cmd, "logout");
+pub fn logout(cmd: &str) {
+    run_command(cmd.to_owned(), "logout");
 }

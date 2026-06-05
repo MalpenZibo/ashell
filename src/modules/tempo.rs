@@ -4,7 +4,7 @@ use crate::{
         icons::{StaticIcon, icon_button},
         styled_button,
     },
-    config::{TempoModuleConfig, WeatherIndicator, WeatherLocation},
+    config::{TempoModuleConfig, WeatherIndicator, WeatherLocation, WindSpeedUnit},
     i18n::{UnitSystem, chrono_locale, language_subtag, unit_system},
     t,
     theme::{AshellTheme, use_theme},
@@ -487,13 +487,15 @@ impl Tempo {
         let locale = chrono_locale();
         let units = unit_system();
         let temp = units.temperature_symbol();
-        let wind = units.wind_speed_symbol();
+        let wind = self.config.resolved_wind_speed_unit().symbol();
         let location_visible = self.location_visible;
         self.weather_data
             .as_ref()
             .zip(self.location.as_ref())
             .map(|(data, location)| {
                 let inner_element: Element<'a, Message> = if location_visible {
+                    let display_time =
+                        self.time_str("%R", self.current_timezone_index, Some(data.current.time));
                     text(format!(
                         "{}{} - {}",
                         location.city,
@@ -502,7 +504,7 @@ impl Tempo {
                         } else {
                             format!(", {}", location.region_name)
                         },
-                        self.time_str("%R", self.current_timezone_index, Some(data.current.time))
+                        display_time
                     ))
                     .size(font_size.sm)
                     .into()
@@ -625,7 +627,7 @@ impl Tempo {
                                     .time
                                     .iter()
                                     .enumerate()
-                                    .filter(|(_, t)| **t > self.date.naive_local())
+                                    .filter(|(_, t)| **t > data.current.time)
                                     .take(23)
                                     .peekable();
                                 let start_index = time.peek().map(|(index, _)| *index).unwrap_or(0);
@@ -642,13 +644,18 @@ impl Tempo {
                                         if i >= start_index { Some(v) } else { None }
                                     }),
                                 )
-                                .map(|(time, weather_code, temp_value, is_day)| {
+                                .map(|(hour_time, weather_code, temp_value, is_day)| {
+                                    let display_time = self.time_str(
+                                        "%H:%M",
+                                        self.current_timezone_index,
+                                        Some(*hour_time),
+                                    );
                                     column!(
                                         text(format!("{}{temp}", temp_value.round())),
                                         weather_icon(*weather_code, *is_day > 0)
                                             .height(font_size.md)
                                             .width(Length::Shrink),
-                                        text(time.format("%H:%M").to_string()).size(font_size.sm)
+                                        text(display_time).size(font_size.sm)
                                     )
                                     .spacing(space.xs)
                                     .align_x(Horizontal::Center)
@@ -697,37 +704,37 @@ impl Tempo {
                                         text(
                                             time.format_localized("%a, %d %b", locale).to_string()
                                         )
-                                        .width(Length::Fill),
-                                        weather_icon(*weather_code, true)
-                                            .height(font_size.md)
-                                            .width(Length::Shrink),
-                                        container(
-                                            row!(
-                                                text(format!(
-                                                    "{}{temp}/{}{temp}",
-                                                    temp_max.round(),
-                                                    temp_min.round()
-                                                ))
-                                                .width(Length::Shrink),
-                                                row!(
-                                                    svg(Handle::from_memory(include_bytes!(
-                                                        "../../assets/weather_icon/wind.svg"
-                                                    )))
-                                                    .height(font_size.md)
-                                                    .width(Length::Shrink)
-                                                    .rotation(Rotation::Floating(
-                                                        Degrees(*wind_dir as f32 + 90.).into()
-                                                    )),
-                                                    text(format!("{} {wind}", wind_speed.round()))
-                                                )
-                                                .spacing(space.xxs)
-                                            )
-                                            .spacing(space.sm)
+                                        .width(Length::FillPortion(5)),
+                                        row!(
+                                            weather_icon(*weather_code, true)
+                                                .height(font_size.md)
+                                                .width(Length::Fixed(font_size.md)),
+                                            text(format!(
+                                                "{}{temp}/{}{temp}",
+                                                temp_max.round(),
+                                                temp_min.round()
+                                            ))
                                         )
-                                        .width(Length::FillPortion(2))
-                                        .align_x(Horizontal::Right)
+                                        .spacing(space.xxs)
+                                        .align_y(Vertical::Center)
+                                        .width(Length::FillPortion(4)),
+                                        row!(
+                                            svg(Handle::from_memory(include_bytes!(
+                                                "../../assets/weather_icon/wind.svg"
+                                            )))
+                                            .height(font_size.md)
+                                            .width(Length::Fixed(font_size.md))
+                                            .rotation(Rotation::Floating(
+                                                Degrees(*wind_dir as f32 + 90.).into()
+                                            )),
+                                            text(format!("{} {wind}", wind_speed.round()))
+                                        )
+                                        .spacing(space.xxs)
+                                        .align_y(Vertical::Center)
+                                        .width(Length::FillPortion(3))
                                     )
-                                    .spacing(space.sm),
+                                    .spacing(space.sm)
+                                    .align_y(Vertical::Center),
                                 )
                                 .padding(space.sm)
                                 .style(move |app_theme: &Theme| container::Style {
@@ -803,10 +810,12 @@ impl Tempo {
         });
 
         let weather_sub = self.config.weather_location.clone().map(|location| {
-            let key = (location, unit_system(), language_subtag());
-            Subscription::run_with(key, |(location, units, lang)| {
+            let wind_unit = self.config.resolved_wind_speed_unit();
+            let key = (location, unit_system(), wind_unit, language_subtag());
+            Subscription::run_with(key, |(location, units, wind_unit, lang)| {
                 let location = location.clone();
                 let units = *units;
+                let wind_unit = *wind_unit;
                 let lang = lang.clone();
                 channel(100, async move |mut output| {
                     let mut failed_attempt: u64 = 0;
@@ -826,7 +835,7 @@ impl Tempo {
                         };
 
                         if let Some((lat, lon)) = loc {
-                            match fetch_weather_data(lat, lon, units).await {
+                            match fetch_weather_data(lat, lon, units, wind_unit).await {
                                 Ok(weather_data) => {
                                     failed_attempt = 0;
                                     debug!("Weather data fetched successfully: {:?}", weather_data);
@@ -1038,15 +1047,21 @@ pub struct Location {
     region_name: String,
 }
 
-async fn fetch_weather_data(lat: f32, lon: f32, units: UnitSystem) -> anyhow::Result<WeatherData> {
+async fn fetch_weather_data(
+    lat: f32,
+    lon: f32,
+    units: UnitSystem,
+    wind_unit: WindSpeedUnit,
+) -> anyhow::Result<WeatherData> {
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(20))
         .build()?;
 
-    let (temp_param, wind_param) = match units {
-        UnitSystem::Metric => ("celsius", "kmh"),
-        UnitSystem::Imperial => ("fahrenheit", "mph"),
+    let temp_param = match units {
+        UnitSystem::Metric => "celsius",
+        UnitSystem::Imperial => "fahrenheit",
     };
+    let wind_param = wind_unit.api_param();
 
     let response = client.get(format!(
         "https://api.open-meteo.com/v1/forecast?\
@@ -1056,7 +1071,8 @@ latitude={lat}&longitude={lon}\
 &daily=weather_code,temperature_2m_max,temperature_2m_min,wind_speed_10m_max,wind_direction_10m_dominant\
 &forecast_days=7\
 &temperature_unit={temp_param}\
-&wind_speed_unit={wind_param}"
+&wind_speed_unit={wind_param}\
+&timezone=UTC"
     )).send().await?;
     let raw_data = response.text().await?;
 

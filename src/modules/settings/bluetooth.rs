@@ -148,13 +148,13 @@ impl BluetoothSettings {
             },
             Message::OpenMore => {
                 if let Some(cmd) = &self.config.more_cmd {
-                    crate::utils::launcher::execute_command(cmd.to_string());
+                    crate::utils::launcher::execute_command(cmd);
                 }
                 Action::None
             }
             Message::More(id) => {
                 if let Some(cmd) = &self.config.more_cmd {
-                    crate::utils::launcher::execute_command(cmd.to_string());
+                    crate::utils::launcher::execute_command(cmd);
 
                     Action::CloseMenu(id)
                 } else {

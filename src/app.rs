@@ -817,15 +817,21 @@ impl App {
             }),
             Subscription::run(|| {
                 use iced::futures::StreamExt;
-                signal_hook_tokio::Signals::new([libc::SIGUSR1])
-                    .expect("Failed to create signal stream")
-                    .filter_map(|sig| {
-                        if sig == libc::SIGUSR1 {
-                            iced::futures::future::ready(Some(Message::ToggleVisibility))
-                        } else {
-                            iced::futures::future::ready(None)
-                        }
-                    })
+                match signal_hook_tokio::Signals::new([libc::SIGUSR1]) {
+                    Ok(signals) => signals
+                        .filter_map(|sig| {
+                            if sig == libc::SIGUSR1 {
+                                iced::futures::future::ready(Some(Message::ToggleVisibility))
+                            } else {
+                                iced::futures::future::ready(None)
+                            }
+                        })
+                        .boxed(),
+                    Err(e) => {
+                        log::error!("Failed to create signal stream: {e}");
+                        iced::futures::stream::empty().boxed()
+                    }
+                }
             }),
             // Always subscribe to audio/brightness services so OSD works
             // even when the Settings module isn't in the module list.
