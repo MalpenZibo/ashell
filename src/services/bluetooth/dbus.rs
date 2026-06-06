@@ -110,6 +110,7 @@ impl BluetoothDbus<'_> {
             let battery = if connected && has_battery {
                 let battery_proxy = BatteryProxy::builder(self.bluez.inner().connection())
                     .path(&device_path)?
+                    .cache_properties(zbus::proxy::CacheProperties::No)
                     .build()
                     .await?;
 
@@ -124,6 +125,7 @@ impl BluetoothDbus<'_> {
                 path: device_path,
                 connected,
                 paired,
+                has_battery,
             });
         }
 

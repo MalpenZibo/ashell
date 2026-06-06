@@ -359,7 +359,10 @@ impl UPowerService {
     async fn initialize_power_profile_data(
         conn: &zbus::Connection,
     ) -> anyhow::Result<PowerProfile> {
-        let powerprofiles = PowerProfilesProxy::new(conn).await?;
+        let powerprofiles = PowerProfilesProxy::builder(conn)
+            .cache_properties(zbus::proxy::CacheProperties::No)
+            .build()
+            .await?;
 
         let profile = powerprofiles
             .active_profile()
@@ -678,7 +681,10 @@ impl UPowerService {
             })
             .boxed();
 
-        let powerprofiles = PowerProfilesProxy::new(conn).await?;
+        let powerprofiles = PowerProfilesProxy::builder(conn)
+            .cache_properties(zbus::proxy::CacheProperties::No)
+            .build()
+            .await?;
         let power_profile_event =
             powerprofiles
                 .receive_active_profile_changed()
@@ -778,7 +784,11 @@ impl Service for UPowerService {
                 async move {
                     match command {
                         UPowerCommand::TogglePowerProfile => {
-                            let Some(powerprofiles) = PowerProfilesProxy::new(&conn).await.ok()
+                            let Some(powerprofiles) = PowerProfilesProxy::builder(&conn)
+                                .cache_properties(zbus::proxy::CacheProperties::No)
+                                .build()
+                                .await
+                                .ok()
                             else {
                                 return UPowerEvent::UpdatePowerProfile(power_profile);
                             };

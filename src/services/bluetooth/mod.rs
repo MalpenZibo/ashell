@@ -29,6 +29,7 @@ pub struct BluetoothDevice {
     pub path: OwnedObjectPath,
     pub connected: bool,
     pub paired: bool,
+    pub has_battery: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -120,17 +121,20 @@ impl BluetoothService {
                 for device in devices {
                     let conn = bluetooth.bluez.inner().connection();
 
-                    let battery = BatteryProxy::builder(conn)
-                        .path(device.path.clone())?
-                        .build()
-                        .await?;
-                    batteries.push(
-                        battery
-                            .receive_percentage_changed()
-                            .await
-                            .map(|_| {})
-                            .boxed(),
-                    );
+                    if device.has_battery {
+                        let battery = BatteryProxy::builder(conn)
+                            .path(device.path.clone())?
+                            .cache_properties(zbus::proxy::CacheProperties::No)
+                            .build()
+                            .await?;
+                        batteries.push(
+                            battery
+                                .receive_percentage_changed()
+                                .await
+                                .map(|_| {})
+                                .boxed(),
+                        );
+                    }
 
                     let device_proxy = DeviceProxy::builder(conn)
                         .path(device.path)?
