@@ -868,10 +868,14 @@ impl Settings {
 
     pub fn tooltip_view<'a>(&'a self, menu_type: &MenuType) -> Element<'a, Message> {
         let space = use_theme(|t| t.space);
+        let fallback = |label: String| -> Element<'a, Message> { iced::widget::text(label).into() };
         match menu_type {
             MenuType::AudioTooltip => {
                 let sink = self.audio.active_sink_label();
                 let source = self.audio.active_source_label();
+                if sink.is_none() && source.is_none() {
+                    return fallback(t!("settings-tooltip-empty-audio"));
+                }
                 let mut column = Column::new().spacing(space.xs);
                 if let Some(sink) = sink {
                     column = column.push(
@@ -906,7 +910,7 @@ impl Settings {
                         .spacing(space.xs)
                         .into()
                 } else {
-                    Row::new().into()
+                    fallback(t!("settings-tooltip-empty-bluetooth"))
                 }
             }
             MenuType::WifiTooltip => {
@@ -915,7 +919,7 @@ impl Settings {
                         .spacing(space.xs)
                         .into()
                 } else {
-                    Row::new().into()
+                    fallback(t!("settings-tooltip-empty-wifi"))
                 }
             }
             MenuType::VpnTooltip => {
@@ -924,7 +928,7 @@ impl Settings {
                         .spacing(space.xs)
                         .into()
                 } else {
-                    Row::new().into()
+                    fallback(t!("settings-tooltip-empty-vpn"))
                 }
             }
             MenuType::BatteryTooltip => {
@@ -939,7 +943,7 @@ impl Settings {
                     }
                     r.into()
                 } else {
-                    Row::new().into()
+                    fallback(t!("settings-tooltip-empty-battery"))
                 }
             }
             MenuType::PeripheralBatteryTooltip(index) => {
@@ -954,10 +958,10 @@ impl Settings {
                     .spacing(space.xs)
                     .into()
                 } else {
-                    Row::new().into()
+                    fallback(t!("settings-tooltip-empty-battery"))
                 }
             }
-            _ => Row::new().into(),
+            _ => fallback(t!("settings-tooltip-empty")),
         }
     }
 }
