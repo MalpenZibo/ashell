@@ -28,7 +28,7 @@ depends = ["libwayland-client0", "libpipewire-0.3-0t64", "libpulse0"]
 depends = ["libwayland-client", "pipewire-libs", "pulseaudio-libs"]
 
 [dependencies]
-iced = { package = "iced_layershell", git = "https://github.com/MalpenZibo/iced_layershell", tag = "v0.2.0", features = [
+iced = { package = "iced_layershell", git = "https://github.com/MalpenZibo/iced_layershell", tag = "v0.2.1", features = [
   "tokio",
   "advanced",
   "wgpu",
@@ -45,7 +45,7 @@ chrono = { version = "0.4", default-features = false, features = [
 ] }
 hyprland = { git = "https://github.com/hyprland-community/hyprland-rs", branch = "master" }
 serde = { version = "1.0", default-features = false, features = [] }
-sysinfo = { version = "0.37", features = ["linux-netdevs"] }
+sysinfo = { version = "0.39", features = ["linux-netdevs"] }
 tokio = { version = "1", default-features = false, features = ["net"] }
 zbus = { version = "5", default-features = false, features = ["tokio"] }
 libpulse-binding = { version = "2.28", features = ["pa_v15"] }
@@ -57,7 +57,7 @@ unicode-segmentation = "1.13.2"
 hex_color = { version = "3", features = ["serde"] }
 anyhow = "1"
 udev = { version = "0.9", features = ["send", "sync"] }
-toml = "0.9"
+toml = "1"
 freedesktop-icons = "0.4"
 linicon-theme = "1.2.0"
 serde_json = "1"
@@ -78,7 +78,7 @@ inotify = { version = "0.11.1", default-features = false, features = [
   "stream",
 ] }
 pin-project-lite = "0.2.16"
-niri-ipc = "25.11.0"
+niri-ipc = "26.4"
 reqwest = { version = "0.13", default-features = false, features = [
   "json",
   "rustls",
@@ -107,7 +107,7 @@ unic-langid = "0.9"
 softbuffer = { git = "https://github.com/MalpenZibo/softbuffer", branch = "wayland-argb" }
 
 [build-dependencies]
-allsorts = "0.16"
+allsorts = "0.17"
 
 [package.metadata.rpm]
 package = "ashell"
