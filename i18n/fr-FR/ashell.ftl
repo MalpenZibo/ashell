@@ -80,6 +80,7 @@ settings-power-logout = Déconnexion
 settings-power-calculating = Calcul en cours…
 settings-power-full-in = Pleine dans { $duration }
 settings-power-empty-in = Vide dans { $duration }
+settings-power-charge-limit = Limite de charge
 settings-power-profile-balanced = Équilibré
 settings-power-profile-performance = Performance
 settings-power-profile-power-saver = Économie d'énergie

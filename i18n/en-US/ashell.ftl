@@ -80,6 +80,7 @@ settings-power-logout = Logout
 settings-power-calculating = Calculating...
 settings-power-full-in = Full in { $duration }
 settings-power-empty-in = Empty in { $duration }
+settings-power-charge-limit = Charge Limit
 settings-power-profile-balanced = Balanced
 settings-power-profile-performance = Performance
 settings-power-profile-power-saver = Power Saver
