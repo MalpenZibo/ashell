@@ -1923,8 +1923,8 @@ dependencies = [
 
 [[package]]
 name = "iced_layershell"
-version = "0.2.0"
-source = "git+https://github.com/MalpenZibo/iced_layershell?tag=v0.2.0#f5635466286abffdcf74112bf5b57aa741dd4de6"
+version = "0.2.1"
+source = "git+https://github.com/MalpenZibo/iced_layershell?tag=v0.2.1#e224d160e1e1b4236722b6ff3f9110faa0b3a263"
 dependencies = [
  "calloop",
  "calloop-wayland-source",
