@@ -6,10 +6,10 @@ ashell does not currently have an automated test suite. Testing is done manually
 
 ## Debugging with Logs
 
-ashell writes logs to `/tmp/ashell/`. To watch logs in real time:
+ashell writes logs to `$XDG_RUNTIME_DIR/ashell/`. To watch logs in real time:
 
 ```bash
-tail -f /tmp/ashell/*.log
+tail -f $XDG_RUNTIME_DIR/ashell/*.log
 ```
 
 ### Adjusting Log Level
@@ -39,7 +39,7 @@ In debug builds (`cargo build` without `--release`), all logs are also printed t
 Check logs for initialization errors:
 
 ```bash
-grep -i "error\|failed\|panic" /tmp/ashell/*.log
+grep -i "error\|failed\|panic" $XDG_RUNTIME_DIR/ashell/*.log
 ```
 
 ### D-Bus Issues

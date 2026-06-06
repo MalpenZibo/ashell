@@ -8,6 +8,7 @@ use flexi_logger::{
 use iced::{Anchor, Font, KeyboardInteractivity, Layer, LayerShellSettings};
 use log::{debug, error, warn};
 use std::backtrace::Backtrace;
+use std::env;
 use std::panic;
 use std::path::PathBuf;
 
@@ -22,6 +23,7 @@ mod outputs;
 mod services;
 mod theme;
 mod utils;
+mod xdg;
 
 const NERD_FONT: &[u8] = include_bytes!("../target/generated/SymbolsNerdFont-Regular-Subset.ttf");
 const NERD_FONT_MONO: &[u8] =
@@ -78,12 +80,14 @@ fn main() -> iced::Result {
 
     debug!("args: {args:?}");
 
+    let logdir = xdg::get_runtime_dir()
+        .unwrap_or_else(|| [env::temp_dir(), PathBuf::from("ashell")].iter().collect());
     let logger = Logger::with(
         LogSpecBuilder::new()
             .default(log::LevelFilter::Info)
             .build(),
     )
-    .log_to_file(FileSpec::default().directory("/tmp/ashell"))
+    .log_to_file(FileSpec::default().directory(logdir))
     .duplicate_to_stdout(flexi_logger::Duplicate::All)
     .rotate(
         Criterion::AgeOrSize(Age::Day, TMP_FILE_SIZE),

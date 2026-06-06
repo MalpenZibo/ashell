@@ -13,6 +13,8 @@ use anyhow::{Context, Result, anyhow};
 use clap::Subcommand;
 use iced::Subscription;
 
+use crate::xdg;
+
 /// Maximum bytes to read from a client connection.
 const MAX_REQUEST_LEN: u64 = 4096;
 
@@ -131,12 +133,17 @@ impl FromStr for IpcCommand {
     }
 }
 
-pub fn socket_path() -> Result<PathBuf> {
-    if let Some(dir) = std::env::var_os("XDG_RUNTIME_DIR") {
-        return Ok(PathBuf::from(dir).join("ashell.sock"));
-    }
+pub fn socket_path() -> PathBuf {
     let uid = unsafe { libc::getuid() };
-    Ok(PathBuf::from(format!("/tmp/ashell-{uid}.sock")))
+    match xdg::get_runtime_dir() {
+        Some(dir) => [dir, PathBuf::from("ashell.sock")],
+        None => [
+            std::env::temp_dir(),
+            PathBuf::from(format!("ashell-{uid}.sock")),
+        ],
+    }
+    .iter()
+    .collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -145,7 +152,7 @@ pub fn socket_path() -> Result<PathBuf> {
 
 /// Run the IPC client: connect to the daemon, send a command, print the response.
 pub fn run_client(cmd: &IpcCommand) -> Result<()> {
-    let path = socket_path()?;
+    let path = socket_path();
     let mut stream = UnixStream::connect(&path)
         .with_context(|| format!("connect to {} — is ashell running?", path.display()))?;
 
@@ -187,7 +194,7 @@ enum ListenerError {
 /// remove the file or bind a new listener — otherwise we'd orphan the
 /// primary's fd and break `ashell msg` until it's restarted.
 fn create_listener() -> std::result::Result<UnixListener, ListenerError> {
-    let path = socket_path().map_err(ListenerError::Other)?;
+    let path = socket_path();
 
     match UnixStream::connect(&path) {
         Ok(_) => return Err(ListenerError::AlreadyRunning),
