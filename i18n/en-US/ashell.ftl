@@ -92,6 +92,14 @@ settings-power-status-full = Full
 ## Settings — idle inhibitor
 settings-idle-inhibitor = Idle Inhibitor
 
+## Settings — tooltips
+settings-tooltip-empty = Nothing to show
+settings-tooltip-empty-audio = No active audio device
+settings-tooltip-empty-bluetooth = No connected devices
+settings-tooltip-empty-wifi = Not connected
+settings-tooltip-empty-vpn = No active VPN
+settings-tooltip-empty-battery = No battery information
+
 ## Tempo / weather module
 tempo-feels-like = Feels like { $value }{ $unit }
 tempo-humidity = Humidity

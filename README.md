@@ -79,8 +79,7 @@ If you want to contribute or understand the codebase, check out the
 ## 🤖 AI-Assisted Contributions
 
 AI-assisted contributions are accepted — the same quality standards apply regardless of how
-the code was written. Frontier-class models (e.g., Claude Opus or equivalent) are strongly
-recommended. **You are responsible for the code you submit**: review AI output carefully,
+the code was written. **You are responsible for the code you submit**: review AI output carefully,
 ensure `make check` passes, and be prepared to explain your changes.
 
 Before working on a feature or large change, **discuss it with maintainers first**.

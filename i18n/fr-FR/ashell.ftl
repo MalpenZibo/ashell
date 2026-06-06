@@ -88,6 +88,14 @@ settings-power-profile-power-saver = Économie d'énergie
 ## Paramètres — inhibiteur de veille
 settings-idle-inhibitor = Inhibiteur de veille
 
+## Paramètres — infobulles
+settings-tooltip-empty = Rien à afficher
+settings-tooltip-empty-audio = Aucun périphérique audio actif
+settings-tooltip-empty-bluetooth = Aucun appareil connecté
+settings-tooltip-empty-wifi = Non connecté
+settings-tooltip-empty-vpn = Aucun VPN actif
+settings-tooltip-empty-battery = Aucune information de batterie
+
 ## Module météo
 tempo-feels-like = Ressenti { $value }{ $unit }
 tempo-humidity = Humidité
