@@ -30,7 +30,6 @@
         rustToolchain = pkgs.rust-bin.stable.latest;
         buildInputs = with pkgs; [
           rustToolchain.default
-          rustPlatform.bindgenHook
           pkg-config
           libxkbcommon
           libGL
@@ -75,6 +74,7 @@
           nativeBuildInputs = with pkgs; [
             makeWrapper
             pkg-config
+            rustPlatform.bindgenHook # sets up libclang for bindgen (must run at build time)
             autoPatchelfHook # Add runtimeDependencies to rpath
           ];
           inherit buildInputs runtimeDependencies ldLibraryPath;
