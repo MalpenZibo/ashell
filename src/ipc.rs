@@ -140,8 +140,10 @@ pub fn socket_path() -> PathBuf {
         None => [
             std::env::temp_dir(),
             PathBuf::from(format!("ashell-{uid}.sock")),
-        ]
-    }.iter().collect()
+        ],
+    }
+    .iter()
+    .collect()
 }
 
 // ---------------------------------------------------------------------------

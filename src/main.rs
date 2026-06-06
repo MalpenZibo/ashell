@@ -80,9 +80,8 @@ fn main() -> iced::Result {
 
     debug!("args: {args:?}");
 
-    let logdir = xdg::get_runtime_dir().unwrap_or_else(
-        || [env::temp_dir(), PathBuf::from("ashell")].iter().collect()
-    );
+    let logdir = xdg::get_runtime_dir()
+        .unwrap_or_else(|| [env::temp_dir(), PathBuf::from("ashell")].iter().collect());
     let logger = Logger::with(
         LogSpecBuilder::new()
             .default(log::LevelFilter::Info)
