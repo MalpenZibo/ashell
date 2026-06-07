@@ -23,7 +23,7 @@ The module automatically checks for updates on a configurable interval (defaults
 | ------------ | ---------------------------------------------------------------- |
 | `check_cmd`  | Command that outputs pending updates (one per line).             |
 | `update_cmd` | Command that launches your system updates workflow.              |
-| `interval`   | Optional polling interval in seconds (minimum 60, default 3600). |
+| `interval`   | Optional polling interval in seconds (minimum 1, default 3600).  |
 
 The check command should return a list of updates,
 one package per line in the following format:
