@@ -63,6 +63,26 @@ In this configuration, we're referring to Rust modules.
 
 :::
 
+## Language & Region
+
+Ashell supports localization through two independent root-level options.
+
+- `language` controls the language used for translated UI strings.
+- `region` controls locale-dependent formatting: the date/time format and the
+  unit system (metric vs. imperial), which in turn affects things like the
+  temperature unit and the default wind speed unit.
+
+Both accept a BCP-47 / POSIX-style locale identifier (e.g. `"en-US"`, `"it-IT"`).
+They are optional and fall back to your environment: `language` resolves from
+`$LC_ALL`, then `$LC_MESSAGES`, then `$LANG`, and `region` resolves from
+`$LC_ALL`, then `$LC_TIME`, then `$LANG`. The unit system additionally honors
+`$LC_MEASUREMENT` when set. If nothing matches, ashell defaults to `en-US`.
+
+```toml
+language = "en-US"   # UI language
+region   = "it-IT"   # date format + unit system
+```
+
 ## Outputs
 
 You can configure which monitor(s) should display the status bar.

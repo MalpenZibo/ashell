@@ -90,6 +90,7 @@ alert_threshold = 85
 
 [tray]
 # blocklist = ["regex"]    # (default: []) hide tray items matching regex patterns
+# right_click = "menu"     # (default: None) "open" or "menu"; sets right-click action, left click gets the complement
 
 [tempo]
 clock_format = "%a %d %b %R"
@@ -99,6 +100,7 @@ clock_format = "%a %d %b %R"
 # weather_location = { Coordinates = [40.7128, -74.0060] }
 # weather_location = "Current"
 weather_indicator = "IconAndTemperature"  # (default), "Icon", or "None"
+# wind_speed_unit = "Kmh"   # (default: None = derive from locale) "Kmh", "Mph", or "Ms"
 
 [notifications]
 format = "%H:%M"

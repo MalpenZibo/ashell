@@ -68,6 +68,18 @@ With the `remove_airplane_btn` option you can remove the airplane mode button.
 
 With the `remove_idle_btn` option you can remove the idle inhibitor button.
 
+## Tooltips
+
+By default, hovering over the status bar indicators shows a tooltip describing
+each one. With the `enable_tooltips` option you can disable these hover tooltips.
+
+The default value is `true`.
+
+```toml
+[settings]
+enable_tooltips = false
+```
+
 ## Indicator Format Options
 
 With the format options you can customize how different indicators are displayed in the status bar.
