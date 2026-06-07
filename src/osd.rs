@@ -26,6 +26,7 @@ struct OsdState {
     kind: OsdKind,
     /// Normalised value relative to 100% hardware (can exceed 1.0 for overdrive)
     value: f32,
+    scale: f32,
     muted: bool,
 }
 
@@ -43,6 +44,7 @@ pub enum Message {
     Show {
         kind: OsdKind,
         value: f32,
+        scale: f32,
         muted: bool,
     },
     Hide,
@@ -73,8 +75,18 @@ impl Osd {
 
     pub fn update(&mut self, message: Message) -> Action {
         match message {
-            Message::Show { kind, value, muted } => {
-                self.state = Some(OsdState { kind, value, muted });
+            Message::Show {
+                kind,
+                value,
+                scale,
+                muted,
+            } => {
+                self.state = Some(OsdState {
+                    kind,
+                    value,
+                    scale,
+                    muted,
+                });
 
                 if let Some(handle) = self.timeout_handle.take() {
                     handle.abort();
@@ -133,7 +145,7 @@ impl Osd {
 
         let detail: Element<'_, Message> = match state.kind {
             OsdKind::Volume | OsdKind::Microphone | OsdKind::Brightness => {
-                let mut bar = progress_bar(0.0..=1.0, state.value)
+                let mut bar = progress_bar(0.0..=state.scale, state.value)
                     .length(160.0)
                     .girth(8.0);
                 if state.muted {

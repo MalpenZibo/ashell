@@ -230,9 +230,9 @@ impl App {
         use_theme(|t| t.scale_factor)
     }
 
-    /// Build OSD display info (kind, normalised value, muted) for the given
-    /// IPC command, reading current state from the Settings services.
-    fn osd_info_for(&self, cmd: &IpcCommand) -> Option<(OsdKind, f32, bool)> {
+    /// Build OSD display info (kind, normalised value, bar scale, muted) for the
+    /// given IPC command, reading current state from the Settings services.
+    fn osd_info_for(&self, cmd: &IpcCommand) -> Option<(OsdKind, f32, f32, bool)> {
         fn normalise(cur: u32, max: u32) -> f32 {
             if max > 0 {
                 cur as f32 / max as f32
@@ -247,14 +247,28 @@ impl App {
                 // which was computed from real_sink_volume in volume_adjust().
                 let vol = self.settings.audio().current_sink_volume().unwrap_or(0);
                 let muted = self.settings.audio().is_sink_muted().unwrap_or(false);
-                Some((OsdKind::Volume, normalise(vol, audio::NORMAL_VOLUME), muted))
+                let scale =
+                    normalise(self.settings.audio().vol_max(), audio::NORMAL_VOLUME).max(1.0);
+                Some((
+                    OsdKind::Volume,
+                    normalise(vol, audio::NORMAL_VOLUME),
+                    scale,
+                    muted,
+                ))
             }
             IpcCommand::VolumeToggleMute { .. } => {
                 let vol = self.settings.audio().real_sink_volume().unwrap_or(0);
                 // Invert: the toggle was just sent but PulseAudio hasn't
                 // round-tripped yet, so the current state is stale.
                 let muted = !self.settings.audio().is_sink_muted().unwrap_or(false);
-                Some((OsdKind::Volume, normalise(vol, audio::NORMAL_VOLUME), muted))
+                let scale =
+                    normalise(self.settings.audio().vol_max(), audio::NORMAL_VOLUME).max(1.0);
+                Some((
+                    OsdKind::Volume,
+                    normalise(vol, audio::NORMAL_VOLUME),
+                    scale,
+                    muted,
+                ))
             }
             IpcCommand::MicrophoneUp { .. } | IpcCommand::MicrophoneDown { .. } => {
                 // Use slider value — it has the optimistic RequestAndTimeout update,
@@ -264,6 +278,7 @@ impl App {
                 Some((
                     OsdKind::Microphone,
                     normalise(vol, audio::AudioSettings::mic_max()),
+                    1.0,
                     muted,
                 ))
             }
@@ -275,6 +290,7 @@ impl App {
                 Some((
                     OsdKind::Microphone,
                     normalise(vol, audio::AudioSettings::mic_max()),
+                    1.0,
                     muted,
                 ))
             }
@@ -282,17 +298,17 @@ impl App {
                 .settings
                 .brightness()
                 .current_brightness()
-                .map(|(cur, max)| (OsdKind::Brightness, normalise(cur, max), false)),
+                .map(|(cur, max)| (OsdKind::Brightness, normalise(cur, max), 1.0, false)),
             IpcCommand::ToggleAirplaneMode { .. } => {
                 // After toggle: the new state is the opposite of current.
                 // For toggles, `muted` carries the active/enabled state; `value` is unused.
                 let active = !self.settings.network().is_airplane_mode().unwrap_or(false);
-                Some((OsdKind::Airplane, 0.0, active))
+                Some((OsdKind::Airplane, 0.0, 1.0, active))
             }
             IpcCommand::ToggleIdleInhibitor { .. } => {
                 if let Some(idle_inhibitor) = self.settings.idle_inhibitor() {
                     let active = idle_inhibitor.is_inhibited();
-                    Some((OsdKind::IdleInhibitor, 0.0, active))
+                    Some((OsdKind::IdleInhibitor, 0.0, 1.0, active))
                 } else {
                     None
                 }
@@ -576,9 +592,13 @@ impl App {
                 if self.osd.config().enabled && !cmd.no_osd() {
                     let osd_info = self.osd_info_for(&cmd);
 
-                    if let Some((kind, value, muted)) = osd_info
-                        && let osd::Action::Show(timer) =
-                            self.osd.update(osd::Message::Show { kind, value, muted })
+                    if let Some((kind, value, scale, muted)) = osd_info
+                        && let osd::Action::Show(timer) = self.osd.update(osd::Message::Show {
+                            kind,
+                            value,
+                            scale,
+                            muted,
+                        })
                     {
                         tasks.push(timer.map(Message::Osd));
                         tasks.push(self.outputs.show_osd_layer(OSD_WIDTH, OSD_HEIGHT));
