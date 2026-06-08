@@ -112,6 +112,8 @@ impl BatteryData {
                 capacity,
                 ..
             } => battery_level_icon(*capacity),
+            // No dedicated unknown battery icon. Use Battery0 as a safe fallback
+            // instead of incorrectly showing a full battery.
             BatteryData {
                 status: BatteryStatus::Unknown,
                 ..
@@ -157,6 +159,8 @@ impl Peripheral {
                 status: BatteryStatus::Discharging(_),
                 ..
             } => get_type_icon(BatLevel::Full),
+            // Peripheral icons are coarse category/status icons.
+            // NotCharging is not active discharge, so keep the full-like state.
             BatteryData {
                 status: BatteryStatus::NotCharging | BatteryStatus::Full,
                 ..
@@ -936,7 +940,7 @@ mod tests {
     }
 
     #[test]
-    fn unknown_system_battery_uses_neutral_icon() {
+    fn unknown_system_battery_uses_empty_fallback_icon() {
         let battery = BatteryData {
             capacity: 50,
             status: BatteryStatus::Unknown,
