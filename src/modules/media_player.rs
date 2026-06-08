@@ -236,17 +236,43 @@ impl MediaPlayer {
         let (space, font_size) = use_theme(|theme| (theme.space, theme.font_size));
         self.service.as_ref().and_then(|s| {
             s.players().first().map(|player| {
-                let title =
-                    (self.config.indicator_format == MediaPlayerFormat::IconAndTitle).then(|| {
-                        container(
-                            text(self.get_title(player))
-                                .wrapping(text::Wrapping::None)
-                                .size(font_size.sm),
-                        )
-                        .clip(true)
-                    });
+                let title = matches!(
+                    self.config.indicator_format,
+                    MediaPlayerFormat::IconAndTitle | MediaPlayerFormat::CoverAndTitle
+                )
+                .then(|| {
+                    container(
+                        text(self.get_title(player))
+                            .wrapping(text::Wrapping::None)
+                            .size(font_size.sm),
+                    )
+                    .clip(true)
+                });
 
-                row![icon(StaticIcon::MusicNote)]
+                let cover: Element<'_, _> = if matches!(
+                    self.config.indicator_format,
+                    MediaPlayerFormat::Cover | MediaPlayerFormat::CoverAndTitle
+                ) {
+                    let img = player
+                        .metadata
+                        .as_ref()
+                        .and_then(|m| m.art_url.as_ref())
+                        .and_then(|url| s.get_cover(url));
+
+                    match img {
+                        Some(handle) => {
+                            container(image(handle).filter_method(image::FilterMethod::Linear))
+                                .padding([space.xxs / 2.0, 0.0])
+                                .into()
+                        }
+
+                        None => icon(StaticIcon::MusicNote).into(),
+                    }
+                } else {
+                    icon(StaticIcon::MusicNote).into()
+                };
+
+                row![cover]
                     .push(title)
                     .align_y(Vertical::Center)
                     .spacing(space.xs)
