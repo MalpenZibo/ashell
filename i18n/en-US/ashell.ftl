@@ -87,6 +87,8 @@ settings-power-profile-power-saver = Power Saver
 
 settings-power-status-charging = Charging
 settings-power-status-discharging = Discharging
+settings-power-status-not-charging = Not charging
+settings-power-status-unknown = Unknown
 settings-power-status-full = Full
 
 ## Settings — idle inhibitor
