@@ -106,50 +106,12 @@ impl BatteryData {
                 status: BatteryStatus::Discharging(_),
                 capacity,
                 ..
-            } if *capacity < 20 => StaticIcon::Battery0,
-            BatteryData {
-                status: BatteryStatus::Discharging(_),
-                capacity,
-                ..
-            } if *capacity < 40 => StaticIcon::Battery1,
-            BatteryData {
-                status: BatteryStatus::Discharging(_),
-                capacity,
-                ..
-            } if *capacity < 60 => StaticIcon::Battery2,
-            BatteryData {
-                status: BatteryStatus::Discharging(_),
-                capacity,
-                ..
-            } if *capacity < 80 => StaticIcon::Battery3,
-            BatteryData {
-                status: BatteryStatus::Discharging(_),
-                ..
-            } => StaticIcon::Battery4,
+            } => battery_level_icon(*capacity),
             BatteryData {
                 status: BatteryStatus::NotCharging,
                 capacity,
                 ..
-            } if *capacity < 20 => StaticIcon::Battery0,
-            BatteryData {
-                status: BatteryStatus::NotCharging,
-                capacity,
-                ..
-            } if *capacity < 40 => StaticIcon::Battery1,
-            BatteryData {
-                status: BatteryStatus::NotCharging,
-                capacity,
-                ..
-            } if *capacity < 60 => StaticIcon::Battery2,
-            BatteryData {
-                status: BatteryStatus::NotCharging,
-                capacity,
-                ..
-            } if *capacity < 80 => StaticIcon::Battery3,
-            BatteryData {
-                status: BatteryStatus::NotCharging,
-                ..
-            } => StaticIcon::Battery4,
+            } => battery_level_icon(*capacity),
             BatteryData {
                 status: BatteryStatus::Unknown,
                 ..
@@ -244,6 +206,20 @@ impl PeripheralDeviceKind {
             PeripheralDeviceKind::Gamepad => &GAMEPAD_BATTERY_ICONS,
         };
         icons[level as usize]
+    }
+}
+
+fn battery_level_icon(capacity: i64) -> StaticIcon {
+    if capacity < 20 {
+        StaticIcon::Battery0
+    } else if capacity < 40 {
+        StaticIcon::Battery1
+    } else if capacity < 60 {
+        StaticIcon::Battery2
+    } else if capacity < 80 {
+        StaticIcon::Battery3
+    } else {
+        StaticIcon::Battery4
     }
 }
 
