@@ -888,6 +888,26 @@ impl Default for MenuAppearance {
     }
 }
 
+#[derive(Deserialize, Clone, Copy, Debug)]
+#[serde(default)]
+pub struct Radius {
+    pub sm: f32,
+    pub md: f32,
+    pub lg: f32,
+    pub xl: f32,
+}
+
+impl Default for Radius {
+    fn default() -> Self {
+        Self {
+            sm: 4.0,
+            md: 8.0,
+            lg: 16.0,
+            xl: 32.0,
+        }
+    }
+}
+
 #[derive(Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct Appearance {
@@ -898,6 +918,7 @@ pub struct Appearance {
     #[serde(deserialize_with = "opacity_deserializer")]
     pub opacity: f32,
     pub menu: MenuAppearance,
+    pub radius: Radius,
     pub background_color: BackgroundAppearanceColor,
     pub primary_color: AppearanceColor,
     pub success_color: AppearanceColor,
@@ -962,6 +983,7 @@ impl Default for Appearance {
             style: AppearanceStyle::default(),
             opacity: default_opacity(),
             menu: MenuAppearance::default(),
+            radius: Radius::default(),
             background_color: BackgroundAppearanceColor::Complete {
                 base: HexColor::rgb(26, 27, 38),
                 weakest: None,

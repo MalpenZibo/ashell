@@ -4,6 +4,7 @@ use crate::{
     components::button::{ButtonHierarchy, ButtonKind},
     config::{
         Appearance, AppearanceColor, AppearanceStyle, BackgroundLevel, MenuAppearance, Position,
+        Radius,
     },
 };
 use iced::{
@@ -49,26 +50,6 @@ impl Default for Space {
             lg: 24.0,
             xl: 32.0,
             xxl: 48.0,
-        }
-    }
-}
-
-#[allow(unused)]
-#[derive(Debug, Clone, Copy)]
-pub struct Radius {
-    pub sm: f32,
-    pub md: f32,
-    pub lg: f32,
-    pub xl: f32,
-}
-
-impl Default for Radius {
-    fn default() -> Self {
-        Self {
-            sm: 4.0,
-            md: 8.0,
-            lg: 16.0,
-            xl: 32.0,
         }
     }
 }
@@ -123,7 +104,7 @@ impl Default for AshellTheme {
 
         AshellTheme {
             space: Space::default(),
-            radius: Radius::default(),
+            radius: appearance.radius,
             font_size: FontSize::default(),
             bar_position: Position::default(),
             bar_style: appearance.style,
@@ -249,7 +230,7 @@ impl AshellTheme {
         AshellTheme {
             animations_enabled: animations.enabled,
             space: Space::default(),
-            radius: Radius::default(),
+            radius: appearance.radius,
             font_size: FontSize::default(),
             bar_position: position,
             bar_style: appearance.style,
