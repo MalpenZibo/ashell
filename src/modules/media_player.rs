@@ -2,11 +2,14 @@ use crate::{
     components::divider,
     components::icons::{StaticIcon, icon, icon_button},
     components::{ButtonSize, MenuSize},
-    config::{MediaPlayerFormat, MediaPlayerModuleConfig},
+    config::{
+        MediaPlayerFormat, MediaPlayerMenuField, MediaPlayerModuleConfig, MediaPlayerTextField,
+    },
     services::{
         ReadOnlyService, Service, ServiceEvent,
         mpris::{
-            MprisPlayerCommand, MprisPlayerData, MprisPlayerService, PlaybackStatus, PlayerCommand,
+            MprisPlayerCommand, MprisPlayerData, MprisPlayerMetadata, MprisPlayerService,
+            PlaybackStatus, PlayerCommand,
         },
     },
     t,
@@ -88,102 +91,124 @@ impl MediaPlayer {
                 column(service.players().iter().map(|d| {
                     const LEFT_COLUMN_WIDTH: Length = Length::FillPortion(3);
                     const RIGHT_COLUMN_WIDTH: Length = Length::FillPortion(2);
-                    let m = d.metadata.as_ref();
-                    let title = m
-                        .and_then(|m| m.title.clone())
-                        .unwrap_or_else(|| t!("media-player-no-title"));
-                    let artists = m
-                        .and_then(|m| m.artists.clone())
-                        .map(|a| a.join(", "))
-                        .unwrap_or_else(|| t!("media-player-unknown-artist"));
-                    let album = m
-                        .and_then(|m| m.album.clone())
-                        .unwrap_or_else(|| t!("media-player-unknown-album"));
-                    let title = text(truncate_text(&title, self.config.max_title_length))
-                        .wrapping(text::Wrapping::WordOrGlyph)
-                        .width(Length::Fill);
-                    let artists = text(truncate_text(&artists, self.config.max_title_length))
-                        .wrapping(text::Wrapping::WordOrGlyph)
-                        .size(font_size.sm)
-                        .width(Length::Fill);
-                    let album = text(truncate_text(&album, self.config.max_title_length))
-                        .wrapping(text::Wrapping::WordOrGlyph)
-                        .size(font_size.sm)
-                        .width(Length::Fill);
-                    let description = column![title, artists, album]
-                        .spacing(space.xxs)
-                        .width(LEFT_COLUMN_WIDTH);
+                    let metadata = d.metadata.as_ref();
+                    let description = self.description_view(metadata, LEFT_COLUMN_WIDTH);
 
                     let play_pause_icon = match d.state {
                         PlaybackStatus::Playing => StaticIcon::Pause,
                         PlaybackStatus::Paused | PlaybackStatus::Stopped => StaticIcon::Play,
                     };
 
-                    let buttons = container(
-                        row![
-                            icon_button(StaticIcon::SkipPrevious)
-                                .on_press(Message::Prev(d.service.clone()))
-                                .size(ButtonSize::Large),
-                            icon_button(play_pause_icon)
-                                .on_press(Message::PlayPause(d.service.clone()))
-                                .size(ButtonSize::Large),
-                            icon_button(StaticIcon::SkipNext)
-                                .on_press(Message::Next(d.service.clone()))
-                                .size(ButtonSize::Large),
-                        ]
-                        .align_y(Vertical::Center)
-                        .spacing(space.xs),
-                    )
-                    .center_x(RIGHT_COLUMN_WIDTH);
-                    let volume_slider: Option<Element<'_, _>> = d.volume.map(|v| {
-                        slider(0.0..=100.0, v, move |v| {
-                            Message::SetVolume(d.service.clone(), v)
-                        })
-                        .width(LEFT_COLUMN_WIDTH)
-                        .into()
-                    });
-                    let cover: Option<Element<'_, _>> = d
-                        .metadata
-                        .as_ref()
-                        .and_then(|m| m.art_url.as_ref())
-                        .map(|url| {
-                            let inner: Element<'_, _> = service
-                                .get_cover(url)
-                                .map(|handle| {
-                                    image(handle)
-                                        .filter_method(image::FilterMethod::Linear)
-                                        .into()
-                                })
-                                .unwrap_or_else(|| text(t!("media-player-loading-cover")).into());
-                            container(inner).center_x(RIGHT_COLUMN_WIDTH).into()
-                        });
-                    let metadata = |description, cover| -> Element<'_, _> {
-                        row![description]
-                            .push(cover)
-                            .spacing(space.md)
-                            .align_y(Vertical::Center)
+                    let buttons: Option<Element<'_, _>> = self
+                        .config
+                        .menu_fields
+                        .contains(&MediaPlayerMenuField::Controls)
+                        .then(|| {
+                            container(
+                                row![
+                                    icon_button(StaticIcon::SkipPrevious)
+                                        .on_press(Message::Prev(d.service.clone()))
+                                        .size(ButtonSize::Large),
+                                    icon_button(play_pause_icon)
+                                        .on_press(Message::PlayPause(d.service.clone()))
+                                        .size(ButtonSize::Large),
+                                    icon_button(StaticIcon::SkipNext)
+                                        .on_press(Message::Next(d.service.clone()))
+                                        .size(ButtonSize::Large),
+                                ]
+                                .align_y(Vertical::Center)
+                                .spacing(space.xs),
+                            )
+                            .center_x(RIGHT_COLUMN_WIDTH)
                             .into()
-                    };
-                    let content: Element<'_, _> = match (volume_slider, cover) {
-                        (None, None) => row![description, buttons]
-                            .spacing(space.md)
-                            .align_y(Vertical::Center)
-                            .into(),
-                        (Some(v), cover) => {
-                            let controls =
-                                row![v, buttons].spacing(space.md).align_y(Vertical::Center);
-                            column![metadata(description, cover), controls]
+                        });
+                    let volume_slider: Option<Element<'_, _>> = self
+                        .config
+                        .menu_fields
+                        .contains(&MediaPlayerMenuField::Volume)
+                        .then(|| {
+                            d.volume.map(|v| {
+                                slider(0.0..=100.0, v, move |v| {
+                                    Message::SetVolume(d.service.clone(), v)
+                                })
+                                .width(LEFT_COLUMN_WIDTH)
+                                .into()
+                            })
+                        })
+                        .flatten();
+                    let cover: Option<Element<'_, _>> = self
+                        .config
+                        .menu_fields
+                        .contains(&MediaPlayerMenuField::Cover)
+                        .then(|| {
+                            d.metadata
+                                .as_ref()
+                                .and_then(|m| m.art_url.as_ref())
+                                .map(|url| {
+                                    let inner: Element<'_, _> = service
+                                        .get_cover(url)
+                                        .map(|handle| {
+                                            image(handle)
+                                                .filter_method(image::FilterMethod::Linear)
+                                                .into()
+                                        })
+                                        .unwrap_or_else(|| {
+                                            text(t!("media-player-loading-cover")).into()
+                                        });
+                                    container(inner).center_x(RIGHT_COLUMN_WIDTH).into()
+                                })
+                        })
+                        .flatten();
+                    let content: Element<'_, _> = match (description, cover, volume_slider, buttons)
+                    {
+                        (Some(description), None, None, Some(buttons)) => {
+                            row![description, buttons]
                                 .spacing(space.md)
+                                .align_y(Vertical::Center)
                                 .into()
                         }
-                        (None, cover) => {
-                            let controls =
-                                row![space::horizontal().width(LEFT_COLUMN_WIDTH), buttons]
-                                    .spacing(space.md)
-                                    .align_y(Vertical::Center);
-                            column![metadata(description, cover), controls]
-                                .spacing(space.md)
-                                .into()
+                        (description, cover, volume_slider, buttons) => {
+                            let metadata_row = match (description, cover) {
+                                (Some(description), Some(cover)) => Some(
+                                    row![description, cover]
+                                        .spacing(space.md)
+                                        .align_y(Vertical::Center)
+                                        .into(),
+                                ),
+                                (Some(description), None) => Some(row![description].into()),
+                                (None, Some(cover)) => Some(
+                                    row![space::horizontal().width(LEFT_COLUMN_WIDTH), cover]
+                                        .spacing(space.md)
+                                        .align_y(Vertical::Center)
+                                        .into(),
+                                ),
+                                (None, None) => None,
+                            };
+                            let controls_row = match (volume_slider, buttons) {
+                                (Some(v), Some(buttons)) => Some(
+                                    row![v, buttons]
+                                        .spacing(space.md)
+                                        .align_y(Vertical::Center)
+                                        .into(),
+                                ),
+                                (Some(v), None) => Some(row![v].into()),
+                                (None, Some(buttons)) => Some(
+                                    row![space::horizontal().width(LEFT_COLUMN_WIDTH), buttons]
+                                        .spacing(space.md)
+                                        .align_y(Vertical::Center)
+                                        .into(),
+                                ),
+                                (None, None) => None,
+                            };
+                            let rows = [metadata_row, controls_row]
+                                .into_iter()
+                                .flatten()
+                                .collect::<Vec<_>>();
+                            if rows.is_empty() {
+                                space::horizontal().width(Length::Fill).into()
+                            } else {
+                                column(rows).spacing(space.md).into()
+                            }
                         }
                     };
                     container(content)
@@ -225,10 +250,99 @@ impl MediaPlayer {
         }
     }
 
+    fn field_value(metadata: &MprisPlayerMetadata, field: MediaPlayerTextField) -> Option<String> {
+        match field {
+            MediaPlayerTextField::Artist => {
+                metadata.artists.as_ref().map(|artists| artists.join(", "))
+            }
+            MediaPlayerTextField::Title => metadata.title.clone(),
+            MediaPlayerTextField::Album => metadata.album.clone(),
+        }
+    }
+
+    fn format_metadata_fields(
+        metadata: Option<&MprisPlayerMetadata>,
+        fields: &[MediaPlayerTextField],
+    ) -> String {
+        metadata.map_or_else(String::new, |metadata| {
+            fields
+                .iter()
+                .filter_map(|field| Self::field_value(metadata, *field))
+                .filter(|value| !value.is_empty())
+                .collect::<Vec<_>>()
+                .join(" - ")
+        })
+    }
+
+    fn menu_field_text(
+        metadata: Option<&MprisPlayerMetadata>,
+        field: MediaPlayerMenuField,
+    ) -> Option<String> {
+        match field {
+            MediaPlayerMenuField::Title => Some(
+                metadata
+                    .and_then(|metadata| metadata.title.clone())
+                    .unwrap_or_else(|| t!("media-player-no-title")),
+            ),
+            MediaPlayerMenuField::Artist => Some(
+                metadata
+                    .and_then(|metadata| metadata.artists.clone())
+                    .map(|artists| artists.join(", "))
+                    .unwrap_or_else(|| t!("media-player-unknown-artist")),
+            ),
+            MediaPlayerMenuField::Album => Some(
+                metadata
+                    .and_then(|metadata| metadata.album.clone())
+                    .unwrap_or_else(|| t!("media-player-unknown-album")),
+            ),
+            MediaPlayerMenuField::Cover
+            | MediaPlayerMenuField::Controls
+            | MediaPlayerMenuField::Volume => None,
+        }
+    }
+
+    fn description_view<'a>(
+        &'a self,
+        metadata: Option<&'a MprisPlayerMetadata>,
+        width: Length,
+    ) -> Option<Element<'a, Message>> {
+        let font_size = use_theme(|theme| theme.font_size);
+        let lines = self
+            .config
+            .menu_fields
+            .iter()
+            .filter_map(|field| Self::menu_field_text(metadata, *field))
+            .enumerate()
+            .map(|(index, value)| {
+                let mut line = text(truncate_text(&value, self.config.max_title_length))
+                    .wrapping(text::Wrapping::WordOrGlyph)
+                    .width(Length::Fill);
+                if index > 0 {
+                    line = line.size(font_size.sm);
+                }
+                line.into()
+            })
+            .collect::<Vec<_>>();
+
+        if lines.is_empty() {
+            None
+        } else {
+            Some(
+                column(lines)
+                    .spacing(use_theme(|theme| theme.space.xxs))
+                    .width(width)
+                    .into(),
+            )
+        }
+    }
+
     fn get_title(&self, d: &MprisPlayerData) -> String {
-        match &d.metadata {
-            Some(m) => truncate_text(&m.to_string(), self.config.max_title_length),
-            None => t!("media-player-no-title"),
+        let title =
+            Self::format_metadata_fields(d.metadata.as_ref(), &self.config.indicator_fields);
+        if title.is_empty() {
+            t!("media-player-no-title")
+        } else {
+            truncate_text(&title, self.config.max_title_length)
         }
     }
 
@@ -236,21 +350,22 @@ impl MediaPlayer {
         let (space, font_size) = use_theme(|theme| (theme.space, theme.font_size));
         self.service.as_ref().and_then(|s| {
             s.players().first().map(|player| {
-                let title =
-                    (self.config.indicator_format == MediaPlayerFormat::IconAndTitle).then(|| {
-                        container(
-                            text(self.get_title(player))
-                                .wrapping(text::Wrapping::None)
-                                .size(font_size.sm),
-                        )
-                        .clip(true)
-                    });
+                let title = || {
+                    container(
+                        text(self.get_title(player))
+                            .wrapping(text::Wrapping::None)
+                            .size(font_size.sm),
+                    )
+                    .clip(true)
+                };
 
-                row![icon(StaticIcon::MusicNote)]
-                    .push(title)
-                    .align_y(Vertical::Center)
-                    .spacing(space.xs)
-                    .into()
+                let content = match self.config.indicator_format {
+                    MediaPlayerFormat::Icon => row![icon(StaticIcon::MusicNote)],
+                    MediaPlayerFormat::Title => row![title()],
+                    MediaPlayerFormat::IconAndTitle => row![icon(StaticIcon::MusicNote), title()],
+                };
+
+                content.align_y(Vertical::Center).spacing(space.xs).into()
             })
         })
     }
