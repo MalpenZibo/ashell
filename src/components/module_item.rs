@@ -65,8 +65,7 @@ impl<'a, Msg: 'static + Clone> From<ModuleItem<'a, Msg>> for Element<'a, Msg> {
             let mut button = position_button(
                 container(item.content)
                     .align_y(Alignment::Center)
-                    .height(Length::Fill)
-                    .clip(true),
+                    .height(Length::Fill),
             )
             .padding([2.0, space.xs])
             .height(Length::Fill)
@@ -94,7 +93,6 @@ impl<'a, Msg: 'static + Clone> From<ModuleItem<'a, Msg>> for Element<'a, Msg> {
                 .padding([2.0, space.xs])
                 .height(Length::Fill)
                 .align_y(Alignment::Center)
-                .clip(true)
                 .into()
         }
     }
