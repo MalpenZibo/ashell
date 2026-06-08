@@ -84,6 +84,8 @@ settings-power-charge-limit = Limite de charge
 settings-power-profile-balanced = Équilibré
 settings-power-profile-performance = Performance
 settings-power-profile-power-saver = Économie d'énergie
+settings-power-status-not-charging = Pas en charge
+settings-power-status-unknown = Inconnu
 
 ## Paramètres — inhibiteur de veille
 settings-idle-inhibitor = Inhibiteur de veille
