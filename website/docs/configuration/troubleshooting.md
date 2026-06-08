@@ -43,6 +43,24 @@ You can use a single value or a comma-separated list (e.g. `WGPU_BACKEND=gl,vulk
 
 **If the issue persists:** Try forcing a different backend or using `ICED_BACKEND=tiny-skia`.
 
+### Hybrid / Multi-GPU: Black Bar or Missing Bar on External Monitor
+
+**Problem:** ashell renders a black bar, or the bar doesn't appear on all monitors. Common on laptops with hybrid graphics (e.g. NVIDIA dGPU + iGPU) or when an external monitor is connected to a different GPU.
+
+**Cause:** By default, `iced_layershell` sets `WGPU_POWER_PREF=low`, which tells wgpu to prefer the integrated GPU. On hybrid setups, the iGPU may not be connected to all outputs — for example, an external monitor wired to the NVIDIA dGPU won't receive frames rendered on the iGPU. The result is a black bar or a bar that only appears on one screen.
+
+**Solution:** Force the discrete GPU with:
+```bash
+WGPU_POWER_PREF=high ashell
+```
+
+To make it permanent, add to your compositor config. For Hyprland, in `hyprland.conf`:
+```
+env = WGPU_POWER_PREF,high
+```
+
+**Note:** `WGPU_POWER_PREF` is an environment variable read by `iced_layershell` / wgpu, not an ashell-specific setting. `low` (default) prefers the iGPU for power savings; `high` prefers the dGPU.
+
 ## Idle Inhibitor Issues
 
 **Problem:** Screen sleeps even when ashell is running.
