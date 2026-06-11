@@ -88,6 +88,7 @@ url = "2.5.7"
 signal-hook = "0.4.3"
 signal-hook-tokio = { version = "0.4", features = ["futures-v0_3"] }
 libc = "0.2.182"
+fontdb = { version = "0.23", features = ["fontconfig"] }
 chrono-tz = "0.10.4"
 wayland-client = "0.31"
 wayland-protocols = { version = "0.32", features = ["client", "staging"] }
