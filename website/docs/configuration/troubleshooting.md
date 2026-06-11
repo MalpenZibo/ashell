@@ -82,3 +82,20 @@ Include this info when reporting issues:
 - GPU/driver info
 - Full debug logs
 - Your ashell config
+
+## Font Changes Don't Take Effect
+
+**Problem:** Setting `font_name` in the config has no visible effect.
+
+**Cause:** Most often, the font name doesn't exactly match the font's family name,
+or the font has a non-standard weight that causes a silent fallback.
+
+**Fix:**
+
+1. Verify the exact family name:
+   ```bash
+   fc-list | grep -i <search-term>
+   ```
+2. ashell prints warnings at startup when the font name is not found or when
+   the weight doesn't match — check the logs.
+3. Restart ashell after editing the config (font changes are not hot-reloaded).
