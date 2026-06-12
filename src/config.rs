@@ -1011,6 +1011,27 @@ pub enum ModuleName {
     Notifications,
 }
 
+impl std::str::FromStr for ModuleName {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "Updates" => ModuleName::Updates,
+            "Workspaces" => ModuleName::Workspaces,
+            "WindowTitle" => ModuleName::WindowTitle,
+            "SystemInfo" => ModuleName::SystemInfo,
+            "KeyboardLayout" => ModuleName::KeyboardLayout,
+            "KeyboardSubmap" => ModuleName::KeyboardSubmap,
+            "Tray" => ModuleName::Tray,
+            "Notifications" => ModuleName::Notifications,
+            "Tempo" => ModuleName::Tempo,
+            "Privacy" => ModuleName::Privacy,
+            "Settings" => ModuleName::Settings,
+            "MediaPlayer" => ModuleName::MediaPlayer,
+            other => ModuleName::Custom(other.to_string()),
+        })
+    }
+}
+
 impl<'de> Deserialize<'de> for ModuleName {
     fn deserialize<D>(deserializer: D) -> Result<ModuleName, D::Error>
     where
