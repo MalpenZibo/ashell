@@ -153,6 +153,38 @@ impl super::NetworkBackend for IwdDbus<'_> {
             let ssid = n.name().await?;
             let path = n.inner().path().clone().into();
             let device_path = n.device().await?.clone();
+
+            // Determine connection state by checking if this network is connected
+            let station = self
+                .stations()
+                .await?
+                .into_iter()
+                .find(|s| s.inner().path().as_str() == device_path.as_str());
+
+            let (state, working) = if let Some(station) = station {
+                let station_state = station.state().await.unwrap_or_default();
+                let connected_network = station.connected_network().await.ok();
+
+                let is_connected = connected_network
+                    .map(|net_path| net_path == path)
+                    .unwrap_or(false);
+
+                let state = if is_connected {
+                    match station_state.as_str() {
+                        "connected" => DeviceState::Activated,
+                        "connecting" => DeviceState::Config,
+                        _ => DeviceState::Unknown,
+                    }
+                } else {
+                    DeviceState::Disconnected
+                };
+
+                let working = is_connected && station_state == "connected";
+                (state, working)
+            } else {
+                (DeviceState::Unknown, false)
+            };
+
             let access_point = AccessPoint {
                 ssid: ssid.clone(),
                 path,
@@ -160,9 +192,9 @@ impl super::NetworkBackend for IwdDbus<'_> {
                 strength: map_iwd_rssi_to_percent(signal_strength),
                 max_bitrate: 0,
                 frequency: 0,
-                state: DeviceState::Unknown, // TODO:
+                state,
                 public: n.type_().await? == "open",
-                working: false, // TODO:
+                working,
             };
 
             // maybe IWD will provide frequency and bitrate in the future

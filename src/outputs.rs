@@ -761,11 +761,16 @@ impl Outputs {
     }
 
     pub fn surface_left_output(&mut self, surface_id: SurfaceId, output_id: OutputId) {
-        for slot in [&mut self.toast, &mut self.osd].into_iter().flatten() {
-            if slot.id == surface_id && slot.output == Some(output_id) {
-                slot.output = None;
+        let clear = |slot: &mut Option<OverlaySurface>| {
+            if let Some(s) = slot
+                && s.id == surface_id
+                && s.output == Some(output_id)
+            {
+                s.output = None;
             }
-        }
+        };
+        clear(&mut self.toast);
+        clear(&mut self.osd);
     }
 
     pub fn hide_toast_layer<Message: 'static>(&mut self) -> Task<Message> {

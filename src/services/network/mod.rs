@@ -1,11 +1,12 @@
 use super::{Service, ServiceEvent};
 use crate::services::ReadOnlyService;
+use crate::utils::send_or_log;
 use dbus::ConnectivityState;
 use dbus::NetworkDbus;
 use iced::futures::TryFutureExt;
 use iced::{
     Subscription, Task,
-    futures::{SinkExt, StreamExt, channel::mpsc::Sender},
+    futures::{StreamExt, channel::mpsc::Sender},
     stream::channel,
 };
 use iwd_dbus::IwdDbus;
@@ -23,11 +24,6 @@ pub trait NetworkBackend: Send + Sync {
     /// Initializes the backend and fetches the initial network data.
     async fn initialize_data(&self) -> anyhow::Result<NetworkData>;
 
-    // / Subscribes to network events from the backend.
-    // / Returns a stream of `NetworkEvent`s.
-    // NOTE: the backend implementation diverged and the lifetimes are unhappy
-    //async fn subscribe_events(&self) -> anyhow::Result<impl Stream<Item = NetworkEvent>>;
-
     /// Toggles the airplane mode.
     async fn set_airplane_mode(&self, enable: bool) -> anyhow::Result<()>;
 
@@ -38,7 +34,6 @@ pub trait NetworkBackend: Send + Sync {
     async fn set_wifi_enabled(&self, enable: bool) -> anyhow::Result<()>;
 
     /// Connects to a specific access point, potentially with a password.
-    /// Returns the updated list of known connections.
     async fn select_access_point(
         &self,
         ap: &AccessPoint,
@@ -48,7 +43,6 @@ pub trait NetworkBackend: Send + Sync {
     async fn known_connections(&self) -> anyhow::Result<Vec<KnownConnection>>;
 
     /// Enables or disables a VPN connection.
-    /// Returns the updated list of known connections.
     async fn set_vpn(
         &self,
         connection_path: OwnedObjectPath,
@@ -84,8 +78,9 @@ pub enum NetworkCommand {
     ToggleVpn(Vpn),
 }
 
+/// Reference-counted access point to avoid excessive cloning.
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct AccessPoint {
+pub struct AccessPointData {
     pub ssid: String,
     pub strength: u8,
     pub max_bitrate: u32,
@@ -96,6 +91,9 @@ pub struct AccessPoint {
     pub path: OwnedObjectPath,
     pub device_path: OwnedObjectPath,
 }
+
+/// Legacy type alias for backward compatibility.
+pub type AccessPoint = AccessPointData;
 
 impl AccessPoint {
     /// Returns true if the first access point (by max_bitrate, frequency, strength) is better than the second.
@@ -452,14 +450,16 @@ impl NetworkService {
                     match maybe_backend {
                         Ok((data, choice)) => {
                             info!("Network service initialized");
-                            let _ = output
-                                .send(ServiceEvent::Init(NetworkService {
+                            send_or_log(
+                                output,
+                                ServiceEvent::Init(NetworkService {
                                     data,
                                     conn: conn.clone(),
                                     backend_choice: choice,
                                     pending_scan_devices: Vec::new(),
-                                }))
-                                .await;
+                                }),
+                            )
+                            .await;
                             State::Active(conn, choice)
                         }
                         Err(err) => {
@@ -499,7 +499,7 @@ impl NetworkService {
                                         matches!(event, NetworkEvent::WirelessDevice { .. });
                                     // Send the event to UI before exiting - UI needs the WirelessDevice data
                                     // (wifi_present and access_points) to populate the network menu
-                                    let _ = output.send(ServiceEvent::Update(event)).await;
+                                    send_or_log(output, ServiceEvent::Update(event)).await;
 
                                     if exit_loop {
                                         break;
@@ -532,7 +532,7 @@ impl NetworkService {
                                         // TODO: network manager leaves with device - we can also
                                         // do that, but would need a different way to disable
                                         // scanning
-                                        let _ = output.send(ServiceEvent::Update(event)).await;
+                                        send_or_log(output, ServiceEvent::Update(event)).await;
                                     }
                                 }
 

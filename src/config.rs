@@ -1,10 +1,10 @@
 use crate::app::Message;
 use crate::i18n::{UnitSystem, unit_system};
 use crate::services::upower::PeripheralDeviceKind;
-use crate::utils::celsius_to_fahrenheit;
+use crate::utils::{celsius_to_fahrenheit, send_or_log};
 use hex_color::HexColor;
 use iced::futures::StreamExt;
-use iced::{Color, Subscription, futures::SinkExt, stream::channel, theme::palette};
+use iced::{Color, Subscription, stream::channel, theme::palette};
 use inotify::EventMask;
 use inotify::Inotify;
 use inotify::WatchMask;
@@ -510,14 +510,6 @@ impl WindSpeedUnit {
             Self::Ms => "m/s",
         }
     }
-
-    pub fn api_param(self) -> &'static str {
-        match self {
-            Self::Kmh => "kmh",
-            Self::Mph => "mph",
-            Self::Ms => "ms",
-        }
-    }
 }
 
 #[derive(Deserialize, Default, Clone, Debug, PartialEq, Eq)]
@@ -1019,6 +1011,27 @@ pub enum ModuleName {
     Notifications,
 }
 
+impl std::str::FromStr for ModuleName {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "Updates" => ModuleName::Updates,
+            "Workspaces" => ModuleName::Workspaces,
+            "WindowTitle" => ModuleName::WindowTitle,
+            "SystemInfo" => ModuleName::SystemInfo,
+            "KeyboardLayout" => ModuleName::KeyboardLayout,
+            "KeyboardSubmap" => ModuleName::KeyboardSubmap,
+            "Tray" => ModuleName::Tray,
+            "Notifications" => ModuleName::Notifications,
+            "Tempo" => ModuleName::Tempo,
+            "Privacy" => ModuleName::Privacy,
+            "Settings" => ModuleName::Settings,
+            "MediaPlayer" => ModuleName::MediaPlayer,
+            other => ModuleName::Custom(other.to_string()),
+        })
+    }
+}
+
 impl<'de> Deserialize<'de> for ModuleName {
     fn deserialize<D>(deserializer: D) -> Result<ModuleName, D::Error>
     where
@@ -1336,9 +1349,11 @@ pub fn subscription(path: &Path) -> Subscription<Message> {
                                     .await
                                     .unwrap_or_default();
 
-                                    let _ = output
-                                        .send(Message::ConfigChanged(Box::new(new_config)))
-                                        .await;
+                                    send_or_log(
+                                        &mut output,
+                                        Message::ConfigChanged(Box::new(new_config)),
+                                    )
+                                    .await;
                                 }
                                 Some(Event::Removed) => {
                                     // wait and double check if the file is really gone
@@ -1346,9 +1361,11 @@ pub fn subscription(path: &Path) -> Subscription<Message> {
 
                                     if !path.exists() {
                                         info!("Config file removed");
-                                        let _ = output
-                                            .send(Message::ConfigChanged(Box::default()))
-                                            .await;
+                                        send_or_log(
+                                            &mut output,
+                                            Message::ConfigChanged(Box::default()),
+                                        )
+                                        .await;
                                     }
                                 }
                                 None => {
@@ -1374,4 +1391,53 @@ pub fn subscription(path: &Path) -> Subscription<Message> {
             }
         })
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_default_config() {
+        let config = Config::default();
+        assert_eq!(config.log_level, "warn");
+        assert_eq!(config.position, Position::Top);
+        assert_eq!(config.layer, Layer::Bottom);
+        assert!(!config.enable_esc_key);
+    }
+
+    #[test]
+    fn test_config_validation() {
+        let mut config = Config::default();
+        config.updates = Some(UpdatesModuleConfig {
+            check_cmd: "test".to_string(),
+            update_cmd: "test".to_string(),
+            interval: 0,
+        });
+        config.validate();
+        assert_eq!(config.updates.as_ref().unwrap().interval, 1);
+    }
+
+    #[test]
+    fn test_threshold_validation() {
+        let mut cpu = SystemInfoCpu::default();
+        cpu.warn_threshold = 90;
+        cpu.alert_threshold = 80;
+        cpu.validate();
+        assert_eq!(cpu.warn_threshold, 80);
+    }
+
+    #[test]
+    fn test_parse_module_name() {
+        let module: ModuleName = "Workspaces".parse().unwrap();
+        assert_eq!(module, ModuleName::Workspaces);
+
+        let custom: ModuleName = "MyCustomModule".parse().unwrap();
+        assert_eq!(custom, ModuleName::Custom("MyCustomModule".to_string()));
+    }
+
+    #[test]
+    fn test_appearance_style_default() {
+        assert_eq!(AppearanceStyle::default(), AppearanceStyle::Islands);
+    }
 }

@@ -1,12 +1,14 @@
 use super::{ReadOnlyService, Service, ServiceEvent};
 use crate::{
-    components::icons::StaticIcon, services::throttle::ThrottleExt, utils::IndicatorState,
+    components::icons::StaticIcon,
+    services::throttle::ThrottleExt,
+    utils::{IndicatorState, send_or_log},
 };
 use dbus::{DeviceProxy, PowerProfilesProxy, SystemBattery, UPowerDbus, UPowerProxy, UpDeviceKind};
 use iced::{
     Subscription,
     futures::{
-        SinkExt, Stream, StreamExt,
+        Stream, StreamExt,
         channel::mpsc::Sender,
         stream::{once, pending, select_all},
         stream_select,
@@ -719,7 +721,7 @@ impl UPowerService {
                             power_profile,
                             conn: conn.clone(),
                         };
-                        let _ = output.send(ServiceEvent::Init(service)).await;
+                        send_or_log(output, ServiceEvent::Init(service)).await;
 
                         State::Active(conn, system_battery.map(|b| b.1), peripheral_paths)
                     }
@@ -740,7 +742,7 @@ impl UPowerService {
                 {
                     Ok(mut events) => {
                         while let Some(event) = events.next().await {
-                            let _ = output.send(ServiceEvent::Update(event)).await;
+                            send_or_log(output, ServiceEvent::Update(event)).await;
                         }
 
                         State::Active(conn, system_battery_paths, peripheral_paths)
