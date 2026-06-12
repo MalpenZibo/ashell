@@ -510,7 +510,6 @@ impl WindSpeedUnit {
             Self::Ms => "m/s",
         }
     }
-
 }
 
 #[derive(Deserialize, Default, Clone, Debug, PartialEq, Eq)]
