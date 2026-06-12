@@ -1,8 +1,11 @@
 use super::{ReadOnlyService, Service, ServiceEvent};
-use crate::{services::throttle::ThrottleExt, utils::remote_value::Remote};
+use crate::{
+    services::throttle::ThrottleExt,
+    utils::{remote_value::Remote, send_or_log},
+};
 use iced::{
     Subscription, Task,
-    futures::{SinkExt, StreamExt, channel::mpsc::Sender, stream::pending},
+    futures::{StreamExt, channel::mpsc::Sender, stream::pending},
     stream::channel,
 };
 use log::{debug, error, info, warn};
@@ -143,12 +146,14 @@ impl BrightnessService {
                         Ok(data) => {
                             let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
                             Self::start_commander(conn.clone(), device_path.clone(), rx);
-                            let _ = output
-                                .send(ServiceEvent::Init(BrightnessService {
+                            send_or_log(
+                                output,
+                                ServiceEvent::Init(BrightnessService {
                                     data,
                                     commander: tx,
-                                }))
-                                .await;
+                                }),
+                            )
+                            .await;
 
                             State::Active(device_path)
                         }
@@ -194,11 +199,13 @@ impl BrightnessService {
                                                         && new_value != current_value
                                                     {
                                                         current_value = new_value;
-                                                        let _ = output
-                                                            .send(ServiceEvent::Update(
+                                                        send_or_log(
+                                                            output,
+                                                            ServiceEvent::Update(
                                                                 BrightnessEvent(new_value),
-                                                            ))
-                                                            .await;
+                                                            ),
+                                                        )
+                                                        .await;
                                                     }
 
                                                     break;

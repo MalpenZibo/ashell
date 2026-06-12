@@ -1,8 +1,9 @@
 use super::{ReadOnlyService, ServiceEvent};
+use crate::utils::send_or_log;
 use iced::{
     Subscription,
     futures::{
-        FutureExt, SinkExt, Stream, StreamExt, channel::mpsc::Sender, select, stream::pending,
+        FutureExt, Stream, StreamExt, channel::mpsc::Sender, select, stream::pending,
     },
     stream::channel,
 };
@@ -181,9 +182,11 @@ impl PrivacyService {
                     (Ok(pipewire), Ok(webcam)) => {
                         let data = PrivacyData::new();
 
-                        let _ = output
-                            .send(ServiceEvent::Init(PrivacyService { data }))
-                            .await;
+                        send_or_log(
+                            output,
+                            ServiceEvent::Init(PrivacyService { data }),
+                        )
+                        .await;
 
                         State::Active((pipewire, webcam))
                     }
@@ -212,7 +215,11 @@ impl PrivacyService {
                     value = pipewire.recv().fuse() => {
                         match value {
                             Some(event) => {
-                                let _ = output.send(ServiceEvent::Update(event)).await;
+                                send_or_log(
+                                    output,
+                                    ServiceEvent::Update(event),
+                                )
+                                .await;
                             }
                             None => {
                                 error!("Pipewire listener exited");
@@ -222,7 +229,11 @@ impl PrivacyService {
                     value = webcam.next().fuse() => {
                         match value {
                             Some(event) => {
-                                let _ = output.send(ServiceEvent::Update(event)).await;
+                                send_or_log(
+                                    output,
+                                    ServiceEvent::Update(event),
+                                )
+                                .await;
                             }
                             None => {
                                 error!("Webcam listener exited");

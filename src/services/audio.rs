@@ -1,8 +1,8 @@
 use super::{ReadOnlyService, Service, ServiceEvent};
-use crate::utils::remote_value::Remote;
+use crate::utils::{remote_value::Remote, send_or_log};
 use iced::{
     Subscription, Task,
-    futures::{SinkExt, StreamExt, channel::mpsc::Sender, stream::pending},
+    futures::{StreamExt, channel::mpsc::Sender, stream::pending},
     stream::channel,
 };
 use itertools::Either;
@@ -106,24 +106,47 @@ pub struct AudioData {
     pub source_slider: Remote<u32>,
 }
 
-/// Write end of a pipe used to wake the PulseAudio mainloop when commands arrive.
+/// A safe wrapper around a pipe used to unblock the PulseAudio mainloop.
+///
+/// One byte is written on `wake()`, which the mainloop reads to return from
+/// `poll()`. Errors are ignored because a full pipe means the mainloop is
+/// already awake.
 #[derive(Clone)]
-struct WakePipe(Arc<OwnedFd>);
+struct WakePipe {
+    write_fd: Arc<OwnedFd>,
+}
 
 impl fmt::Debug for WakePipe {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("WakePipe")
-            .field(&self.0.as_raw_fd())
+            .field(&self.write_fd.as_raw_fd())
             .finish()
     }
 }
 
 impl WakePipe {
+    /// Create a new wake pipe. Returns the read end and the write end.
+    fn new() -> std::io::Result<(OwnedFd, Self)> {
+        let mut fds = [0i32; 2];
+        if unsafe { libc::pipe2(fds.as_mut_ptr(), libc::O_CLOEXEC | libc::O_NONBLOCK) } != 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+        let read_fd = unsafe { OwnedFd::from_raw_fd(fds[0]) };
+        let write_fd = unsafe { OwnedFd::from_raw_fd(fds[1]) };
+        Ok((read_fd, Self { write_fd: Arc::new(write_fd) }))
+    }
+
     fn wake(&self) {
-        // Write a single byte to unblock the mainloop's poll().
-        // Safe to ignore errors — if the pipe is full, the mainloop is already awake.
-        let fd = self.0.as_raw_fd();
-        unsafe { libc::write(fd, [1u8].as_ptr() as *const _, 1) };
+        let fd = self.write_fd.as_raw_fd();
+        let buf = [1u8];
+        unsafe { libc::write(fd, buf.as_ptr() as *const _, 1) };
+    }
+
+    /// Drain all pending bytes from the read end. Called by the mainloop thread
+    /// after waking up so the pipe doesn't keep firing POLLIN.
+    fn drain(read_fd: i32) {
+        let mut buf = [0u8; 64];
+        unsafe { libc::read(read_fd, buf.as_mut_ptr() as *mut _, buf.len()) };
     }
 }
 
@@ -164,13 +187,15 @@ impl AudioService {
         match state {
             State::Init => match Self::init_service().await {
                 Ok(handle) => {
-                    let _ = output
-                        .send(ServiceEvent::Init(AudioService {
+                    send_or_log(
+                        output,
+                        ServiceEvent::Init(AudioService {
                             data: AudioData::default(),
                             commander: handle.sender.clone(),
                             wake: handle.wake.clone(),
-                        }))
-                        .await;
+                        }),
+                    )
+                    .await;
                     State::Active(handle)
                 }
                 Err(err) => {
@@ -184,23 +209,25 @@ impl AudioService {
                     State::Error
                 }
                 Some(PulseAudioServerEvent::Sinks(sinks)) => {
-                    let _ = output
-                        .send(ServiceEvent::Update(AudioEvent::Sinks(sinks)))
-                        .await;
+                    send_or_log(output, ServiceEvent::Update(AudioEvent::Sinks(sinks))).await;
 
                     State::Active(handle)
                 }
                 Some(PulseAudioServerEvent::Sources(sources)) => {
-                    let _ = output
-                        .send(ServiceEvent::Update(AudioEvent::Sources(sources)))
-                        .await;
+                    send_or_log(
+                        output,
+                        ServiceEvent::Update(AudioEvent::Sources(sources)),
+                    )
+                    .await;
 
                     State::Active(handle)
                 }
                 Some(PulseAudioServerEvent::ServerInfo(info)) => {
-                    let _ = output
-                        .send(ServiceEvent::Update(AudioEvent::ServerInfo(info)))
-                        .await;
+                    send_or_log(
+                        output,
+                        ServiceEvent::Update(AudioEvent::ServerInfo(info)),
+                    )
+                    .await;
 
                     State::Active(handle)
                 }
@@ -488,15 +515,8 @@ impl PulseAudioServer {
 
         let (init_tx, mut init_rx) = tokio::sync::mpsc::unbounded_channel();
 
-        // Create a pipe to wake the PulseAudio mainloop when commands arrive.
-        let (wake_read, wake_write) = {
-            let mut fds = [0i32; 2];
-            if unsafe { libc::pipe2(fds.as_mut_ptr(), libc::O_CLOEXEC | libc::O_NONBLOCK) } != 0 {
-                return Err(anyhow::anyhow!("failed to create wake pipe"));
-            }
-            unsafe { (OwnedFd::from_raw_fd(fds[0]), OwnedFd::from_raw_fd(fds[1])) }
-        };
-        let wake = WakePipe(Arc::new(wake_write));
+        let (wake_read, wake) = WakePipe::new()
+            .map_err(|e| anyhow::anyhow!("failed to create wake pipe: {e}"))?;
 
         // Single thread for both listening and commanding — avoids PulseAudio
         // mainloop assertion failures from concurrent connections.
@@ -605,9 +625,7 @@ impl PulseAudioServer {
                         wake_fd,
                         IoFlagSet::INPUT,
                         Box::new(move |_event, _fd, _flags| {
-                            // Drain the pipe so it doesn't keep firing
-                            let mut buf = [0u8; 64];
-                            unsafe { libc::read(wake_fd, buf.as_mut_ptr() as *mut _, buf.len()) };
+                            WakePipe::drain(wake_fd);
                         }),
                     );
 

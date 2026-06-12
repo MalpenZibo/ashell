@@ -1,10 +1,11 @@
 use super::{ReadOnlyService, Service, ServiceEvent};
+use crate::utils::send_or_log;
 use dbus::MprisPlayerProxy;
 use iced::{
     Subscription,
     core::Bytes,
     futures::{
-        FutureExt, SinkExt, Stream, StreamExt,
+        FutureExt, Stream, StreamExt,
         channel::mpsc::Sender,
         future::{BoxFuture, join_all},
         select,
@@ -355,13 +356,15 @@ impl MprisPlayerService {
         match zbus::Connection::session().await {
             Ok(conn) => {
                 info!("MPRIS player service initialized");
-                let _ = output
-                    .send(ServiceEvent::Init(MprisPlayerService {
+                send_or_log(
+                    output,
+                    ServiceEvent::Init(MprisPlayerService {
                         data: Vec::new(),
                         conn: conn.clone(),
                         covers: HashMap::new(),
-                    }))
-                    .await;
+                    }),
+                )
+                .await;
                 State::Active(ActiveData::new(conn))
             }
             Err(err) => {
@@ -404,9 +407,12 @@ impl MprisPlayerService {
                                     match res {
                                         Ok(bytes) => {
                                             state_data.fetched_covers.insert(url.clone());
-                                            let _ = output.send(ServiceEvent::Update(
-                                                Event::CoverFetched(url.clone(), bytes)
-                                            )).await;
+                                            send_or_log(
+                                                output,
+                                                ServiceEvent::Update(
+                                                    Event::CoverFetched(url.clone(), bytes)
+                                                ),
+                                            ).await;
                                         }
                                         Err(err) => {
                                             error!("Failed to fetch cover art from {url}: {err}");
@@ -434,9 +440,11 @@ impl MprisPlayerService {
             Ok(data) => {
                 debug!("Refreshing MPRIS player data for {} players", data.len());
                 Self::check_cover_update(&data, state_data);
-                let _ = output
-                    .send(ServiceEvent::Update(Event::MetadataChanged(data)))
-                    .await;
+                send_or_log(
+                    output,
+                    ServiceEvent::Update(Event::MetadataChanged(data)),
+                )
+                .await;
             }
             Err(err) => {
                 error!("Failed to fetch MPRIS player data: {err}");

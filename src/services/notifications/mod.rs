@@ -1,6 +1,7 @@
 use crate::services::{ReadOnlyService, ServiceEvent};
+use crate::utils::send_or_log;
 use iced::Subscription;
-use iced::futures::{SinkExt, StreamExt, channel::mpsc::Sender, stream::pending};
+use iced::futures::{StreamExt, channel::mpsc::Sender, stream::pending};
 use iced::stream::channel;
 use iced::widget::{image, svg};
 use log::{error, info};
@@ -116,11 +117,13 @@ impl NotificationsService {
             State::Init => match Self::init_service().await {
                 Ok((connection, event_tx)) => {
                     info!("Notifications service initialized");
-                    let _ = output
-                        .send(ServiceEvent::Init(NotificationsService {
+                    send_or_log(
+                        output,
+                        ServiceEvent::Init(NotificationsService {
                             connection: connection.clone(),
-                        }))
-                        .await;
+                        }),
+                    )
+                    .await;
                     State::Active(connection, event_tx)
                 }
                 Err(err) => {
@@ -135,7 +138,7 @@ impl NotificationsService {
                 while let Some(result) = stream.next().await {
                     match result {
                         Ok(event) => {
-                            let _ = output.send(ServiceEvent::Update(event)).await;
+                            send_or_log(output, ServiceEvent::Update(event)).await;
                         }
                         Err(e) => {
                             error!("Error receiving notification event: {e}");
