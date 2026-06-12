@@ -1,15 +1,12 @@
+use crate::components::ButtonUIRef;
 use crate::{
     components::menu::MenuType,
     config::Config,
     ipc::IpcCommand,
-    modules::{
-        self,
-        custom_module,
-    },
+    modules::{self, custom_module},
     osd,
 };
 use iced::{OutputEvent, SurfaceId};
-use crate::components::ButtonUIRef;
 
 #[derive(Debug, Clone)]
 pub enum Message {

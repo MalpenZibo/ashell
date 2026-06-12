@@ -499,11 +499,7 @@ impl NetworkService {
                                         matches!(event, NetworkEvent::WirelessDevice { .. });
                                     // Send the event to UI before exiting - UI needs the WirelessDevice data
                                     // (wifi_present and access_points) to populate the network menu
-                                    send_or_log(
-                                        output,
-                                        ServiceEvent::Update(event),
-                                    )
-                                    .await;
+                                    send_or_log(output, ServiceEvent::Update(event)).await;
 
                                     if exit_loop {
                                         break;
@@ -536,11 +532,7 @@ impl NetworkService {
                                         // TODO: network manager leaves with device - we can also
                                         // do that, but would need a different way to disable
                                         // scanning
-                                        send_or_log(
-                                            output,
-                                            ServiceEvent::Update(event),
-                                        )
-                                        .await;
+                                        send_or_log(output, ServiceEvent::Update(event)).await;
                                     }
                                 }
 

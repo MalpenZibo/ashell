@@ -201,9 +201,9 @@ impl BrightnessService {
                                                         current_value = new_value;
                                                         send_or_log(
                                                             output,
-                                                            ServiceEvent::Update(
-                                                                BrightnessEvent(new_value),
-                                                            ),
+                                                            ServiceEvent::Update(BrightnessEvent(
+                                                                new_value,
+                                                            )),
                                                         )
                                                         .await;
                                                     }

@@ -13,13 +13,13 @@ use iced::{
 };
 use log::{debug, warn};
 
+use self::weather::{Location, WeatherData, fetch_location, fetch_weather_data};
 use crate::{
     components::MenuSize,
     config::{TempoModuleConfig, WeatherIndicator},
     i18n::{language_subtag, unit_system},
     theme::use_theme,
 };
-use self::weather::{fetch_location, fetch_weather_data, Location, WeatherData};
 
 pub use self::weather::weather_icon;
 
@@ -220,14 +220,7 @@ impl Tempo {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        let second_specifiers = [
-            "%S",
-            "%T",
-            "%X",
-            "%r",
-            "%:z",
-            "%s",
-        ];
+        let second_specifiers = ["%S", "%T", "%X", "%r", "%:z", "%s"];
 
         let current_format = self.current_format();
 

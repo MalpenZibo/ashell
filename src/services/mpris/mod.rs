@@ -440,11 +440,7 @@ impl MprisPlayerService {
             Ok(data) => {
                 debug!("Refreshing MPRIS player data for {} players", data.len());
                 Self::check_cover_update(&data, state_data);
-                send_or_log(
-                    output,
-                    ServiceEvent::Update(Event::MetadataChanged(data)),
-                )
-                .await;
+                send_or_log(output, ServiceEvent::Update(Event::MetadataChanged(data))).await;
             }
             Err(err) => {
                 error!("Failed to fetch MPRIS player data: {err}");

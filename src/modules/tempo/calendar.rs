@@ -1,6 +1,5 @@
 use chrono::{
-    Datelike, Days, FixedOffset, Local, Months, NaiveDate, NaiveDateTime, TimeZone, Utc,
-    Weekday,
+    Datelike, Days, FixedOffset, Local, Months, NaiveDate, NaiveDateTime, TimeZone, Utc, Weekday,
 };
 use chrono_tz::Tz;
 use iced::{
@@ -100,7 +99,7 @@ impl Tempo {
 
         let mut current = first_day_month
             .checked_sub_days(Days::new(
-                day_of_week_first_day.num_days_from_monday() as u64,
+                day_of_week_first_day.num_days_from_monday() as u64
             ))
             .unwrap_or_default();
 

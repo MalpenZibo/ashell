@@ -5,9 +5,7 @@ use iced::{
     Background, Border, Degrees, Element, Length, Padding, Rotation, Theme,
     alignment::{Horizontal, Vertical},
     core::svg::Handle,
-    widget::{
-        Column, MouseArea, Row, Svg, column, container, row, scrollable, svg, text,
-    },
+    widget::{Column, MouseArea, Row, Svg, column, container, row, scrollable, svg, text},
 };
 use itertools::izip;
 use serde::{Deserialize, Deserializer};
@@ -309,7 +307,10 @@ impl Tempo {
     }
 }
 
-pub(super) async fn fetch_location(location: &WeatherLocation, lang: &str) -> anyhow::Result<Location> {
+pub(super) async fn fetch_location(
+    location: &WeatherLocation,
+    lang: &str,
+) -> anyhow::Result<Location> {
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(20))
         .build()?;
@@ -484,7 +485,11 @@ pub struct Location {
     pub region_name: String,
 }
 
-pub(super) async fn fetch_weather_data(lat: f32, lon: f32, units: UnitSystem) -> anyhow::Result<WeatherData> {
+pub(super) async fn fetch_weather_data(
+    lat: f32,
+    lon: f32,
+    units: UnitSystem,
+) -> anyhow::Result<WeatherData> {
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(20))
         .build()?;

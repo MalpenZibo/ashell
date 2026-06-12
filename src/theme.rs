@@ -222,7 +222,11 @@ fn build_iced_theme(appearance: &Appearance) -> Theme {
     )
 }
 
-fn base_theme_from_appearance(appearance: &Appearance, bar_position: Position, animations_enabled: bool) -> AshellTheme {
+fn base_theme_from_appearance(
+    appearance: &Appearance,
+    bar_position: Position,
+    animations_enabled: bool,
+) -> AshellTheme {
     AshellTheme {
         space: Space::default(),
         radius: Radius::default(),

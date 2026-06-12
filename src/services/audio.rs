@@ -133,7 +133,12 @@ impl WakePipe {
         }
         let read_fd = unsafe { OwnedFd::from_raw_fd(fds[0]) };
         let write_fd = unsafe { OwnedFd::from_raw_fd(fds[1]) };
-        Ok((read_fd, Self { write_fd: Arc::new(write_fd) }))
+        Ok((
+            read_fd,
+            Self {
+                write_fd: Arc::new(write_fd),
+            },
+        ))
     }
 
     fn wake(&self) {
@@ -214,20 +219,12 @@ impl AudioService {
                     State::Active(handle)
                 }
                 Some(PulseAudioServerEvent::Sources(sources)) => {
-                    send_or_log(
-                        output,
-                        ServiceEvent::Update(AudioEvent::Sources(sources)),
-                    )
-                    .await;
+                    send_or_log(output, ServiceEvent::Update(AudioEvent::Sources(sources))).await;
 
                     State::Active(handle)
                 }
                 Some(PulseAudioServerEvent::ServerInfo(info)) => {
-                    send_or_log(
-                        output,
-                        ServiceEvent::Update(AudioEvent::ServerInfo(info)),
-                    )
-                    .await;
+                    send_or_log(output, ServiceEvent::Update(AudioEvent::ServerInfo(info))).await;
 
                     State::Active(handle)
                 }
@@ -515,8 +512,8 @@ impl PulseAudioServer {
 
         let (init_tx, mut init_rx) = tokio::sync::mpsc::unbounded_channel();
 
-        let (wake_read, wake) = WakePipe::new()
-            .map_err(|e| anyhow::anyhow!("failed to create wake pipe: {e}"))?;
+        let (wake_read, wake) =
+            WakePipe::new().map_err(|e| anyhow::anyhow!("failed to create wake pipe: {e}"))?;
 
         // Single thread for both listening and commanding — avoids PulseAudio
         // mainloop assertion failures from concurrent connections.

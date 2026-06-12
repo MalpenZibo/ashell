@@ -46,15 +46,15 @@ fn dispatch(cmd: CompositorCommand, strategy: DispatchStrategy) -> Result<()> {
             let dt = DispatchType::Workspace(WorkspaceIdentifierWithSpecial::Id(id));
             match strategy {
                 DispatchStrategy::Socket => socket_call(dt),
-                DispatchStrategy::Lua => {
-                    lua_for(&format!("hl.dispatch(hl.dsp.focus({{ workspace = {id} }}))"))
-                }
+                DispatchStrategy::Lua => lua_for(&format!(
+                    "hl.dispatch(hl.dsp.focus({{ workspace = {id} }}))"
+                )),
             }
         }
         CompositorCommand::FocusSpecialWorkspace(name) => {
-            let dt = DispatchType::Workspace(WorkspaceIdentifierWithSpecial::Special(
-                Some(name.as_str()),
-            ));
+            let dt = DispatchType::Workspace(WorkspaceIdentifierWithSpecial::Special(Some(
+                name.as_str(),
+            )));
             match strategy {
                 DispatchStrategy::Socket => socket_call(dt),
                 DispatchStrategy::Lua => lua_for(&format!(
@@ -82,9 +82,9 @@ fn dispatch(cmd: CompositorCommand, strategy: DispatchStrategy) -> Result<()> {
         }
         CompositorCommand::ScrollWorkspace(dir) => {
             let d = if dir > 0 { "+1" } else { "-1" };
-            let dt = DispatchType::Workspace(
-                WorkspaceIdentifierWithSpecial::Relative(d.to_string().parse()?),
-            );
+            let dt = DispatchType::Workspace(WorkspaceIdentifierWithSpecial::Relative(
+                d.to_string().parse()?,
+            ));
             match strategy {
                 DispatchStrategy::Socket => socket_call(dt),
                 DispatchStrategy::Lua => lua_for(&format!(

@@ -2,7 +2,7 @@ use super::{ReadOnlyService, Service, ServiceEvent};
 use crate::{
     components::icons::StaticIcon,
     services::throttle::ThrottleExt,
-    utils::{send_or_log, IndicatorState},
+    utils::{IndicatorState, send_or_log},
 };
 use dbus::{DeviceProxy, PowerProfilesProxy, SystemBattery, UPowerDbus, UPowerProxy, UpDeviceKind};
 use iced::{

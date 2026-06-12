@@ -1380,7 +1380,6 @@ pub fn subscription(path: &Path) -> Subscription<Message> {
     })
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1419,7 +1418,7 @@ mod tests {
     fn test_parse_module_name() {
         let module: ModuleName = "Workspaces".parse().unwrap();
         assert_eq!(module, ModuleName::Workspaces);
-        
+
         let custom: ModuleName = "MyCustomModule".parse().unwrap();
         assert_eq!(custom, ModuleName::Custom("MyCustomModule".to_string()));
     }

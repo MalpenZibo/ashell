@@ -763,7 +763,8 @@ impl Outputs {
     pub fn surface_left_output(&mut self, surface_id: SurfaceId, output_id: OutputId) {
         let clear = |slot: &mut Option<OverlaySurface>| {
             if let Some(s) = slot
-                && s.id == surface_id && s.output == Some(output_id)
+                && s.id == surface_id
+                && s.output == Some(output_id)
             {
                 s.output = None;
             }

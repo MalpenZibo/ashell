@@ -2,9 +2,7 @@ use super::{ReadOnlyService, ServiceEvent};
 use crate::utils::send_or_log;
 use iced::{
     Subscription,
-    futures::{
-        FutureExt, Stream, StreamExt, channel::mpsc::Sender, select, stream::pending,
-    },
+    futures::{FutureExt, Stream, StreamExt, channel::mpsc::Sender, select, stream::pending},
     stream::channel,
 };
 use inotify::{EventMask, Inotify, WatchMask};
@@ -182,11 +180,7 @@ impl PrivacyService {
                     (Ok(pipewire), Ok(webcam)) => {
                         let data = PrivacyData::new();
 
-                        send_or_log(
-                            output,
-                            ServiceEvent::Init(PrivacyService { data }),
-                        )
-                        .await;
+                        send_or_log(output, ServiceEvent::Init(PrivacyService { data })).await;
 
                         State::Active((pipewire, webcam))
                     }

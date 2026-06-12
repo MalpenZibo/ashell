@@ -1,10 +1,6 @@
 use super::{ReadOnlyService, ServiceEvent};
 use crate::utils::send_or_log;
-use iced::{
-    Subscription,
-    futures::StreamExt,
-    stream::channel,
-};
+use iced::{Subscription, futures::StreamExt, stream::channel};
 use std::any::TypeId;
 use zbus::Connection;
 
