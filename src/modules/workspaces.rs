@@ -440,17 +440,24 @@ impl Workspaces {
                 self.ui_workspaces
                     .iter()
                     .filter_map(|w| {
+                        // Compare canonical compositor names by equality, not
+                        // substring containment. Both `monitor_name` (the
+                        // bar's surface output) and `w.monitor` (the workspace's
+                        // home output) come from the compositor as canonical
+                        // names, so equality is the correct relation. Using
+                        // `.contains()` falsely matches any pair where one
+                        // name is a substring of the other — most commonly
+                        // `eDP-1` vs `DP-1`, causing the laptop bar to leak
+                        // the external monitor's workspaces in and stop
+                        // tracking its own focused workspace.
+                        let monitor_matches =
+                            monitor_name.is_none_or(|n| n == w.monitor.as_str());
                         let show = match self.config.visibility_mode {
                             WorkspaceVisibilityMode::All => true,
                             WorkspaceVisibilityMode::MonitorSpecific => {
-                                monitor_name
-                                    .unwrap_or_else(|| &w.monitor)
-                                    .contains(&w.monitor)
-                                    || !outputs.has_name(&w.monitor)
+                                monitor_matches || !outputs.has_name(&w.monitor)
                             }
-                            WorkspaceVisibilityMode::MonitorSpecificExclusive => monitor_name
-                                .unwrap_or_else(|| &w.monitor)
-                                .contains(&w.monitor),
+                            WorkspaceVisibilityMode::MonitorSpecificExclusive => monitor_matches,
                         };
 
                         if show {
