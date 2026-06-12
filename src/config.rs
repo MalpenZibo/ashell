@@ -587,6 +587,8 @@ pub enum SettingsFormat {
     IconAndPercentage,
     Time,
     IconAndTime,
+    Name,
+    IconAndName,
 }
 
 #[derive(Deserialize, Clone, Default, PartialEq, Eq, Debug)]

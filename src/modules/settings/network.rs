@@ -323,20 +323,28 @@ impl NetworkSettings {
                         _ => None,
                     };
                     let strength_text = strength.map_or("100%".to_string(), |s| format!("{}%", s));
+                    let label = match self.config.indicator_format {
+                        SettingsFormat::Name | SettingsFormat::IconAndName => a.name(),
+                        _ => strength_text,
+                    };
 
                     format_indicator(
                         self.config.indicator_format,
                         icon_type,
-                        text(strength_text).into(),
+                        text(label).into(),
                         state,
                     )
                     .on_right_press(Message::OpenMore)
                     .into()
                 } else {
+                    let label = match self.config.indicator_format {
+                        SettingsFormat::Name | SettingsFormat::IconAndName => "-".to_string(),
+                        _ => "0%".to_string(),
+                    };
                     format_indicator(
                         self.config.indicator_format,
                         StaticIcon::Wifi0,
-                        text("0%").into(),
+                        text(label).into(),
                         IndicatorState::Normal,
                     )
                     .on_right_press(Message::OpenMore)
