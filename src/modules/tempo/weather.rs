@@ -26,7 +26,7 @@ impl Tempo {
         let locale = chrono_locale();
         let units = unit_system();
         let temp = units.temperature_symbol();
-        let wind = units.wind_speed_symbol();
+        let wind = self.config.resolved_wind_speed_unit().symbol();
         let location_visible = self.location_visible;
         self.weather_data
             .as_ref()

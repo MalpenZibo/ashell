@@ -511,13 +511,6 @@ impl WindSpeedUnit {
         }
     }
 
-    pub fn api_param(self) -> &'static str {
-        match self {
-            Self::Kmh => "kmh",
-            Self::Mph => "mph",
-            Self::Ms => "ms",
-        }
-    }
 }
 
 #[derive(Deserialize, Default, Clone, Debug, PartialEq, Eq)]
