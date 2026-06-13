@@ -8,6 +8,7 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::sync::{Arc, Mutex};
 
 use anyhow::{Context, Result, anyhow};
 use clap::Subcommand;
@@ -17,6 +18,7 @@ use crate::xdg;
 
 /// Maximum bytes to read from a client connection.
 const MAX_REQUEST_LEN: u64 = 4096;
+const MAX_RESPONSE_LEN: u64 = 1024 * 1024;
 
 /// IPC command that can be sent to the daemon.
 #[derive(Subcommand, Debug, Clone)]
@@ -63,12 +65,83 @@ pub enum IpcCommand {
         #[arg(long)]
         no_osd: bool,
     },
+    /// Clear all notifications
+    NotificationsClear {
+        #[arg(short = 'n', long = "id")]
+        id: Option<u32>,
+    },
+    /// Invoke the default action on a notification
+    NotificationsInvoke {
+        #[arg(short = 'n', long = "id")]
+        id: Option<u32>,
+        action: Option<String>,
+    },
+    /// List active notifications as JSON
+    NotificationsList,
+}
+
+#[derive(Debug, Clone)]
+pub struct IpcRequest {
+    command: IpcCommand,
+    response: IpcResponse,
+}
+
+impl IpcRequest {
+    fn new(command: IpcCommand, stream: UnixStream) -> Self {
+        Self {
+            command,
+            response: IpcResponse::new(stream),
+        }
+    }
+
+    pub fn command(&self) -> &IpcCommand {
+        &self.command
+    }
+
+    pub fn respond_ok(&self) {
+        self.respond("ok");
+    }
+
+    pub fn respond_error(&self, error: &str) {
+        self.respond(&format!("error {error}"));
+    }
+
+    pub fn respond(&self, response: &str) {
+        self.response.respond(response);
+    }
+}
+
+#[derive(Debug, Clone)]
+struct IpcResponse {
+    stream: Arc<Mutex<Option<UnixStream>>>,
+}
+
+impl IpcResponse {
+    fn new(stream: UnixStream) -> Self {
+        Self {
+            stream: Arc::new(Mutex::new(Some(stream))),
+        }
+    }
+
+    fn respond(&self, response: &str) {
+        match self.stream.lock() {
+            Ok(mut stream) => {
+                if let Some(mut stream) = stream.take() {
+                    write_response(&mut stream, response);
+                }
+            }
+            Err(e) => log::debug!("IPC response lock failed: {e}"),
+        }
+    }
 }
 
 impl IpcCommand {
     pub fn no_osd(&self) -> bool {
         match self {
-            IpcCommand::ToggleVisibility => false,
+            IpcCommand::ToggleVisibility
+            | IpcCommand::NotificationsClear { .. }
+            | IpcCommand::NotificationsInvoke { .. }
+            | IpcCommand::NotificationsList => false,
             IpcCommand::VolumeUp { no_osd }
             | IpcCommand::VolumeDown { no_osd }
             | IpcCommand::VolumeToggleMute { no_osd }
@@ -99,6 +172,26 @@ impl fmt::Display for IpcCommand {
             IpcCommand::BrightnessDown { .. } => "brightness-down",
             IpcCommand::ToggleAirplaneMode { .. } => "toggle-airplane-mode",
             IpcCommand::ToggleIdleInhibitor { .. } => "toggle-idle-inhibitor",
+            IpcCommand::NotificationsClear { id } => {
+                if let Some(id) = id {
+                    return write!(f, "notifications-clear?id={id}");
+                }
+                "notifications-clear"
+            }
+            IpcCommand::NotificationsInvoke { id, action } => {
+                if id.is_some() || action.is_some() {
+                    let mut args = url::form_urlencoded::Serializer::new(String::new());
+                    if let Some(id) = id {
+                        args.append_pair("id", &id.to_string());
+                    }
+                    if let Some(action) = action {
+                        args.append_pair("action", action);
+                    }
+                    return write!(f, "notifications-invoke?{}", args.finish());
+                }
+                "notifications-invoke"
+            }
+            IpcCommand::NotificationsList => "notifications-list",
         };
         write!(f, "{base}")?;
         if self.no_osd() {
@@ -116,6 +209,8 @@ impl FromStr for IpcCommand {
             Some(base) => (base, true),
             None => (s, false),
         };
+        let (cmd, args) = cmd.split_once('?').unwrap_or((cmd, ""));
+
         match cmd {
             "toggle-visibility" => Ok(IpcCommand::ToggleVisibility),
             "volume-up" => Ok(IpcCommand::VolumeUp { no_osd }),
@@ -128,6 +223,33 @@ impl FromStr for IpcCommand {
             "brightness-down" => Ok(IpcCommand::BrightnessDown { no_osd }),
             "toggle-airplane-mode" => Ok(IpcCommand::ToggleAirplaneMode { no_osd }),
             "toggle-idle-inhibitor" => Ok(IpcCommand::ToggleIdleInhibitor { no_osd }),
+            "notifications-clear" => {
+                let id = if args.is_empty() {
+                    None
+                } else if let Some(value) = args.strip_prefix("id=") {
+                    Some(value.parse().context("parse notification id")?)
+                } else {
+                    return Err(anyhow!("unknown IPC command arguments: {args:?}"));
+                };
+                Ok(IpcCommand::NotificationsClear { id })
+            }
+            "notifications-invoke" => {
+                let mut id = None;
+                let mut action = None;
+                if !args.is_empty() {
+                    for (key, value) in url::form_urlencoded::parse(args.as_bytes()) {
+                        match key.as_ref() {
+                            "id" => id = Some(value.parse().context("parse notification id")?),
+                            "action" => action = Some(value.into_owned()),
+                            _ => {
+                                return Err(anyhow!("unknown IPC command arguments: {args:?}"));
+                            }
+                        }
+                    }
+                }
+                Ok(IpcCommand::NotificationsInvoke { id, action })
+            }
+            "notifications-list" => Ok(IpcCommand::NotificationsList),
             _ => Err(anyhow!("unknown IPC command: {s:?}")),
         }
     }
@@ -162,9 +284,14 @@ pub fn run_client(cmd: &IpcCommand) -> Result<()> {
     stream.shutdown(std::net::Shutdown::Write)?;
 
     let mut response = String::new();
-    BufReader::new((&stream).take(MAX_REQUEST_LEN))
-        .read_line(&mut response)
-        .context("read response")?;
+    let mut reader = BufReader::new((&stream).take(MAX_RESPONSE_LEN));
+    let bytes_read = reader.read_line(&mut response).context("read response")?;
+    if bytes_read == 0 {
+        return Err(anyhow!("IPC server closed without response"));
+    }
+    if !response.ends_with('\n') {
+        return Err(anyhow!("truncated IPC response"));
+    }
     let response = response.trim_end();
 
     if let Some(err) = response.strip_prefix("error ") {
@@ -238,6 +365,13 @@ fn read_request(stream: &UnixStream) -> Result<IpcCommand> {
 
 /// Write a response line to the client.
 fn write_response(stream: &mut UnixStream, response: &str) {
+    // Tokio's into_std preserves nonblocking mode; std write_all would
+    // otherwise fail with WouldBlock after a partial large response.
+    if let Err(e) = stream.set_nonblocking(false) {
+        log::debug!("IPC set blocking response stream failed: {e}");
+        return;
+    }
+
     let msg = format!("{response}\n");
     if let Err(e) = stream.write_all(msg.as_bytes()) {
         log::debug!("IPC write response failed: {e}");
@@ -245,12 +379,9 @@ fn write_response(stream: &mut UnixStream, response: &str) {
 }
 
 /// Handle a single accepted client connection.
-fn handle_connection(mut stream: UnixStream) -> Option<IpcCommand> {
+fn handle_connection(mut stream: UnixStream) -> Option<IpcRequest> {
     match read_request(&stream) {
-        Ok(cmd) => {
-            write_response(&mut stream, "ok");
-            Some(cmd)
-        }
+        Ok(cmd) => Some(IpcRequest::new(cmd, stream)),
         Err(e) => {
             write_response(&mut stream, &format!("error {e:#}"));
             None
@@ -282,7 +413,7 @@ fn init_listener() -> Option<tokio::net::UnixListener> {
 }
 
 /// Subscription that listens for IPC commands on the Unix socket.
-pub fn subscription() -> Subscription<IpcCommand> {
+pub fn subscription() -> Subscription<IpcRequest> {
     use iced::futures::StreamExt;
 
     Subscription::run(|| {

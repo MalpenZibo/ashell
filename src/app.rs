@@ -4,7 +4,7 @@ use crate::{
     config::{self, AppearanceStyle, Config, Modules, Position},
     get_log_spec,
     i18n::{Localizer, init_localizer},
-    ipc::IpcCommand,
+    ipc::{IpcCommand, IpcRequest},
     modules::{
         self,
         custom_module::{self, Custom},
@@ -93,7 +93,7 @@ pub enum Message {
     MediaPlayer(modules::media_player::Message),
     Notifications(modules::notifications::Message),
     Osd(osd::Message),
-    IpcOsdCommand(IpcCommand),
+    IpcRequest(IpcRequest),
     OutputEvent(OutputEvent),
     CloseAllMenus,
     ResumeFromSleep,
@@ -313,8 +313,82 @@ impl App {
                     None
                 }
             }
-            IpcCommand::ToggleVisibility => None,
+            IpcCommand::ToggleVisibility
+            | IpcCommand::NotificationsClear { .. }
+            | IpcCommand::NotificationsInvoke { .. }
+            | IpcCommand::NotificationsList => None,
         }
+    }
+
+    fn handle_notifications_action(
+        &mut self,
+        action: modules::notifications::Action,
+    ) -> Task<Message> {
+        match action {
+            modules::notifications::Action::None => Task::none(),
+            modules::notifications::Action::Task(task) => task.map(Message::Notifications),
+            modules::notifications::Action::Show(task) => {
+                let position = self.notifications.toast_position();
+                let width = crate::components::MenuSize::Medium.size() as u32;
+                Task::batch(vec![
+                    task.map(Message::Notifications),
+                    self.outputs.show_toast_layer(width, position),
+                ])
+            }
+            modules::notifications::Action::Hide(task) => Task::batch(vec![
+                task.map(Message::Notifications),
+                self.outputs.hide_toast_layer(),
+            ]),
+            modules::notifications::Action::UpdateToastInputRegion(content_size) => {
+                let position = self.notifications.toast_position();
+                self.outputs
+                    .update_toast_input_region(content_size, position)
+            }
+        }
+    }
+
+    fn handle_ipc_osd_command(&mut self, cmd: &IpcCommand) -> Task<Message> {
+        let mut tasks = vec![];
+
+        // Execute the action via Settings.
+        let action = match cmd {
+            IpcCommand::VolumeUp { .. } => self.settings.volume_adjust(true),
+            IpcCommand::VolumeDown { .. } => self.settings.volume_adjust(false),
+            IpcCommand::VolumeToggleMute { .. } => self.settings.toggle_mute(),
+            IpcCommand::MicrophoneUp { .. } => self.settings.microphone_adjust(true),
+            IpcCommand::MicrophoneDown { .. } => self.settings.microphone_adjust(false),
+            IpcCommand::MicrophoneToggleMute { .. } => self.settings.microphone_toggle_mute(),
+            IpcCommand::BrightnessUp { .. } => self.settings.brightness_adjust(true),
+            IpcCommand::BrightnessDown { .. } => self.settings.brightness_adjust(false),
+            IpcCommand::ToggleAirplaneMode { .. } => self.settings.toggle_airplane(),
+            IpcCommand::ToggleIdleInhibitor { .. } => self.settings.toggle_idle_inhibitor(),
+            IpcCommand::ToggleVisibility
+            | IpcCommand::NotificationsClear { .. }
+            | IpcCommand::NotificationsInvoke { .. }
+            | IpcCommand::NotificationsList => unreachable!(),
+        };
+        if let settings::Action::Command(task) = action {
+            tasks.push(task.map(Message::Settings));
+        }
+
+        // Show OSD overlay if enabled.
+        if self.osd.config().enabled && !cmd.no_osd() {
+            let osd_info = self.osd_info_for(cmd);
+
+            if let Some((kind, value, scale, muted)) = osd_info
+                && let osd::Action::Show(timer) = self.osd.update(osd::Message::Show {
+                    kind,
+                    value,
+                    scale,
+                    muted,
+                })
+            {
+                tasks.push(timer.map(Message::Osd));
+                tasks.push(self.outputs.show_osd_layer(OSD_WIDTH, OSD_HEIGHT));
+            }
+        }
+
+        Task::batch(tasks)
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
@@ -544,69 +618,47 @@ impl App {
                     scale_factor,
                 )
             }
-            Message::Notifications(message) => match self.notifications.update(message) {
-                modules::notifications::Action::None => Task::none(),
-                modules::notifications::Action::Task(task) => task.map(Message::Notifications),
-                modules::notifications::Action::Show(task) => {
-                    let position = self.notifications.toast_position();
-                    let width = crate::components::MenuSize::Medium.size() as u32;
-                    Task::batch(vec![
-                        task.map(Message::Notifications),
-                        self.outputs.show_toast_layer(width, position),
-                    ])
+            Message::Notifications(message) => {
+                let action = self.notifications.update(message);
+                self.handle_notifications_action(action)
+            }
+            Message::IpcRequest(request) => match request.command() {
+                IpcCommand::ToggleVisibility => {
+                    request.respond_ok();
+                    self.update(Message::ToggleVisibility)
                 }
-                modules::notifications::Action::Hide(task) => Task::batch(vec![
-                    task.map(Message::Notifications),
-                    self.outputs.hide_toast_layer(),
-                ]),
-                modules::notifications::Action::UpdateToastInputRegion(content_size) => {
-                    let position = self.notifications.toast_position();
-                    self.outputs
-                        .update_toast_input_region(content_size, position)
+                IpcCommand::NotificationsClear { id } => {
+                    request.respond_ok();
+                    let message = match id {
+                        Some(id) => modules::notifications::Message::CloseNotificationById(*id),
+                        None => modules::notifications::Message::ClearNotifications,
+                    };
+                    let action = self.notifications.update(message);
+                    self.handle_notifications_action(action)
+                }
+                IpcCommand::NotificationsInvoke { id, action } => {
+                    request.respond_ok();
+                    let action_key = action.clone().unwrap_or_else(|| "default".to_string());
+                    let notification_action =
+                        self.notifications
+                            .update(modules::notifications::Message::InvokeAction {
+                                id: *id,
+                                action_key,
+                            });
+                    self.handle_notifications_action(notification_action)
+                }
+                IpcCommand::NotificationsList => {
+                    match self.notifications.list_json() {
+                        Ok(json) => request.respond(&json),
+                        Err(e) => request.respond_error(&format!("serialize notifications: {e}")),
+                    }
+                    Task::none()
+                }
+                cmd => {
+                    request.respond_ok();
+                    self.handle_ipc_osd_command(cmd)
                 }
             },
-            Message::IpcOsdCommand(cmd) => {
-                let mut tasks = vec![];
-
-                // Execute the action via Settings.
-                let action = match &cmd {
-                    IpcCommand::VolumeUp { .. } => self.settings.volume_adjust(true),
-                    IpcCommand::VolumeDown { .. } => self.settings.volume_adjust(false),
-                    IpcCommand::VolumeToggleMute { .. } => self.settings.toggle_mute(),
-                    IpcCommand::MicrophoneUp { .. } => self.settings.microphone_adjust(true),
-                    IpcCommand::MicrophoneDown { .. } => self.settings.microphone_adjust(false),
-                    IpcCommand::MicrophoneToggleMute { .. } => {
-                        self.settings.microphone_toggle_mute()
-                    }
-                    IpcCommand::BrightnessUp { .. } => self.settings.brightness_adjust(true),
-                    IpcCommand::BrightnessDown { .. } => self.settings.brightness_adjust(false),
-                    IpcCommand::ToggleAirplaneMode { .. } => self.settings.toggle_airplane(),
-                    IpcCommand::ToggleIdleInhibitor { .. } => self.settings.toggle_idle_inhibitor(),
-                    IpcCommand::ToggleVisibility => unreachable!(),
-                };
-                if let settings::Action::Command(task) = action {
-                    tasks.push(task.map(Message::Settings));
-                }
-
-                // Show OSD overlay if enabled.
-                if self.osd.config().enabled && !cmd.no_osd() {
-                    let osd_info = self.osd_info_for(&cmd);
-
-                    if let Some((kind, value, scale, muted)) = osd_info
-                        && let osd::Action::Show(timer) = self.osd.update(osd::Message::Show {
-                            kind,
-                            value,
-                            scale,
-                            muted,
-                        })
-                    {
-                        tasks.push(timer.map(Message::Osd));
-                        tasks.push(self.outputs.show_osd_layer(OSD_WIDTH, OSD_HEIGHT));
-                    }
-                }
-
-                Task::batch(tasks)
-            }
             Message::Osd(msg) => match self.osd.update(msg) {
                 osd::Action::Hide => self.outputs.hide_osd_layer(),
                 _ => Task::none(),
@@ -848,10 +900,7 @@ impl App {
             // Always subscribe to audio/brightness services so OSD works
             // even when the Settings module isn't in the module list.
             self.settings.subscription().map(Message::Settings),
-            crate::ipc::subscription().map(|cmd| match cmd {
-                IpcCommand::ToggleVisibility => Message::ToggleVisibility,
-                other => Message::IpcOsdCommand(other),
-            }),
+            crate::ipc::subscription().map(Message::IpcRequest),
         ])
     }
 }

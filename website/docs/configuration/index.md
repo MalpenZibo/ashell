@@ -53,6 +53,9 @@ Available commands:
 | `brightness-down`        | Decrease screen brightness by 5%     |
 | `toggle-airplane-mode`   | Toggle airplane mode                 |
 | `toggle-idle-inhibitor`  | Toggle idle inhibitor                |
+| `notifications-clear [-n, --id <id>]` | Clear all active notifications, or one notification by id |
+| `notifications-invoke [-n, --id <id>] [action]` | Invoke a notification action, defaulting to `default` |
+| `notifications-list`     | List active notifications as JSON    |
 
 
 Volume, microphone, brightness, airplane and idle inhibitor commands show an OSD (On-Screen Display)
