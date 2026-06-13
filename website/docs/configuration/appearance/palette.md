@@ -79,10 +79,10 @@ For example, if workspace 1 is attached to `monitorA`, the first
 color will be used; if workspace 2 is attached to `monitorB`,
 the second color will be used, and so on.
 
-Use the `workspace_colors` field for regular workspaces, and
+Use the `workspace_colors` field for regular workspaces, `active_workspace_colors` for the active workspace per monitor, and
 `special_workspace_colors` for special workspaces.
 
-If `special_workspace_colors` is not defined, `workspace_colors` will be used.
+If `special_workspace_colors`/`active_workspace_colors` are not defined, `workspace_colors` will be used.
 If neither `workspace_colors` is defined nor a color exists
 for a given monitor, the `primary_color` will be used.
 
