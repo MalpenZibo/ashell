@@ -587,6 +587,8 @@ fn build_state(
             active_workspace_id,
             active_workspace_name,
             special_workspace_name: String::new(),
+            logical_size: None,
+            view_point: None,
         });
     }
 

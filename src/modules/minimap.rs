@@ -398,6 +398,7 @@ mod tests {
             tile_position: Some((col, row)),
             tile_width: w,
             tile_height: h,
+            floating_pos: None,
         }
     }
 
@@ -525,6 +526,8 @@ mod tests {
             active_workspace_id,
             active_workspace_name: String::new(),
             special_workspace_name: String::new(),
+            view_point: None,
+            logical_size: None,
         }
     }
 

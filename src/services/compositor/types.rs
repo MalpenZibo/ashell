@@ -19,6 +19,14 @@ pub struct CompositorMonitor {
     pub active_workspace_id: i32,
     pub active_workspace_name: String,
     pub special_workspace_name: String,
+    /// Logical size of the monitor in compositor pixels, if known.
+    pub logical_size: Option<(u32, u32)>,
+    /// Top-left of this output's view onto its active workspace, in
+    /// workspace-layout coordinates (column 1 at x = 0, the tops of the
+    /// columns at y = 0). The output shows the region
+    /// `view_point..view_point + logical_size`. `None` if the
+    /// compositor doesn't expose a scrolling view position.
+    pub view_point: Option<(f32, f32)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -122,6 +130,12 @@ pub struct CompositorWindow {
     /// for proportional minimap sizing.
     pub tile_width: f32,
     pub tile_height: f32,
+    /// Absolute position of a floating window in workspace-layout
+    /// coordinates (the same space as the tiled grid; column 1 at x = 0).
+    /// Set only for floating windows, which aren't placed by grid index;
+    /// `None` for tiled windows and when the compositor doesn't expose
+    /// enough to locate the window in that space.
+    pub floating_pos: Option<(f32, f32)>,
 }
 
 #[derive(Debug, Clone, Default)]
