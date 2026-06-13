@@ -5,7 +5,7 @@ use crate::{
     services::{
         ReadOnlyService, ServiceEvent,
         notifications::{
-            Notification, NotificationIcon, NotificationsService, Urgency,
+            Notification, NotificationAction, NotificationIcon, NotificationsService, Urgency,
             dbus::{NotificationDaemon, NotificationEvent},
         },
     },
@@ -26,6 +26,16 @@ use std::{
 use zbus::Connection;
 
 const ICON_SIZE: f32 = 36.0;
+
+#[derive(serde::Serialize)]
+struct NotificationListEntry<'a> {
+    id: u32,
+    app_name: &'a str,
+    summary: &'a str,
+    body: &'a str,
+    urgency: &'static str,
+    actions: &'a [NotificationAction],
+}
 
 fn notification_icon<'a, M: 'a>(icon_kind: Option<&NotificationIcon>) -> Element<'a, M> {
     match icon_kind {
@@ -101,6 +111,7 @@ fn toast_timeout(required_timeout: i32, timeout_ms: u64) -> Option<Duration> {
 pub enum Message {
     ConfigReloaded(NotificationsModuleConfig),
     NotificationClicked(u32),
+    InvokeAction { id: Option<u32>, action_key: String },
     NotificationClosed,
     CloseNotificationById(u32),
     ClearNotifications,
@@ -167,7 +178,42 @@ impl Notifications {
         self.find_notification(id)
             .filter(|n| !n.actions.is_empty())
             .and_then(|n| n.actions.first())
-            .cloned()
+            .map(|action| action.key.clone())
+    }
+
+    fn find_action_notification(&self, action_key: &str) -> Option<u32> {
+        self.notifications
+            .iter()
+            .find(|notification| notification_has_action(notification, action_key))
+            .map(|notification| notification.id)
+    }
+
+    fn find_action_target(&self, id: Option<u32>, action_key: &str) -> Option<u32> {
+        if let Some(id) = id {
+            return self
+                .find_notification(id)
+                .filter(|notification| notification_has_action(notification, action_key))
+                .map(|notification| notification.id);
+        }
+
+        self.find_action_notification(action_key)
+    }
+
+    pub fn list_json(&self) -> serde_json::Result<String> {
+        let entries = self
+            .notifications
+            .iter()
+            .map(|notification| NotificationListEntry {
+                id: notification.id,
+                app_name: &notification.app_name,
+                summary: &notification.summary,
+                body: &notification.body,
+                urgency: urgency_name(notification.urgency),
+                actions: &notification.actions,
+            })
+            .collect::<Vec<_>>();
+
+        serde_json::to_string(&entries)
     }
 
     fn clear_toasts(&mut self) -> bool {
@@ -311,6 +357,16 @@ impl Notifications {
                 let action_key = self.find_first_action_key(id);
                 Action::Task(invoke_and_close_task(connection, id, action_key))
             }
+            Message::InvokeAction { id, action_key } => {
+                if let Some(id) = self.find_action_target(id, &action_key) {
+                    let connection = self.connection.clone();
+                    let had_toasts = self.remove_toast(id);
+                    let task = invoke_and_close_task(connection, id, Some(action_key));
+                    self.hide_toasts_if_empty_with_task(had_toasts, task)
+                } else {
+                    Action::None
+                }
+            }
             Message::NotificationClosed => Action::None,
             Message::ClearNotifications => {
                 let connection = self.connection.clone();
@@ -376,7 +432,24 @@ impl Notifications {
         let datetime: DateTime<Local> = timestamp.into();
         datetime.format(&self.config.format).to_string()
     }
+}
 
+fn notification_has_action(notification: &Notification, action_key: &str) -> bool {
+    notification
+        .actions
+        .iter()
+        .any(|action| action.key == action_key)
+}
+
+fn urgency_name(urgency: Urgency) -> &'static str {
+    match urgency {
+        Urgency::Low => "low",
+        Urgency::Normal => "normal",
+        Urgency::Critical => "critical",
+    }
+}
+
+impl Notifications {
     fn notification_button_style(
         style: NotificationStyle,
         urgency: Urgency,
