@@ -6,7 +6,7 @@ use crate::services::{ServiceEvent, compositor::CompositorService};
 use anyhow::Result;
 use hyprland::{
     data::{Client, Devices, Monitors, Workspace, Workspaces},
-    dispatch::{Dispatch, DispatchType, MonitorIdentifier, WorkspaceIdentifierWithSpecial},
+    dispatch::{Dispatch, DispatchType, WorkspaceIdentifierWithSpecial},
     event_listener::AsyncEventListener,
     prelude::*,
 };
@@ -51,44 +51,12 @@ fn dispatch(cmd: CompositorCommand, strategy: DispatchStrategy) -> Result<()> {
                 )),
             }
         }
-        CompositorCommand::FocusSpecialWorkspace(name) => {
-            let dt = DispatchType::Workspace(WorkspaceIdentifierWithSpecial::Special(Some(
-                name.as_str(),
-            )));
-            match strategy {
-                DispatchStrategy::Socket => socket_call(dt),
-                DispatchStrategy::Lua => lua_for(&format!(
-                    "hl.dispatch(hl.dsp.focus({{ workspace = \"special:{name}\" }}))"
-                )),
-            }
-        }
         CompositorCommand::ToggleSpecialWorkspace(name) => {
             let dt = DispatchType::ToggleSpecialWorkspace(Some(name.clone()));
             match strategy {
                 DispatchStrategy::Socket => socket_call(dt),
                 DispatchStrategy::Lua => lua_for(&format!(
                     "hl.dispatch(hl.dsp.workspace.toggle_special(\"{name}\"))"
-                )),
-            }
-        }
-        CompositorCommand::FocusMonitor(id) => {
-            let dt = DispatchType::FocusMonitor(MonitorIdentifier::Id(id));
-            match strategy {
-                DispatchStrategy::Socket => socket_call(dt),
-                DispatchStrategy::Lua => {
-                    lua_for(&format!("hl.dispatch(hl.dsp.focus({{ monitor = {id} }}))"))
-                }
-            }
-        }
-        CompositorCommand::ScrollWorkspace(dir) => {
-            let d = if dir > 0 { "+1" } else { "-1" };
-            let dt = DispatchType::Workspace(WorkspaceIdentifierWithSpecial::Relative(
-                d.to_string().parse()?,
-            ));
-            match strategy {
-                DispatchStrategy::Socket => socket_call(dt),
-                DispatchStrategy::Lua => lua_for(&format!(
-                    "hl.dispatch(hl.dsp.focus({{ workspace = \"{d}\" }}))"
                 )),
             }
         }

@@ -31,19 +31,8 @@ pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
                 ));
             }
         },
-        CompositorCommand::FocusSpecialWorkspace(_)
-        | CompositorCommand::ToggleSpecialWorkspace(_) => {
+        CompositorCommand::ToggleSpecialWorkspace(_) => {
             return Err(anyhow!("Special workspaces not supported in Niri backend"));
-        }
-        CompositorCommand::FocusMonitor(_) => {
-            return Err(anyhow!("FocusMonitor by ID not supported in Niri backend"));
-        }
-        CompositorCommand::ScrollWorkspace(dir) => {
-            if dir > 0 {
-                Action::FocusWorkspaceUp {}
-            } else {
-                Action::FocusWorkspaceDown {}
-            }
         }
         CompositorCommand::NextLayout => Action::SwitchLayout {
             layout: niri_ipc::LayoutSwitchTarget::Next,

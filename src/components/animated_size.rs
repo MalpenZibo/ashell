@@ -138,7 +138,7 @@ where
         self.content.as_widget_mut().update(
             &mut tree.children[0],
             event,
-            layout.children().next().unwrap(),
+            layout.children().next().expect("AnimatedSize: child layout missing"),
             cursor,
             renderer,
             clipboard,
@@ -172,7 +172,7 @@ where
                 renderer,
                 theme,
                 style,
-                layout.children().next().unwrap(),
+                layout.children().next().expect("AnimatedSize: child layout missing"),
                 cursor,
                 viewport,
             );
@@ -188,7 +188,7 @@ where
     ) {
         self.content.as_widget_mut().operate(
             &mut tree.children[0],
-            layout.children().next().unwrap(),
+            layout.children().next().expect("AnimatedSize: child layout missing"),
             renderer,
             operation,
         );
@@ -204,7 +204,7 @@ where
     ) -> mouse::Interaction {
         self.content.as_widget().mouse_interaction(
             &tree.children[0],
-            layout.children().next().unwrap(),
+            layout.children().next().expect("AnimatedSize: child layout missing"),
             cursor,
             viewport,
             renderer,

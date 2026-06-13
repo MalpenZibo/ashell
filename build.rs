@@ -60,7 +60,7 @@ pub fn main() -> Result<(), Box<dyn Error>> {
             Ok(c.to_string())
         })
         .collect::<Result<Vec<_>, _>>()?;
-    println!("Request the following unicodes {:?}", unicodes);
+    println!("cargo:warning=Request the following unicodes {:?}", unicodes);
 
     let text = unicodes.join("");
 
@@ -99,7 +99,7 @@ fn subset_text(input: &str, text: &str, output_path: &str) -> Result<(), Box<dyn
         return Err("no glyphs left in font".to_string().into());
     }
 
-    println!("Number of glyphs in new font: {}", glyph_ids.len());
+    println!("cargo:warning=Number of glyphs in new font: {}", glyph_ids.len());
 
     // Subset
     let new_font = subset::subset(

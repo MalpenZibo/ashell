@@ -169,7 +169,6 @@ impl Menu {
     }
 }
 
-#[allow(unused)]
 pub enum MenuSize {
     Small,
     Medium,

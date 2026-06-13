@@ -112,7 +112,6 @@ pub struct AshellTheme {
     pub workspace_colors: Vec<AppearanceColor>,
     pub special_workspace_colors: Option<Vec<AppearanceColor>>,
     pub scale_factor: f64,
-    #[allow(dead_code)]
     pub animations_enabled: bool,
 }
 

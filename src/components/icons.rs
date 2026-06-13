@@ -18,7 +18,6 @@ pub trait Icon {
 }
 
 #[derive(Copy, Clone, Default)]
-#[allow(dead_code)]
 pub enum StaticIcon {
     #[default]
     None,

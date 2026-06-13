@@ -1408,21 +1408,25 @@ mod tests {
 
     #[test]
     fn test_config_validation() {
-        let mut config = Config::default();
-        config.updates = Some(UpdatesModuleConfig {
-            check_cmd: "test".to_string(),
-            update_cmd: "test".to_string(),
-            interval: 0,
-        });
+        let mut config = Config {
+            updates: Some(UpdatesModuleConfig {
+                check_cmd: "test".to_string(),
+                update_cmd: "test".to_string(),
+                interval: 0,
+            }),
+            ..Config::default()
+        };
         config.validate();
         assert_eq!(config.updates.as_ref().unwrap().interval, 1);
     }
 
     #[test]
     fn test_threshold_validation() {
-        let mut cpu = SystemInfoCpu::default();
-        cpu.warn_threshold = 90;
-        cpu.alert_threshold = 80;
+        let mut cpu = SystemInfoCpu {
+            warn_threshold: 90,
+            alert_threshold: 80,
+            ..SystemInfoCpu::default()
+        };
         cpu.validate();
         assert_eq!(cpu.warn_threshold, 80);
     }

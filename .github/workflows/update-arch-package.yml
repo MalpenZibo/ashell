@@ -12,5 +12,5 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: WIP
-        run: echo "Automatic update of the arch package will come in the future"
+      - name: Placeholder
+        run: echo "Automatic update of the arch package is not yet implemented"

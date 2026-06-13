@@ -999,45 +999,31 @@ fn quick_settings_section<'a>(
     buttons: Vec<(Element<'a, Message>, Option<Element<'a, Message>>)>,
 ) -> Element<'a, Message> {
     let space = use_theme(|t| t.space);
-    // TODO trying to read this function gives me a headache; there's surely
-    // a better way to do this, maybe with Iterator::chunks or something?
-    // I might be way off though, I still don't fully understand how this works.
     let mut section = Column::with_capacity(buttons.len() * 3).spacing(space.xs);
+    let mut iter = buttons.into_iter().peekable();
 
-    let mut before: Option<(Element<'a, Message>, Option<Element<'a, Message>>)> = None;
-
-    for (button, menu) in buttons.into_iter() {
-        match before.take() {
-            Some((before_button, before_menu)) => {
-                section = section.push(
-                    row![before_button, button]
-                        .width(Length::Fill)
-                        .spacing(space.xs),
-                );
-
-                if let Some(menu) = before_menu {
-                    section = section.push(sub_menu_wrapper(menu));
-                }
-
-                if let Some(menu) = menu {
-                    section = section.push(sub_menu_wrapper(menu));
-                }
+    while let Some(first) = iter.next() {
+        if let Some(second) = iter.next() {
+            section = section.push(
+                row![first.0, second.0]
+                    .width(Length::Fill)
+                    .spacing(space.xs),
+            );
+            if let Some(menu) = first.1 {
+                section = section.push(sub_menu_wrapper(menu));
             }
-            _ => {
-                before = Some((button, menu));
+            if let Some(menu) = second.1 {
+                section = section.push(sub_menu_wrapper(menu));
             }
-        }
-    }
-
-    if let Some((before_button, before_menu)) = before.take() {
-        section = section.push(
-            row![before_button, space::horizontal()]
-                .width(Length::Fill)
-                .spacing(space.xs),
-        );
-
-        if let Some(menu) = before_menu {
-            section = section.push(sub_menu_wrapper(menu));
+        } else {
+            section = section.push(
+                row![first.0, space::horizontal()]
+                    .width(Length::Fill)
+                    .spacing(space.xs),
+            );
+            if let Some(menu) = first.1 {
+                section = section.push(sub_menu_wrapper(menu));
+            }
         }
     }
 

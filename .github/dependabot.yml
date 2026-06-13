@@ -4,16 +4,16 @@ updates:
   - package-ecosystem: cargo
     directory: "/"
     schedule:
-      interval: quarterly
+      interval: monthly
 
   # NPM
   - package-ecosystem: npm
     directory: "/website"
     schedule:
-      interval: quarterly
+      interval: monthly
 
   # GitHub Actions
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
-      interval: quarterly
+      interval: weekly

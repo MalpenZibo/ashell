@@ -347,13 +347,7 @@ impl Workspaces {
             Message::Scroll(direction) => {
                 self.scroll_accumulator = 0.;
 
-                /* TODO: should we use the native service implementation instead?
-                if let Some(service) = &mut self.service {
-                    return service
-                        .command(CompositorCommand::ScrollWorkspace(direction))
-                        .map(Message::ServiceEvent);
-                }
-                return iced::Task::none();*/
+                // TODO: consider using the compositor service for scroll instead
                 let Some(pos) = self
                     .ui_workspaces
                     .iter()

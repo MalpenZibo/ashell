@@ -341,9 +341,10 @@ impl App {
                     .outputs
                     .close_all_menu_if(MenuType::Tray(name), self.general_config.enable_esc_key),
             },
-            Message::Tempo(message) => match self.tempo.update(message) {
-                modules::tempo::Action::None => Task::none(),
-            },
+            Message::Tempo(message) => {
+                self.tempo.update(message);
+                Task::none()
+            }
             Message::Privacy(msg) => {
                 self.privacy.update(msg);
                 Task::none()

@@ -122,7 +122,7 @@ impl PrivacyService {
                 })
                 .register();
 
-            boot_tx.send(Ok(())).unwrap();
+            let _ = boot_tx.send(Ok(()));
             mainloop.run();
 
             warn!("Pipewire mainloop exited");

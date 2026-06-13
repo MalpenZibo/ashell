@@ -41,8 +41,9 @@ async fn check_update_now(check_cmd: &str) -> Vec<Update> {
                     continue;
                 }
 
-                let data = update.split(' ').collect::<Vec<&str>>();
+                let data: Vec<&str> = update.splitn(4, ' ').collect();
                 if data.len() < 4 {
+                    error!("Skipping malformed update line: {update}");
                     continue;
                 }
                 new_updates.push(Update {

@@ -1,4 +1,4 @@
-.PHONY: help build start install fmt check
+.PHONY: help build start install fmt check fmt-check
 
 PREFIX ?= /usr
 BINDIR ?= $(PREFIX)/bin
@@ -12,7 +12,8 @@ help:
 	@echo "  start         Run the build"
 	@echo "  install       Install the build (supports DESTDIR and PREFIX)"
 	@echo "  fmt           Format the code"
-	@echo "  check         Format, check and lint the code"
+	@echo "  fmt-check     Check formatting without modifying files"
+	@echo "  check         Check formatting, build, test and lint the code"
 
 build:
 	cargo build --release
@@ -26,6 +27,10 @@ install: build
 fmt:
 	cargo fmt
 
-check: fmt
+check: fmt-check
 	cargo check
-	cargo clippy -- -D warnings
+	cargo test
+	cargo clippy --all-targets -- -D warnings
+
+fmt-check:
+	cargo fmt -- --check
