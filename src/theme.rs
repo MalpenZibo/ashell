@@ -111,6 +111,7 @@ pub struct AshellTheme {
     pub menu: MenuAppearance,
     pub workspace_colors: Vec<AppearanceColor>,
     pub special_workspace_colors: Option<Vec<AppearanceColor>>,
+    pub active_workspace_colors: Option<Vec<AppearanceColor>>,
     pub scale_factor: f64,
     // Read by animation call sites added in subsequent PRs.
     #[allow(dead_code)]
@@ -245,6 +246,7 @@ fn base_theme_from_appearance(
         menu: appearance.menu,
         workspace_colors: appearance.workspace_colors.clone(),
         special_workspace_colors: appearance.special_workspace_colors.clone(),
+        active_workspace_colors: appearance.active_workspace_colors.clone(),
         scale_factor: appearance.scale_factor,
         animations_enabled,
         iced_theme: build_iced_theme(appearance),

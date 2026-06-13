@@ -461,17 +461,25 @@ impl Workspaces {
                             } else {
                                 w.monitor_id
                             };
+                            let active = w.displayed == Displayed::Active;
 
                             let color = color_index.map(|i| {
-                                if w.id > 0 {
-                                    theme.workspace_colors.get(i as usize).copied()
-                                } else {
+                                if active {
+                                    theme
+                                        .active_workspace_colors
+                                        .as_ref()
+                                        .unwrap_or(&theme.workspace_colors)
+                                        .get(i as usize)
+                                        .copied()
+                                } else if w.id <= 0 {
                                     theme
                                         .special_workspace_colors
                                         .as_ref()
                                         .unwrap_or(&theme.workspace_colors)
                                         .get(i as usize)
                                         .copied()
+                                } else {
+                                    theme.workspace_colors.get(i as usize).copied()
                                 }
                             });
 

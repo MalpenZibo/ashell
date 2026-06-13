@@ -903,6 +903,7 @@ pub struct Appearance {
     pub danger_color: AppearanceColor,
     pub text_color: AppearanceColor,
     pub workspace_colors: Vec<AppearanceColor>,
+    pub active_workspace_colors: Option<Vec<AppearanceColor>>,
     pub special_workspace_colors: Option<Vec<AppearanceColor>>,
 }
 
@@ -981,6 +982,7 @@ impl Default for Appearance {
                 AppearanceColor::Simple(HexColor::rgb(158, 206, 106)),
             ],
             special_workspace_colors: None,
+            active_workspace_colors: None,
         }
     }
 }
