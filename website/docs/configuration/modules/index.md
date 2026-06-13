@@ -54,6 +54,15 @@ Provides information about the current workspaces and allows switching between t
 
 Displays the title of the currently focused window.
 
+### Minimap
+
+Shows a small map of the tiled windows on the active workspace, laid out
+by column and row with proportional sizes, with the focused tile
+highlighted and urgent windows shown in the danger color. Floating
+windows have no grid position and aren't shown. On Hyprland the widget
+stays hidden because the compositor doesn't expose enough per-window
+layout info.
+
 ### SystemInfo
 
 Displays system information such as CPU usage, memory usage, and disk space.

@@ -12,6 +12,7 @@ pub mod custom_module;
 pub mod keyboard_layout;
 pub mod keyboard_submap;
 pub mod media_player;
+pub mod minimap;
 pub mod notifications;
 pub mod privacy;
 pub mod settings;
@@ -196,6 +197,10 @@ impl App {
                     None,
                 )
             }),
+            ModuleName::Minimap => self
+                .minimap
+                .view()
+                .map(|view| (view.map(Message::Minimap), None)),
             ModuleName::SystemInfo => Some((
                 self.system_info.view().map(Message::SystemInfo),
                 Some(OnModulePress::ToggleMenu(MenuType::SystemInfo)),
@@ -265,6 +270,7 @@ impl App {
             ModuleName::WindowTitle => {
                 Some(self.window_title.subscription().map(Message::WindowTitle))
             }
+            ModuleName::Minimap => Some(self.minimap.subscription().map(Message::Minimap)),
             ModuleName::SystemInfo => {
                 Some(self.system_info.subscription().map(Message::SystemInfo))
             }

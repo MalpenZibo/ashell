@@ -258,6 +258,7 @@ fn fetch_full_state(internal_state: &HyprInternalState) -> Result<CompositorStat
         monitors,
         active_workspace_id,
         active_window,
+        windows: Vec::new(),
         keyboard_layout,
         submap: if internal_state.submap.is_empty() {
             None
