@@ -46,13 +46,34 @@ impl Urgency {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct NotificationAction {
+    pub key: String,
+    pub label: String,
+}
+
+impl NotificationAction {
+    fn from_raw_actions(raw_actions: Vec<String>) -> Vec<Self> {
+        raw_actions
+            .chunks(2)
+            .filter_map(|action| {
+                let key = action.first()?;
+                Some(Self {
+                    key: key.clone(),
+                    label: action.get(1).cloned().unwrap_or_default(),
+                })
+            })
+            .collect()
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Notification {
     pub id: u32,
     pub app_name: String,
     pub app_icon: String,
     pub summary: String,
     pub body: String,
-    pub actions: Vec<String>,
+    pub actions: Vec<NotificationAction>,
     pub hints: HashMap<String, OwnedValue>,
     pub expire_timeout: i32,
     pub timestamp: SystemTime,
@@ -109,6 +130,7 @@ impl NotificationDaemon {
 
         let icon = NotificationIcon::resolve(&app_name, &app_icon, &hints);
         let urgency = Urgency::from_hints(&hints);
+        let actions = NotificationAction::from_raw_actions(actions);
         let notification = Notification {
             id,
             app_name,

@@ -5,7 +5,7 @@ use crate::{
     services::{
         ReadOnlyService, ServiceEvent,
         notifications::{
-            Notification, NotificationIcon, NotificationsService, Urgency,
+            Notification, NotificationAction, NotificationIcon, NotificationsService, Urgency,
             dbus::{NotificationDaemon, NotificationEvent},
         },
     },
@@ -28,19 +28,13 @@ use zbus::Connection;
 const ICON_SIZE: f32 = 36.0;
 
 #[derive(serde::Serialize)]
-struct NotificationAction<'a> {
-    key: &'a str,
-    label: &'a str,
-}
-
-#[derive(serde::Serialize)]
 struct NotificationListEntry<'a> {
     id: u32,
     app_name: &'a str,
     summary: &'a str,
     body: &'a str,
     urgency: &'static str,
-    actions: Vec<NotificationAction<'a>>,
+    actions: &'a [NotificationAction],
 }
 
 fn notification_icon<'a, M: 'a>(icon_kind: Option<&NotificationIcon>) -> Element<'a, M> {
@@ -184,7 +178,7 @@ impl Notifications {
         self.find_notification(id)
             .filter(|n| !n.actions.is_empty())
             .and_then(|n| n.actions.first())
-            .cloned()
+            .map(|action| action.key.clone())
     }
 
     fn find_action_notification(&self, action_key: &str) -> Option<u32> {
@@ -215,7 +209,7 @@ impl Notifications {
                 summary: &notification.summary,
                 body: &notification.body,
                 urgency: urgency_name(notification.urgency),
-                actions: notification_actions(notification),
+                actions: &notification.actions,
             })
             .collect::<Vec<_>>();
 
@@ -443,22 +437,8 @@ impl Notifications {
 fn notification_has_action(notification: &Notification, action_key: &str) -> bool {
     notification
         .actions
-        .chunks(2)
-        .any(|action| action.first().is_some_and(|key| key.as_str() == action_key))
-}
-
-fn notification_actions(notification: &Notification) -> Vec<NotificationAction<'_>> {
-    notification
-        .actions
-        .chunks(2)
-        .filter_map(|action| {
-            let key = action.first()?;
-            Some(NotificationAction {
-                key,
-                label: action.get(1).map_or("", String::as_str),
-            })
-        })
-        .collect()
+        .iter()
+        .any(|action| action.key == action_key)
 }
 
 fn urgency_name(urgency: Urgency) -> &'static str {
