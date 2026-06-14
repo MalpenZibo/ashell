@@ -144,7 +144,7 @@ impl StaticIcon {
             StaticIcon::UpdatesAvailable => "\u{f0cdb}",
             StaticIcon::MenuClosed => "\u{f035f}",
             StaticIcon::MenuOpen => "\u{f035d}",
-            StaticIcon::Cpu => "\u{f0502}",
+            StaticIcon::Cpu => "\u{f4bc}",
             StaticIcon::Mem => "\u{efc5}",
             StaticIcon::Temp => "\u{f050f}",
             StaticIcon::Speaker0 => "\u{f0e08}",
