@@ -474,9 +474,10 @@ impl PowerSettings {
             })
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn quick_setting_button<'a>(
         &'a self,
-    ) -> Option<(Element<'a, Message>, Option<Element<'a, Message>>)> {
+    ) -> Option<(Element<'a, Message>, Option<(bool, Element<'a, Message>)>)> {
         self.service.as_ref().and_then(|service| {
             if !matches!(service.power_profile, PowerProfile::Unknown) {
                 Some((
