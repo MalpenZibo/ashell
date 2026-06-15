@@ -176,9 +176,9 @@ where
                 theme,
                 style,
                 layout
-                .children()
-                .next()
-                .expect("AnimatedSize: child layout missing"),
+                    .children()
+                    .next()
+                    .expect("AnimatedSize: child layout missing"),
                 cursor,
                 viewport,
             );
