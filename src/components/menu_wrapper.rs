@@ -129,7 +129,10 @@ where
         operation.traverse(&mut |operation| {
             self.content.as_widget_mut().operate(
                 &mut tree.children[0],
-                layout.children().next().expect("MenuWrapper: child layout missing"),
+                layout
+                    .children()
+                    .next()
+                    .expect("MenuWrapper: child layout missing"),
                 renderer,
                 operation,
             );
@@ -150,7 +153,10 @@ where
         self.content.as_widget_mut().update(
             &mut tree.children[0],
             event,
-            layout.children().next().expect("MenuWrapper: child layout missing"),
+            layout
+                .children()
+                .next()
+                .expect("MenuWrapper: child layout missing"),
             cursor,
             renderer,
             clipboard,
@@ -162,7 +168,11 @@ where
             && let event::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left))
             | event::Event::Touch(touch::Event::FingerLifted { .. }) = event
         {
-            let bounds = layout.children().next().expect("MenuWrapper: child layout missing").bounds();
+            let bounds = layout
+                .children()
+                .next()
+                .expect("MenuWrapper: child layout missing")
+                .bounds();
             let cursor_over_scrollable = cursor.is_over(bounds);
             if !cursor_over_scrollable {
                 shell.publish(on_click_outside.clone());
@@ -203,7 +213,10 @@ where
             );
         }
 
-        let content_layout = layout.children().next().expect("MenuWrapper: child layout missing");
+        let content_layout = layout
+            .children()
+            .next()
+            .expect("MenuWrapper: child layout missing");
         self.content.as_widget().draw(
             &tree.children[0],
             renderer,
@@ -225,7 +238,10 @@ where
     ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
         self.content.as_widget_mut().overlay(
             &mut tree.children[0],
-            layout.children().next().expect("MenuWrapper: child layout missing"),
+            layout
+                .children()
+                .next()
+                .expect("MenuWrapper: child layout missing"),
             renderer,
             viewport,
             translation,
