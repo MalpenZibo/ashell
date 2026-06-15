@@ -386,10 +386,7 @@ pub struct Location {
     pub region_name: String,
 }
 
-pub async fn fetch_location(
-    location: &WeatherLocation,
-    lang: &str,
-) -> anyhow::Result<Location> {
+pub async fn fetch_location(location: &WeatherLocation, lang: &str) -> anyhow::Result<Location> {
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(20))
         .build()?;
