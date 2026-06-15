@@ -4,6 +4,7 @@ pub mod audio;
 pub mod bluetooth;
 pub mod brightness;
 pub mod compositor;
+pub mod dbus_utils;
 pub mod idle_inhibitor;
 pub mod logind;
 pub mod mpris;
