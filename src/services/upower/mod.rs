@@ -427,7 +427,7 @@ impl UPowerService {
                 continue;
             };
             let device_kind = match UpDeviceKind::from_u32(device_type).unwrap_or_default() {
-                UpDeviceKind::Mouse => PeripheralDeviceKind::Mouse,
+                UpDeviceKind::Mouse | UpDeviceKind::Touchpad => PeripheralDeviceKind::Mouse,
                 UpDeviceKind::Keyboard => PeripheralDeviceKind::Keyboard,
                 UpDeviceKind::Headphones => PeripheralDeviceKind::Headphones,
                 UpDeviceKind::Headset => PeripheralDeviceKind::Headphones,
