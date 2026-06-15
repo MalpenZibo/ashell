@@ -215,6 +215,12 @@ where
         if bounds.height < 0.5 || layout.children().next().is_none() {
             return;
         }
+        // A nested scrollable re-clips to its own bounds ∩ viewport (the layer
+        // clip resets rather than intersects), so pass our animating bounds as
+        // the viewport or its content spills past the shrinking height.
+        let Some(child_viewport) = bounds.intersection(viewport) else {
+            return;
+        };
         renderer.with_layer(bounds, |renderer| {
             self.content.as_widget().draw(
                 &tree.children[0],
@@ -223,7 +229,7 @@ where
                 style,
                 layout.children().next().unwrap(),
                 cursor,
-                viewport,
+                &child_viewport,
             );
         });
     }
