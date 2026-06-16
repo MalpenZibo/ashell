@@ -1,8 +1,8 @@
 use super::{ReadOnlyService, Service, ServiceEvent};
-use crate::utils::remote_value::Remote;
+use crate::utils::{remote_value::Remote, send_or_log};
 use iced::{
     Subscription, Task,
-    futures::{SinkExt, StreamExt, channel::mpsc::Sender, stream::pending},
+    futures::{StreamExt, channel::mpsc::Sender, stream::pending},
     stream::channel,
 };
 use itertools::Either;
@@ -164,13 +164,15 @@ impl AudioService {
         match state {
             State::Init => match Self::init_service().await {
                 Ok(handle) => {
-                    let _ = output
-                        .send(ServiceEvent::Init(AudioService {
+                    send_or_log(
+                        output,
+                        ServiceEvent::Init(AudioService {
                             data: AudioData::default(),
                             commander: handle.sender.clone(),
                             wake: handle.wake.clone(),
-                        }))
-                        .await;
+                        }),
+                    )
+                    .await;
                     State::Active(handle)
                 }
                 Err(err) => {
@@ -184,23 +186,17 @@ impl AudioService {
                     State::Error
                 }
                 Some(PulseAudioServerEvent::Sinks(sinks)) => {
-                    let _ = output
-                        .send(ServiceEvent::Update(AudioEvent::Sinks(sinks)))
-                        .await;
+                    send_or_log(output, ServiceEvent::Update(AudioEvent::Sinks(sinks))).await;
 
                     State::Active(handle)
                 }
                 Some(PulseAudioServerEvent::Sources(sources)) => {
-                    let _ = output
-                        .send(ServiceEvent::Update(AudioEvent::Sources(sources)))
-                        .await;
+                    send_or_log(output, ServiceEvent::Update(AudioEvent::Sources(sources))).await;
 
                     State::Active(handle)
                 }
                 Some(PulseAudioServerEvent::ServerInfo(info)) => {
-                    let _ = output
-                        .send(ServiceEvent::Update(AudioEvent::ServerInfo(info)))
-                        .await;
+                    send_or_log(output, ServiceEvent::Update(AudioEvent::ServerInfo(info))).await;
 
                     State::Active(handle)
                 }

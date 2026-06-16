@@ -1,11 +1,12 @@
 use super::{Service, ServiceEvent};
 use crate::services::ReadOnlyService;
+use crate::utils::send_or_log;
 use dbus::ConnectivityState;
 use dbus::NetworkDbus;
 use iced::futures::TryFutureExt;
 use iced::{
     Subscription, Task,
-    futures::{SinkExt, StreamExt, channel::mpsc::Sender},
+    futures::{StreamExt, channel::mpsc::Sender},
     stream::channel,
 };
 use iwd_dbus::IwdDbus;
@@ -452,14 +453,16 @@ impl NetworkService {
                     match maybe_backend {
                         Ok((data, choice)) => {
                             info!("Network service initialized");
-                            let _ = output
-                                .send(ServiceEvent::Init(NetworkService {
+                            send_or_log(
+                                output,
+                                ServiceEvent::Init(NetworkService {
                                     data,
                                     conn: conn.clone(),
                                     backend_choice: choice,
                                     pending_scan_devices: Vec::new(),
-                                }))
-                                .await;
+                                }),
+                            )
+                            .await;
                             State::Active(conn, choice)
                         }
                         Err(err) => {
@@ -499,7 +502,7 @@ impl NetworkService {
                                         matches!(event, NetworkEvent::WirelessDevice { .. });
                                     // Send the event to UI before exiting - UI needs the WirelessDevice data
                                     // (wifi_present and access_points) to populate the network menu
-                                    let _ = output.send(ServiceEvent::Update(event)).await;
+                                    send_or_log(output, ServiceEvent::Update(event)).await;
 
                                     if exit_loop {
                                         break;
@@ -532,7 +535,7 @@ impl NetworkService {
                                         // TODO: network manager leaves with device - we can also
                                         // do that, but would need a different way to disable
                                         // scanning
-                                        let _ = output.send(ServiceEvent::Update(event)).await;
+                                        send_or_log(output, ServiceEvent::Update(event)).await;
                                     }
                                 }
 

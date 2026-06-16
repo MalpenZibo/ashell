@@ -1,9 +1,20 @@
 use std::time::Duration;
 
+use iced::futures::{SinkExt, channel::mpsc};
+use log::warn;
 use unicode_segmentation::UnicodeSegmentation;
 
 pub mod launcher;
 pub mod remote_value;
+
+/// Send a message through an iced `mpsc::Sender`, logging a warning
+/// if the receiver has been dropped instead of silently swallowing the
+/// error.
+pub async fn send_or_log<T: std::fmt::Debug>(output: &mut mpsc::Sender<T>, msg: T) {
+    if let Err(e) = output.send(msg).await {
+        warn!("Channel send failed (receiver dropped): {e:?}");
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 pub enum IndicatorState {

@@ -1,8 +1,9 @@
 use super::{ReadOnlyService, Service, ServiceEvent};
+use crate::utils::send_or_log;
 use dbus::{BatteryProxy, BluetoothDbus, DeviceProxy};
 use iced::{
     Subscription, Task,
-    futures::{SinkExt, Stream, StreamExt, channel::mpsc::Sender, stream::pending, stream_select},
+    futures::{Stream, StreamExt, channel::mpsc::Sender, stream::pending, stream_select},
     stream::channel,
 };
 use inotify::{Inotify, WatchMask};
@@ -181,12 +182,14 @@ impl BluetoothService {
                         Ok(data) => {
                             info!("Bluetooth service initialized");
 
-                            let _ = output
-                                .send(ServiceEvent::Init(BluetoothService {
+                            send_or_log(
+                                output,
+                                ServiceEvent::Init(BluetoothService {
                                     data,
                                     conn: conn.clone(),
-                                }))
-                                .await;
+                                }),
+                            )
+                            .await;
 
                             State::Active(conn)
                         }
@@ -210,7 +213,7 @@ impl BluetoothService {
                     Ok(mut events) => {
                         while events.next().await.is_some() {
                             if let Ok(data) = BluetoothService::initialize_data(&conn).await {
-                                let _ = output.send(ServiceEvent::Update(data)).await;
+                                send_or_log(output, ServiceEvent::Update(data)).await;
                             }
                         }
 

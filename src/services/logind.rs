@@ -1,9 +1,6 @@
 use super::{ReadOnlyService, ServiceEvent};
-use iced::{
-    Subscription,
-    futures::{SinkExt, StreamExt},
-    stream::channel,
-};
+use crate::utils::send_or_log;
+use iced::{Subscription, futures::StreamExt, stream::channel};
 use std::any::TypeId;
 use zbus::Connection;
 
@@ -26,7 +23,7 @@ impl ReadOnlyService for LogindService {
                     Ok(conn) => conn,
                     Err(e) => {
                         let err = format!("Failed to connect to system bus: {e}");
-                        let _ = output.send(ServiceEvent::Error(err)).await;
+                        send_or_log(&mut output, ServiceEvent::Error(err)).await;
                         return;
                     }
                 };
@@ -35,7 +32,7 @@ impl ReadOnlyService for LogindService {
                     Ok(p) => p,
                     Err(e) => {
                         let err = format!("Failed to create logind proxy: {e}");
-                        let _ = output.send(ServiceEvent::Error(err)).await;
+                        send_or_log(&mut output, ServiceEvent::Error(err)).await;
                         return;
                     }
                 };
@@ -44,18 +41,18 @@ impl ReadOnlyService for LogindService {
                     Ok(s) => s,
                     Err(e) => {
                         let err = format!("Failed to subscribe to PrepareForSleep: {e}");
-                        let _ = output.send(ServiceEvent::Error(err)).await;
+                        send_or_log(&mut output, ServiceEvent::Error(err)).await;
                         return;
                     }
                 };
 
-                let _ = output.send(ServiceEvent::Init(LogindService)).await;
+                send_or_log(&mut output, ServiceEvent::Init(LogindService)).await;
 
                 while let Some(signal) = stream.next().await {
                     if let Ok(args) = signal.args()
                         && !args.starting
                     {
-                        let _ = output.send(ServiceEvent::Update(ResumeEvent)).await;
+                        send_or_log(&mut output, ServiceEvent::Update(ResumeEvent)).await;
                     }
                 }
             })

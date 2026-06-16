@@ -1,4 +1,5 @@
 use super::{ReadOnlyService, Service, ServiceEvent};
+use crate::utils::send_or_log;
 use dbus::{
     DBusMenuProxy, Layout, StatusNotifierItemProxy, StatusNotifierWatcher,
     StatusNotifierWatcherProxy,
@@ -7,7 +8,7 @@ use freedesktop_icons::lookup;
 use iced::{
     Subscription, Task,
     futures::{
-        SinkExt, Stream, StreamExt,
+        Stream, StreamExt,
         channel::mpsc::Sender,
         stream::{pending, select_all},
         stream_select,
@@ -559,12 +560,14 @@ impl TrayService {
                         Ok(data) => {
                             info!("Tray service initialized");
 
-                            let _ = output
-                                .send(ServiceEvent::Init(TrayService {
+                            send_or_log(
+                                output,
+                                ServiceEvent::Init(TrayService {
                                     data,
                                     _conn: conn.clone(),
-                                }))
-                                .await;
+                                }),
+                            )
+                            .await;
 
                             State::Active(conn)
                         }
@@ -591,7 +594,7 @@ impl TrayService {
 
                             let reload_events = matches!(event, TrayEvent::Registered(_));
 
-                            let _ = output.send(ServiceEvent::Update(event)).await;
+                            send_or_log(output, ServiceEvent::Update(event)).await;
 
                             if reload_events {
                                 break;

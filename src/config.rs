@@ -1,10 +1,10 @@
 use crate::app::Message;
 use crate::i18n::{UnitSystem, unit_system};
 use crate::services::upower::PeripheralDeviceKind;
-use crate::utils::celsius_to_fahrenheit;
+use crate::utils::{celsius_to_fahrenheit, send_or_log};
 use hex_color::HexColor;
 use iced::futures::StreamExt;
-use iced::{Color, Subscription, futures::SinkExt, stream::channel, theme::palette};
+use iced::{Color, Subscription, stream::channel, theme::palette};
 use inotify::EventMask;
 use inotify::Inotify;
 use inotify::WatchMask;
@@ -1336,9 +1336,11 @@ pub fn subscription(path: &Path) -> Subscription<Message> {
                                     .await
                                     .unwrap_or_default();
 
-                                    let _ = output
-                                        .send(Message::ConfigChanged(Box::new(new_config)))
-                                        .await;
+                                    send_or_log(
+                                        &mut output,
+                                        Message::ConfigChanged(Box::new(new_config)),
+                                    )
+                                    .await;
                                 }
                                 Some(Event::Removed) => {
                                     // wait and double check if the file is really gone
@@ -1346,9 +1348,11 @@ pub fn subscription(path: &Path) -> Subscription<Message> {
 
                                     if !path.exists() {
                                         info!("Config file removed");
-                                        let _ = output
-                                            .send(Message::ConfigChanged(Box::default()))
-                                            .await;
+                                        send_or_log(
+                                            &mut output,
+                                            Message::ConfigChanged(Box::default()),
+                                        )
+                                        .await;
                                     }
                                 }
                                 None => {
