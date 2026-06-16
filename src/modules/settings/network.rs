@@ -9,7 +9,7 @@ use crate::{
     services::{
         ReadOnlyService, Service, ServiceEvent,
         network::{
-            AccessPoint, ActiveConnectionInfo, KnownConnection, NetworkCommand, NetworkEvent,
+            AccessPointData, ActiveConnectionInfo, KnownConnection, NetworkCommand, NetworkEvent,
             NetworkService, Vpn, dbus::ConnectivityState,
         },
     },
@@ -87,7 +87,7 @@ pub enum Message {
     ScanNearByWiFi,
     WiFiMore(SurfaceId),
     VpnMore(SurfaceId),
-    SelectAccessPoint(AccessPoint),
+    SelectAccessPoint(AccessPointData),
     RequestWiFiPassword(SurfaceId, String),
     ConfirmOpenNetwork(String),
     ToggleVpn(Vpn),
@@ -541,7 +541,7 @@ impl NetworkSettings {
                             let is_known = service.known_connections.iter().any(|c| {
                                 matches!(
                                     c,
-                                    KnownConnection::AccessPoint(AccessPoint { ssid, .. }) if ssid == &ac.ssid
+                                    KnownConnection::AccessPoint(AccessPointData { ssid, .. }) if ssid == &ac.ssid
                                 )
                             });
 
