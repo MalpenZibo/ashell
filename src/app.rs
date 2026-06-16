@@ -27,6 +27,7 @@ use crate::{
     theme::{AshellTheme, backdrop_color, darken_color, init_theme, use_theme},
 };
 use flexi_logger::LoggerHandle;
+use iced::futures::StreamExt;
 use iced::{
     Alignment, Color, Element, Gradient, Length, OutputEvent, Radians, Subscription, SurfaceId,
     Task, Theme,
@@ -827,22 +828,19 @@ impl App {
                 }
                 _ => None,
             }),
-            Subscription::run(|| {
-                use iced::futures::StreamExt;
-                match signal_hook_tokio::Signals::new([libc::SIGUSR1]) {
-                    Ok(signals) => signals
-                        .filter_map(|sig| {
-                            if sig == libc::SIGUSR1 {
-                                iced::futures::future::ready(Some(Message::ToggleVisibility))
-                            } else {
-                                iced::futures::future::ready(None)
-                            }
-                        })
-                        .boxed(),
-                    Err(e) => {
-                        log::error!("Failed to create signal stream: {e}");
-                        iced::futures::stream::empty().boxed()
-                    }
+            Subscription::run(|| match signal_hook_tokio::Signals::new([libc::SIGUSR1]) {
+                Ok(signals) => signals
+                    .filter_map(|sig| {
+                        if sig == libc::SIGUSR1 {
+                            iced::futures::future::ready(Some(Message::ToggleVisibility))
+                        } else {
+                            iced::futures::future::ready(None)
+                        }
+                    })
+                    .boxed(),
+                Err(e) => {
+                    log::error!("Failed to create signal stream: {e}");
+                    iced::futures::stream::empty().boxed()
                 }
             }),
             // Always subscribe to audio/brightness services so OSD works

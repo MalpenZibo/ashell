@@ -88,11 +88,11 @@ pub struct AudioSettings {
     service: Option<AudioService>,
 }
 
-pub struct SubmenuEntry<RMessage> {
+pub struct SubmenuEntry {
     pub name: String,
     pub icon: StaticIcon,
     pub active: bool,
-    pub msg: RMessage,
+    pub msg: Message,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -584,10 +584,7 @@ impl AudioSettings {
         text(format!("{}%", volume / VOL_PERCENT))
     }
 
-    fn submenu<'a>(
-        entries: Vec<SubmenuEntry<Message>>,
-        more_msg: Option<Message>,
-    ) -> Element<'a, Message> {
+    fn submenu<'a>(entries: Vec<SubmenuEntry>, more_msg: Option<Message>) -> Element<'a, Message> {
         let space = use_theme(|t| t.space);
         let entries: Element<'a, Message> = Column::with_children(
             entries
