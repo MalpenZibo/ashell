@@ -11,106 +11,125 @@ use hyprland::{
     prelude::*,
 };
 use itertools::Itertools;
-use std::sync::Arc;
-use tokio::sync::{RwLock, broadcast};
+use std::sync::{Arc, RwLock};
+use tokio::sync::broadcast;
 
-/// Detect whether Hyprland is using Lua or hyprlang config.
-/// Checks `hyprctl status` for the `configProvider` field.
-/// Falls back to hyprlang (false) if detection fails.
-async fn is_lua_config() -> bool {
-    tokio::process::Command::new("hyprctl")
+enum DispatchStrategy {
+    Socket,
+    Lua,
+}
+
+fn is_lua_config() -> bool {
+    std::process::Command::new("hyprctl")
         .arg("status")
         .output()
-        .await
         .ok()
         .and_then(|o| String::from_utf8(o.stdout).ok())
         .map(|s| s.lines().any(|l| l.starts_with("configProvider: lua")))
         .unwrap_or(false)
 }
 
-/// Dispatch a command using the old hyprlang socket protocol.
-/// Works on all Hyprland versions but is broken on 0.55+ with Lua config.
-fn dispatch_hyprlang(cmd: CompositorCommand) -> Result<()> {
+async fn dispatch(cmd: CompositorCommand, strategy: DispatchStrategy) -> Result<()> {
+    fn socket_call(dt: DispatchType<'_>) -> Result<()> {
+        Ok(Dispatch::call(dt)?)
+    }
+    async fn lua_eval(lua: &str) -> Result<()> {
+        tokio::process::Command::new("hyprctl")
+            .args(["eval", lua])
+            .output()
+            .await?;
+        Ok(())
+    }
+
     match cmd {
         CompositorCommand::FocusWorkspace(id) => {
-            Dispatch::call(DispatchType::Workspace(WorkspaceIdentifierWithSpecial::Id(
-                id,
-            )))?;
+            let dt = DispatchType::Workspace(WorkspaceIdentifierWithSpecial::Id(id));
+            match strategy {
+                DispatchStrategy::Socket => socket_call(dt),
+                DispatchStrategy::Lua => {
+                    lua_eval(&format!(
+                        "hl.dispatch(hl.dsp.focus({{ workspace = {id} }}))"
+                    ))
+                    .await
+                }
+            }
         }
         CompositorCommand::FocusSpecialWorkspace(name) => {
-            Dispatch::call(DispatchType::Workspace(
-                WorkspaceIdentifierWithSpecial::Special(Some(name.as_str())),
-            ))?;
+            let dt = DispatchType::Workspace(WorkspaceIdentifierWithSpecial::Special(Some(
+                name.as_str(),
+            )));
+            match strategy {
+                DispatchStrategy::Socket => socket_call(dt),
+                DispatchStrategy::Lua => {
+                    lua_eval(&format!(
+                        "hl.dispatch(hl.dsp.focus({{ workspace = \"special:{name}\" }}))"
+                    ))
+                    .await
+                }
+            }
         }
         CompositorCommand::ToggleSpecialWorkspace(name) => {
-            Dispatch::call(DispatchType::ToggleSpecialWorkspace(Some(name)))?;
+            let dt = DispatchType::ToggleSpecialWorkspace(Some(name.clone()));
+            match strategy {
+                DispatchStrategy::Socket => socket_call(dt),
+                DispatchStrategy::Lua => {
+                    lua_eval(&format!(
+                        "hl.dispatch(hl.dsp.workspace.toggle_special(\"{name}\"))"
+                    ))
+                    .await
+                }
+            }
         }
         CompositorCommand::FocusMonitor(id) => {
-            Dispatch::call(DispatchType::FocusMonitor(MonitorIdentifier::Id(id)))?;
+            let dt = DispatchType::FocusMonitor(MonitorIdentifier::Id(id));
+            match strategy {
+                DispatchStrategy::Socket => socket_call(dt),
+                DispatchStrategy::Lua => {
+                    lua_eval(&format!("hl.dispatch(hl.dsp.focus({{ monitor = {id} }}))")).await
+                }
+            }
         }
         CompositorCommand::ScrollWorkspace(dir) => {
             let d = if dir > 0 { "+1" } else { "-1" };
-            Dispatch::call(DispatchType::Workspace(
-                WorkspaceIdentifierWithSpecial::Relative(d.to_string().parse()?),
-            ))?;
+            let dt = DispatchType::Workspace(WorkspaceIdentifierWithSpecial::Relative(
+                d.to_string().parse()?,
+            ));
+            match strategy {
+                DispatchStrategy::Socket => socket_call(dt),
+                DispatchStrategy::Lua => {
+                    lua_eval(&format!(
+                        "hl.dispatch(hl.dsp.focus({{ workspace = \"{d}\" }}))"
+                    ))
+                    .await
+                }
+            }
         }
         CompositorCommand::NextLayout => {
             hyprland::ctl::switch_xkb_layout::call(
                 "all",
                 hyprland::ctl::switch_xkb_layout::SwitchXKBLayoutCmdTypes::Next,
             )?;
+            Ok(())
         }
         CompositorCommand::CustomDispatch(dispatcher, args) => {
-            Dispatch::call(DispatchType::Custom(&dispatcher, &args))?;
+            let dt = DispatchType::Custom(&dispatcher, &args);
+            match strategy {
+                DispatchStrategy::Socket => socket_call(dt),
+                DispatchStrategy::Lua => {
+                    lua_eval(&format!("hl.dispatch(hl.dsp.{dispatcher}({args}))")).await
+                }
+            }
         }
     }
-    Ok(())
-}
-
-/// Dispatch a command using the new Lua eval protocol.
-/// Required for Hyprland 0.55+ with Lua config.
-async fn dispatch_lua(cmd: CompositorCommand) -> Result<()> {
-    let lua = match cmd {
-        CompositorCommand::FocusWorkspace(id) => {
-            format!("hl.dispatch(hl.dsp.focus({{ workspace = {id} }}))")
-        }
-        CompositorCommand::FocusSpecialWorkspace(name) => {
-            format!("hl.dispatch(hl.dsp.focus({{ workspace = \"special:{name}\" }}))")
-        }
-        CompositorCommand::ToggleSpecialWorkspace(name) => {
-            format!("hl.dispatch(hl.dsp.workspace.toggle_special(\"{name}\"))")
-        }
-        CompositorCommand::FocusMonitor(id) => {
-            format!("hl.dispatch(hl.dsp.focus({{ monitor = {id} }}))")
-        }
-        CompositorCommand::ScrollWorkspace(dir) => {
-            let d = if dir > 0 { "+1" } else { "-1" };
-            format!("hl.dispatch(hl.dsp.focus({{ workspace = \"{d}\" }}))")
-        }
-        CompositorCommand::NextLayout => {
-            hyprland::ctl::switch_xkb_layout::call(
-                "all",
-                hyprland::ctl::switch_xkb_layout::SwitchXKBLayoutCmdTypes::Next,
-            )?;
-            return Ok(());
-        }
-        CompositorCommand::CustomDispatch(dispatcher, args) => {
-            format!("hl.dispatch(hl.dsp.{dispatcher}({args}))")
-        }
-    };
-    tokio::process::Command::new("hyprctl")
-        .args(["eval", &lua])
-        .output()
-        .await?;
-    Ok(())
 }
 
 pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
-    if is_lua_config().await {
-        dispatch_lua(cmd).await
+    let strategy = if is_lua_config() {
+        DispatchStrategy::Lua
     } else {
-        dispatch_hyprlang(cmd)
-    }
+        DispatchStrategy::Socket
+    };
+    dispatch(cmd, strategy).await
 }
 
 #[derive(Debug, Clone, Default)]
@@ -129,7 +148,10 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
 
     // Initial fetch
     {
-        let state_guard = internal_state.read().await;
+        let state_guard = internal_state.read().map_err(|e| {
+            log::warn!("Compositor internal state lock poisoned (read): {e}");
+            anyhow::anyhow!(e.to_string())
+        })?;
 
         match fetch_full_state(&state_guard) {
             Ok(state) => {
@@ -154,7 +176,13 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
                     let tx = tx.clone();
                     let internal_state = Arc::clone(&internal_state);
                     Box::pin(async move {
-                        let state_guard = internal_state.read().await;
+                        let state_guard = match internal_state.read() {
+                            Ok(guard) => guard,
+                            Err(e) => {
+                                log::warn!("Compositor state lock poisoned (read): {e}");
+                                return;
+                            }
+                        };
                         if let Ok(state) = fetch_full_state(&*state_guard) {
                             let _ = tx.send(ServiceEvent::Update(CompositorEvent::StateChanged(
                                 Box::new(state),
@@ -188,7 +216,13 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
             let tx = tx.clone();
             let internal_state = Arc::clone(&internal_state);
             Box::pin(async move {
-                let mut state_guard = internal_state.write().await;
+                let mut state_guard = match internal_state.write() {
+                    Ok(guard) => guard,
+                    Err(e) => {
+                        log::warn!("Compositor state lock poisoned (write): {e}");
+                        return;
+                    }
+                };
                 state_guard.submap = new_submap;
                 if let Ok(state) = fetch_full_state(&state_guard) {
                     let _ = tx.send(ServiceEvent::Update(CompositorEvent::StateChanged(
