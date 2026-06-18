@@ -4,29 +4,29 @@
 
 app-name = ashell
 
-## Updates module
+## Updates Modul
 updates-up-to-date = Alles aktuell ;)
 updates-available =
     { $count ->
         [one] { $count } Update verfügbar
        *[other] { $count } Updates verfügbar
     }
-updates-button-update = Update
-updates-button-check-now = Jetzt Prüfen
+updates-button-update = Jetzt Updaten
+updates-button-check-now = Nach Updates prüfen
 
-## Media player module
+## Medienwiedergabe Modul
 media-player-not-connected = Nicht mit dem MPRIS-Dienst verbunden
-media-player-heading = Spieler
+media-player-heading = Medienwiedergabe
 media-player-loading-cover = Lade Cover ...
 media-player-no-title = Kein Titel
 media-player-unknown-artist = Unbekannter Künstler
 media-player-unknown-album = Unbekanntes Album
 
-## Password / network connection dialog
-password-dialog-open-network-title = Netzwerk verbinden
-password-dialog-authentication-required-title = Authentifizierung benötigt
+## Passwort / Netzwerkkonfiguration
+password-dialog-open-network-title = Offenes Netzwerk
+password-dialog-authentication-required-title = Authentifizierung erforderlich
 password-dialog-open-network-warning =
-    "{ $ssid }" ist ein öffentliches Netzwerk. Gesendete Daten können von Anderen beobachtet werden.
+    "{ $ssid }" ist ein offenes Netzwerk. Daten, die über diese Verbindung gesendet werden, könnten für andere sichtbar sein.
     Trotzdem verbinden?
 password-dialog-insert-password = Passwort eingeben für: { $ssid }
 password-dialog-cancel = Abbrechen
@@ -35,20 +35,20 @@ password-dialog-confirm = Bestätigen
 ## OSD
 osd-airplane-toggle =
     { $state ->
-        [on] Flugzeugmodus an
-       *[off] Flugzeugmodus aus
+        [on] Flugmodus aktiv
+       *[off] Flugmodus inaktiv
     }
 osd-idle-inhibitor-toggle =
     { $state ->
-        [on] Nicht-Schlafen an
-       *[off] Nicht-Schlafen aus
+        [on] Kein Ruhezustand aktiv
+       *[off] Kein Ruhezustand inaktiv
     }
 
-## Settings — shared
-settings-scanning = Scanne...
+## Einstellungen — Geteilt
+settings-scanning = Scanne ...
 settings-more = Mehr
 
-## Settings — network
+## Einstellungen — Netzwerk
 settings-network-wifi = Netze
 settings-network-vpn = VPN
 settings-network-vpns-connected =
@@ -56,15 +56,15 @@ settings-network-vpns-connected =
         [one] { $count } VPN verbunden
        *[other] { $count } VPNs verbunden
     }
-settings-network-airplane-mode = Flugzeugmodus
+settings-network-airplane-mode = Flugmodus
 settings-network-nearby-wifi = Verfügbare Netze
 
-## Settings — bluetooth
+## Einstellungen — Bluetooth
 settings-bluetooth = Bluetooth
-settings-bluetooth-devices = Bluetooth Geräte
+settings-bluetooth-devices = Bluetooth-Geräte
 settings-bluetooth-known-devices = Bekannte Geräte
-settings-bluetooth-available = Verfügbare
-settings-bluetooth-pair = Paaren
+settings-bluetooth-available = Verfügbar
+settings-bluetooth-pair = Koppeln
 settings-bluetooth-no-devices = Keine Geräte gefunden
 settings-bluetooth-connected-count =
     { $count ->
@@ -72,84 +72,84 @@ settings-bluetooth-connected-count =
        *[other] { $count } Geräte
     }
 
-## Settings — power
-settings-power-suspend = Suspend
-settings-power-hibernate = Hibernate
+## Einstellungen — Energie
+settings-power-suspend = Ruhezustand
+settings-power-hibernate = Tiefes Standby
 settings-power-reboot = Neustart
 settings-power-shutdown = Herunterfahren
 settings-power-logout = Abmelden
 settings-power-calculating = Berechne ...
 settings-power-full-in = Voll in { $duration }
 settings-power-empty-in = Leer in { $duration }
-settings-power-charge-limit = Laden limitieren
-settings-power-profile-balanced = Ausbalanciert
+settings-power-charge-limit = Ladebegrenzung
+settings-power-profile-balanced = Ausgewogen
 settings-power-profile-performance = Leistung
 settings-power-profile-power-saver = Stromsparen
 
-settings-power-status-charging = Lädt
-settings-power-status-discharging = Entlädt
+settings-power-status-charging = Wird geladen
+settings-power-status-discharging = Entlädt sich
 settings-power-status-full = Voll
 
-## Settings — idle inhibitor
-settings-idle-inhibitor = Nicht-Schlafen
+## Einstellungen — Kein Ruhezustand
+settings-idle-inhibitor = Kein Ruhezustand
 
-## Settings — tooltips
+## Einstellungen — tooltips
 settings-tooltip-empty = Ziemlich leer hier
 settings-tooltip-empty-audio = Kein aktives Audio-Gerät
-settings-tooltip-empty-bluetooth = Kein verbundes Gerät
+settings-tooltip-empty-bluetooth = Keine verbundenen Geräte
 settings-tooltip-empty-wifi = Kein Netz verbunden
-settings-tooltip-empty-vpn = Kein aktiver VPN
-settings-tooltip-empty-battery = Keine Batterie-Infos
+settings-tooltip-empty-vpn = Kein aktives VPN
+settings-tooltip-empty-battery = Keine Akku-Infornmationen
 
-## Tempo / weather module
-tempo-feels-like = Gefühlt { $value }{ $unit }
+## Tempo / Wetter Modul
+tempo-feels-like = Gefühlte { $value }{ $unit }
 tempo-humidity = Luftfeuchte
 tempo-wind = Wind
 
-## Weather conditions (Open-Meteo WMO codes)
+## Wetterbedingungen (Open-Meteo WMO codes)
 weather-clear-sky = Klarer Himmel
-weather-mainly-clear = Größtenteils klar
+weather-mainly-clear = Übwerwiegend klar
 weather-partly-cloudy = Teilweise bewölkt
-weather-overcast = Verhangen
+weather-overcast = Bewölkt
 weather-fog = Nebel
-weather-fog-rime = Depositing rime fog
+weather-fog-rime = Raureifnebel
 weather-drizzle-light = Leichter Nieselregen
 weather-drizzle-moderate = Nieselregen
-weather-drizzle-dense = Dichter Nieselregen
+weather-drizzle-dense = Starker Nieselregen
 weather-drizzle-freezing-light = Leichter gefrierender Nieselregen
-weather-drizzle-freezing-dense = Dichter gefrierender Nieselregen
+weather-drizzle-freezing-dense = Starker gefrierender Nieselregen
 weather-rain-slight = Leichter Regen
 weather-rain-moderate = Regen
-weather-rain-heavy = Starkregen
+weather-rain-heavy = Starker Regen
 weather-rain-freezing-light = Leichter gefrierender Regen
 weather-rain-freezing-heavy = Starker gefrierender Regen
 weather-snow-slight = Leichter Schneefall
 weather-snow-moderate = Schneefall
-weather-snow-heavy = Dichter Schneefall
-weather-snow-grains = Schneekörner
-weather-rain-showers-slight = Leichter Regenschauer
+weather-snow-heavy = Starker Schneefall
+weather-snow-grains = Schneegriesel
+weather-rain-showers-slight = Leichte Regenschauer
 weather-rain-showers-moderate = Regenschauer
-weather-rain-showers-violent = Dichter Regenschauer
-weather-snow-showers-slight = Leichter Schneeschauer
-weather-snow-showers-heavy = Dichter Schneeschauer
+weather-rain-showers-violent = Heftige Regenschauer
+weather-snow-showers-slight = Leichte Schneeschauer
+weather-snow-showers-heavy = Dichte Schneeschauer
 weather-thunderstorm = Gewitter
-weather-thunderstorm-hail-slight = Gewitter mit leichten Hagel
-weather-thunderstorm-hail-heavy = Gewitter mit schwerem Hagel
+weather-thunderstorm-hail-slight = Gewitter mit leichtem Hagel
+weather-thunderstorm-hail-heavy = Gewitter mit starkem Hagel
 weather-unknown = Unbekanntes Wetter
 
-## Notifications module
+## Benachrichtigungs Modul
 notifications-heading = Benachrichtigungen
 notifications-empty = Keine Benachrichtigungen
-notifications-group-count = { $count } Neue
+notifications-group-count = { $count } neu
 
-## System info module
-system-info-heading = System Info
-system-info-cpu-usage = Prozessor Auslastung
-system-info-memory-usage = Arbeitsspeicher Auslastung
-system-info-swap-memory-usage = Swap Auslastung
-system-info-swap-indicator-prefix = swap
+## Systeminformations Modul
+system-info-heading = Systeminformationen
+system-info-cpu-usage = CPU-Auslastung
+system-info-memory-usage = RAM-Auslastung
+system-info-swap-memory-usage = Swap-Nutzung
+system-info-swap-indicator-prefix = Swap
 system-info-temperature = Temperatur
-system-info-disk-usage = Festplatten Auslastung { $mount }
-system-info-ip-address = IP Addresse
-system-info-download-speed = Download Geschwindigkeit
-system-info-upload-speed = Upload Geschwindigkeit
+system-info-disk-usage = Festplattennutzung { $mount }
+system-info-ip-address = IP-Addresse
+system-info-download-speed = Download
+system-info-upload-speed = Upload
