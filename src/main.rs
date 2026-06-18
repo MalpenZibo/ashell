@@ -136,30 +136,52 @@ fn main() -> iced::Result {
         config::Layer::Overlay => Layer::Overlay,
     };
 
-    iced::application(
-        App::new((logger, config.clone(), config_path)),
-        App::update,
-        App::view,
-    )
-    .layer_shell(LayerShellSettings {
-        anchor: match config.position {
-            Position::Top => Anchor::TOP,
-            Position::Bottom => Anchor::BOTTOM,
-        } | Anchor::LEFT
-            | Anchor::RIGHT,
-        layer: iced_layer,
-        exclusive_zone: height as i32,
-        size: Some((0, height as u32)),
-        keyboard_interactivity: KeyboardInteractivity::None,
-        namespace: "ashell-main-layer".into(),
-        ..Default::default()
-    })
-    .subscription(App::subscription)
-    .theme(App::theme)
-    .scale_factor(App::scale_factor)
-    .font(NERD_FONT)
-    .font(NERD_FONT_MONO)
-    .font(CUSTOM_FONT)
-    .default_font(font)
-    .run()
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        iced::application(
+            App::new((logger, config.clone(), config_path)),
+            App::update,
+            App::view,
+        )
+        .layer_shell(LayerShellSettings {
+            anchor: match config.position {
+                Position::Top => Anchor::TOP,
+                Position::Bottom => Anchor::BOTTOM,
+            } | Anchor::LEFT
+                | Anchor::RIGHT,
+            layer: iced_layer,
+            exclusive_zone: height as i32,
+            size: Some((0, height as u32)),
+            keyboard_interactivity: KeyboardInteractivity::None,
+            namespace: "ashell-main-layer".into(),
+            ..Default::default()
+        })
+        .subscription(App::subscription)
+        .theme(App::theme)
+        .scale_factor(App::scale_factor)
+        .font(NERD_FONT)
+        .font(NERD_FONT_MONO)
+        .font(CUSTOM_FONT)
+        .default_font(font)
+        .run()
+    }));
+
+    match result {
+        Ok(run_result) => run_result,
+        Err(payload) => {
+            // The default panic hook already logged the panic + backtrace via
+            // the panic::set_hook above. Convert the payload into something
+            // we can log a second time at error level (some hooks run before
+            // the logger is ready in tests) and return an EventLoop error so
+            // systemd/user-service managers can decide to restart us.
+            let msg = if let Some(s) = payload.downcast_ref::<&'static str>() {
+                (*s).to_string()
+            } else if let Some(s) = payload.downcast_ref::<String>() {
+                s.clone()
+            } else {
+                "non-string panic payload".to_string()
+            };
+            error!("ashell run loop panicked: {msg}");
+            Err(iced::Error::EventLoop(format!("run loop panicked: {msg}")))
+        }
+    }
 }
