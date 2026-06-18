@@ -3,7 +3,9 @@ use crate::{
     components::{
         ButtonSize, divider, format_indicator,
         icons::{StaticIcon, icon, icon_button},
-        quick_setting_button, styled_button,
+        quick_setting_button,
+        spinning_icon::spinning_icon,
+        styled_button,
     },
     config::SettingsFormat,
     services::{
@@ -28,7 +30,6 @@ pub enum Message {
     Toggle,
     ToggleSubMenu,
     StartDiscovery,
-    StopDiscovery,
     PairDevice(OwnedObjectPath),
     ConnectDevice(OwnedObjectPath),
     DisconnectDevice(OwnedObjectPath),
@@ -102,14 +103,6 @@ impl BluetoothSettings {
                 Some(service) => Action::Command(
                     service
                         .command(BluetoothCommand::StartDiscovery)
-                        .map(Message::Event),
-                ),
-                _ => Action::None,
-            },
-            Message::StopDiscovery => match self.service.as_mut() {
-                Some(service) => Action::Command(
-                    service
-                        .command(BluetoothCommand::StopDiscovery)
                         .map(Message::Event),
                 ),
                 _ => Action::None,
@@ -260,14 +253,10 @@ impl BluetoothSettings {
                         .size(theme.font_size.xs),
                         if service.discovering {
                             Element::from(
-                                container(
-                                    crate::components::spinning_icon::spinning_icon(
-                                        true,
-                                        theme.font_size.xs,
-                                        theme.animations_enabled,
-                                    )
-                                    .map(|_| Message::StopDiscovery),
-                                )
+                                container(spinning_icon(
+                                    theme.font_size.xs,
+                                    theme.animations_enabled,
+                                ))
                                 .padding((theme.space.xl - theme.font_size.xs) / 2.0),
                             )
                         } else {

@@ -3,7 +3,9 @@ use crate::{
     components::{
         divider, format_indicator,
         icons::{StaticIcon, icon, icon_button},
-        quick_setting_button, styled_button,
+        quick_setting_button,
+        spinning_icon::spinning_icon,
+        styled_button,
     },
     config::SettingsFormat,
     services::{
@@ -523,15 +525,8 @@ impl NetworkSettings {
                 .size(font_size.sm),
                 if service.scanning_nearby_wifi {
                     Element::from(
-                        container(
-                            crate::components::spinning_icon::spinning_icon(
-                                true,
-                                font_size.xs,
-                                animated,
-                            )
-                            .map(|_| Message::ScanNearByWiFi),
-                        )
-                        .padding((space.xl - font_size.xs) / 2.0),
+                        container(spinning_icon(font_size.xs, animated))
+                            .padding((space.xl - font_size.xs) / 2.0),
                     )
                 } else {
                     icon_button(StaticIcon::Refresh)
