@@ -56,7 +56,6 @@ impl Deref for BluetoothService {
 pub enum BluetoothCommand {
     Toggle,
     StartDiscovery,
-    StopDiscovery,
     PairDevice(OwnedObjectPath),
     ConnectDevice(OwnedObjectPath),
     DisconnectDevice(OwnedObjectPath),
@@ -347,25 +346,6 @@ impl Service for BluetoothService {
 
                             // Auto-stop after 15 seconds
                             tokio::time::sleep(tokio::time::Duration::from_secs(15)).await;
-                            let _ = bluetooth.stop_discovery().await;
-                        }
-                        BluetoothService::initialize_data(&conn)
-                            .await
-                            .unwrap_or_else(|_| BluetoothData {
-                                state: BluetoothState::Unavailable,
-                                devices: vec![],
-                                discovering: false,
-                            })
-                    },
-                    ServiceEvent::Update,
-                )
-            }
-            BluetoothCommand::StopDiscovery => {
-                let conn = self.conn.clone();
-                Task::perform(
-                    async move {
-                        let bluetooth = BluetoothDbus::new(&conn).await;
-                        if let Ok(bluetooth) = bluetooth {
                             let _ = bluetooth.stop_discovery().await;
                         }
                         BluetoothService::initialize_data(&conn)

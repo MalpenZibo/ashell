@@ -1,6 +1,7 @@
 use crate::{
     components::divider,
     components::icons::{StaticIcon, icon},
+    components::spinning_icon::spinning_icon,
     components::{IconPosition, MenuSize, styled_button},
     config::UpdatesModuleConfig,
     t,
@@ -163,14 +164,23 @@ impl Updates {
     }
 
     pub fn view(&'_ self) -> Element<'_, Message> {
-        let space = use_theme(|theme| theme.space);
-        let mut content = row!(container(icon(match self.state {
-            State::Checking => StaticIcon::Refresh,
-            State::Ready if self.updates.is_empty() => StaticIcon::NoUpdatesAvailable,
-            _ => StaticIcon::UpdatesAvailable,
-        })))
-        .align_y(Alignment::Center)
-        .spacing(space.xxs);
+        let (space, font_size, animated) =
+            use_theme(|theme| (theme.space, theme.font_size, theme.animations_enabled));
+        let is_checking = matches!(self.state, State::Checking);
+        let icon_element: Element<'_, Message> = if is_checking {
+            spinning_icon(font_size.sm, animated)
+        } else {
+            container(icon(if self.updates.is_empty() {
+                StaticIcon::NoUpdatesAvailable
+            } else {
+                StaticIcon::UpdatesAvailable
+            }))
+            .into()
+        };
+
+        let mut content = row!(icon_element)
+            .align_y(Alignment::Center)
+            .spacing(space.xxs);
 
         if !self.updates.is_empty() {
             content = content.push(text(self.updates.len()));

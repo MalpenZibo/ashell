@@ -3,7 +3,9 @@ use crate::{
     components::{
         ButtonSize, divider, format_indicator,
         icons::{StaticIcon, icon, icon_button},
-        quick_setting_button, styled_button,
+        quick_setting_button,
+        spinning_icon::spinning_icon,
+        styled_button,
     },
     config::SettingsFormat,
     services::{
@@ -28,7 +30,6 @@ pub enum Message {
     Toggle,
     ToggleSubMenu,
     StartDiscovery,
-    StopDiscovery,
     PairDevice(OwnedObjectPath),
     ConnectDevice(OwnedObjectPath),
     DisconnectDevice(OwnedObjectPath),
@@ -102,14 +103,6 @@ impl BluetoothSettings {
                 Some(service) => Action::Command(
                     service
                         .command(BluetoothCommand::StartDiscovery)
-                        .map(Message::Event),
-                ),
-                _ => Action::None,
-            },
-            Message::StopDiscovery => match self.service.as_mut() {
-                Some(service) => Action::Command(
-                    service
-                        .command(BluetoothCommand::StopDiscovery)
                         .map(Message::Event),
                 ),
                 _ => Action::None,
@@ -258,16 +251,19 @@ impl BluetoothSettings {
                             String::new()
                         })
                         .size(theme.font_size.xs),
-                        icon_button(if service.discovering {
-                            StaticIcon::Close
+                        if service.discovering {
+                            Element::from(
+                                container(spinning_icon(
+                                    theme.font_size.xs,
+                                    theme.animations_enabled,
+                                ))
+                                .padding((theme.space.xl - theme.font_size.xs) / 2.0),
+                            )
                         } else {
-                            StaticIcon::Refresh
-                        })
-                        .on_press(if service.discovering {
-                            Message::StopDiscovery
-                        } else {
-                            Message::StartDiscovery
-                        })
+                            icon_button(StaticIcon::Refresh)
+                                .on_press(Message::StartDiscovery)
+                                .into()
+                        }
                     ]
                     .align_y(Vertical::Center)
                     .spacing(theme.space.xs)
