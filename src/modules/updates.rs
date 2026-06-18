@@ -168,7 +168,7 @@ impl Updates {
             use_theme(|theme| (theme.space, theme.font_size, theme.animations_enabled));
         let is_checking = matches!(self.state, State::Checking);
         let icon_element: Element<'_, Message> = if is_checking {
-            spinning_icon(true, font_size.sm, animated).map(|_| Message::CheckNow)
+            spinning_icon(font_size.sm, animated)
         } else {
             container(icon(if self.updates.is_empty() {
                 StaticIcon::NoUpdatesAvailable

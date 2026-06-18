@@ -2,12 +2,11 @@ use iced::{
     Length, Radians, Rectangle, Size, Vector,
     core::{
         Clipboard, Layout, Shell, Widget, event, layout, mouse, overlay, renderer,
-        widget::{Operation, Tree, tree},
+        widget::{Operation, Tree},
     },
     widget::canvas::{self, Frame, Path},
 };
-use std::f32::consts::PI;
-use std::time::Instant;
+use std::{f32::consts::PI, time::Instant};
 
 type Element<'a, Message, Theme, Renderer> = iced::core::Element<'a, Message, Theme, Renderer>;
 
@@ -37,11 +36,10 @@ impl Default for SpinnerState {
 }
 
 struct SpinnerProgram {
-    spinning: bool,
     size: f32,
 }
 
-impl canvas::Program<crate::app::Message> for SpinnerProgram {
+impl<Message> canvas::Program<Message> for SpinnerProgram {
     type State = SpinnerState;
 
     fn draw(
@@ -59,37 +57,24 @@ impl canvas::Program<crate::app::Message> for SpinnerProgram {
 
         let mut frame = Frame::new(renderer, bounds.size());
 
-        if self.spinning {
-            let elapsed = state.start.elapsed().as_secs_f32();
-            let angle = elapsed * SPIN_SPEED;
+        let elapsed = state.start.elapsed().as_secs_f32();
+        let angle = elapsed * SPIN_SPEED;
 
-            frame.with_save(|frame| {
-                frame.translate(Vector::new(center_x, center_y));
-                frame.rotate(Radians(angle));
-                frame.translate(Vector::new(-center_x, -center_y));
+        frame.with_save(|frame| {
+            frame.translate(Vector::new(center_x, center_y));
+            frame.rotate(Radians(angle));
+            frame.translate(Vector::new(-center_x, -center_y));
 
-                for &(cx, cy, r) in DOTS {
-                    frame.fill(
-                        &Path::circle(iced::Point::new(cx * scale, cy * scale), r * scale),
-                        color,
-                    );
-                }
-            });
-        } else {
             for &(cx, cy, r) in DOTS {
                 frame.fill(
                     &Path::circle(iced::Point::new(cx * scale, cy * scale), r * scale),
                     color,
                 );
             }
-        }
+        });
 
         vec![frame.into_geometry()]
     }
-}
-
-struct State {
-    spinning: bool,
 }
 
 /// Drives continuous redraws so the inner canvas keeps spinning.
@@ -98,32 +83,19 @@ where
     Renderer: iced::core::Renderer,
 {
     content: Element<'a, Message, Theme, Renderer>,
-    spinning: bool,
 }
 
 impl<'a, Message, Theme, Renderer> Widget<Message, Theme, Renderer>
     for SpinningIconWidget<'a, Message, Theme, Renderer>
 where
-    Message: Clone + 'a,
     Theme: 'a,
     Renderer: iced::core::Renderer + 'a,
 {
-    fn tag(&self) -> tree::Tag {
-        tree::Tag::of::<State>()
-    }
-
-    fn state(&self) -> tree::State {
-        tree::State::new(State {
-            spinning: self.spinning,
-        })
-    }
-
     fn children(&self) -> Vec<Tree> {
         vec![Tree::new(&self.content)]
     }
 
     fn diff(&self, tree: &mut Tree) {
-        tree.state.downcast_mut::<State>().spinning = self.spinning;
         tree.diff_children(std::slice::from_ref(&self.content));
     }
 
@@ -165,10 +137,7 @@ where
         );
 
         if let event::Event::Window(iced::core::window::Event::RedrawRequested(_)) = event {
-            let state = tree.state.downcast_ref::<State>();
-            if state.spinning {
-                shell.request_redraw();
-            }
+            shell.request_redraw();
         }
     }
 
@@ -243,7 +212,7 @@ where
 impl<'a, Message, Theme, Renderer> From<SpinningIconWidget<'a, Message, Theme, Renderer>>
     for Element<'a, Message, Theme, Renderer>
 where
-    Message: Clone + 'a,
+    Message: 'a,
     Theme: 'a,
     Renderer: iced::core::Renderer + 'a,
 {
@@ -252,11 +221,10 @@ where
     }
 }
 
-pub fn spinning_icon(
-    spinning: bool,
+pub fn spinning_icon<Message: 'static>(
     size: f32,
     animated: bool,
-) -> iced::Element<'static, crate::app::Message> {
+) -> iced::Element<'static, Message> {
     if !animated {
         return iced::widget::container(crate::components::icons::icon(
             crate::components::icons::StaticIcon::Refresh,
@@ -268,13 +236,12 @@ pub fn spinning_icon(
         .into();
     }
 
-    let canvas_widget = iced::widget::canvas(SpinnerProgram { spinning, size })
+    let canvas_widget = iced::widget::canvas(SpinnerProgram { size })
         .width(Length::Fixed(size))
         .height(Length::Fixed(size));
 
     SpinningIconWidget {
         content: canvas_widget.into(),
-        spinning,
     }
     .into()
 }
