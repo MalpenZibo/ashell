@@ -396,7 +396,7 @@ impl NetworkSettings {
                             Message::ToggleWifiMenu,
                         )),
                     ),
-                    Some((
+                    service.wifi_enabled.then_some((
                         sub_menu == Some(SubMenu::Wifi),
                         Self::wifi_menu(
                             service,
@@ -404,8 +404,7 @@ impl NetworkSettings {
                             active_connection.map(|(name, strength, _)| (name.as_str(), *strength)),
                             self.config.wifi_more_cmd.is_some(),
                         ),
-                    ))
-                    .filter(|_| service.wifi_enabled),
+                    )),
                 ))
             } else {
                 None
