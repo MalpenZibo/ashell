@@ -218,61 +218,7 @@ impl Outputs {
     ) -> Task<Message> {
         let target = Self::name_in_config(name, request_outputs);
 
-        if target {
-            debug!("Found target output, creating a new layer surface");
-
-            let (id, task) =
-                Self::create_output_layers(style, Some(output_id), position, layer, scale_factor);
-
-            let destroy_task = match self
-                .entries
-                .iter()
-                .position(|(key, _, _)| key.as_str() == name)
-            {
-                Some(index) => {
-                    let old_output = self.entries.swap_remove(index);
-
-                    match old_output.1 {
-                        Some(shell_info) => shell_info.destroy_surfaces(),
-                        _ => Task::none(),
-                    }
-                }
-                _ => Task::none(),
-            };
-
-            self.entries.push((
-                name.to_owned(),
-                Some(ShellInfo {
-                    id,
-                    menu: Menu::new(),
-                    position,
-                    layer,
-                    style,
-                    scale_factor,
-                    output_logical_height: None,
-                }),
-                Some(output_id),
-            ));
-
-            // remove fallback layer surface
-            let destroy_fallback_task = match self
-                .entries
-                .iter()
-                .position(|(_, _, output)| output.is_none())
-            {
-                Some(index) => {
-                    let old_output = self.entries.swap_remove(index);
-
-                    match old_output.1 {
-                        Some(shell_info) => shell_info.destroy_surfaces(),
-                        _ => Task::none(),
-                    }
-                }
-                _ => Task::none(),
-            };
-
-            Task::batch(vec![destroy_task, destroy_fallback_task, task])
-        } else {
+        if !target {
             debug!(
                 "Output {:?} does not match configured output target {:?}",
                 name, request_outputs
@@ -280,8 +226,75 @@ impl Outputs {
 
             self.entries.push((name.to_owned(), None, Some(output_id)));
 
-            Task::none()
+            return Task::none();
         }
+
+        // Idempotency: if we already have a live shell on this exact
+        // (name, output_id), do nothing. This guards against double-Added
+        // races (e.g. compositor re-announces an output while a fallback
+        // surface is still being torn down) and avoids needless wgpu
+        // surface churn.
+        if let Some((_, Some(_), Some(existing_output_id))) =
+            self.entries.iter().find(|(key, _, _)| key.as_str() == name)
+            && *existing_output_id == output_id
+        {
+            debug!("Output {name:?} already registered, skipping add()");
+            return Task::none();
+        }
+
+        debug!("Found target output, creating a new layer surface");
+
+        let (id, task) =
+            Self::create_output_layers(style, Some(output_id), position, layer, scale_factor);
+
+        let destroy_task = match self
+            .entries
+            .iter()
+            .position(|(key, _, _)| key.as_str() == name)
+        {
+            Some(index) => {
+                let old_output = self.entries.swap_remove(index);
+
+                match old_output.1 {
+                    Some(shell_info) => shell_info.destroy_surfaces(),
+                    _ => Task::none(),
+                }
+            }
+            _ => Task::none(),
+        };
+
+        self.entries.push((
+            name.to_owned(),
+            Some(ShellInfo {
+                id,
+                menu: Menu::new(),
+                position,
+                layer,
+                style,
+                scale_factor,
+                output_logical_height: None,
+            }),
+            Some(output_id),
+        ));
+
+        // remove fallback layer surface
+        let destroy_fallback_task = match self
+            .entries
+            .iter()
+            .position(|(_, _, output)| output.is_none())
+        {
+            Some(index) => {
+                let old_output = self.entries.swap_remove(index);
+
+                match old_output.1 {
+                    Some(shell_info) => shell_info.destroy_surfaces(),
+                    _ => Task::none(),
+                }
+            }
+            _ => Task::none(),
+        };
+
+        Task::batch(vec![destroy_task, destroy_fallback_task, task])
     }
 
     pub fn remove<Message: 'static>(
