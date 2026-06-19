@@ -90,7 +90,7 @@ alert_threshold = 85
 
 [tray]
 # blocklist = ["regex"]    # (default: []) hide tray items matching regex patterns
-# right_click = "menu"     # (default: None) "open" or "menu"; sets right-click action, left click gets the complement
+# right_click = "Menu"     # (default: None) "Open" or "Menu"; sets right-click action, left click gets the complement
 
 [tempo]
 clock_format = "%a %d %b %R"
