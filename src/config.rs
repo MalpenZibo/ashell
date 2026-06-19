@@ -413,7 +413,6 @@ impl Default for SystemInfoModuleConfig {
 }
 
 #[derive(Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
 pub enum ToastPosition {
     TopLeft,
     #[default]
@@ -454,7 +453,6 @@ impl Default for NotificationsModuleConfig {
 }
 
 #[derive(Deserialize, Clone, Debug, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
 pub enum TrayClickAction {
     Open,
     Menu,
