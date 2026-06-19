@@ -217,7 +217,7 @@ where
             target_center_x
         } else if !state.initialized {
             state.center_x_anim = Animation::new(target_center_x)
-                .duration(Duration::from_millis(200))
+                .duration(Duration::from_millis(100))
                 .easing(Easing::EaseOutCubic);
             state.last_center_x = target_center_x;
             state.initialized = true;
