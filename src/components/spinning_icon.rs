@@ -226,9 +226,11 @@ pub fn spinning_icon<Message: 'static>(
     animated: bool,
 ) -> iced::Element<'static, Message> {
     if !animated {
-        return iced::widget::container(crate::components::icons::icon(
-            crate::components::icons::StaticIcon::Refresh,
-        ))
+        return iced::widget::container(
+            crate::components::icons::icon(crate::components::icons::StaticIcon::Refresh)
+                .size(size)
+                .line_height(1.0),
+        )
         .width(Length::Fixed(size))
         .height(Length::Fixed(size))
         .align_x(iced::alignment::Horizontal::Center)
