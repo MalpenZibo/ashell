@@ -18,8 +18,8 @@ You can filter which tray icons are displayed using the `blocklist` option. If a
 
 You can configure what happens when right-clicking a tray icon using `right_click`. The left click behavior is automatically set to the complement. If omitted, only left click is active and opens the context menu.
 
-- `"open"` — right click activates the application (e.g. show/raise its window); left click opens the context menu
-- `"menu"` — right click opens the context menu; left click activates the application
+- `"Open"` — right click activates the application (e.g. show/raise its window); left click opens the context menu
+- `"Menu"` — right click opens the context menu; left click activates the application
 
 ## Examples
 
@@ -34,7 +34,7 @@ blocklist = ["spotify", "^org\\.gnome\\."]
 
 ```toml
 [tray]
-right_click = "menu"
+right_click = "Menu"
 ```
 
 ## Default Configuration
