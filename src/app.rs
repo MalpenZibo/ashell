@@ -79,6 +79,8 @@ pub enum Message {
     ConfigChanged(Box<Config>),
     ToggleMenu(MenuType, SurfaceId, ButtonUIRef),
     CloseMenu(SurfaceId),
+    /// Fired after a menu's close animation ends, to destroy its surface.
+    FinishCloseMenu(SurfaceId),
     Custom(String, custom_module::Message),
     Updates(modules::updates::Message),
     Workspaces(modules::workspaces::Message),
@@ -106,12 +108,13 @@ impl App {
         (logger, config, config_path): (LoggerHandle, Config, PathBuf),
     ) -> impl FnOnce() -> (Self, Task<Message>) {
         move || {
-            let outputs = Outputs::new(
+            let mut outputs = Outputs::new(
                 config.appearance.style,
                 config.position,
                 config.layer,
                 config.appearance.scale_factor,
             );
+            outputs.set_animations_enabled(config.animations.enabled);
 
             let custom = config
                 .custom_modules
@@ -214,6 +217,8 @@ impl App {
             .update(modules::media_player::Message::ConfigReloaded(
                 config.media_player,
             ));
+        self.outputs
+            .set_animations_enabled(config.animations.enabled);
         let _ = self
             .notifications
             .update(modules::notifications::Message::ConfigReloaded(
@@ -386,6 +391,7 @@ impl App {
                 self.outputs
                     .close_menu(id, None, self.general_config.enable_esc_key)
             }
+            Message::FinishCloseMenu(id) => self.outputs.finish_close_menu(id),
             Message::Custom(name, msg) => {
                 if let Some(custom) = self.custom.get_mut(&name) {
                     custom.update(msg);

@@ -312,7 +312,7 @@ where
     Collapsible {
         content: content.into(),
         expanded,
-        duration: Duration::from_millis(200),
+        duration: Duration::from_millis(100),
         easing: Easing::EaseOutCubic,
         animated: true,
         open_padding_top: 0.0,
