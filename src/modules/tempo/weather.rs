@@ -314,7 +314,6 @@ impl Tempo {
     }
 }
 
-#[allow(dead_code)]
 #[derive(Clone, Debug, Deserialize)]
 struct GeoLocations {
     results: Vec<GeoLocation>,
@@ -382,7 +381,6 @@ pub struct Location {
     pub latitude: f32,
     pub longitude: f32,
     pub city: String,
-    #[allow(dead_code)]
     pub region_name: String,
 }
 
