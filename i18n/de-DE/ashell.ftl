@@ -88,6 +88,8 @@ settings-power-profile-power-saver = Stromsparen
 
 settings-power-status-charging = Wird geladen
 settings-power-status-discharging = Entlädt sich
+settings-power-status-not-charging = Lädt nicht
+settings-power-status-unknown = Unbekannt
 settings-power-status-full = Voll
 
 ## Einstellungen — Kein Ruhezustand
