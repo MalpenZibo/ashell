@@ -81,7 +81,14 @@ impl BatteryData {
                 capacity,
                 ..
             } if *capacity < 20 => IndicatorState::Danger,
-            _ => IndicatorState::Normal,
+            BatteryData {
+                status: BatteryStatus::Discharging(_),
+                ..
+            } => IndicatorState::Normal,
+            BatteryData {
+                status: BatteryStatus::NotCharging | BatteryStatus::Unknown | BatteryStatus::Full,
+                ..
+            } => IndicatorState::Normal,
         }
     }
 
@@ -92,26 +99,25 @@ impl BatteryData {
                 ..
             } => StaticIcon::BatteryCharging,
             BatteryData {
-                status: BatteryStatus::Discharging(_),
-                capacity,
+                status: BatteryStatus::Full,
                 ..
-            } if *capacity < 20 => StaticIcon::Battery0,
+            } => StaticIcon::Battery4,
             BatteryData {
                 status: BatteryStatus::Discharging(_),
                 capacity,
                 ..
-            } if *capacity < 40 => StaticIcon::Battery1,
+            } => battery_level_icon(*capacity),
             BatteryData {
-                status: BatteryStatus::Discharging(_),
+                status: BatteryStatus::NotCharging,
                 capacity,
                 ..
-            } if *capacity < 60 => StaticIcon::Battery2,
+            } => battery_level_icon(*capacity),
+            // No dedicated unknown battery icon. Use Battery0 as a safe fallback
+            // instead of incorrectly showing a full battery.
             BatteryData {
-                status: BatteryStatus::Discharging(_),
-                capacity,
+                status: BatteryStatus::Unknown,
                 ..
-            } if *capacity < 80 => StaticIcon::Battery3,
-            _ => StaticIcon::Battery4,
+            } => StaticIcon::Battery0,
         }
     }
 }
@@ -152,11 +158,17 @@ impl Peripheral {
             BatteryData {
                 status: BatteryStatus::Discharging(_),
                 ..
-            }
-            | BatteryData {
-                status: BatteryStatus::Full,
+            } => get_type_icon(BatLevel::Full),
+            // Peripheral icons are coarse category/status icons.
+            // NotCharging is not active discharge, so keep the full-like state.
+            BatteryData {
+                status: BatteryStatus::NotCharging | BatteryStatus::Full,
                 ..
             } => get_type_icon(BatLevel::Full),
+            BatteryData {
+                status: BatteryStatus::Unknown,
+                ..
+            } => get_type_icon(BatLevel::Alert),
         }
     }
 }
@@ -201,6 +213,20 @@ impl PeripheralDeviceKind {
     }
 }
 
+fn battery_level_icon(capacity: i64) -> StaticIcon {
+    if capacity < 20 {
+        StaticIcon::Battery0
+    } else if capacity < 40 {
+        StaticIcon::Battery1
+    } else if capacity < 60 {
+        StaticIcon::Battery2
+    } else if capacity < 80 {
+        StaticIcon::Battery3
+    } else {
+        StaticIcon::Battery4
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum UPowerEvent {
     UpdateSystemBattery(BatteryData),
@@ -210,10 +236,12 @@ pub enum UPowerEvent {
     UpdatePowerProfile(PowerProfile),
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum BatteryStatus {
     Charging(Duration),
     Discharging(Duration),
+    NotCharging,
+    Unknown,
     Full,
 }
 
@@ -380,14 +408,15 @@ impl UPowerService {
                 let state_raw = battery.state().await;
                 let is_discharging = matches!(state_raw, dbus::DeviceState::Discharging);
                 let state = match state_raw {
-                    dbus::DeviceState::Charging => BatteryStatus::Charging(Duration::from_secs(
-                        battery.time_to_full().await as u64,
-                    )),
-                    dbus::DeviceState::Discharging => BatteryStatus::Discharging(
-                        Duration::from_secs(battery.time_to_empty().await as u64),
+                    dbus::DeviceState::Charging => battery_status_from_timed_system_state(
+                        state_raw,
+                        battery.time_to_full().await,
                     ),
-                    dbus::DeviceState::FullyCharged => BatteryStatus::Full,
-                    _ => BatteryStatus::Discharging(Duration::from_secs(0)),
+                    dbus::DeviceState::Discharging => battery_status_from_timed_system_state(
+                        state_raw,
+                        battery.time_to_empty().await,
+                    ),
+                    _ => battery_status_from_system_state(state_raw),
                 };
                 let percentage = match battery.percentage().await {
                     Ok(pct) => pct as i64,
@@ -465,7 +494,8 @@ impl UPowerService {
                     BatteryStatus::Discharging(Duration::from_secs(time_to_empty as u64))
                 }
                 4 => BatteryStatus::Full,
-                _ => BatteryStatus::Discharging(Duration::from_secs(0)),
+                5 | 6 => BatteryStatus::NotCharging,
+                _ => BatteryStatus::Unknown,
             };
             let Ok(percentage) = device.percentage().await else {
                 warn!(
@@ -761,6 +791,32 @@ impl UPowerService {
     }
 }
 
+fn battery_status_from_system_state(state: dbus::DeviceState) -> BatteryStatus {
+    match state {
+        dbus::DeviceState::Charging => BatteryStatus::Charging(Duration::ZERO),
+        dbus::DeviceState::Discharging => BatteryStatus::Discharging(Duration::ZERO),
+        dbus::DeviceState::FullyCharged => BatteryStatus::Full,
+        // PendingCharge/PendingDischarge are transitional, not active discharge.
+        // Do not show time estimates for them.
+        dbus::DeviceState::PendingCharge | dbus::DeviceState::PendingDischarge => {
+            BatteryStatus::NotCharging
+        }
+        dbus::DeviceState::Unknown | dbus::DeviceState::Empty => BatteryStatus::Unknown,
+    }
+}
+
+fn battery_status_from_timed_system_state(state: dbus::DeviceState, time: i64) -> BatteryStatus {
+    match state {
+        dbus::DeviceState::Charging => {
+            BatteryStatus::Charging(Duration::from_secs(time.try_into().unwrap_or_default()))
+        }
+        dbus::DeviceState::Discharging => {
+            BatteryStatus::Discharging(Duration::from_secs(time.try_into().unwrap_or_default()))
+        }
+        _ => battery_status_from_system_state(state),
+    }
+}
+
 pub enum UPowerCommand {
     TogglePowerProfile,
     ToggleChargeLimit,
@@ -844,5 +900,91 @@ impl Service for UPowerService {
             },
             ServiceEvent::Update,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        BatteryData, BatteryStatus, StaticIcon, battery_status_from_system_state,
+        battery_status_from_timed_system_state, dbus,
+    };
+    use std::time::Duration;
+
+    #[test]
+    fn pending_charge_is_not_mapped_to_discharging() {
+        assert_eq!(
+            battery_status_from_system_state(dbus::DeviceState::PendingCharge),
+            BatteryStatus::NotCharging
+        );
+    }
+
+    #[test]
+    fn pending_discharge_is_not_mapped_to_discharging() {
+        assert_eq!(
+            battery_status_from_system_state(dbus::DeviceState::PendingDischarge),
+            BatteryStatus::NotCharging
+        );
+    }
+
+    #[test]
+    fn unknown_and_empty_map_to_unknown() {
+        assert_eq!(
+            battery_status_from_system_state(dbus::DeviceState::Unknown),
+            BatteryStatus::Unknown
+        );
+        assert_eq!(
+            battery_status_from_system_state(dbus::DeviceState::Empty),
+            BatteryStatus::Unknown
+        );
+    }
+
+    #[test]
+    fn unknown_system_battery_uses_empty_fallback_icon() {
+        let battery = BatteryData {
+            capacity: 50,
+            status: BatteryStatus::Unknown,
+            is_discharging: false,
+        };
+
+        assert!(matches!(battery.get_icon(), StaticIcon::Battery0));
+    }
+
+    #[test]
+    fn full_system_battery_uses_full_icon_even_low_capacity() {
+        let battery = BatteryData {
+            capacity: 10,
+            status: BatteryStatus::Full,
+            is_discharging: false,
+        };
+
+        assert!(matches!(battery.get_icon(), StaticIcon::Battery4));
+    }
+
+    #[test]
+    fn not_charging_system_battery_keeps_capacity_icon() {
+        let battery = BatteryData {
+            capacity: 10,
+            status: BatteryStatus::NotCharging,
+            is_discharging: false,
+        };
+
+        assert!(matches!(battery.get_icon(), StaticIcon::Battery0));
+    }
+
+    #[test]
+    fn normal_system_battery_states_keep_time_semantics() {
+        assert_eq!(
+            battery_status_from_timed_system_state(dbus::DeviceState::Charging, 120),
+            BatteryStatus::Charging(Duration::from_secs(120))
+        );
+        assert_eq!(
+            battery_status_from_timed_system_state(dbus::DeviceState::Discharging, 240),
+            BatteryStatus::Discharging(Duration::from_secs(240))
+        );
+        assert_eq!(
+            battery_status_from_system_state(dbus::DeviceState::FullyCharged),
+            BatteryStatus::Full
+        );
     }
 }
