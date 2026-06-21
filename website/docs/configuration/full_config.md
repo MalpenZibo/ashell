@@ -135,7 +135,7 @@ peripheral_battery_format = "Icon"  # (default), "IconAndPercentage", "Percentag
 # peripheral_expanded_by_default = false  # (default)
 audio_indicator_format = "Icon"        # (default), "IconAndPercentage", "Percentage", etc.
 microphone_indicator_format = "Icon"   # (default)
-network_indicator_format = "Icon"      # (default)
+network_indicator_format = "Icon"      # (default), "IconAndPercentage", "Percentage", "Name", "IconAndName" (Name/IconAndName show the SSID/interface/VPN name)
 bluetooth_indicator_format = "Icon"    # (default)
 brightness_indicator_format = "Icon"   # (default)
 volume_step = 5    # (default) step size for IPC volume up/down, range 1..=50
