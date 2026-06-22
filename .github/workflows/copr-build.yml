@@ -10,7 +10,7 @@ jobs:
   copr:
     runs-on: ubuntu-latest
     container:
-      image: fedora:42
+      image: fedora:latest
     env:
       COPR_CONFIG: ${{ secrets.COPR_CONFIG }}
     steps:
@@ -32,7 +32,7 @@ jobs:
         run: cargo install cargo-rpm --locked
       - name: Prepare RPM packaging
         run: |
-          if [ ! -d .rpm ]; then cargo rpm init; fi
+          if [ ! -f .rpm/ashell.spec ]; then cargo rpm init; fi
       - name: Build SRPM
         run: cargo rpm build -v
       - name: Locate SRPM
