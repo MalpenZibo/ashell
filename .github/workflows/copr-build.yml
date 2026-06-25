@@ -10,7 +10,7 @@ jobs:
   copr:
     runs-on: ubuntu-latest
     container:
-      image: fedora:latest
+      image: fedora:44
     env:
       COPR_CONFIG: ${{ secrets.COPR_CONFIG }}
     steps:
@@ -20,7 +20,8 @@ jobs:
           dnf -y install git cargo rust rpm-build copr-cli gcc make pkgconf-pkg-config \
             pipewire-devel libinput-devel systemd-devel dbus-devel wayland-devel \
             libxkbcommon-devel mesa-libEGL-devel pango-devel cairo-devel glib2-devel \
-            openssl-devel fontconfig-devel freetype-devel clang-devel
+            openssl-devel fontconfig-devel freetype-devel clang-devel llvm-devel \
+            pulseaudio-libs-devel
           dnf -y clean all
       - name: Configure copr-cli
         if: env.COPR_CONFIG != ''

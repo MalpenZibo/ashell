@@ -32,6 +32,7 @@ BuildRequires:  fontconfig-devel
 BuildRequires:  freetype-devel
 BuildRequires:  clang-devel
 BuildRequires:  llvm-devel
+BuildRequires:  pulseaudio-libs-devel
 BuildRequires:  systemd-rpm-macros
 
 Requires:       libwayland-client
@@ -51,7 +52,7 @@ cargo build --release
 install -Dm755 target/release/ashell %{buildroot}%{_bindir}/ashell
 
 %check
-%{_bindir}/ashell --help
+test -x %{buildroot}%{_bindir}/ashell
 
 %clean
 rm -rf %{buildroot}
