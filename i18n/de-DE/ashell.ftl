@@ -101,7 +101,7 @@ settings-tooltip-empty-audio = Kein aktives Audio-Gerät
 settings-tooltip-empty-bluetooth = Keine verbundenen Geräte
 settings-tooltip-empty-wifi = Kein Netz verbunden
 settings-tooltip-empty-vpn = Kein aktives VPN
-settings-tooltip-empty-battery = Keine Akku-Infornmationen
+settings-tooltip-empty-battery = Keine Akku-Informationen
 
 ## Tempo / Wetter Modul
 tempo-feels-like = Gefühlte { $value }{ $unit }
@@ -110,7 +110,7 @@ tempo-wind = Wind
 
 ## Wetterbedingungen (Open-Meteo WMO codes)
 weather-clear-sky = Klarer Himmel
-weather-mainly-clear = Übwerwiegend klar
+weather-mainly-clear = Überwiegend klar
 weather-partly-cloudy = Teilweise bewölkt
 weather-overcast = Bewölkt
 weather-fog = Nebel
@@ -152,6 +152,6 @@ system-info-swap-memory-usage = Swap-Nutzung
 system-info-swap-indicator-prefix = Swap
 system-info-temperature = Temperatur
 system-info-disk-usage = Festplattennutzung { $mount }
-system-info-ip-address = IP-Addresse
+system-info-ip-address = IP-Adresse
 system-info-download-speed = Download
 system-info-upload-speed = Upload
