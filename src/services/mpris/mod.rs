@@ -407,12 +407,13 @@ impl MprisPlayerService {
                                     match res {
                                         Ok(bytes) => {
                                             state_data.fetched_covers.insert(url.clone());
-                                        send_or_log(
-                                            output,
-                                            ServiceEvent::Update(
-                                                Event::CoverFetched(url.clone(), bytes)
-                                            ),
-                                        ).await;
+                                            send_or_log(
+                                                output,
+                                                ServiceEvent::Update(
+                                                    Event::CoverFetched(url.clone(), bytes),
+                                                ),
+                                            )
+                                            .await;
                                         }
                                         Err(err) => {
                                             error!("Failed to fetch cover art from {url}: {err}");
