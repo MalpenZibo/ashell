@@ -14,7 +14,6 @@ mod throttle;
 pub mod tray;
 pub mod upower;
 
-#[allow(unused)]
 #[derive(Debug, Clone)]
 pub enum ServiceEvent<S: ReadOnlyService> {
     Init(S),

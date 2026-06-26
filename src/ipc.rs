@@ -9,11 +9,12 @@ use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::PathBuf;
 use std::str::FromStr;
 
+use crate::xdg;
 use anyhow::{Context, Result, anyhow};
 use clap::Subcommand;
 use iced::Subscription;
 
-use crate::xdg;
+use iced::futures::StreamExt;
 
 /// Maximum bytes to read from a client connection.
 const MAX_REQUEST_LEN: u64 = 4096;
@@ -283,8 +284,6 @@ fn init_listener() -> Option<tokio::net::UnixListener> {
 
 /// Subscription that listens for IPC commands on the Unix socket.
 pub fn subscription() -> Subscription<IpcCommand> {
-    use iced::futures::StreamExt;
-
     Subscription::run(|| {
         iced::futures::stream::unfold(None::<tokio::net::UnixListener>, |listener| async {
             let listener = match listener {
