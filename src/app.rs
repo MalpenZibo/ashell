@@ -595,7 +595,12 @@ impl App {
                     IpcCommand::BrightnessDown { .. } => self.settings.brightness_adjust(false),
                     IpcCommand::ToggleAirplaneMode { .. } => self.settings.toggle_airplane(),
                     IpcCommand::ToggleIdleInhibitor { .. } => self.settings.toggle_idle_inhibitor(),
-                    IpcCommand::ToggleVisibility => unreachable!(),
+                    IpcCommand::ToggleVisibility => {
+                        warn!(
+                            "IpcCommand::ToggleVisibility reached IpcOsdCommand handler; use Message::ToggleVisibility instead"
+                        );
+                        modules::settings::Action::None
+                    }
                 };
                 if let settings::Action::Command(task) = action {
                     tasks.push(task.map(Message::Settings));

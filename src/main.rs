@@ -88,7 +88,6 @@ fn main() -> iced::Result {
             .build(),
     )
     .log_to_file(FileSpec::default().directory(logdir))
-    .duplicate_to_stdout(flexi_logger::Duplicate::All)
     .rotate(
         Criterion::AgeOrSize(Age::Day, TMP_FILE_SIZE),
         Naming::Timestamps,
