@@ -3,7 +3,7 @@ use crate::services::{
     network::{NetworkBackend, NetworkData, NetworkEvent},
 };
 
-use super::{AccessPoint, ActiveConnectionInfo, KnownConnection, Vpn};
+use super::{AccessPointData, ActiveConnectionInfo, KnownConnection, Vpn};
 use iced::futures::{Stream, StreamExt, stream::select_all};
 use itertools::Itertools;
 use log::{debug, warn};
@@ -87,7 +87,7 @@ impl super::NetworkBackend for NetworkDbus<'_> {
 
     async fn select_access_point(
         &self,
-        access_point: &AccessPoint,
+        access_point: &AccessPointData,
         password: Option<String>,
     ) -> anyhow::Result<()> {
         let settings = NetworkSettingsDbus::new(self.0.inner().connection()).await?;
@@ -590,7 +590,7 @@ fn connection_id(settings: &HashMap<String, HashMap<String, OwnedValue>>) -> Opt
 impl NetworkDbus<'_> {
     pub async fn known_connections_internal(
         &self,
-        wireless_access_points: &[AccessPoint],
+        wireless_access_points: &[AccessPointData],
     ) -> anyhow::Result<Vec<KnownConnection>> {
         let settings = NetworkSettingsDbus::new(self.0.inner().connection()).await?;
 
@@ -655,7 +655,7 @@ impl NetworkDbus<'_> {
         Ok(wireless_devices)
     }
 
-    pub async fn wireless_access_points(&self) -> anyhow::Result<Vec<AccessPoint>> {
+    pub async fn wireless_access_points(&self) -> anyhow::Result<Vec<AccessPointData>> {
         let wireless_devices = self.wireless_devices().await?;
         let wireless_access_point_futures: Vec<_> = wireless_devices
             .into_iter()
@@ -683,7 +683,7 @@ impl NetworkDbus<'_> {
                     .map_or_else(|| DeviceState::Unknown, DeviceState::from);
 
                 // Sort by strength and remove duplicates
-                let mut aps = HashMap::<String, AccessPoint>::new();
+                let mut aps = HashMap::<String, AccessPointData>::new();
                 for ap in access_points {
                     let ap = AccessPointProxy::builder(self.0.inner().connection())
                         .path(ap)?
@@ -696,7 +696,7 @@ impl NetworkDbus<'_> {
                     let max_bitrate = ap.max_bitrate().await.unwrap_or_default();
                     let frequency = ap.frequency().await.unwrap_or_default();
                     if let Some(access_point) = aps.get(&ssid)
-                        && AccessPoint::is_better(
+                        && AccessPointData::is_better(
                             access_point.max_bitrate,
                             access_point.frequency,
                             access_point.strength,
@@ -710,7 +710,7 @@ impl NetworkDbus<'_> {
 
                     aps.insert(
                         ssid.clone(),
-                        AccessPoint {
+                        AccessPointData {
                             ssid,
                             strength,
                             max_bitrate,
@@ -735,7 +735,7 @@ impl NetworkDbus<'_> {
 
         let mut wireless_access_points = Vec::with_capacity(wireless_access_point_futures.len());
         for f in wireless_access_point_futures {
-            let mut access_points: anyhow::Result<Vec<AccessPoint>> = f.await;
+            let mut access_points: anyhow::Result<Vec<AccessPointData>> = f.await;
             if let Ok(access_points) = &mut access_points {
                 wireless_access_points.append(access_points);
             }
@@ -743,9 +743,9 @@ impl NetworkDbus<'_> {
 
         let wireless_access_points = wireless_access_points
             .into_iter()
-            .fold(HashMap::<String, AccessPoint>::new(), |mut acc, ap| {
+            .fold(HashMap::<String, AccessPointData>::new(), |mut acc, ap| {
                 if let Some(existing) = acc.get(&ap.ssid)
-                    && AccessPoint::is_better(
+                    && AccessPointData::is_better(
                         existing.max_bitrate,
                         existing.frequency,
                         existing.strength,
