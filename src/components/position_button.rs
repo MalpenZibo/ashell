@@ -33,6 +33,7 @@ where
     content: Element<'a, Message, Theme, Renderer>,
     on_press: Option<OnPress<'a, Message>>,
     on_right_press: Option<OnPress<'a, Message>>,
+    on_middle_press: Option<OnPress<'a, Message>>,
     on_scroll_up: Option<OnPress<'a, Message>>,
     on_scroll_down: Option<OnPress<'a, Message>>,
     on_hover: Option<OnHover<'a, Message>>,
@@ -57,6 +58,7 @@ where
             content,
             on_press: None,
             on_right_press: None,
+            on_middle_press: None,
             on_scroll_up: None,
             on_scroll_down: None,
             on_hover: None,
@@ -113,6 +115,11 @@ where
         on_right_press: impl Fn(ButtonUIRef) -> Message + 'a,
     ) -> Self {
         self.on_right_press = Some(OnPress::MessageWithPosition(Box::new(on_right_press)));
+        self
+    }
+
+    pub fn on_middle_press(mut self, on_middle_press: Message) -> Self {
+        self.on_middle_press = Some(OnPress::Message(on_middle_press));
         self
     }
 
@@ -219,6 +226,7 @@ struct State {
     is_hovered: bool,
     is_pressed: bool,
     is_right_pressed: bool,
+    is_middle_pressed: bool,
     is_focused: bool,
 }
 
@@ -337,6 +345,18 @@ where
                     return;
                 }
             }
+            event::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Middle))
+                if self.on_middle_press.is_some() =>
+            {
+                let bounds = layout.bounds();
+
+                if cursor.is_over(bounds) {
+                    let state = tree.state.downcast_mut::<State>();
+                    state.is_middle_pressed = true;
+                    shell.capture_event();
+                    return;
+                }
+            }
             event::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left))
             | event::Event::Touch(touch::Event::FingerLifted { .. }) => {
                 if let Some(on_press) = self.on_press.as_ref() {
@@ -367,6 +387,24 @@ where
 
                         if cursor.is_over(bounds) {
                             self.publish_on_press(on_right_press, layout, viewport, shell);
+                        }
+
+                        shell.capture_event();
+                        return;
+                    }
+                }
+            }
+            event::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Middle)) => {
+                if let Some(on_middle_press) = self.on_middle_press.as_ref() {
+                    let state = tree.state.downcast_mut::<State>();
+
+                    if state.is_middle_pressed {
+                        state.is_middle_pressed = false;
+
+                        let bounds = layout.bounds();
+
+                        if cursor.is_over(bounds) {
+                            self.publish_on_press(on_middle_press, layout, viewport, shell);
                         }
 
                         shell.capture_event();
@@ -453,6 +491,7 @@ where
                     }
                 }
                 state.is_pressed = false;
+                state.is_middle_pressed = false;
             }
             _ => {}
         }
@@ -538,7 +577,7 @@ where
     ) -> mouse::Interaction {
         let is_mouse_over = cursor.is_over(layout.bounds());
 
-        if is_mouse_over && self.on_press.is_some() {
+        if is_mouse_over && (self.on_press.is_some() || self.on_middle_press.is_some()) {
             mouse::Interaction::Pointer
         } else {
             mouse::Interaction::default()

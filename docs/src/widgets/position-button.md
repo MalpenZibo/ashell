@@ -1,6 +1,6 @@
 # PositionButton
 
-`src/widgets/position_button.rs`
+`src/components/position_button.rs`
 
 ## Purpose
 
@@ -25,7 +25,10 @@ impl PositionButton {
     // Right-click handler
     pub fn on_right_press(self, msg: Message) -> Self;
 
-    // Scroll handlers
+    // Middle-click handler
+    pub fn on_middle_press(self, msg: Message) -> Self;
+
+    // Scroll handlers (explicit up/down, not a generic scroll event)
     pub fn on_scroll_up(self, msg: Message) -> Self;
     pub fn on_scroll_down(self, msg: Message) -> Self;
 
@@ -41,12 +44,18 @@ impl PositionButton {
 }
 ```
 
+## Notes
+
+- Scroll events are explicit: separate `on_scroll_up` and `on_scroll_down` handlers. There is no generic "scroll" event.
+- For custom modules, these handlers map directly to `on_scroll_up` / `on_scroll_down` config fields.
+- Middle-click (`on_middle_press`) is primarily used by `CustomAction` (custom modules without menus). `ToggleMenuWithExtra` does not include middle-click support.
+
 ## ButtonUIRef
 
 ```rust
 pub struct ButtonUIRef {
-    pub position: Point,    // Screen coordinates of the button's top-left corner
-    pub size: Size,         // Width and height of the button
+    pub position: Point,    // Screen coordinates of the button's center
+    pub viewport: (f32, f32), // Width and height of the screen
 }
 ```
 
