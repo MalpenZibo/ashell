@@ -120,123 +120,134 @@ pub struct AshellTheme {
 impl Default for AshellTheme {
     fn default() -> Self {
         let appearance = Appearance::default();
+        base_theme_from_appearance(&appearance, Position::default(), false)
+    }
+}
 
-        AshellTheme {
-            space: Space::default(),
-            radius: Radius::default(),
-            font_size: FontSize::default(),
-            bar_position: Position::default(),
-            bar_style: appearance.style,
-            opacity: appearance.opacity,
-            menu: appearance.menu,
-            workspace_colors: appearance.workspace_colors.clone(),
-            special_workspace_colors: appearance.special_workspace_colors.clone(),
-            scale_factor: appearance.scale_factor,
-            animations_enabled: false,
-            iced_theme: Theme::custom_with_fn(
-                "local".to_string(),
-                Palette {
-                    background: appearance.background_color.get_base(),
-                    text: appearance.text_color.get_base(),
-                    primary: appearance.primary_color.get_base(),
-                    success: appearance.success_color.get_base(),
-                    warning: appearance.warning_color.get_base(),
-                    danger: appearance.danger_color.get_base(),
+fn build_iced_theme(appearance: &Appearance) -> Theme {
+    Theme::custom_with_fn(
+        "local".to_string(),
+        Palette {
+            background: appearance.background_color.get_base(),
+            text: appearance.text_color.get_base(),
+            primary: appearance.primary_color.get_base(),
+            success: appearance.success_color.get_base(),
+            warning: appearance.warning_color.get_base(),
+            danger: appearance.danger_color.get_base(),
+        },
+        |palette| {
+            let text = palette.text;
+            let bg_text = appearance.background_color.get_text().unwrap_or(text);
+
+            let default_bg = palette::Background::new(palette.background, bg_text);
+            let bg = |level, fallback| {
+                appearance
+                    .background_color
+                    .get_pair(level, text)
+                    .unwrap_or(fallback)
+            };
+
+            let default_primary = palette::Primary::generate(
+                palette.primary,
+                palette.background,
+                appearance.primary_color.get_text().unwrap_or(text),
+            );
+            let default_success = palette::Success::generate(
+                palette.success,
+                palette.background,
+                appearance.success_color.get_text().unwrap_or(text),
+            );
+            let default_warning = palette::Warning::generate(
+                palette.warning,
+                palette.background,
+                appearance.warning_color.get_text().unwrap_or(text),
+            );
+            let default_danger = palette::Danger::generate(
+                palette.danger,
+                palette.background,
+                appearance.danger_color.get_text().unwrap_or(text),
+            );
+
+            palette::Extended {
+                background: palette::Background {
+                    base: default_bg.base,
+                    weakest: bg(BackgroundLevel::Weakest, default_bg.weakest),
+                    weaker: bg(BackgroundLevel::Weaker, default_bg.weaker),
+                    weak: bg(BackgroundLevel::Weak, default_bg.weak),
+                    neutral: bg(BackgroundLevel::Neutral, default_bg.neutral),
+                    strong: bg(BackgroundLevel::Strong, default_bg.strong),
+                    stronger: bg(BackgroundLevel::Stronger, default_bg.stronger),
+                    strongest: bg(BackgroundLevel::Strongest, default_bg.strongest),
                 },
-                |palette| {
-                    let text = palette.text;
-                    let bg_text = appearance.background_color.get_text().unwrap_or(text);
-
-                    let default_bg = palette::Background::new(palette.background, bg_text);
-                    let bg = |level, fallback| {
-                        appearance
-                            .background_color
-                            .get_pair(level, text)
-                            .unwrap_or(fallback)
-                    };
-
-                    let default_primary = palette::Primary::generate(
-                        palette.primary,
-                        palette.background,
-                        appearance.primary_color.get_text().unwrap_or(text),
-                    );
-                    let default_success = palette::Success::generate(
-                        palette.success,
-                        palette.background,
-                        appearance.success_color.get_text().unwrap_or(text),
-                    );
-                    let default_warning = palette::Warning::generate(
-                        palette.warning,
-                        palette.background,
-                        appearance.warning_color.get_text().unwrap_or(text),
-                    );
-                    let default_danger = palette::Danger::generate(
-                        palette.danger,
-                        palette.background,
-                        appearance.danger_color.get_text().unwrap_or(text),
-                    );
-
-                    palette::Extended {
-                        background: palette::Background {
-                            base: default_bg.base,
-                            weakest: bg(BackgroundLevel::Weakest, default_bg.weakest),
-                            weaker: bg(BackgroundLevel::Weaker, default_bg.weaker),
-                            weak: bg(BackgroundLevel::Weak, default_bg.weak),
-                            neutral: bg(BackgroundLevel::Neutral, default_bg.neutral),
-                            strong: bg(BackgroundLevel::Strong, default_bg.strong),
-                            stronger: bg(BackgroundLevel::Stronger, default_bg.stronger),
-                            strongest: bg(BackgroundLevel::Strongest, default_bg.strongest),
-                        },
-                        primary: palette::Primary {
-                            base: default_primary.base,
-                            weak: appearance
-                                .primary_color
-                                .get_weak_pair(text)
-                                .unwrap_or(default_primary.weak),
-                            strong: appearance
-                                .primary_color
-                                .get_strong_pair(text)
-                                .unwrap_or(default_primary.strong),
-                        },
-                        secondary: palette::Secondary::generate(palette.background, text),
-                        success: palette::Success {
-                            base: default_success.base,
-                            weak: appearance
-                                .success_color
-                                .get_weak_pair(text)
-                                .unwrap_or(default_success.weak),
-                            strong: appearance
-                                .success_color
-                                .get_strong_pair(text)
-                                .unwrap_or(default_success.strong),
-                        },
-                        warning: palette::Warning {
-                            base: default_warning.base,
-                            weak: appearance
-                                .warning_color
-                                .get_weak_pair(text)
-                                .unwrap_or(default_warning.weak),
-                            strong: appearance
-                                .warning_color
-                                .get_strong_pair(text)
-                                .unwrap_or(default_warning.strong),
-                        },
-                        danger: palette::Danger {
-                            base: default_danger.base,
-                            weak: appearance
-                                .danger_color
-                                .get_weak_pair(text)
-                                .unwrap_or(default_danger.weak),
-                            strong: appearance
-                                .danger_color
-                                .get_strong_pair(text)
-                                .unwrap_or(default_danger.strong),
-                        },
-                        is_dark: true,
-                    }
+                primary: palette::Primary {
+                    base: default_primary.base,
+                    weak: appearance
+                        .primary_color
+                        .get_weak_pair(text)
+                        .unwrap_or(default_primary.weak),
+                    strong: appearance
+                        .primary_color
+                        .get_strong_pair(text)
+                        .unwrap_or(default_primary.strong),
                 },
-            ),
-        }
+                secondary: palette::Secondary::generate(palette.background, text),
+                success: palette::Success {
+                    base: default_success.base,
+                    weak: appearance
+                        .success_color
+                        .get_weak_pair(text)
+                        .unwrap_or(default_success.weak),
+                    strong: appearance
+                        .success_color
+                        .get_strong_pair(text)
+                        .unwrap_or(default_success.strong),
+                },
+                warning: palette::Warning {
+                    base: default_warning.base,
+                    weak: appearance
+                        .warning_color
+                        .get_weak_pair(text)
+                        .unwrap_or(default_warning.weak),
+                    strong: appearance
+                        .warning_color
+                        .get_strong_pair(text)
+                        .unwrap_or(default_warning.strong),
+                },
+                danger: palette::Danger {
+                    base: default_danger.base,
+                    weak: appearance
+                        .danger_color
+                        .get_weak_pair(text)
+                        .unwrap_or(default_danger.weak),
+                    strong: appearance
+                        .danger_color
+                        .get_strong_pair(text)
+                        .unwrap_or(default_danger.strong),
+                },
+                is_dark: true,
+            }
+        },
+    )
+}
+
+fn base_theme_from_appearance(
+    appearance: &Appearance,
+    bar_position: Position,
+    animations_enabled: bool,
+) -> AshellTheme {
+    AshellTheme {
+        space: Space::default(),
+        radius: Radius::default(),
+        font_size: FontSize::default(),
+        bar_position,
+        bar_style: appearance.style,
+        opacity: appearance.opacity,
+        menu: appearance.menu,
+        workspace_colors: appearance.workspace_colors.clone(),
+        special_workspace_colors: appearance.special_workspace_colors.clone(),
+        scale_factor: appearance.scale_factor,
+        animations_enabled,
+        iced_theme: build_iced_theme(appearance),
     }
 }
 
@@ -246,122 +257,7 @@ impl AshellTheme {
         appearance: &Appearance,
         animations: &crate::config::AnimationsConfig,
     ) -> Self {
-        AshellTheme {
-            animations_enabled: animations.enabled,
-            space: Space::default(),
-            radius: Radius::default(),
-            font_size: FontSize::default(),
-            bar_position: position,
-            bar_style: appearance.style,
-            opacity: appearance.opacity,
-            menu: appearance.menu,
-            workspace_colors: appearance.workspace_colors.clone(),
-            special_workspace_colors: appearance.special_workspace_colors.clone(),
-            scale_factor: appearance.scale_factor,
-            iced_theme: Theme::custom_with_fn(
-                "local".to_string(),
-                Palette {
-                    background: appearance.background_color.get_base(),
-                    text: appearance.text_color.get_base(),
-                    primary: appearance.primary_color.get_base(),
-                    success: appearance.success_color.get_base(),
-                    warning: appearance.warning_color.get_base(),
-                    danger: appearance.danger_color.get_base(),
-                },
-                |palette| {
-                    let text = palette.text;
-                    let bg_text = appearance.background_color.get_text().unwrap_or(text);
-
-                    let default_bg = palette::Background::new(palette.background, bg_text);
-                    let bg = |level, fallback| {
-                        appearance
-                            .background_color
-                            .get_pair(level, text)
-                            .unwrap_or(fallback)
-                    };
-
-                    let default_primary = palette::Primary::generate(
-                        palette.primary,
-                        palette.background,
-                        appearance.primary_color.get_text().unwrap_or(text),
-                    );
-                    let default_success = palette::Success::generate(
-                        palette.success,
-                        palette.background,
-                        appearance.success_color.get_text().unwrap_or(text),
-                    );
-                    let default_warning = palette::Warning::generate(
-                        palette.warning,
-                        palette.background,
-                        appearance.warning_color.get_text().unwrap_or(text),
-                    );
-                    let default_danger = palette::Danger::generate(
-                        palette.danger,
-                        palette.background,
-                        appearance.danger_color.get_text().unwrap_or(text),
-                    );
-
-                    palette::Extended {
-                        background: palette::Background {
-                            base: default_bg.base,
-                            weakest: bg(BackgroundLevel::Weakest, default_bg.weakest),
-                            weaker: bg(BackgroundLevel::Weaker, default_bg.weaker),
-                            weak: bg(BackgroundLevel::Weak, default_bg.weak),
-                            neutral: bg(BackgroundLevel::Neutral, default_bg.neutral),
-                            strong: bg(BackgroundLevel::Strong, default_bg.strong),
-                            stronger: bg(BackgroundLevel::Stronger, default_bg.stronger),
-                            strongest: bg(BackgroundLevel::Strongest, default_bg.strongest),
-                        },
-                        primary: palette::Primary {
-                            base: default_primary.base,
-                            weak: appearance
-                                .primary_color
-                                .get_weak_pair(text)
-                                .unwrap_or(default_primary.weak),
-                            strong: appearance
-                                .primary_color
-                                .get_strong_pair(text)
-                                .unwrap_or(default_primary.strong),
-                        },
-                        secondary: palette::Secondary::generate(palette.background, text),
-                        success: palette::Success {
-                            base: default_success.base,
-                            weak: appearance
-                                .success_color
-                                .get_weak_pair(text)
-                                .unwrap_or(default_success.weak),
-                            strong: appearance
-                                .success_color
-                                .get_strong_pair(text)
-                                .unwrap_or(default_success.strong),
-                        },
-                        warning: palette::Warning {
-                            base: default_warning.base,
-                            weak: appearance
-                                .warning_color
-                                .get_weak_pair(text)
-                                .unwrap_or(default_warning.weak),
-                            strong: appearance
-                                .warning_color
-                                .get_strong_pair(text)
-                                .unwrap_or(default_warning.strong),
-                        },
-                        danger: palette::Danger {
-                            base: default_danger.base,
-                            weak: appearance
-                                .danger_color
-                                .get_weak_pair(text)
-                                .unwrap_or(default_danger.weak),
-                            strong: appearance
-                                .danger_color
-                                .get_strong_pair(text)
-                                .unwrap_or(default_danger.strong),
-                        },
-                        is_dark: true,
-                    }
-                },
-            ),
-        }
+        base_theme_from_appearance(appearance, position, animations.enabled)
     }
 
     pub fn button_style(
