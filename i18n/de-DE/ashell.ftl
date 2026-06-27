@@ -1,6 +1,6 @@
 ## Deutsche Übersetzung. Neue Schlüssel landen zuerst im en-US Katalog,
-## danach werden diese hier übernommen.
-## Übersetzung bereitgestellt via Absprache durch Fluent + Ausweichlösung.
+## danach werden diese hier übernommen. Verhandlung erfolgt über Fluent,
+## nicht gefundene Schlüssel fallen auf den en-US Katalog zurück.
 
 app-name = ashell
 
@@ -11,13 +11,13 @@ updates-available =
         [one] { $count } Update verfügbar
        *[other] { $count } Updates verfügbar
     }
-updates-button-update = Jetzt Updaten
+updates-button-update = Jetzt Aktualisieren
 updates-button-check-now = Nach Updates prüfen
 
 ## Medienwiedergabe Modul
 media-player-not-connected = Nicht mit dem MPRIS-Dienst verbunden
-media-player-heading = Medienwiedergabe
-media-player-loading-cover = Lade Cover ...
+media-player-heading = Player
+media-player-loading-cover = Cover wird geladen...
 media-player-no-title = Kein Titel
 media-player-unknown-artist = Unbekannter Künstler
 media-player-unknown-album = Unbekanntes Album
@@ -40,16 +40,16 @@ osd-airplane-toggle =
     }
 osd-idle-inhibitor-toggle =
     { $state ->
-        [on] Kein Ruhezustand aktiv
-       *[off] Kein Ruhezustand inaktiv
+        [on] Ruhezustand wird verhindert
+       *[off] Ruhezustand wird erlaubt
     }
 
 ## Einstellungen — Geteilt
-settings-scanning = Scanne ...
+settings-scanning = Wird gesucht...
 settings-more = Mehr
 
 ## Einstellungen — Netzwerk
-settings-network-wifi = Netze
+settings-network-wifi = WLAN
 settings-network-vpn = VPN
 settings-network-vpns-connected =
     { $count ->
@@ -57,7 +57,7 @@ settings-network-vpns-connected =
        *[other] { $count } VPNs verbunden
     }
 settings-network-airplane-mode = Flugmodus
-settings-network-nearby-wifi = Verfügbare Netze
+settings-network-nearby-wifi = Verfügbare WLANs
 
 ## Einstellungen — Bluetooth
 settings-bluetooth = Bluetooth
@@ -74,11 +74,11 @@ settings-bluetooth-connected-count =
 
 ## Einstellungen — Energie
 settings-power-suspend = Ruhezustand
-settings-power-hibernate = Tiefes Standby
+settings-power-hibernate = Tiefschlaf
 settings-power-reboot = Neustart
 settings-power-shutdown = Herunterfahren
 settings-power-logout = Abmelden
-settings-power-calculating = Berechne ...
+settings-power-calculating = Wird berechnet...
 settings-power-full-in = Voll in { $duration }
 settings-power-empty-in = Leer in { $duration }
 settings-power-charge-limit = Ladebegrenzung
@@ -99,7 +99,7 @@ settings-idle-inhibitor = Kein Ruhezustand
 settings-tooltip-empty = Ziemlich leer hier
 settings-tooltip-empty-audio = Kein aktives Audio-Gerät
 settings-tooltip-empty-bluetooth = Keine verbundenen Geräte
-settings-tooltip-empty-wifi = Kein Netz verbunden
+settings-tooltip-empty-wifi = Kein WLAN verbunden
 settings-tooltip-empty-vpn = Kein aktives VPN
 settings-tooltip-empty-battery = Keine Akku-Informationen
 
