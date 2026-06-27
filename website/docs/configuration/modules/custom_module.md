@@ -97,6 +97,14 @@ Or you can output pretty-printed multiline JSON directly, which is buffered unti
 }
 ```
 
+:::warning Multiline JSON Buffer Limit
+
+When using pretty-printed (multiline) JSON, output is accumulated in an internal buffer until a complete, parseable JSON object is received. As a safeguard against malformed output, for example a script that opens a `{` and never closes it, the buffer is capped at **1 MiB**. If that limit is exceeded, the buffered bytes are dropped, a warning is logged, and the buffer is cleared.
+
+This limit only applies while buffering multiline JSON. Single-line (compact) JSON output is unaffected since each line is parsed independently.
+
+:::
+
 See the configuration examples below for multiline usage.
 
 :::
@@ -146,10 +154,16 @@ Text modules display only the text output from `listen_cmd` without any click ac
 [[CustomModule]]
 name = "MyClock"
 type = "Text"
-listen_cmd = '''sh -c 'while true; do
-  printf '{"text": "%s", "alt": ""}\n' "$(date +"%H:%M")"
+listen_cmd = '''
+while true; do
+  cat <<EOF
+{
+  "text": "$(date +'%H:%M')",
+  "alt": ""
+}
+EOF
   sleep 1
-done'
+done
 '''
 ```
 

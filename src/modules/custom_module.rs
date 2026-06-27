@@ -214,7 +214,15 @@ impl Custom {
                                                 );
                                             }
                                         }
-                                        Err(e) if e.is_eof() => {}
+                                        Err(e) if e.is_eof() => {
+                                            if buf.len() > 1 << 20 {
+                                                warn!(
+                                                    "custom module '{name}': dropping {} bytes of unterminated JSON",
+                                                    buf.len()
+                                                );
+                                                buf.clear();
+                                            }
+                                        }
                                         Err(e) => {
                                             error!(
                                                 "Failed to parse JSON for custom module '{name}': {e} (payload: {buf})"
