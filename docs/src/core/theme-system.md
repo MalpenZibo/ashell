@@ -16,6 +16,7 @@ pub struct AshellTheme {
     pub menu: MenuAppearance,                                 // Menu-specific styling
     pub workspace_colors: Vec<AppearanceColor>,               // Per-workspace color cycling
     pub special_workspace_colors: Option<Vec<AppearanceColor>>, // Special workspace colors
+    pub active_workspace_colors: Option<Vec<AppearanceColor>>, // Active workspace colors
     pub scale_factor: f64,                                    // DPI scale factor
 }
 ```

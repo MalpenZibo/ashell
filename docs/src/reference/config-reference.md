@@ -69,6 +69,7 @@ backdrop_blur = true
 [appearance]
 workspace_colors = ["#cba6f7", "#f38ba8", "#a6e3a1", "#89b4fa"]
 special_workspace_colors = ["#fab387"]
+active_workspace_colors = ["#fa9f42"]
 ```
 
 ## Updates Module

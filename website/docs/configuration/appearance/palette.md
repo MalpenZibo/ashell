@@ -72,19 +72,20 @@ a range of surface tones from subtle to prominent.
 
 ## Workspace Colors
 
-You can specify which color to use for workspace indicators based on
-the monitor to which a workspace is attached.
+You can customize the color of workspace indicators 
+based on the monitor they are attached to.
 
-For example, if workspace 1 is attached to `monitorA`, the first
-color will be used; if workspace 2 is attached to `monitorB`,
-the second color will be used, and so on.
+| Option | Description |
+| -------------- | --------------- |
+| `workspace_colors` | The default colors of regular, inactive workspaces (falls back to `primary_color` if undefined) |
+| `active_workspace_colors` | The colors used for currently active workspaces (falls back to `workspace_colors` if undefined) |
+| `special_workspace_colors` | The colors used for special workspaces (falls back to `workspace_colors` if undefined) |
 
-Use the `workspace_colors` field for regular workspaces, `active_workspace_colors` for the active workspace per monitor, and
-`special_workspace_colors` for special workspaces.
-
-If `special_workspace_colors`/`active_workspace_colors` are not defined, `workspace_colors` will be used.
-If neither `workspace_colors` is defined nor a color exists
-for a given monitor, the `primary_color` will be used.
+Each option accepts a list of colors. 
+The colors are assigned to monitors sequentially based on the order your monitors are defined/detected.
+This means the first color in each list only applies to workspaces on monitor 1, the second color to workspaces on monitor 2, and so on.
+Example: If workspace 1 and 3 are both on `monitorA`, the first
+color will be used for both of them; if workspace 2 is attached to `monitorB`, the second color will be used.
 
 ## Complete Examples
 

@@ -173,6 +173,7 @@ danger_color = "#f7768e"
 text_color = "#a9b1d6"
 workspace_colors = [ "#7aa2f7", "#9ece6a" ]
 # special_workspace_colors = [ "#7aa2f7", "#9ece6a" ]  # (default: None, falls back to workspace_colors)
+# active_workspace_colors = [ "#fa9f42", "#fa9f42" ]              # (default: None, falls back to workspace_colors)
 
 [appearance.menu]
 # opacity = 1.0   # (default) menu background opacity
