@@ -357,6 +357,7 @@ impl StatusNotifierItem {
         let item_proxy = StatusNotifierItemProxy::builder(conn)
             .destination(dest.to_owned())?
             .path(path.to_owned())?
+            .cache_properties(zbus::proxy::CacheProperties::No)
             .build()
             .await?;
 
