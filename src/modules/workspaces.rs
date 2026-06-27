@@ -463,25 +463,19 @@ impl Workspaces {
                             };
                             let active = w.displayed == Displayed::Active;
 
-                            let color = color_index.map(|i| {
-                                if active {
-                                    theme
-                                        .active_workspace_colors
-                                        .as_ref()
-                                        .unwrap_or(&theme.workspace_colors)
-                                        .get(i as usize)
-                                        .copied()
-                                } else if w.id <= 0 {
-                                    theme
-                                        .special_workspace_colors
-                                        .as_ref()
-                                        .unwrap_or(&theme.workspace_colors)
-                                        .get(i as usize)
-                                        .copied()
-                                } else {
-                                    theme.workspace_colors.get(i as usize).copied()
-                                }
-                            });
+                            let palette = match &theme.active_workspace_colors {
+                                // active_workspace_colors is set AND the workspace is active
+                                Some(colors) if active => colors,
+                                // Special workspace with fallback in case its not set
+                                _ if w.id <= 0 => theme
+                                    .special_workspace_colors
+                                    .as_ref()
+                                    .unwrap_or(&theme.workspace_colors),
+                                // Standard workspaces
+                                _ => &theme.workspace_colors,
+                            };
+
+                            let color = color_index.map(|i| palette.get(i as usize).copied());
 
                             {
                                 let name = w.name.clone();
