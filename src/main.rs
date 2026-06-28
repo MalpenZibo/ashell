@@ -5,7 +5,10 @@ use clap::Parser;
 use flexi_logger::{
     Age, Cleanup, Criterion, FileSpec, LogSpecBuilder, LogSpecification, Logger, Naming,
 };
-use iced::{Anchor, Font, KeyboardInteractivity, Layer, LayerShellSettings};
+use iced::{
+    Anchor, Font, KeyboardInteractivity, Layer, LayerShellSettings,
+    font::{Style as FontStyle, Weight as FontWeight},
+};
 use log::{debug, error, warn};
 use std::backtrace::Backtrace;
 use std::env;
@@ -67,6 +70,98 @@ fn get_log_spec(log_level: &str) -> LogSpecification {
     }
 }
 
+fn fontdb_weight_to_iced(weight: fontdb::Weight) -> FontWeight {
+    // Map fontdb::Weight to iced::font::Weight.
+    // fontdb uses numeric values (100..=1000); iced uses named variants.
+    let numeric_weight = weight.0;
+    if numeric_weight <= 150 {
+        FontWeight::Thin
+    } else if numeric_weight <= 250 {
+        FontWeight::ExtraLight
+    } else if numeric_weight <= 350 {
+        FontWeight::Light
+    } else if numeric_weight <= 450 {
+        FontWeight::Normal
+    } else if numeric_weight <= 550 {
+        FontWeight::Medium
+    } else if numeric_weight <= 650 {
+        FontWeight::Semibold
+    } else if numeric_weight <= 750 {
+        FontWeight::Bold
+    } else if numeric_weight <= 850 {
+        FontWeight::ExtraBold
+    } else {
+        FontWeight::Black
+    }
+}
+
+fn resolve_font(name: &str) -> Font {
+    let mut db = fontdb::Database::new();
+    db.load_system_fonts();
+
+    // Find the best matching face for the requested Normal/Normal/Normal.
+    // cosmic-text's font matcher re-scores all faces and prefers a face whose
+    // weight/stretch/style are closest to the requested ones. So if the user
+    // asks for `Weight::Normal` (400) but the font only has a face with
+    // weight=500 (Medium), the matcher will prefer a different font with
+    // weight=400 — a silent fallback. To work around this, we detect the
+    // closest available face in the requested family and pass its actual
+    // weight to iced so the matcher's scoring keeps us on the right font.
+    let best_face = db
+        .faces()
+        .filter(|f| f.families.iter().any(|(fam, _)| fam == name))
+        .min_by_key(|f| {
+            // Score: prefer Normal style/stretch, then closest weight to 400.
+            let style_penalty = if f.style == fontdb::Style::Normal {
+                0
+            } else {
+                100
+            };
+            let stretch_penalty = if f.stretch == fontdb::Stretch::Normal {
+                0
+            } else {
+                100
+            };
+            let weight_penalty = f.weight.0.abs_diff(400) / 10;
+            style_penalty + stretch_penalty + weight_penalty
+        });
+
+    if best_face.is_none() {
+        warn!("Font '{}' was not found in the system font database.", name);
+        warn!("  Use `fc-list` to list all available fonts and their exact family names.");
+        return Font::with_name(Box::leak(name.to_string().into_boxed_str()));
+    }
+
+    let face = best_face.unwrap();
+    let weight = face.weight;
+    let iced_weight = fontdb_weight_to_iced(weight);
+
+    if weight != fontdb::Weight::NORMAL {
+        warn!(
+            "Font '{name}' has no face with weight=Normal(400) style=Normal. \
+             Using the closest available face (weight={}, style={:?}). \
+             Note: text rendered in a different weight (e.g. Bold) may look \
+             the same as regular text, since this font has no separate faces \
+             for those weights. Run `fc-list | grep -i {short_name}` to see \
+             all available faces of this font.",
+            weight.0,
+            face.style,
+            short_name = name.split_whitespace().next().unwrap_or(name),
+        );
+    }
+
+    Font {
+        family: iced::font::Family::Name(Box::leak(name.to_string().into_boxed_str())),
+        weight: iced_weight,
+        stretch: iced::font::Stretch::Normal,
+        style: if face.style == fontdb::Style::Italic {
+            FontStyle::Italic
+        } else {
+            FontStyle::Normal
+        },
+    }
+}
+
 fn main() -> iced::Result {
     let args = Args::parse();
 
@@ -122,7 +217,7 @@ fn main() -> iced::Result {
     logger.set_new_spec(get_log_spec(&config.log_level));
 
     let font = if let Some(font_name) = &config.appearance.font_name {
-        Font::with_name(Box::leak(font_name.clone().into_boxed_str()))
+        resolve_font(font_name)
     } else {
         Font::DEFAULT
     };
