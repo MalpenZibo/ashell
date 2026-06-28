@@ -13,7 +13,9 @@ use regex::Regex;
 use serde::{Deserialize, Deserializer, de::Visitor};
 use serde_with::DisplayFromStr;
 use serde_with::serde_as;
+use std::convert::Infallible;
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::time::Duration;
 use std::{collections::HashMap, error::Error, ops::Deref, path::Path};
 use tokio::time::sleep;
@@ -1017,6 +1019,27 @@ pub enum ModuleName {
     Notifications,
 }
 
+impl FromStr for ModuleName {
+    type Err = Infallible;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "Updates" => ModuleName::Updates,
+            "Workspaces" => ModuleName::Workspaces,
+            "WindowTitle" => ModuleName::WindowTitle,
+            "SystemInfo" => ModuleName::SystemInfo,
+            "KeyboardLayout" => ModuleName::KeyboardLayout,
+            "KeyboardSubmap" => ModuleName::KeyboardSubmap,
+            "Tray" => ModuleName::Tray,
+            "Notifications" => ModuleName::Notifications,
+            "Tempo" => ModuleName::Tempo,
+            "Privacy" => ModuleName::Privacy,
+            "Settings" => ModuleName::Settings,
+            "MediaPlayer" => ModuleName::MediaPlayer,
+            other => ModuleName::Custom(other.to_string()),
+        })
+    }
+}
+
 impl<'de> Deserialize<'de> for ModuleName {
     fn deserialize<D>(deserializer: D) -> Result<ModuleName, D::Error>
     where
@@ -1032,21 +1055,7 @@ impl<'de> Deserialize<'de> for ModuleName {
             where
                 E: serde::de::Error,
             {
-                Ok(match value {
-                    "Updates" => ModuleName::Updates,
-                    "Workspaces" => ModuleName::Workspaces,
-                    "WindowTitle" => ModuleName::WindowTitle,
-                    "SystemInfo" => ModuleName::SystemInfo,
-                    "KeyboardLayout" => ModuleName::KeyboardLayout,
-                    "KeyboardSubmap" => ModuleName::KeyboardSubmap,
-                    "Tray" => ModuleName::Tray,
-                    "Notifications" => ModuleName::Notifications,
-                    "Tempo" => ModuleName::Tempo,
-                    "Privacy" => ModuleName::Privacy,
-                    "Settings" => ModuleName::Settings,
-                    "MediaPlayer" => ModuleName::MediaPlayer,
-                    other => ModuleName::Custom(other.to_string()),
-                })
+                value.parse().map_err(E::custom)
             }
         }
         deserializer.deserialize_str(ModuleNameVisitor)
