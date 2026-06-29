@@ -6,8 +6,9 @@
 use super::backend::{Compositor, PatchSink};
 use super::patch::StatePatch;
 use super::types::{ActiveWindow, ActiveWindowGeneric, CompositorMonitor, CompositorWorkspace};
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
 use tokio::sync::mpsc;
 use wayland_client::{
     Connection, Dispatch, Proxy, QueueHandle,
@@ -63,6 +64,62 @@ impl Compositor for Generic {
     fn name(&self) -> &'static str {
         "generic Wayland"
     }
+
+    async fn focus_workspace(&self, id: i32) -> Result<()> {
+        activate_workspace(|handles| handles.iter().find(|h| h.numeric_id == id).cloned())
+    }
+
+    async fn scroll_workspace(&self, dir: i32) -> Result<()> {
+        activate_workspace(|handles| {
+            let active = handles.iter().position(|h| h.active).unwrap_or(0);
+            let target = if dir > 0 {
+                (active + 1).min(handles.len().saturating_sub(1))
+            } else {
+                active.saturating_sub(1)
+            };
+            handles.get(target).cloned()
+        })
+    }
+}
+
+/// A workspace handle exposed to the command path, kept in sync by the
+/// `ext-workspace` listener so commands can `activate` without a second
+/// connection.
+#[derive(Clone)]
+struct WorkspaceHandle {
+    numeric_id: i32,
+    active: bool,
+    handle: ExtWorkspaceHandleV1,
+}
+
+struct CommandState {
+    conn: Connection,
+    manager: ExtWorkspaceManagerV1,
+    handles: Vec<WorkspaceHandle>,
+}
+
+fn command_slot() -> &'static Mutex<Option<CommandState>> {
+    static SLOT: OnceLock<Mutex<Option<CommandState>>> = OnceLock::new();
+    SLOT.get_or_init(|| Mutex::new(None))
+}
+
+/// Resolve a target workspace via `pick` and request its activation. The
+/// `ext-workspace` protocol stages requests, so `activate` is followed by the
+/// manager `commit` and a flush.
+fn activate_workspace(
+    pick: impl FnOnce(&[WorkspaceHandle]) -> Option<WorkspaceHandle>,
+) -> Result<()> {
+    let guard = command_slot().lock().unwrap();
+    let cmd = guard
+        .as_ref()
+        .ok_or_else(|| anyhow!("generic workspace control is unavailable on this compositor"))?;
+    let target = pick(&cmd.handles).ok_or_else(|| anyhow!("workspace not found"))?;
+    target.handle.activate();
+    cmd.manager.commit();
+    cmd.conn
+        .flush()
+        .map_err(|e| anyhow!("Wayland flush failed: {e}"))?;
+    Ok(())
 }
 
 pub fn is_available() -> bool {
@@ -99,12 +156,19 @@ fn event_loop(patch_tx: mpsc::Sender<StatePatch>, caps: GenericCaps) -> Result<(
     if state.emit_all().is_err() {
         return Ok(());
     }
+    if caps.workspaces {
+        state.publish_commands(&conn);
+    }
 
     loop {
         queue.blocking_dispatch(&mut state)?;
+        let topology_changed = state.topology_dirty;
         if state.emit_dirty().is_err() {
             // The merge loop dropped the receiver; nothing left to feed.
             return Ok(());
+        }
+        if topology_changed && caps.workspaces {
+            state.publish_commands(&conn);
         }
     }
 }
@@ -142,12 +206,13 @@ struct GenericState {
     caps: GenericCaps,
 
     // Kept alive so their objects stay bound and keep delivering events.
-    _workspace_manager: Option<ExtWorkspaceManagerV1>,
+    workspace_manager: Option<ExtWorkspaceManagerV1>,
     _toplevel_manager: Option<ZwlrForeignToplevelManagerV1>,
 
     outputs: Vec<(ObjectId, OutputEntry)>,
     groups: HashMap<ObjectId, GroupEntry>,
     workspaces: HashMap<ObjectId, WorkspaceEntry>,
+    workspace_handles: HashMap<ObjectId, ExtWorkspaceHandleV1>,
     workspace_order: Vec<ObjectId>,
     next_workspace_id: i32,
     toplevels: HashMap<ObjectId, ToplevelEntry>,
@@ -161,11 +226,12 @@ impl GenericState {
         Self {
             patch_tx,
             caps,
-            _workspace_manager: None,
+            workspace_manager: None,
             _toplevel_manager: None,
             outputs: Vec::new(),
             groups: HashMap::new(),
             workspaces: HashMap::new(),
+            workspace_handles: HashMap::new(),
             workspace_order: Vec::new(),
             next_workspace_id: 1,
             toplevels: HashMap::new(),
@@ -290,6 +356,32 @@ impl GenericState {
     fn send(&self, patch: StatePatch) -> Result<(), ()> {
         self.patch_tx.blocking_send(patch).map_err(|_| ())
     }
+
+    /// Publish the current workspace handles so the command path can activate
+    /// them. No-op until the `ext-workspace` manager is bound.
+    fn publish_commands(&self, conn: &Connection) {
+        let Some(manager) = &self.workspace_manager else {
+            return;
+        };
+        let handles = self
+            .workspace_order
+            .iter()
+            .filter_map(|id| {
+                let ws = self.workspaces.get(id)?;
+                let handle = self.workspace_handles.get(id)?;
+                Some(WorkspaceHandle {
+                    numeric_id: ws.numeric_id,
+                    active: ws.active,
+                    handle: handle.clone(),
+                })
+            })
+            .collect();
+        *command_slot().lock().unwrap() = Some(CommandState {
+            conn: conn.clone(),
+            manager: manager.clone(),
+            handles,
+        });
+    }
 }
 
 impl Dispatch<WlRegistry, ()> for GenericState {
@@ -319,9 +411,9 @@ impl Dispatch<WlRegistry, ()> for GenericState {
                     state.topology_dirty = true;
                 } else if state.caps.workspaces
                     && interface == ExtWorkspaceManagerV1::interface().name
-                    && state._workspace_manager.is_none()
+                    && state.workspace_manager.is_none()
                 {
-                    state._workspace_manager = Some(registry.bind(name, version.min(1), qh, ()));
+                    state.workspace_manager = Some(registry.bind(name, version.min(1), qh, ()));
                 } else if state.caps.toplevels
                     && interface == ZwlrForeignToplevelManagerV1::interface().name
                     && state._toplevel_manager.is_none()
@@ -388,6 +480,7 @@ impl Dispatch<ExtWorkspaceManagerV1, ()> for GenericState {
                         ..WorkspaceEntry::default()
                     },
                 );
+                state.workspace_handles.insert(id.clone(), workspace);
                 state.workspace_order.push(id);
             }
             ext_workspace_manager_v1::Event::Done => state.topology_dirty = true,
@@ -479,6 +572,7 @@ impl Dispatch<ExtWorkspaceHandleV1, ()> for GenericState {
             }
             ext_workspace_handle_v1::Event::Removed => {
                 state.workspaces.remove(&id);
+                state.workspace_handles.remove(&id);
                 state.workspace_order.retain(|w| *w != id);
                 state.topology_dirty = true;
             }
