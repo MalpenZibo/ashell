@@ -48,18 +48,6 @@ impl Compositor for Generic {
     async fn focus_workspace(&self, id: i32) -> Result<()> {
         activate_workspace(|handles| handles.iter().find(|h| h.numeric_id == id).cloned())
     }
-
-    async fn scroll_workspace(&self, dir: i32) -> Result<()> {
-        activate_workspace(|handles| {
-            let active = handles.iter().position(|h| h.active).unwrap_or(0);
-            let target = if dir > 0 {
-                (active + 1).min(handles.len().saturating_sub(1))
-            } else {
-                active.saturating_sub(1)
-            };
-            handles.get(target).cloned()
-        })
-    }
 }
 
 /// A workspace handle exposed to the command path, kept in sync by the
@@ -68,7 +56,6 @@ impl Compositor for Generic {
 #[derive(Clone)]
 struct WorkspaceHandle {
     numeric_id: i32,
-    active: bool,
     handle: ExtWorkspaceHandleV1,
 }
 
@@ -271,7 +258,10 @@ impl GenericState {
                     name: ws.name.clone(),
                     monitor,
                     monitor_id,
-                    windows: 0,
+                    // ext-workspace exposes no per-workspace client count; report
+                    // a non-zero value so workspaces render in the occupied solid
+                    // style rather than all appearing empty.
+                    windows: 1,
                     is_special: false,
                     has_urgent: ws.urgent,
                 }
@@ -378,14 +368,13 @@ impl GenericState {
                 let handle = self.workspace_handles.get(id)?;
                 Some(WorkspaceHandle {
                     numeric_id: ws.numeric_id,
-                    active: ws.active,
                     handle: handle.clone(),
                 })
             })
             .collect();
-        // conn and manager are fixed once bound; only the handles change (a
-        // workspace's `active` flips on every switch), so refresh just those
-        // when the slot already exists instead of re-cloning the connection.
+        // conn and manager are fixed once bound; only the handle set changes
+        // (as workspaces come and go), so refresh just those when the slot
+        // already exists instead of re-cloning the connection.
         let mut slot = command_slot().lock().unwrap();
         match slot.as_mut() {
             Some(state) => state.handles = handles,
