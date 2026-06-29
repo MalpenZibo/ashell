@@ -205,9 +205,12 @@ struct GenericState {
     patch_tx: mpsc::Sender<StatePatch>,
     caps: GenericCaps,
 
-    // Kept alive so their objects stay bound and keep delivering events.
+    // Kept alive so their objects stay bound and keep delivering events. The
+    // global names are retained so a runtime GlobalRemove can drop them.
     workspace_manager: Option<ExtWorkspaceManagerV1>,
+    workspace_manager_name: Option<u32>,
     _toplevel_manager: Option<ZwlrForeignToplevelManagerV1>,
+    toplevel_manager_name: Option<u32>,
 
     outputs: Vec<(ObjectId, OutputEntry)>,
     groups: HashMap<ObjectId, GroupEntry>,
@@ -216,6 +219,7 @@ struct GenericState {
     workspace_order: Vec<ObjectId>,
     next_workspace_id: i32,
     toplevels: HashMap<ObjectId, ToplevelEntry>,
+    toplevel_order: Vec<ObjectId>,
 
     topology_dirty: bool,
     window_dirty: bool,
@@ -227,7 +231,9 @@ impl GenericState {
             patch_tx,
             caps,
             workspace_manager: None,
+            workspace_manager_name: None,
             _toplevel_manager: None,
+            toplevel_manager_name: None,
             outputs: Vec::new(),
             groups: HashMap::new(),
             workspaces: HashMap::new(),
@@ -235,6 +241,7 @@ impl GenericState {
             workspace_order: Vec::new(),
             next_workspace_id: 1,
             toplevels: HashMap::new(),
+            toplevel_order: Vec::new(),
             topology_dirty: false,
             window_dirty: false,
         }
@@ -264,12 +271,23 @@ impl GenericState {
         let workspaces: Vec<CompositorWorkspace> = self
             .workspace_order
             .iter()
-            .filter_map(|id| self.workspaces.get(id).map(|ws| (id, ws)))
-            .map(|(_, ws)| {
+            .filter_map(|id| self.workspaces.get(id))
+            .enumerate()
+            .map(|(pos, ws)| {
                 let (monitor, monitor_id) = self.workspace_monitor(ws);
+                // ext-workspace has no inherent index. Prefer the workspace name
+                // when it is a positive integer (the common 1..N labelling),
+                // else fall back to display order so the value stays small and
+                // dense instead of the ever-growing numeric_id.
+                let index = ws
+                    .name
+                    .parse::<i32>()
+                    .ok()
+                    .filter(|n| *n > 0)
+                    .unwrap_or(pos as i32 + 1);
                 CompositorWorkspace {
                     id: ws.numeric_id,
-                    index: ws.numeric_id,
+                    index,
                     name: ws.name.clone(),
                     monitor,
                     monitor_id,
@@ -305,6 +323,9 @@ impl GenericState {
             })
             .collect();
 
+        // ext-workspace marks one active workspace per group (per monitor) and
+        // exposes no global focus, so on multi-monitor this picks the first
+        // active one. The per-monitor active_workspace_id above is exact.
         let active_workspace_id = self
             .workspace_order
             .iter()
@@ -320,12 +341,20 @@ impl GenericState {
     }
 
     fn build_active_window(&self) -> StatePatch {
-        let window = self.toplevels.values().find(|t| t.activated).map(|t| {
-            ActiveWindow::Generic(ActiveWindowGeneric {
-                title: t.title.clone(),
-                class: t.app_id.clone(),
-            })
-        });
+        // Iterate in creation order: several toplevels can be activated at once
+        // (one per output on multi-monitor), so a HashMap scan would pick a
+        // non-deterministic one that flips as the map rehashes.
+        let window = self
+            .toplevel_order
+            .iter()
+            .filter_map(|id| self.toplevels.get(id))
+            .find(|t| t.activated)
+            .map(|t| {
+                ActiveWindow::Generic(ActiveWindowGeneric {
+                    title: t.title.clone(),
+                    class: t.app_id.clone(),
+                })
+            });
         StatePatch::ActiveWindow(window)
     }
 
@@ -414,11 +443,13 @@ impl Dispatch<WlRegistry, ()> for GenericState {
                     && state.workspace_manager.is_none()
                 {
                     state.workspace_manager = Some(registry.bind(name, version.min(1), qh, ()));
+                    state.workspace_manager_name = Some(name);
                 } else if state.caps.toplevels
                     && interface == ZwlrForeignToplevelManagerV1::interface().name
                     && state._toplevel_manager.is_none()
                 {
                     state._toplevel_manager = Some(registry.bind(name, version.min(3), qh, ()));
+                    state.toplevel_manager_name = Some(name);
                 }
             }
             wl_registry::Event::GlobalRemove { name } => {
@@ -429,6 +460,23 @@ impl Dispatch<WlRegistry, ()> for GenericState {
                 {
                     state.outputs.remove(idx);
                     state.topology_dirty = true;
+                } else if state.workspace_manager_name == Some(name) {
+                    // The workspace manager went away: its workspaces/groups are
+                    // now inert, so drop them and disable the command path.
+                    state.workspace_manager = None;
+                    state.workspace_manager_name = None;
+                    state.groups.clear();
+                    state.workspaces.clear();
+                    state.workspace_handles.clear();
+                    state.workspace_order.clear();
+                    *command_slot().lock().unwrap() = None;
+                    state.topology_dirty = true;
+                } else if state.toplevel_manager_name == Some(name) {
+                    state._toplevel_manager = None;
+                    state.toplevel_manager_name = None;
+                    state.toplevels.clear();
+                    state.toplevel_order.clear();
+                    state.window_dirty = true;
                 }
             }
             _ => {}
@@ -591,9 +639,9 @@ impl Dispatch<ZwlrForeignToplevelManagerV1, ()> for GenericState {
         _: &QueueHandle<Self>,
     ) {
         if let zwlr_foreign_toplevel_manager_v1::Event::Toplevel { toplevel } = event {
-            state
-                .toplevels
-                .insert(toplevel.id(), ToplevelEntry::default());
+            let id = toplevel.id();
+            state.toplevels.insert(id.clone(), ToplevelEntry::default());
+            state.toplevel_order.push(id);
         }
     }
 
@@ -635,6 +683,7 @@ impl Dispatch<ZwlrForeignToplevelHandleV1, ()> for GenericState {
             zwlr_foreign_toplevel_handle_v1::Event::Done => state.window_dirty = true,
             zwlr_foreign_toplevel_handle_v1::Event::Closed => {
                 state.toplevels.remove(&id);
+                state.toplevel_order.retain(|t| *t != id);
                 state.window_dirty = true;
                 handle.destroy();
             }
