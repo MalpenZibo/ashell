@@ -1,6 +1,6 @@
 [package]
 name = "ashell"
-description = "A ready to go Wayland status bar for Hyprland and Niri"
+description = "A ready to go status bar for Wayland compositors"
 homepage = "https://malpenzibo.github.io/ashell/"
 repository = "https://github.com/MalpenZibo/ashell"
 authors = ["Simone Camito (Zibo)"]
@@ -90,7 +90,7 @@ signal-hook-tokio = { version = "0.4", features = ["futures-v0_3"] }
 libc = "0.2.182"
 chrono-tz = "0.10.4"
 wayland-client = "0.31"
-wayland-protocols = { version = "0.32", features = ["client"] }
+wayland-protocols = { version = "0.32", features = ["client", "staging"] }
 wayland-protocols-wlr = { version = "0.3", features = ["client"] }
 i18n-embed = { version = "0.16", default-features = false, features = [
   "fluent-system",

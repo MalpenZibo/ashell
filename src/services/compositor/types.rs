@@ -34,10 +34,17 @@ pub struct ActiveWindowNiri {
     pub address: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct ActiveWindowGeneric {
+    pub title: String,
+    pub class: String,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum ActiveWindow {
     Hyprland(ActiveWindowHyprland),
     Niri(ActiveWindowNiri),
+    Generic(ActiveWindowGeneric),
 }
 
 impl ActiveWindow {
@@ -45,6 +52,7 @@ impl ActiveWindow {
         match self {
             ActiveWindow::Hyprland(w) => &w.title,
             ActiveWindow::Niri(w) => &w.title,
+            ActiveWindow::Generic(w) => &w.title,
         }
     }
 
@@ -52,6 +60,7 @@ impl ActiveWindow {
         match self {
             ActiveWindow::Hyprland(w) => &w.class,
             ActiveWindow::Niri(w) => &w.class,
+            ActiveWindow::Generic(w) => &w.class,
         }
     }
 
@@ -59,6 +68,7 @@ impl ActiveWindow {
         match self {
             ActiveWindow::Hyprland(w) => Ok(&w.initial_title),
             ActiveWindow::Niri(_) => Err("InitialTitle isn't supported on Niri"),
+            ActiveWindow::Generic(_) => Err("InitialTitle isn't supported on generic Wayland"),
         }
     }
 
@@ -66,6 +76,7 @@ impl ActiveWindow {
         match self {
             ActiveWindow::Hyprland(w) => Ok(&w.initial_class),
             ActiveWindow::Niri(_) => Err("InitialClass isn't supported on Niri"),
+            ActiveWindow::Generic(_) => Err("InitialClass isn't supported on generic Wayland"),
         }
     }
 }
@@ -84,6 +95,7 @@ pub struct CompositorState {
 pub enum CompositorChoice {
     Hyprland,
     Niri,
+    Generic,
 }
 
 #[derive(Debug, Clone)]
