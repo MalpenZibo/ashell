@@ -405,11 +405,20 @@ impl GenericState {
                 })
             })
             .collect();
-        *command_slot().lock().unwrap() = Some(CommandState {
-            conn: conn.clone(),
-            manager: manager.clone(),
-            handles,
-        });
+        // conn and manager are fixed once bound; only the handles change (a
+        // workspace's `active` flips on every switch), so refresh just those
+        // when the slot already exists instead of re-cloning the connection.
+        let mut slot = command_slot().lock().unwrap();
+        match slot.as_mut() {
+            Some(state) => state.handles = handles,
+            None => {
+                *slot = Some(CommandState {
+                    conn: conn.clone(),
+                    manager: manager.clone(),
+                    handles,
+                })
+            }
+        }
     }
 }
 
