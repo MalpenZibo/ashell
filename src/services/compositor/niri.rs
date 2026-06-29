@@ -1,8 +1,8 @@
+use super::patch::StatePatch;
 use super::types::{
-    ActiveWindow, ActiveWindowNiri, CompositorCommand, CompositorEvent, CompositorMonitor,
-    CompositorService, CompositorState, CompositorWorkspace,
+    ActiveWindow, ActiveWindowNiri, CompositorCommand, CompositorMonitor, CompositorState,
+    CompositorWorkspace,
 };
-use crate::services::ServiceEvent;
 use anyhow::{Context, Result, anyhow};
 use itertools::Itertools;
 use niri_ipc::{
@@ -13,7 +13,7 @@ use std::{env, os::unix::net::UnixStream as StdUnixStream};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::UnixStream,
-    sync::broadcast,
+    sync::mpsc,
 };
 
 pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
@@ -69,7 +69,7 @@ pub fn is_available() -> bool {
         .is_some()
 }
 
-pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>>) -> Result<()> {
+pub async fn run_listener(tx: mpsc::Sender<StatePatch>) -> Result<()> {
     // 1. Init
     let mut stream = connect().await?;
 
@@ -127,9 +127,7 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
         let state = map_state(&internal_state);
 
         // Emit Update
-        let _ = tx.send(ServiceEvent::Update(CompositorEvent::StateChanged(
-            Box::new(state),
-        )));
+        let _ = tx.send(StatePatch::Full(Box::new(state))).await;
     }
 
     Ok(())

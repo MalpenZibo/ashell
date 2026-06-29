@@ -1,8 +1,8 @@
+use super::patch::StatePatch;
 use super::types::{
-    ActiveWindow, ActiveWindowHyprland, CompositorCommand, CompositorEvent, CompositorMonitor,
-    CompositorState, CompositorWorkspace,
+    ActiveWindow, ActiveWindowHyprland, CompositorCommand, CompositorMonitor, CompositorState,
+    CompositorWorkspace,
 };
-use crate::services::{ServiceEvent, compositor::CompositorService};
 use anyhow::Result;
 use hyprland::{
     data::{Client, Devices, Monitors, Workspace, Workspaces},
@@ -12,7 +12,7 @@ use hyprland::{
 };
 use itertools::Itertools;
 use std::sync::Arc;
-use tokio::sync::{RwLock, broadcast};
+use tokio::sync::{RwLock, mpsc};
 
 /// Detect whether Hyprland is using Lua or hyprlang config.
 /// Checks `hyprctl status` for the `configProvider` field.
@@ -123,7 +123,7 @@ pub fn is_available() -> bool {
     std::env::var_os(IPC_ENV_VAR).is_some()
 }
 
-pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>>) -> Result<()> {
+pub async fn run_listener(tx: mpsc::Sender<StatePatch>) -> Result<()> {
     // copying this strategy from how niri's IPC works
     let internal_state = Arc::new(RwLock::new(HyprInternalState::default()));
 
@@ -133,9 +133,7 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
 
         match fetch_full_state(&state_guard) {
             Ok(state) => {
-                let _ = tx.send(ServiceEvent::Update(CompositorEvent::StateChanged(
-                    Box::new(state),
-                )));
+                let _ = tx.send(StatePatch::Full(Box::new(state))).await;
             }
             Err(e) => {
                 log::error!("Failed to fetch initial compositor state: {}", e);
@@ -156,9 +154,7 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
                     Box::pin(async move {
                         let state_guard = internal_state.read().await;
                         if let Ok(state) = fetch_full_state(&*state_guard) {
-                            let _ = tx.send(ServiceEvent::Update(CompositorEvent::StateChanged(
-                                Box::new(state),
-                            )));
+                            let _ = tx.send(StatePatch::Full(Box::new(state))).await;
                         }
                     })
                 }
@@ -191,9 +187,7 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
                 let mut state_guard = internal_state.write().await;
                 state_guard.submap = new_submap;
                 if let Ok(state) = fetch_full_state(&state_guard) {
-                    let _ = tx.send(ServiceEvent::Update(CompositorEvent::StateChanged(
-                        Box::new(state),
-                    )));
+                    let _ = tx.send(StatePatch::Full(Box::new(state))).await;
                 }
             })
         }

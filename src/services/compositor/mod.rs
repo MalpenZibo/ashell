@@ -1,5 +1,7 @@
 pub mod hyprland;
+mod listener;
 pub mod niri;
+pub mod patch;
 pub mod types;
 
 pub use self::types::{
@@ -42,15 +44,7 @@ async fn broadcaster_event_loop(tx: broadcast::Sender<ServiceEvent<CompositorSer
 
     log::info!("Starting compositor event loop with {:?} backend", backend);
 
-    let result = match backend {
-        CompositorChoice::Hyprland => hyprland::run_listener(&tx).await,
-        CompositorChoice::Niri => niri::run_listener(&tx).await,
-    };
-
-    if let Err(e) = result {
-        log::error!("Compositor event loop failed: {}", e);
-        let _ = tx.send(ServiceEvent::Error(e.to_string()));
-    }
+    listener::run(backend, tx).await;
 }
 
 fn detect_backend() -> Option<CompositorChoice> {
