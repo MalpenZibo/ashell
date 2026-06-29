@@ -27,35 +27,15 @@ use wayland_protocols_wlr::foreign_toplevel::v1::client::{
     zwlr_foreign_toplevel_manager_v1::{self, ZwlrForeignToplevelManagerV1},
 };
 
-/// Selects which protocols to bind, so a hybrid backend can reuse only some
-/// generic capabilities (e.g. Sway: generic window/output, Sway-IPC workspaces).
-#[derive(Debug, Clone, Copy)]
-pub struct GenericCaps {
-    pub outputs: bool,
-    pub workspaces: bool,
-    pub toplevels: bool,
-}
-
-impl GenericCaps {
-    fn workspaces() -> Self {
-        Self {
-            outputs: true,
-            workspaces: true,
-            toplevels: false,
-        }
-    }
-
-    fn window() -> Self {
-        Self {
-            outputs: false,
-            workspaces: false,
-            toplevels: true,
-        }
-    }
-
-    fn topology(&self) -> bool {
-        self.outputs || self.workspaces
-    }
+/// Which generic protocols an event loop binds. Kept as separate sources so a
+/// specialized backend can reuse one on its own — e.g. Sway can take its
+/// workspaces from Sway-IPC while keeping the generic `Window` source.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GenericSource {
+    /// `wl_output` + `ext-workspace`: monitors and workspaces.
+    Topology,
+    /// `wlr-foreign-toplevel`: the active window.
+    Window,
 }
 
 pub struct Generic;
@@ -127,26 +107,26 @@ pub fn is_available() -> bool {
 }
 
 pub async fn workspaces(sink: PatchSink) -> Result<()> {
-    run_with(sink, GenericCaps::workspaces()).await
+    run_with(sink, GenericSource::Topology).await
 }
 
 pub async fn window(sink: PatchSink) -> Result<()> {
-    run_with(sink, GenericCaps::window()).await
+    run_with(sink, GenericSource::Window).await
 }
 
-async fn run_with(patch_tx: PatchSink, caps: GenericCaps) -> Result<()> {
-    tokio::task::spawn_blocking(move || event_loop(patch_tx, caps))
+async fn run_with(patch_tx: PatchSink, source: GenericSource) -> Result<()> {
+    tokio::task::spawn_blocking(move || event_loop(patch_tx, source))
         .await
         .context("generic Wayland thread panicked")?
 }
 
-fn event_loop(patch_tx: mpsc::Sender<StatePatch>, caps: GenericCaps) -> Result<()> {
+fn event_loop(patch_tx: mpsc::Sender<StatePatch>, source: GenericSource) -> Result<()> {
     let conn = Connection::connect_to_env().context("connect to Wayland")?;
     let mut queue = conn.new_event_queue();
     let qh = queue.handle();
     let _registry = conn.display().get_registry(&qh, ());
 
-    let mut state = GenericState::new(patch_tx, caps);
+    let mut state = GenericState::new(patch_tx, source);
 
     // First roundtrip: discover and bind globals. Second roundtrip: receive the
     // initial burst of group/workspace/toplevel objects and their properties.
@@ -156,7 +136,7 @@ fn event_loop(patch_tx: mpsc::Sender<StatePatch>, caps: GenericCaps) -> Result<(
     if state.emit_all().is_err() {
         return Ok(());
     }
-    if caps.workspaces {
+    if source == GenericSource::Topology {
         state.publish_commands(&conn);
     }
 
@@ -167,7 +147,7 @@ fn event_loop(patch_tx: mpsc::Sender<StatePatch>, caps: GenericCaps) -> Result<(
             // The merge loop dropped the receiver; nothing left to feed.
             return Ok(());
         }
-        if topology_changed && caps.workspaces {
+        if topology_changed && source == GenericSource::Topology {
             state.publish_commands(&conn);
         }
     }
@@ -203,7 +183,7 @@ struct ToplevelEntry {
 
 struct GenericState {
     patch_tx: mpsc::Sender<StatePatch>,
-    caps: GenericCaps,
+    source: GenericSource,
 
     // Kept alive so their objects stay bound and keep delivering events. The
     // global names are retained so a runtime GlobalRemove can drop them.
@@ -226,10 +206,10 @@ struct GenericState {
 }
 
 impl GenericState {
-    fn new(patch_tx: mpsc::Sender<StatePatch>, caps: GenericCaps) -> Self {
+    fn new(patch_tx: mpsc::Sender<StatePatch>, source: GenericSource) -> Self {
         Self {
             patch_tx,
-            caps,
+            source,
             workspace_manager: None,
             workspace_manager_name: None,
             _toplevel_manager: None,
@@ -359,11 +339,9 @@ impl GenericState {
     }
 
     fn emit_all(&mut self) -> Result<(), ()> {
-        if self.caps.topology() {
-            self.send(self.build_topology())?;
-        }
-        if self.caps.toplevels {
-            self.send(self.build_active_window())?;
+        match self.source {
+            GenericSource::Topology => self.send(self.build_topology())?,
+            GenericSource::Window => self.send(self.build_active_window())?,
         }
         self.topology_dirty = false;
         self.window_dirty = false;
@@ -436,31 +414,34 @@ impl Dispatch<WlRegistry, ()> for GenericState {
                 name,
                 interface,
                 version,
-            } => {
-                if state.caps.outputs && interface == WlOutput::interface().name {
-                    let output: WlOutput = registry.bind(name, version.min(4), qh, ());
-                    state.outputs.push((
-                        output.id(),
-                        OutputEntry {
-                            global_name: name,
-                            name: String::new(),
-                        },
-                    ));
-                    state.topology_dirty = true;
-                } else if state.caps.workspaces
-                    && interface == ExtWorkspaceManagerV1::interface().name
-                    && state.workspace_manager.is_none()
-                {
-                    state.workspace_manager = Some(registry.bind(name, version.min(1), qh, ()));
-                    state.workspace_manager_name = Some(name);
-                } else if state.caps.toplevels
-                    && interface == ZwlrForeignToplevelManagerV1::interface().name
-                    && state._toplevel_manager.is_none()
-                {
-                    state._toplevel_manager = Some(registry.bind(name, version.min(3), qh, ()));
-                    state.toplevel_manager_name = Some(name);
+            } => match state.source {
+                GenericSource::Topology => {
+                    if interface == WlOutput::interface().name {
+                        let output: WlOutput = registry.bind(name, version.min(4), qh, ());
+                        state.outputs.push((
+                            output.id(),
+                            OutputEntry {
+                                global_name: name,
+                                name: String::new(),
+                            },
+                        ));
+                        state.topology_dirty = true;
+                    } else if interface == ExtWorkspaceManagerV1::interface().name
+                        && state.workspace_manager.is_none()
+                    {
+                        state.workspace_manager = Some(registry.bind(name, version.min(1), qh, ()));
+                        state.workspace_manager_name = Some(name);
+                    }
                 }
-            }
+                GenericSource::Window => {
+                    if interface == ZwlrForeignToplevelManagerV1::interface().name
+                        && state._toplevel_manager.is_none()
+                    {
+                        state._toplevel_manager = Some(registry.bind(name, version.min(3), qh, ()));
+                        state.toplevel_manager_name = Some(name);
+                    }
+                }
+            },
             wl_registry::Event::GlobalRemove { name } => {
                 if let Some(idx) = state
                     .outputs
