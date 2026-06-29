@@ -1,3 +1,4 @@
+use super::backend::{Compositor, PatchSink};
 use super::patch::StatePatch;
 use super::types::{
     ActiveWindow, ActiveWindowHyprland, CompositorCommand, CompositorMonitor, CompositorState,
@@ -13,6 +14,25 @@ use hyprland::{
 use itertools::Itertools;
 use std::sync::Arc;
 use tokio::sync::{RwLock, mpsc};
+
+pub struct Hyprland;
+
+#[async_trait::async_trait]
+impl Compositor for Hyprland {
+    fn name(&self) -> &'static str {
+        "Hyprland"
+    }
+
+    async fn run(&self, sink: PatchSink) -> Result<()> {
+        run_listener(sink).await
+    }
+
+    // Dispatch picks the Lua or hyprlang protocol per call, so override the
+    // router rather than each command method.
+    async fn execute(&self, command: CompositorCommand) -> Result<()> {
+        execute_command(command).await
+    }
+}
 
 /// Detect whether Hyprland is using Lua or hyprlang config.
 /// Checks `hyprctl status` for the `configProvider` field.

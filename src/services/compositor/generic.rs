@@ -1,19 +1,9 @@
-//! Generic Wayland backend.
-//!
-//! Baseline for compositors without a dedicated implementation. Opens its own
-//! Wayland connection (separate from the one iced uses for rendering) on a
-//! dedicated blocking thread and binds the standard protocols that most
-//! wlroots-style compositors expose:
-//!
-//! - `wl_output` (v4 `name`)            -> monitors
-//! - `ext-workspace-v1`                 -> workspaces + active workspace
-//! - `wlr-foreign-toplevel-management`  -> active window title/class
-//!
-//! Each protocol is optional: a compositor that does not advertise it simply
-//! leaves the corresponding slice empty, which is the intended "capability not
-//! available" behaviour. Keyboard layout and submap have no standard Wayland
-//! protocol and are therefore never populated here.
+//! Generic Wayland backend: a separate Wayland connection on a dedicated
+//! blocking thread binds `wl_output` (monitors), `ext-workspace-v1`
+//! (workspaces) and `wlr-foreign-toplevel-management` (active window). Each
+//! protocol is optional; an unadvertised one leaves its slice empty.
 
+use super::backend::{Compositor, PatchSink};
 use super::patch::StatePatch;
 use super::types::{ActiveWindow, ActiveWindowGeneric, CompositorMonitor, CompositorWorkspace};
 use anyhow::{Context, Result};
@@ -36,10 +26,8 @@ use wayland_protocols_wlr::foreign_toplevel::v1::client::{
     zwlr_foreign_toplevel_manager_v1::{self, ZwlrForeignToplevelManagerV1},
 };
 
-/// Selects which generic capabilities to bind. Lets a future hybrid backend
-/// reuse the generic Wayland source while overriding a slice with a
-/// compositor-specific one (e.g. Sway: keep generic window/output, replace
-/// workspaces with the Sway IPC).
+/// Selects which protocols to bind, so a hybrid backend can reuse only some
+/// generic capabilities (e.g. Sway: generic window/output, Sway-IPC workspaces).
 #[derive(Debug, Clone, Copy)]
 pub struct GenericCaps {
     pub outputs: bool,
@@ -48,27 +36,49 @@ pub struct GenericCaps {
 }
 
 impl GenericCaps {
-    pub fn all() -> Self {
+    fn workspaces() -> Self {
         Self {
             outputs: true,
             workspaces: true,
+            toplevels: false,
+        }
+    }
+
+    fn window() -> Self {
+        Self {
+            outputs: false,
+            workspaces: false,
             toplevels: true,
         }
     }
+
+    fn topology(&self) -> bool {
+        self.outputs || self.workspaces
+    }
 }
 
-/// The generic backend is viable whenever a Wayland display is reachable.
+pub struct Generic;
+
+#[async_trait::async_trait]
+impl Compositor for Generic {
+    fn name(&self) -> &'static str {
+        "generic Wayland"
+    }
+}
+
 pub fn is_available() -> bool {
     std::env::var_os("WAYLAND_DISPLAY").is_some()
 }
 
-/// Run the generic Wayland source with the full set of capabilities.
-pub async fn run(patch_tx: mpsc::Sender<StatePatch>) -> Result<()> {
-    run_with(patch_tx, GenericCaps::all()).await
+pub async fn workspaces(sink: PatchSink) -> Result<()> {
+    run_with(sink, GenericCaps::workspaces()).await
 }
 
-/// Run the generic Wayland source binding only the selected capabilities.
-pub async fn run_with(patch_tx: mpsc::Sender<StatePatch>, caps: GenericCaps) -> Result<()> {
+pub async fn window(sink: PatchSink) -> Result<()> {
+    run_with(sink, GenericCaps::window()).await
+}
+
+async fn run_with(patch_tx: PatchSink, caps: GenericCaps) -> Result<()> {
     tokio::task::spawn_blocking(move || event_loop(patch_tx, caps))
         .await
         .context("generic Wayland thread panicked")?
@@ -255,8 +265,12 @@ impl GenericState {
     }
 
     fn emit_all(&mut self) -> Result<(), ()> {
-        self.send(self.build_topology())?;
-        self.send(self.build_active_window())?;
+        if self.caps.topology() {
+            self.send(self.build_topology())?;
+        }
+        if self.caps.toplevels {
+            self.send(self.build_active_window())?;
+        }
         self.topology_dirty = false;
         self.window_dirty = false;
         Ok(())

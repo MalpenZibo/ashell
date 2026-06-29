@@ -1,7 +1,7 @@
+use super::backend::{Compositor, PatchSink};
 use super::patch::StatePatch;
 use super::types::{
-    ActiveWindow, ActiveWindowNiri, CompositorCommand, CompositorMonitor, CompositorState,
-    CompositorWorkspace,
+    ActiveWindow, ActiveWindowNiri, CompositorMonitor, CompositorState, CompositorWorkspace,
 };
 use anyhow::{Context, Result, anyhow};
 use itertools::Itertools;
@@ -16,51 +16,61 @@ use tokio::{
     sync::mpsc,
 };
 
-pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
-    let mut stream = connect().await?;
+pub struct Niri;
 
-    let action = match cmd {
-        CompositorCommand::FocusWorkspace(id) => match u64::try_from(id) {
-            Ok(id) => Action::FocusWorkspace {
-                reference: WorkspaceReferenceArg::Id(id),
-            },
-            Err(_) => {
-                return Err(anyhow!(
-                    "Workspace ID {} is out of range for Niri backend",
-                    id
-                ));
-            }
-        },
-        CompositorCommand::FocusSpecialWorkspace(_)
-        | CompositorCommand::ToggleSpecialWorkspace(_) => {
-            return Err(anyhow!("Special workspaces not supported in Niri backend"));
-        }
-        CompositorCommand::FocusMonitor(_) => {
-            return Err(anyhow!("FocusMonitor by ID not supported in Niri backend"));
-        }
-        CompositorCommand::ScrollWorkspace(dir) => {
-            if dir > 0 {
-                Action::FocusWorkspaceUp {}
-            } else {
-                Action::FocusWorkspaceDown {}
-            }
-        }
-        CompositorCommand::NextLayout => Action::SwitchLayout {
+#[async_trait::async_trait]
+impl Compositor for Niri {
+    fn name(&self) -> &'static str {
+        "Niri"
+    }
+
+    async fn run(&self, sink: PatchSink) -> Result<()> {
+        run_listener(sink).await
+    }
+
+    async fn focus_workspace(&self, id: i32) -> Result<()> {
+        let id = u64::try_from(id)
+            .map_err(|_| anyhow!("Workspace ID {id} is out of range for Niri backend"))?;
+        send_action(Action::FocusWorkspace {
+            reference: WorkspaceReferenceArg::Id(id),
+        })
+        .await
+    }
+
+    async fn scroll_workspace(&self, dir: i32) -> Result<()> {
+        let action = if dir > 0 {
+            Action::FocusWorkspaceUp {}
+        } else {
+            Action::FocusWorkspaceDown {}
+        };
+        send_action(action).await
+    }
+
+    async fn next_layout(&self) -> Result<()> {
+        send_action(Action::SwitchLayout {
             layout: niri_ipc::LayoutSwitchTarget::Next,
-        },
-        CompositorCommand::CustomDispatch(action, args) => {
-            if action == "spawn" {
-                Action::Spawn {
-                    command: vec![args],
-                }
-            } else {
-                return Err(anyhow!("Unknown custom dispatch: {}", action));
-            }
-        }
-    };
+        })
+        .await
+    }
 
-    send_command_request(&mut stream, Request::Action(action)).await?;
-    Ok(())
+    async fn custom_dispatch(&self, dispatcher: String, args: String) -> Result<()> {
+        if dispatcher == "spawn" {
+            send_action(Action::Spawn {
+                command: vec![args],
+            })
+            .await
+        } else {
+            Err(anyhow!("Unknown custom dispatch: {dispatcher}"))
+        }
+    }
+
+    // Special workspaces and focus-by-monitor-id have no Niri equivalent, so
+    // they fall through to the default "unsupported" implementations.
+}
+
+async fn send_action(action: Action) -> Result<()> {
+    let mut stream = connect().await?;
+    send_command_request(&mut stream, Request::Action(action)).await
 }
 
 pub fn is_available() -> bool {

@@ -1,3 +1,4 @@
+pub mod backend;
 pub mod generic;
 pub mod hyprland;
 mod listener;
@@ -5,10 +6,9 @@ pub mod niri;
 pub mod patch;
 pub mod types;
 
-pub use self::types::{
-    CompositorChoice, CompositorCommand, CompositorEvent, CompositorService, CompositorState,
-};
+pub use self::types::{CompositorCommand, CompositorEvent, CompositorService, CompositorState};
 
+use self::backend::Compositor;
 use crate::services::{ReadOnlyService, Service, ServiceEvent};
 use iced::futures::SinkExt;
 use iced::{Subscription, Task, stream::channel};
@@ -20,7 +20,12 @@ const BROADCAST_CAPACITY: usize = 64;
 static BROADCASTER: OnceCell<broadcast::Sender<ServiceEvent<CompositorService>>> =
     OnceCell::const_new();
 
-static BACKEND: OnceLock<Option<CompositorChoice>> = OnceLock::new();
+static BACKEND: OnceLock<Option<Box<dyn Compositor>>> = OnceLock::new();
+
+/// The detected compositor backend, initialized once and shared by reference.
+fn backend() -> Option<&'static dyn Compositor> {
+    BACKEND.get_or_init(backend::detect).as_deref()
+}
 
 /// Subscribe to compositor events.  Initializes the broadcaster on first call.
 async fn broadcaster_subscribe() -> broadcast::Receiver<ServiceEvent<CompositorService>> {
@@ -35,7 +40,7 @@ async fn broadcaster_subscribe() -> broadcast::Receiver<ServiceEvent<CompositorS
 }
 
 async fn broadcaster_event_loop(tx: broadcast::Sender<ServiceEvent<CompositorService>>) {
-    let Some(backend) = detect_backend() else {
+    let Some(compositor) = backend() else {
         log::error!("No supported compositor backend found");
         let _ = tx.send(ServiceEvent::Error(
             "No supported compositor backend found".into(),
@@ -43,23 +48,12 @@ async fn broadcaster_event_loop(tx: broadcast::Sender<ServiceEvent<CompositorSer
         return;
     };
 
-    log::info!("Starting compositor event loop with {:?} backend", backend);
+    log::info!(
+        "Starting compositor event loop with {} backend",
+        compositor.name()
+    );
 
-    listener::run(backend, tx).await;
-}
-
-fn detect_backend() -> Option<CompositorChoice> {
-    *BACKEND.get_or_init(|| {
-        if hyprland::is_available() {
-            Some(CompositorChoice::Hyprland)
-        } else if niri::is_available() {
-            Some(CompositorChoice::Niri)
-        } else if generic::is_available() {
-            Some(CompositorChoice::Generic)
-        } else {
-            None
-        }
-    })
+    listener::run(compositor, tx).await;
 }
 
 impl Deref for CompositorService {
@@ -87,12 +81,10 @@ impl ReadOnlyService for CompositorService {
             channel(10, async move |mut output| {
                 let mut rx = broadcaster_subscribe().await;
 
-                // Send an empty Init with the correct backend to new subscribers
-                // - assumes detect_backend is cheap
-                if let Some(backend) = detect_backend() {
+                // Send an empty Init to new subscribers once a backend exists.
+                if backend().is_some() {
                     let empty_init = CompositorService {
                         state: CompositorState::default(),
-                        backend,
                     };
                     if output.send(ServiceEvent::Init(empty_init)).await.is_err() {
                         log::debug!("Compositor subscriber disconnected before receiving Init");
@@ -126,27 +118,16 @@ impl Service for CompositorService {
     type Command = CompositorCommand;
 
     fn command(&mut self, command: Self::Command) -> Task<ServiceEvent<Self>> {
-        let backend = self.backend;
-        Task::perform(
-            async move { execute_command(backend, command).await },
-            |res| match res {
-                Ok(()) => ServiceEvent::Update(CompositorEvent::ActionPerformed),
-                Err(e) => ServiceEvent::Error(e),
-            },
-        )
+        Task::perform(execute_command(command), |res| match res {
+            Ok(()) => ServiceEvent::Update(CompositorEvent::ActionPerformed),
+            Err(e) => ServiceEvent::Error(e),
+        })
     }
 }
 
-async fn execute_command(
-    backend: CompositorChoice,
-    command: CompositorCommand,
-) -> Result<(), String> {
-    match backend {
-        CompositorChoice::Hyprland => hyprland::execute_command(command).await,
-        CompositorChoice::Niri => niri::execute_command(command).await,
-        CompositorChoice::Generic => Err(anyhow::anyhow!(
-            "commands are not supported on the generic Wayland backend"
-        )),
+async fn execute_command(command: CompositorCommand) -> Result<(), String> {
+    match backend() {
+        Some(compositor) => compositor.execute(command).await.map_err(|e| e.to_string()),
+        None => Err("No supported compositor backend found".into()),
     }
-    .map_err(|e| e.to_string())
 }

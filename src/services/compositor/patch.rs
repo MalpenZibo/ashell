@@ -1,13 +1,8 @@
 use super::types::{ActiveWindow, CompositorMonitor, CompositorState, CompositorWorkspace};
 
-/// A partial update to the merged [`CompositorState`].
-///
-/// Each state source (compositor-specific or generic Wayland protocol) emits
-/// patches for the slice it owns; the central listener applies them onto the
-/// authoritative state. [`StatePatch::Full`] lets a source that already
-/// produces a complete snapshot (Hyprland/Niri) replace the state wholesale,
-/// while the slice variants let independent generic sources contribute only
-/// the part they own.
+/// A partial update to the merged [`CompositorState`]. `Full` replaces the
+/// whole snapshot (Hyprland/Niri); the slice variants let independent generic
+/// sources contribute only the part they own.
 #[derive(Debug, Clone)]
 pub enum StatePatch {
     Full(Box<CompositorState>),

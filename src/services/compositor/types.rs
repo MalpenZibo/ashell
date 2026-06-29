@@ -91,17 +91,9 @@ pub struct CompositorState {
     pub submap: Option<String>,
 }
 
-#[derive(Debug, Copy, Clone)]
-pub enum CompositorChoice {
-    Hyprland,
-    Niri,
-    Generic,
-}
-
 #[derive(Debug, Clone)]
 pub struct CompositorService {
     pub state: CompositorState,
-    pub backend: CompositorChoice,
 }
 
 #[derive(Debug, Clone)]
