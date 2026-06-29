@@ -1,6 +1,6 @@
 [package]
 name = "ashell"
-description = "A ready to go Wayland status bar for Hyprland and Niri"
+description = "A ready to go status bar for Wayland compositors"
 homepage = "https://malpenzibo.github.io/ashell/"
 repository = "https://github.com/MalpenZibo/ashell"
 authors = ["Simone Camito (Zibo)"]
