@@ -12,7 +12,8 @@ make install  # install binary to /usr/bin (requires sudo)
 
 ## Project overview
 
-ashell is a Wayland status bar for Hyprland and Niri, written in Rust with the iced GUI framework.
+ashell is a status bar for Wayland compositors, written in Rust with the iced GUI framework.
+It has dedicated backends for Hyprland and Niri and a generic Wayland fallback for other compositors.
 It follows the Elm architecture (model → update → view) with a modular design separating UI modules from backend services.
 
 - **Edition:** 2024, **MSRV:** 1.89
@@ -40,7 +41,7 @@ src/
 ├── modules/             # UI modules (clock, workspaces, settings, tray, etc.)
 │   └── settings/        # settings sub-panels (audio, network, bluetooth, power, brightness)
 ├── services/            # backend services (D-Bus, IPC, system integration)
-│   ├── compositor/      # Hyprland/Niri IPC abstraction
+│   ├── compositor/      # Hyprland/Niri/generic Wayland abstraction
 │   ├── network/         # NetworkManager + IWD backends
 │   ├── bluetooth/
 │   ├── mpris/           # media player control
@@ -95,5 +96,5 @@ Scope examples: `fix(brightness)`, `feat(system_info)`, `fix(network)`
 - **Elm architecture:** `App` struct holds all state. `Message` enum drives updates. `update()` returns `Task<Message>` for async work.
 - **Services** are backend abstractions (D-Bus, IPC). Two traits: `ReadOnlyService` and `Service` (mutable).
 - **Modules** are UI components (workspaces, clock, settings). Each implements `view()` returning iced `Element`.
-- **Compositor abstraction:** `CompositorService` trait with Hyprland and Niri implementations, auto-detected at runtime.
+- **Compositor abstraction:** the `CompositorChoice` enum routes to per-backend modules (Hyprland, Niri, generic Wayland), each exposing `is_available`/`run_listener`/`execute_command`, auto-detected at runtime.
 - **Config hot-reload:** inotify file watcher triggers `ConfigChanged` message on config file changes.

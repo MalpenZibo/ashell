@@ -1,6 +1,6 @@
 # Compositor Service and Abstraction Layer
 
-The compositor service (`src/services/compositor/`) abstracts over multiple Wayland compositors, currently supporting Hyprland and Niri.
+The compositor service (`src/services/compositor/`) abstracts over multiple Wayland compositors, with dedicated backends for Hyprland and Niri and a generic Wayland fallback for other compositors.
 
 ## Architecture
 
