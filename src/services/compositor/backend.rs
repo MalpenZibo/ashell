@@ -10,7 +10,7 @@ use super::patch::StatePatch;
 use super::types::CompositorCommand;
 use super::{generic, hyprland, niri};
 use anyhow::{Result, bail};
-use iced::futures::future::try_join4;
+use iced::futures::future::join4;
 use std::future::Future;
 use tokio::sync::mpsc;
 
@@ -21,14 +21,27 @@ pub trait Compositor: Sync {
 
     fn run(&self, sink: PatchSink) -> impl Future<Output = Result<()>> + Send {
         async move {
-            try_join4(
+            // join, not try_join: the sources are independent, so one failing
+            // must not cancel the others. Cancelling a spawn_blocking source
+            // would also strand its thread rather than stop it.
+            let (workspaces, window, keyboard, submap) = join4(
                 self.run_workspaces(sink.clone()),
                 self.run_window(sink.clone()),
                 self.run_keyboard(sink.clone()),
                 self.run_submap(sink),
             )
-            .await
-            .map(|_| ())
+            .await;
+            for (source, result) in [
+                ("workspaces", workspaces),
+                ("window", window),
+                ("keyboard", keyboard),
+                ("submap", submap),
+            ] {
+                if let Err(e) = result {
+                    log::error!("generic {source} source failed: {e}");
+                }
+            }
+            Ok(())
         }
     }
 
@@ -134,6 +147,10 @@ pub fn detect() -> Option<Backend> {
     } else if niri::is_available() {
         Some(Backend::Niri)
     } else if generic::is_available() {
+        log::info!(
+            "No native compositor detected; falling back to the generic Wayland backend. \
+             If you are on Hyprland or Niri, check that its environment variables are exported."
+        );
         Some(Backend::Generic)
     } else {
         None
