@@ -57,7 +57,6 @@ itertools = "0.14"
 unicode-segmentation = "1.13.2"
 hex_color = { version = "3", features = ["serde"] }
 anyhow = "1"
-async-trait = "0.1"
 udev = { version = "0.9", features = ["send", "sync"] }
 toml = "1"
 freedesktop-icons = "0.4"

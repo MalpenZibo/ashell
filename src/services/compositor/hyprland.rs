@@ -17,7 +17,6 @@ use tokio::sync::{RwLock, mpsc};
 
 pub struct Hyprland;
 
-#[async_trait::async_trait]
 impl Compositor for Hyprland {
     fn name(&self) -> &'static str {
         "Hyprland"

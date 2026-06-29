@@ -1,4 +1,4 @@
-use super::backend::Compositor;
+use super::backend::Backend;
 use super::patch::StatePatch;
 use super::types::{CompositorEvent, CompositorService, CompositorState};
 use crate::services::ServiceEvent;
@@ -10,7 +10,7 @@ const PATCH_CAPACITY: usize = 64;
 /// Merge the patches the compositor emits into a single [`CompositorState`] and
 /// re-broadcast a full snapshot on every change.
 pub async fn run(
-    compositor: &'static dyn Compositor,
+    compositor: &'static Backend,
     tx: broadcast::Sender<ServiceEvent<CompositorService>>,
 ) {
     let (patch_tx, mut patch_rx) = mpsc::channel::<StatePatch>(PATCH_CAPACITY);

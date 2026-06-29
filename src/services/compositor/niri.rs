@@ -18,7 +18,6 @@ use tokio::{
 
 pub struct Niri;
 
-#[async_trait::async_trait]
 impl Compositor for Niri {
     fn name(&self) -> &'static str {
         "Niri"

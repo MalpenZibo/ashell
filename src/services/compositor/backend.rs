@@ -1,81 +1,93 @@
 //! The `Compositor` abstraction: default methods provide the generic-Wayland
 //! baseline, and specific backends (Hyprland, Niri) override only the methods
-//! they implement specifically.
+//! they implement specifically. Backends are known and static, so selection is
+//! a plain [`Backend`] enum router — no `dyn`, no boxing.
 
+use super::generic::Generic;
+use super::hyprland::Hyprland;
+use super::niri::Niri;
 use super::patch::StatePatch;
 use super::types::CompositorCommand;
 use super::{generic, hyprland, niri};
 use anyhow::{Result, bail};
 use iced::futures::future::try_join4;
+use std::future::Future;
 use tokio::sync::mpsc;
 
 pub type PatchSink = mpsc::Sender<StatePatch>;
 
-#[async_trait::async_trait]
-pub trait Compositor: Send + Sync {
+pub trait Compositor: Sync {
     fn name(&self) -> &'static str;
 
-    async fn run(&self, sink: PatchSink) -> Result<()> {
-        try_join4(
-            self.run_workspaces(sink.clone()),
-            self.run_window(sink.clone()),
-            self.run_keyboard(sink.clone()),
-            self.run_submap(sink),
-        )
-        .await
-        .map(|_| ())
+    fn run(&self, sink: PatchSink) -> impl Future<Output = Result<()>> + Send {
+        async move {
+            try_join4(
+                self.run_workspaces(sink.clone()),
+                self.run_window(sink.clone()),
+                self.run_keyboard(sink.clone()),
+                self.run_submap(sink),
+            )
+            .await
+            .map(|_| ())
+        }
     }
 
-    async fn run_workspaces(&self, sink: PatchSink) -> Result<()> {
-        generic::workspaces(sink).await
+    fn run_workspaces(&self, sink: PatchSink) -> impl Future<Output = Result<()>> + Send {
+        generic::workspaces(sink)
     }
-    async fn run_window(&self, sink: PatchSink) -> Result<()> {
-        generic::window(sink).await
+    fn run_window(&self, sink: PatchSink) -> impl Future<Output = Result<()>> + Send {
+        generic::window(sink)
     }
-    async fn run_keyboard(&self, _sink: PatchSink) -> Result<()> {
-        Ok(())
+    fn run_keyboard(&self, _sink: PatchSink) -> impl Future<Output = Result<()>> + Send {
+        async { Ok(()) }
     }
-    async fn run_submap(&self, _sink: PatchSink) -> Result<()> {
-        Ok(())
-    }
-
-    async fn focus_workspace(&self, _id: i32) -> Result<()> {
-        unsupported("focus workspace")
-    }
-    async fn focus_special_workspace(&self, _name: String) -> Result<()> {
-        unsupported("focus special workspace")
-    }
-    async fn toggle_special_workspace(&self, _name: String) -> Result<()> {
-        unsupported("toggle special workspace")
-    }
-    async fn focus_monitor(&self, _id: i128) -> Result<()> {
-        unsupported("focus monitor")
-    }
-    async fn scroll_workspace(&self, _dir: i32) -> Result<()> {
-        unsupported("scroll workspace")
-    }
-    async fn custom_dispatch(&self, _dispatcher: String, _args: String) -> Result<()> {
-        unsupported("custom dispatch")
-    }
-    async fn next_layout(&self) -> Result<()> {
-        unsupported("switch keyboard layout")
+    fn run_submap(&self, _sink: PatchSink) -> impl Future<Output = Result<()>> + Send {
+        async { Ok(()) }
     }
 
-    async fn execute(&self, command: CompositorCommand) -> Result<()> {
-        match command {
-            CompositorCommand::FocusWorkspace(id) => self.focus_workspace(id).await,
-            CompositorCommand::FocusSpecialWorkspace(name) => {
-                self.focus_special_workspace(name).await
+    fn focus_workspace(&self, _id: i32) -> impl Future<Output = Result<()>> + Send {
+        async { unsupported("focus workspace") }
+    }
+    fn focus_special_workspace(&self, _name: String) -> impl Future<Output = Result<()>> + Send {
+        async { unsupported("focus special workspace") }
+    }
+    fn toggle_special_workspace(&self, _name: String) -> impl Future<Output = Result<()>> + Send {
+        async { unsupported("toggle special workspace") }
+    }
+    fn focus_monitor(&self, _id: i128) -> impl Future<Output = Result<()>> + Send {
+        async { unsupported("focus monitor") }
+    }
+    fn scroll_workspace(&self, _dir: i32) -> impl Future<Output = Result<()>> + Send {
+        async { unsupported("scroll workspace") }
+    }
+    fn custom_dispatch(
+        &self,
+        _dispatcher: String,
+        _args: String,
+    ) -> impl Future<Output = Result<()>> + Send {
+        async { unsupported("custom dispatch") }
+    }
+    fn next_layout(&self) -> impl Future<Output = Result<()>> + Send {
+        async { unsupported("switch keyboard layout") }
+    }
+
+    fn execute(&self, command: CompositorCommand) -> impl Future<Output = Result<()>> + Send {
+        async move {
+            match command {
+                CompositorCommand::FocusWorkspace(id) => self.focus_workspace(id).await,
+                CompositorCommand::FocusSpecialWorkspace(name) => {
+                    self.focus_special_workspace(name).await
+                }
+                CompositorCommand::ToggleSpecialWorkspace(name) => {
+                    self.toggle_special_workspace(name).await
+                }
+                CompositorCommand::FocusMonitor(id) => self.focus_monitor(id).await,
+                CompositorCommand::ScrollWorkspace(dir) => self.scroll_workspace(dir).await,
+                CompositorCommand::CustomDispatch(dispatcher, args) => {
+                    self.custom_dispatch(dispatcher, args).await
+                }
+                CompositorCommand::NextLayout => self.next_layout().await,
             }
-            CompositorCommand::ToggleSpecialWorkspace(name) => {
-                self.toggle_special_workspace(name).await
-            }
-            CompositorCommand::FocusMonitor(id) => self.focus_monitor(id).await,
-            CompositorCommand::ScrollWorkspace(dir) => self.scroll_workspace(dir).await,
-            CompositorCommand::CustomDispatch(dispatcher, args) => {
-                self.custom_dispatch(dispatcher, args).await
-            }
-            CompositorCommand::NextLayout => self.next_layout().await,
         }
     }
 }
@@ -84,13 +96,45 @@ fn unsupported(what: &str) -> Result<()> {
     bail!("{what} is not supported on this compositor")
 }
 
-pub fn detect() -> Option<Box<dyn Compositor>> {
+pub enum Backend {
+    Hyprland,
+    Niri,
+    Generic,
+}
+
+impl Backend {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Backend::Hyprland => Hyprland.name(),
+            Backend::Niri => Niri.name(),
+            Backend::Generic => Generic.name(),
+        }
+    }
+
+    pub async fn run(&self, sink: PatchSink) -> Result<()> {
+        match self {
+            Backend::Hyprland => Hyprland.run(sink).await,
+            Backend::Niri => Niri.run(sink).await,
+            Backend::Generic => Generic.run(sink).await,
+        }
+    }
+
+    pub async fn execute(&self, command: CompositorCommand) -> Result<()> {
+        match self {
+            Backend::Hyprland => Hyprland.execute(command).await,
+            Backend::Niri => Niri.execute(command).await,
+            Backend::Generic => Generic.execute(command).await,
+        }
+    }
+}
+
+pub fn detect() -> Option<Backend> {
     if hyprland::is_available() {
-        Some(Box::new(hyprland::Hyprland))
+        Some(Backend::Hyprland)
     } else if niri::is_available() {
-        Some(Box::new(niri::Niri))
+        Some(Backend::Niri)
     } else if generic::is_available() {
-        Some(Box::new(generic::Generic))
+        Some(Backend::Generic)
     } else {
         None
     }

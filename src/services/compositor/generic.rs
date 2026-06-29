@@ -59,7 +59,6 @@ impl GenericCaps {
 
 pub struct Generic;
 
-#[async_trait::async_trait]
 impl Compositor for Generic {
     fn name(&self) -> &'static str {
         "generic Wayland"

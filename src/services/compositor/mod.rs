@@ -8,7 +8,7 @@ pub mod types;
 
 pub use self::types::{CompositorCommand, CompositorEvent, CompositorService, CompositorState};
 
-use self::backend::Compositor;
+use self::backend::Backend;
 use crate::services::{ReadOnlyService, Service, ServiceEvent};
 use iced::futures::SinkExt;
 use iced::{Subscription, Task, stream::channel};
@@ -20,11 +20,11 @@ const BROADCAST_CAPACITY: usize = 64;
 static BROADCASTER: OnceCell<broadcast::Sender<ServiceEvent<CompositorService>>> =
     OnceCell::const_new();
 
-static BACKEND: OnceLock<Option<Box<dyn Compositor>>> = OnceLock::new();
+static BACKEND: OnceLock<Option<Backend>> = OnceLock::new();
 
 /// The detected compositor backend, initialized once and shared by reference.
-fn backend() -> Option<&'static dyn Compositor> {
-    BACKEND.get_or_init(backend::detect).as_deref()
+fn backend() -> Option<&'static Backend> {
+    BACKEND.get_or_init(backend::detect).as_ref()
 }
 
 /// Subscribe to compositor events.  Initializes the broadcaster on first call.
