@@ -1,3 +1,4 @@
+pub mod generic;
 pub mod hyprland;
 mod listener;
 pub mod niri;
@@ -53,6 +54,8 @@ fn detect_backend() -> Option<CompositorChoice> {
             Some(CompositorChoice::Hyprland)
         } else if niri::is_available() {
             Some(CompositorChoice::Niri)
+        } else if generic::is_available() {
+            Some(CompositorChoice::Generic)
         } else {
             None
         }
@@ -141,6 +144,9 @@ async fn execute_command(
     match backend {
         CompositorChoice::Hyprland => hyprland::execute_command(command).await,
         CompositorChoice::Niri => niri::execute_command(command).await,
+        CompositorChoice::Generic => Err(anyhow::anyhow!(
+            "commands are not supported on the generic Wayland backend"
+        )),
     }
     .map_err(|e| e.to_string())
 }

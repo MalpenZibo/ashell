@@ -1,6 +1,6 @@
 use super::patch::StatePatch;
 use super::types::{CompositorChoice, CompositorEvent, CompositorService, CompositorState};
-use super::{hyprland, niri};
+use super::{generic, hyprland, niri};
 use crate::services::ServiceEvent;
 use std::future::Future;
 use tokio::sync::{broadcast, mpsc};
@@ -19,6 +19,9 @@ pub async fn run(choice: CompositorChoice, tx: broadcast::Sender<ServiceEvent<Co
         }
         CompositorChoice::Niri => {
             spawn_source("niri", niri::run_listener(patch_tx), &tx);
+        }
+        CompositorChoice::Generic => {
+            spawn_source("generic", generic::run(patch_tx), &tx);
         }
     }
 

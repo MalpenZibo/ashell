@@ -1,20 +1,38 @@
-use super::types::CompositorState;
+use super::types::{ActiveWindow, CompositorMonitor, CompositorState, CompositorWorkspace};
 
 /// A partial update to the merged [`CompositorState`].
 ///
 /// Each state source (compositor-specific or generic Wayland protocol) emits
 /// patches for the slice it owns; the central listener applies them onto the
 /// authoritative state. [`StatePatch::Full`] lets a source that already
-/// produces a complete snapshot (Hyprland/Niri) replace the state wholesale.
+/// produces a complete snapshot (Hyprland/Niri) replace the state wholesale,
+/// while the slice variants let independent generic sources contribute only
+/// the part they own.
 #[derive(Debug, Clone)]
 pub enum StatePatch {
     Full(Box<CompositorState>),
+    Topology {
+        workspaces: Vec<CompositorWorkspace>,
+        monitors: Vec<CompositorMonitor>,
+        active_workspace_id: Option<i32>,
+    },
+    ActiveWindow(Option<ActiveWindow>),
 }
 
 impl StatePatch {
     pub fn apply_to(self, state: &mut CompositorState) {
         match self {
             StatePatch::Full(new_state) => *state = *new_state,
+            StatePatch::Topology {
+                workspaces,
+                monitors,
+                active_workspace_id,
+            } => {
+                state.workspaces = workspaces;
+                state.monitors = monitors;
+                state.active_workspace_id = active_workspace_id;
+            }
+            StatePatch::ActiveWindow(window) => state.active_window = window,
         }
     }
 }
