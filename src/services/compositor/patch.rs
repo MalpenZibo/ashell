@@ -3,6 +3,11 @@ use super::types::{ActiveWindow, CompositorMonitor, CompositorState, CompositorW
 /// A partial update to the merged [`CompositorState`]. `Full` replaces the
 /// whole snapshot (Hyprland/Niri); the slice variants let independent generic
 /// sources contribute only the part they own.
+///
+/// Contract: the slice variants deliberately leave `keyboard_layout` and
+/// `submap` untouched (only `Full` carries them). A backend must therefore use
+/// a single model — either `Full` only or slices only — and never interleave
+/// them, or those two fields would keep a stale value after the first `Full`.
 #[derive(Debug, Clone)]
 pub enum StatePatch {
     Full(Box<CompositorState>),
