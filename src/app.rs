@@ -482,16 +482,16 @@ impl App {
             Message::OutputEvent(event) => match event {
                 OutputEvent::Added(info) => {
                     info!("Output created: {info:?}");
-                    // Use just the canonical output name as the layer-shell
-                    // surface key. The workspace visibility filter compares
-                    // this against `w.monitor` (also a canonical name from
-                    // the compositor), so the two sides must agree on
-                    // shape. Concatenating make/model worked on Hyprland
-                    // (whose `w.monitor` happens to be the canonical name)
-                    // but broke on Niri (where the filter then never
-                    // matched any workspaces because the stored key was
-                    // "eDP-1 Make Model" vs an incoming "eDP-1").
+                    // Pass both the canonical name and the full EDID
+                    // description down to Outputs::add. The workspace
+                    // visibility filter compares against just the
+                    // canonical `info.name` (matches `w.monitor` from
+                    // the compositor); name_in_config / has_name keep
+                    // matching against the concatenated description
+                    // too so #312's fuzzy-EDID-alias config behaviour
+                    // is preserved.
                     let name = info.name.as_str();
+                    let description = format!("{} {} {}", info.name, info.make, info.model);
 
                     if let Some((_, h)) = info.logical_size {
                         self.outputs.set_output_logical_height(info.id, h as u32);
@@ -505,6 +505,7 @@ impl App {
                         bar_position,
                         self.general_config.layer,
                         name,
+                        &description,
                         info.id,
                         scale_factor,
                     )
