@@ -48,7 +48,7 @@ pub enum Message {
     ServiceEvent(ServiceEvent<CompositorService>),
     ChangeWorkspace(i32),
     ToggleSpecialWorkspace(i32),
-    Scroll(i32),
+    Scroll(i32, Option<String>),
     ConfigReloaded(WorkspacesModuleConfig),
     ScrollAccumulator(f32),
 }
@@ -344,7 +344,7 @@ impl Workspaces {
                 }
                 iced::Task::none()
             }
-            Message::Scroll(direction) => {
+            Message::Scroll(direction, monitor) => {
                 self.scroll_accumulator = 0.;
 
                 /* TODO: should we use the native service implementation instead?
@@ -354,11 +354,25 @@ impl Workspaces {
                         .map(Message::ServiceEvent);
                 }
                 return iced::Task::none();*/
-                let Some(pos) = self
-                    .ui_workspaces
-                    .iter()
-                    .position(|w| w.displayed == Displayed::Active)
-                else {
+
+                // Start from the scrolled bar's monitor (Active, else Visible), so
+                // each bar scrolls its own monitor; fall back to the global active.
+                let pos = monitor
+                    .as_deref()
+                    .and_then(|name| {
+                        self.ui_workspaces.iter().position(|w| {
+                            !w.monitor.is_empty()
+                                && name.contains(w.monitor.as_str())
+                                && matches!(w.displayed, Displayed::Active | Displayed::Visible)
+                        })
+                    })
+                    .or_else(|| {
+                        self.ui_workspaces
+                            .iter()
+                            .position(|w| w.displayed == Displayed::Active)
+                    });
+
+                let Some(pos) = pos else {
                     return iced::Task::none();
                 };
 
@@ -586,47 +600,52 @@ impl Workspaces {
             .spacing(theme.space.xxs)
         });
 
+        let scroll_monitor = monitor_name.map(str::to_owned);
+
         MouseArea::new(row)
-            .on_scroll(move |direction| match direction {
-                iced::mouse::ScrollDelta::Lines { y, .. } => {
-                    if y.is_sign_positive() {
-                        match self.config.invert_scroll_direction {
-                            Some(InvertScrollDirection::All | InvertScrollDirection::Mouse) => {
-                                Message::Scroll(-1)
+            .on_scroll(move |direction| {
+                let scroll = |dir: i32| Message::Scroll(dir, scroll_monitor.clone());
+                match direction {
+                    iced::mouse::ScrollDelta::Lines { y, .. } => {
+                        if y.is_sign_positive() {
+                            match self.config.invert_scroll_direction {
+                                Some(InvertScrollDirection::All | InvertScrollDirection::Mouse) => {
+                                    scroll(-1)
+                                }
+                                Some(InvertScrollDirection::Trackpad) => scroll(1),
+                                None => scroll(1),
                             }
-                            Some(InvertScrollDirection::Trackpad) => Message::Scroll(1),
-                            None => Message::Scroll(1),
-                        }
-                    } else {
-                        match self.config.invert_scroll_direction {
-                            Some(InvertScrollDirection::All | InvertScrollDirection::Mouse) => {
-                                Message::Scroll(1)
+                        } else {
+                            match self.config.invert_scroll_direction {
+                                Some(InvertScrollDirection::All | InvertScrollDirection::Mouse) => {
+                                    scroll(1)
+                                }
+                                Some(InvertScrollDirection::Trackpad) => scroll(-1),
+                                None => scroll(-1),
                             }
-                            Some(InvertScrollDirection::Trackpad) => Message::Scroll(-1),
-                            None => Message::Scroll(-1),
                         }
                     }
-                }
-                iced::mouse::ScrollDelta::Pixels { y, .. } => {
-                    let sensibility = 3.;
+                    iced::mouse::ScrollDelta::Pixels { y, .. } => {
+                        let sensibility = 3.;
 
-                    if self.scroll_accumulator.abs() < sensibility {
-                        Message::ScrollAccumulator(y)
-                    } else if self.scroll_accumulator.is_sign_positive() {
-                        match self.config.invert_scroll_direction {
-                            Some(InvertScrollDirection::All | InvertScrollDirection::Trackpad) => {
-                                Message::Scroll(-1)
+                        if self.scroll_accumulator.abs() < sensibility {
+                            Message::ScrollAccumulator(y)
+                        } else if self.scroll_accumulator.is_sign_positive() {
+                            match self.config.invert_scroll_direction {
+                                Some(
+                                    InvertScrollDirection::All | InvertScrollDirection::Trackpad,
+                                ) => scroll(-1),
+                                Some(InvertScrollDirection::Mouse) => scroll(1),
+                                None => scroll(1),
                             }
-                            Some(InvertScrollDirection::Mouse) => Message::Scroll(1),
-                            None => Message::Scroll(1),
-                        }
-                    } else {
-                        match self.config.invert_scroll_direction {
-                            Some(InvertScrollDirection::All | InvertScrollDirection::Trackpad) => {
-                                Message::Scroll(1)
+                        } else {
+                            match self.config.invert_scroll_direction {
+                                Some(
+                                    InvertScrollDirection::All | InvertScrollDirection::Trackpad,
+                                ) => scroll(1),
+                                Some(InvertScrollDirection::Mouse) => scroll(-1),
+                                None => scroll(-1),
                             }
-                            Some(InvertScrollDirection::Mouse) => Message::Scroll(-1),
-                            None => Message::Scroll(-1),
                         }
                     }
                 }
