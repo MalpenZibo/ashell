@@ -577,6 +577,8 @@ impl Dispatch<ZwlrForeignToplevelHandleV1, ()> for GenericState {
             }
             zwlr_foreign_toplevel_handle_v1::Event::State { state: tl_state } => {
                 if let Some(t) = state.toplevels.get_mut(&id) {
+                    // The protocol sends active states as a wl_array of u32 entries
+                    // (one per active state, not a bitmask), so we parse 4 bytes at a time.
                     let activated = zwlr_foreign_toplevel_handle_v1::State::Activated as u32;
                     t.activated = tl_state
                         .chunks_exact(4)
