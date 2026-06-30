@@ -347,14 +347,6 @@ impl Workspaces {
             Message::Scroll(direction, monitor) => {
                 self.scroll_accumulator = 0.;
 
-                /* TODO: should we use the native service implementation instead?
-                if let Some(service) = &mut self.service {
-                    return service
-                        .command(CompositorCommand::ScrollWorkspace(direction))
-                        .map(Message::ServiceEvent);
-                }
-                return iced::Task::none();*/
-
                 // Start from the scrolled bar's monitor (Active, else Visible), so
                 // each bar scrolls its own monitor; fall back to the global active.
                 let pos = monitor
