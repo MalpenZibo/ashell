@@ -450,7 +450,7 @@ impl NetworkSettings {
                     let subtitle = if actives.len() > 1 {
                         Some(t!("settings-network-vpns-connected", count = actives.len()))
                     } else {
-                        actives.first().map(|c| c.name.to_string())
+                        actives.first().map(|c| c.name.clone())
                     };
 
                     (

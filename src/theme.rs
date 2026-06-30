@@ -27,7 +27,6 @@ pub fn use_theme<R, F: FnOnce(&AshellTheme) -> R>(f: F) -> R {
     THEME.with_borrow(f)
 }
 
-#[allow(unused)]
 #[derive(Debug, Copy, Clone)]
 pub struct Space {
     pub xxs: f32,
@@ -54,7 +53,7 @@ impl Default for Space {
 }
 
 #[allow(unused)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Copy, Clone)]
 pub struct Radius {
     pub sm: f32,
     pub md: f32,
@@ -112,8 +111,6 @@ pub struct AshellTheme {
     pub workspace_colors: Vec<AppearanceColor>,
     pub special_workspace_colors: Option<Vec<AppearanceColor>>,
     pub scale_factor: f64,
-    // Read by animation call sites added in subsequent PRs.
-    #[allow(dead_code)]
     pub animations_enabled: bool,
 }
 

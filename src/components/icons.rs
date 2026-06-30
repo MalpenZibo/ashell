@@ -17,8 +17,7 @@ pub trait Icon {
     fn to_text_mono<'a>(self) -> Text<'a>;
 }
 
-#[derive(Copy, Clone, Default)]
-#[allow(dead_code)]
+#[derive(Copy, Clone, Default, Debug)]
 pub enum StaticIcon {
     #[default]
     None,

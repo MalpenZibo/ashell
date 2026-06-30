@@ -28,8 +28,8 @@ async fn is_lua_config() -> bool {
         .unwrap_or(false)
 }
 
-/// Dispatch a command using the old hyprlang socket protocol.
-/// Works on all Hyprland versions but is broken on 0.55+ with Lua config.
+/// Dispatch a command using the hyprlang socket protocol.
+/// Works on all Hyprland versions.
 fn dispatch_hyprlang(cmd: CompositorCommand) -> Result<()> {
     match cmd {
         CompositorCommand::FocusWorkspace(id) => {

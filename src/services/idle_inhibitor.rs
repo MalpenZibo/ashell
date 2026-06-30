@@ -205,7 +205,7 @@ impl IdleInhibitorManager {
     }
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 struct IdleInhibitorManagerData {
     compositor: Option<(WlCompositor, u32)>,
     surface: Option<WlSurface>,

@@ -578,13 +578,13 @@ impl NetworkDbus<'_> {
 }
 
 fn connection_id(settings: &HashMap<String, HashMap<String, OwnedValue>>) -> Option<String> {
-    settings
-        .get("connection")?
-        .get("id")
-        .and_then(|v| match v.deref() {
-            Value::Str(v) => Some(v.to_string()),
-            _ => None,
-        })
+    settings.get("connection")?.get("id").and_then(|v| {
+        if let Value::Str(v) = v.deref() {
+            Some(v.to_string())
+        } else {
+            None
+        }
+    })
 }
 
 impl NetworkDbus<'_> {

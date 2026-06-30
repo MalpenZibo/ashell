@@ -471,7 +471,7 @@ impl TrayService {
         let mut menu_layout_change = Vec::with_capacity(items.len());
 
         for name in items {
-            let item = StatusNotifierItem::new(conn, name.to_string()).await?;
+            let item = StatusNotifierItem::new(conn, name.clone()).await?;
 
             icon_pixel_change.push(
                 item.item_proxy
