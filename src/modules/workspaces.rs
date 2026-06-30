@@ -15,7 +15,7 @@ use iced::{
 };
 use iced_anim::{AnimationBuilder, transition::Easing};
 use itertools::Itertools;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum Displayed {
@@ -45,7 +45,7 @@ struct VirtualDesktop {
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    ServiceEvent(ServiceEvent<CompositorService>),
+    ServiceEvent(Box<ServiceEvent<CompositorService>>),
     ChangeWorkspace(i32),
     ToggleSpecialWorkspace(i32),
     Scroll(i32, Option<String>),
@@ -64,7 +64,7 @@ fn calculate_ui_workspaces(
     config: &WorkspacesModuleConfig,
     state: &CompositorState,
 ) -> Vec<UiWorkspace> {
-    let active_id = state.active_workspace_id;
+    let active_ids: HashSet<i32> = state.active_workspace_ids.iter().copied().collect();
     let monitors = &state.monitors;
     let monitor_order = monitors
         .iter()
@@ -115,7 +115,7 @@ fn calculate_ui_workspaces(
 
         for w in normal.iter() {
             let vdesk_id = ((w.id - 1) / monitor_count as i32) + 1;
-            let is_active = Some(w.id) == active_id;
+            let is_active = active_ids.contains(&w.id);
 
             if let Some(vdesk) = virtual_desktops.get_mut(&vdesk_id) {
                 vdesk.windows += w.windows;
@@ -170,7 +170,7 @@ fn calculate_ui_workspaces(
                 w.name.clone()
             };
 
-            let is_active = active_id == Some(w.id);
+            let is_active = active_ids.contains(&w.id);
             let is_visible = monitors.iter().any(|m| m.active_workspace_id == w.id);
 
             result.push(UiWorkspace {
@@ -289,7 +289,7 @@ impl Workspaces {
     pub fn update(&mut self, message: Message) -> iced::Task<Message> {
         match message {
             Message::ServiceEvent(event) => {
-                match event {
+                match *event {
                     ServiceEvent::Init(s) => {
                         self.service = Some(s);
                         self.recalculate_ui_workspaces();
@@ -318,11 +318,11 @@ impl Workspaces {
                                     "vdesk".to_string(),
                                     id.to_string(),
                                 ))
-                                .map(Message::ServiceEvent);
+                                .map(|event| Message::ServiceEvent(Box::new(event)));
                         } else {
                             return service
                                 .command(CompositorCommand::FocusWorkspace(id))
-                                .map(Message::ServiceEvent);
+                                .map(|event| Message::ServiceEvent(Box::new(event)));
                         }
                     }
                 }
@@ -340,7 +340,7 @@ impl Workspaces {
                                 .last()
                                 .map_or_else(|| special.name.clone(), |s| s.to_string()),
                         ))
-                        .map(Message::ServiceEvent);
+                        .map(|event| Message::ServiceEvent(Box::new(event)));
                 }
                 iced::Task::none()
             }
@@ -646,6 +646,6 @@ impl Workspaces {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        CompositorService::subscribe().map(Message::ServiceEvent)
+        CompositorService::subscribe().map(|event| Message::ServiceEvent(Box::new(event)))
     }
 }
