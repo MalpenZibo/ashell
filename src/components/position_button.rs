@@ -276,7 +276,10 @@ where
         operation.traverse(&mut |operation| {
             self.content.as_widget_mut().operate(
                 &mut tree.children[0],
-                layout.children().next().unwrap(),
+                layout
+                    .children()
+                    .next()
+                    .expect("PositionButton: expected at least one child layout node"),
                 renderer,
                 operation,
             );
@@ -297,7 +300,10 @@ where
         self.content.as_widget_mut().update(
             &mut tree.children[0],
             event,
-            layout.children().next().unwrap(),
+            layout
+                .children()
+                .next()
+                .expect("PositionButton: expected at least one child layout node"),
             cursor,
             renderer,
             clipboard,
@@ -478,7 +484,10 @@ where
         viewport: &Rectangle,
     ) {
         let bounds = layout.bounds();
-        let content_layout = layout.children().next().unwrap();
+        let content_layout = layout
+            .children()
+            .next()
+            .expect("PositionButton: expected at least one child layout node");
         let state = tree.state.downcast_ref::<State>();
 
         let status = if self.on_press.is_none() && self.on_hover.is_none() {

@@ -246,7 +246,10 @@ where
                 renderer,
                 theme,
                 style,
-                layout.children().next().unwrap(),
+                layout
+                    .children()
+                    .next()
+                    .expect("Collapsible: expected at least one child layout node"),
                 cursor,
                 &child_viewport,
             );
