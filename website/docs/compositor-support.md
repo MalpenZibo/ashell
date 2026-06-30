@@ -34,10 +34,14 @@ backs.
 
 | Feature | Hyprland | Niri | Generic Wayland |
 | --- | :---: | :---: | :---: |
-| Active window | ✅ | ✅ | ✅ |
+| Active window * | ✅ | ✅ | ✅ |
 | Workspaces | ✅ | ✅ | ✅ |
 | Keyboard layout | ✅ | ✅ | ❌ |
 | Keyboard submap | ✅ | ❌ | ❌ |
 
 A ❌ means the backend (or the underlying protocol) does not expose that
 feature; the corresponding module is simply unavailable on that compositor.
+
+\* The `InitialTitle` and `InitialClass` window-title modes rely on
+Hyprland-specific data and are unavailable on the other backends, where the
+title falls back to an empty value.
