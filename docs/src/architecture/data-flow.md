@@ -130,6 +130,7 @@ ashell subscribes to many event sources:
 | Source | Mechanism | Produces |
 |--------|-----------|----------|
 | Compositor (Hyprland/Niri) | IPC socket | Workspace changes, window focus, keyboard layout |
+| Compositor (generic fallback) | Wayland protocols (`ext-workspace-v1`, `wlr-foreign-toplevel-management`) on a dedicated thread | Workspace changes, active window |
 | PulseAudio | libpulse mainloop on dedicated thread | Volume changes, device hotplug |
 | D-Bus (BlueZ, NM, UPower, etc.) | zbus signal watchers | Device state changes |
 | Config file | inotify | `ConfigChanged` |
