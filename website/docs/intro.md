@@ -14,8 +14,8 @@ the dedicated integrations, the generic fallback, and the feature matrix.
 - Active Window
 - Workspaces
 - System Information (CPU, RAM, Temperature, Disk, Network)
-- Keyboard Layout
-- Keyboard Submap
+- Keyboard Layout (Hyprland/Niri)
+- Keyboard Submap (Hyprland)
 - Tray
 - Date and Time (with weather support)
 - Privacy indicators (microphone, camera, and screen sharing usage)
