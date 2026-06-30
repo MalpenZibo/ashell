@@ -16,6 +16,10 @@ use tokio::{
     sync::broadcast,
 };
 
+// dwl-ipc tag state bitfield (mmsg prints it as the third field of a `tag` line).
+const TAG_ACTIVE: u32 = 1 << 0;
+const TAG_URGENT: u32 = 1 << 1;
+
 pub fn is_available() -> bool {
     StdCommand::new("mmsg")
         .args(["-g", "-O"])
@@ -48,7 +52,11 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
         }
 
         if !line.trim().is_empty() {
-            send_latest_state(tx).await?;
+            // A transient mmsg failure must not kill the listener: log it and
+            // keep watching so updates resume once mmsg recovers.
+            if let Err(e) = send_latest_state(tx).await {
+                log::warn!("Failed to refresh MangoWC state: {e}");
+            }
         }
     }
 
@@ -87,13 +95,15 @@ pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
 struct TagInfo {
     clients: u16,
     selected: bool,
+    urgent: bool,
 }
 
-#[derive(Debug, Default, Clone)]
-struct OutputTagState {
-    tags: HashMap<i32, TagInfo>,
-    selected_mask: u32,
-    urgent_mask: u32,
+#[derive(Default)]
+struct OutputWindow {
+    name: String,
+    title: String,
+    appid: String,
+    focused: bool,
 }
 
 async fn send_latest_state(tx: &broadcast::Sender<ServiceEvent<CompositorService>>) -> Result<()> {
@@ -105,8 +115,11 @@ async fn send_latest_state(tx: &broadcast::Sender<ServiceEvent<CompositorService
 }
 
 async fn fetch_full_state() -> Result<CompositorState> {
-    let main_raw = run_mmsg(["-g", "-t", "-c", "-k", "-b"]).await?;
-    let outputs_raw = run_mmsg(["-g", "-O"]).await?;
+    // The two queries are independent, so run them concurrently.
+    let (main_raw, outputs_raw) = tokio::try_join!(
+        run_mmsg(["-g", "-t", "-c", "-k", "-b"]),
+        run_mmsg(["-g", "-O"])
+    )?;
 
     let (tag_state, fallback_outputs) = parse_tags(&main_raw);
     let mut outputs = parse_outputs(&outputs_raw);
@@ -118,29 +131,39 @@ async fn fetch_full_state() -> Result<CompositorState> {
 
     let mut active_workspace_ids = Vec::new();
     let mut monitors = Vec::new();
-    let mut workspaces = Vec::new();
+    // Mango tags share a single id space across outputs, but the workspaces UI
+    // keys on a unique id; aggregate per tag id so multi-monitor tags are merged
+    // rather than silently dropped.
+    let mut tags: HashMap<i32, CompositorWorkspace> = HashMap::new();
 
     for (idx, output_name) in outputs.iter().enumerate() {
-        let state = tag_state.get(output_name).cloned().unwrap_or_default();
-        let selected_ids = resolve_selected_tag_ids(&state);
-        for id in &selected_ids {
-            if !active_workspace_ids.contains(id) {
-                active_workspace_ids.push(*id);
-            }
-        }
+        let output_tags = tag_state.get(output_name);
 
-        let urgent_mask = state.urgent_mask;
-        for (tag_id, info) in state.tags {
-            workspaces.push(CompositorWorkspace {
-                id: tag_id,
-                index: tag_id,
-                name: tag_id.to_string(),
-                monitor: output_name.clone(),
-                monitor_id: Some(idx as i128),
-                windows: info.clients,
-                is_special: false,
-                has_urgent: tag_in_mask(urgent_mask, tag_id),
-            });
+        let mut selected_ids = output_tags
+            .map(|tags| {
+                tags.iter()
+                    .filter_map(|(id, info)| info.selected.then_some(*id))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        selected_ids.sort_unstable();
+        active_workspace_ids.extend(&selected_ids);
+
+        if let Some(output_tags) = output_tags {
+            for (tag_id, info) in output_tags {
+                let workspace = tags.entry(*tag_id).or_insert_with(|| CompositorWorkspace {
+                    id: *tag_id,
+                    index: *tag_id,
+                    name: tag_id.to_string(),
+                    monitor: String::new(),
+                    monitor_id: None,
+                    windows: 0,
+                    is_special: false,
+                    has_urgent: false,
+                });
+                workspace.windows += info.clients;
+                workspace.has_urgent |= info.urgent;
+            }
         }
 
         monitors.push(CompositorMonitor {
@@ -151,12 +174,8 @@ async fn fetch_full_state() -> Result<CompositorState> {
         });
     }
 
-    workspaces.sort_by(|a, b| {
-        a.monitor
-            .cmp(&b.monitor)
-            .then(a.index.cmp(&b.index))
-            .then(a.id.cmp(&b.id))
-    });
+    let mut workspaces = tags.into_values().collect::<Vec<_>>();
+    workspaces.sort_by_key(|w| w.id);
 
     let active_window = parse_active_window(&main_raw);
     let keyboard_layout = parse_keyboard_layout(&main_raw);
@@ -200,26 +219,50 @@ fn parse_outputs(raw: &str) -> Vec<String> {
 }
 
 fn parse_active_window(raw: &str) -> Option<ActiveWindow> {
-    let mut title = String::new();
-    let mut class = String::new();
+    // title/appid are reported per output. Prefer the focused monitor when it
+    // reports `selmon`, otherwise fall back to the first output with a window:
+    // deterministic, and never blanked by a later output's empty title line.
+    let mut outputs: Vec<OutputWindow> = Vec::new();
 
     for line in raw.lines() {
         let mut parts = line.split_whitespace();
-        let _output = parts.next().unwrap_or_default();
-        let key = parts.next().unwrap_or_default();
+        let (Some(output), Some(key)) = (parts.next(), parts.next()) else {
+            continue;
+        };
         let value = parts.collect::<Vec<_>>().join(" ");
 
+        let entry = match outputs.iter_mut().find(|o| o.name == output) {
+            Some(entry) => entry,
+            None => {
+                outputs.push(OutputWindow {
+                    name: output.to_string(),
+                    ..Default::default()
+                });
+                outputs.last_mut().expect("just pushed")
+            }
+        };
+
         match key {
-            "title" => title = value,
-            "appid" => class = value,
+            "title" => entry.title = value,
+            "appid" => entry.appid = value,
+            "selmon" => entry.focused = value == "1",
             _ => {}
         }
     }
 
-    if title.is_empty() && class.is_empty() {
+    let window = outputs.iter().find(|o| o.focused).or_else(|| {
+        outputs
+            .iter()
+            .find(|o| !o.title.is_empty() || !o.appid.is_empty())
+    })?;
+
+    if window.title.is_empty() && window.appid.is_empty() {
         None
     } else {
-        Some(ActiveWindow::Mango(ActiveWindowMango { title, class }))
+        Some(ActiveWindow::Mango(ActiveWindowMango {
+            title: window.title.clone(),
+            class: window.appid.clone(),
+        }))
     }
 }
 
@@ -253,78 +296,46 @@ fn parse_keymode(raw: &str) -> Option<String> {
     None
 }
 
-fn parse_tags(raw: &str) -> (HashMap<String, OutputTagState>, Vec<String>) {
-    let mut output_states: HashMap<String, OutputTagState> = HashMap::new();
+fn parse_tags(raw: &str) -> (HashMap<String, HashMap<i32, TagInfo>>, Vec<String>) {
+    let mut output_states: HashMap<String, HashMap<i32, TagInfo>> = HashMap::new();
     let mut outputs = Vec::new();
 
     for line in raw.lines() {
-        let parts = line.split_whitespace().collect::<Vec<_>>();
-        if parts.len() < 2 {
+        let mut parts = line.split_whitespace();
+        let (Some(output), Some(key)) = (parts.next(), parts.next()) else {
+            continue;
+        };
+
+        if key != "tag" {
             continue;
         }
 
-        let output = parts[0].to_string();
-        if !outputs.contains(&output) {
-            outputs.push(output.clone());
+        // `tag <id> <state> <clients> <focused>`; state is the TAG_* bitfield.
+        let fields = parts.collect::<Vec<_>>();
+        if fields.len() < 3 {
+            continue;
         }
 
-        let state = output_states.entry(output).or_default();
+        let tag_id = fields[0].parse::<i32>().unwrap_or(0);
+        if tag_id <= 0 {
+            continue;
+        }
+        let state = fields[1].parse::<u32>().unwrap_or(0);
+        let clients = fields[2].parse::<u16>().unwrap_or(0);
 
-        if parts[1] == "tag" && parts.len() >= 6 {
-            let tag_id = parts[2].parse::<i32>().unwrap_or(0);
-            if tag_id <= 0 {
-                continue;
-            }
-
-            let selected = parts[3].parse::<u8>().unwrap_or(0) != 0;
-            let clients = parts[4].parse::<u16>().unwrap_or(0);
-
-            state.tags.insert(tag_id, TagInfo { clients, selected });
+        if !outputs.iter().any(|o| o == output) {
+            outputs.push(output.to_string());
         }
 
-        if parts[1] == "tags" && parts.len() >= 5 {
-            state.selected_mask = parse_mask(parts[2]).unwrap_or(state.selected_mask);
-            state.urgent_mask = parse_mask(parts[4]).unwrap_or(state.urgent_mask);
-        }
+        output_states.entry(output.to_string()).or_default().insert(
+            tag_id,
+            TagInfo {
+                clients,
+                selected: state & TAG_ACTIVE != 0,
+                urgent: state & TAG_URGENT != 0,
+            },
+        );
     }
 
     (output_states, outputs)
-}
-
-fn resolve_selected_tag_ids(state: &OutputTagState) -> Vec<i32> {
-    // Per-tag flags are more reliable than the bitmask, whose field order varies.
-    let mut selected = state
-        .tags
-        .iter()
-        .filter_map(|(id, info)| info.selected.then_some(*id))
-        .collect::<Vec<_>>();
-
-    if selected.is_empty() {
-        selected = mask_to_tag_ids(state.selected_mask);
-    }
-
-    selected.sort_unstable();
-    selected.dedup();
-    selected
-}
-
-fn mask_to_tag_ids(mask: u32) -> Vec<i32> {
-    (0..32)
-        .filter(|idx| (mask & (1u32 << idx)) != 0)
-        .map(|idx| idx + 1)
-        .collect()
-}
-
-fn tag_in_mask(mask: u32, tag_id: i32) -> bool {
-    (1..=32).contains(&tag_id) && (mask & (1 << (tag_id - 1))) != 0
-}
-
-fn parse_mask(value: &str) -> Option<u32> {
-    if value.chars().all(|c| c == '0' || c == '1') {
-        u32::from_str_radix(value, 2)
-            .ok()
-            .or_else(|| value.parse::<u32>().ok())
-    } else {
-        value.parse::<u32>().ok()
-    }
 }
