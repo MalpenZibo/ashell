@@ -60,6 +60,11 @@ impl KeyboardLayout {
         let service = self.service.as_ref()?;
         let active_layout = &service.keyboard_layout;
 
+        // Hide the module when the backend reports no layout (e.g. generic Wayland).
+        if active_layout.is_empty() {
+            return None;
+        }
+
         // Fallback to displaying the layout ID/Name if no label config exists
         let label = match self.config.labels.get(active_layout) {
             Some(value) => value.to_string(),
