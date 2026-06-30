@@ -11,6 +11,7 @@ use crate::{
         keyboard_layout::KeyboardLayout,
         keyboard_submap::KeyboardSubmap,
         media_player::MediaPlayer,
+        minimap::Minimap,
         notifications::Notifications,
         privacy::Privacy,
         settings::{self, Settings, audio},
@@ -62,6 +63,7 @@ pub struct App {
     pub updates: Option<Updates>,
     pub workspaces: Workspaces,
     pub window_title: WindowTitle,
+    pub minimap: Minimap,
     pub system_info: SystemInfo,
     pub keyboard_layout: KeyboardLayout,
     pub keyboard_submap: KeyboardSubmap,
@@ -75,6 +77,11 @@ pub struct App {
     pub visible: bool,
 }
 
+// App::Message is an aggregator enum dispatching to many sub-modules. Sub-
+// messages naturally vary in size (network/bluetooth service events are
+// large; transient unit variants are tiny). Boxing every "big" variant would
+// just shift verbosity to call sites without meaningful runtime benefit.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 pub enum Message {
     ConfigChanged(Box<Config>),
@@ -86,6 +93,7 @@ pub enum Message {
     Updates(modules::updates::Message),
     Workspaces(modules::workspaces::Message),
     WindowTitle(modules::window_title::Message),
+    Minimap(modules::minimap::Message),
     SystemInfo(modules::system_info::Message),
     KeyboardLayout(modules::keyboard_layout::Message),
     KeyboardSubmap(modules::keyboard_submap::Message),
@@ -148,6 +156,7 @@ impl App {
                     updates: config.updates.map(Updates::new),
                     workspaces: Workspaces::new(config.workspaces),
                     window_title: WindowTitle::new(config.window_title),
+                    minimap: Minimap::new(),
                     system_info: SystemInfo::new(config.system_info),
                     keyboard_layout: KeyboardLayout::new(config.keyboard_layout),
                     keyboard_submap: KeyboardSubmap::default(),
@@ -425,6 +434,10 @@ impl App {
             Message::Workspaces(msg) => self.workspaces.update(msg).map(Message::Workspaces),
             Message::WindowTitle(msg) => {
                 self.window_title.update(msg);
+                Task::none()
+            }
+            Message::Minimap(msg) => {
+                self.minimap.update(msg);
                 Task::none()
             }
             Message::SystemInfo(msg) => {

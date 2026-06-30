@@ -1,6 +1,6 @@
 use super::types::{
     ActiveWindow, ActiveWindowNiri, CompositorCommand, CompositorEvent, CompositorMonitor,
-    CompositorService, CompositorState, CompositorWorkspace,
+    CompositorService, CompositorState, CompositorWindow, CompositorWorkspace,
 };
 use crate::services::ServiceEvent;
 use anyhow::{Context, Result, anyhow};
@@ -176,7 +176,7 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
         .collect();
 
     // INFO: this is how niri sorts the outpus internally (niri msg outputs - in client.rs)
-    let outputs = output_to_active_ws
+    let outputs_sorted = output_to_active_ws
         .keys()
         .sorted_unstable()
         .collect::<Vec<_>>();
@@ -194,7 +194,7 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
                 monitor: w.output.clone().unwrap_or_default(),
                 // niri does not have an output index
                 monitor_id: w.output.as_ref().map(|wo| {
-                    outputs
+                    outputs_sorted
                         .iter()
                         .position(|o| *o == wo)
                         .map_or(-1, |i| i as i32) as i128
@@ -222,7 +222,7 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
         }
     }
 
-    let monitors: Vec<CompositorMonitor> = outputs
+    let monitors: Vec<CompositorMonitor> = outputs_sorted
         .iter()
         .enumerate()
         .map(|(i, name)| CompositorMonitor {
@@ -253,6 +253,27 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
             })
         });
 
+    let windows: Vec<CompositorWindow> = niri
+        .windows
+        .windows
+        .values()
+        .map(|w| CompositorWindow {
+            id: w.id,
+            workspace_id: w
+                .workspace_id
+                .and_then(|wid| niri.workspaces.workspaces.get(&wid).map(|ws| ws.id as i32)),
+            is_focused: w.is_focused,
+            is_floating: w.is_floating,
+            is_urgent: w.is_urgent,
+            tile_position: w
+                .layout
+                .pos_in_scrolling_layout
+                .map(|(c, r)| (c as u32, r as u32)),
+            tile_width: w.layout.tile_size.0 as f32,
+            tile_height: w.layout.tile_size.1 as f32,
+        })
+        .collect();
+
     let keyboard_layout = niri.keyboard_layouts.keyboard_layouts.as_ref().map_or_else(
         || "Unknown".to_string(),
         |k| {
@@ -268,6 +289,7 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
         monitors,
         active_workspace_id,
         active_window,
+        windows,
         keyboard_layout,
         submap: None,
     }
