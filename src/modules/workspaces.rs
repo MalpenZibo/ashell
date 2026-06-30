@@ -443,14 +443,12 @@ impl Workspaces {
                         let show = match self.config.visibility_mode {
                             WorkspaceVisibilityMode::All => true,
                             WorkspaceVisibilityMode::MonitorSpecific => {
-                                monitor_name
-                                    .unwrap_or_else(|| &w.monitor)
-                                    .contains(&w.monitor)
+                                monitor_name.is_none_or(|name| name == w.monitor)
                                     || !outputs.has_name(&w.monitor)
                             }
-                            WorkspaceVisibilityMode::MonitorSpecificExclusive => monitor_name
-                                .unwrap_or_else(|| &w.monitor)
-                                .contains(&w.monitor),
+                            WorkspaceVisibilityMode::MonitorSpecificExclusive => {
+                                monitor_name.is_none_or(|name| name == w.monitor)
+                            }
                         };
 
                         if show {
