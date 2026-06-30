@@ -153,6 +153,7 @@ impl super::NetworkBackend for IwdDbus<'_> {
             let ssid = n.name().await?;
             let path = n.inner().path().clone().into();
             let device_path = n.device().await?.clone();
+            let connected = n.connected().await?;
             let access_point = AccessPoint {
                 ssid: ssid.clone(),
                 path,
@@ -160,9 +161,13 @@ impl super::NetworkBackend for IwdDbus<'_> {
                 strength: map_iwd_rssi_to_percent(signal_strength),
                 max_bitrate: 0,
                 frequency: 0,
-                state: DeviceState::Unknown, // TODO:
+                state: if connected {
+                    DeviceState::Activated
+                } else {
+                    DeviceState::Disconnected
+                },
                 public: n.type_().await? == "open",
-                working: false, // TODO:
+                working: connected,
             };
 
             // maybe IWD will provide frequency and bitrate in the future
@@ -624,9 +629,9 @@ impl IwdDbus<'_> {
                     .boxed(),
             );
 
-            // Register signal level agent with thresholds aligned to NM's bar ranges
-            // NM's bar ranges: >80% (5 bars), >55% (4 bars), >30% (3 bars), >5% (2 bars), ≤5% (1 bar)
-            // Using NM linear mapping, this translates to RSSI thresholds:
+            // Register signal level agent with thresholds aligned to common bar ranges
+            // Bar ranges: >80% (5 bars), >55% (4 bars), >30% (3 bars), >5% (2 bars), ≤5% (1 bar)
+            // Using linear mapping, this translates to RSSI thresholds:
             // 80% → -52 dBm, 55% → -67 dBm, 30% → -82 dBm, 5% → -97 dBm
             let signal_thresholds = [-52, -67, -82, -97];
             station
@@ -803,16 +808,21 @@ impl IwdDbus<'_> {
                 let public = net.type_().await? == "open";
                 let path = net.inner().path().clone().into();
                 let device_path = net.device().await?.clone();
+                let connected = net.connected().await?;
                 aps.push(AccessPoint {
                     ssid,
-                    state: DeviceState::Unknown, // TODO:
+                    state: if connected {
+                        DeviceState::Activated
+                    } else {
+                        DeviceState::Disconnected
+                    },
                     // _s is between 0 and -10000
                     // should be between 0 and 100
                     strength: map_iwd_rssi_to_percent(signal_strength),
                     max_bitrate: 0,
                     frequency: 0,
                     public,
-                    working: false, // TODO:
+                    working: connected,
                     path,
                     device_path,
                 });
