@@ -53,6 +53,7 @@ fn event_loop(tx: broadcast::Sender<ServiceEvent<CompositorService>>) -> Result<
     queue.roundtrip(&mut state)?;
     queue.roundtrip(&mut state)?;
 
+    state.handles_changed = false;
     state.publish_commands(&conn);
     let _ = tx.send(ServiceEvent::Update(CompositorEvent::StateChanged(
         Box::new(state.build_state()),
@@ -62,7 +63,10 @@ fn event_loop(tx: broadcast::Sender<ServiceEvent<CompositorService>>) -> Result<
         queue.blocking_dispatch(&mut state)?;
         if state.dirty {
             state.dirty = false;
-            state.publish_commands(&conn);
+            if state.handles_changed {
+                state.handles_changed = false;
+                state.publish_commands(&conn);
+            }
             let _ = tx.send(ServiceEvent::Update(CompositorEvent::StateChanged(
                 Box::new(state.build_state()),
             )));
@@ -163,6 +167,8 @@ struct GenericState {
     toplevel_order: Vec<ObjectId>,
 
     dirty: bool,
+    // Republish the command slot only when the handle set changes, not every event.
+    handles_changed: bool,
 }
 
 impl GenericState {
@@ -412,8 +418,9 @@ impl Dispatch<ExtWorkspaceManagerV1, ()> for GenericState {
             }
             ext_workspace_manager_v1::Event::Workspace { workspace } => {
                 let id = workspace.id();
-                let numeric_id = state.next_workspace_id;
+                // Start at 1: the UI treats id <= 0 as a special workspace.
                 state.next_workspace_id += 1;
+                let numeric_id = state.next_workspace_id;
                 state.workspaces.insert(
                     id.clone(),
                     WorkspaceEntry {
@@ -423,6 +430,7 @@ impl Dispatch<ExtWorkspaceManagerV1, ()> for GenericState {
                 );
                 state.workspace_handles.insert(id.clone(), workspace);
                 state.workspace_order.push(id);
+                state.handles_changed = true;
             }
             ext_workspace_manager_v1::Event::Done => state.dirty = true,
             _ => {}
@@ -477,6 +485,7 @@ impl Dispatch<ExtWorkspaceGroupHandleV1, ()> for GenericState {
             ext_workspace_group_handle_v1::Event::Removed => {
                 state.groups.remove(&group_id);
                 state.dirty = true;
+                group.destroy();
             }
             _ => {}
         }
@@ -515,7 +524,9 @@ impl Dispatch<ExtWorkspaceHandleV1, ()> for GenericState {
                 state.workspaces.remove(&id);
                 state.workspace_handles.remove(&id);
                 state.workspace_order.retain(|w| *w != id);
+                state.handles_changed = true;
                 state.dirty = true;
+                handle.destroy();
             }
             _ => {}
         }
