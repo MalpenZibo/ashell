@@ -14,7 +14,7 @@ jobs:
     env:
       COPR_CONFIG: ${{ secrets.COPR_CONFIG }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Install deps
         run: |
           dnf -y install git cargo rust rpm-build copr-cli gcc make pkgconf-pkg-config \
