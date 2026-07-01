@@ -251,14 +251,15 @@ impl GenericState {
             .collect();
 
         // ext-workspace marks one active workspace per group (per monitor) and
-        // exposes no global focus, so on multi-monitor this picks the first
-        // active one. The per-monitor active_workspace_id above is exact.
-        let active_workspace_id = self
+        // exposes no global focus, so on multi-monitor every per-monitor active
+        // workspace is reported.
+        let active_workspace_ids = self
             .workspace_order
             .iter()
             .filter_map(|id| self.workspaces.get(id))
-            .find(|ws| ws.active)
-            .map(|ws| ws.numeric_id);
+            .filter(|ws| ws.active)
+            .map(|ws| ws.numeric_id)
+            .collect();
 
         // Iterate toplevels in creation order: several can be activated at once
         // (one per output on multi-monitor), so a HashMap scan would pick a
@@ -278,7 +279,7 @@ impl GenericState {
         CompositorState {
             workspaces,
             monitors,
-            active_workspace_id,
+            active_workspace_ids,
             active_window,
             keyboard_layout: String::new(),
             submap: None,

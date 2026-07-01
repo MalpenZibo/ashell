@@ -233,12 +233,14 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
         })
         .collect();
 
-    let active_workspace_id = niri
+    let active_workspace_ids = niri
         .workspaces
         .workspaces
         .values()
         .find(|w| w.is_focused)
-        .map(|w| w.id as i32);
+        .map(|w| w.id as i32)
+        .into_iter()
+        .collect();
 
     let active_window = niri
         .windows
@@ -266,7 +268,7 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
     CompositorState {
         workspaces,
         monitors,
-        active_workspace_id,
+        active_workspace_ids,
         active_window,
         keyboard_layout,
         submap: None,

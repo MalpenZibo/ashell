@@ -1,6 +1,6 @@
 # Compositor Service and Abstraction Layer
 
-The compositor service (`src/services/compositor/`) abstracts over multiple Wayland compositors, with dedicated backends for Hyprland and Niri and a generic Wayland fallback for other compositors.
+The compositor service (`src/services/compositor/`) abstracts over multiple Wayland compositors, with dedicated backends for Hyprland, Niri, and MangoWC and a generic Wayland fallback for other compositors.
 
 ## Architecture
 
@@ -9,12 +9,15 @@ services/compositor/
 ├── mod.rs       # Service trait impl, backend detection, broadcast system
 ├── types.rs     # CompositorState, CompositorEvent, CompositorCommand, CompositorChoice
 ├── hyprland.rs  # Hyprland IPC integration
-└── niri.rs      # Niri IPC integration
+├── niri.rs      # Niri IPC integration
+├── mangowc.rs   # MangoWC integration (via the `mmsg` IPC CLI)
+└── generic.rs   # Generic Wayland fallback (ext-workspace / wlr-foreign-toplevel)
 ```
 
 ## Backend Detection
 
-The compositor is detected automatically via environment variables:
+The compositor is detected automatically, falling back to the generic backend
+when no dedicated one matches:
 
 ```rust
 fn detect_backend() -> Option<CompositorChoice> {
@@ -22,6 +25,10 @@ fn detect_backend() -> Option<CompositorChoice> {
         Some(CompositorChoice::Hyprland)
     } else if niri::is_available() {      // Checks NIRI_SOCKET
         Some(CompositorChoice::Niri)
+    } else if mangowc::is_available() {   // Probes the `mmsg` IPC CLI
+        Some(CompositorChoice::Mango)
+    } else if generic::is_available() {   // ext-workspace / wlr-foreign-toplevel
+        Some(CompositorChoice::Generic)
     } else {
         None
     }
@@ -110,3 +117,11 @@ Uses the `niri-ipc` crate:
 - Connects to Niri's IPC socket (path from `NIRI_SOCKET` env var)
 - Listens for events and translates them to the common `CompositorEvent` format
 - Sends commands via the IPC protocol
+
+### MangoWC (`mangowc.rs`)
+
+Drives MangoWC through its `mmsg` IPC CLI:
+- Watches `mmsg -w` for change events and re-derives the full state on each one
+- Maps MangoWC tags onto workspaces; since several tags can be active at once,
+  it reports them all via `CompositorState::active_workspace_ids`
+- Sends commands by shelling out to `mmsg -s`
