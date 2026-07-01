@@ -1,19 +1,19 @@
 use crate::{
     HEIGHT,
-    components::{ButtonUIRef, Centerbox, menu::MenuType},
+    components::{Centerbox, menu::MenuType},
     config::{self, AppearanceStyle, Config, Modules, Position},
     get_log_spec,
     i18n::{Localizer, init_localizer},
     ipc::IpcCommand,
     modules::{
         self,
-        custom_module::{self, Custom},
+        custom_module::Custom,
         keyboard_layout::KeyboardLayout,
         keyboard_submap::KeyboardSubmap,
         media_player::MediaPlayer,
         notifications::Notifications,
         privacy::Privacy,
-        settings::{self, Settings, audio},
+        settings::{self, Settings},
         system_info::SystemInfo,
         tempo::Tempo,
         tray::TrayModule,
@@ -21,7 +21,7 @@ use crate::{
         window_title::WindowTitle,
         workspaces::Workspaces,
     },
-    osd::{self, Osd, OsdKind},
+    osd::{self, Osd},
     outputs::{HasOutput, Outputs},
     services::ReadOnlyService,
     theme::{AshellTheme, backdrop_color, darken_color, init_theme, use_theme},
@@ -75,34 +75,10 @@ pub struct App {
     pub visible: bool,
 }
 
-#[derive(Debug, Clone)]
-pub enum Message {
-    ConfigChanged(Box<Config>),
-    ToggleMenu(MenuType, SurfaceId, ButtonUIRef),
-    CloseMenu(SurfaceId),
-    /// Fired after a menu's close animation ends, to destroy its surface.
-    FinishCloseMenu(SurfaceId),
-    Custom(String, custom_module::Message),
-    Updates(modules::updates::Message),
-    Workspaces(modules::workspaces::Message),
-    WindowTitle(modules::window_title::Message),
-    SystemInfo(modules::system_info::Message),
-    KeyboardLayout(modules::keyboard_layout::Message),
-    KeyboardSubmap(modules::keyboard_submap::Message),
-    Tray(modules::tray::Message),
-    Tempo(modules::tempo::Message),
-    Privacy(modules::privacy::Message),
-    Settings(modules::settings::Message),
-    MediaPlayer(modules::media_player::Message),
-    Notifications(modules::notifications::Message),
-    Osd(osd::Message),
-    IpcOsdCommand(IpcCommand),
-    OutputEvent(OutputEvent),
-    CloseAllMenus,
-    ResumeFromSleep,
-    None,
-    ToggleVisibility,
-}
+mod message;
+mod osd_info;
+
+pub use message::Message;
 
 impl App {
     pub fn new(
@@ -236,93 +212,6 @@ impl App {
 
     pub fn scale_factor(&self) -> f64 {
         use_theme(|t| t.scale_factor)
-    }
-
-    /// Build OSD display info (kind, normalised value, bar scale, muted) for the
-    /// given IPC command, reading current state from the Settings services.
-    fn osd_info_for(&self, cmd: &IpcCommand) -> Option<(OsdKind, f32, f32, bool)> {
-        fn normalise(cur: u32, max: u32) -> f32 {
-            if max > 0 {
-                cur as f32 / max as f32
-            } else {
-                0.0
-            }
-        }
-
-        match cmd {
-            IpcCommand::VolumeUp { .. } | IpcCommand::VolumeDown { .. } => {
-                // Use slider value — it has the optimistic RequestAndTimeout update,
-                // which was computed from real_sink_volume in volume_adjust().
-                let vol = self.settings.audio().current_sink_volume().unwrap_or(0);
-                let muted = self.settings.audio().is_sink_muted().unwrap_or(false);
-                let scale =
-                    normalise(self.settings.audio().vol_max(), audio::NORMAL_VOLUME).max(1.0);
-                Some((
-                    OsdKind::Volume,
-                    normalise(vol, audio::NORMAL_VOLUME),
-                    scale,
-                    muted,
-                ))
-            }
-            IpcCommand::VolumeToggleMute { .. } => {
-                let vol = self.settings.audio().real_sink_volume().unwrap_or(0);
-                // Invert: the toggle was just sent but PulseAudio hasn't
-                // round-tripped yet, so the current state is stale.
-                let muted = !self.settings.audio().is_sink_muted().unwrap_or(false);
-                let scale =
-                    normalise(self.settings.audio().vol_max(), audio::NORMAL_VOLUME).max(1.0);
-                Some((
-                    OsdKind::Volume,
-                    normalise(vol, audio::NORMAL_VOLUME),
-                    scale,
-                    muted,
-                ))
-            }
-            IpcCommand::MicrophoneUp { .. } | IpcCommand::MicrophoneDown { .. } => {
-                // Use slider value — it has the optimistic RequestAndTimeout update,
-                // which was computed from real_source_volume in microphone_adjust().
-                let vol = self.settings.audio().current_source_volume().unwrap_or(0);
-                let muted = self.settings.audio().is_source_muted().unwrap_or(false);
-                Some((
-                    OsdKind::Microphone,
-                    normalise(vol, audio::AudioSettings::mic_max()),
-                    1.0,
-                    muted,
-                ))
-            }
-            IpcCommand::MicrophoneToggleMute { .. } => {
-                let vol = self.settings.audio().real_source_volume().unwrap_or(0);
-                // Invert: the toggle was just sent but PulseAudio hasn't
-                // round-tripped yet, so the current state is stale.
-                let muted = !self.settings.audio().is_source_muted().unwrap_or(false);
-                Some((
-                    OsdKind::Microphone,
-                    normalise(vol, audio::AudioSettings::mic_max()),
-                    1.0,
-                    muted,
-                ))
-            }
-            IpcCommand::BrightnessUp { .. } | IpcCommand::BrightnessDown { .. } => self
-                .settings
-                .brightness()
-                .current_brightness()
-                .map(|(cur, max)| (OsdKind::Brightness, normalise(cur, max), 1.0, false)),
-            IpcCommand::ToggleAirplaneMode { .. } => {
-                // After toggle: the new state is the opposite of current.
-                // For toggles, `muted` carries the active/enabled state; `value` is unused.
-                let active = !self.settings.network().is_airplane_mode().unwrap_or(false);
-                Some((OsdKind::Airplane, 0.0, 1.0, active))
-            }
-            IpcCommand::ToggleIdleInhibitor { .. } => {
-                if let Some(idle_inhibitor) = self.settings.idle_inhibitor() {
-                    let active = idle_inhibitor.is_inhibited();
-                    Some((OsdKind::IdleInhibitor, 0.0, 1.0, active))
-                } else {
-                    None
-                }
-            }
-            IpcCommand::ToggleVisibility => None,
-        }
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
@@ -609,7 +498,7 @@ impl App {
 
                 // Show OSD overlay if enabled.
                 if self.osd.config().enabled && !cmd.no_osd() {
-                    let osd_info = self.osd_info_for(&cmd);
+                    let osd_info = osd_info::osd_info_for(self, &cmd);
 
                     if let Some((kind, value, scale, muted)) = osd_info
                         && let osd::Action::Show(timer) = self.osd.update(osd::Message::Show {
