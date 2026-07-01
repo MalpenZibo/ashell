@@ -35,7 +35,7 @@ jobs:
               - 'flake.lock'
               - '.github/workflows/nix-ci.yml'
 
-      - uses: nixbuild/nix-quick-install-action@v34
+      - uses: nixbuild/nix-quick-install-action@v35
         if: steps.filter.outputs.code == 'true'
 
       - name: Restore and save Nix store
