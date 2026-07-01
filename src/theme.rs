@@ -612,11 +612,7 @@ impl AshellTheme {
                 })),
                 border: Border {
                     width: if is_urgent || is_empty { 1.0 } else { 0.0 },
-                    color: if is_urgent {
-                        urgent_color
-                    } else {
-                        bg_color
-                    },
+                    color: if is_urgent { urgent_color } else { bg_color },
                     radius: radius_lg.into(),
                 },
                 text_color: if is_urgent && is_empty {
