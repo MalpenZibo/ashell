@@ -53,7 +53,7 @@ libpulse-binding = { version = "2.28", features = ["pa_v15"] }
 log = { version = "0.4", features = [] }
 flexi_logger = "0.31"
 pipewire = "0.9"
-itertools = "0.14"
+itertools = "0.15"
 unicode-segmentation = "1.13.2"
 hex_color = { version = "3", features = ["serde"] }
 anyhow = "1"
