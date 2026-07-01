@@ -257,6 +257,7 @@ fn workspace_button<'a>(
     font_size: f32,
     empty: bool,
     urgent: bool,
+    active: bool,
     color: Option<Option<AppearanceColor>>,
     width: Length,
     padding: f32,
@@ -268,7 +269,7 @@ fn workspace_button<'a>(
             .align_x(alignment::Horizontal::Center)
             .align_y(alignment::Vertical::Center),
     )
-    .style(theme.workspace_button_style(empty, urgent, color))
+    .style(theme.workspace_button_style(empty, urgent, active, color))
     .padding([0.0, padding])
     .on_press(on_press)
     .width(width)
@@ -456,6 +457,7 @@ impl Workspaces {
                         if show {
                             let empty = w.windows == 0;
                             let urgent = w.has_urgent;
+                            let active = w.displayed == Displayed::Active;
                             let color_index = if self.config.enable_virtual_desktops {
                                 Some(w.id as i128)
                             } else {
@@ -507,6 +509,7 @@ impl Workspaces {
                                                     font_size,
                                                     empty,
                                                     urgent,
+                                                    active,
                                                     color,
                                                     Length::Fixed(width),
                                                     0.0,
@@ -525,6 +528,7 @@ impl Workspaces {
                                             font_size,
                                             empty,
                                             urgent,
+                                            active,
                                             color,
                                             Length::Fixed(target_width),
                                             0.0,
@@ -550,6 +554,7 @@ impl Workspaces {
                                                     font_size,
                                                     empty,
                                                     urgent,
+                                                    active,
                                                     color,
                                                     Length::Shrink,
                                                     padding,
@@ -568,6 +573,7 @@ impl Workspaces {
                                             font_size,
                                             empty,
                                             urgent,
+                                            active,
                                             color,
                                             Length::Shrink,
                                             target_padding,
