@@ -1026,6 +1026,10 @@ pub struct Appearance {
     pub text_color: AppearanceColor,
     pub workspace_colors: Vec<AppearanceColor>,
     pub special_workspace_colors: Option<Vec<AppearanceColor>>,
+    /// Ask the compositor to blur the wallpaper behind ashell's translucent
+    /// surfaces (pills, menu, OSD) via `ext-background-effect-v1`. Supported by
+    /// niri 26.04+ and KDE Plasma 6.7+; no-op elsewhere.
+    pub blur: bool,
 }
 
 static PRIMARY: HexColor = HexColor::rgb(122, 162, 247);
@@ -1102,6 +1106,7 @@ impl Default for Appearance {
                 AppearanceColor::Simple(HexColor::rgb(158, 206, 106)),
             ],
             special_workspace_colors: None,
+            blur: false,
         }
     }
 }
