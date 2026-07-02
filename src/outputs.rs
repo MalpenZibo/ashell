@@ -66,11 +66,12 @@ impl OverlaySurface {
 
 /// Pair of strings identifying an output. `name` is the canonical
 /// short name reported by the compositor (e.g. `eDP-1`) — used for
-/// equality checks against workspace events. `description` includes
-/// the EDID (e.g. `eDP-1 Make Model Serial`) — used for the fuzzy
-/// substring matching in `name_in_config` / `has_name` so users can
-/// alias outputs by any string that appears in the EDID (the
-/// behaviour added by #312).
+/// strict equality checks against workspace events (`has_name`) and
+/// as the layer-shell surface key. `description` includes the EDID
+/// (e.g. `eDP-1 Make Model Serial`) — used only for the fuzzy
+/// substring matching in `name_in_config`, so users can alias
+/// outputs by any string that appears in the EDID (the behaviour
+/// added by #312).
 #[derive(Debug, Clone)]
 pub struct OutputKey {
     pub name: String,
