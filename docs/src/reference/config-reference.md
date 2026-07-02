@@ -34,6 +34,7 @@ Module names: `"Workspaces"`, `"WindowTitle"`, `"SystemInfo"`, `"KeyboardLayout"
 [appearance]
 font_name = "JetBrains Mono"   # Optional custom font
 scale_factor = 1.0              # DPI scale factor
+blur = false                    # compositor blur behind translucent surfaces
 
 [appearance.bar]
 surface = "transparent"         # "transparent" or "solid"
