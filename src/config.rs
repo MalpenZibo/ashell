@@ -1027,8 +1027,8 @@ pub struct Appearance {
     pub workspace_colors: Vec<AppearanceColor>,
     pub special_workspace_colors: Option<Vec<AppearanceColor>>,
     /// Ask the compositor to blur the wallpaper behind ashell's translucent
-    /// surfaces (pills, menu, OSD) via `ext-background-effect-v1`. Supported by
-    /// niri 26.04+ and KDE Plasma 6.7+; no-op elsewhere.
+    /// surfaces (pills, menu, OSD) via `ext-background-effect-v1`. No-op where
+    /// the protocol is unsupported.
     pub blur: bool,
 }
 
