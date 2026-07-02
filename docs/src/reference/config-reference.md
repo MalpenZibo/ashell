@@ -32,10 +32,14 @@ Module names: `"Workspaces"`, `"WindowTitle"`, `"SystemInfo"`, `"KeyboardLayout"
 
 ```toml
 [appearance]
-style = "Islands"               # "Islands", "Solid", or "Gradient"
-opacity = 0.9                   # 0.0-1.0
 font_name = "JetBrains Mono"   # Optional custom font
 scale_factor = 1.0              # DPI scale factor
+
+[appearance.bar]
+surface = "transparent"         # "transparent" or "solid"
+radius = "none"                 # none|sm|md|lg|xl, CSS border-radius shorthand (solid only)
+margin = "none"                 # none|xxs..xxl, CSS margin shorthand
+opacity = 0.9                   # 0.0-1.0
 ```
 
 ### Colors

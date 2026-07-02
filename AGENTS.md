@@ -34,7 +34,7 @@ src/
 ├── app.rs               # App state, Elm update/view cycle
 ├── config.rs            # configuration types (TOML deserialization)
 ├── ipc.rs               # Unix socket IPC (client + server + subscription)
-├── theme.rs             # theming (Islands/Solid/Gradient styles)
+├── theme.rs             # theming (transparent/solid bar surface, radius, margin)
 ├── menu.rs              # menu UI
 ├── outputs.rs           # multi-monitor output management
 ├── components/          # shared UI components, icons
