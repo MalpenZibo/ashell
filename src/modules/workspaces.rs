@@ -450,8 +450,7 @@ impl Workspaces {
                         // `eDP-1` vs `DP-1`, causing the laptop bar to leak
                         // the external monitor's workspaces in and stop
                         // tracking its own focused workspace.
-                        let monitor_matches =
-                            monitor_name.is_none_or(|n| n == w.monitor.as_str());
+                        let monitor_matches = monitor_name.is_none_or(|n| n == w.monitor.as_str());
                         let show = match self.config.visibility_mode {
                             WorkspaceVisibilityMode::All => true,
                             WorkspaceVisibilityMode::MonitorSpecific => {
