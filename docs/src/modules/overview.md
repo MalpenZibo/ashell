@@ -40,7 +40,7 @@ right = [["SystemInfo", "Settings"], "Tray"]
 #         └── group ──────────────┘   └── single
 ```
 
-In the `Islands` bar style, grouped modules share a single background container. In `Solid`/`Gradient` styles, grouping has no visual effect.
+With the `transparent` (islands) bar surface, grouped modules share a single background container. With the `solid` surface, grouping has no visual effect.
 
 The config uses the `ModuleDef` enum:
 

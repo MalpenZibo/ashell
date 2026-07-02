@@ -59,7 +59,7 @@ pub enum ModuleDef {
 }
 ```
 
-Groups are rendered together in a single container, which is especially visible with the `Islands` bar style.
+Groups are rendered together in a single container, which is especially visible with the `transparent` (islands) bar surface.
 
 ## Hot-Reload
 

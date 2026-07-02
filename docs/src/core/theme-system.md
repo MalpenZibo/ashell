@@ -11,7 +11,9 @@ pub struct AshellTheme {
     pub radius: Radius,                                       // Border radius tokens
     pub font_size: FontSize,                                  // Font size tokens
     pub bar_position: Position,                               // Top or Bottom
-    pub bar_style: AppearanceStyle,                           // Islands, Solid, or Gradient
+    pub bar_surface: BarSurface,                              // transparent or solid
+    pub bar_radius: BarRadius,                                // per-corner radius (CSS shorthand)
+    pub bar_margin: BarMargin,                                // per-edge margin (CSS shorthand)
     pub opacity: f32,                                         // Bar opacity (0.0-1.0)
     pub menu: MenuAppearance,                                 // Menu-specific styling
     pub workspace_colors: Vec<AppearanceColor>,               // Per-workspace color cycling
@@ -61,13 +63,14 @@ pub struct FontSize {
 }
 ```
 
-## Bar Styles
+## Bar Surface
 
-ashell supports three visual styles:
+The `[appearance.bar].surface` field controls where the background is painted:
 
-- **`Solid`**: Flat background color across the entire bar width.
-- **`Gradient`**: The background fades from solid to transparent, away from the bar's edge. The gradient direction is determined by the bar position (top = downward fade, bottom = upward fade).
-- **`Islands`**: No continuous background. Each module (or module group) gets its own rounded container with the background color, creating a "floating islands" look.
+- **`transparent`**: No continuous background. Each module (or module group) gets its own rounded container with the background color, creating a "floating islands" look. This is the default.
+- **`solid`**: Flat background color across the entire bar width; module groups render pass-through so the bar reads as a single surface.
+
+The bar surface can additionally be rounded (`radius`) and inset from the screen edges (`margin`); both use CSS shorthand over the radius/spacing scales.
 
 ## Color System
 
@@ -104,7 +107,7 @@ Each method returns a closure compatible with iced's button styling API:
 ```rust
 pub fn module_button_style(&self, grouped: bool) -> impl Fn(&Theme, Status) -> button::Style {
     // Returns different styles for hovered, pressed, and default states
-    // Handles Islands vs Solid/Gradient backgrounds differently
+    // Handles transparent (islands) vs solid backgrounds differently
 }
 ```
 
