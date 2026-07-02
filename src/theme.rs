@@ -547,22 +547,27 @@ impl AshellTheme {
             let (bg_color, fg_color) = resolve(|b| b.weak, |p| p.base);
             let (bg_strong, fg_strong) = resolve(|b| b.strong, |p| p.strong);
             let (bg_weak, fg_weak) = resolve(|b| b.weak, |p| p.weak);
-            let urgent_color = theme.palette().danger;
             let mut base = button::Style {
                 background: Some(Background::Color(if is_urgent && is_empty {
-                    urgent_color
+                    theme.extended_palette().danger.base.color
                 } else if is_empty && is_active {
                     theme.extended_palette().background.strong.color
                 } else if is_empty {
                     theme.extended_palette().background.weak.color
                 } else if is_active {
-                    bg_strong
-                } else {
                     bg_color
+                } else {
+                    bg_weak
                 })),
                 border: Border {
                     width: if is_urgent || is_empty { 1.0 } else { 0.0 },
-                    color: if is_urgent { urgent_color } else { bg_color },
+                    color: if is_urgent {
+                        theme.extended_palette().danger.base.color
+                    } else if is_active {
+                        bg_color
+                    } else {
+                        bg_weak
+                    },
                     radius: radius_lg.into(),
                 },
                 text_color: if is_urgent && is_empty {
@@ -572,9 +577,9 @@ impl AshellTheme {
                 } else if is_empty {
                     theme.extended_palette().background.weak.text
                 } else if is_active {
-                    fg_strong
-                } else {
                     fg_color
+                } else {
+                    fg_weak
                 },
                 ..button::Style::default()
             };
@@ -584,16 +589,29 @@ impl AshellTheme {
                     base.background = Some(Background::Color(if is_urgent && is_empty {
                         theme.extended_palette().danger.strong.color
                     } else if is_empty {
-                        theme.extended_palette().background.base.color
+                        theme.extended_palette().background.strong.color
+                    } else if is_active {
+                        bg_color
                     } else {
-                        bg_weak
+                        bg_strong
                     }));
+                    base.border.color = if is_urgent && is_active {
+                        theme.extended_palette().danger.base.color
+                    } else if is_urgent {
+                        theme.extended_palette().danger.strong.color
+                    } else if is_active {
+                        bg_color
+                    } else {
+                        bg_strong
+                    };
                     base.text_color = if is_urgent && is_empty {
                         theme.extended_palette().danger.strong.text
                     } else if is_empty {
-                        theme.extended_palette().background.weak.text
+                        theme.extended_palette().background.strong.text
+                    } else if is_active {
+                        fg_color
                     } else {
-                        fg_weak
+                        fg_strong
                     };
                     base
                 }
