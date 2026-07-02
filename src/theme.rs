@@ -115,6 +115,7 @@ pub struct AshellTheme {
     // Read by animation call sites added in subsequent PRs.
     #[allow(dead_code)]
     pub animations_enabled: bool,
+    pub blur: bool,
 }
 
 impl Default for AshellTheme {
@@ -247,6 +248,7 @@ fn base_theme_from_appearance(
         special_workspace_colors: appearance.special_workspace_colors.clone(),
         scale_factor: appearance.scale_factor,
         animations_enabled,
+        blur: appearance.blur,
         iced_theme: build_iced_theme(appearance),
     }
 }

@@ -7,7 +7,8 @@ use iced::widget::container::Style;
 use iced::{
     Anchor, Border, Element, KeyboardInteractivity, Layer, LayerShellSettings, Length, OutputId,
     Padding, Pixels, SurfaceId, Task, Theme, destroy_layer_surface, new_layer_surface,
-    set_keyboard_interactivity, widget::container,
+    set_keyboard_interactivity,
+    widget::{blur_container, container},
 };
 use std::time::Duration;
 
@@ -298,7 +299,7 @@ impl App {
         content: Element<'a, app::Message>,
         button_ui_ref: ButtonUIRef,
     ) -> Element<'a, app::Message> {
-        let (space, menu_opacity, radius, bar_style, bar_position, menu_backdrop) =
+        let (space, menu_opacity, radius, bar_style, bar_position, menu_backdrop, blur) =
             use_theme(|t| {
                 (
                     t.space,
@@ -307,56 +308,65 @@ impl App {
                     t.bar_style,
                     t.bar_position,
                     t.menu.backdrop,
+                    t.blur,
                 )
             });
 
-        components::MenuWrapper::new(
-            button_ui_ref.position.x,
+        let menu_style = move |theme: &Theme| Style {
+            background: Some(theme.palette().background.scale_alpha(menu_opacity).into()),
+            border: Border {
+                color: theme
+                    .extended_palette()
+                    .background
+                    .weakest
+                    .color
+                    .scale_alpha(menu_opacity),
+                width: 1.,
+                radius: radius.lg.into(),
+            },
+            ..Default::default()
+        };
+        let menu_body = if blur {
+            blur_container(content)
+                .padding(space.md)
+                .style(menu_style)
+                .width(Length::Shrink)
+                .into()
+        } else {
             container(content)
                 .padding(space.md)
-                .style(move |theme: &Theme| Style {
-                    background: Some(theme.palette().background.scale_alpha(menu_opacity).into()),
-                    border: Border {
-                        color: theme
-                            .extended_palette()
-                            .background
-                            .weakest
-                            .color
-                            .scale_alpha(menu_opacity),
-                        width: 1.,
-                        radius: radius.lg.into(),
-                    },
-                    ..Default::default()
-                })
+                .style(menu_style)
                 .width(Length::Shrink)
-                .into(),
-        )
-        .padding({
-            let v_padding = match bar_style {
-                AppearanceStyle::Solid | AppearanceStyle::Gradient => 2,
-                AppearanceStyle::Islands => 0,
-            };
+                .into()
+        };
 
-            Padding::new(0.)
-                .top(if bar_position == Position::Top {
-                    v_padding
-                } else {
-                    0
-                })
-                .bottom(if bar_position == Position::Bottom {
-                    v_padding
-                } else {
-                    0
-                })
-        })
-        .align_y(match bar_position {
-            Position::Top => Vertical::Top,
-            Position::Bottom => Vertical::Bottom,
-        })
-        .backdrop(backdrop_color(menu_backdrop))
-        .on_click_outside(app::Message::CloseMenu(id))
-        .open(!self.outputs.menu_is_closing(id))
-        .animated(use_theme(|t| t.animations_enabled))
-        .into()
+        components::MenuWrapper::new(button_ui_ref.position.x, menu_body)
+            .padding({
+                let v_padding = match bar_style {
+                    AppearanceStyle::Solid | AppearanceStyle::Gradient => 2,
+                    AppearanceStyle::Islands => 0,
+                };
+
+                Padding::new(0.)
+                    .top(if bar_position == Position::Top {
+                        v_padding
+                    } else {
+                        0
+                    })
+                    .bottom(if bar_position == Position::Bottom {
+                        v_padding
+                    } else {
+                        0
+                    })
+            })
+            .align_y(match bar_position {
+                Position::Top => Vertical::Top,
+                Position::Bottom => Vertical::Bottom,
+            })
+            .backdrop(backdrop_color(menu_backdrop))
+            .on_click_outside(app::Message::CloseMenu(id))
+            .open(!self.outputs.menu_is_closing(id))
+            .animated(use_theme(|t| t.animations_enabled))
+            .into()
     }
 }

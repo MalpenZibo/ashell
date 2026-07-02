@@ -107,6 +107,13 @@ unic-langid = "0.9"
 # v0.4.8 to match the release iced_tiny_skia 0.14 depends on.
 softbuffer = { git = "https://github.com/MalpenZibo/softbuffer", branch = "wayland-argb" }
 
+# Temporary: point at local iced_layershell while the
+# `feat/ext-background-effect` branch (blur_container widget) is unmerged.
+# Revert before opening the ashell PR — land the iced_layershell PR, cut a new
+# tag, and bump the dependency above to it.
+[patch."https://github.com/MalpenZibo/iced_layershell"]
+iced_layershell = { path = "../iced_layershell" }
+
 [build-dependencies]
 allsorts = "0.17"
 
