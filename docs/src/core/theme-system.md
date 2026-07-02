@@ -121,8 +121,10 @@ impl AshellTheme {
             radius: Radius::default(),
             font_size: FontSize::default(),
             bar_position: position,
-            bar_style: appearance.style,
-            opacity: appearance.opacity,
+            bar_surface: appearance.bar.surface,
+            bar_radius: appearance.bar.radius,
+            bar_margin: appearance.bar.margin,
+            opacity: appearance.bar.opacity,
             // ...
         }
     }

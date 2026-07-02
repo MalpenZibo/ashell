@@ -1,7 +1,7 @@
 use iced::{
     Anchor, InputRegionRect, KeyboardInteractivity, Layer, LayerShellSettings, OutputId, SurfaceId,
     Task, destroy_layer_surface, new_layer_surface, set_anchor, set_exclusive_zone,
-    set_input_region, set_keyboard_interactivity, set_size,
+    set_input_region, set_keyboard_interactivity, set_margin, set_size,
 };
 use log::debug;
 
@@ -9,7 +9,8 @@ use crate::{
     HEIGHT,
     components::ButtonUIRef,
     components::menu::{Menu, MenuType, OpenMenu},
-    config::{self, AppearanceStyle, Position},
+    config::{self, BarSurface, Position},
+    theme::BarLayout,
 };
 
 #[derive(Debug, Clone)]
@@ -17,7 +18,7 @@ pub struct ShellInfo {
     pub id: SurfaceId,
     pub position: Position,
     pub layer: config::Layer,
-    pub style: AppearanceStyle,
+    pub layout: BarLayout,
     pub menu: Menu,
     pub scale_factor: f64,
     /// Logical height of this output (for computing toast input regions).
@@ -89,7 +90,7 @@ impl Outputs {
     }
 
     pub fn new(
-        style: AppearanceStyle,
+        layout: BarLayout,
         position: Position,
         layer: config::Layer,
         scale_factor: f64,
@@ -105,7 +106,7 @@ impl Outputs {
                     menu: Menu::new(),
                     position,
                     layer,
-                    style,
+                    layout,
                     scale_factor,
                     output_logical_height: None,
                 }),
@@ -123,23 +124,43 @@ impl Outputs {
         Menu::with_animations(self.animations_enabled)
     }
 
-    pub fn get_height(style: AppearanceStyle, scale_factor: f64) -> f64 {
+    pub fn get_height(surface: BarSurface, scale_factor: f64) -> f64 {
         (HEIGHT
-            - match style {
-                AppearanceStyle::Solid | AppearanceStyle::Gradient => 8.,
-                AppearanceStyle::Islands => 0.,
+            - match surface {
+                BarSurface::Solid => 8.,
+                BarSurface::Transparent => 0.,
             })
             * scale_factor
     }
 
+    /// Layer-shell outer margin scaled to physical pixels, ordered
+    /// `(top, right, bottom, left)` to match `set_margin`/`LayerShellSettings`.
+    pub fn margin(layout: BarLayout, scale_factor: f64) -> (i32, i32, i32, i32) {
+        let (top, right, bottom, left) = layout.margin;
+        let scale = |v: f32| (f64::from(v) * scale_factor) as i32;
+        (scale(top), scale(right), scale(bottom), scale(left))
+    }
+
+    /// Space reserved on the anchored edge: the bar height plus the margin that
+    /// pushes the bar away from that edge.
+    pub fn exclusive_zone(layout: BarLayout, position: Position, scale_factor: f64) -> i32 {
+        let height = Self::get_height(layout.surface, scale_factor);
+        let (top, _, bottom, _) = Self::margin(layout, scale_factor);
+        height as i32
+            + match position {
+                Position::Top => top,
+                Position::Bottom => bottom,
+            }
+    }
+
     pub fn create_output_layers<Message: 'static>(
-        style: AppearanceStyle,
+        layout: BarLayout,
         output_id: Option<OutputId>,
         position: Position,
         layer: config::Layer,
         scale_factor: f64,
     ) -> (SurfaceId, Task<Message>) {
-        let height = Self::get_height(style, scale_factor);
+        let height = Self::get_height(layout.surface, scale_factor);
 
         let iced_layer = match layer {
             config::Layer::Top => Layer::Top,
@@ -152,14 +173,14 @@ impl Outputs {
             size: Some((0, height as u32)),
             layer: iced_layer,
             keyboard_interactivity: KeyboardInteractivity::None,
-            exclusive_zone: height as i32,
+            exclusive_zone: Self::exclusive_zone(layout, position, scale_factor),
+            margin: Self::margin(layout, scale_factor),
             output: output_id,
             anchor: match position {
                 Position::Top => Anchor::TOP,
                 Position::Bottom => Anchor::BOTTOM,
             } | Anchor::LEFT
                 | Anchor::RIGHT,
-            ..Default::default()
         });
 
         (id, main_task)
@@ -216,7 +237,7 @@ impl Outputs {
     #[allow(clippy::too_many_arguments)]
     pub fn add<Message: 'static>(
         &mut self,
-        style: AppearanceStyle,
+        layout: BarLayout,
         request_outputs: &config::Outputs,
         position: Position,
         layer: config::Layer,
@@ -230,7 +251,7 @@ impl Outputs {
             debug!("Found target output, creating a new layer surface");
 
             let (id, task) =
-                Self::create_output_layers(style, Some(output_id), position, layer, scale_factor);
+                Self::create_output_layers(layout, Some(output_id), position, layer, scale_factor);
 
             let destroy_task = match self
                 .entries
@@ -256,7 +277,7 @@ impl Outputs {
                     menu,
                     position,
                     layer,
-                    style,
+                    layout,
                     scale_factor,
                     output_logical_height: None,
                 }),
@@ -295,7 +316,7 @@ impl Outputs {
 
     pub fn remove<Message: 'static>(
         &mut self,
-        style: AppearanceStyle,
+        layout: BarLayout,
         position: Position,
         layer: config::Layer,
         output_id: OutputId,
@@ -333,7 +354,7 @@ impl Outputs {
                     debug!("No outputs left, creating a fallback layer surface");
 
                     let (id, task) =
-                        Self::create_output_layers(style, None, position, layer, scale_factor);
+                        Self::create_output_layers(layout, None, position, layer, scale_factor);
 
                     let menu = self.make_menu();
                     self.entries.push((
@@ -343,7 +364,7 @@ impl Outputs {
                             menu,
                             position,
                             layer,
-                            style,
+                            layout,
                             scale_factor,
                             output_logical_height: None,
                         }),
@@ -359,7 +380,7 @@ impl Outputs {
 
     pub fn sync<Message: 'static>(
         &mut self,
-        style: AppearanceStyle,
+        layout: BarLayout,
         request_outputs: &config::Outputs,
         position: Position,
         layer: config::Layer,
@@ -398,7 +419,7 @@ impl Outputs {
         for (name, output_id) in to_add {
             if let Some(output_id) = output_id {
                 tasks.push(self.add(
-                    style,
+                    layout,
                     request_outputs,
                     position,
                     layer,
@@ -410,7 +431,7 @@ impl Outputs {
         }
 
         for output_id in to_remove {
-            tasks.push(self.remove(style, position, layer, output_id, scale_factor));
+            tasks.push(self.remove(layout, position, layer, output_id, scale_factor));
         }
 
         for shell_info in self.entries.iter_mut().filter_map(|(_, shell_info, _)| {
@@ -447,11 +468,11 @@ impl Outputs {
                 let destroy_task = old.destroy_surfaces();
 
                 let (id, create_task) =
-                    Self::create_output_layers(style, *output_id, position, layer, scale_factor);
+                    Self::create_output_layers(layout, *output_id, position, layer, scale_factor);
 
                 shell_info.id = id;
                 shell_info.menu = Menu::with_animations(animations_enabled);
-                shell_info.style = style;
+                shell_info.layout = layout;
                 shell_info.scale_factor = scale_factor;
 
                 tasks.push(Task::batch(vec![destroy_task, create_task]));
@@ -460,7 +481,7 @@ impl Outputs {
 
         for shell_info in self.entries.iter_mut().filter_map(|(_, shell_info, _)| {
             if let Some(shell_info) = shell_info
-                && (shell_info.style != style || shell_info.scale_factor != scale_factor)
+                && (shell_info.layout != layout || shell_info.scale_factor != scale_factor)
             {
                 Some(shell_info)
             } else {
@@ -468,15 +489,19 @@ impl Outputs {
             }
         }) {
             debug!(
-                "Change style or scale_factor for output: {:?}, new style {:?}, new scale_factor {:?}",
-                shell_info.id, style, scale_factor
+                "Change layout or scale_factor for output: {:?}, new layout {:?}, new scale_factor {:?}",
+                shell_info.id, layout, scale_factor
             );
-            shell_info.style = style;
+            shell_info.layout = layout;
             shell_info.scale_factor = scale_factor;
-            let height = Self::get_height(style, scale_factor);
+            let height = Self::get_height(layout.surface, scale_factor);
             tasks.push(Task::batch(vec![
                 set_size(shell_info.id, (0, height as u32)),
-                set_exclusive_zone(shell_info.id, height as i32),
+                set_exclusive_zone(
+                    shell_info.id,
+                    Self::exclusive_zone(layout, position, scale_factor),
+                ),
+                set_margin(shell_info.id, Self::margin(layout, scale_factor)),
             ]));
         }
 
@@ -762,7 +787,7 @@ impl Outputs {
             if *oid == Some(target) {
                 info.as_ref().and_then(|i| {
                     i.output_logical_height.map(|h| {
-                        let bar = Self::get_height(i.style, i.scale_factor) as u32;
+                        let bar = Self::get_height(i.layout.surface, i.scale_factor) as u32;
                         h.saturating_sub(bar)
                     })
                 })

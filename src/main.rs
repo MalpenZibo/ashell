@@ -1,5 +1,6 @@
 use crate::config::{Position, get_config};
 use crate::outputs::Outputs;
+use crate::theme::BarLayout;
 use app::App;
 use clap::Parser;
 use flexi_logger::{
@@ -127,7 +128,8 @@ fn main() -> iced::Result {
         Font::DEFAULT
     };
 
-    let height = Outputs::get_height(config.appearance.style, config.appearance.scale_factor);
+    let bar_layout = BarLayout::from_appearance(&config.appearance.bar);
+    let height = Outputs::get_height(bar_layout.surface, config.appearance.scale_factor);
 
     let iced_layer = match config.layer {
         config::Layer::Top => Layer::Top,
@@ -147,7 +149,12 @@ fn main() -> iced::Result {
         } | Anchor::LEFT
             | Anchor::RIGHT,
         layer: iced_layer,
-        exclusive_zone: height as i32,
+        exclusive_zone: Outputs::exclusive_zone(
+            bar_layout,
+            config.position,
+            config.appearance.scale_factor,
+        ),
+        margin: Outputs::margin(bar_layout, config.appearance.scale_factor),
         size: Some((0, height as u32)),
         keyboard_interactivity: KeyboardInteractivity::None,
         namespace: "ashell-main-layer".into(),
