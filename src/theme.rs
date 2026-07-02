@@ -514,102 +514,104 @@ impl AshellTheme {
         &self,
         is_empty: bool,
         is_urgent: bool,
+        is_active: bool,
         colors: Option<Option<AppearanceColor>>,
     ) -> impl Fn(&Theme, Status) -> button::Style + use<> {
         let radius_lg = self.radius.lg;
         move |theme: &Theme, status: Status| {
-            let (bg_color, fg_color) = colors.map_or_else(
-                || {
-                    (
-                        theme.extended_palette().background.weak.color,
-                        theme.palette().text,
-                    )
-                },
-                |c| {
-                    c.map_or_else(
-                        || {
-                            (
-                                theme.extended_palette().primary.base.color,
-                                theme.extended_palette().primary.base.text,
-                            )
-                        },
-                        |c| {
-                            let color = palette::Primary::generate(
-                                c.get_base(),
-                                theme.palette().background,
-                                c.get_text().unwrap_or_else(|| theme.palette().text),
-                            );
-                            (color.base.color, color.base.text)
-                        },
-                    )
-                },
-            );
-            let urgent_color = theme.palette().danger;
+            let primary = colors.map(|c| {
+                c.map_or_else(
+                    || theme.extended_palette().primary,
+                    |c| {
+                        palette::Primary::generate(
+                            c.get_base(),
+                            theme.palette().background,
+                            c.get_text().unwrap_or_else(|| theme.palette().text),
+                        )
+                    },
+                )
+            });
+            let resolve = |bg: fn(&palette::Background) -> palette::Pair,
+                           pr: fn(&palette::Primary) -> palette::Pair| {
+                match primary {
+                    Some(p) => {
+                        let pair = pr(&p);
+                        (pair.color, pair.text)
+                    }
+                    None => {
+                        let pair = bg(&theme.extended_palette().background);
+                        (pair.color, theme.palette().text)
+                    }
+                }
+            };
+            let (bg_color, fg_color) = resolve(|b| b.weak, |p| p.base);
+            let (bg_strong, fg_strong) = resolve(|b| b.strong, |p| p.strong);
+            let (bg_weak, fg_weak) = resolve(|b| b.weak, |p| p.weak);
             let mut base = button::Style {
                 background: Some(Background::Color(if is_urgent && is_empty {
-                    urgent_color
+                    theme.extended_palette().danger.base.color
+                } else if is_empty && is_active {
+                    theme.extended_palette().background.strong.color
                 } else if is_empty {
                     theme.extended_palette().background.weak.color
-                } else {
+                } else if is_active {
                     bg_color
+                } else {
+                    bg_weak
                 })),
                 border: Border {
                     width: if is_urgent || is_empty { 1.0 } else { 0.0 },
-                    color: if is_urgent { urgent_color } else { bg_color },
+                    color: if is_urgent {
+                        theme.extended_palette().danger.base.color
+                    } else if is_active {
+                        bg_color
+                    } else {
+                        bg_weak
+                    },
                     radius: radius_lg.into(),
                 },
                 text_color: if is_urgent && is_empty {
                     theme.extended_palette().danger.base.text
+                } else if is_empty && is_active {
+                    theme.extended_palette().background.strong.text
                 } else if is_empty {
                     theme.extended_palette().background.weak.text
-                } else {
+                } else if is_active {
                     fg_color
+                } else {
+                    fg_weak
                 },
                 ..button::Style::default()
             };
             match status {
                 Status::Active => base,
                 Status::Hovered => {
-                    let (bg_color, fg_color) = colors.map_or_else(
-                        || {
-                            (
-                                theme.extended_palette().background.strong.color,
-                                theme.palette().text,
-                            )
-                        },
-                        |c| {
-                            c.map_or_else(
-                                || {
-                                    (
-                                        theme.extended_palette().primary.strong.color,
-                                        theme.extended_palette().primary.strong.text,
-                                    )
-                                },
-                                |c| {
-                                    let color = palette::Primary::generate(
-                                        c.get_base(),
-                                        theme.palette().background,
-                                        c.get_text().unwrap_or_else(|| theme.palette().text),
-                                    );
-                                    (color.strong.color, color.strong.text)
-                                },
-                            )
-                        },
-                    );
-
                     base.background = Some(Background::Color(if is_urgent && is_empty {
                         theme.extended_palette().danger.strong.color
                     } else if is_empty {
                         theme.extended_palette().background.strong.color
-                    } else {
+                    } else if is_active {
                         bg_color
+                    } else {
+                        bg_strong
                     }));
+                    base.border.color = if is_urgent && is_active {
+                        theme.extended_palette().danger.base.color
+                    } else if is_urgent {
+                        theme.extended_palette().danger.strong.color
+                    } else if is_active {
+                        bg_color
+                    } else {
+                        bg_strong
+                    };
                     base.text_color = if is_urgent && is_empty {
                         theme.extended_palette().danger.strong.text
                     } else if is_empty {
-                        theme.extended_palette().background.weak.text
-                    } else {
+                        theme.extended_palette().background.strong.text
+                    } else if is_active {
                         fg_color
+                    } else {
+                        fg_strong
                     };
                     base
                 }
