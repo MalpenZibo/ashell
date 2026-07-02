@@ -34,6 +34,7 @@ Module names: `"Workspaces"`, `"WindowTitle"`, `"SystemInfo"`, `"KeyboardLayout"
 [appearance]
 style = "Islands"               # "Islands", "Solid", or "Gradient"
 opacity = 0.9                   # 0.0-1.0
+blur = false                    # compositor blur behind translucent surfaces
 font_name = "JetBrains Mono"   # Optional custom font
 scale_factor = 1.0              # DPI scale factor
 ```
