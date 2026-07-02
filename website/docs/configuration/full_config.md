@@ -166,6 +166,7 @@ style = "Islands"  # (default), "Solid", or "Gradient"
 # font_name = "Sans"           # (default: None) custom font family
 # scale_factor = 1.0           # (default) range: 0.0 < x <= 2.0
 # opacity = 1.0                # (default) range: 0.0 to 1.0
+# blur = false                 # (default) compositor blur behind translucent surfaces
 primary_color = "#7aa2f7"
 success_color = "#9ece6a"
 warning_color = "#e0af68"
