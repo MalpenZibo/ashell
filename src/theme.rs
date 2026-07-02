@@ -519,84 +519,34 @@ impl AshellTheme {
     ) -> impl Fn(&Theme, Status) -> button::Style + use<> {
         let radius_lg = self.radius.lg;
         move |theme: &Theme, status: Status| {
-            let (bg_color, fg_color) = colors.map_or_else(
-                || {
-                    (
-                        theme.extended_palette().background.weak.color,
-                        theme.palette().text,
-                    )
-                },
-                |c| {
-                    c.map_or_else(
-                        || {
-                            (
-                                theme.extended_palette().primary.base.color,
-                                theme.extended_palette().primary.base.text,
-                            )
-                        },
-                        |c| {
-                            let color = palette::Primary::generate(
-                                c.get_base(),
-                                theme.palette().background,
-                                c.get_text().unwrap_or_else(|| theme.palette().text),
-                            );
-                            (color.base.color, color.base.text)
-                        },
-                    )
-                },
-            );
-            let (bg_strong, fg_strong) = colors.map_or_else(
-                || {
-                    (
-                        theme.extended_palette().background.strong.color,
-                        theme.palette().text,
-                    )
-                },
-                |c| {
-                    c.map_or_else(
-                        || {
-                            (
-                                theme.extended_palette().primary.strong.color,
-                                theme.extended_palette().primary.strong.text,
-                            )
-                        },
-                        |c| {
-                            let color = palette::Primary::generate(
-                                c.get_base(),
-                                theme.palette().background,
-                                c.get_text().unwrap_or_else(|| theme.palette().text),
-                            );
-                            (color.strong.color, color.strong.text)
-                        },
-                    )
-                },
-            );
-            let (bg_weak, fg_weak) = colors.map_or_else(
-                || {
-                    (
-                        theme.extended_palette().background.weak.color,
-                        theme.palette().text,
-                    )
-                },
-                |c| {
-                    c.map_or_else(
-                        || {
-                            (
-                                theme.extended_palette().primary.weak.color,
-                                theme.extended_palette().primary.weak.text,
-                            )
-                        },
-                        |c| {
-                            let color = palette::Primary::generate(
-                                c.get_base(),
-                                theme.palette().background,
-                                c.get_text().unwrap_or_else(|| theme.palette().text),
-                            );
-                            (color.weak.color, color.weak.text)
-                        },
-                    )
-                },
-            );
+            let primary = colors.map(|c| {
+                c.map_or_else(
+                    || theme.extended_palette().primary,
+                    |c| {
+                        palette::Primary::generate(
+                            c.get_base(),
+                            theme.palette().background,
+                            c.get_text().unwrap_or_else(|| theme.palette().text),
+                        )
+                    },
+                )
+            });
+            let resolve = |bg: fn(&palette::Background) -> palette::Pair,
+                           pr: fn(&palette::Primary) -> palette::Pair| {
+                match primary {
+                    Some(p) => {
+                        let pair = pr(&p);
+                        (pair.color, pair.text)
+                    }
+                    None => {
+                        let pair = bg(&theme.extended_palette().background);
+                        (pair.color, theme.palette().text)
+                    }
+                }
+            };
+            let (bg_color, fg_color) = resolve(|b| b.weak, |p| p.base);
+            let (bg_strong, fg_strong) = resolve(|b| b.strong, |p| p.strong);
+            let (bg_weak, fg_weak) = resolve(|b| b.weak, |p| p.weak);
             let urgent_color = theme.palette().danger;
             let mut base = button::Style {
                 background: Some(Background::Color(if is_urgent && is_empty {
