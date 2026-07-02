@@ -224,12 +224,16 @@ impl Outputs {
         })
     }
 
+    /// Strict canonical-name equality. Called by the workspace
+    /// visibility filter with `w.monitor` (a compositor-canonical
+    /// output name), where the substring fuzz used by `name_in_config`
+    /// would re-introduce the very false-match bug this PR fixed
+    /// (e.g. an event for `DP-1` matching an output whose description
+    /// contains `"DP-1"` as a substring).
     pub fn has_name(&self, name: &str) -> bool {
-        // Match by canonical name (equality) OR description (substring,
-        // to preserve #312's EDID-alias behaviour).
-        self.entries.iter().any(|(key, info, _)| {
-            info.is_some() && Self::matches_spec(&key.name, &key.description, name)
-        })
+        self.entries
+            .iter()
+            .any(|(key, info, _)| info.is_some() && key.name == name)
     }
 
     #[allow(clippy::too_many_arguments)]
