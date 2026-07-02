@@ -1946,6 +1946,7 @@ dependencies = [
 [[package]]
 name = "iced_layershell"
 version = "0.2.1"
+source = "git+https://github.com/MalpenZibo/iced_layershell?branch=feat%2Fext-background-effect#77994e15ab01f186d8b756017dd330dc15cc00e6"
 dependencies = [
  "calloop",
  "calloop-wayland-source",

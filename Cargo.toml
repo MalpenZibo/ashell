@@ -29,7 +29,9 @@ depends = ["libwayland-client0", "libpipewire-0.3-0t64", "libpulse0"]
 depends = ["libwayland-client", "pipewire-libs", "pulseaudio-libs"]
 
 [dependencies]
-iced = { package = "iced_layershell", git = "https://github.com/MalpenZibo/iced_layershell", tag = "v0.2.1", features = [
+# Temporary: track the unmerged `feat/ext-background-effect` branch for the
+# blur_container widget. Revert to a tagged release once it lands.
+iced = { package = "iced_layershell", git = "https://github.com/MalpenZibo/iced_layershell", branch = "feat/ext-background-effect", features = [
   "tokio",
   "advanced",
   "wgpu",
@@ -106,13 +108,6 @@ unic-langid = "0.9"
 # makes translucent backgrounds render opaque). Pinned to a branch off
 # v0.4.8 to match the release iced_tiny_skia 0.14 depends on.
 softbuffer = { git = "https://github.com/MalpenZibo/softbuffer", branch = "wayland-argb" }
-
-# Temporary: point at local iced_layershell while the
-# `feat/ext-background-effect` branch (blur_container widget) is unmerged.
-# Revert before opening the ashell PR — land the iced_layershell PR, cut a new
-# tag, and bump the dependency above to it.
-[patch."https://github.com/MalpenZibo/iced_layershell"]
-iced_layershell = { path = "../iced_layershell" }
 
 [build-dependencies]
 allsorts = "0.17"
