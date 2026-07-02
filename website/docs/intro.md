@@ -4,7 +4,7 @@ sidebar_position: 1
 
 # 🚀 Getting Started
 
-Ashell is a Wayland status bar written in Rust using the `iced` library. It runs
+Ashell is a ready to go desktop shell for Wayland, written in Rust using the `iced` library. It runs
 on any Wayland compositor. See [Compositor Support](./compositor-support.md) for
 the dedicated integrations, the generic fallback, and the feature matrix.
 

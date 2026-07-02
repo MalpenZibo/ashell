@@ -3,7 +3,7 @@ authors = ["ashell contributors"]
 language = "en"
 src = "src"
 title = "ashell Developer Guide"
-description = "Developer onboarding and architecture reference for the ashell Wayland status bar"
+description = "Developer onboarding and architecture reference for the ashell Wayland desktop shell"
 
 [output.html]
 default-theme = "coal"
