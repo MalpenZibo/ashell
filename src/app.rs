@@ -380,7 +380,16 @@ impl App {
             Message::OutputEvent(event) => match event {
                 OutputEvent::Added(info) => {
                     info!("Output created: {info:?}");
-                    let name = &format!("{} {} {}", info.name, info.make, info.model);
+                    // Pass both the canonical name and the full EDID
+                    // description down to Outputs::add. The workspace
+                    // visibility filter compares against just the
+                    // canonical `info.name` (matches `w.monitor` from
+                    // the compositor); name_in_config / has_name keep
+                    // matching against the concatenated description
+                    // too so #312's fuzzy-EDID-alias config behaviour
+                    // is preserved.
+                    let name = info.name.as_str();
+                    let description = format!("{} {} {}", info.name, info.make, info.model);
 
                     let (bar_style, bar_position, scale_factor) =
                         use_theme(|t| (t.bar_style, t.bar_position, t.scale_factor));
@@ -390,6 +399,7 @@ impl App {
                         bar_position,
                         self.general_config.layer,
                         name,
+                        &description,
                         info.id,
                         scale_factor,
                     );
