@@ -111,7 +111,10 @@ impl Outputs {
         // on demand when a menu is opened.
         Self {
             entries: vec![(
-                "Fallback".to_string(),
+                OutputKey {
+                    name: "Fallback".to_string(),
+                    description: String::new(),
+                },
                 Some(ShellInfo {
                     id: SurfaceId::MAIN,
                     menu: Menu::new(),
@@ -530,7 +533,7 @@ impl Outputs {
     fn find_by_surface_id(
         &self,
         id: SurfaceId,
-    ) -> Option<&(String, Option<ShellInfo>, Option<OutputId>)> {
+    ) -> Option<&(OutputKey, Option<ShellInfo>, Option<OutputId>)> {
         self.entries.iter().find(|(_, shell_info, _)| {
             shell_info
                 .as_ref()
@@ -541,7 +544,7 @@ impl Outputs {
     fn find_by_surface_id_mut(
         &mut self,
         id: SurfaceId,
-    ) -> Option<&mut (String, Option<ShellInfo>, Option<OutputId>)> {
+    ) -> Option<&mut (OutputKey, Option<ShellInfo>, Option<OutputId>)> {
         self.entries.iter_mut().find(|(_, shell_info, _)| {
             shell_info
                 .as_ref()
