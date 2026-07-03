@@ -64,9 +64,23 @@ impl OverlaySurface {
     }
 }
 
+/// Pair of strings identifying an output. `name` is the canonical
+/// short name reported by the compositor (e.g. `eDP-1`) — used for
+/// strict equality checks against workspace events (`has_name`) and
+/// as the layer-shell surface key. `description` includes the EDID
+/// (e.g. `eDP-1 Make Model Serial`) — used only for the fuzzy
+/// substring matching in `name_in_config`, so users can alias
+/// outputs by any string that appears in the EDID (the behaviour
+/// added by #312).
+#[derive(Debug, Clone)]
+pub struct OutputKey {
+    pub name: String,
+    pub description: String,
+}
+
 #[derive(Debug, Clone)]
 pub struct Outputs {
-    entries: Vec<(String, Option<ShellInfo>, Option<OutputId>)>,
+    entries: Vec<(OutputKey, Option<ShellInfo>, Option<OutputId>)>,
     toast: Option<OverlaySurface>,
     osd: Option<OverlaySurface>,
     /// Last toast input-region request, replayed once the toast's output is
@@ -84,7 +98,7 @@ pub enum HasOutput<'a> {
 }
 
 impl Outputs {
-    pub fn iter(&self) -> std::slice::Iter<'_, (String, Option<ShellInfo>, Option<OutputId>)> {
+    pub fn iter(&self) -> std::slice::Iter<'_, (OutputKey, Option<ShellInfo>, Option<OutputId>)> {
         self.entries.iter()
     }
 
@@ -99,7 +113,10 @@ impl Outputs {
         // on demand when a menu is opened.
         Self {
             entries: vec![(
-                "Fallback".to_string(),
+                OutputKey {
+                    name: "Fallback".to_string(),
+                    description: String::new(),
+                },
                 Some(ShellInfo {
                     id: SurfaceId::MAIN,
                     menu: Menu::new(),
@@ -165,13 +182,23 @@ impl Outputs {
         (id, main_task)
     }
 
-    fn name_in_config(name: &str, outputs: &config::Outputs) -> bool {
+    /// Match a user-supplied output spec against an output's name +
+    /// description pair. Returns true when:
+    ///   - the spec equals the canonical name (`info.name`), OR
+    ///   - the spec appears anywhere in the description (`info.name +
+    ///     info.make + info.model`), preserving #312's fuzzy alias
+    ///     matching by EDID substring.
+    fn matches_spec(name: &str, description: &str, spec: &str) -> bool {
+        name == spec || description.contains(spec)
+    }
+
+    fn name_in_config(name: &str, description: &str, outputs: &config::Outputs) -> bool {
         match outputs {
             config::Outputs::All => true,
             config::Outputs::Active => false,
-            config::Outputs::Targets(request_outputs) => {
-                request_outputs.iter().any(|output| name.contains(output))
-            }
+            config::Outputs::Targets(request_outputs) => request_outputs
+                .iter()
+                .any(|spec| Self::matches_spec(name, description, spec)),
         }
     }
 
@@ -195,11 +222,13 @@ impl Outputs {
         })
     }
 
+    /// Returns the canonical short name (e.g. `eDP-1`) — used by the
+    /// workspace visibility filter which compares against `w.monitor`.
     pub fn get_monitor_name(&self, id: SurfaceId) -> Option<&str> {
-        self.entries.iter().find_map(|(name, info, _)| {
+        self.entries.iter().find_map(|(key, info, _)| {
             info.as_ref().and_then(|info| {
                 if info.id == id {
-                    Some(name.as_str())
+                    Some(key.name.as_str())
                 } else {
                     None
                 }
@@ -207,10 +236,16 @@ impl Outputs {
         })
     }
 
+    /// Strict canonical-name equality. Called by the workspace
+    /// visibility filter with `w.monitor` (a compositor-canonical
+    /// output name), where the substring fuzz used by `name_in_config`
+    /// would re-introduce the very false-match bug this PR fixed
+    /// (e.g. an event for `DP-1` matching an output whose description
+    /// contains `"DP-1"` as a substring).
     pub fn has_name(&self, name: &str) -> bool {
         self.entries
             .iter()
-            .any(|(n, info, _)| info.is_some() && n.as_str().contains(name))
+            .any(|(key, info, _)| info.is_some() && key.name == name)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -221,10 +256,11 @@ impl Outputs {
         position: Position,
         layer: config::Layer,
         name: &str,
+        description: &str,
         output_id: OutputId,
         scale_factor: f64,
     ) -> Task<Message> {
-        let target = Self::name_in_config(name, request_outputs);
+        let target = Self::name_in_config(name, description, request_outputs);
 
         if target {
             debug!("Found target output, creating a new layer surface");
@@ -232,10 +268,14 @@ impl Outputs {
             let (id, task) =
                 Self::create_output_layers(style, Some(output_id), position, layer, scale_factor);
 
+            // Replace an existing entry with the same canonical name
+            // (e.g. monitor was reconnected). Description-match is
+            // intentionally NOT used here — replacement is identity-
+            // based, not alias-based.
             let destroy_task = match self
                 .entries
                 .iter()
-                .position(|(key, _, _)| key.as_str() == name)
+                .position(|(key, _, _)| key.name.as_str() == name)
             {
                 Some(index) => {
                     let old_output = self.entries.swap_remove(index);
@@ -250,7 +290,10 @@ impl Outputs {
 
             let menu = self.make_menu();
             self.entries.push((
-                name.to_owned(),
+                OutputKey {
+                    name: name.to_owned(),
+                    description: description.to_owned(),
+                },
                 Some(ShellInfo {
                     id,
                     menu,
@@ -287,7 +330,14 @@ impl Outputs {
                 name, request_outputs
             );
 
-            self.entries.push((name.to_owned(), None, Some(output_id)));
+            self.entries.push((
+                OutputKey {
+                    name: name.to_owned(),
+                    description: description.to_owned(),
+                },
+                None,
+                Some(output_id),
+            ));
 
             Task::none()
         }
@@ -337,7 +387,10 @@ impl Outputs {
 
                     let menu = self.make_menu();
                     self.entries.push((
-                        "Fallback".to_string(),
+                        OutputKey {
+                            name: "Fallback".to_string(),
+                            description: String::new(),
+                        },
                         Some(ShellInfo {
                             id,
                             menu,
@@ -370,8 +423,10 @@ impl Outputs {
         let to_remove = self
             .entries
             .iter()
-            .filter_map(|(name, shell_info, output_id)| {
-                if !Self::name_in_config(name, request_outputs) && shell_info.is_some() {
+            .filter_map(|(key, shell_info, output_id)| {
+                if !Self::name_in_config(&key.name, &key.description, request_outputs)
+                    && shell_info.is_some()
+                {
                     *output_id
                 } else {
                     None
@@ -383,9 +438,11 @@ impl Outputs {
         let to_add = self
             .entries
             .iter()
-            .filter_map(|(name, shell_info, output_id)| {
-                if Self::name_in_config(name, request_outputs) && shell_info.is_none() {
-                    Some((name.clone(), *output_id))
+            .filter_map(|(key, shell_info, output_id)| {
+                if Self::name_in_config(&key.name, &key.description, request_outputs)
+                    && shell_info.is_none()
+                {
+                    Some((key.clone(), *output_id))
                 } else {
                     None
                 }
@@ -395,14 +452,15 @@ impl Outputs {
 
         let mut tasks = Vec::new();
 
-        for (name, output_id) in to_add {
+        for (key, output_id) in to_add {
             if let Some(output_id) = output_id {
                 tasks.push(self.add(
                     style,
                     request_outputs,
                     position,
                     layer,
-                    name.as_str(),
+                    key.name.as_str(),
+                    key.description.as_str(),
                     output_id,
                     scale_factor,
                 ));
@@ -486,7 +544,7 @@ impl Outputs {
     fn find_by_surface_id(
         &self,
         id: SurfaceId,
-    ) -> Option<&(String, Option<ShellInfo>, Option<OutputId>)> {
+    ) -> Option<&(OutputKey, Option<ShellInfo>, Option<OutputId>)> {
         self.entries.iter().find(|(_, shell_info, _)| {
             shell_info
                 .as_ref()
@@ -497,7 +555,7 @@ impl Outputs {
     fn find_by_surface_id_mut(
         &mut self,
         id: SurfaceId,
-    ) -> Option<&mut (String, Option<ShellInfo>, Option<OutputId>)> {
+    ) -> Option<&mut (OutputKey, Option<ShellInfo>, Option<OutputId>)> {
         self.entries.iter_mut().find(|(_, shell_info, _)| {
             shell_info
                 .as_ref()
