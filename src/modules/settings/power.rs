@@ -292,6 +292,21 @@ impl PowerSettings {
                     SettingsFormat::Name | SettingsFormat::IconAndName => {
                         convert::Into::<Element<'a, Message>>::into(icon(p.get_icon_state()))
                     }
+                    SettingsFormat::PercentageAndTime => row!(
+                        text(format!("{}%", p.data.capacity)),
+                        text(format_time_for_battery(&p.data))
+                    )
+                    .spacing(space.xxs)
+                    .align_y(Alignment::Center)
+                    .into(),
+                    SettingsFormat::IconAndPercentageAndTime => row!(
+                        icon(p.get_icon_state()),
+                        text(format!("{}%", p.data.capacity)),
+                        text(format_time_for_battery(&p.data))
+                    )
+                    .spacing(space.xxs)
+                    .align_y(Alignment::Center)
+                    .into(),
                 })
                 .style(move |theme: &Theme| container::Style {
                     text_color: Some(match state {
@@ -333,6 +348,12 @@ impl PowerSettings {
                     SettingsFormat::Time | SettingsFormat::IconAndTime => {
                         format_time_for_battery(&battery)
                     }
+                    SettingsFormat::PercentageAndTime
+                    | SettingsFormat::IconAndPercentageAndTime => format!(
+                        "{}% {}",
+                        battery.capacity,
+                        format_time_for_battery(&battery)
+                    ),
                     _ => format!("{}%", battery.capacity),
                 };
 
