@@ -50,6 +50,18 @@ pub fn fallback_icon() -> XdgIcon {
     XdgIcon::NerdFont(StaticIcon::Point)
 }
 
+fn warm_cache() {
+    LazyLock::force(&SYSTEM_ICON_NAMES);
+    LazyLock::force(&SYSTEM_ICON_ENTRIES);
+    LazyLock::force(&DESKTOP_ICON_INDEX);
+}
+
+// Build the indexes on a blocking worker: they scan every icon dir and parse
+// every .desktop file, which would otherwise stall the caller's thread.
+pub async fn warm_cache_async() {
+    let _ = tokio::task::spawn_blocking(warm_cache).await;
+}
+
 pub fn get_icon_from_name(icon_name: &str) -> Option<XdgIcon> {
     if icon_name.is_empty() {
         return None;

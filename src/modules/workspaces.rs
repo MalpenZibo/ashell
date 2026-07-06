@@ -69,6 +69,7 @@ pub enum Message {
     Scroll(i32, Option<String>),
     ConfigReloaded(WorkspacesModuleConfig),
     ScrollAccumulator(f32),
+    IconCacheWarmed,
 }
 
 pub struct Workspaces {
@@ -470,10 +471,21 @@ impl Workspaces {
                 iced::Task::none()
             }
             Message::ConfigReloaded(cfg) => {
-                set_collect_window_classes(
-                    cfg.indicator_format == WorkspaceIndicatorFormat::NameAndIcons,
-                );
+                let icons_enabled = cfg.indicator_format == WorkspaceIndicatorFormat::NameAndIcons;
+                set_collect_window_classes(icons_enabled);
                 self.config = cfg;
+                if icons_enabled {
+                    // Refresh only once the indexes are warm, so resolution
+                    // reads cached data instead of scanning on this thread.
+                    iced::Task::perform(xdg_icons::warm_cache_async(), |()| {
+                        Message::IconCacheWarmed
+                    })
+                } else {
+                    self.recalculate_ui_workspaces();
+                    iced::Task::none()
+                }
+            }
+            Message::IconCacheWarmed => {
                 self.recalculate_ui_workspaces();
                 iced::Task::none()
             }

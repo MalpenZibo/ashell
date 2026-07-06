@@ -1,7 +1,9 @@
 use crate::{
     HEIGHT,
     components::{Centerbox, menu::MenuType},
-    config::{self, AppearanceStyle, Config, Modules, Position},
+    config::{
+        self, AppearanceStyle, Config, ModuleName, Modules, Position, WorkspaceIndicatorFormat,
+    },
     get_log_spec,
     i18n::{Localizer, init_localizer},
     ipc::IpcCommand,
@@ -23,7 +25,7 @@ use crate::{
     },
     osd::{self, Osd},
     outputs::{HasOutput, Outputs},
-    services::ReadOnlyService,
+    services::{ReadOnlyService, xdg_icons},
     theme::{AshellTheme, backdrop_color, darken_color, init_theme, use_theme},
 };
 use flexi_logger::LoggerHandle;
@@ -109,6 +111,14 @@ impl App {
 
             let notifications = Notifications::new(config.notifications, config.animations.enabled);
 
+            let needs_icons = config.modules.contains(&ModuleName::Tray)
+                || config.workspaces.indicator_format == WorkspaceIndicatorFormat::NameAndIcons;
+            let warm_icons = if needs_icons {
+                Task::perform(xdg_icons::warm_cache_async(), |()| ()).discard()
+            } else {
+                Task::none()
+            };
+
             (
                 App {
                     config_path,
@@ -136,12 +146,12 @@ impl App {
                     osd: Osd::new(config.osd),
                     visible: true,
                 },
-                Task::none(),
+                warm_icons,
             )
         }
     }
 
-    fn refresh_config(&mut self, config: Box<Config>) {
+    fn refresh_config(&mut self, config: Box<Config>) -> Task<Message> {
         init_theme(AshellTheme::new(
             config.position,
             &config.appearance,
@@ -163,8 +173,7 @@ impl App {
         self.custom = custom;
         self.updates = config.updates.map(Updates::new);
 
-        // ignore task, since config change should not generate any
-        let _ = self
+        let workspaces_task = self
             .workspaces
             .update(modules::workspaces::Message::ConfigReloaded(
                 config.workspaces,
@@ -204,6 +213,8 @@ impl App {
                 config.notifications,
             ));
         self.osd.update(osd::Message::ConfigReloaded(config.osd));
+
+        workspaces_task
     }
 
     pub fn theme(&self) -> Theme {
@@ -242,7 +253,7 @@ impl App {
                 }
 
                 self.logger.set_new_spec(get_log_spec(&config.log_level));
-                self.refresh_config(config);
+                tasks.push(self.refresh_config(config));
 
                 Task::batch(tasks)
             }
