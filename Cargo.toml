@@ -1,10 +1,11 @@
 [package]
 name = "ashell"
-description = "A ready to go Wayland status bar for Hyprland and Niri"
+description = "A ready to go status bar for Wayland compositors"
 homepage = "https://malpenzibo.github.io/ashell/"
 repository = "https://github.com/MalpenZibo/ashell"
-license = "MIT"
-version = "0.7.0"
+authors = ["Simone Camito (Zibo)"]
+license = "GPL-3.0-or-later"
+version = "0.9.0"
 edition = "2024"
 rust-version = "1.89"
 
@@ -28,37 +29,36 @@ depends = ["libwayland-client0", "libpipewire-0.3-0t64", "libpulse0"]
 depends = ["libwayland-client", "pipewire-libs", "pulseaudio-libs"]
 
 [dependencies]
-iced = { git = "https://github.com/MalpenZibo/iced", rev = "daccb115c0827bd67fb11bf767db15b2066ed9df", features = [
+iced = { package = "iced_layershell", git = "https://github.com/MalpenZibo/iced_layershell", tag = "v0.2.1", features = [
   "tokio",
-  "multi-window",
   "advanced",
   "wgpu",
-  "winit",
-  "wayland",
+  "tiny-skia",
   "image",
   "svg",
   "canvas",
 ] }
+iced_anim = "0.3"
 chrono = { version = "0.4", default-features = false, features = [
   "clock",
   "serde",
+  "unstable-locales",
 ] }
-hyprland = "0.4.0-beta.2"
+hyprland = { git = "https://github.com/hyprland-community/hyprland-rs", branch = "master" }
 serde = { version = "1.0", default-features = false, features = [] }
-sysinfo = { version = "0.37", features = ["linux-netdevs"] }
-tokio = { version = "1", default-features = false, features = [] }
+sysinfo = { version = "0.39", features = ["linux-netdevs"] }
+tokio = { version = "1", default-features = false, features = ["net"] }
 zbus = { version = "5", default-features = false, features = ["tokio"] }
 libpulse-binding = { version = "2.28", features = ["pa_v15"] }
 log = { version = "0.4", features = [] }
 flexi_logger = "0.31"
 pipewire = "0.9"
-wayland-client = "0.31.12"
-wayland-protocols = { version = "0.32.10", features = ["client", "unstable"] }
-itertools = "0.14"
+itertools = "0.15"
+unicode-segmentation = "1.13.2"
 hex_color = { version = "3", features = ["serde"] }
 anyhow = "1"
 udev = { version = "0.9", features = ["send", "sync"] }
-toml = "0.9"
+toml = "1"
 freedesktop-icons = "0.4"
 linicon-theme = "1.2.0"
 serde_json = "1"
@@ -66,19 +66,20 @@ regex = "1.12.2"
 serde_with = { version = "3.12", default-features = false, features = [
   "macros",
 ] }
-tokio-stream = { version = "0.1", default-features = false }
-uuid = { version = "1", default-features = false, features = ["v4"] }
+tokio-stream = { version = "0.1", default-features = false, features = [
+  "sync",
+] }
 clap = { version = "4.5", default-features = false, features = [
   "std",
   "derive",
+  "help",
 ] }
 shellexpand = { version = "3", features = ["path"] }
-inotify = { version = "0.11.0", default-features = false, features = [
+inotify = { version = "0.11.1", default-features = false, features = [
   "stream",
 ] }
 pin-project-lite = "0.2.16"
-niri-ipc = "25.11.0"
-parking_lot = "0.12.5"
+niri-ipc = "26.4"
 reqwest = { version = "0.13", default-features = false, features = [
   "json",
   "rustls",
@@ -88,9 +89,26 @@ signal-hook = "0.4.3"
 signal-hook-tokio = { version = "0.4", features = ["futures-v0_3"] }
 libc = "0.2.182"
 chrono-tz = "0.10.4"
+wayland-client = "0.31"
+wayland-protocols = { version = "0.32", features = ["client", "staging"] }
+wayland-protocols-wlr = { version = "0.3", features = ["client"] }
+i18n-embed = { version = "0.16", default-features = false, features = [
+  "fluent-system",
+  "rust-embed",
+] }
+i18n-embed-fl = "0.10"
+rust-embed = "8"
+unic-langid = "0.9"
+
+[patch.crates-io]
+# Patched softbuffer that uses wl_shm Argb8888 so the tiny-skia fallback
+# renderer honors alpha on Wayland (upstream hardcodes Xrgb8888, which
+# makes translucent backgrounds render opaque). Pinned to a branch off
+# v0.4.8 to match the release iced_tiny_skia 0.14 depends on.
+softbuffer = { git = "https://github.com/MalpenZibo/softbuffer", branch = "wayland-argb" }
 
 [build-dependencies]
-allsorts = "0.15"
+allsorts = "0.17"
 
 [package.metadata.rpm]
 package = "ashell"

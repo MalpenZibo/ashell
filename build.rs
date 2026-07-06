@@ -53,12 +53,13 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     }
     let unicodes: Vec<String> = unicodes
         .into_iter()
-        .map(|h| {
-            std::char::from_u32(u32::from_str_radix(&h, 16).unwrap())
-                .unwrap()
-                .to_string()
+        .map(|h| -> Result<String, Box<dyn Error>> {
+            let u = u32::from_str_radix(&h, 16)
+                .map_err(|e| format!("Invalid unicode hex: {h}: {e}"))?;
+            let c = std::char::from_u32(u).ok_or_else(|| format!("Invalid char from: {h}"))?;
+            Ok(c.to_string())
         })
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
     println!("Request the following unicodes {:?}", unicodes);
 
     let text = unicodes.join("");
@@ -101,7 +102,12 @@ fn subset_text(input: &str, text: &str, output_path: &str) -> Result<(), Box<dyn
     println!("Number of glyphs in new font: {}", glyph_ids.len());
 
     // Subset
-    let new_font = subset::subset(&font_provider, &glyph_ids)?;
+    let new_font = subset::subset(
+        &font_provider,
+        &glyph_ids,
+        &subset::SubsetProfile::Minimal,
+        subset::CmapTarget::default(),
+    )?;
 
     let output_path = Path::new(output_path);
 

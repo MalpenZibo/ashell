@@ -22,6 +22,55 @@ pub mod dbus;
 
 pub type TrayIcon = super::xdg_icons::XdgIcon;
 
+fn pixmap_to_icon(icons: Vec<dbus::Icon>) -> Option<TrayIcon> {
+    icons
+        .into_iter()
+        .filter(|i| {
+            // SNI clients sometimes return entries with zero dimensions or a
+            // bytes payload that doesn't match width*height*4 (e.g. when only
+            // IconName is populated). Feeding those to iced's atlas uploader
+            // panics in the padding loop, so drop them up front.
+            if i.width <= 0 || i.height <= 0 {
+                debug!(
+                    "unable to convert pixmap to icon: invalid dimensions {}x{}",
+                    i.width, i.height
+                );
+                return false;
+            }
+            let expected = (i.width as usize)
+                .checked_mul(i.height as usize)
+                .and_then(|v| v.checked_mul(4));
+
+            if Some(i.bytes.len()) != expected {
+                debug!(
+                    "pixmap byte mismatch ({}x{} expected {:?} bytes, got {})",
+                    i.width,
+                    i.height,
+                    expected,
+                    i.bytes.len()
+                );
+                return false;
+            }
+
+            true
+        })
+        .max_by_key(|i| {
+            trace!("tray icon w {}, h {}", i.width, i.height);
+            (i.width, i.height)
+        })
+        .map(|mut i| {
+            // Convert ARGB to RGBA
+            for pixel in i.bytes.chunks_exact_mut(4) {
+                pixel.rotate_left(1);
+            }
+            TrayIcon::Image(image::Handle::from_rgba(
+                i.width as u32,
+                i.height as u32,
+                i.bytes,
+            ))
+        })
+}
+
 #[derive(Debug, Clone)]
 pub enum TrayEvent {
     Registered(StatusNotifierItem),
@@ -56,29 +105,9 @@ impl StatusNotifierItem {
 
         debug!("item_proxy {item_proxy:?}");
 
-        let icon_pixmap = item_proxy.icon_pixmap().await;
-
-        let icon = match icon_pixmap {
-            Ok(icons) => {
-                icons
-                    .into_iter()
-                    .max_by_key(|i| {
-                        trace!("tray icon w {}, h {}", i.width, i.height);
-                        (i.width, i.height)
-                    })
-                    .map(|mut i| {
-                        // Convert ARGB to RGBA
-                        for pixel in i.bytes.chunks_exact_mut(4) {
-                            pixel.rotate_left(1);
-                        }
-                        TrayIcon::Image(image::Handle::from_rgba(
-                            i.width as u32,
-                            i.height as u32,
-                            i.bytes,
-                        ))
-                    })
-            }
-            Err(_) => item_proxy
+        let icon = match item_proxy.icon_pixmap().await.ok().and_then(pixmap_to_icon) {
+            Some(icon) => Some(icon),
+            None => item_proxy
                 .icon_name()
                 .await
                 .ok()
@@ -208,27 +237,9 @@ impl TrayService {
                         move |icon| {
                             let name = name.clone();
                             async move {
-                                icon.get().await.ok().and_then(|icon| {
-                                    icon.into_iter()
-                                        .max_by_key(|i| {
-                                            trace!("tray icon w {}, h {}", i.width, i.height);
-                                            (i.width, i.height)
-                                        })
-                                        .map(|mut i| {
-                                            // Convert ARGB to RGBA
-                                            for pixel in i.bytes.chunks_exact_mut(4) {
-                                                pixel.rotate_left(1);
-                                            }
-                                            TrayEvent::IconChanged(
-                                                name.to_owned(),
-                                                TrayIcon::Image(image::Handle::from_rgba(
-                                                    i.width as u32,
-                                                    i.height as u32,
-                                                    i.bytes,
-                                                )),
-                                            )
-                                        })
-                                })
+                                let icons = icon.get().await.ok()?;
+                                pixmap_to_icon(icons)
+                                    .map(|icon| TrayEvent::IconChanged(name.to_owned(), icon))
                             }
                         }
                     })
@@ -265,7 +276,7 @@ impl TrayService {
                             let name = name.clone();
                             let menu_proxy = item.menu_proxy.clone();
                             move |_| {
-                                debug!("layout update event name {}", &name);
+                                debug!("layout update event name {}", name);
 
                                 let name = name.clone();
                                 let menu_proxy = menu_proxy.clone();
@@ -419,24 +430,22 @@ impl ReadOnlyService for TrayService {
     }
 
     fn subscribe() -> iced::Subscription<ServiceEvent<Self>> {
-        let id = TypeId::of::<Self>();
-
-        Subscription::run_with_id(
-            id,
+        Subscription::run_with(TypeId::of::<Self>(), |_| {
             channel(100, async |mut output| {
                 let mut state = State::Init;
 
                 loop {
                     state = TrayService::start_listening(state, &mut output).await;
                 }
-            }),
-        )
+            })
+        })
     }
 }
 
 #[derive(Debug, Clone)]
 pub enum TrayCommand {
     MenuSelected(String, i32),
+    Activate(String),
 }
 
 impl Service for TrayService {
@@ -464,6 +473,23 @@ impl Service for TrayService {
                             )),
                             _ => ServiceEvent::Update(TrayEvent::None),
                         },
+                    )
+                } else {
+                    Task::none()
+                }
+            }
+            TrayCommand::Activate(name) => {
+                let item = self.data.iter().find(|item| item.name == name);
+                if let Some(item) = item {
+                    Task::perform(
+                        {
+                            let proxy = item.item_proxy.clone();
+                            async move {
+                                debug!("Activate tray item {name}");
+                                let _ = proxy.activate(0, 0).await;
+                            }
+                        },
+                        |_| ServiceEvent::Update(TrayEvent::None),
                     )
                 } else {
                     Task::none()

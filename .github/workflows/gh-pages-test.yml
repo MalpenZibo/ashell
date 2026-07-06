@@ -14,18 +14,18 @@ jobs:
         working-directory: website
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 10
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
           cache-dependency-path: ./website/pnpm-lock.yaml
 
@@ -36,3 +36,12 @@ jobs:
       - name: Build website
         run: pnpm build
         working-directory: ./website
+
+      - name: Install mdbook
+        uses: taiki-e/install-action@v2
+        with:
+          tool: mdbook
+
+      - name: Build developer guide
+        run: mdbook build docs/
+        working-directory: .

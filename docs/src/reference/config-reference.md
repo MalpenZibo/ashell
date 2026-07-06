@@ -1,0 +1,237 @@
+# Configuration Reference
+
+Complete reference for all configuration options in `~/.config/ashell/config.toml`.
+
+## Top-Level Options
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `log_level` | String | `"warn"` | Log level ([env_logger syntax](https://docs.rs/env_logger)) |
+| `language` | Option\<String\> | auto | UI language (BCP-47 or POSIX, e.g. `"en-US"`). Auto-detected from `$LC_MESSAGES` / `$LANG` when unset |
+| `region` | Option\<String\> | auto | Regional formatting — dates and unit defaults (e.g. `"it-IT"`). Auto-detected from `$LC_TIME` / `$LANG` when unset |
+| `position` | `"Top"` \| `"Bottom"` | `"Bottom"` | Bar position on screen |
+| `layer` | `"Top"` \| `"Bottom"` \| `"Overlay"` | `"Bottom"` | Wayland layer (Bottom = below floating windows) |
+| `outputs` | `"All"` \| `"Active"` \| `{ Targets = [...] }` | `"All"` | Which monitors show the bar |
+| `enable_esc_key` | bool | `false` | Whether ESC key closes menus |
+| `osd.enabled` | bool | `false` | Show OSD overlay for IPC volume/brightness/airplane commands |
+| `osd.timeout` | u64 | `1500` | OSD auto-hide delay in milliseconds |
+| `animations.enabled` | bool | `false` | Master toggle for UI animations (bar widths, menu open/close, toast slides, etc.) |
+
+## Module Layout
+
+```toml
+[modules]
+left = ["Workspaces"]
+center = ["Tempo"]
+right = [["SystemInfo", "Settings"], "Tray"]
+```
+
+Module names: `"Workspaces"`, `"WindowTitle"`, `"SystemInfo"`, `"KeyboardLayout"`, `"KeyboardSubmap"`, `"Tray"`, `"Clock"`, `"Tempo"`, `"Privacy"`, `"Settings"`, `"MediaPlayer"`, `"Updates"`, `"Custom:name"`.
+
+## Appearance
+
+```toml
+[appearance]
+style = "Islands"               # "Islands", "Solid", or "Gradient"
+opacity = 0.9                   # 0.0-1.0
+font_name = "JetBrains Mono"   # Optional custom font
+scale_factor = 1.0              # DPI scale factor
+```
+
+### Colors
+
+```toml
+# Simple hex color
+[appearance]
+background = "#1e1e2e"
+
+# Complete color with variants
+[appearance.primary]
+base = "#cba6f7"
+strong = "#dbbcff"
+weak = "#a385d8"
+text = "#1e1e2e"
+```
+
+Available color fields: `background`, `text`, `primary`, `secondary`, `success`, `danger`.
+
+### Menu Appearance
+
+```toml
+[appearance.menu]
+opacity = 0.95
+backdrop_blur = true
+```
+
+### Workspace Colors
+
+```toml
+[appearance]
+workspace_colors = ["#cba6f7", "#f38ba8", "#a6e3a1", "#89b4fa"]
+special_workspace_colors = ["#fab387"]
+```
+
+## Updates Module
+
+```toml
+[updates]
+check_cmd = "checkupdates | wc -l"    # Command to check for updates
+update_cmd = "foot -e sudo pacman -Syu" # Command to run updates
+interval = 3600                         # Check interval in seconds
+```
+
+If the `[updates]` section is omitted entirely, the Updates module is disabled.
+
+## Workspaces Module
+
+```toml
+[workspaces]
+visibility_mode = "All"              # "All", "MonitorSpecific", "MonitorSpecificExclusive"
+group_by_monitor = false
+enable_workspace_filling = false     # Fill empty workspace slots
+disable_special_workspaces = false
+max_workspaces = 10                  # Optional: limit workspace count
+workspace_names = ["1", "2", "3"]    # Optional: custom names
+enable_virtual_desktops = false
+```
+
+## Window Title Module
+
+```toml
+[window_title]
+mode = "Title"                       # "Title", "Class", "InitialTitle", "InitialClass"
+truncate_title_after_length = 150
+```
+
+## Keyboard Layout Module
+
+```toml
+[keyboard_layout]
+labels = { "English (US)" = "EN", "Italian" = "IT" }
+```
+
+## System Info Module
+
+```toml
+[system_info]
+# CPU thresholds
+[system_info.cpu]
+warn_threshold = 60
+alert_threshold = 80
+
+# Memory thresholds
+[system_info.memory]
+warn_threshold = 60
+alert_threshold = 80
+
+# Temperature thresholds
+[system_info.temperature]
+warn_threshold = 60
+alert_threshold = 80
+
+# Disk thresholds
+[system_info.disk]
+warn_threshold = 60
+alert_threshold = 80
+```
+
+**Dependencies:**
+- Temperature monitoring reads the kernel `hwmon` sysfs interface directly (no extra package required). The `sensor` option is either a type keyword (`"Cpu"`, `"Gpu"`, `"Acpi"`, `"Nvme"`) for auto-detection or an exact hwmon label (e.g. `"acpitz temp1"`) — run `sensors` (from `lm_sensors`) to find the right name. The displayed unit follows the locale / unit system, not a per-module option.
+- CPU, memory, disk, and network info use standard kernel interfaces and do not need extra packages.
+
+## Clock Module (Deprecated)
+
+```toml
+[clock]
+format = "%H:%M"    # chrono format string
+```
+
+## Tempo Module
+
+```toml
+[tempo]
+format = "%H:%M"
+date_format = "%A, %B %d"
+timezones = ["America/New_York", "Europe/London"]
+weather_location = "Rome"              # Or coordinates
+weather_format = "{temp}°C"
+```
+
+## Settings Module
+
+```toml
+[settings]
+# Enable/disable hover tooltips on status indicators (audio, bluetooth, wifi, battery)
+enable_tooltips = true
+
+# Custom buttons in the settings panel
+[[settings.custom_buttons]]
+icon = "\u{f023}"
+label = "VPN"
+status_cmd = "vpn-status"
+on_click = "vpn-toggle"
+```
+
+**Sub-module dependencies:** The Settings module requires `systemd-logind` for shutdown/reboot/sleep actions.
+
+| Sub-module | Required Package |
+|------------|-----------------|
+| Audio (volume) | PulseAudio or PipeWire-Pulse |
+| Bluetooth | `bluez` |
+| Brightness | systemd-logind (usually present) |
+| Network | `networkmanager` or `iwd` |
+| Power (battery) | `upower` |
+
+## Media Player Module
+
+```toml
+[media_player]
+format = "{artist} - {title}"
+```
+
+**Dependencies:** Any MPRIS-compatible media player (e.g., Spotify, Firefox, VLC, Strawberry). No extra system package is needed.
+
+## Custom Modules
+
+Custom modules allow you to create arbitrary modules with custom commands and icons.
+
+```toml
+[[CustomModule]]
+name = "volume"
+type = "Button"                        # "Text" or "Button"
+icon = "\u{f026}"                      # Nerd Font icon
+command = "pactl get-sink-volume @DEFAULT_SINK@"  # Left-click command
+on_right_click = "pactl set-sink-mute @DEFAULT_SINK@ toggle"
+on_middle_click = "pavucontrol"
+on_scroll_up = "pactl set-sink-volume @DEFAULT_SINK@ +5%"
+on_scroll_down = "pactl set-sink-volume @DEFAULT_SINK@ -5%"
+listen_cmd = "pactl subscribe"         # Optional: stream JSON updates
+```
+
+Custom module fields:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | String | Yes | Unique identifier |
+| `type` | `"Text"` \| `"Button"` | No | Display mode (default: `"Button"`) |
+| `icon` | String | No | Nerd Font icon character |
+| `command` | String | No | Command to execute on left-click (Button type) |
+| `on_right_click` | String | No | Command on right-click |
+| `on_middle_click` | String | No | Command on middle-click |
+| `on_scroll_up` | String | No | Command on scroll up |
+| `on_scroll_down` | String | No | Command on scroll down |
+| `listen_cmd` | String | No | Command that outputs JSON lines for dynamic updates |
+| `icons` | Map | No | Regex → icon mapping for dynamic icons |
+| `alert` | String (regex) | No | Regex to show alert indicator |
+
+The `listen_cmd` output must be JSON lines with `text` and `alt` fields:
+```json
+{"text": "50%", "alt": "volume"}
+```
+
+Reference a custom module in the layout as `"Custom:name"`:
+
+```toml
+[modules]
+right = ["Custom:volume", "Settings"]
+```

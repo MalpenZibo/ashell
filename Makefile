@@ -1,5 +1,8 @@
 .PHONY: help build start install fmt check
 
+PREFIX ?= /usr
+BINDIR ?= $(PREFIX)/bin
+
 help:
 	@echo "Usage: make [target]"
 	@echo ""
@@ -7,7 +10,7 @@ help:
 	@echo "  help          Show this help message"
 	@echo "  build         Build the project"
 	@echo "  start         Run the build"
-	@echo "  install       Install the build to /usr/bin"
+	@echo "  install       Install the build (supports DESTDIR and PREFIX)"
 	@echo "  fmt           Format the code"
 	@echo "  check         Format, check and lint the code"
 
@@ -18,7 +21,7 @@ start: build
 	./target/release/ashell
 
 install: build
-	sudo cp -f target/release/ashell /usr/bin
+	install -Dm755 target/release/ashell $(DESTDIR)$(BINDIR)/ashell
 
 fmt:
 	cargo fmt

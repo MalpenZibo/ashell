@@ -34,10 +34,13 @@ impl StatusNotifierWatcher {
         let dbus_proxy = DBusProxy::new(&connection).await?;
         let name_owner_changed_stream = dbus_proxy.receive_name_owner_changed().await?;
 
-        let flags = RequestNameFlags::AllowReplacement.into();
+        let flags = RequestNameFlags::AllowReplacement | RequestNameFlags::ReplaceExisting;
         if dbus_proxy.request_name(NAME, flags).await? == RequestNameReply::InQueue {
             warn!("Bus name '{NAME}' already owned");
         }
+
+        let emitter = SignalEmitter::new(&connection, OBJECT_PATH)?;
+        Self::status_notifier_host_registered(&emitter).await?;
 
         let internal_connection = connection.clone();
         let internal_interface = interface.clone();
@@ -70,14 +73,21 @@ impl StatusNotifierWatcher {
                                 .iter()
                                 .position(|(unique_name, _)| unique_name == name)
                             {
-                                let emitter =
-                                    SignalEmitter::new(&internal_connection, OBJECT_PATH).unwrap();
+                                let emitter = match
+                                    SignalEmitter::new(&internal_connection, OBJECT_PATH) {
+                                Ok(e) => e,
+                                Err(e) => {
+                                    warn!("Failed to create signal emitter: {e}");
+                                    continue;
+                                }
+                            };
                                 let service = interface.items.remove(idx).1;
-                                StatusNotifierWatcher::status_notifier_item_unregistered(
+                                if let Err(e) = StatusNotifierWatcher::status_notifier_item_unregistered(
                                     &emitter, &service,
                                 )
-                                .await
-                                .unwrap();
+                                .await {
+                                    warn!("Failed to emit item_unregistered signal: {e}");
+                                }
                             }
                         }
                     }
@@ -121,7 +131,13 @@ impl StatusNotifierWatcher {
                 };
 
                 let mut watcher = interface.get_mut().await;
-                let emitter = SignalEmitter::new(conn, OBJECT_PATH).unwrap();
+                let emitter = match SignalEmitter::new(conn, OBJECT_PATH) {
+                    Ok(e) => e,
+                    Err(e) => {
+                        warn!("Failed to create signal emitter: {e}");
+                        continue;
+                    }
+                };
                 watcher
                     .register_status_notifier_item_manual(
                         "/StatusNotifierItem",
@@ -142,19 +158,19 @@ impl StatusNotifierWatcher {
         sender: UniqueName<'static>,
         emitter: &SignalEmitter<'_>,
     ) {
+        if self.items.iter().any(|(s, _)| s == &sender) {
+            return;
+        }
+
         let service = if service.starts_with('/') {
             format!("{sender}{service}")
         } else {
             service.to_string()
         };
 
-        if self.items.iter().any(|(_, s)| s == &service) {
-            return;
-        }
-
         Self::status_notifier_item_registered(emitter, &service)
             .await
-            .unwrap();
+            .unwrap_or_else(|e| warn!("Failed to emit item_registered signal: {e}"));
 
         self.items.push((sender, service));
     }
@@ -175,12 +191,24 @@ impl StatusNotifierWatcher {
         #[zbus(header)] header: Header<'_>,
         #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
     ) {
-        let sender = header.sender().unwrap().to_owned();
+        let sender = match header.sender() {
+            Some(s) => s.to_owned(),
+            None => {
+                warn!("D-Bus message has no sender");
+                return;
+            }
+        };
         self.register_status_notifier_item_manual(service, sender, &emitter)
             .await;
     }
 
-    fn register_status_notifier_host(&mut self, _service: &str) {}
+    async fn register_status_notifier_host(
+        &mut self,
+        _service: &str,
+        #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
+    ) {
+        let _ = Self::status_notifier_host_registered(&emitter).await;
+    }
 
     #[zbus(property)]
     fn registered_status_notifier_items(&self) -> Vec<String> {
@@ -233,6 +261,8 @@ pub trait StatusNotifierItem {
 
     #[zbus(property)]
     fn menu(&self) -> zbus::Result<OwnedObjectPath>;
+
+    fn activate(&self, x: i32, y: i32) -> zbus::Result<()>;
 }
 
 #[derive(Clone, Debug, Type)]

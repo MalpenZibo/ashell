@@ -1,74 +1,329 @@
 use crate::{
+    components::MenuSize,
+    components::divider,
     components::icons::{StaticIcon, icon},
-    config::{SystemInfoIndicator, SystemInfoModuleConfig},
-    menu::MenuSize,
-    theme::AshellTheme,
+    config::{
+        CpuFormat, DiskFormat, MemoryFormat, SystemInfoIndicator, SystemInfoModuleConfig,
+        SystemInfoTemperature, TemperatureSensor, TemperatureSensorType,
+    },
+    i18n::{UnitSystem, unit_system},
+    t,
+    theme::{lerp_color, use_theme},
+    utils,
 };
 use iced::{
     Alignment, Element, Length, Subscription, Theme,
     time::every,
-    widget::{Column, Row, column, container, horizontal_rule, row, text},
+    widget::{Column, Row, column, container, row, text},
 };
+use iced_anim::{AnimationBuilder, transition::Easing};
 use itertools::Itertools;
+use log::{info, warn};
 use std::time::{Duration, Instant};
 use sysinfo::{Components, Disks, Networks, System};
 
+const MAX_IP_LEN: usize = 45;
+
+#[derive(Clone, Copy)]
+struct FixedIp([u8; MAX_IP_LEN], usize);
+
+impl FixedIp {
+    fn from_str(s: &str) -> Option<Self> {
+        if s.len() < MAX_IP_LEN {
+            let mut arr = [0u8; MAX_IP_LEN];
+            arr[..s.len()].copy_from_slice(s.as_bytes());
+            Some(Self(arr, s.len()))
+        } else {
+            None
+        }
+    }
+}
+
+impl std::fmt::Display for FixedIp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            std::str::from_utf8(&self.0[..self.1]).unwrap_or("")
+        )
+    }
+}
+
 struct NetworkData {
-    ip: String,
+    ip: FixedIp,
     download_speed: u32,
     upload_speed: u32,
     last_check: Instant,
 }
 
-struct SystemInfoData {
-    pub cpu_usage: u32,
-    pub memory_usage: u32,
-    pub memory_swap_usage: u32,
-    pub temperature: Option<i32>,
-    pub disks: Vec<(String, u32)>,
-    pub network: Option<NetworkData>,
+struct MemoryUsage {
+    percentage: u32,
+    fraction: String,
 }
 
+struct CpuUsage {
+    percentage: u32,
+    frequency: f32,
+}
+
+struct Temperature {
+    celsius: Option<i32>,
+}
+
+struct DiskView {
+    percentage: u32,
+    fraction: String,
+}
+
+struct SystemInfoData {
+    cpu_usage: CpuUsage,
+    memory_usage: MemoryUsage,
+    memory_swap_usage: MemoryUsage,
+    temperature: Temperature,
+    disks: Vec<(String, DiskView)>,
+    network: Option<NetworkData>,
+}
+
+fn find_first_sensor_label(labels: &[&str], components: &Components) -> Option<String> {
+    labels
+        .iter()
+        .find(|&&label| components.iter().any(|c| c.label() == label))
+        .map(|&label| label.to_string())
+}
+
+enum SensorMatch<'a> {
+    Exact(&'a [&'a str]),
+    StartsWith(&'a [&'a str]),
+    Contains(&'a [&'a str]),
+}
+
+fn find_sensor(components: &Components, matches: &[SensorMatch]) -> Option<String> {
+    for m in matches {
+        let result = match m {
+            SensorMatch::Exact(labels) => find_first_sensor_label(labels, components),
+            SensorMatch::StartsWith(prefixes) => {
+                let mut result = None;
+                for &prefix in *prefixes {
+                    if let Some(c) = components.iter().find(|c| c.label().starts_with(prefix)) {
+                        result = Some(c.label().to_string());
+                        break;
+                    }
+                }
+                result
+            }
+            SensorMatch::Contains(substrs) => {
+                let mut result = None;
+                for &substr in *substrs {
+                    if let Some(c) = components
+                        .iter()
+                        .find(|c| c.label().to_lowercase().contains(substr))
+                    {
+                        result = Some(c.label().to_string());
+                        break;
+                    }
+                }
+                result
+            }
+        };
+        if result.is_some() {
+            return result;
+        }
+    }
+    None
+}
+
+static CPU_MATCHES: [SensorMatch<'static>; 2] = [
+    SensorMatch::Exact(&[
+        "coretemp Package id 0",
+        "coretemp Core 0",
+        "coretemp Physical id 0",
+    ]),
+    SensorMatch::StartsWith(&["k10temp", "applesmc"]),
+];
+
+static GPU_MATCHES: [SensorMatch<'static>; 3] = [
+    SensorMatch::StartsWith(&["xe"]),
+    SensorMatch::Exact(&["amdgpu edge", "nouveau temp1"]),
+    SensorMatch::Contains(&["nvidia"]),
+];
+
+static ACPI_MATCHES: [SensorMatch<'static>; 1] =
+    [SensorMatch::Exact(&["acpitz temp1", "acpitz temp0"])];
+
+static NVME_MATCHES: [SensorMatch<'static>; 1] = [SensorMatch::StartsWith(&["nvme"])];
+
+fn get_temperature_sensor_label(
+    sensor: &TemperatureSensor,
+    components: &Components,
+) -> Option<String> {
+    let sensor_type = match sensor {
+        TemperatureSensor::Label(label) => {
+            if components.iter().any(|c| c.label() == label) {
+                info!("Using manually configured temperature sensor: {label}");
+                return Some(label.clone());
+            }
+            warn!(
+                "Configured temperature sensor '{label}' not found, falling back to Cpu auto-detection"
+            );
+            &TemperatureSensorType::Cpu
+        }
+        TemperatureSensor::Type(sensor_type) => sensor_type,
+    };
+
+    let matches: &[SensorMatch] = match sensor_type {
+        TemperatureSensorType::Cpu => &CPU_MATCHES,
+        TemperatureSensorType::Gpu => &GPU_MATCHES,
+        TemperatureSensorType::Acpi => &ACPI_MATCHES,
+        TemperatureSensorType::Nvme => &NVME_MATCHES,
+    };
+
+    let sensor_label = find_sensor(components, matches);
+
+    if let Some(ref label) = sensor_label {
+        info!("Auto-detected temperature sensor for {sensor_type:?}: {label}");
+    } else {
+        warn!("No temperature sensor found for {sensor_type:?} type");
+    }
+
+    sensor_label
+}
+
+#[allow(clippy::too_many_arguments)]
 fn get_system_info(
     system: &mut System,
     components: &mut Components,
     disks: &mut Disks,
     (networks, last_check): (&mut Networks, Option<Instant>),
-    temperature_sensor: &str,
+    temperature_config: &SystemInfoTemperature,
+    cached_sensor_label: &mut Option<String>,
+    mounts: Option<&[String]>,
 ) -> SystemInfoData {
     system.refresh_memory();
-    system.refresh_cpu_specifics(sysinfo::CpuRefreshKind::everything());
+    system.refresh_cpu_all();
 
     components.refresh(true);
     disks.refresh(true);
     networks.refresh(true);
 
-    let cpu_usage = system.global_cpu_usage().floor() as u32;
-    let memory_usage = ((system.total_memory() - system.available_memory()) as f32
-        / system.total_memory() as f32
-        * 100.) as u32;
+    let cpus = system.cpus();
+    let avg_freq = cpus.iter().map(|cpu| cpu.frequency() as f32).sum::<f32>() / cpus.len() as f32;
 
-    let memory_swap_usage = ((system.total_swap() - system.free_swap()) as f32
-        / system.total_swap() as f32
-        * 100.) as u32;
+    let cpu_usage = CpuUsage {
+        percentage: system.global_cpu_usage() as u32,
+        frequency: utils::floor_dp(avg_freq / 1000.0, 2),
+    };
 
-    let temperature = components
+    let total_mem = system.total_memory();
+    let used_mem = total_mem - system.available_memory();
+
+    let memory_usage = MemoryUsage {
+        percentage: if total_mem > 0 {
+            (used_mem as f32 / total_mem as f32 * 100.) as u32
+        } else {
+            0
+        },
+        fraction: format!(
+            "{:.2}/{:.2}",
+            utils::bytes_to_gib(used_mem),
+            utils::bytes_to_gib(total_mem)
+        ),
+    };
+
+    let total_swap = system.total_swap();
+    let used_swap = total_swap - system.free_swap();
+
+    let memory_swap_usage = MemoryUsage {
+        percentage: if total_swap > 0 {
+            (used_swap as f32 / total_swap as f32 * 100.) as u32
+        } else {
+            0
+        },
+        fraction: format!(
+            "{:.2}/{:.2}",
+            utils::bytes_to_gib(used_swap),
+            utils::bytes_to_gib(total_swap)
+        ),
+    };
+
+    let temperature_cel = {
+        if cached_sensor_label.is_none() {
+            *cached_sensor_label =
+                get_temperature_sensor_label(&temperature_config.sensor, components);
+        }
+
+        let mut reading = cached_sensor_label.as_ref().and_then(|label| {
+            components
+                .iter()
+                .find(|c| c.label() == label)
+                .and_then(|c| c.temperature().map(|t| t as i32))
+        });
+
+        if reading.is_none() {
+            if let Some(label) = (*cached_sensor_label).take() {
+                warn!("Cached sensor '{}' invalid; re-detecting", label);
+            }
+            *cached_sensor_label =
+                get_temperature_sensor_label(&temperature_config.sensor, components);
+            reading = cached_sensor_label.as_ref().and_then(|label| {
+                components
+                    .iter()
+                    .find(|c| c.label() == label)
+                    .and_then(|c| c.temperature().map(|t| t as i32))
+            });
+        }
+
+        reading
+    };
+
+    let temperature = Temperature {
+        celsius: temperature_cel,
+    };
+
+    let disks: Vec<(String, DiskView)> = disks
         .iter()
-        .find(|c| c.label() == temperature_sensor)
-        .and_then(|c| c.temperature().map(|t| t as i32));
-
-    let disks = disks
-        .into_iter()
         .filter(|d| !d.is_removable() && d.total_space() != 0)
+        .filter(|d| {
+            if let Some(mounts) = mounts {
+                let mount_str = d.mount_point().display().to_string();
+                mounts.contains(&mount_str)
+            } else {
+                true
+            }
+        })
         .map(|d| {
+            let total_space = d.total_space();
+            let avail_space = d.available_space();
+
+            let space_per = (total_space - avail_space) as f32 / total_space as f32 * 100.;
+
             (
-                d.mount_point().to_string_lossy().to_string(),
-                (((d.total_space() - d.available_space()) as f32) / d.total_space() as f32 * 100.)
-                    as u32,
+                d.mount_point().display().to_string(),
+                DiskView {
+                    percentage: space_per as u32,
+                    fraction: format!(
+                        "{:.2}/{:.2}",
+                        utils::bytes_to_gb(total_space - avail_space),
+                        utils::bytes_to_gb(total_space)
+                    ),
+                },
             )
         })
-        .sorted_by(|a, b| a.0.cmp(&b.0))
-        .collect::<Vec<_>>();
+        .sorted_by(|a, b| {
+            if let Some(mounts_list) = mounts {
+                let pos_a = mounts_list
+                    .iter()
+                    .position(|m| m == &a.0)
+                    .unwrap_or(usize::MAX);
+                let pos_b = mounts_list
+                    .iter()
+                    .position(|m| m == &b.0)
+                    .unwrap_or(usize::MAX);
+                pos_a.cmp(&pos_b)
+            } else {
+                a.0.cmp(&b.0)
+            }
+        })
+        .collect();
 
     let elapsed = last_check.map(|v| v.elapsed().as_secs());
 
@@ -138,11 +393,14 @@ fn get_system_info(
         memory_swap_usage,
         temperature,
         disks,
-        network: network.0.map(|ip| NetworkData {
-            ip: ip.to_string(),
-            download_speed: network_speed(network.1),
-            upload_speed: network_speed(network.2),
-            last_check: Instant::now(),
+        network: network.0.and_then(|ip| {
+            let ip_str = ip.to_string();
+            FixedIp::from_str(&ip_str).map(|ip| NetworkData {
+                ip,
+                download_speed: network_speed(network.1),
+                upload_speed: network_speed(network.2),
+                last_check: Instant::now(),
+            })
         }),
     }
 }
@@ -152,6 +410,19 @@ pub enum Message {
     Update,
 }
 
+/// Lerps between normal → warning → danger text colors. Input: 0.0 = normal,
+/// 1.0 = warning, 2.0 = danger. The intermediate segment lets normal→danger
+/// transitions flow through warning rather than cross-fading directly.
+fn severity_color(theme: &Theme, t: f32) -> iced::Color {
+    let palette = theme.palette();
+    let t = t.clamp(0.0, 2.0);
+    if t <= 1.0 {
+        lerp_color(palette.text, palette.warning, t)
+    } else {
+        lerp_color(palette.warning, palette.danger, t - 1.0)
+    }
+}
+
 pub struct SystemInfo {
     config: SystemInfoModuleConfig,
     system: System,
@@ -159,6 +430,7 @@ pub struct SystemInfo {
     disks: Disks,
     networks: Networks,
     data: SystemInfoData,
+    cached_sensor_label: Option<String>,
 }
 
 impl SystemInfo {
@@ -167,13 +439,22 @@ impl SystemInfo {
         let mut components = Components::new_with_refreshed_list();
         let mut disks = Disks::new_with_refreshed_list();
         let mut networks = Networks::new_with_refreshed_list();
+
+        let mut cached_sensor_label = None;
+
         let data = get_system_info(
             &mut system,
             &mut components,
             &mut disks,
             (&mut networks, None),
-            &config.temperature.sensor,
+            &config.temperature,
+            &mut cached_sensor_label,
+            config.disk.mounts.as_deref(),
         );
+
+        if let Some(label) = cached_sensor_label.as_ref() {
+            info!("Using temperature sensor: {label}");
+        }
 
         Self {
             config,
@@ -182,6 +463,7 @@ impl SystemInfo {
             disks,
             data,
             networks,
+            cached_sensor_label,
         }
     }
 
@@ -196,98 +478,124 @@ impl SystemInfo {
                         &mut self.networks,
                         self.data.network.as_ref().map(|n| n.last_check),
                     ),
-                    &self.config.temperature.sensor,
+                    &self.config.temperature,
+                    &mut self.cached_sensor_label,
+                    self.config.disk.mounts.as_deref(),
                 );
             }
         }
     }
 
     fn info_element<'a>(
-        theme: &AshellTheme,
         info_icon: StaticIcon,
         label: String,
         value: String,
     ) -> Element<'a, Message> {
+        let (font_size, space) = use_theme(|t| (t.font_size, t.space));
         row!(
-            container(icon(info_icon).size(theme.font_size.xl))
-                .center_x(Length::Fixed(theme.space.xl as f32)),
+            container(icon(info_icon).size(font_size.xl)).center_x(Length::Fixed(space.xl)),
             text(label).width(Length::Fill),
             text(value)
         )
         .align_y(Alignment::Center)
-        .spacing(theme.space.xs)
+        .spacing(space.xs)
         .into()
     }
 
-    fn indicator_info_element<'a, V: std::fmt::Display + PartialOrd + 'a>(
-        theme: &AshellTheme,
+    fn indicator_info_element<'a, V: PartialOrd + 'a>(
         info_icon: StaticIcon,
-        value: V,
-        unit: &str,
-        threshold: Option<(V, V)>,
-        prefix: Option<&str>,
+        (display, unit): (impl std::fmt::Display + 'a, &str),
+        threshold: Option<(V, V, V)>,
+        prefix: Option<String>,
     ) -> Element<'a, Message> {
-        let element = container(
-            row!(
-                icon(info_icon),
-                if let Some(prefix) = prefix {
-                    text(format!("{prefix} {value}{unit}"))
-                } else {
-                    text(format!("{value}{unit}"))
-                }
-            )
-            .spacing(theme.space.xxs),
-        );
+        let label = if let Some(prefix) = prefix {
+            format!("{prefix} {display}{unit}")
+        } else {
+            format!("{display}{unit}")
+        };
+        let (spacing, animations_enabled) = use_theme(|t| (t.space.xxs, t.animations_enabled));
 
-        if let Some((warn_threshold, alert_threshold)) = threshold {
-            element
+        let Some((value, warn_threshold, alert_threshold)) = threshold else {
+            return container(row!(icon(info_icon), text(label)).spacing(spacing)).into();
+        };
+
+        // 0.0 = normal, 1.0 = warning, 2.0 = danger. Animating through the
+        // warning color on normal→danger transitions mirrors the discrete
+        // state machine users expect.
+        let target: f32 = if value >= alert_threshold {
+            2.0
+        } else if value > warn_threshold {
+            1.0
+        } else {
+            0.0
+        };
+
+        if animations_enabled {
+            AnimationBuilder::new(target, move |t| {
+                container(row!(icon(info_icon), text(label.clone())).spacing(spacing))
+                    .style(move |theme: &Theme| container::Style {
+                        text_color: Some(severity_color(theme, t)),
+                        ..Default::default()
+                    })
+                    .into()
+            })
+            .animation(Easing::EASE.quick())
+            .into()
+        } else {
+            container(row!(icon(info_icon), text(label)).spacing(spacing))
                 .style(move |theme: &Theme| container::Style {
-                    text_color: if value > warn_threshold && value < alert_threshold {
-                        Some(theme.extended_palette().danger.weak.color)
-                    } else if value >= alert_threshold {
-                        Some(theme.palette().danger)
-                    } else {
-                        None
-                    },
+                    text_color: Some(severity_color(theme, target)),
                     ..Default::default()
                 })
                 .into()
-        } else {
-            element.into()
         }
     }
 
-    pub fn menu_view(&'_ self, theme: &AshellTheme) -> Element<'_, Message> {
+    pub fn menu_view(&'_ self) -> Element<'_, Message> {
+        let (font_size, space) = use_theme(|t| (t.font_size, t.space));
         container(
             column!(
-                text("System Info").size(theme.font_size.lg),
-                horizontal_rule(1),
+                text(t!("system-info-heading")).size(font_size.lg),
+                divider(),
                 Column::with_capacity(6)
                     .push(Self::info_element(
-                        theme,
                         StaticIcon::Cpu,
-                        "CPU Usage".to_string(),
-                        format!("{}%", self.data.cpu_usage),
+                        t!("system-info-cpu-usage"),
+                        match self.config.cpu.format {
+                            CpuFormat::Percentage => format!("{}%", self.data.cpu_usage.percentage),
+                            CpuFormat::Frequency =>
+                                format!("{} GHz", self.data.cpu_usage.frequency),
+                        }
                     ))
                     .push(Self::info_element(
-                        theme,
                         StaticIcon::Mem,
-                        "Memory Usage".to_string(),
-                        format!("{}%", self.data.memory_usage),
+                        t!("system-info-memory-usage"),
+                        match self.config.memory.format {
+                            MemoryFormat::Percentage =>
+                                format!("{}%", self.data.memory_usage.percentage),
+                            MemoryFormat::Fraction =>
+                                format!("{} GiB", self.data.memory_usage.fraction),
+                        }
                     ))
                     .push(Self::info_element(
-                        theme,
                         StaticIcon::Mem,
-                        "Swap memory Usage".to_string(),
-                        format!("{}%", self.data.memory_swap_usage),
+                        t!("system-info-swap-memory-usage"),
+                        match self.config.memory.format {
+                            MemoryFormat::Percentage =>
+                                format!("{}%", self.data.memory_swap_usage.percentage),
+                            MemoryFormat::Fraction =>
+                                format!("{} GiB", self.data.memory_swap_usage.fraction),
+                        }
                     ))
-                    .push_maybe(self.data.temperature.map(|temp| {
-                        Self::info_element(
-                            theme,
-                            StaticIcon::Temp,
-                            "Temperature".to_string(),
-                            format!("{temp}°C"),
-                        )
+                    .push(self.data.temperature.celsius.map(|cel| {
+                        Self::info_element(StaticIcon::Temp, t!("system-info-temperature"), {
+                            let units = unit_system();
+                            let value = match units {
+                                UnitSystem::Metric => cel,
+                                UnitSystem::Imperial => utils::celsius_to_fahrenheit(cel),
+                            };
+                            format!("{value}{}", units.temperature_symbol())
+                        })
                     }))
                     .push(
                         Column::with_children(
@@ -296,28 +604,32 @@ impl SystemInfo {
                                 .iter()
                                 .map(|(mount_point, usage)| {
                                     Self::info_element(
-                                        theme,
                                         StaticIcon::Drive,
-                                        format!("Disk Usage {mount_point}"),
-                                        format!("{usage}%"),
+                                        t!("system-info-disk-usage", mount = mount_point.as_str()),
+                                        match self.config.disk.format {
+                                            DiskFormat::Percentage => {
+                                                format!("{}%", usage.percentage)
+                                            }
+                                            DiskFormat::Fraction => {
+                                                format!("{} GB", usage.fraction)
+                                            }
+                                        },
                                     )
                                 })
                                 .collect::<Vec<Element<_>>>(),
                         )
-                        .spacing(theme.space.xxs),
+                        .spacing(space.xxs),
                     )
-                    .push_maybe(self.data.network.as_ref().map(|network| {
+                    .push(self.data.network.as_ref().map(|network| {
                         Column::with_children(vec![
                             Self::info_element(
-                                theme,
                                 StaticIcon::IpAddress,
-                                "IP Address".to_string(),
-                                network.ip.clone(),
+                                t!("system-info-ip-address"),
+                                network.ip.to_string(),
                             ),
                             Self::info_element(
-                                theme,
                                 StaticIcon::DownloadSpeed,
-                                "Download Speed".to_string(),
+                                t!("system-info-download-speed"),
                                 if network.download_speed > 1000 {
                                     format!("{} MB/s", network.download_speed / 1000)
                                 } else {
@@ -325,9 +637,8 @@ impl SystemInfo {
                                 },
                             ),
                             Self::info_element(
-                                theme,
                                 StaticIcon::UploadSpeed,
-                                "Upload Speed".to_string(),
+                                t!("system-info-upload-speed"),
                                 if network.upload_speed > 1000 {
                                     format!("{} MB/s", network.upload_speed / 1000)
                                 } else {
@@ -336,59 +647,79 @@ impl SystemInfo {
                             ),
                         ])
                     }))
-                    .spacing(theme.space.xxs)
-                    .padding([0, theme.space.xs])
+                    .spacing(space.xxs)
+                    .padding([0.0, space.xs])
             )
-            .spacing(theme.space.xs),
+            .spacing(space.xs),
         )
-        .max_width(MenuSize::Medium)
+        .width(MenuSize::Medium)
         .into()
     }
 
-    pub fn view(&'_ self, theme: &AshellTheme) -> Element<'_, Message> {
+    pub fn view(&'_ self) -> Element<'_, Message> {
+        let space = use_theme(|t| t.space);
         let indicators = self.config.indicators.iter().filter_map(|i| match i {
             SystemInfoIndicator::Cpu => Some(Self::indicator_info_element(
-                theme,
                 StaticIcon::Cpu,
-                self.data.cpu_usage,
-                "%",
+                match self.config.cpu.format {
+                    CpuFormat::Percentage => (self.data.cpu_usage.percentage.to_string(), "%"),
+                    CpuFormat::Frequency => (self.data.cpu_usage.frequency.to_string(), " GHz"),
+                },
                 Some((
+                    self.data.cpu_usage.percentage,
                     self.config.cpu.warn_threshold,
                     self.config.cpu.alert_threshold,
                 )),
                 None,
             )),
+
             SystemInfoIndicator::Memory => Some(Self::indicator_info_element(
-                theme,
                 StaticIcon::Mem,
-                self.data.memory_usage,
-                "%",
+                match self.config.memory.format {
+                    MemoryFormat::Percentage => {
+                        (self.data.memory_usage.percentage.to_string(), "%")
+                    }
+                    MemoryFormat::Fraction => (self.data.memory_usage.fraction.clone(), " GiB"),
+                },
                 Some((
+                    self.data.memory_usage.percentage,
                     self.config.memory.warn_threshold,
                     self.config.memory.alert_threshold,
                 )),
                 None,
             )),
+
             SystemInfoIndicator::MemorySwap => Some(Self::indicator_info_element(
-                theme,
                 StaticIcon::Mem,
-                self.data.memory_swap_usage,
-                "%",
+                match self.config.memory.format {
+                    MemoryFormat::Percentage => {
+                        (self.data.memory_swap_usage.percentage.to_string(), "%")
+                    }
+                    MemoryFormat::Fraction => {
+                        (self.data.memory_swap_usage.fraction.clone(), " GiB")
+                    }
+                },
                 Some((
+                    self.data.memory_swap_usage.percentage,
                     self.config.memory.warn_threshold,
                     self.config.memory.alert_threshold,
                 )),
-                Some("swap"),
+                Some(t!("system-info-swap-indicator-prefix")),
             )),
-            SystemInfoIndicator::Temperature => self.data.temperature.map(|temperature| {
+
+            SystemInfoIndicator::Temperature => self.data.temperature.celsius.map(|cel| {
+                let units = unit_system();
+                let temp_value = match units {
+                    UnitSystem::Metric => cel,
+                    UnitSystem::Imperial => utils::celsius_to_fahrenheit(cel),
+                };
                 Self::indicator_info_element(
-                    theme,
                     StaticIcon::Temp,
-                    temperature,
-                    "°C",
+                    (temp_value, units.temperature_symbol()),
                     Some((
-                        self.config.temperature.warn_threshold,
-                        self.config.temperature.alert_threshold,
+                        temp_value,
+                        self.config.temperature.warn_threshold(),
+                        self.config.temperature.alert_threshold(),
                     )),
                     None,
                 )
@@ -397,15 +728,17 @@ impl SystemInfo {
                 self.data.disks.iter().find_map(|(disk_mount, disk)| {
                     if disk_mount == &config.path {
                         Some(Self::indicator_info_element(
-                            theme,
                             StaticIcon::Drive,
-                            *disk,
-                            "%",
+                            match self.config.disk.format {
+                                DiskFormat::Percentage => (disk.percentage.to_string(), "%"),
+                                DiskFormat::Fraction => (disk.fraction.clone(), " GB"),
+                            },
                             Some((
+                                disk.percentage,
                                 self.config.disk.warn_threshold,
                                 self.config.disk.alert_threshold,
                             )),
-                            Some(config.name.as_deref().unwrap_or(disk_mount)),
+                            Some(config.name.as_deref().unwrap_or(disk_mount).to_string()),
                         ))
                     } else {
                         None
@@ -414,47 +747,47 @@ impl SystemInfo {
             }
             SystemInfoIndicator::IpAddress => self.data.network.as_ref().map(|network| {
                 Self::indicator_info_element(
-                    theme,
                     StaticIcon::IpAddress,
-                    network.ip.to_string(),
-                    "",
-                    None,
+                    (network.ip.to_string(), ""),
+                    None::<(u32, u32, u32)>,
                     None,
                 )
             }),
             SystemInfoIndicator::DownloadSpeed => self.data.network.as_ref().map(|network| {
                 Self::indicator_info_element(
-                    theme,
                     StaticIcon::DownloadSpeed,
-                    if network.download_speed > 1000 {
-                        network.download_speed / 1000
-                    } else {
-                        network.download_speed
-                    },
-                    if network.download_speed > 1000 {
-                        "MB/s"
-                    } else {
-                        "KB/s"
-                    },
-                    None,
+                    (
+                        if network.download_speed > 1000 {
+                            network.download_speed / 1000
+                        } else {
+                            network.download_speed
+                        },
+                        if network.download_speed > 1000 {
+                            "MB/s"
+                        } else {
+                            "KB/s"
+                        },
+                    ),
+                    None::<(u32, u32, u32)>,
                     None,
                 )
             }),
             SystemInfoIndicator::UploadSpeed => self.data.network.as_ref().map(|network| {
                 Self::indicator_info_element(
-                    theme,
                     StaticIcon::UploadSpeed,
-                    if network.upload_speed > 1000 {
-                        network.upload_speed / 1000
-                    } else {
-                        network.upload_speed
-                    },
-                    if network.upload_speed > 1000 {
-                        "MB/s"
-                    } else {
-                        "KB/s"
-                    },
-                    None,
+                    (
+                        if network.upload_speed > 1000 {
+                            network.upload_speed / 1000
+                        } else {
+                            network.upload_speed
+                        },
+                        if network.upload_speed > 1000 {
+                            "MB/s"
+                        } else {
+                            "KB/s"
+                        },
+                    ),
+                    None::<(u32, u32, u32)>,
                     None,
                 )
             }),
@@ -462,11 +795,11 @@ impl SystemInfo {
 
         Row::with_children(indicators)
             .align_y(Alignment::Center)
-            .spacing(theme.space.xxs)
+            .spacing(space.xxs)
             .into()
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        every(Duration::from_secs(5)).map(|_| Message::Update)
+        every(Duration::from_secs(self.config.interval)).map(|_| Message::Update)
     }
 }

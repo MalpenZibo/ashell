@@ -1,17 +1,19 @@
 use crate::{
     HEIGHT,
+    components::{Centerbox, menu::MenuType},
     config::{self, AppearanceStyle, Config, Modules, Position},
     get_log_spec,
-    menu::MenuType,
+    i18n::{Localizer, init_localizer},
+    ipc::IpcCommand,
     modules::{
         self,
-        clock::Clock,
-        custom_module::{self, Custom},
+        custom_module::Custom,
         keyboard_layout::KeyboardLayout,
         keyboard_submap::KeyboardSubmap,
         media_player::MediaPlayer,
+        notifications::Notifications,
         privacy::Privacy,
-        settings::Settings,
+        settings::{self, Settings},
         system_info::SystemInfo,
         tempo::Tempo,
         tray::TrayModule,
@@ -19,27 +21,30 @@ use crate::{
         window_title::WindowTitle,
         workspaces::Workspaces,
     },
+    osd::{self, Osd},
     outputs::{HasOutput, Outputs},
     services::ReadOnlyService,
-    theme::{AshellTheme, backdrop_color, darken_color},
-    widgets::{ButtonUIRef, Centerbox},
+    theme::{AshellTheme, backdrop_color, darken_color, init_theme, use_theme},
 };
 use flexi_logger::LoggerHandle;
+use iced::futures::StreamExt;
 use iced::{
-    Alignment, Color, Element, Gradient, Length, Radians, Subscription, Task, Theme,
-    daemon::Appearance,
-    event::{
-        listen_with,
-        wayland::{Event as WaylandEvent, OutputEvent},
-    },
+    Alignment, Color, Element, Gradient, Length, OutputEvent, Radians, Subscription, SurfaceId,
+    Task, Theme,
+    event::listen_with,
     gradient::Linear,
-    keyboard,
+    keyboard, set_exclusive_zone,
     widget::{Row, container, mouse_area},
-    window::Id,
 };
 use log::{debug, info, warn};
 use std::{collections::HashMap, f32::consts::PI, path::PathBuf};
-use wayland_client::protocol::wl_output::WlOutput;
+
+const OSD_WIDTH: u32 = 250;
+const OSD_HEIGHT: u32 = 64;
+
+fn resolve_localizer(config: &Config) -> Localizer {
+    Localizer::resolve(config.language.as_deref(), config.region.as_deref())
+}
 
 pub struct GeneralConfig {
     outputs: config::Outputs,
@@ -50,7 +55,6 @@ pub struct GeneralConfig {
 
 pub struct App {
     config_path: PathBuf,
-    pub theme: AshellTheme,
     logger: LoggerHandle,
     pub general_config: GeneralConfig,
     pub outputs: Outputs,
@@ -62,50 +66,32 @@ pub struct App {
     pub keyboard_layout: KeyboardLayout,
     pub keyboard_submap: KeyboardSubmap,
     pub tray: TrayModule,
-    pub clock: Clock,
     pub tempo: Tempo,
     pub privacy: Privacy,
     pub settings: Settings,
     pub media_player: MediaPlayer,
+    pub notifications: Notifications,
+    pub osd: Osd,
     pub visible: bool,
 }
 
-#[derive(Debug, Clone)]
-pub enum Message {
-    ConfigChanged(Box<Config>),
-    ToggleMenu(MenuType, Id, ButtonUIRef),
-    CloseMenu(Id),
-    Custom(String, custom_module::Message),
-    Updates(modules::updates::Message),
-    Workspaces(modules::workspaces::Message),
-    WindowTitle(modules::window_title::Message),
-    SystemInfo(modules::system_info::Message),
-    KeyboardLayout(modules::keyboard_layout::Message),
-    KeyboardSubmap(modules::keyboard_submap::Message),
-    Tray(modules::tray::Message),
-    Clock(modules::clock::Message),
-    Tempo(modules::tempo::Message),
-    Privacy(modules::privacy::Message),
-    Settings(modules::settings::Message),
-    MediaPlayer(modules::media_player::Message),
-    OutputEvent((OutputEvent, WlOutput)),
-    CloseAllMenus,
-    ResumeFromSleep,
-    None,
-    ToggleVisibility,
-}
+mod message;
+mod osd_info;
+
+pub use message::Message;
 
 impl App {
     pub fn new(
         (logger, config, config_path): (LoggerHandle, Config, PathBuf),
     ) -> impl FnOnce() -> (Self, Task<Message>) {
         move || {
-            let (outputs, task) = Outputs::new(
+            let mut outputs = Outputs::new(
                 config.appearance.style,
                 config.position,
                 config.layer,
                 config.appearance.scale_factor,
             );
+            outputs.set_animations_enabled(config.animations.enabled);
 
             let custom = config
                 .custom_modules
@@ -114,10 +100,18 @@ impl App {
                 .map(|o| (o.name.clone(), Custom::new(o)))
                 .collect();
 
+            init_theme(AshellTheme::new(
+                config.position,
+                &config.appearance,
+                &config.animations,
+            ));
+            init_localizer(resolve_localizer(&config));
+
+            let notifications = Notifications::new(config.notifications, config.animations.enabled);
+
             (
                 App {
                     config_path,
-                    theme: AshellTheme::new(config.position, &config.appearance),
                     logger,
                     general_config: GeneralConfig {
                         outputs: config.outputs,
@@ -133,27 +127,33 @@ impl App {
                     system_info: SystemInfo::new(config.system_info),
                     keyboard_layout: KeyboardLayout::new(config.keyboard_layout),
                     keyboard_submap: KeyboardSubmap::default(),
-                    tray: TrayModule::default(),
-                    clock: Clock::new(config.clock),
+                    tray: TrayModule::new(config.tray),
                     tempo: Tempo::new(config.tempo),
                     privacy: Privacy::default(),
                     settings: Settings::new(config.settings),
+                    notifications,
                     media_player: MediaPlayer::new(config.media_player),
+                    osd: Osd::new(config.osd),
                     visible: true,
                 },
-                task,
+                Task::none(),
             )
         }
     }
 
-    fn refesh_config(&mut self, config: Box<Config>) {
+    fn refresh_config(&mut self, config: Box<Config>) {
+        init_theme(AshellTheme::new(
+            config.position,
+            &config.appearance,
+            &config.animations,
+        ));
+        init_localizer(resolve_localizer(&config));
         self.general_config = GeneralConfig {
             outputs: config.outputs,
             modules: config.modules,
             layer: config.layer,
             enable_esc_key: config.enable_esc_key,
         };
-        self.theme = AshellTheme::new(config.position, &config.appearance);
         let custom = config
             .custom_modules
             .into_iter()
@@ -186,7 +186,6 @@ impl App {
             .map(Message::KeyboardLayout);
 
         self.keyboard_submap = KeyboardSubmap::default();
-        self.clock = Clock::new(config.clock);
         self.tempo
             .update(modules::tempo::Message::ConfigReloaded(config.tempo));
         self.settings
@@ -195,26 +194,24 @@ impl App {
             .update(modules::media_player::Message::ConfigReloaded(
                 config.media_player,
             ));
+        self.outputs
+            .set_animations_enabled(config.animations.enabled);
+        self.notifications
+            .set_animations_enabled(config.animations.enabled);
+        let _ = self
+            .notifications
+            .update(modules::notifications::Message::ConfigReloaded(
+                config.notifications,
+            ));
+        self.osd.update(osd::Message::ConfigReloaded(config.osd));
     }
 
-    pub fn title(&self, _id: Id) -> String {
-        String::from("ashell")
+    pub fn theme(&self) -> Theme {
+        use_theme(|t| t.iced_theme.clone())
     }
 
-    pub fn theme(&self, _id: Id) -> Theme {
-        self.theme.get_theme().clone()
-    }
-
-    pub fn style(&self, theme: &Theme) -> Appearance {
-        Appearance {
-            background_color: Color::TRANSPARENT,
-            text_color: theme.palette().text,
-            icon_color: theme.palette().text,
-        }
-    }
-
-    pub fn scale_factor(&self, _id: Id) -> f64 {
-        self.theme.scale_factor
+    pub fn scale_factor(&self) -> f64 {
+        use_theme(|t| t.scale_factor)
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
@@ -226,10 +223,12 @@ impl App {
                     "Current outputs: {:?}, new outputs: {:?}",
                     self.general_config.outputs, config.outputs
                 );
+                let (bar_position, bar_style, scale_factor) =
+                    use_theme(|t| (t.bar_position, t.bar_style, t.scale_factor));
                 if self.general_config.outputs != config.outputs
-                    || self.theme.bar_position != config.position
-                    || self.theme.bar_style != config.appearance.style
-                    || self.theme.scale_factor != config.appearance.scale_factor
+                    || bar_position != config.position
+                    || bar_style != config.appearance.style
+                    || scale_factor != config.appearance.scale_factor
                     || self.general_config.layer != config.layer
                 {
                     warn!("Outputs changed, syncing");
@@ -243,7 +242,7 @@ impl App {
                 }
 
                 self.logger.set_new_spec(get_log_spec(&config.log_level));
-                self.refesh_config(config);
+                self.refresh_config(config);
 
                 Task::batch(tasks)
             }
@@ -280,9 +279,11 @@ impl App {
 
                 Task::batch(cmd)
             }
-            Message::CloseMenu(id) => self
-                .outputs
-                .close_menu(id, self.general_config.enable_esc_key),
+            Message::CloseMenu(id) => {
+                self.outputs
+                    .close_menu(id, None, self.general_config.enable_esc_key)
+            }
+            Message::FinishCloseMenu(id) => self.outputs.finish_close_menu(id),
             Message::Custom(name, msg) => {
                 if let Some(custom) = self.custom.get_mut(&name) {
                     custom.update(msg);
@@ -299,9 +300,9 @@ impl App {
                         }
                         modules::updates::Action::CloseMenu(id, task) => Task::batch(vec![
                             task.map(Message::Updates),
-                            self.outputs.close_menu_if(
+                            self.outputs.close_menu(
                                 id,
-                                MenuType::Updates,
+                                Some(MenuType::Updates),
                                 self.general_config.enable_esc_key,
                             ),
                         ]),
@@ -342,14 +343,11 @@ impl App {
                         .close_all_menus(self.general_config.enable_esc_key),
                     task.map(Message::Tray),
                 ]),
+                modules::tray::Action::TrayMenuCommandKeepOpen(task) => task.map(Message::Tray),
                 modules::tray::Action::CloseTrayMenu(name) => self
                     .outputs
                     .close_all_menu_if(MenuType::Tray(name), self.general_config.enable_esc_key),
             },
-            Message::Clock(message) => {
-                self.clock.update(message);
-                Task::none()
-            }
             Message::Tempo(message) => match self.tempo.update(message) {
                 modules::tempo::Action::None => Task::none(),
             },
@@ -360,9 +358,10 @@ impl App {
             Message::Settings(message) => match self.settings.update(message) {
                 modules::settings::Action::None => Task::none(),
                 modules::settings::Action::Command(task) => task.map(Message::Settings),
-                modules::settings::Action::CloseMenu(id) => self
-                    .outputs
-                    .close_menu(id, self.general_config.enable_esc_key),
+                modules::settings::Action::CloseMenu(id) => {
+                    self.outputs
+                        .close_menu(id, None, self.general_config.enable_esc_key)
+                }
                 modules::settings::Action::RequestKeyboard(id) => self.outputs.request_keyboard(id),
                 modules::settings::Action::ReleaseKeyboard(id) => self.outputs.release_keyboard(id),
                 modules::settings::Action::ReleaseKeyboardWithCommand(id, task) => {
@@ -371,36 +370,67 @@ impl App {
                         self.outputs.release_keyboard(id),
                     ])
                 }
+                modules::settings::Action::OpenTooltipMenu(id, menu_type, ui_ref) => {
+                    self.outputs.toggle_menu(id, menu_type, ui_ref, false)
+                }
+                modules::settings::Action::CloseTooltipMenu(id, menu_type) => self
+                    .outputs
+                    .close_menu(id, Some(menu_type), self.general_config.enable_esc_key),
             },
-            Message::OutputEvent((event, wl_output)) => match event {
-                iced::event::wayland::OutputEvent::Created(info) => {
+            Message::OutputEvent(event) => match event {
+                OutputEvent::Added(info) => {
                     info!("Output created: {info:?}");
-                    let name = info
-                        .as_ref()
-                        .and_then(|info| info.description.as_deref())
-                        .unwrap_or("");
+                    // Pass both the canonical name and the full EDID
+                    // description down to Outputs::add. The workspace
+                    // visibility filter compares against just the
+                    // canonical `info.name` (matches `w.monitor` from
+                    // the compositor); name_in_config / has_name keep
+                    // matching against the concatenated description
+                    // too so #312's fuzzy-EDID-alias config behaviour
+                    // is preserved.
+                    let name = info.name.as_str();
+                    let description = format!("{} {} {}", info.name, info.make, info.model);
 
-                    self.outputs.add(
-                        self.theme.bar_style,
+                    let (bar_style, bar_position, scale_factor) =
+                        use_theme(|t| (t.bar_style, t.bar_position, t.scale_factor));
+                    let task = self.outputs.add(
+                        bar_style,
                         &self.general_config.outputs,
-                        self.theme.bar_position,
+                        bar_position,
                         self.general_config.layer,
                         name,
-                        wl_output,
-                        self.theme.scale_factor,
-                    )
+                        &description,
+                        info.id,
+                        scale_factor,
+                    );
+
+                    // After add(), so the output's entry exists to attach the height to.
+                    if let Some((_, h)) = info.logical_size {
+                        self.outputs.set_output_logical_height(info.id, h as u32);
+                    }
+
+                    task
                 }
-                iced::event::wayland::OutputEvent::Removed => {
+                OutputEvent::Removed(output_id) => {
                     info!("Output destroyed");
+                    let (bar_style, bar_position, scale_factor) =
+                        use_theme(|t| (t.bar_style, t.bar_position, t.scale_factor));
                     self.outputs.remove(
-                        self.theme.bar_style,
-                        self.theme.bar_position,
+                        bar_style,
+                        bar_position,
                         self.general_config.layer,
-                        wl_output,
-                        self.theme.scale_factor,
+                        output_id,
+                        scale_factor,
                     )
                 }
-                _ => Task::none(),
+                OutputEvent::InfoChanged(_) => Task::none(),
+                OutputEvent::SurfaceEnteredOutput { surface, output } => {
+                    self.outputs.surface_entered_output(surface, output)
+                }
+                OutputEvent::SurfaceLeftOutput { surface, output } => {
+                    self.outputs.surface_left_output(surface, output);
+                    Task::none()
+                }
             },
             Message::MediaPlayer(msg) => match self.media_player.update(msg) {
                 modules::media_player::Action::None => Task::none(),
@@ -414,74 +444,170 @@ impl App {
                     Task::none()
                 }
             }
-            Message::ResumeFromSleep => self.outputs.sync(
-                self.theme.bar_style,
-                &self.general_config.outputs,
-                self.theme.bar_position,
-                self.general_config.layer,
-                self.theme.scale_factor,
-            ),
+            Message::ResumeFromSleep => {
+                let (bar_style, bar_position, scale_factor) =
+                    use_theme(|t| (t.bar_style, t.bar_position, t.scale_factor));
+                self.outputs.sync(
+                    bar_style,
+                    &self.general_config.outputs,
+                    bar_position,
+                    self.general_config.layer,
+                    scale_factor,
+                )
+            }
+            Message::Notifications(message) => match self.notifications.update(message) {
+                modules::notifications::Action::None => Task::none(),
+                modules::notifications::Action::Task(task) => task.map(Message::Notifications),
+                modules::notifications::Action::Show(task) => {
+                    let position = self.notifications.toast_position();
+                    // Double width gives the card a runway to fully exit on slide-out.
+                    let card_width = crate::components::MenuSize::Medium.size() as u32;
+                    let width = card_width * 2;
+                    Task::batch(vec![
+                        task.map(Message::Notifications),
+                        self.outputs.show_toast_layer(width, position),
+                    ])
+                }
+                modules::notifications::Action::Hide(task) => Task::batch(vec![
+                    task.map(Message::Notifications),
+                    self.outputs.hide_toast_layer(),
+                ]),
+                modules::notifications::Action::UpdateToastInputRegion(content_size) => {
+                    let position = self.notifications.toast_position();
+                    self.outputs
+                        .update_toast_input_region(content_size, position)
+                }
+            },
+            Message::IpcOsdCommand(cmd) => {
+                let mut tasks = vec![];
+
+                // Execute the action via Settings.
+                let action = match &cmd {
+                    IpcCommand::VolumeUp { .. } => self.settings.volume_adjust(true),
+                    IpcCommand::VolumeDown { .. } => self.settings.volume_adjust(false),
+                    IpcCommand::VolumeToggleMute { .. } => self.settings.toggle_mute(),
+                    IpcCommand::MicrophoneUp { .. } => self.settings.microphone_adjust(true),
+                    IpcCommand::MicrophoneDown { .. } => self.settings.microphone_adjust(false),
+                    IpcCommand::MicrophoneToggleMute { .. } => {
+                        self.settings.microphone_toggle_mute()
+                    }
+                    IpcCommand::BrightnessUp { .. } => self.settings.brightness_adjust(true),
+                    IpcCommand::BrightnessDown { .. } => self.settings.brightness_adjust(false),
+                    IpcCommand::ToggleAirplaneMode { .. } => self.settings.toggle_airplane(),
+                    IpcCommand::ToggleIdleInhibitor { .. } => self.settings.toggle_idle_inhibitor(),
+                    IpcCommand::ToggleVisibility => {
+                        warn!(
+                            "IpcCommand::ToggleVisibility reached IpcOsdCommand handler; use Message::ToggleVisibility instead"
+                        );
+                        modules::settings::Action::None
+                    }
+                };
+                if let settings::Action::Command(task) = action {
+                    tasks.push(task.map(Message::Settings));
+                }
+
+                // Show OSD overlay if enabled.
+                if self.osd.config().enabled && !cmd.no_osd() {
+                    let osd_info = osd_info::osd_info_for(self, &cmd);
+
+                    if let Some((kind, value, scale, muted)) = osd_info
+                        && let osd::Action::Show(timer) = self.osd.update(osd::Message::Show {
+                            kind,
+                            value,
+                            scale,
+                            muted,
+                        })
+                    {
+                        tasks.push(timer.map(Message::Osd));
+                        tasks.push(self.outputs.show_osd_layer(OSD_WIDTH, OSD_HEIGHT));
+                    }
+                }
+
+                Task::batch(tasks)
+            }
+            Message::Osd(msg) => match self.osd.update(msg) {
+                osd::Action::Hide => self.outputs.hide_osd_layer(),
+                _ => Task::none(),
+            },
             Message::None => Task::none(),
             Message::ToggleVisibility => {
                 self.visible = !self.visible;
+                let (bar_style, scale_factor) = use_theme(|t| (t.bar_style, t.scale_factor));
                 let height = if self.visible {
                     (crate::HEIGHT
-                        - match self.theme.bar_style {
+                        - match bar_style {
                             AppearanceStyle::Solid | AppearanceStyle::Gradient => 8.,
                             AppearanceStyle::Islands => 0.,
                         })
-                        * self.theme.scale_factor
+                        * scale_factor
                 } else {
                     0.0
                 };
 
-                Task::batch(self.outputs.iter().filter_map(|(_, shell_info, _)| {
-                    shell_info.as_ref().map(|info| {
-                        iced::platform_specific::shell::commands::layer_surface::set_exclusive_zone(info.id, height as i32)
-                    })
-                }).collect::<Vec<_>>())
+                Task::batch(
+                    self.outputs
+                        .iter()
+                        .filter_map(|(_, shell_info, _)| {
+                            shell_info
+                                .as_ref()
+                                .map(|info| set_exclusive_zone(info.id, height as i32))
+                        })
+                        .collect::<Vec<_>>(),
+                )
             }
         }
     }
 
-    pub fn view(&'_ self, id: Id) -> Element<'_, Message> {
+    pub fn view(&'_ self, id: SurfaceId) -> Element<'_, Message> {
         match self.outputs.has(id) {
             Some(HasOutput::Main) => {
                 if !self.visible {
                     return Row::new().into();
                 }
 
-                let [left, center, right] = self.modules_section(id, &self.theme);
+                let [left, center, right] = self.modules_section(id);
 
+                let (space, bar_style, bar_position, opacity, menu, animations_enabled) =
+                    use_theme(|t| {
+                        (
+                            t.space,
+                            t.bar_style,
+                            t.bar_position,
+                            t.opacity,
+                            t.menu,
+                            t.animations_enabled,
+                        )
+                    });
                 let centerbox = Centerbox::new([left, center, right])
-                    .spacing(self.theme.space.xxs)
+                    .animated(animations_enabled)
+                    .spacing(space.xxs)
                     .width(Length::Fill)
                     .align_items(Alignment::Center)
-                    .height(if self.theme.bar_style == AppearanceStyle::Islands {
+                    .height(if bar_style == AppearanceStyle::Islands {
                         HEIGHT
                     } else {
-                        HEIGHT - 8.
+                        HEIGHT - space.xs as f64
                     } as f32)
-                    .padding(if self.theme.bar_style == AppearanceStyle::Islands {
-                        [self.theme.space.xxs, self.theme.space.xxs]
+                    .padding(if bar_style == AppearanceStyle::Islands {
+                        [space.xxs, space.xxs]
                     } else {
-                        [0, 0]
+                        [0.0, 0.0]
                     });
 
-                let status_bar = container(centerbox).style(|t: &Theme| container::Style {
-                    background: match self.theme.bar_style {
+                let menu_is_open = self.outputs.menu_is_open();
+                let status_bar = container(centerbox).style(move |t: &Theme| container::Style {
+                    background: match bar_style {
                         AppearanceStyle::Gradient => Some({
-                            let start_color =
-                                t.palette().background.scale_alpha(self.theme.opacity);
+                            let start_color = t.palette().background.scale_alpha(opacity);
 
-                            let start_color = if self.outputs.menu_is_open() {
-                                darken_color(start_color, self.theme.menu.backdrop)
+                            let start_color = if menu_is_open {
+                                darken_color(start_color, menu.backdrop)
                             } else {
                                 start_color
                             };
 
-                            let end_color = if self.outputs.menu_is_open() {
-                                backdrop_color(self.theme.menu.backdrop)
+                            let end_color = if menu_is_open {
+                                backdrop_color(menu.backdrop)
                             } else {
                                 Color::TRANSPARENT
                             };
@@ -490,14 +616,14 @@ impl App {
                                 Linear::new(Radians(PI))
                                     .add_stop(
                                         0.0,
-                                        match self.theme.bar_position {
+                                        match bar_position {
                                             Position::Top => start_color,
                                             Position::Bottom => end_color,
                                         },
                                     )
                                     .add_stop(
                                         1.0,
-                                        match self.theme.bar_position {
+                                        match bar_position {
                                             Position::Top => end_color,
                                             Position::Bottom => start_color,
                                         },
@@ -506,17 +632,17 @@ impl App {
                             .into()
                         }),
                         AppearanceStyle::Solid => Some({
-                            let bg = t.palette().background.scale_alpha(self.theme.opacity);
-                            if self.outputs.menu_is_open() {
-                                darken_color(bg, self.theme.menu.backdrop)
+                            let bg = t.palette().background.scale_alpha(opacity);
+                            if menu_is_open {
+                                darken_color(bg, menu.backdrop)
                             } else {
                                 bg
                             }
                             .into()
                         }),
                         AppearanceStyle::Islands => {
-                            if self.outputs.menu_is_open() {
-                                Some(backdrop_color(self.theme.menu.backdrop).into())
+                            if menu_is_open {
+                                Some(backdrop_color(menu.backdrop).into())
                             } else {
                                 None
                             }
@@ -533,52 +659,65 @@ impl App {
                     status_bar.into()
                 }
             }
-            Some(HasOutput::Menu(menu_info)) => match menu_info {
-                Some((MenuType::Updates, button_ui_ref)) => {
-                    if let Some(updates) = self.updates.as_ref() {
-                        self.menu_wrapper(
-                            id,
-                            updates.menu_view(id, &self.theme).map(Message::Updates),
-                            *button_ui_ref,
-                        )
-                    } else {
-                        Row::new().into()
+            Some(HasOutput::Menu(Some(open_menu))) => {
+                let ui_ref = open_menu.button_ui_ref;
+                match &open_menu.menu_type {
+                    MenuType::Updates => {
+                        if let Some(updates) = self.updates.as_ref() {
+                            self.menu_wrapper(
+                                id,
+                                updates.menu_view(id).map(Message::Updates),
+                                ui_ref,
+                            )
+                        } else {
+                            Row::new().into()
+                        }
                     }
+                    MenuType::Tray(name) => {
+                        self.menu_wrapper(id, self.tray.menu_view(name).map(Message::Tray), ui_ref)
+                    }
+                    MenuType::Notifications => self.menu_wrapper(
+                        id,
+                        self.notifications.menu_view().map(Message::Notifications),
+                        ui_ref,
+                    ),
+                    MenuType::Settings => self.menu_wrapper(
+                        id,
+                        self.settings
+                            .menu_view(id, use_theme(|t| t.bar_position))
+                            .map(Message::Settings),
+                        ui_ref,
+                    ),
+                    MenuType::MediaPlayer => self.menu_wrapper(
+                        id,
+                        self.media_player.menu_view().map(Message::MediaPlayer),
+                        ui_ref,
+                    ),
+                    MenuType::SystemInfo => self.menu_wrapper(
+                        id,
+                        self.system_info.menu_view().map(Message::SystemInfo),
+                        ui_ref,
+                    ),
+                    MenuType::Tempo => {
+                        self.menu_wrapper(id, self.tempo.menu_view().map(Message::Tempo), ui_ref)
+                    }
+                    MenuType::AudioTooltip
+                    | MenuType::BluetoothTooltip
+                    | MenuType::WifiTooltip
+                    | MenuType::VpnTooltip
+                    | MenuType::BatteryTooltip
+                    | MenuType::PeripheralBatteryTooltip(_) => self.menu_wrapper(
+                        id,
+                        self.settings
+                            .tooltip_view(&open_menu.menu_type)
+                            .map(Message::Settings),
+                        ui_ref,
+                    ),
                 }
-                Some((MenuType::Tray(name), button_ui_ref)) => self.menu_wrapper(
-                    id,
-                    self.tray.menu_view(&self.theme, name).map(Message::Tray),
-                    *button_ui_ref,
-                ),
-                Some((MenuType::Settings, button_ui_ref)) => self.menu_wrapper(
-                    id,
-                    self.settings
-                        .menu_view(id, &self.theme, self.theme.bar_position)
-                        .map(Message::Settings),
-                    *button_ui_ref,
-                ),
-                Some((MenuType::MediaPlayer, button_ui_ref)) => self.menu_wrapper(
-                    id,
-                    self.media_player
-                        .menu_view(&self.theme)
-                        .map(Message::MediaPlayer),
-                    *button_ui_ref,
-                ),
-                Some((MenuType::SystemInfo, button_ui_ref)) => self.menu_wrapper(
-                    id,
-                    self.system_info
-                        .menu_view(&self.theme)
-                        .map(Message::SystemInfo),
-                    *button_ui_ref,
-                ),
-
-                Some((MenuType::Tempo, button_ui_ref)) => self.menu_wrapper(
-                    id,
-                    self.tempo.menu_view(&self.theme).map(Message::Tempo),
-                    *button_ui_ref,
-                ),
-                None => Row::new().into(),
-            },
+            }
+            Some(HasOutput::Menu(None)) => Row::new().into(),
+            Some(HasOutput::Toast) => self.notifications.toast_view().map(Message::Notifications),
+            Some(HasOutput::Osd) => self.osd.view().map(Message::Osd),
             None => Row::new().into(),
         }
     }
@@ -593,14 +732,9 @@ impl App {
                 crate::services::ServiceEvent::Update(_) => Message::ResumeFromSleep,
                 _ => Message::None,
             }),
+            iced::output_events().map(Message::OutputEvent),
             listen_with(move |evt, _, _| match evt {
-                iced::Event::PlatformSpecific(iced::event::PlatformSpecific::Wayland(
-                    WaylandEvent::Output(event, wl_output),
-                )) => {
-                    debug!("Wayland event: {event:?}");
-                    Some(Message::OutputEvent((event, wl_output)))
-                }
-                iced::Event::Keyboard(keyboard::Event::KeyPressed { key, .. }) => {
+                iced::event::Event::Keyboard(keyboard::Event::KeyPressed { key, .. }) => {
                     debug!("Keyboard event received: {key:?}");
                     if matches!(key, keyboard::Key::Named(keyboard::key::Named::Escape)) {
                         debug!("ESC key pressed, closing all menus");
@@ -611,10 +745,8 @@ impl App {
                 }
                 _ => None,
             }),
-            Subscription::run(|| {
-                use iced::futures::StreamExt;
-                signal_hook_tokio::Signals::new([libc::SIGUSR1])
-                    .expect("Failed to create signal stream")
+            Subscription::run(|| match signal_hook_tokio::Signals::new([libc::SIGUSR1]) {
+                Ok(signals) => signals
                     .filter_map(|sig| {
                         if sig == libc::SIGUSR1 {
                             iced::futures::future::ready(Some(Message::ToggleVisibility))
@@ -622,6 +754,18 @@ impl App {
                             iced::futures::future::ready(None)
                         }
                     })
+                    .boxed(),
+                Err(e) => {
+                    log::error!("Failed to create signal stream: {e}");
+                    iced::futures::stream::empty().boxed()
+                }
+            }),
+            // Always subscribe to audio/brightness services so OSD works
+            // even when the Settings module isn't in the module list.
+            self.settings.subscription().map(Message::Settings),
+            crate::ipc::subscription().map(|cmd| match cmd {
+                IpcCommand::ToggleVisibility => Message::ToggleVisibility,
+                other => Message::IpcOsdCommand(other),
             }),
         ])
     }

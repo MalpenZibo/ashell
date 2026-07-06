@@ -1,4 +1,10 @@
+// To add a backend: expose `is_available`/`run_listener`/`execute_command` from
+// a module (see `hyprland`/`niri`/`generic`), add a `CompositorChoice` variant,
+// and wire it into `detect_backend`, `broadcaster_event_loop` and
+// `execute_command` below.
+pub mod generic;
 pub mod hyprland;
+pub mod mangowc;
 pub mod niri;
 pub mod types;
 
@@ -10,13 +16,15 @@ use crate::services::{ReadOnlyService, Service, ServiceEvent};
 use iced::futures::SinkExt;
 use iced::{Subscription, Task, stream::channel};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::{any::TypeId, ops::Deref};
+use std::{any::TypeId, ops::Deref, sync::OnceLock};
 use tokio::sync::{OnceCell, broadcast};
 
 const BROADCAST_CAPACITY: usize = 64;
 
 static BROADCASTER: OnceCell<broadcast::Sender<ServiceEvent<CompositorService>>> =
     OnceCell::const_new();
+
+static BACKEND: OnceLock<Option<CompositorChoice>> = OnceLock::new();
 
 static COLLECT_WINDOW_CLASSES: AtomicBool = AtomicBool::new(false);
 
@@ -54,6 +62,8 @@ async fn broadcaster_event_loop(tx: broadcast::Sender<ServiceEvent<CompositorSer
     let result = match backend {
         CompositorChoice::Hyprland => hyprland::run_listener(&tx).await,
         CompositorChoice::Niri => niri::run_listener(&tx).await,
+        CompositorChoice::Mango => mangowc::run_listener(&tx).await,
+        CompositorChoice::Generic => generic::run_listener(&tx).await,
     };
 
     if let Err(e) = result {
@@ -63,13 +73,23 @@ async fn broadcaster_event_loop(tx: broadcast::Sender<ServiceEvent<CompositorSer
 }
 
 fn detect_backend() -> Option<CompositorChoice> {
-    if hyprland::is_available() {
-        Some(CompositorChoice::Hyprland)
-    } else if niri::is_available() {
-        Some(CompositorChoice::Niri)
-    } else {
-        None
-    }
+    *BACKEND.get_or_init(|| {
+        if hyprland::is_available() {
+            Some(CompositorChoice::Hyprland)
+        } else if niri::is_available() {
+            Some(CompositorChoice::Niri)
+        } else if mangowc::is_available() {
+            Some(CompositorChoice::Mango)
+        } else if generic::is_available() {
+            log::info!(
+                "No dedicated compositor detected; using the generic Wayland backend. \
+                 If you are on Hyprland or Niri, check that its environment variables are exported."
+            );
+            Some(CompositorChoice::Generic)
+        } else {
+            None
+        }
+    })
 }
 
 impl Deref for CompositorService {
@@ -93,8 +113,7 @@ impl ReadOnlyService for CompositorService {
     }
 
     fn subscribe() -> Subscription<ServiceEvent<Self>> {
-        Subscription::run_with_id(
-            TypeId::of::<Self>(),
+        Subscription::run_with(TypeId::of::<Self>(), |_| {
             channel(10, async move |mut output| {
                 let mut rx = broadcaster_subscribe().await;
 
@@ -128,8 +147,8 @@ impl ReadOnlyService for CompositorService {
                         }
                     }
                 }
-            }),
-        )
+            })
+        })
     }
 }
 
@@ -155,6 +174,8 @@ async fn execute_command(
     match backend {
         CompositorChoice::Hyprland => hyprland::execute_command(command).await,
         CompositorChoice::Niri => niri::execute_command(command).await,
+        CompositorChoice::Mango => mangowc::execute_command(command).await,
+        CompositorChoice::Generic => generic::execute_command(command).await,
     }
     .map_err(|e| e.to_string())
 }

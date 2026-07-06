@@ -1,24 +1,27 @@
-use super::{SubMenu, quick_setting_button};
+use super::SubMenu;
 use crate::{
-    components::icons::{StaticIcon, icon, icon_button},
+    components::{
+        divider, format_indicator,
+        icons::{StaticIcon, icon, icon_button},
+        quick_setting_button,
+        spinning_icon::spinning_icon,
+        styled_button,
+    },
     config::SettingsFormat,
     services::{
         ReadOnlyService, Service, ServiceEvent,
         network::{
-            AccessPoint, ActiveConnectionInfo, KnownConnection, NetworkCommand, NetworkEvent,
+            AccessPointData, ActiveConnectionInfo, KnownConnection, NetworkCommand, NetworkEvent,
             NetworkService, Vpn, dbus::ConnectivityState,
         },
     },
-    theme::AshellTheme,
+    t,
+    theme::use_theme,
     utils::IndicatorState,
 };
 use iced::{
-    Alignment, Element, Length, Subscription, Task, Theme,
-    widget::{
-        Column, MouseArea, button, column, container, horizontal_rule, row, scrollable, text,
-        toggler,
-    },
-    window::Id,
+    Alignment, Element, Length, Padding, Subscription, SurfaceId, Task, Theme,
+    widget::{Column, column, container, row, scrollable, text, toggler},
 };
 use log::{info, warn};
 
@@ -39,40 +42,15 @@ static WIFI_LOCK_SIGNAL_ICONS: [StaticIcon; 5] = [
     StaticIcon::WifiLock5,
 ];
 
-fn get_connectivity_color(
+fn get_connectivity_state(
     connectivity: ConnectivityState,
     indicator_state: IndicatorState,
-    theme: &Theme,
-) -> Option<iced::Color> {
+) -> IndicatorState {
     match (connectivity, indicator_state) {
-        (ConnectivityState::Full, IndicatorState::Warning) => {
-            Some(theme.extended_palette().danger.weak.color)
-        }
-        (ConnectivityState::Full, _) => None,
-        // Be more forgiving - if we have an active connection but connectivity check fails,
-        // show normal color instead of red (unless signal is very weak)
-        (
-            ConnectivityState::Loss | ConnectivityState::Portal | ConnectivityState::Unknown,
-            IndicatorState::Warning,
-        ) => Some(theme.extended_palette().danger.weak.color),
-        (ConnectivityState::Loss | ConnectivityState::Portal | ConnectivityState::Unknown, _) => {
-            None
-        } // Show normal color instead of red
-        (ConnectivityState::None, _) => Some(theme.palette().danger), // No connectivity - show red
+        (_, IndicatorState::Warning) => IndicatorState::Warning,
+        (ConnectivityState::None, _) => IndicatorState::Danger,
+        _ => IndicatorState::Normal,
     }
-}
-
-fn wrap_connectivity_style<'a>(
-    content: Element<'a, Message>,
-    connectivity: ConnectivityState,
-    indicator_state: IndicatorState,
-) -> Element<'a, Message> {
-    container(content)
-        .style(move |theme: &Theme| container::Style {
-            text_color: get_connectivity_color(connectivity, indicator_state, theme),
-            ..Default::default()
-        })
-        .into()
 }
 
 impl ActiveConnectionInfo {
@@ -109,10 +87,10 @@ pub enum Message {
     Event(ServiceEvent<NetworkService>),
     ToggleWiFi,
     ScanNearByWiFi,
-    WiFiMore(Id),
-    VpnMore(Id),
-    SelectAccessPoint(AccessPoint),
-    RequestWiFiPassword(Id, String),
+    WiFiMore(SurfaceId),
+    VpnMore(SurfaceId),
+    SelectAccessPoint(AccessPointData),
+    RequestWiFiPassword(SurfaceId, String),
     ConfirmOpenNetwork(String),
     ToggleVpn(Vpn),
     ToggleAirplaneMode,
@@ -128,13 +106,13 @@ pub enum Message {
 pub enum Action {
     None,
     RequestPasswordForSSID(String),
-    RequestPassword(Id, String),
+    RequestPassword(SurfaceId, String),
     ConfirmOpenNetwork(String),
     Command(Task<Message>),
     ToggleWifiMenu,
     ToggleVpnMenu,
     CloseSubMenu(Task<Message>),
-    CloseMenu(Id),
+    CloseMenu(SurfaceId),
 }
 
 #[derive(Debug, Clone)]
@@ -172,6 +150,10 @@ impl NetworkSettings {
             config,
             service: None,
         }
+    }
+
+    pub fn is_airplane_mode(&self) -> Option<bool> {
+        self.service.as_ref().map(|s| s.airplane_mode)
     }
 
     pub fn update(&mut self, message: Message) -> Action {
@@ -231,7 +213,7 @@ impl NetworkSettings {
             },
             Message::WiFiMore(id) => {
                 if let Some(cmd) = &self.config.wifi_more_cmd {
-                    crate::utils::launcher::execute_command(cmd.to_string());
+                    crate::utils::launcher::execute_command(cmd);
                     Action::CloseMenu(id)
                 } else {
                     Action::None
@@ -239,7 +221,7 @@ impl NetworkSettings {
             }
             Message::VpnMore(id) => {
                 if let Some(cmd) = &self.config.vpn_more_cmd {
-                    crate::utils::launcher::execute_command(cmd.to_string());
+                    crate::utils::launcher::execute_command(cmd);
                     Action::CloseMenu(id)
                 } else {
                     Action::None
@@ -255,7 +237,7 @@ impl NetworkSettings {
             },
             Message::OpenMore => {
                 if let Some(cmd) = &self.config.wifi_more_cmd {
-                    crate::utils::launcher::execute_command(cmd.to_string());
+                    crate::utils::launcher::execute_command(cmd);
                 }
                 Action::None
             }
@@ -324,81 +306,49 @@ impl NetworkSettings {
         }
     }
 
-    pub fn connection_indicator<'a>(
-        &'a self,
-        theme: &'a AshellTheme,
-    ) -> Option<Element<'a, Message>> {
+    pub fn connection_indicator<'a>(&'a self) -> Option<Element<'a, Message>> {
         self.service.as_ref().and_then(|service| {
             if service.airplane_mode || !service.wifi_present {
                 None
             } else {
-                let content: Element<'a, Message> = service
-                    .active_connections
-                    .iter()
-                    .find(|c| {
-                        matches!(c, ActiveConnectionInfo::WiFi { .. })
-                            || matches!(c, ActiveConnectionInfo::Wired { .. })
-                    })
-                    .map_or_else(
-                        || match self.config.indicator_format {
-                            SettingsFormat::Icon => icon(StaticIcon::Wifi0).into(),
-                            SettingsFormat::Percentage | SettingsFormat::Time => text("0%").into(),
-                            SettingsFormat::IconAndPercentage | SettingsFormat::IconAndTime => {
-                                row!(icon(StaticIcon::Wifi0), text("0%"))
-                                    .spacing(theme.space.xxs)
-                                    .align_y(Alignment::Center)
-                                    .into()
-                            }
-                        },
-                        |a| {
-                            let icon_type = a.get_icon();
-                            let state = (service.connectivity, a.get_indicator_state());
-                            let strength = match a {
-                                ActiveConnectionInfo::WiFi { strength, .. } => Some(*strength),
-                                _ => None,
-                            };
+                let active = service.active_connections.iter().find(|c| {
+                    matches!(c, ActiveConnectionInfo::WiFi { .. })
+                        || matches!(c, ActiveConnectionInfo::Wired { .. })
+                });
 
-                            match self.config.indicator_format {
-                                SettingsFormat::Icon => wrap_connectivity_style(
-                                    icon(icon_type).into(),
-                                    state.0,
-                                    state.1,
-                                ),
-                                SettingsFormat::Percentage | SettingsFormat::Time => {
-                                    let strength_text =
-                                        strength.map_or("100%".to_string(), |s| format!("{}%", s));
-                                    wrap_connectivity_style(
-                                        text(strength_text).into(),
-                                        state.0,
-                                        state.1,
-                                    )
-                                }
-                                SettingsFormat::IconAndPercentage | SettingsFormat::IconAndTime => {
-                                    let strength_text =
-                                        strength.map_or("100%".to_string(), |s| format!("{}%", s));
-                                    wrap_connectivity_style(
-                                        row!(icon(icon_type), text(strength_text))
-                                            .spacing(theme.space.xxs)
-                                            .align_y(Alignment::Center)
-                                            .into(),
-                                        state.0,
-                                        state.1,
-                                    )
-                                }
-                            }
-                        },
-                    );
+                Some(if let Some(a) = active {
+                    let icon_type = a.get_icon();
+                    let state =
+                        get_connectivity_state(service.connectivity, a.get_indicator_state());
+                    let strength = match a {
+                        ActiveConnectionInfo::WiFi { strength, .. } => Some(*strength),
+                        _ => None,
+                    };
+                    let strength_text = strength.map_or("100%".to_string(), |s| format!("{}%", s));
 
-                Some(
-                    MouseArea::new(content)
-                        .on_right_press(Message::OpenMore)
-                        .into(),
-                )
+                    format_indicator(
+                        self.config.indicator_format,
+                        icon_type,
+                        text(strength_text).into(),
+                        state,
+                    )
+                    .on_right_press(Message::OpenMore)
+                    .into()
+                } else {
+                    format_indicator(
+                        self.config.indicator_format,
+                        StaticIcon::Wifi0,
+                        text("0%").into(),
+                        IndicatorState::Normal,
+                    )
+                    .on_right_press(Message::OpenMore)
+                    .into()
+                })
             }
         })
     }
 
-    pub fn vpn_indicator<'a>(&'a self, _: &AshellTheme) -> Option<Element<'a, Message>> {
+    pub fn vpn_indicator<'a>(&'a self) -> Option<Element<'a, Message>> {
         self.service.as_ref().and_then(|service| {
             service
                 .active_connections
@@ -409,7 +359,7 @@ impl NetworkSettings {
 
                     container(icon(icon_type))
                         .style(|theme: &Theme| container::Style {
-                            text_color: Some(theme.extended_palette().danger.weak.color),
+                            text_color: Some(theme.palette().warning),
                             ..Default::default()
                         })
                         .into()
@@ -417,12 +367,12 @@ impl NetworkSettings {
         })
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn wifi_quick_setting_button<'a>(
         &'a self,
-        id: Id,
-        theme: &'a AshellTheme,
+        id: SurfaceId,
         sub_menu: Option<SubMenu>,
-    ) -> Option<(Element<'a, Message>, Option<Element<'a, Message>>)> {
+    ) -> Option<(Element<'a, Message>, Option<(bool, Element<'a, Message>)>)> {
         self.service.as_ref().and_then(|service| {
             if service.wifi_present {
                 let active_connection = service.active_connections.iter().find_map(|c| match c {
@@ -434,28 +384,27 @@ impl NetworkSettings {
 
                 Some((
                     quick_setting_button(
-                        theme,
                         active_connection.map_or_else(|| StaticIcon::Wifi0, |(_, _, icon)| icon),
-                        "Wi-Fi".to_string(),
+                        t!("settings-network-wifi"),
                         active_connection.map(|(name, _, _)| name.to_string()),
                         service.wifi_enabled,
                         Message::ToggleWiFi,
                         Some(Message::OpenMore),
-                        Some((SubMenu::Wifi, sub_menu, Message::ToggleWifiMenu))
-                            .filter(|_| service.wifi_enabled),
+                        service.wifi_enabled.then_some((
+                            SubMenu::Wifi,
+                            sub_menu,
+                            Message::ToggleWifiMenu,
+                        )),
                     ),
-                    sub_menu
-                        .filter(|menu_type| *menu_type == SubMenu::Wifi)
-                        .map(|_| {
-                            Self::wifi_menu(
-                                service,
-                                id,
-                                theme,
-                                active_connection
-                                    .map(|(name, strength, _)| (name.as_str(), *strength)),
-                                self.config.wifi_more_cmd.is_some(),
-                            )
-                        }),
+                    service.wifi_enabled.then_some((
+                        sub_menu == Some(SubMenu::Wifi),
+                        Self::wifi_menu(
+                            service,
+                            id,
+                            active_connection.map(|(name, strength, _)| (name.as_str(), *strength)),
+                            self.config.wifi_more_cmd.is_some(),
+                        ),
+                    )),
                 ))
             } else {
                 None
@@ -463,12 +412,12 @@ impl NetworkSettings {
         })
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn vpn_quick_setting_button<'a>(
         &'a self,
-        id: Id,
-        theme: &'a AshellTheme,
+        id: SurfaceId,
         sub_menu: Option<SubMenu>,
-    ) -> Option<(Element<'a, Message>, Option<Element<'a, Message>>)> {
+    ) -> Option<(Element<'a, Message>, Option<(bool, Element<'a, Message>)>)> {
         self.service.as_ref().and_then(|service| {
             service
                 .known_connections
@@ -498,16 +447,15 @@ impl NetworkSettings {
                         .collect();
 
                     let subtitle = if actives.len() > 1 {
-                        Some(format!("{} VPNs Connected", actives.len()))
+                        Some(t!("settings-network-vpns-connected", count = actives.len()))
                     } else {
                         actives.first().map(|c| c.name.to_string())
                     };
 
                     (
                         quick_setting_button(
-                            theme,
                             StaticIcon::Vpn,
-                            "VPN".to_string(),
+                            t!("settings-network-vpn"),
                             subtitle,
                             !actives.is_empty(),
                             if !actives.is_empty()
@@ -524,34 +472,27 @@ impl NetworkSettings {
                                 None
                             },
                         ),
-                        sub_menu
-                            .filter(|menu_type| *menu_type == SubMenu::Vpn)
-                            .map(|_| {
-                                Self::vpn_menu(
-                                    service,
-                                    id,
-                                    theme,
-                                    self.config.vpn_more_cmd.is_some(),
-                                )
-                            }),
+                        Some((
+                            sub_menu == Some(SubMenu::Vpn),
+                            Self::vpn_menu(service, id, self.config.vpn_more_cmd.is_some()),
+                        )),
                     )
                 })
         })
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn airplane_mode_quick_setting_button<'a>(
         &'a self,
-        theme: &'a AshellTheme,
-    ) -> Option<(Element<'a, Message>, Option<Element<'a, Message>>)> {
+    ) -> Option<(Element<'a, Message>, Option<(bool, Element<'a, Message>)>)> {
         if self.config.remove_airplane_btn {
             None
         } else {
             self.service.as_ref().map(|service| {
                 (
                     quick_setting_button(
-                        theme,
-                        StaticIcon::Airplane,
-                        "Airplane Mode".to_string(),
+                        Self::airplane_mode_icon(service.airplane_mode),
+                        t!("settings-network-airplane-mode"),
                         None,
                         service.airplane_mode,
                         Message::ToggleAirplaneMode,
@@ -566,26 +507,36 @@ impl NetworkSettings {
 
     fn wifi_menu<'a>(
         service: &'a NetworkService,
-        id: Id,
-        theme: &'a AshellTheme,
+        id: SurfaceId,
         active_connection: Option<(&str, u8)>,
         show_more_button: bool,
     ) -> Element<'a, Message> {
+        let (space, font_size, animated) =
+            use_theme(|t| (t.space, t.font_size, t.animations_enabled));
         let main = column!(
             row!(
-                text("Nearby Wifi").width(Length::Fill),
+                text(t!("settings-network-nearby-wifi")).width(Length::Fill),
                 text(if service.scanning_nearby_wifi {
-                    "Scanning..."
+                    t!("settings-scanning")
                 } else {
-                    ""
+                    String::new()
                 })
-                .size(theme.font_size.sm),
-                icon_button(theme, StaticIcon::Refresh).on_press(Message::ScanNearByWiFi)
+                .size(font_size.sm),
+                if service.scanning_nearby_wifi {
+                    Element::from(
+                        container(spinning_icon(font_size.xs, animated))
+                            .padding((space.xl - font_size.xs) / 2.0),
+                    )
+                } else {
+                    icon_button(StaticIcon::Refresh)
+                        .on_press(Message::ScanNearByWiFi)
+                        .into()
+                }
             )
-            .spacing(theme.space.xs)
+            .spacing(space.xs)
             .width(Length::Fill)
             .align_y(Alignment::Center),
-            horizontal_rule(1),
+            divider(),
             container(scrollable(
                 Column::with_children({
                     let (active_networks, inactive_networks): (Vec<_>, Vec<_>) = service
@@ -601,37 +552,37 @@ impl NetworkSettings {
                             let is_known = service.known_connections.iter().any(|c| {
                                 matches!(
                                     c,
-                                    KnownConnection::AccessPoint(AccessPoint { ssid, .. }) if ssid == &ac.ssid
+                                    KnownConnection::AccessPoint(AccessPointData { ssid, .. }) if ssid == &ac.ssid
                                 )
                             });
 
-                            button(
-                                container(
-                                    row!(
-                                        icon(if ac.public {
-                                            ActiveConnectionInfo::get_wifi_icon(ac.strength)
-                                        } else {
-                                            ActiveConnectionInfo::get_wifi_lock_icon(ac.strength)
-                                        })
-                                        .width(Length::Shrink),
-                                        text(ac.ssid.as_str()).width(Length::Fill),
+                            styled_button(
+                                Element::from(
+                                    container(
+                                        row!(
+                                            icon(if ac.public {
+                                                ActiveConnectionInfo::get_wifi_icon(ac.strength)
+                                            } else {
+                                                ActiveConnectionInfo::get_wifi_lock_icon(ac.strength)
+                                            })
+                                            .width(Length::Shrink),
+                                            text(ac.ssid.as_str()).width(Length::Fill),
+                                        )
+                                        .align_y(Alignment::Center)
+                                        .spacing(8),
                                     )
-                                    .align_y(Alignment::Center)
-                                    .spacing(8),
-                                )
-                                .style(move |theme: &Theme| {
-                                    container::Style {
-                                        text_color: if is_active {
-                                            Some(theme.palette().success)
-                                        } else {
-                                            None
-                                        },
-                                        ..Default::default()
-                                    }
-                                }),
+                                    .style(move |theme: &Theme| {
+                                        container::Style {
+                                            text_color: if is_active {
+                                                Some(theme.palette().success)
+                                            } else {
+                                                None
+                                            },
+                                            ..Default::default()
+                                        }
+                                    }),
+                                ),
                             )
-                            .style(theme.ghost_button_style())
-                            .padding([8, 8])
                             .on_press_maybe(if !is_active {
                                 Some(if ac.public {
                                     Message::ConfirmOpenNetwork(ac.ssid.to_string())
@@ -648,23 +599,21 @@ impl NetworkSettings {
                         })
                         .collect::<Vec<Element<'a, Message>>>()
                 })
-                .spacing(theme.space.xxs)
-            ))
+                .spacing(space.xxs)
+            ).spacing(space.xs))
             .max_height(200),
         )
-        .spacing(theme.space.xs);
+        .spacing(space.xs);
 
         if show_more_button {
             column!(
                 main,
-                horizontal_rule(1),
-                button("More")
+                divider(),
+                styled_button(t!("settings-more"))
                     .on_press(Message::WiFiMore(id))
-                    .padding([theme.space.xxs, theme.space.sm])
                     .width(Length::Fill)
-                    .style(theme.ghost_button_style())
             )
-            .spacing(theme.space.sm)
+            .spacing(space.sm)
             .into()
         } else {
             main.into()
@@ -673,10 +622,10 @@ impl NetworkSettings {
 
     fn vpn_menu<'a>(
         service: &'a NetworkService,
-        id: Id,
-        theme: &'a AshellTheme,
+        id: SurfaceId,
         show_more_button: bool,
     ) -> Element<'a, Message> {
+        let space = use_theme(|t| t.space);
         // Create HashSet of active VPN names for O(1) lookup
         let active_vpn_names: std::collections::HashSet<&str> = service
             .active_connections
@@ -715,8 +664,8 @@ impl NetworkSettings {
                 })
                 .collect::<Vec<Element<'a, Message>>>(),
         )
-        .spacing(theme.space.xs)
-        .padding([0, theme.space.md, 0, theme.space.xs]);
+        .spacing(space.xs)
+        .padding(Padding::default().right(space.md).left(space.xs));
 
         let main = container(scrollable(vpn_list))
             .height(Length::Shrink)
@@ -725,14 +674,12 @@ impl NetworkSettings {
         if show_more_button {
             column!(
                 main,
-                horizontal_rule(1),
-                button("More")
+                divider(),
+                styled_button(t!("settings-more"))
                     .on_press(Message::VpnMore(id))
-                    .padding([theme.space.xxs, theme.space.sm])
                     .width(Length::Fill)
-                    .style(theme.ghost_button_style())
             )
-            .spacing(theme.space.sm)
+            .spacing(space.sm)
             .into()
         } else {
             main.into()
@@ -741,5 +688,43 @@ impl NetworkSettings {
 
     pub fn subscription(&self) -> Subscription<Message> {
         NetworkService::subscribe().map(Message::Event)
+    }
+
+    pub fn airplane_mode_icon(active: bool) -> StaticIcon {
+        if active {
+            StaticIcon::AirplaneOn
+        } else {
+            StaticIcon::AirplaneOff
+        }
+    }
+
+    pub fn connected_wifi_label(&self) -> Option<String> {
+        self.service.as_ref().and_then(|service| {
+            service.active_connections.iter().find_map(|c| match c {
+                ActiveConnectionInfo::WiFi { name, .. } => Some(name.clone()),
+                _ => None,
+            })
+        })
+    }
+
+    pub fn vpn_tooltip_label(&self) -> Option<String> {
+        self.service.as_ref().and_then(|service| {
+            let active_vpns: Vec<_> = service
+                .active_connections
+                .iter()
+                .filter_map(|c| match c {
+                    ActiveConnectionInfo::Vpn { name, .. } => Some(name.clone()),
+                    _ => None,
+                })
+                .collect();
+
+            if active_vpns.is_empty() {
+                None
+            } else if active_vpns.len() == 1 {
+                Some(active_vpns[0].clone())
+            } else {
+                Some(format!("{} VPNs connected", active_vpns.len()))
+            }
+        })
     }
 }

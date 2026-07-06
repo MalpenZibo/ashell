@@ -1,67 +1,41 @@
-use std::process::Command;
+use log::error;
+use tokio::process::Command;
 
-pub fn execute_command(command: String) {
+fn run_command(cmd: String, context: &'static str) {
     tokio::spawn(async move {
-        let _ = Command::new("bash")
-            .arg("-c")
-            .arg(&command)
-            .spawn()
-            .unwrap_or_else(|_| panic!("Failed to execute command {}", &command))
-            .wait();
+        match Command::new("bash").arg("-c").arg(&cmd).spawn() {
+            Ok(child) => {
+                if let Err(e) = child.wait_with_output().await {
+                    error!("{context} command failed: {e}");
+                }
+            }
+            Err(e) => {
+                error!("Failed to execute {context} command: {e}");
+            }
+        }
     });
 }
 
-pub fn suspend(cmd: String) {
-    tokio::spawn(async move {
-        let _ = Command::new("bash")
-            .arg("-c")
-            .arg(cmd)
-            .spawn()
-            .expect("Failed to execute command.")
-            .wait();
-    });
+pub fn execute_command(command: &str) {
+    run_command(command.to_owned(), "execute");
 }
 
-pub fn hibernate(cmd: String) {
-    tokio::spawn(async move {
-        let _ = Command::new("bash")
-            .arg("-c")
-            .arg(cmd)
-            .spawn()
-            .expect("Failed to execute command.")
-            .wait();
-    });
+pub fn suspend(cmd: &str) {
+    run_command(cmd.to_owned(), "suspend");
 }
 
-pub fn shutdown(cmd: String) {
-    tokio::spawn(async move {
-        let _ = Command::new("bash")
-            .arg("-c")
-            .arg(cmd)
-            .spawn()
-            .expect("Failed to execute command.")
-            .wait();
-    });
+pub fn hibernate(cmd: &str) {
+    run_command(cmd.to_owned(), "hibernate");
 }
 
-pub fn reboot(cmd: String) {
-    tokio::spawn(async move {
-        let _ = Command::new("bash")
-            .arg("-c")
-            .arg(cmd)
-            .spawn()
-            .expect("Failed to execute command.")
-            .wait();
-    });
+pub fn shutdown(cmd: &str) {
+    run_command(cmd.to_owned(), "shutdown");
 }
 
-pub fn logout(cmd: String) {
-    tokio::spawn(async move {
-        let _ = Command::new("bash")
-            .arg("-c")
-            .arg(cmd)
-            .spawn()
-            .expect("Failed to execute command.")
-            .wait();
-    });
+pub fn reboot(cmd: &str) {
+    run_command(cmd.to_owned(), "reboot");
+}
+
+pub fn logout(cmd: &str) {
+    run_command(cmd.to_owned(), "logout");
 }

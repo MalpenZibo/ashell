@@ -6,7 +6,7 @@ import type * as Preset from "@docusaurus/preset-classic";
 
 const config: Config = {
   title: "Ashell",
-  tagline: "A ready to go Wayland status bar for Hyprland and Niri",
+  tagline: "A ready to go status bar for Wayland compositors",
   favicon: "img/favicon.svg",
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
@@ -94,6 +94,11 @@ const config: Config = {
           position: "left",
         },
         {
+          href: "https://malpenzibo.github.io/ashell/dev-guide/",
+          label: "Developer Guide",
+          position: "left",
+        },
+        {
           type: "docsVersionDropdown",
           position: "right",
         },
@@ -119,11 +124,19 @@ const config: Config = {
               label: "Configuration",
               to: "/docs/configuration",
             },
+            {
+              label: "Developer Guide",
+              href: "https://malpenzibo.github.io/ashell/dev-guide/",
+            },
           ],
         },
         {
           title: "Community",
           items: [
+            {
+              label: "Matrix Chat",
+              href: "https://matrix.to/#/#ashell:matrix.org",
+            },
             {
               label: "Issues",
               href: "https://github.com/MalpenZibo/ashell/issues",

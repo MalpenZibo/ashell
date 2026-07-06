@@ -3,7 +3,7 @@ use crate::services::{
     network::{NetworkBackend, NetworkData, NetworkEvent},
 };
 
-use super::{AccessPoint, ActiveConnectionInfo, KnownConnection, Vpn};
+use super::{AccessPointData, ActiveConnectionInfo, KnownConnection, Vpn};
 use iced::futures::{Stream, StreamExt, stream::select_all};
 use itertools::Itertools;
 use log::{debug, warn};
@@ -87,7 +87,7 @@ impl super::NetworkBackend for NetworkDbus<'_> {
 
     async fn select_access_point(
         &self,
-        access_point: &AccessPoint,
+        access_point: &AccessPointData,
         password: Option<String>,
     ) -> anyhow::Result<()> {
         let settings = NetworkSettingsDbus::new(self.0.inner().connection()).await?;
@@ -163,8 +163,8 @@ impl super::NetworkBackend for NetworkDbus<'_> {
             debug!("Activating VPN: {connection:?}");
             self.activate_connection(
                 connection,
-                OwnedObjectPath::try_from("/").unwrap(),
-                OwnedObjectPath::try_from("/").unwrap(),
+                OwnedObjectPath::try_from("/").expect("D-Bus root path is always valid"),
+                OwnedObjectPath::try_from("/").expect("D-Bus root path is always valid"),
             )
             .await?;
         } else {
@@ -255,8 +255,13 @@ impl NetworkDbus<'_> {
                 move |_| {
                     let conn = conn.clone();
                     async move {
-                        let nm = NetworkDbus::new(&conn).await.unwrap();
-                        let value = nm.active_connections_info().await.unwrap_or_default();
+                        let value = match NetworkDbus::new(&conn).await {
+                            Ok(nm) => nm.active_connections_info().await.unwrap_or_default(),
+                            Err(e) => {
+                                warn!("Failed to create NetworkDbus proxy: {e}");
+                                Vec::new()
+                            }
+                        };
 
                         debug!("Active connections changed: {value:?}");
                         NetworkEvent::ActiveConnections(value)
@@ -277,7 +282,13 @@ impl NetworkDbus<'_> {
                     let conn = conn.clone();
                     let devices = devices.clone();
                     async move {
-                        let nm = NetworkDbus::new(&conn).await.unwrap();
+                        let nm = match NetworkDbus::new(&conn).await {
+                            Ok(nm) => nm,
+                            Err(e) => {
+                                warn!("Failed to create NetworkDbus proxy: {e}");
+                                return None;
+                            }
+                        };
 
                         let current_devices = nm.wireless_devices().await.unwrap_or_default();
                         if current_devices != devices {
@@ -348,9 +359,13 @@ impl NetworkDbus<'_> {
                         move |_| {
                             let conn = conn.clone();
                             async move {
-                                let nm = NetworkDbus::new(&conn).await.unwrap();
-                                let wireless_access_point =
-                                    nm.wireless_access_points().await.unwrap_or_default();
+                                let wireless_access_point = match NetworkDbus::new(&conn).await {
+                                    Ok(nm) => nm.wireless_access_points().await.unwrap_or_default(),
+                                    Err(e) => {
+                                        warn!("Failed to create NetworkDbus proxy: {e}");
+                                        Vec::new()
+                                    }
+                                };
                                 debug!(
                                     "access_points_changed event received, count: {}",
                                     wireless_access_point.len()
@@ -382,7 +397,7 @@ impl NetworkDbus<'_> {
                         let path = path.clone();
                         async move {
                             let value = val.get().await.unwrap_or_default();
-                            debug!("Strength changed value: {}, {}", &ssid, value);
+                            debug!("Strength changed value: {}, {}", ssid, value);
                             NetworkEvent::Strength((Some(path.clone()), ssid.clone(), value))
                         }
                     })
@@ -424,8 +439,13 @@ impl NetworkDbus<'_> {
                 move |_| {
                     let conn = conn.clone();
                     async move {
-                        let nm = NetworkDbus::new(&conn).await.unwrap();
-                        let known_connections = nm.known_connections().await.unwrap_or_default();
+                        let known_connections = match NetworkDbus::new(&conn).await {
+                            Ok(nm) => nm.known_connections().await.unwrap_or_default(),
+                            Err(e) => {
+                                warn!("Failed to create NetworkDbus proxy: {e}");
+                                Vec::new()
+                            }
+                        };
 
                         debug!("Known connections changed");
                         NetworkEvent::KnownConnections(known_connections)
@@ -543,20 +563,34 @@ impl NetworkDbus<'_> {
         }
 
         info.sort_by(|a, b| {
-            let helper = |conn: &ActiveConnectionInfo| match conn {
-                ActiveConnectionInfo::Vpn { name, .. } => format!("0{name}"),
-                ActiveConnectionInfo::Wired { name, .. } => format!("1{name}"),
-                ActiveConnectionInfo::WiFi { name, .. } => format!("2{name}"),
-            };
-            helper(a).cmp(&helper(b))
+            fn key(conn: &ActiveConnectionInfo) -> (u8, &str) {
+                match conn {
+                    ActiveConnectionInfo::Vpn { name, .. } => (0, name),
+                    ActiveConnectionInfo::Wired { name, .. } => (1, name),
+                    ActiveConnectionInfo::WiFi { name, .. } => (2, name),
+                }
+            }
+            key(a).cmp(&key(b))
         });
 
         Ok(info)
     }
+}
 
+fn connection_id(settings: &HashMap<String, HashMap<String, OwnedValue>>) -> Option<String> {
+    settings
+        .get("connection")?
+        .get("id")
+        .and_then(|v| match v.deref() {
+            Value::Str(v) => Some(v.to_string()),
+            _ => None,
+        })
+}
+
+impl NetworkDbus<'_> {
     pub async fn known_connections_internal(
         &self,
-        wireless_access_points: &[AccessPoint],
+        wireless_access_points: &[AccessPointData],
     ) -> anyhow::Result<Vec<KnownConnection>> {
         let settings = NetworkSettingsDbus::new(self.0.inner().connection()).await?;
 
@@ -577,29 +611,13 @@ impl NetworkDbus<'_> {
             let wifi = s.get("802-11-wireless");
 
             if wifi.is_some() {
-                let ssid = s
-                    .get("connection")
-                    .and_then(|c| c.get("id"))
-                    .map(|s| match s.deref() {
-                        Value::Str(v) => v.to_string(),
-                        _ => "".to_string(),
-                    });
-
-                if let Some(cur_ssid) = ssid {
+                if let Some(cur_ssid) = connection_id(&s) {
                     known_ssid.push(cur_ssid);
                 }
-            } else if s.contains_key("vpn") || s.contains_key("wireguard") {
-                let id = s
-                    .get("connection")
-                    .and_then(|c| c.get("id"))
-                    .map(|v| match v.deref() {
-                        Value::Str(v) => v.to_string(),
-                        _ => "".to_string(),
-                    });
-
-                if let Some(id) = id {
-                    known_vpn.push(Vpn { name: id, path: c });
-                }
+            } else if (s.contains_key("vpn") || s.contains_key("wireguard"))
+                && let Some(id) = connection_id(&s)
+            {
+                known_vpn.push(Vpn { name: id, path: c });
             }
         }
         let known_connections: Vec<_> = wireless_access_points
@@ -637,7 +655,7 @@ impl NetworkDbus<'_> {
         Ok(wireless_devices)
     }
 
-    pub async fn wireless_access_points(&self) -> anyhow::Result<Vec<AccessPoint>> {
+    pub async fn wireless_access_points(&self) -> anyhow::Result<Vec<AccessPointData>> {
         let wireless_devices = self.wireless_devices().await?;
         let wireless_access_point_futures: Vec<_> = wireless_devices
             .into_iter()
@@ -665,20 +683,20 @@ impl NetworkDbus<'_> {
                     .map_or_else(|| DeviceState::Unknown, DeviceState::from);
 
                 // Sort by strength and remove duplicates
-                let mut aps = HashMap::<String, AccessPoint>::new();
+                let mut aps = HashMap::<String, AccessPointData>::new();
                 for ap in access_points {
                     let ap = AccessPointProxy::builder(self.0.inner().connection())
                         .path(ap)?
                         .build()
                         .await?;
 
-                    let ssid = String::from_utf8_lossy(&ap.ssid().await?.clone()).into_owned();
+                    let ssid = String::from_utf8_lossy(&ap.ssid().await?).into_owned();
                     let public = ap.flags().await.unwrap_or_default() == 0;
                     let strength = ap.strength().await?;
                     let max_bitrate = ap.max_bitrate().await.unwrap_or_default();
                     let frequency = ap.frequency().await.unwrap_or_default();
                     if let Some(access_point) = aps.get(&ssid)
-                        && AccessPoint::is_better(
+                        && AccessPointData::is_better(
                             access_point.max_bitrate,
                             access_point.frequency,
                             access_point.strength,
@@ -692,7 +710,7 @@ impl NetworkDbus<'_> {
 
                     aps.insert(
                         ssid.clone(),
-                        AccessPoint {
+                        AccessPointData {
                             ssid,
                             strength,
                             max_bitrate,
@@ -717,7 +735,7 @@ impl NetworkDbus<'_> {
 
         let mut wireless_access_points = Vec::with_capacity(wireless_access_point_futures.len());
         for f in wireless_access_point_futures {
-            let mut access_points: anyhow::Result<Vec<AccessPoint>> = f.await;
+            let mut access_points: anyhow::Result<Vec<AccessPointData>> = f.await;
             if let Ok(access_points) = &mut access_points {
                 wireless_access_points.append(access_points);
             }
@@ -725,9 +743,9 @@ impl NetworkDbus<'_> {
 
         let wireless_access_points = wireless_access_points
             .into_iter()
-            .fold(HashMap::<String, AccessPoint>::new(), |mut acc, ap| {
+            .fold(HashMap::<String, AccessPointData>::new(), |mut acc, ap| {
                 if let Some(existing) = acc.get(&ap.ssid)
-                    && AccessPoint::is_better(
+                    && AccessPointData::is_better(
                         existing.max_bitrate,
                         existing.frequency,
                         existing.strength,
@@ -781,15 +799,12 @@ impl NetworkSettingsDbus<'_> {
                 .await?;
 
             let s = connection.get_settings().await?;
-            let id = s["connection"]
-                .get("id")
-                .map(|v| match v.deref() {
-                    Value::Str(v) => v.to_string(),
-                    _ => "".to_string(),
-                })
-                .unwrap();
-            if id == name {
+            let id = connection_id(&s);
+            if id.as_deref() == Some(name) {
                 return Ok(Some(connection.inner().path().to_owned().into()));
+            }
+            if id.is_none() {
+                debug!("skipping connection with missing or invalid 'id' field");
             }
         }
 
@@ -825,28 +840,6 @@ impl From<u32> for DeviceType {
     }
 }
 
-#[allow(unused)]
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ActiveConnectionState {
-    #[default]
-    Unknown,
-    Activating,
-    Activated,
-    Deactivating,
-    Deactivated,
-}
-
-impl From<u32> for ActiveConnectionState {
-    fn from(device_state: u32) -> Self {
-        match device_state {
-            1 => ActiveConnectionState::Activating,
-            2 => ActiveConnectionState::Activated,
-            3 => ActiveConnectionState::Deactivating,
-            4 => ActiveConnectionState::Deactivated,
-            _ => ActiveConnectionState::Unknown,
-        }
-    }
-}
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConnectivityState {
     None,
@@ -1030,32 +1023,6 @@ pub trait Device {
 
     #[zbus(property)]
     fn state(&self) -> Result<u32>;
-}
-
-#[proxy(
-    interface = "org.freedesktop.NetworkManager.Device.Wired",
-    default_service = "org.freedesktop.NetworkManager"
-)]
-trait WiredDevice {
-    /// Carrier property
-    #[zbus(property)]
-    fn carrier(&self) -> zbus::Result<bool>;
-
-    /// `HwAddress` property
-    #[zbus(property)]
-    fn hw_address(&self) -> zbus::Result<String>;
-
-    /// `PermHwAddress` property
-    #[zbus(property)]
-    fn perm_hw_address(&self) -> zbus::Result<String>;
-
-    /// `S390Subchannels` property
-    #[zbus(property)]
-    fn s390subchannels(&self) -> zbus::Result<Vec<String>>;
-
-    /// Speed property
-    #[zbus(property)]
-    fn speed(&self) -> zbus::Result<u32>;
 }
 
 #[proxy(

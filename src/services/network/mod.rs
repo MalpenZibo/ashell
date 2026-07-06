@@ -3,7 +3,6 @@ use crate::services::ReadOnlyService;
 use dbus::ConnectivityState;
 use dbus::NetworkDbus;
 use iced::futures::TryFutureExt;
-use iced::futures::stream::pending;
 use iced::{
     Subscription, Task,
     futures::{SinkExt, StreamExt, channel::mpsc::Sender},
@@ -11,7 +10,8 @@ use iced::{
 };
 use iwd_dbus::IwdDbus;
 use log::{debug, error, info};
-use std::{any::TypeId, ops::Deref};
+use std::{any::TypeId, ops::Deref, time::Duration};
+use tokio::time::sleep;
 use zbus::zvariant::OwnedObjectPath;
 
 pub mod dbus;
@@ -41,7 +41,7 @@ pub trait NetworkBackend: Send + Sync {
     /// Returns the updated list of known connections.
     async fn select_access_point(
         &self,
-        ap: &AccessPoint,
+        ap: &AccessPointData,
         password: Option<String>,
     ) -> anyhow::Result<()>;
 
@@ -63,11 +63,11 @@ pub enum NetworkEvent {
     Connectivity(ConnectivityState),
     WirelessDevice {
         wifi_present: bool,
-        wireless_access_points: Vec<AccessPoint>,
+        wireless_access_points: Vec<AccessPointData>,
     },
     ActiveConnections(Vec<ActiveConnectionInfo>),
     KnownConnections(Vec<KnownConnection>),
-    WirelessAccessPoint(Vec<AccessPoint>),
+    WirelessAccessPoint(Vec<AccessPointData>),
     Strength((Option<OwnedObjectPath>, String, u8)),
     RequestPasswordForSSID(String),
     ScanRequested(Vec<OwnedObjectPath>),
@@ -80,12 +80,12 @@ pub enum NetworkCommand {
     ScanNearByWiFi,
     ToggleWiFi,
     ToggleAirplaneMode,
-    SelectAccessPoint((AccessPoint, Option<String>)),
+    SelectAccessPoint((AccessPointData, Option<String>)),
     ToggleVpn(Vpn),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct AccessPoint {
+pub struct AccessPointData {
     pub ssid: String,
     pub strength: u8,
     pub max_bitrate: u32,
@@ -97,7 +97,7 @@ pub struct AccessPoint {
     pub device_path: OwnedObjectPath,
 }
 
-impl AccessPoint {
+impl AccessPointData {
     /// Returns true if the first access point (by max_bitrate, frequency, strength) is better than the second.
     /// Comparison order: max_bitrate > frequency > strength (higher values are better)
     #[inline]
@@ -123,7 +123,7 @@ pub struct Vpn {
 
 #[derive(Debug, Clone)]
 pub enum KnownConnection {
-    AccessPoint(AccessPoint),
+    AccessPoint(AccessPointData),
     Vpn(Vpn),
 }
 
@@ -155,7 +155,7 @@ impl ActiveConnectionInfo {
 #[derive(Debug, Default, Clone)]
 pub struct NetworkData {
     pub wifi_present: bool,
-    pub wireless_access_points: Vec<AccessPoint>,
+    pub wireless_access_points: Vec<AccessPointData>,
     pub active_connections: Vec<ActiveConnectionInfo>,
     pub known_connections: Vec<KnownConnection>,
     pub wifi_enabled: bool,
@@ -279,18 +279,15 @@ impl ReadOnlyService for NetworkService {
     }
 
     fn subscribe() -> Subscription<ServiceEvent<Self>> {
-        let id = TypeId::of::<Self>();
-
-        Subscription::run_with_id(
-            id,
+        Subscription::run_with(TypeId::of::<Self>(), |_| {
             channel(50, async |mut output| {
                 let mut state = State::Init;
 
                 loop {
                     state = NetworkService::start_listening(state, &mut output).await;
                 }
-            }),
-        )
+            })
+        })
     }
 }
 
@@ -366,7 +363,7 @@ impl NetworkBackend for BackendChoiceWithConnection {
 
     async fn select_access_point(
         &self,
-        ap: &AccessPoint,
+        ap: &AccessPointData,
         password: Option<String>,
     ) -> anyhow::Result<()> {
         match self.choice {
@@ -553,11 +550,11 @@ impl NetworkService {
                 }
             }
             State::Error => {
-                error!("Network service error");
+                error!("Network service error, retrying in 5 seconds");
 
-                let _ = pending::<u8>().next().await;
+                sleep(Duration::from_secs(5)).await;
 
-                State::Error
+                State::Init
             }
         }
     }

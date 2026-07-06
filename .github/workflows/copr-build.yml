@@ -2,11 +2,6 @@ name: Copr Build
 
 on:
   workflow_dispatch:
-    inputs:
-      chroots:
-        description: "Space-separated Copr chroots"
-        required: false
-        default: "fedora-42-x86_64"
   push:
     tags:
       - "v*"
@@ -19,10 +14,13 @@ jobs:
     env:
       COPR_CONFIG: ${{ secrets.COPR_CONFIG }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Install deps
         run: |
-          dnf -y install git cargo rust rpm-build copr-cli gcc make pkgconf-pkg-config
+          dnf -y install git cargo rust rpm-build copr-cli gcc make pkgconf-pkg-config \
+            pipewire-devel libinput-devel systemd-devel dbus-devel wayland-devel \
+            libxkbcommon-devel mesa-libEGL-devel pango-devel cairo-devel glib2-devel \
+            openssl-devel fontconfig-devel freetype-devel clang-devel
           dnf -y clean all
       - name: Configure copr-cli
         if: env.COPR_CONFIG != ''
@@ -42,13 +40,7 @@ jobs:
         run: echo "path=$(ls -1 target/release/rpmbuild/SRPMS/*.src.rpm | head -n1)" >> $GITHUB_OUTPUT
       - name: Trigger Copr build
         if: env.COPR_CONFIG != ''
-        env:
-          CHROOTS: ${{ github.event.inputs.chroots }}
-        run: |
-          CHROOTS="${CHROOTS:-fedora-42-x86_64}"
-          args=()
-          for c in $CHROOTS; do args+=( -r "$c" ); done
-          copr-cli build "${args[@]}" killcrb/ashell "${{ steps.srpm.outputs.path }}"
+        run: copr-cli build killcrb/ashell "${{ steps.srpm.outputs.path }}"
       - name: List builds
         if: env.COPR_CONFIG != ''
         run: copr-cli list-builds killcrb/ashell

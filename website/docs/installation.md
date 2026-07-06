@@ -1,5 +1,5 @@
 ---
-sidebar_position: 2
+sidebar_position: 3
 ---
 
 # 🛠️ Installation
@@ -13,7 +13,7 @@ You can install Ashell using the following methods:
 Officially maintained: Arch Linux package and the Nix configuration
 included in the repository.
 
-Community packaging: Fedora via Copr (see below). If a package is broken,
+Community packaging: Fedora via Copr and Gentoo Linux via GURU (see below). If a package is broken,
 try building from source first.
 
 :::
@@ -36,24 +36,32 @@ yay -S ashell-git
 
 ### Nix
 
-To install Ashell using the Nix package manager, make sure flakes are enabled,
-then run:
+Ashell is available in nixpkgs:
 
-#### Tagged Release
+- **nixpkgs unstable**: version 0.8.0
+- **nixpkgs 25.11 (stable)**: version 0.6.0
 
-```bash
-nix profile install github:MalpenZibo/ashell?ref=0.5.0
-```
+#### nix profile (flake)
 
-#### Main Branch
+To install directly from the repository using flakes:
 
 ```bash
 nix profile install github:MalpenZibo/ashell
 ```
 
+#### nixpkgs (cached, no build required)
+
+```bash
+# Unstable
+nix profile install nixpkgs#ashell
+
+# Or with nix-shell for a temporary session
+nix shell nixpkgs#ashell
+```
+
 ### NixOS / Home Manager
 
-To use this flake, add the input to your `flake.nix`:
+Using the flake directly:
 
 ```nix
 inputs = {
@@ -75,8 +83,16 @@ And in your `configuration.nix`:
 }
 ```
 
-This will build Ashell from source.  
-Alternatively, you can use `pkgs.ashell` from `nixpkgs`, which is cached.
+Or using nixpkgs (cached, recommended):
+
+```nix
+{ pkgs, ... }:
+
+{
+  environment.systemPackages = [pkgs.ashell];
+  # or home.packages = ...
+}
+```
 
 ### Fedora (Copr)
 
@@ -85,6 +101,22 @@ Unofficial Copr repository (maintained by @killcrb):
 ```bash
 sudo dnf -y copr enable killcrb/ashell
 sudo dnf -y install ashell
+```
+
+### Gentoo Linux (GURU)
+
+First, [add the GURU repository](https://wiki.gentoo.org/wiki/Project:GURU/Information_for_End_Users#Adding_the_GURU_repository)
+
+Next, unmask ashell package in any file in ```/etc/portage/package.accept_keywords/```
+
+```bash
+gui-apps/ashell ~amd64
+```
+
+And finally install:
+
+```bash
+emerge gui-apps/ashell
 ```
 
 ## Building from Source

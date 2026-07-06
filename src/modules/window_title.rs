@@ -1,7 +1,7 @@
 use crate::{
     config::{WindowTitleConfig, WindowTitleMode},
     services::{ReadOnlyService, ServiceEvent, compositor::CompositorService},
-    theme::AshellTheme,
+    theme::use_theme,
     utils::truncate_text,
 };
 use iced::{
@@ -90,14 +90,16 @@ impl WindowTitle {
         self.value.clone()
     }
 
-    pub fn view(&'_ self, theme: &AshellTheme, title: String) -> Element<'_, Message> {
-        container(
-            text(title)
-                .size(theme.font_size.sm)
-                .wrapping(text::Wrapping::None),
-        )
-        .clip(true)
-        .into()
+    pub fn view(&'_ self, title: String) -> Element<'_, Message> {
+        use_theme(|theme| {
+            container(
+                text(title)
+                    .size(theme.font_size.sm)
+                    .wrapping(text::Wrapping::None),
+            )
+            .clip(true)
+            .into()
+        })
     }
 
     pub fn subscription(&self) -> Subscription<Message> {

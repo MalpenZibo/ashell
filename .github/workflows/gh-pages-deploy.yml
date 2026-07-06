@@ -4,29 +4,37 @@ on:
   push:
     branches:
       - main
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
 jobs:
-  deploy:
-    name: Deploy Docusaurus
+  build:
+    name: Build
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: website
-    permissions:
-      contents: write
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 10
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
           cache-dependency-path: ./website/pnpm-lock.yaml
 
@@ -36,10 +44,33 @@ jobs:
       - name: Build website
         run: pnpm build
 
-      - name: Deploy
-        id: deployment
-        uses: peaceiris/actions-gh-pages@v4
+      - name: Install mdbook
+        uses: taiki-e/install-action@v2
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          enable_jekyll: false
-          publish_dir: ./website/build
+          tool: mdbook
+
+      - name: Build developer guide
+        run: mdbook build docs/
+        working-directory: .
+
+      - name: Copy developer guide into website build
+        run: cp -r docs/book website/build/dev-guide
+        working-directory: .
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: ./website/build
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

@@ -12,10 +12,26 @@ use hyprland::{
 };
 use itertools::Itertools;
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
-use tokio::sync::broadcast;
+use std::sync::Arc;
+use tokio::sync::{RwLock, broadcast};
 
-pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
+/// Detect whether Hyprland is using Lua or hyprlang config.
+/// Checks `hyprctl status` for the `configProvider` field.
+/// Falls back to hyprlang (false) if detection fails.
+async fn is_lua_config() -> bool {
+    tokio::process::Command::new("hyprctl")
+        .arg("status")
+        .output()
+        .await
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.lines().any(|l| l.starts_with("configProvider: lua")))
+        .unwrap_or(false)
+}
+
+/// Dispatch a command using the old hyprlang socket protocol.
+/// Works on all Hyprland versions but is broken on 0.55+ with Lua config.
+fn dispatch_hyprlang(cmd: CompositorCommand) -> Result<()> {
     match cmd {
         CompositorCommand::FocusWorkspace(id) => {
             Dispatch::call(DispatchType::Workspace(WorkspaceIdentifierWithSpecial::Id(
@@ -52,6 +68,52 @@ pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
     Ok(())
 }
 
+/// Dispatch a command using the new Lua eval protocol.
+/// Required for Hyprland 0.55+ with Lua config.
+async fn dispatch_lua(cmd: CompositorCommand) -> Result<()> {
+    let lua = match cmd {
+        CompositorCommand::FocusWorkspace(id) => {
+            format!("hl.dispatch(hl.dsp.focus({{ workspace = {id} }}))")
+        }
+        CompositorCommand::FocusSpecialWorkspace(name) => {
+            format!("hl.dispatch(hl.dsp.focus({{ workspace = \"special:{name}\" }}))")
+        }
+        CompositorCommand::ToggleSpecialWorkspace(name) => {
+            format!("hl.dispatch(hl.dsp.workspace.toggle_special(\"{name}\"))")
+        }
+        CompositorCommand::FocusMonitor(id) => {
+            format!("hl.dispatch(hl.dsp.focus({{ monitor = {id} }}))")
+        }
+        CompositorCommand::ScrollWorkspace(dir) => {
+            let d = if dir > 0 { "+1" } else { "-1" };
+            format!("hl.dispatch(hl.dsp.focus({{ workspace = \"{d}\" }}))")
+        }
+        CompositorCommand::NextLayout => {
+            hyprland::ctl::switch_xkb_layout::call(
+                "all",
+                hyprland::ctl::switch_xkb_layout::SwitchXKBLayoutCmdTypes::Next,
+            )?;
+            return Ok(());
+        }
+        CompositorCommand::CustomDispatch(dispatcher, args) => {
+            format!("hl.dispatch(hl.dsp.{dispatcher}({args}))")
+        }
+    };
+    tokio::process::Command::new("hyprctl")
+        .args(["eval", &lua])
+        .output()
+        .await?;
+    Ok(())
+}
+
+pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
+    if is_lua_config().await {
+        dispatch_lua(cmd).await
+    } else {
+        dispatch_hyprlang(cmd)
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 struct HyprInternalState {
     submap: String,
@@ -68,9 +130,7 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
 
     // Initial fetch
     {
-        let state_guard = internal_state
-            .read()
-            .map_err(|e| anyhow::anyhow!(e.to_string()))?;
+        let state_guard = internal_state.read().await;
 
         match fetch_full_state(&state_guard) {
             Ok(state) => {
@@ -95,9 +155,8 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
                     let tx = tx.clone();
                     let internal_state = Arc::clone(&internal_state);
                     Box::pin(async move {
-                        if let Ok(state_guard) = internal_state.read()
-                            && let Ok(state) = fetch_full_state(&*state_guard)
-                        {
+                        let state_guard = internal_state.read().await;
+                        if let Ok(state) = fetch_full_state(&*state_guard) {
                             let _ = tx.send(ServiceEvent::Update(CompositorEvent::StateChanged(
                                 Box::new(state),
                             )));
@@ -130,13 +189,12 @@ pub async fn run_listener(tx: &broadcast::Sender<ServiceEvent<CompositorService>
             let tx = tx.clone();
             let internal_state = Arc::clone(&internal_state);
             Box::pin(async move {
-                if let Ok(mut state_guard) = internal_state.write() {
-                    state_guard.submap = new_submap;
-                    if let Ok(state) = fetch_full_state(&state_guard) {
-                        let _ = tx.send(ServiceEvent::Update(CompositorEvent::StateChanged(
-                            Box::new(state),
-                        )));
-                    }
+                let mut state_guard = internal_state.write().await;
+                state_guard.submap = new_submap;
+                if let Ok(state) = fetch_full_state(&state_guard) {
+                    let _ = tx.send(ServiceEvent::Update(CompositorEvent::StateChanged(
+                        Box::new(state),
+                    )));
                 }
             })
         }
@@ -178,6 +236,7 @@ fn fetch_full_state(internal_state: &HyprInternalState) -> Result<CompositorStat
                 monitor_id: w.monitor_id,
                 windows: w.windows,
                 is_special: w.id < 0,
+                has_urgent: false,
                 window_classes,
             }
         })
@@ -193,7 +252,11 @@ fn fetch_full_state(internal_state: &HyprInternalState) -> Result<CompositorStat
         })
         .collect();
 
-    let active_workspace_id = Workspace::get_active().ok().map(|w| w.id);
+    let active_workspace_ids = Workspace::get_active()
+        .ok()
+        .map(|w| w.id)
+        .into_iter()
+        .collect();
 
     let active_window = Client::get_active().ok().flatten().map(|w| {
         ActiveWindow::Hyprland(ActiveWindowHyprland {
@@ -218,7 +281,7 @@ fn fetch_full_state(internal_state: &HyprInternalState) -> Result<CompositorStat
     Ok(CompositorState {
         workspaces,
         monitors,
-        active_workspace_id,
+        active_workspace_ids,
         active_window,
         keyboard_layout,
         submap: if internal_state.submap.is_empty() {

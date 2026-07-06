@@ -13,6 +13,7 @@ pub mod simple_configuration;
 pub mod station;
 pub mod station_diagnostic;
 
+use std::cmp::Reverse;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 
 // source for dbus: https://git.kernel.org/pub/scm/network/wireless/iwd.git/tree/doc
@@ -23,7 +24,7 @@ use crate::services::bluetooth::BluetoothService;
 use zbus::interface;
 
 use super::dbus::DeviceState;
-use super::{AccessPoint, ActiveConnectionInfo, KnownConnection, NetworkBackend, NetworkEvent};
+use super::{AccessPointData, ActiveConnectionInfo, KnownConnection, NetworkBackend, NetworkEvent};
 use iced::futures::future::join_all;
 use iced::futures::stream::select_all;
 use iced::futures::{Stream, StreamExt};
@@ -144,7 +145,7 @@ impl super::NetworkBackend for IwdDbus<'_> {
     /// List known (provisioned) SSIDs.
     async fn known_connections(&self) -> anyhow::Result<Vec<KnownConnection>> {
         let nets = self.reachable_networks().await?;
-        let mut networks = HashMap::<String, AccessPoint>::new();
+        let mut networks = HashMap::<String, AccessPointData>::new();
         for (n, signal_strength) in nets {
             if n.known_network().await.is_err() {
                 continue;
@@ -152,7 +153,7 @@ impl super::NetworkBackend for IwdDbus<'_> {
             let ssid = n.name().await?;
             let path = n.inner().path().clone().into();
             let device_path = n.device().await?.clone();
-            let access_point = AccessPoint {
+            let access_point = AccessPointData {
                 ssid: ssid.clone(),
                 path,
                 device_path,
@@ -166,7 +167,7 @@ impl super::NetworkBackend for IwdDbus<'_> {
 
             // maybe IWD will provide frequency and bitrate in the future
             if let Some(existing) = networks.get(&ssid)
-                && AccessPoint::is_better(
+                && AccessPointData::is_better(
                     existing.max_bitrate,
                     existing.frequency,
                     existing.strength,
@@ -207,7 +208,7 @@ impl super::NetworkBackend for IwdDbus<'_> {
 
     async fn select_access_point(
         &self,
-        ap: &AccessPoint,
+        ap: &AccessPointData,
         password: Option<String>,
     ) -> anyhow::Result<()> {
         // Get the agent manager
@@ -215,7 +216,8 @@ impl super::NetworkBackend for IwdDbus<'_> {
 
         // If password is provided, register a new agent to handle it
         if let Some(p) = password {
-            let path = OwnedObjectPath::try_from("/ashell/pwagent/main").unwrap();
+            let path = OwnedObjectPath::try_from("/ashell/pwagent/main")
+                .expect("hardcoded valid D-Bus object path");
 
             match agent_manager.unregister_agent(&path).await {
                 Ok(_) => info!("Successfully unregistered agent at {path}"),
@@ -792,7 +794,7 @@ impl IwdDbus<'_> {
     }
 
     /// Scan and list available access points.
-    pub async fn wireless_access_points(&self) -> anyhow::Result<Vec<AccessPoint>> {
+    pub async fn wireless_access_points(&self) -> anyhow::Result<Vec<AccessPointData>> {
         let mut aps = Vec::new();
         {
             let nets = self.reachable_networks().await?;
@@ -801,7 +803,7 @@ impl IwdDbus<'_> {
                 let public = net.type_().await? == "open";
                 let path = net.inner().path().clone().into();
                 let device_path = net.device().await?.clone();
-                aps.push(AccessPoint {
+                aps.push(AccessPointData {
                     ssid,
                     state: DeviceState::Unknown, // TODO:
                     // _s is between 0 and -10000
@@ -819,9 +821,9 @@ impl IwdDbus<'_> {
 
         let aps = aps
             .into_iter()
-            .fold(HashMap::<String, AccessPoint>::new(), |mut acc, ap| {
+            .fold(HashMap::<String, AccessPointData>::new(), |mut acc, ap| {
                 if let Some(existing) = acc.get(&ap.ssid)
-                    && AccessPoint::is_better(
+                    && AccessPointData::is_better(
                         existing.max_bitrate,
                         existing.frequency,
                         existing.strength,
@@ -840,7 +842,7 @@ impl IwdDbus<'_> {
             .collect::<Vec<_>>();
 
         let mut aps = aps;
-        aps.sort_by(|a, b| b.strength.cmp(&a.strength));
+        aps.sort_by_key(|b| Reverse(b.strength));
         Ok(aps)
     }
 

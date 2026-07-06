@@ -1,14 +1,14 @@
 use crate::{
     components::icons::{DynamicIcon, StaticIcon, icon},
     config::CustomModuleDef,
-    theme::AshellTheme,
+    theme::use_theme,
     utils::launcher::execute_command,
 };
 use iced::widget::canvas;
 use iced::{
     Element, Length, Subscription, Theme,
     stream::channel,
-    widget::{Stack, row, text},
+    widget::{Space, Stack, row, text},
 };
 use iced::{
     mouse::Cursor,
@@ -17,9 +17,9 @@ use iced::{
         container,
     },
 };
-use log::{error, info};
+use log::{error, info, warn};
 use serde::Deserialize;
-use std::{any::TypeId, process::Stdio};
+use std::process::Stdio;
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
     process::Command,
@@ -27,7 +27,7 @@ use tokio::{
 
 #[derive(Debug, Clone)]
 pub struct Custom {
-    config: CustomModuleDef,
+    pub config: CustomModuleDef,
     data: CustomListenData,
 }
 
@@ -40,6 +40,10 @@ pub struct CustomListenData {
 #[derive(Debug, Clone)]
 pub enum Message {
     LaunchCommand,
+    LaunchRightClickCommand,
+    LaunchMiddleClickCommand,
+    LaunchScrollUpCommand,
+    LaunchScrollDownCommand,
     Update(CustomListenData),
 }
 
@@ -86,7 +90,27 @@ impl Custom {
         match msg {
             Message::LaunchCommand => {
                 if let Some(cmd) = &self.config.command {
-                    execute_command(cmd.clone());
+                    execute_command(cmd);
+                }
+            }
+            Message::LaunchRightClickCommand => {
+                if let Some(cmd) = &self.config.on_right_click {
+                    execute_command(cmd);
+                }
+            }
+            Message::LaunchMiddleClickCommand => {
+                if let Some(cmd) = &self.config.on_middle_click {
+                    execute_command(cmd);
+                }
+            }
+            Message::LaunchScrollUpCommand => {
+                if let Some(cmd) = &self.config.on_scroll_up {
+                    execute_command(cmd);
+                }
+            }
+            Message::LaunchScrollDownCommand => {
+                if let Some(cmd) = &self.config.on_scroll_down {
+                    execute_command(cmd);
                 }
             }
             Message::Update(data) => {
@@ -95,7 +119,8 @@ impl Custom {
         }
     }
 
-    pub fn view(&'_ self, theme: &AshellTheme) -> Element<'_, Message> {
+    pub fn view(&'_ self) -> Element<'_, Message> {
+        let space = use_theme(|theme| theme.space);
         match self.config.r#type {
             crate::config::CustomModuleType::Text => self
                 .data
@@ -108,7 +133,7 @@ impl Custom {
                         None
                     }
                 })
-                .unwrap_or_else(|| text("").into()),
+                .unwrap_or_else(|| Space::new().width(Length::Shrink).into()),
             crate::config::CustomModuleType::Button => {
                 let mut icon_element = self.config.icon.as_ref().map_or_else(
                     || icon(StaticIcon::None),
@@ -137,8 +162,8 @@ impl Custom {
 
                 let icon_with_alert = if show_alert {
                     let alert_canvas = canvas(AlertIndicator)
-                        .width(Length::Fixed(theme.space.xs as f32)) // Size of the dot
-                        .height(Length::Fixed(theme.space.xs as f32));
+                        .width(Length::Fixed(space.xs)) // Size of the dot
+                        .height(Length::Fixed(space.xs));
 
                     // Container to position the dot at the top-right
                     let alert_indicator_container = container(alert_canvas)
@@ -164,9 +189,7 @@ impl Custom {
                 });
 
                 if let Some(text_element) = maybe_text_element {
-                    row![icon_with_alert, text_element]
-                        .spacing(theme.space.xs)
-                        .into()
+                    row![icon_with_alert, text_element].spacing(space.xs).into()
                 } else {
                     icon_with_alert
                 }
@@ -175,11 +198,10 @@ impl Custom {
     }
 
     pub fn subscription(&self) -> Subscription<(String, Message)> {
-        let id = TypeId::of::<Self>();
         let name = self.config.name.clone();
         if let Some(listen_cmd) = self.config.listen_cmd.clone() {
-            Subscription::run_with_id(
-                (id, name.clone(), listen_cmd.clone()),
+            Subscription::run_with((name, listen_cmd), |data| {
+                let (name, listen_cmd) = data.clone();
                 channel(10, async move |mut output| {
                     let command = Command::new("bash")
                         .arg("-c")
@@ -191,21 +213,23 @@ impl Custom {
                         Ok(mut child) => {
                             if let Some(stdout) = child.stdout.take() {
                                 let mut reader = BufReader::new(stdout).lines();
+                                let mut buf = String::new();
 
                                 // Ensure the child process is spawned in the runtime so it can
                                 // make progress on its own while we await for any output.
                                 tokio::spawn(async move {
-                                    let status = child
-                                        .wait()
-                                        .await
-                                        .expect("child process encountered an error");
-
-                                    info!("child status was: {status}");
+                                    match child.wait().await {
+                                        Ok(status) => info!("child status was: {status}"),
+                                        Err(e) => warn!("child process encountered an error: {e}"),
+                                    }
                                 });
 
                                 while let Some(line) = reader.next_line().await.ok().flatten() {
-                                    match serde_json::from_str(&line) {
+                                    buf.push_str(&line);
+                                    buf.push('\n');
+                                    match serde_json::from_str::<CustomListenData>(&buf) {
                                         Ok(event) => {
+                                            buf.clear();
                                             if let Err(e) = output
                                                 .try_send((name.clone(), Message::Update(event)))
                                             {
@@ -214,10 +238,20 @@ impl Custom {
                                                 );
                                             }
                                         }
+                                        Err(e) if e.is_eof() => {
+                                            if buf.len() > 1 << 20 {
+                                                warn!(
+                                                    "custom module '{name}': dropping {} bytes of unterminated JSON",
+                                                    buf.len()
+                                                );
+                                                buf.clear();
+                                            }
+                                        }
                                         Err(e) => {
                                             error!(
-                                                "Failed to parse JSON for custom module '{name}': {e} (payload: {line})"
+                                                "Failed to parse JSON for custom module '{name}': {e} (payload: {buf})"
                                             );
+                                            buf.clear();
                                         }
                                     }
                                 }
@@ -229,8 +263,8 @@ impl Custom {
                             error!("Failed to execute command: {error}");
                         }
                     }
-                }),
-            )
+                })
+            })
         } else {
             Subscription::none()
         }

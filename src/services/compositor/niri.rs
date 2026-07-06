@@ -31,10 +31,8 @@ pub async fn execute_command(cmd: CompositorCommand) -> Result<()> {
                 ));
             }
         },
-        CompositorCommand::FocusSpecialWorkspace(_) => {
-            return Err(anyhow!("Special workspaces not supported in Niri backend"));
-        }
-        CompositorCommand::ToggleSpecialWorkspace(_) => {
+        CompositorCommand::FocusSpecialWorkspace(_)
+        | CompositorCommand::ToggleSpecialWorkspace(_) => {
             return Err(anyhow!("Special workspaces not supported in Niri backend"));
         }
         CompositorCommand::FocusMonitor(_) => {
@@ -222,6 +220,7 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
                 }),
                 windows: 0,
                 is_special: false,
+                has_urgent: w.is_urgent,
                 window_classes: if collect_classes {
                     workspace_classes.remove(&idx).unwrap_or_default()
                 } else {
@@ -231,7 +230,8 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
         })
         .collect();
 
-    // Calculate window counts
+    // Calculate window counts; also propagate per-window urgency to workspaces
+    // since older niri versions may only emit window-level urgency events.
     for win in niri.windows.windows.values() {
         if let Some(ws_id) = win.workspace_id {
             // Resolve Niri Workspace ID (u64) -> Visual Index (u8) -> Generic ID (i32)
@@ -239,29 +239,32 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
                 && let Some(generic_ws) = workspaces.iter_mut().find(|w| w.id == ws.id as i32)
             {
                 generic_ws.windows += 1;
+                if win.is_urgent {
+                    generic_ws.has_urgent = true;
+                }
             }
         }
     }
 
-    let mut monitors = Vec::new();
-    for (name, active_ws_id) in &output_to_active_ws {
-        monitors.push(CompositorMonitor {
-            id: outputs
-                .iter()
-                .position(|o| *o == name)
-                .map_or(-1, |i| i as i128),
-            name: name.clone(),
-            active_workspace_id: *active_ws_id,
+    let monitors: Vec<CompositorMonitor> = outputs
+        .iter()
+        .enumerate()
+        .map(|(i, name)| CompositorMonitor {
+            id: i as i128,
+            name: (*name).clone(),
+            active_workspace_id: output_to_active_ws.get(*name).copied().unwrap_or(-1),
             special_workspace_id: -1,
-        });
-    }
+        })
+        .collect();
 
-    let active_workspace_id = niri
+    let active_workspace_ids = niri
         .workspaces
         .workspaces
         .values()
         .find(|w| w.is_focused)
-        .map(|w| w.id as i32);
+        .map(|w| w.id as i32)
+        .into_iter()
+        .collect();
 
     let active_window = niri
         .windows
@@ -289,7 +292,7 @@ fn map_state(niri: &EventStreamState) -> CompositorState {
     CompositorState {
         workspaces,
         monitors,
-        active_workspace_id,
+        active_workspace_ids,
         active_window,
         keyboard_layout,
         submap: None,

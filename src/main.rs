@@ -1,32 +1,36 @@
-use crate::config::get_config;
+use crate::config::{Position, get_config};
+use crate::outputs::Outputs;
 use app::App;
 use clap::Parser;
 use flexi_logger::{
     Age, Cleanup, Criterion, FileSpec, LogSpecBuilder, LogSpecification, Logger, Naming,
 };
-use iced::Font;
+use iced::{Anchor, Font, KeyboardInteractivity, Layer, LayerShellSettings};
 use log::{debug, error, warn};
+use std::backtrace::Backtrace;
+use std::env;
 use std::panic;
 use std::path::PathBuf;
-use std::{backtrace::Backtrace, borrow::Cow};
 
 mod app;
 mod components;
 mod config;
-mod menu;
+mod i18n;
+mod ipc;
 mod modules;
+mod osd;
 mod outputs;
-mod password_dialog;
 mod services;
 mod theme;
 mod utils;
-mod widgets;
+mod xdg;
 
 const NERD_FONT: &[u8] = include_bytes!("../target/generated/SymbolsNerdFont-Regular-Subset.ttf");
 const NERD_FONT_MONO: &[u8] =
     include_bytes!("../target/generated/SymbolsNerdFontMono-Regular-Subset.ttf");
 const CUSTOM_FONT: &[u8] = include_bytes!("../assets/AshellCustomIcon-Regular.otf");
 const HEIGHT: f64 = 34.;
+const TMP_FILE_SIZE: u64 = 10 * 1024 * 1024;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -36,6 +40,18 @@ const HEIGHT: f64 = 34.;
 struct Args {
     #[arg(short, long, value_parser = clap::value_parser!(PathBuf))]
     config_path: Option<PathBuf>,
+
+    #[command(subcommand)]
+    command: Option<Command>,
+}
+
+#[derive(clap::Subcommand, Debug)]
+enum Command {
+    /// Send a message to a running ashell instance
+    Msg {
+        #[command(subcommand)]
+        command: ipc::IpcCommand,
+    },
 }
 
 fn get_log_spec(log_level: &str) -> LogSpecification {
@@ -51,20 +67,29 @@ fn get_log_spec(log_level: &str) -> LogSpecification {
     }
 }
 
-#[tokio::main]
-async fn main() -> iced::Result {
+fn main() -> iced::Result {
     let args = Args::parse();
+
+    if let Some(Command::Msg { command }) = &args.command {
+        if let Err(e) = ipc::run_client(command) {
+            eprintln!("Error: {e:#}");
+            std::process::exit(1);
+        }
+        std::process::exit(0);
+    }
+
     debug!("args: {args:?}");
 
+    let logdir = xdg::get_runtime_dir()
+        .unwrap_or_else(|| [env::temp_dir(), PathBuf::from("ashell")].iter().collect());
     let logger = Logger::with(
         LogSpecBuilder::new()
             .default(log::LevelFilter::Info)
             .build(),
     )
-    .log_to_file(FileSpec::default().directory("/tmp/ashell"))
-    .duplicate_to_stdout(flexi_logger::Duplicate::All)
+    .log_to_file(FileSpec::default().directory(logdir))
     .rotate(
-        Criterion::Age(Age::Day),
+        Criterion::AgeOrSize(Age::Day, TMP_FILE_SIZE),
         Naming::Timestamps,
         Cleanup::KeepLogFiles(7),
     );
@@ -73,7 +98,16 @@ async fn main() -> iced::Result {
     } else {
         logger
     };
-    let logger = logger.start().unwrap();
+    let logger = logger.start().unwrap_or_else(|e| {
+        eprintln!("Failed to initialize file logger: {e}, falling back to stderr-only");
+        Logger::with(
+            LogSpecBuilder::new()
+                .default(log::LevelFilter::Info)
+                .build(),
+        )
+        .start()
+        .expect("critical: cannot initialize any logger")
+    });
     panic::set_hook(Box::new(|info| {
         let b = Backtrace::capture();
         error!("Panic: {info} \n {b}");
@@ -93,14 +127,38 @@ async fn main() -> iced::Result {
         Font::DEFAULT
     };
 
-    iced::daemon(App::title, App::update, App::view)
-        .subscription(App::subscription)
-        .theme(App::theme)
-        .style(App::style)
-        .scale_factor(App::scale_factor)
-        .font(Cow::from(NERD_FONT))
-        .font(Cow::from(NERD_FONT_MONO))
-        .font(Cow::from(CUSTOM_FONT))
-        .default_font(font)
-        .run_with(App::new((logger, config, config_path)))
+    let height = Outputs::get_height(config.appearance.style, config.appearance.scale_factor);
+
+    let iced_layer = match config.layer {
+        config::Layer::Top => Layer::Top,
+        config::Layer::Bottom => Layer::Bottom,
+        config::Layer::Overlay => Layer::Overlay,
+    };
+
+    iced::application(
+        App::new((logger, config.clone(), config_path)),
+        App::update,
+        App::view,
+    )
+    .layer_shell(LayerShellSettings {
+        anchor: match config.position {
+            Position::Top => Anchor::TOP,
+            Position::Bottom => Anchor::BOTTOM,
+        } | Anchor::LEFT
+            | Anchor::RIGHT,
+        layer: iced_layer,
+        exclusive_zone: height as i32,
+        size: Some((0, height as u32)),
+        keyboard_interactivity: KeyboardInteractivity::None,
+        namespace: "ashell-main-layer".into(),
+        ..Default::default()
+    })
+    .subscription(App::subscription)
+    .theme(App::theme)
+    .scale_factor(App::scale_factor)
+    .font(NERD_FONT)
+    .font(NERD_FONT_MONO)
+    .font(CUSTOM_FONT)
+    .default_font(font)
+    .run()
 }

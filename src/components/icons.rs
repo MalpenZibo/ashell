@@ -1,4 +1,7 @@
-use crate::theme::AshellTheme;
+use crate::{
+    components::button::{ButtonHierarchy, ButtonKind, ButtonSize, OnPress},
+    theme::use_theme,
+};
 use iced::{
     Color, Element, Font, Length, Theme,
     widget::{
@@ -31,6 +34,7 @@ pub enum StaticIcon {
     Speaker1,
     Speaker2,
     Speaker3,
+    SpeakerOverdrive,
     Headphones0,
     Headphones1,
     Headset,
@@ -54,6 +58,8 @@ pub enum StaticIcon {
     Battery3,
     Battery4,
     BatteryCharging,
+    BatteryLimit,
+    BatteryLimitQuickSetting,
     Wifi0,
     Wifi1,
     Wifi2,
@@ -68,6 +74,7 @@ pub enum StaticIcon {
     Ethernet,
     Vpn,
     Bluetooth,
+    BluetoothOff,
     BluetoothConnected,
     PowerSaver,
     Balanced,
@@ -84,7 +91,8 @@ pub enum StaticIcon {
     Brightness,
     Point,
     Close,
-    Airplane,
+    AirplaneOn,
+    AirplaneOff,
     Webcam,
     SkipPrevious,
     Play,
@@ -95,7 +103,6 @@ pub enum StaticIcon {
     IpAddress,
     DownloadSpeed,
     UploadSpeed,
-    Copy,
     LeftChevron,
     RightChevron,
     Keyboard,
@@ -122,6 +129,9 @@ pub enum StaticIcon {
     GamepadBatteryAlert,
     GamepadBatteryCharging,
     Remove,
+    Bell,
+    BellBadge,
+    Delete,
 }
 
 impl StaticIcon {
@@ -133,13 +143,14 @@ impl StaticIcon {
             StaticIcon::UpdatesAvailable => "\u{f0cdb}",
             StaticIcon::MenuClosed => "\u{f035f}",
             StaticIcon::MenuOpen => "\u{f035d}",
-            StaticIcon::Cpu => "\u{f0502}",
+            StaticIcon::Cpu => "\u{f2db}",
             StaticIcon::Mem => "\u{efc5}",
             StaticIcon::Temp => "\u{f050f}",
             StaticIcon::Speaker0 => "\u{f0e08}",
             StaticIcon::Speaker1 => "\u{f057f}",
             StaticIcon::Speaker2 => "\u{f0580}",
             StaticIcon::Speaker3 => "\u{f057e}",
+            StaticIcon::SpeakerOverdrive => "\u{f075d}",
             StaticIcon::Headphones0 => "\u{f07ce}",
             StaticIcon::Headphones1 => "\u{f02cb}",
             StaticIcon::Headset => "\u{f02ce}",
@@ -163,6 +174,8 @@ impl StaticIcon {
             StaticIcon::Battery3 => "\u{f0080}",
             StaticIcon::Battery4 => "\u{f0079}",
             StaticIcon::BatteryCharging => "\u{f0084}",
+            StaticIcon::BatteryLimit => "\u{f1211}",
+            StaticIcon::BatteryLimitQuickSetting => "\u{f120f}",
             StaticIcon::Wifi0 => "\u{f092d}",
             StaticIcon::Wifi1 => "\u{f092f}",
             StaticIcon::Wifi2 => "\u{f091f}",
@@ -177,6 +190,7 @@ impl StaticIcon {
             StaticIcon::Ethernet => "\u{f0200}",
             StaticIcon::Vpn => "\u{f0582}",
             StaticIcon::Bluetooth => "\u{f00af}",
+            StaticIcon::BluetoothOff => "\u{f00b2}",
             StaticIcon::BluetoothConnected => "\u{f00b1}",
             StaticIcon::PowerSaver => "\u{f0f86}",
             StaticIcon::Balanced => "\u{f0f85}",
@@ -193,7 +207,8 @@ impl StaticIcon {
             StaticIcon::Brightness => "\u{f00e0}",
             StaticIcon::Point => "\u{f444}",
             StaticIcon::Close => "\u{f0156}",
-            StaticIcon::Airplane => "\u{f001d}",
+            StaticIcon::AirplaneOn => "\u{f001d}",
+            StaticIcon::AirplaneOff => "\u{f001e}",
             StaticIcon::Webcam => "\u{f03d}",
             StaticIcon::SkipPrevious => "\u{f04ae}",
             StaticIcon::Play => "\u{f040a}",
@@ -204,7 +219,6 @@ impl StaticIcon {
             StaticIcon::IpAddress => "\u{f0a60}",
             StaticIcon::DownloadSpeed => "\u{f06f4}",
             StaticIcon::UploadSpeed => "\u{f06f6}",
-            StaticIcon::Copy => "\u{f018f}",
             StaticIcon::LeftChevron => "\u{f0141}",
             StaticIcon::RightChevron => "\u{f0142}",
             StaticIcon::Keyboard => "\u{f030c}",
@@ -231,48 +245,46 @@ impl StaticIcon {
             StaticIcon::GamepadBatteryAlert => "\u{f074b}",
             StaticIcon::GamepadBatteryCharging => "\u{f0a22}",
             StaticIcon::Remove => "\u{f0377}",
+            StaticIcon::Bell => "\u{eaa2}",
+            StaticIcon::BellBadge => "\u{eb9a}",
+            StaticIcon::Delete => "\u{f01b4}",
         }
     }
 
-    fn get_font(&self) -> &'static str {
-        match self {
+    fn is_custom_battery_icon(&self) -> bool {
+        matches!(
+            self,
             StaticIcon::KeyboardBatteryFull
-            | StaticIcon::KeyboardBatteryMedium
-            | StaticIcon::KeyboardBatteryLow
-            | StaticIcon::KeyboardBatteryAlert
-            | StaticIcon::KeyboardBatteryCharging
-            | StaticIcon::MouseBatteryFull
-            | StaticIcon::MouseBatteryMedium
-            | StaticIcon::MouseBatteryLow
-            | StaticIcon::MouseBatteryAlert
-            | StaticIcon::MouseBatteryCharging
-            | StaticIcon::HeadphoneBatteryFull
-            | StaticIcon::HeadphoneBatteryMedium
-            | StaticIcon::HeadphoneBatteryLow
-            | StaticIcon::HeadphoneBatteryAlert
-            | StaticIcon::HeadphoneBatteryCharging => "Ashell Custom Icon",
-            _ => "Symbols Nerd Font",
+                | StaticIcon::KeyboardBatteryMedium
+                | StaticIcon::KeyboardBatteryLow
+                | StaticIcon::KeyboardBatteryAlert
+                | StaticIcon::KeyboardBatteryCharging
+                | StaticIcon::MouseBatteryFull
+                | StaticIcon::MouseBatteryMedium
+                | StaticIcon::MouseBatteryLow
+                | StaticIcon::MouseBatteryAlert
+                | StaticIcon::MouseBatteryCharging
+                | StaticIcon::HeadphoneBatteryFull
+                | StaticIcon::HeadphoneBatteryMedium
+                | StaticIcon::HeadphoneBatteryLow
+                | StaticIcon::HeadphoneBatteryAlert
+                | StaticIcon::HeadphoneBatteryCharging
+        )
+    }
+
+    fn get_font(&self) -> &'static str {
+        if self.is_custom_battery_icon() {
+            "Ashell Custom Icon"
+        } else {
+            "Symbols Nerd Font"
         }
     }
 
     fn get_font_mono(&self) -> &'static str {
-        match self {
-            StaticIcon::KeyboardBatteryFull
-            | StaticIcon::KeyboardBatteryMedium
-            | StaticIcon::KeyboardBatteryLow
-            | StaticIcon::KeyboardBatteryAlert
-            | StaticIcon::KeyboardBatteryCharging
-            | StaticIcon::MouseBatteryFull
-            | StaticIcon::MouseBatteryMedium
-            | StaticIcon::MouseBatteryLow
-            | StaticIcon::MouseBatteryAlert
-            | StaticIcon::MouseBatteryCharging
-            | StaticIcon::HeadphoneBatteryFull
-            | StaticIcon::HeadphoneBatteryMedium
-            | StaticIcon::HeadphoneBatteryLow
-            | StaticIcon::HeadphoneBatteryAlert
-            | StaticIcon::HeadphoneBatteryCharging => "Ashell Custom Icon",
-            _ => "Symbols Nerd Font Mono",
+        if self.is_custom_battery_icon() {
+            "Ashell Custom Icon"
+        } else {
+            "Symbols Nerd Font Mono"
         }
     }
 }
@@ -302,6 +314,57 @@ impl Icon for DynamicIcon {
     }
 }
 
+#[derive(Clone)]
+pub enum IconKind {
+    Static(StaticIcon),
+    Dynamic(String),
+}
+
+impl From<StaticIcon> for IconKind {
+    fn from(icon: StaticIcon) -> Self {
+        IconKind::Static(icon)
+    }
+}
+
+impl From<DynamicIcon> for IconKind {
+    fn from(icon: DynamicIcon) -> Self {
+        IconKind::Dynamic(icon.0)
+    }
+}
+
+impl IconKind {
+    pub fn to_text<'a>(&self) -> Text<'a> {
+        match self {
+            IconKind::Static(s) => (*s).to_text(),
+            IconKind::Dynamic(s) => DynamicIcon(s.clone()).to_text(),
+        }
+    }
+
+    pub fn to_text_mono<'a>(&self) -> Text<'a> {
+        match self {
+            IconKind::Static(s) => (*s).to_text_mono(),
+            IconKind::Dynamic(s) => DynamicIcon(s.clone()).to_text_mono(),
+        }
+    }
+}
+
+impl Icon for IconKind {
+    fn to_text<'a>(self) -> Text<'a> {
+        // Call the inherent method via explicit disambiguation
+        match self {
+            IconKind::Static(s) => s.to_text(),
+            IconKind::Dynamic(s) => DynamicIcon(s).to_text(),
+        }
+    }
+
+    fn to_text_mono<'a>(self) -> Text<'a> {
+        match self {
+            IconKind::Static(s) => s.to_text_mono(),
+            IconKind::Dynamic(s) => DynamicIcon(s).to_text_mono(),
+        }
+    }
+}
+
 pub fn icon<'a>(icon: impl Icon) -> Text<'a> {
     icon.to_text()
 }
@@ -310,26 +373,16 @@ pub fn icon_mono<'a>(icon: impl Icon) -> Text<'a> {
     icon.to_text_mono()
 }
 
-pub enum IconButtonSize {
-    Small,
-    Medium,
-    Large,
-}
-
-enum OnPress<'a, Message> {
-    Direct(Message),
-    Closure(Box<dyn Fn() -> Message + 'a>),
-}
-
 pub type StyleFn<'a, Theme> = Box<dyn for<'b> Fn(&'b Theme, Status) -> Style + 'a>;
 
 pub struct IconButton<'a, I: Icon, Message> {
-    theme: &'a AshellTheme,
     icon: I,
     on_press: Option<OnPress<'a, Message>>,
-    button_class: StyleFn<'a, Theme>,
+    kind: ButtonKind,
+    hierarchy: ButtonHierarchy,
+    style_override: Option<StyleFn<'a, Theme>>,
     color: Option<Color>,
-    size: IconButtonSize,
+    size: ButtonSize,
 }
 
 impl<'a, I: Icon, Message> IconButton<'a, I, Message> {
@@ -349,7 +402,17 @@ impl<'a, I: Icon, Message> IconButton<'a, I, Message> {
     }
 
     pub fn style(mut self, style: impl for<'b> Fn(&'b Theme, Status) -> Style + 'a) -> Self {
-        self.button_class = Box::new(style) as StyleFn<'a, Theme>;
+        self.style_override = Some(Box::new(style) as StyleFn<'a, Theme>);
+        self
+    }
+
+    pub fn kind(mut self, kind: ButtonKind) -> Self {
+        self.kind = kind;
+        self
+    }
+
+    pub fn hierarchy(mut self, hierarchy: ButtonHierarchy) -> Self {
+        self.hierarchy = hierarchy;
         self
     }
 
@@ -365,7 +428,7 @@ impl<'a, I: Icon, Message> IconButton<'a, I, Message> {
         self
     }
 
-    pub fn size(mut self, size: IconButtonSize) -> Self {
+    pub fn size(mut self, size: ButtonSize) -> Self {
         self.size = size;
 
         self
@@ -377,10 +440,24 @@ impl<'a, I: Icon, Message: 'static + Clone> From<IconButton<'a, I, Message>>
 {
     #[inline]
     fn from(value: IconButton<'a, I, Message>) -> Self {
+        let (theme_font_size, radius) = use_theme(|theme| (theme.font_size, theme.radius));
+
         let (container_size, font_size) = match value.size {
-            IconButtonSize::Small => (24., value.theme.font_size.xs),
-            IconButtonSize::Medium => (32., value.theme.font_size.xs),
-            IconButtonSize::Large => (38., value.theme.font_size.sm),
+            ButtonSize::Small => (24., theme_font_size.xs),
+            ButtonSize::Medium => (32., theme_font_size.xs),
+            ButtonSize::Large => (38., theme_font_size.sm),
+        };
+
+        let style: StyleFn<'a, Theme> = match value.style_override {
+            Some(s) => s,
+            None => {
+                let base = use_theme(|theme| theme.button_style(value.kind, value.hierarchy));
+                Box::new(move |theme: &Theme, status: Status| {
+                    let mut s = base(theme, status);
+                    s.border.radius = radius.xl.into();
+                    s
+                })
+            }
         };
 
         let btn = button_fn(
@@ -394,7 +471,7 @@ impl<'a, I: Icon, Message: 'static + Clone> From<IconButton<'a, I, Message>>
             .clip(true),
         )
         .padding(0)
-        .style(value.button_class);
+        .style(style);
 
         let btn = match value.on_press {
             Some(OnPress::Direct(message)) => btn.on_press(message),
@@ -407,15 +484,16 @@ impl<'a, I: Icon, Message: 'static + Clone> From<IconButton<'a, I, Message>>
 }
 
 pub fn icon_button<'a, Message: 'static + Clone>(
-    theme: &'a AshellTheme,
-    icon: impl Icon,
-) -> IconButton<'a, impl Icon, Message> {
+    icon: impl Into<IconKind>,
+) -> IconButton<'a, IconKind, Message> {
+    let icon = icon.into();
     IconButton {
-        theme,
         icon,
         on_press: None,
-        button_class: Box::new(theme.round_button_style()),
+        kind: ButtonKind::Solid,
+        hierarchy: ButtonHierarchy::Secondary,
+        style_override: None,
         color: None,
-        size: IconButtonSize::Medium,
+        size: ButtonSize::Medium,
     }
 }

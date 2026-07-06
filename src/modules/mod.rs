@@ -1,21 +1,18 @@
 use crate::{
     app::{App, Message},
-    config::{AppearanceStyle, ModuleDef, ModuleName},
-    menu::MenuType,
-    theme::AshellTheme,
-    widgets::position_button,
+    components::animated_size,
+    components::menu::MenuType,
+    components::{module_group, module_item},
+    config::{ModuleDef, ModuleName},
+    theme::use_theme,
 };
-use iced::{
-    Alignment, Border, Color, Element, Length, Subscription,
-    widget::{Row, container},
-    window::Id,
-};
+use iced::{Alignment, Element, Length, Subscription, SurfaceId, widget::Row};
 
-pub mod clock;
 pub mod custom_module;
 pub mod keyboard_layout;
 pub mod keyboard_submap;
 pub mod media_player;
+pub mod notifications;
 pub mod privacy;
 pub mod settings;
 pub mod system_info;
@@ -35,14 +32,18 @@ pub enum OnModulePress {
         on_scroll_up: Option<Box<Message>>,
         on_scroll_down: Option<Box<Message>>,
     },
+    CustomAction {
+        on_press: Box<Message>,
+        on_right_press: Option<Box<Message>>,
+        on_middle_press: Option<Box<Message>>,
+        on_scroll_up: Option<Box<Message>>,
+        on_scroll_down: Option<Box<Message>>,
+    },
 }
 
 impl App {
-    pub fn modules_section<'a>(
-        &'a self,
-        id: Id,
-        theme: &'a AshellTheme,
-    ) -> [Element<'a, Message>; 3] {
+    pub fn modules_section<'a>(&'a self, id: SurfaceId) -> [Element<'a, Message>; 3] {
+        let space = use_theme(|t| t.space);
         [
             &self.general_config.modules.left,
             &self.general_config.modules.center,
@@ -52,13 +53,13 @@ impl App {
             let mut row = Row::with_capacity(modules_def.len())
                 .height(Length::Shrink)
                 .align_y(Alignment::Center)
-                .spacing(self.theme.space.xxs);
+                .spacing(space.xxs);
 
             for module_def in modules_def {
-                row = row.push_maybe(match module_def {
+                row = row.push(match module_def {
                     // life parsing of string to module
-                    ModuleDef::Single(module) => self.single_module_wrapper(id, theme, module),
-                    ModuleDef::Group(group) => self.group_module_wrapper(id, theme, group),
+                    ModuleDef::Single(module) => self.single_module_wrapper(id, module),
+                    ModuleDef::Group(group) => self.group_module_wrapper(id, group),
                 });
             }
 
@@ -82,32 +83,28 @@ impl App {
             .collect()
     }
 
-    fn single_module_wrapper<'a>(
+    fn build_module_item<'a>(
         &'a self,
-        id: Id,
-        theme: &'a AshellTheme,
-        module_name: &'a ModuleName,
-    ) -> Option<Element<'a, Message>> {
-        let module = self.get_module_view(id, module_name);
-
-        module.map(|(content, action)| match action {
+        id: SurfaceId,
+        content: Element<'a, Message>,
+        action: Option<OnModulePress>,
+    ) -> Element<'a, Message> {
+        let content = if use_theme(|t| t.animations_enabled) {
+            animated_size(content).into()
+        } else {
+            content
+        };
+        match action {
             Some(action) => {
-                let button = position_button(
-                    container(content)
-                        .align_y(Alignment::Center)
-                        .height(Length::Fill)
-                        .clip(true),
-                )
-                .padding([2, self.theme.space.xs])
-                .height(Length::Fill)
-                .style(theme.module_button_style(false));
-
+                let mut item = module_item(content);
                 match action {
-                    OnModulePress::Action(action) => button.on_press(*action),
+                    OnModulePress::Action(msg) => {
+                        item = item.on_press(*msg);
+                    }
                     OnModulePress::ToggleMenu(menu_type) => {
-                        button.on_press_with_position(move |button_ui_ref| {
+                        item = item.on_press_with_position(move |button_ui_ref| {
                             Message::ToggleMenu(menu_type.clone(), id, button_ui_ref)
-                        })
+                        });
                     }
                     OnModulePress::ToggleMenuWithExtra {
                         menu_type,
@@ -115,159 +112,82 @@ impl App {
                         on_scroll_up,
                         on_scroll_down,
                     } => {
-                        let mut button = button.on_press_with_position(move |button_ui_ref| {
+                        item = item.on_press_with_position(move |button_ui_ref| {
                             Message::ToggleMenu(menu_type.clone(), id, button_ui_ref)
                         });
                         if let Some(msg) = on_right_press {
-                            button = button.on_right_press(*msg);
+                            item = item.on_right_press(*msg);
                         }
                         if let Some(msg) = on_scroll_up {
-                            button = button.on_scroll_up(*msg);
+                            item = item.on_scroll_up(*msg);
                         }
                         if let Some(msg) = on_scroll_down {
-                            button = button.on_scroll_down(*msg);
+                            item = item.on_scroll_down(*msg);
                         }
-                        button
+                    }
+                    OnModulePress::CustomAction {
+                        on_press,
+                        on_right_press,
+                        on_middle_press,
+                        on_scroll_up,
+                        on_scroll_down,
+                    } => {
+                        item = item.on_press(*on_press);
+                        if let Some(msg) = on_right_press {
+                            item = item.on_right_press(*msg);
+                        }
+                        if let Some(msg) = on_middle_press {
+                            item = item.on_middle_press(*msg);
+                        }
+                        if let Some(msg) = on_scroll_up {
+                            item = item.on_scroll_up(*msg);
+                        }
+                        if let Some(msg) = on_scroll_down {
+                            item = item.on_scroll_down(*msg);
+                        }
                     }
                 }
-                .into()
+                item.into()
             }
-            _ => {
-                let container = container(content)
-                    .padding([2, self.theme.space.xs])
-                    .height(Length::Fill)
-                    .align_y(Alignment::Center)
-                    .clip(true);
+            None => module_item(content).into(),
+        }
+    }
 
-                match self.theme.bar_style {
-                    AppearanceStyle::Solid | AppearanceStyle::Gradient => container.into(),
-                    AppearanceStyle::Islands => container
-                        .style(|theme| container::Style {
-                            background: Some(
-                                theme
-                                    .palette()
-                                    .background
-                                    .scale_alpha(self.theme.opacity)
-                                    .into(),
-                            ),
-                            border: Border {
-                                width: 0.0,
-                                radius: self.theme.radius.lg.into(),
-                                color: Color::TRANSPARENT,
-                            },
-                            ..container::Style::default()
-                        })
-                        .into(),
-                }
-            }
-        })
+    fn single_module_wrapper<'a>(
+        &'a self,
+        id: SurfaceId,
+        module_name: &'a ModuleName,
+    ) -> Option<Element<'a, Message>> {
+        self.get_module_view(id, module_name)
+            .map(|(content, action)| module_group(self.build_module_item(id, content, action)))
     }
 
     fn group_module_wrapper<'a>(
         &'a self,
-        id: Id,
-        theme: &'a AshellTheme,
+        id: SurfaceId,
         group: &'a [ModuleName],
     ) -> Option<Element<'a, Message>> {
-        let modules = group
+        let modules: Vec<_> = group
             .iter()
             .filter_map(|module| self.get_module_view(id, module))
-            .collect::<Vec<_>>();
+            .collect();
 
         if modules.is_empty() {
             None
         } else {
-            Some({
-                let group = Row::with_children(
-                    modules
-                        .into_iter()
-                        .map(|(content, action)| match action {
-                            Some(action) => {
-                                let button = position_button(
-                                    container(content)
-                                        .align_y(Alignment::Center)
-                                        .height(Length::Fill)
-                                        .clip(true),
-                                )
-                                .padding([2, self.theme.space.xs])
-                                .height(Length::Fill)
-                                .style(theme.module_button_style(true));
-
-                                match action {
-                                    OnModulePress::Action(action) => button.on_press(*action),
-                                    OnModulePress::ToggleMenu(menu_type) => button
-                                        .on_press_with_position(move |button_ui_ref| {
-                                            Message::ToggleMenu(
-                                                menu_type.clone(),
-                                                id,
-                                                button_ui_ref,
-                                            )
-                                        }),
-                                    OnModulePress::ToggleMenuWithExtra {
-                                        menu_type,
-                                        on_right_press,
-                                        on_scroll_up,
-                                        on_scroll_down,
-                                    } => {
-                                        let mut button =
-                                            button.on_press_with_position(move |button_ui_ref| {
-                                                Message::ToggleMenu(
-                                                    menu_type.clone(),
-                                                    id,
-                                                    button_ui_ref,
-                                                )
-                                            });
-                                        if let Some(msg) = on_right_press {
-                                            button = button.on_right_press(*msg);
-                                        }
-                                        if let Some(msg) = on_scroll_up {
-                                            button = button.on_scroll_up(*msg);
-                                        }
-                                        if let Some(msg) = on_scroll_down {
-                                            button = button.on_scroll_down(*msg);
-                                        }
-                                        button
-                                    }
-                                }
-                                .into()
-                            }
-                            _ => container(content)
-                                .padding([2, self.theme.space.xs])
-                                .height(Length::Fill)
-                                .align_y(Alignment::Center)
-                                .clip(true)
-                                .into(),
-                        })
-                        .collect::<Vec<_>>(),
-                );
-
-                match self.theme.bar_style {
-                    AppearanceStyle::Solid | AppearanceStyle::Gradient => group.into(),
-                    AppearanceStyle::Islands => container(group)
-                        .style(|theme| container::Style {
-                            background: Some(
-                                theme
-                                    .palette()
-                                    .background
-                                    .scale_alpha(self.theme.opacity)
-                                    .into(),
-                            ),
-                            border: Border {
-                                width: 0.0,
-                                radius: self.theme.radius.lg.into(),
-                                color: Color::TRANSPARENT,
-                            },
-                            ..container::Style::default()
-                        })
-                        .into(),
-                }
-            })
+            let items = Row::with_children(
+                modules
+                    .into_iter()
+                    .map(|(content, action)| self.build_module_item(id, content, action))
+                    .collect::<Vec<_>>(),
+            );
+            Some(module_group(items.into()))
         }
     }
 
     fn get_module_view<'a>(
         &'a self,
-        id: Id,
+        id: SurfaceId,
         module_name: &'a ModuleName,
     ) -> Option<(Element<'a, Message>, Option<OnModulePress>)> {
         match module_name {
@@ -275,44 +195,87 @@ impl App {
                 let action = match custom.module_type() {
                     crate::config::CustomModuleType::Text => None,
                     crate::config::CustomModuleType::Button => {
-                        Some(OnModulePress::Action(Box::new(Message::Custom(
-                            name.clone(),
-                            custom_module::Message::LaunchCommand,
-                        ))))
+                        let name = name.clone();
+                        Some(OnModulePress::CustomAction {
+                            on_press: Box::new(Message::Custom(
+                                name.clone(),
+                                custom_module::Message::LaunchCommand,
+                            )),
+                            on_right_press: custom
+                                .config
+                                .on_right_click
+                                .as_ref()
+                                .map(|_| {
+                                    Message::Custom(
+                                        name.clone(),
+                                        custom_module::Message::LaunchRightClickCommand,
+                                    )
+                                })
+                                .map(Box::new),
+                            on_middle_press: custom
+                                .config
+                                .on_middle_click
+                                .as_ref()
+                                .map(|_| {
+                                    Message::Custom(
+                                        name.clone(),
+                                        custom_module::Message::LaunchMiddleClickCommand,
+                                    )
+                                })
+                                .map(Box::new),
+                            on_scroll_up: custom
+                                .config
+                                .on_scroll_up
+                                .as_ref()
+                                .map(|_| {
+                                    Message::Custom(
+                                        name.clone(),
+                                        custom_module::Message::LaunchScrollUpCommand,
+                                    )
+                                })
+                                .map(Box::new),
+                            on_scroll_down: custom
+                                .config
+                                .on_scroll_down
+                                .as_ref()
+                                .map(|_| {
+                                    Message::Custom(
+                                        name,
+                                        custom_module::Message::LaunchScrollDownCommand,
+                                    )
+                                })
+                                .map(Box::new),
+                        })
                     }
                 };
                 (
-                    custom
-                        .view(&self.theme)
-                        .map(|msg| Message::Custom(name.clone(), msg)),
+                    custom.view().map(|msg| Message::Custom(name.clone(), msg)),
                     action,
                 )
             }),
             ModuleName::Updates => self.updates.as_ref().map(|updates| {
                 (
-                    updates.view(&self.theme).map(Message::Updates),
+                    updates.view().map(Message::Updates),
                     Some(OnModulePress::ToggleMenu(MenuType::Updates)),
                 )
             }),
             ModuleName::Workspaces => Some((
                 self.workspaces
-                    .view(id, &self.theme, &self.outputs)
+                    .view(id, &self.outputs)
                     .map(Message::Workspaces),
                 None,
             )),
             ModuleName::WindowTitle => self.window_title.get_value().map(|title| {
                 (
-                    self.window_title
-                        .view(&self.theme, title)
-                        .map(Message::WindowTitle),
+                    self.window_title.view(title).map(Message::WindowTitle),
                     None,
                 )
             }),
             ModuleName::SystemInfo => Some((
-                self.system_info.view(&self.theme).map(Message::SystemInfo),
+                self.system_info.view().map(Message::SystemInfo),
                 Some(OnModulePress::ToggleMenu(MenuType::SystemInfo)),
             )),
-            ModuleName::KeyboardLayout => self.keyboard_layout.view(&self.theme).map(|view| {
+            ModuleName::KeyboardLayout => self.keyboard_layout.view().map(|view| {
                 (
                     view.map(Message::KeyboardLayout),
                     Some(OnModulePress::Action(Box::new(Message::KeyboardLayout(
@@ -322,15 +285,14 @@ impl App {
             }),
             ModuleName::KeyboardSubmap => self
                 .keyboard_submap
-                .view(&self.theme)
+                .view()
                 .map(|view| (view.map(Message::KeyboardSubmap), None)),
             ModuleName::Tray => self
                 .tray
-                .view(id, &self.theme)
+                .view(id)
                 .map(|view| (view.map(Message::Tray), None)),
-            ModuleName::Clock => Some((self.clock.view(&self.theme).map(Message::Clock), None)),
             ModuleName::Tempo => Some((
-                self.tempo.view(&self.theme).map(Message::Tempo),
+                self.tempo.view().map(Message::Tempo),
                 Some(OnModulePress::ToggleMenuWithExtra {
                     menu_type: MenuType::Tempo,
                     on_right_press: Some(Box::new(Message::Tempo(tempo::Message::CycleFormat))),
@@ -344,17 +306,21 @@ impl App {
             )),
             ModuleName::Privacy => self
                 .privacy
-                .view(&self.theme)
+                .view()
                 .map(|view| (view.map(Message::Privacy), None)),
-            ModuleName::MediaPlayer => self.media_player.view(&self.theme).map(|view| {
+            ModuleName::MediaPlayer => self.media_player.view().map(|view| {
                 (
                     view.map(Message::MediaPlayer),
                     Some(OnModulePress::ToggleMenu(MenuType::MediaPlayer)),
                 )
             }),
             ModuleName::Settings => Some((
-                self.settings.view(&self.theme).map(Message::Settings),
+                self.settings.view(id).map(Message::Settings),
                 Some(OnModulePress::ToggleMenu(MenuType::Settings)),
+            )),
+            ModuleName::Notifications => Some((
+                self.notifications.view().map(Message::Notifications),
+                Some(OnModulePress::ToggleMenu(MenuType::Notifications)),
             )),
         }
     }
@@ -388,13 +354,17 @@ impl App {
                     .map(Message::KeyboardSubmap),
             ),
             ModuleName::Tray => Some(self.tray.subscription().map(Message::Tray)),
-            ModuleName::Clock => Some(self.clock.subscription().map(Message::Clock)),
             ModuleName::Tempo => Some(self.tempo.subscription().map(Message::Tempo)),
             ModuleName::Privacy => Some(self.privacy.subscription().map(Message::Privacy)),
             ModuleName::MediaPlayer => {
                 Some(self.media_player.subscription().map(Message::MediaPlayer))
             }
             ModuleName::Settings => Some(self.settings.subscription().map(Message::Settings)),
+            ModuleName::Notifications => Some(
+                self.notifications
+                    .subscription()
+                    .map(Message::Notifications),
+            ),
         }
     }
 }
