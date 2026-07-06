@@ -33,6 +33,7 @@ interval = 3600             # seconds; minimum enforced to 1
 
 [workspaces]
 visibility_mode = "All"           # "All" (default), "MonitorSpecific", "MonitorSpecificExclusive"
+indicator_format = "Name"         # "Name" (default) or "NameAndIcons" to show app icons
 group_by_monitor = false          # (default)
 enable_workspace_filling = false  # (default)
 # disable_special_workspaces = false  # (default) set true to hide special workspaces
