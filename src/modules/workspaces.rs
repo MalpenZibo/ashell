@@ -291,25 +291,23 @@ fn workspace_button<'a>(
     height: f32,
     on_press: Message,
 ) -> Element<'a, Message> {
-    let content: Element<'a, Message> = if icons.is_empty() {
-        container(text(name).size(font_size))
-            .align_x(alignment::Horizontal::Center)
-            .align_y(alignment::Vertical::Center)
-            .into()
+    let inner: Element<'a, Message> = if icons.is_empty() {
+        text(name).size(font_size).into()
     } else {
+        let icon_size = font_size + 4.0;
         let children: Vec<Element<'a, Message>> =
             std::iter::once(text(name).size(font_size).into())
                 .chain(icons.into_iter().map(|i| {
                     match i {
                         XdgIcon::Svg(handle) => Svg::new(handle)
-                            .height(Length::Fixed(font_size))
+                            .height(Length::Fixed(icon_size))
                             .width(Length::Shrink)
                             .into(),
                         XdgIcon::Image(handle) => Image::new(handle)
-                            .height(Length::Fixed(font_size))
+                            .height(Length::Fixed(icon_size))
                             .width(Length::Shrink)
                             .into(),
-                        XdgIcon::NerdFont(si) => icon(si).size(font_size).into(),
+                        XdgIcon::NerdFont(si) => icon(si).size(icon_size).into(),
                     }
                 }))
                 .collect();
@@ -319,13 +317,17 @@ fn workspace_button<'a>(
             .into()
     };
 
-    button(content)
-        .style(theme.workspace_button_style(empty, urgent, active, color))
-        .padding([0.0, padding])
-        .on_press(on_press)
-        .width(width)
-        .height(height)
-        .into()
+    button(
+        container(inner)
+            .align_x(alignment::Horizontal::Center)
+            .align_y(alignment::Vertical::Center),
+    )
+    .style(theme.workspace_button_style(empty, urgent, active, color))
+    .padding([0.0, padding])
+    .on_press(on_press)
+    .width(width)
+    .height(height)
+    .into()
 }
 
 impl Workspaces {
