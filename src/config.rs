@@ -721,6 +721,7 @@ pub enum MediaPlayerFormat {
 pub struct MediaPlayerModuleConfig {
     pub max_title_length: u32,
     pub indicator_format: MediaPlayerFormat,
+    pub show_visualizer: bool,
 }
 
 impl Default for MediaPlayerModuleConfig {
@@ -728,6 +729,7 @@ impl Default for MediaPlayerModuleConfig {
         MediaPlayerModuleConfig {
             max_title_length: 100,
             indicator_format: MediaPlayerFormat::default(),
+            show_visualizer: false,
         }
     }
 }

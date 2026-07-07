@@ -21,6 +21,32 @@ the current title. Configure this with the `indicator_format` field:
 
 Use `Icon` if you want a compact indicator or have limited space.
 
+### Visualizer
+
+The module can render an optional audio visualizer powered by
+[CAVA](https://github.com/karlstav/cava). It shows animated bars next to the
+indicator, but only while a player is actively playing. Enable it with the
+`show_visualizer` field (default: `false`):
+
+```toml
+[media_player]
+show_visualizer = true
+```
+
+The bars are coloured with a gradient built from the active theme palette
+(`primary` at the bottom, `warning` in the middle, `danger` at the peak). In the
+media menu, the visualizer also fills the background of the card that is
+currently playing.
+
+CAVA visualizes the system audio output, not the individual stream of the
+active player (MPRIS carries only metadata and playback controls, not audio
+samples). The visualizer is therefore shown only while the active player is
+playing, and `cava` is started on demand and stopped again while playback is
+paused.
+
+> **Requires** `cava` to be installed and available on your `$PATH`. If `cava`
+> is missing the visualizer stays hidden.
+
 ## Menu
 
 The menu shows all active media players with playback controls:
@@ -34,4 +60,5 @@ The menu shows all active media players with playback controls:
 [media_player]
 max_title_length = 50
 indicator_format = "Icon"
+show_visualizer = true
 ```
