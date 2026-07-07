@@ -160,11 +160,18 @@ impl MediaPlayer {
         }
     }
 
+    /// The player to represent in the bar: the one currently playing, or the
+    /// first known player when nothing is playing.
+    fn active_player(&self) -> Option<&MprisPlayerData> {
+        let players = self.service.as_ref()?.players();
+        players
+            .iter()
+            .find(|p| p.state == PlaybackStatus::Playing)
+            .or_else(|| players.first())
+    }
+
     fn is_playing(&self) -> bool {
-        self.service
-            .as_ref()
-            .and_then(|s| s.players().first().map(|p| p.state))
-            == Some(PlaybackStatus::Playing)
+        self.active_player().map(|p| p.state) == Some(PlaybackStatus::Playing)
     }
 
     pub fn update(&mut self, message: Message) -> Action {
@@ -335,7 +342,7 @@ impl MediaPlayer {
                                     low: palette.primary,
                                     mid: palette.warning,
                                     high: palette.danger,
-                                    opacity: 0.2,
+                                    opacity: 0.1,
                                     radius: radius.lg,
                                 })
                                 .width(Length::Fill)
@@ -393,44 +400,42 @@ impl MediaPlayer {
     pub fn view(&'_ self) -> Option<Element<'_, Message>> {
         let (space, font_size, palette) =
             use_theme(|theme| (theme.space, theme.font_size, theme.iced_theme.palette()));
-        self.service.as_ref().and_then(|s| {
-            s.players().first().map(|player| {
-                let title =
-                    (self.config.indicator_format == MediaPlayerFormat::IconAndTitle).then(|| {
-                        container(
-                            text(self.get_title(player))
-                                .wrapping(text::Wrapping::None)
-                                .size(font_size.sm),
-                        )
-                        .clip(true)
-                    });
-
-                let visualizer = (self.config.show_visualizer
-                    && player.state == PlaybackStatus::Playing
-                    && !self.bars.is_empty())
-                .then(|| {
+        self.active_player().map(|player| {
+            let title =
+                (self.config.indicator_format == MediaPlayerFormat::IconAndTitle).then(|| {
                     container(
-                        Canvas::new(VisualizerCanvas {
-                            bars: self.bars.clone(),
-                            low: palette.primary,
-                            mid: palette.warning,
-                            high: palette.danger,
-                            opacity: 1.,
-                            radius: 0.0,
-                        })
-                        .width(Length::Fixed((VISUALIZER_BAR_COUNT * 4) as f32))
-                        .height(Length::Fill),
+                        text(self.get_title(player))
+                            .wrapping(text::Wrapping::None)
+                            .size(font_size.sm),
                     )
-                    .padding(space.xxs)
+                    .clip(true)
                 });
 
-                row![icon(StaticIcon::MusicNote)]
-                    .push(title)
-                    .push(visualizer)
-                    .align_y(Vertical::Center)
-                    .spacing(space.xs)
-                    .into()
-            })
+            let visualizer = (self.config.show_visualizer
+                && player.state == PlaybackStatus::Playing
+                && !self.bars.is_empty())
+            .then(|| {
+                container(
+                    Canvas::new(VisualizerCanvas {
+                        bars: self.bars.clone(),
+                        low: palette.primary,
+                        mid: palette.warning,
+                        high: palette.danger,
+                        opacity: 1.,
+                        radius: 0.0,
+                    })
+                    .width(Length::Fixed((VISUALIZER_BAR_COUNT * 4) as f32))
+                    .height(Length::Fill),
+                )
+                .padding(space.xxs)
+            });
+
+            row![icon(StaticIcon::MusicNote)]
+                .push(title)
+                .push(visualizer)
+                .align_y(Vertical::Center)
+                .spacing(space.xs)
+                .into()
         })
     }
 
