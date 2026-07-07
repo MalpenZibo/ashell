@@ -34,9 +34,9 @@ show_visualizer = true
 ```
 
 The bars are coloured with a gradient built from the active theme palette
-(`primary` at the bottom, `warning` in the middle, `danger` at the peak). While
-playing, the visualizer also fills the background of the media menu, with the
-player cards rendered translucent so the bars show through.
+(`primary` at the bottom, `warning` in the middle, `danger` at the peak). In the
+media menu, the visualizer also fills the background of the card that is
+currently playing.
 
 CAVA visualizes the system audio output, not the individual stream of the
 active player (MPRIS carries only metadata and playback controls, not audio
