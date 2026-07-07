@@ -29,7 +29,6 @@ use std::any::TypeId;
 
 const VISUALIZER_BAR_COUNT: usize = 12;
 const VISUALIZER_FRAMERATE: u32 = 60;
-const VISUALIZER_PADDING: u16 = 3;
 
 struct VisualizerCanvas {
     bars: Vec<f32>,
@@ -37,6 +36,9 @@ struct VisualizerCanvas {
     mid: Color,
     high: Color,
     opacity: f32,
+    // Corner radius of the surface behind the bars; the outermost bars round
+    // their outer corners to match it (0 to keep square bars).
+    radius: f32,
 }
 
 impl<M> canvas::Program<M> for VisualizerCanvas {
@@ -57,12 +59,11 @@ impl<M> canvas::Program<M> for VisualizerCanvas {
         }
 
         let n = VISUALIZER_BAR_COUNT.min(self.bars.len());
-        let bar_width = (bounds.width / (n as f32 * 4.0 / 3.0)).max(1.0);
-        let gap = (bar_width / 3.0).max(1.0);
+        // Fill the full width edge to edge: `n` bars plus `n - 1` gaps span the
+        // whole width, with each gap a third of a bar.
+        let bar_width = (bounds.width / (n as f32 + (n as f32 - 1.0) / 3.0)).max(1.0);
+        let gap = bar_width / 3.0;
         let step = bar_width + gap;
-        // Center the whole bar group horizontally within the available width.
-        let total_width = n as f32 * step - gap;
-        let x_offset = ((bounds.width - total_width) / 2.0).max(0.0);
 
         // The gradient is vertical, so its colour depends only on `y`: every bar
         // shares the same fill. Build it once instead of per bar.
@@ -91,10 +92,35 @@ impl<M> canvas::Program<M> for VisualizerCanvas {
 
         for i in 0..n {
             let height = self.bars[i] * bounds.height;
-            let x = x_offset + i as f32 * step;
+            let x = i as f32 * step;
             let y = bounds.height - height;
+            let position = iced::Point::new(x, y);
+            let size = iced::Size::new(bar_width, height);
 
-            let rect = Path::rectangle(iced::Point::new(x, y), iced::Size::new(bar_width, height));
+            let is_first = i == 0;
+            let is_last = i == n - 1;
+            let rect = if self.radius > 0.0 && (is_first || is_last) {
+                // Match the outer corners of the first/last bar to the surface
+                // rounding; top corners only when the bar reaches the top edge.
+                let reaches_top = y <= self.radius;
+                let radius = iced::border::Radius {
+                    top_left: if is_first && reaches_top {
+                        self.radius
+                    } else {
+                        0.0
+                    },
+                    bottom_left: if is_first { self.radius } else { 0.0 },
+                    top_right: if is_last && reaches_top {
+                        self.radius
+                    } else {
+                        0.0
+                    },
+                    bottom_right: if is_last { self.radius } else { 0.0 },
+                };
+                Path::rounded_rectangle(position, size, radius)
+            } else {
+                Path::rectangle(position, size)
+            };
 
             frame.fill(&rect, fill);
         }
@@ -297,31 +323,23 @@ impl MediaPlayer {
                                 .into()
                         }
                     };
-                    // Use the visualizer as the background of the card that is
-                    // currently playing; keep the other cards untouched.
                     let card_playing = self.config.show_visualizer
                         && d.state == PlaybackStatus::Playing
                         && !self.bars.is_empty();
-                    let card_alpha = if card_playing { opacity * 0.9 } else { opacity };
                     let body: Element<'_, _> = if card_playing {
                         Stack::new()
                             .push(content)
                             .push_under(
-                                // iced clips to a rectangle, not to the card's
-                                // rounded border, so inset the canvas by the corner
-                                // radius to keep the bars inside the rounded shape.
-                                container(
-                                    Canvas::new(VisualizerCanvas {
-                                        bars: self.bars.clone(),
-                                        low: palette.primary,
-                                        mid: palette.warning,
-                                        high: palette.danger,
-                                        opacity: 0.2,
-                                    })
-                                    .width(Length::Fill)
-                                    .height(Length::Fill),
-                                )
-                                .padding(radius.lg),
+                                Canvas::new(VisualizerCanvas {
+                                    bars: self.bars.clone(),
+                                    low: palette.primary,
+                                    mid: palette.warning,
+                                    high: palette.danger,
+                                    opacity: 0.2,
+                                    radius: radius.lg,
+                                })
+                                .width(Length::Fill)
+                                .height(Length::Fill),
                             )
                             .into()
                     } else {
@@ -335,7 +353,7 @@ impl MediaPlayer {
                                     .background
                                     .weak
                                     .color
-                                    .scale_alpha(card_alpha),
+                                    .scale_alpha(opacity),
                             )
                             .into(),
                             border: Border::default().rounded(radius.lg),
@@ -398,12 +416,12 @@ impl MediaPlayer {
                             mid: palette.warning,
                             high: palette.danger,
                             opacity: 1.,
+                            radius: 0.0,
                         })
                         .width(Length::Fixed((VISUALIZER_BAR_COUNT * 4) as f32))
                         .height(Length::Fill),
                     )
-                    .padding([VISUALIZER_PADDING, 0])
-                    .height(Length::Fill)
+                    .padding(space.xxs)
                 });
 
                 row![icon(StaticIcon::MusicNote)]
