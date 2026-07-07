@@ -14,10 +14,158 @@ use crate::{
     utils::truncate_text,
 };
 use iced::{
-    Background, Border, Element, Length, Subscription, Task, Theme,
+    Background, Border, Color, Element, Length, Subscription, Task, Theme,
     alignment::Vertical,
-    widget::{column, container, image, row, slider, space, text},
+    futures::SinkExt,
+    gradient::ColorStop,
+    stream::channel,
+    widget::{
+        canvas::{self, Canvas, Fill, Frame, Geometry, Path},
+        column, container, image, row, slider, space, text,
+    },
 };
+
+const VISUALIZER_BAR_COUNT: usize = 12;
+const VISUALIZER_FRAMERATE: u32 = 60;
+const VISUALIZER_PADDING: u16 = 3;
+
+fn cava_subscription() -> Subscription<Vec<f32>> {
+    Subscription::run(|| {
+        channel(16, async move |mut output| {
+            if tokio::process::Command::new("cava")
+                .arg("--version")
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status()
+                .await
+                .is_err()
+            {
+                log::warn!("cava: not found, visualizer disabled");
+                return;
+            }
+
+            let cava_config = format!(
+                "[general]\nbars = {VISUALIZER_BAR_COUNT}\nframerate = {VISUALIZER_FRAMERATE}\n\n\
+                 [output]\nmethod = raw\nraw_target = /dev/stdout\ndata_format = ascii\nascii_max_range = 1000\n\n\
+                 [smoothing]\nmonstercat = 1\n"
+            );
+
+            let config_path = std::env::temp_dir().join("ashell_cava.cfg");
+            if let Err(e) = tokio::fs::write(&config_path, &cava_config).await {
+                log::error!("cava: failed to write config: {e}");
+                return;
+            }
+
+            let mut child = match tokio::process::Command::new("cava")
+                .arg("-p")
+                .arg(&config_path)
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::null())
+                .kill_on_drop(true)
+                .spawn()
+            {
+                Ok(c) => c,
+                Err(e) => {
+                    log::error!("cava: failed to spawn process: {e}");
+                    return;
+                }
+            };
+
+            let stdout = match child.stdout.take() {
+                Some(s) => s,
+                None => {
+                    log::error!("cava: no stdout");
+                    return;
+                }
+            };
+
+            use tokio::io::{AsyncBufReadExt, BufReader};
+            let reader = BufReader::new(stdout);
+            let mut lines = reader.lines();
+
+            while let Ok(Some(line)) = lines.next_line().await {
+                let bars: Vec<f32> = line
+                    .split(';')
+                    .filter(|s| !s.is_empty())
+                    .filter_map(|s| s.trim().parse::<f32>().ok())
+                    .map(|v| v / 1000.0)
+                    .collect();
+
+                if !bars.is_empty() {
+                    let _ = output.send(bars).await;
+                }
+            }
+
+            let _ = child.kill().await;
+        })
+    })
+}
+
+struct VisualizerCanvas {
+    bars: Vec<f32>,
+    low: Color,
+    mid: Color,
+    high: Color,
+}
+
+impl<M> canvas::Program<M> for VisualizerCanvas {
+    type State = ();
+
+    fn draw(
+        &self,
+        _state: &Self::State,
+        renderer: &iced::Renderer,
+        _theme: &iced::Theme,
+        bounds: iced::Rectangle,
+        _cursor: iced::mouse::Cursor,
+    ) -> Vec<Geometry> {
+        let mut frame = Frame::new(renderer, bounds.size());
+
+        if self.bars.is_empty() {
+            return vec![frame.into_geometry()];
+        }
+
+        let n = VISUALIZER_BAR_COUNT.min(self.bars.len());
+        let bar_width = (bounds.width / (n as f32 * 4.0 / 3.0)).max(1.0);
+        let gap = (bar_width / 3.0).max(1.0);
+        let step = bar_width + gap;
+
+        for i in 0..n {
+            let height = self.bars[i] * bounds.height;
+            let x = i as f32 * step;
+            let y = bounds.height - height;
+
+            let rect = Path::rectangle(iced::Point::new(x, y), iced::Size::new(bar_width, height));
+
+            let grad = canvas::gradient::Linear::new(
+                iced::Point::new(x, 0.0),
+                iced::Point::new(x, bounds.height),
+            )
+            .add_stops([
+                ColorStop {
+                    offset: 0.0,
+                    color: self.high,
+                },
+                ColorStop {
+                    offset: 0.5,
+                    color: self.mid,
+                },
+                ColorStop {
+                    offset: 1.0,
+                    color: self.low,
+                },
+            ]);
+            let fill = Fill {
+                style: canvas::Style::Gradient(canvas::Gradient::Linear(grad)),
+                ..Fill::default()
+            };
+
+            frame.fill(&rect, fill);
+        }
+
+        vec![frame.into_geometry()]
+    }
+}
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -27,6 +175,7 @@ pub enum Message {
     SetVolume(String, f64),
     Event(ServiceEvent<MprisPlayerService>),
     ConfigReloaded(MediaPlayerModuleConfig),
+    Bars(Vec<f32>),
 }
 
 pub enum Action {
@@ -37,6 +186,7 @@ pub enum Action {
 pub struct MediaPlayer {
     config: MediaPlayerModuleConfig,
     service: Option<MprisPlayerService>,
+    bars: Vec<f32>,
 }
 
 impl MediaPlayer {
@@ -44,7 +194,15 @@ impl MediaPlayer {
         Self {
             config,
             service: None,
+            bars: Vec::new(),
         }
+    }
+
+    fn is_playing(&self) -> bool {
+        self.service
+            .as_ref()
+            .and_then(|s| s.players().first().map(|p| p.state))
+            == Some(PlaybackStatus::Playing)
     }
 
     pub fn update(&mut self, message: Message) -> Action {
@@ -66,12 +224,19 @@ impl MediaPlayer {
                     if let Some(service) = self.service.as_mut() {
                         service.update(d);
                     }
+                    if !self.is_playing() {
+                        self.bars.clear();
+                    }
                     Action::None
                 }
                 ServiceEvent::Error(_) => Action::None,
             },
             Message::ConfigReloaded(c) => {
                 self.config = c;
+                Action::None
+            }
+            Message::Bars(bars) => {
+                self.bars = bars;
                 Action::None
             }
         }
@@ -233,7 +398,8 @@ impl MediaPlayer {
     }
 
     pub fn view(&'_ self) -> Option<Element<'_, Message>> {
-        let (space, font_size) = use_theme(|theme| (theme.space, theme.font_size));
+        let (space, font_size, palette) =
+            use_theme(|theme| (theme.space, theme.font_size, theme.iced_theme.palette()));
         self.service.as_ref().and_then(|s| {
             s.players().first().map(|player| {
                 let title =
@@ -246,8 +412,27 @@ impl MediaPlayer {
                         .clip(true)
                     });
 
+                let visualizer = (self.config.show_visualizer
+                    && player.state == PlaybackStatus::Playing
+                    && !self.bars.is_empty())
+                .then(|| {
+                    container(
+                        Canvas::new(VisualizerCanvas {
+                            bars: self.bars.clone(),
+                            low: palette.primary,
+                            mid: palette.warning,
+                            high: palette.danger,
+                        })
+                        .width(Length::Fixed((VISUALIZER_BAR_COUNT * 4) as f32))
+                        .height(Length::Fill),
+                    )
+                    .padding([VISUALIZER_PADDING, 0])
+                    .height(Length::Fill)
+                });
+
                 row![icon(StaticIcon::MusicNote)]
                     .push(title)
+                    .push(visualizer)
                     .align_y(Vertical::Center)
                     .spacing(space.xs)
                     .into()
@@ -256,6 +441,15 @@ impl MediaPlayer {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        MprisPlayerService::subscribe().map(Message::Event)
+        let cava = (self.config.show_visualizer && self.is_playing())
+            .then(|| cava_subscription().map(Message::Bars));
+        Subscription::batch(
+            [
+                Some(MprisPlayerService::subscribe().map(Message::Event)),
+                cava,
+            ]
+            .into_iter()
+            .flatten(),
+        )
     }
 }
