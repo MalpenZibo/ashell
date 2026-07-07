@@ -60,6 +60,9 @@ impl<M> canvas::Program<M> for VisualizerCanvas {
         let bar_width = (bounds.width / (n as f32 * 4.0 / 3.0)).max(1.0);
         let gap = (bar_width / 3.0).max(1.0);
         let step = bar_width + gap;
+        // Center the whole bar group horizontally within the available width.
+        let total_width = n as f32 * step - gap;
+        let x_offset = ((bounds.width - total_width) / 2.0).max(0.0);
 
         // The gradient is vertical, so its colour depends only on `y`: every bar
         // shares the same fill. Build it once instead of per bar.
@@ -88,7 +91,7 @@ impl<M> canvas::Program<M> for VisualizerCanvas {
 
         for i in 0..n {
             let height = self.bars[i] * bounds.height;
-            let x = i as f32 * step;
+            let x = x_offset + i as f32 * step;
             let y = bounds.height - height;
 
             let rect = Path::rectangle(iced::Point::new(x, y), iced::Size::new(bar_width, height));
@@ -272,6 +275,7 @@ impl MediaPlayer {
                     let content: Element<'_, _> = match (volume_slider, cover) {
                         (None, None) => row![description, buttons]
                             .spacing(space.md)
+                            .padding(space.md)
                             .align_y(Vertical::Center)
                             .into(),
                         (Some(v), cover) => {
@@ -279,6 +283,7 @@ impl MediaPlayer {
                                 row![v, buttons].spacing(space.md).align_y(Vertical::Center);
                             column![metadata(description, cover), controls]
                                 .spacing(space.md)
+                                .padding(space.md)
                                 .into()
                         }
                         (None, cover) => {
@@ -288,6 +293,7 @@ impl MediaPlayer {
                                     .align_y(Vertical::Center);
                             column![metadata(description, cover), controls]
                                 .spacing(space.md)
+                                .padding(space.md)
                                 .into()
                         }
                     };
@@ -306,7 +312,7 @@ impl MediaPlayer {
                                     low: palette.primary,
                                     mid: palette.warning,
                                     high: palette.danger,
-                                    opacity: 0.6,
+                                    opacity: 0.2,
                                 })
                                 .width(Length::Fill)
                                 .height(Length::Fill),
@@ -329,7 +335,7 @@ impl MediaPlayer {
                             border: Border::default().rounded(radius.lg),
                             ..container::Style::default()
                         })
-                        .padding(space.md)
+                        .clip(true)
                         .width(Length::Fill)
                         .into()
                 }))
