@@ -183,6 +183,9 @@ impl ReadOnlyService for MprisPlayerService {
 }
 
 const MPRIS_PLAYER_SERVICE_PREFIX: &str = "org.mpris.MediaPlayer2.";
+// playerctld is a proxy that mirrors the currently active player, so it shows
+// up as a duplicate of a real player. Skip it.
+const PLAYERCTLD_SERVICE: &str = "org.mpris.MediaPlayer2.playerctld";
 
 type CoverDownloadFuture = BoxFuture<'static, Result<(String, anyhow::Result<Bytes>), Aborted>>;
 
@@ -207,7 +210,7 @@ impl MprisPlayerService {
             .await?
             .iter()
             .filter_map(|a| {
-                if a.starts_with(MPRIS_PLAYER_SERVICE_PREFIX) {
+                if a.starts_with(MPRIS_PLAYER_SERVICE_PREFIX) && *a != PLAYERCTLD_SERVICE {
                     Some(a.to_string())
                 } else {
                     None
