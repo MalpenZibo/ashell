@@ -307,15 +307,21 @@ impl MediaPlayer {
                         Stack::new()
                             .push(content)
                             .push_under(
-                                Canvas::new(VisualizerCanvas {
-                                    bars: self.bars.clone(),
-                                    low: palette.primary,
-                                    mid: palette.warning,
-                                    high: palette.danger,
-                                    opacity: 0.2,
-                                })
-                                .width(Length::Fill)
-                                .height(Length::Fill),
+                                // iced clips to a rectangle, not to the card's
+                                // rounded border, so inset the canvas by the corner
+                                // radius to keep the bars inside the rounded shape.
+                                container(
+                                    Canvas::new(VisualizerCanvas {
+                                        bars: self.bars.clone(),
+                                        low: palette.primary,
+                                        mid: palette.warning,
+                                        high: palette.danger,
+                                        opacity: 0.2,
+                                    })
+                                    .width(Length::Fill)
+                                    .height(Length::Fill),
+                                )
+                                .padding(radius.lg),
                             )
                             .into()
                     } else {
@@ -335,7 +341,6 @@ impl MediaPlayer {
                             border: Border::default().rounded(radius.lg),
                             ..container::Style::default()
                         })
-                        .clip(true)
                         .width(Length::Fill)
                         .into()
                 }))
