@@ -163,10 +163,8 @@ show_brightness_percentage = false  # (default) show numeric brightness value in
 enabled = false   # (default)
 
 [appearance]
-style = "Islands"  # (default), "Solid", or "Gradient"
 # font_name = "Sans"           # (default: None) custom font family
 # scale_factor = 1.0           # (default) range: 0.0 < x <= 2.0
-# opacity = 1.0                # (default) range: 0.0 to 1.0
 primary_color = "#7aa2f7"
 success_color = "#9ece6a"
 warning_color = "#e0af68"
@@ -174,6 +172,12 @@ danger_color = "#f7768e"
 text_color = "#a9b1d6"
 workspace_colors = [ "#7aa2f7", "#9ece6a" ]
 # special_workspace_colors = [ "#7aa2f7", "#9ece6a" ]  # (default: None, falls back to workspace_colors)
+
+[appearance.bar]
+surface = "transparent"  # (default) or "solid"
+# radius = "none"          # (default) none|sm|md|lg|xl, CSS border-radius shorthand (solid only)
+# margin = "none"          # (default) none|xxs|xs|sm|md|lg|xl|xxl, CSS margin shorthand
+# opacity = 1.0            # (default) range: 0.0 to 1.0
 
 [appearance.menu]
 # opacity = 1.0   # (default) menu background opacity

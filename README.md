@@ -20,7 +20,7 @@
 - Multi-monitor support (all monitors, active monitor, or specific targets)
 - Hot-reload configuration (changes apply automatically via file watch)
 - Bar positioning (top or bottom) with configurable layer (Bottom, Top, Overlay)
-- Theming: Islands, Solid, and Gradient styles with custom colors, opacity, scale, and fonts
+- Theming: transparent (islands) or solid bar surface with custom radius, margin, colors, opacity, scale, and fonts
 - OS Updates indicator with configurable check interval
 - Active Window (title, class, or initial title/class)
 - Workspaces with naming, color coding, and per-monitor visibility
@@ -93,17 +93,13 @@ For the full AI contribution guide, see the
 I will try my best to keep these screenshots as updated as possible but some details
 could be different
 
-#### default style
+#### transparent surface (default)
 
 <img src="https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/ashell.png"></img>
 
-#### solid style
+#### solid surface
 
 <img src="https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/ashell-solid.png"></img>
-
-#### gradient style
-
-<img src="https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/ashell-gradient.png"></img>
 
 #### opacity settings
 
