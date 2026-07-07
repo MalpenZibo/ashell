@@ -24,26 +24,17 @@ use iced::{
         column, container, image, row, slider, space, text,
     },
 };
+use std::any::TypeId;
 
 const VISUALIZER_BAR_COUNT: usize = 12;
 const VISUALIZER_FRAMERATE: u32 = 60;
 const VISUALIZER_PADDING: u16 = 3;
 
 fn cava_subscription() -> Subscription<Vec<f32>> {
-    Subscription::run(|| {
-        channel(16, async move |mut output| {
-            if tokio::process::Command::new("cava")
-                .arg("--version")
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
-                .status()
-                .await
-                .is_err()
-            {
-                log::warn!("cava: not found, visualizer disabled");
-                return;
-            }
+    struct Cava;
 
+    Subscription::run_with(TypeId::of::<Cava>(), |_| {
+        channel(16, async move |mut output| {
             let cava_config = format!(
                 "[general]\nbars = {VISUALIZER_BAR_COUNT}\nframerate = {VISUALIZER_FRAMERATE}\n\n\
                  [output]\nmethod = raw\nraw_target = /dev/stdout\ndata_format = ascii\nascii_max_range = 1000\n\n\
@@ -60,13 +51,13 @@ fn cava_subscription() -> Subscription<Vec<f32>> {
                 .arg("-p")
                 .arg(&config_path)
                 .stdout(std::process::Stdio::piped())
-                .stderr(std::process::Stdio::null())
+                .stderr(std::process::Stdio::piped())
                 .kill_on_drop(true)
                 .spawn()
             {
                 Ok(c) => c,
                 Err(e) => {
-                    log::error!("cava: failed to spawn process: {e}");
+                    log::warn!("cava: failed to spawn process: {e}");
                     return;
                 }
             };
@@ -78,6 +69,7 @@ fn cava_subscription() -> Subscription<Vec<f32>> {
                     return;
                 }
             };
+            let stderr = child.stderr.take();
 
             use tokio::io::{AsyncBufReadExt, BufReader};
             let reader = BufReader::new(stdout);
@@ -96,7 +88,18 @@ fn cava_subscription() -> Subscription<Vec<f32>> {
                 }
             }
 
-            let _ = child.kill().await;
+            // stdout closed: cava exited on its own. Surface why, so a rejected
+            // config or an incompatible version is not a silent no-op.
+            if let Ok(status) = child.wait().await
+                && !status.success()
+            {
+                let mut err = String::new();
+                if let Some(mut stderr) = stderr {
+                    use tokio::io::AsyncReadExt;
+                    let _ = stderr.read_to_string(&mut err).await;
+                }
+                log::warn!("cava exited ({status}): {}", err.trim());
+            }
         })
     })
 }
@@ -130,35 +133,37 @@ impl<M> canvas::Program<M> for VisualizerCanvas {
         let gap = (bar_width / 3.0).max(1.0);
         let step = bar_width + gap;
 
+        // The gradient is vertical, so its colour depends only on `y`: every bar
+        // shares the same fill. Build it once instead of per bar.
+        let grad = canvas::gradient::Linear::new(
+            iced::Point::new(0.0, 0.0),
+            iced::Point::new(0.0, bounds.height),
+        )
+        .add_stops([
+            ColorStop {
+                offset: 0.0,
+                color: self.high,
+            },
+            ColorStop {
+                offset: 0.5,
+                color: self.mid,
+            },
+            ColorStop {
+                offset: 1.0,
+                color: self.low,
+            },
+        ]);
+        let fill = Fill {
+            style: canvas::Style::Gradient(canvas::Gradient::Linear(grad)),
+            ..Fill::default()
+        };
+
         for i in 0..n {
             let height = self.bars[i] * bounds.height;
             let x = i as f32 * step;
             let y = bounds.height - height;
 
             let rect = Path::rectangle(iced::Point::new(x, y), iced::Size::new(bar_width, height));
-
-            let grad = canvas::gradient::Linear::new(
-                iced::Point::new(x, 0.0),
-                iced::Point::new(x, bounds.height),
-            )
-            .add_stops([
-                ColorStop {
-                    offset: 0.0,
-                    color: self.high,
-                },
-                ColorStop {
-                    offset: 0.5,
-                    color: self.mid,
-                },
-                ColorStop {
-                    offset: 1.0,
-                    color: self.low,
-                },
-            ]);
-            let fill = Fill {
-                style: canvas::Style::Gradient(canvas::Gradient::Linear(grad)),
-                ..Fill::default()
-            };
 
             frame.fill(&rect, fill);
         }
