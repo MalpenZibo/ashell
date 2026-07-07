@@ -33,9 +33,7 @@
 |------|-----------|
 | **Module** | A self-contained UI component displayed in the bar (e.g., Clock, Workspaces, Settings) |
 | **Service** | A backend integration that communicates with system APIs (e.g., audio, bluetooth, compositor) |
-| **Islands** | A bar style where each module group has its own rounded background container |
-| **Solid** | A bar style with a continuous flat background |
-| **Gradient** | A bar style where the background fades from solid to transparent |
+| **Bar surface** | Where the bar background is painted: `transparent` (each module group gets its own rounded container, the "islands" look) or `solid` (a continuous flat background across the bar) |
 | **Menu** | A popup panel that appears when clicking certain modules |
 | **Centerbox** | Custom widget providing a three-column layout with true centering |
 | **ButtonUIRef** | Position and size information of a button, used for menu placement |

@@ -1,7 +1,7 @@
 use crate::{
     HEIGHT,
     components::{Centerbox, menu::MenuType},
-    config::{self, AppearanceStyle, Config, Modules, Position},
+    config::{self, BarSurface, Config, Modules},
     get_log_spec,
     i18n::{Localizer, init_localizer},
     ipc::IpcCommand,
@@ -24,20 +24,18 @@ use crate::{
     osd::{self, Osd},
     outputs::{HasOutput, Outputs},
     services::ReadOnlyService,
-    theme::{AshellTheme, backdrop_color, darken_color, init_theme, use_theme},
+    theme::{AshellTheme, BarLayout, backdrop_color, darken_color, init_theme, use_theme},
 };
 use flexi_logger::LoggerHandle;
 use iced::futures::StreamExt;
 use iced::{
-    Alignment, Color, Element, Gradient, Length, OutputEvent, Radians, Subscription, SurfaceId,
-    Task, Theme,
+    Alignment, Element, Length, OutputEvent, Subscription, SurfaceId, Task, Theme,
     event::listen_with,
-    gradient::Linear,
     keyboard, set_exclusive_zone,
     widget::{Row, container, mouse_area},
 };
 use log::{debug, info, warn};
-use std::{collections::HashMap, f32::consts::PI, path::PathBuf};
+use std::{collections::HashMap, path::PathBuf};
 
 const OSD_WIDTH: u32 = 250;
 const OSD_HEIGHT: u32 = 64;
@@ -86,7 +84,7 @@ impl App {
     ) -> impl FnOnce() -> (Self, Task<Message>) {
         move || {
             let mut outputs = Outputs::new(
-                config.appearance.style,
+                BarLayout::from_appearance(&config.appearance.bar),
                 config.position,
                 config.layer,
                 config.appearance.scale_factor,
@@ -223,17 +221,18 @@ impl App {
                     "Current outputs: {:?}, new outputs: {:?}",
                     self.general_config.outputs, config.outputs
                 );
-                let (bar_position, bar_style, scale_factor) =
-                    use_theme(|t| (t.bar_position, t.bar_style, t.scale_factor));
+                let (bar_position, bar_layout, scale_factor) =
+                    use_theme(|t| (t.bar_position, t.bar_layout(), t.scale_factor));
+                let new_layout = BarLayout::from_appearance(&config.appearance.bar);
                 if self.general_config.outputs != config.outputs
                     || bar_position != config.position
-                    || bar_style != config.appearance.style
+                    || bar_layout != new_layout
                     || scale_factor != config.appearance.scale_factor
                     || self.general_config.layer != config.layer
                 {
                     warn!("Outputs changed, syncing");
                     tasks.push(self.outputs.sync(
-                        config.appearance.style,
+                        new_layout,
                         &config.outputs,
                         config.position,
                         config.layer,
@@ -391,10 +390,10 @@ impl App {
                     let name = info.name.as_str();
                     let description = format!("{} {} {}", info.name, info.make, info.model);
 
-                    let (bar_style, bar_position, scale_factor) =
-                        use_theme(|t| (t.bar_style, t.bar_position, t.scale_factor));
+                    let (bar_layout, bar_position, scale_factor) =
+                        use_theme(|t| (t.bar_layout(), t.bar_position, t.scale_factor));
                     let task = self.outputs.add(
-                        bar_style,
+                        bar_layout,
                         &self.general_config.outputs,
                         bar_position,
                         self.general_config.layer,
@@ -413,10 +412,10 @@ impl App {
                 }
                 OutputEvent::Removed(output_id) => {
                     info!("Output destroyed");
-                    let (bar_style, bar_position, scale_factor) =
-                        use_theme(|t| (t.bar_style, t.bar_position, t.scale_factor));
+                    let (bar_layout, bar_position, scale_factor) =
+                        use_theme(|t| (t.bar_layout(), t.bar_position, t.scale_factor));
                     self.outputs.remove(
-                        bar_style,
+                        bar_layout,
                         bar_position,
                         self.general_config.layer,
                         output_id,
@@ -445,10 +444,10 @@ impl App {
                 }
             }
             Message::ResumeFromSleep => {
-                let (bar_style, bar_position, scale_factor) =
-                    use_theme(|t| (t.bar_style, t.bar_position, t.scale_factor));
+                let (bar_layout, bar_position, scale_factor) =
+                    use_theme(|t| (t.bar_layout(), t.bar_position, t.scale_factor));
                 self.outputs.sync(
-                    bar_style,
+                    bar_layout,
                     &self.general_config.outputs,
                     bar_position,
                     self.general_config.layer,
@@ -532,16 +531,12 @@ impl App {
             Message::None => Task::none(),
             Message::ToggleVisibility => {
                 self.visible = !self.visible;
-                let (bar_style, scale_factor) = use_theme(|t| (t.bar_style, t.scale_factor));
-                let height = if self.visible {
-                    (crate::HEIGHT
-                        - match bar_style {
-                            AppearanceStyle::Solid | AppearanceStyle::Gradient => 8.,
-                            AppearanceStyle::Islands => 0.,
-                        })
-                        * scale_factor
+                let (bar_layout, bar_position, scale_factor) =
+                    use_theme(|t| (t.bar_layout(), t.bar_position, t.scale_factor));
+                let zone = if self.visible {
+                    Outputs::exclusive_zone(bar_layout, bar_position, scale_factor)
                 } else {
-                    0.0
+                    0
                 };
 
                 Task::batch(
@@ -550,7 +545,7 @@ impl App {
                         .filter_map(|(_, shell_info, _)| {
                             shell_info
                                 .as_ref()
-                                .map(|info| set_exclusive_zone(info.id, height as i32))
+                                .map(|info| set_exclusive_zone(info.id, zone))
                         })
                         .collect::<Vec<_>>(),
                 )
@@ -567,15 +562,15 @@ impl App {
 
                 let [left, center, right] = self.modules_section(id);
 
-                let (space, bar_style, bar_position, opacity, menu, animations_enabled) =
+                let (space, bar_surface, opacity, menu, animations_enabled, bar_radius) =
                     use_theme(|t| {
                         (
                             t.space,
-                            t.bar_style,
-                            t.bar_position,
+                            t.bar_surface,
                             t.opacity,
                             t.menu,
                             t.animations_enabled,
+                            t.bar_border_radius(),
                         )
                     });
                 let centerbox = Centerbox::new([left, center, right])
@@ -583,12 +578,12 @@ impl App {
                     .spacing(space.xxs)
                     .width(Length::Fill)
                     .align_items(Alignment::Center)
-                    .height(if bar_style == AppearanceStyle::Islands {
+                    .height(if bar_surface == BarSurface::Transparent {
                         HEIGHT
                     } else {
                         HEIGHT - space.xs as f64
                     } as f32)
-                    .padding(if bar_style == AppearanceStyle::Islands {
+                    .padding(if bar_surface == BarSurface::Transparent {
                         [space.xxs, space.xxs]
                     } else {
                         [0.0, 0.0]
@@ -596,42 +591,8 @@ impl App {
 
                 let menu_is_open = self.outputs.menu_is_open();
                 let status_bar = container(centerbox).style(move |t: &Theme| container::Style {
-                    background: match bar_style {
-                        AppearanceStyle::Gradient => Some({
-                            let start_color = t.palette().background.scale_alpha(opacity);
-
-                            let start_color = if menu_is_open {
-                                darken_color(start_color, menu.backdrop)
-                            } else {
-                                start_color
-                            };
-
-                            let end_color = if menu_is_open {
-                                backdrop_color(menu.backdrop)
-                            } else {
-                                Color::TRANSPARENT
-                            };
-
-                            Gradient::Linear(
-                                Linear::new(Radians(PI))
-                                    .add_stop(
-                                        0.0,
-                                        match bar_position {
-                                            Position::Top => start_color,
-                                            Position::Bottom => end_color,
-                                        },
-                                    )
-                                    .add_stop(
-                                        1.0,
-                                        match bar_position {
-                                            Position::Top => end_color,
-                                            Position::Bottom => start_color,
-                                        },
-                                    ),
-                            )
-                            .into()
-                        }),
-                        AppearanceStyle::Solid => Some({
+                    background: match bar_surface {
+                        BarSurface::Solid => Some({
                             let bg = t.palette().background.scale_alpha(opacity);
                             if menu_is_open {
                                 darken_color(bg, menu.backdrop)
@@ -640,13 +601,17 @@ impl App {
                             }
                             .into()
                         }),
-                        AppearanceStyle::Islands => {
+                        BarSurface::Transparent => {
                             if menu_is_open {
                                 Some(backdrop_color(menu.backdrop).into())
                             } else {
                                 None
                             }
                         }
+                    },
+                    border: iced::Border {
+                        radius: bar_radius,
+                        ..Default::default()
                     },
                     ..Default::default()
                 });

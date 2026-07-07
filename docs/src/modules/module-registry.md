@@ -107,11 +107,11 @@ pub fn modules_section(&self, id: Id, theme: &AshellTheme) -> [Element<Message>;
 Wraps a single module:
 - If the module has an `OnModulePress` action, it's wrapped in a `PositionButton`
 - Otherwise, it's wrapped in a plain `container`
-- In `Islands` style, non-interactive modules get a rounded background
+- With the `transparent` (islands) surface, non-interactive modules get a rounded background
 
 ### group_module_wrapper
 
 Wraps a group of modules:
 - All modules in the group are placed in a `Row`
-- In `Islands` style, the entire group shares one rounded background container
+- With the `transparent` (islands) surface, the entire group shares one rounded background container
 - Each module within the group still has its own click handler if applicable

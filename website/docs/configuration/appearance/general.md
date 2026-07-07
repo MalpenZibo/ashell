@@ -34,59 +34,82 @@ The default value is `1.0`.
 scale_factor = 1.5
 ```
 
-## Status Bar Style
+## Status Bar
 
-You can change the style of the status bar using the `style` field.
+The look of the status bar is configured under the `[appearance.bar]` section.
 
-You can choose between:
+### Surface
 
-- `Islands`: This is the default style. Each module or module group is displayed
-  in a rounded rectangle using the background color.
-- `Solid`: The status bar has a solid background color.
-- `Gradient`: The status bar has a gradient background color.
+The `surface` field controls where the background color is painted:
 
-### Example
+- `transparent`: This is the default. The bar itself is see-through and each
+  module group is painted with the background color, giving the "islands" look.
+- `solid`: The bar is painted with the background color as a single continuous
+  surface.
 
 ```toml
-[appearance]
-style = "Gradient"
+[appearance.bar]
+surface = "solid"
 ```
 
-## Opacity
+### Radius
 
-You can change the opacity of the status bar components using the `opacity` field.
+The `radius` field rounds the corners of the bar surface (it only has an effect
+with `surface = "solid"`). Values are steps of the radius scale: `none` (square),
+`sm`, `md`, `lg`, `xl`.
 
-The value should be a float between `0.0` and `1.0`, where `0.0` is fully transparent.
-The default value is `1.0`.
+It uses CSS `border-radius` shorthand: a single value applies to all corners, two
+values are `[top-left+bottom-right, top-right+bottom-left]`, and four values are
+`[top-left, top-right, bottom-right, bottom-left]`.
 
-It's also possible to define the opacity of status bar menus and whether they should
-include a backdrop effect.
+```toml
+[appearance.bar]
+surface = "solid"
+radius = "md"                       # all corners
+# radius = ["none", "none", "md", "md"]  # square top, rounded bottom
+```
 
-The `backdrop` effect adds a blur/transparent background to menus, making them appear
-semi-transparent over the content behind them. The value should be a float between `0.0`
-and `1.0`, where `0.0` disables the effect and `1.0` applies maximum blur.
+### Margin
+
+The `margin` field insets the bar from the screen edges, turning it into a
+floating bar. Values are steps of the spacing scale: `none` (default), `xxs`,
+`xs`, `sm`, `md`, `lg`, `xl`, `xxl`.
+
+It uses CSS `margin` shorthand: a single value applies to all edges, two values
+are `[vertical, horizontal]`, and four values are `[top, right, bottom, left]`.
+
+```toml
+[appearance.bar]
+margin = "sm"              # all edges
+# margin = ["xs", "md"]    # vertical, horizontal
+```
+
+### Opacity
+
+The `opacity` field sets the opacity of the status bar components. The value
+should be a float between `0.0` (fully transparent) and `1.0` (fully opaque,
+the default).
+
+```toml
+[appearance.bar]
+opacity = 0.8
+```
+
+## Menu Opacity
+
+It's also possible to define the opacity of status bar menus and whether they
+should include a backdrop effect.
+
+The `backdrop` effect adds a blur/transparent background to menus, making them
+appear semi-transparent over the content behind them. The value should be a float
+between `0.0` (disabled) and `1.0` (maximum blur).
 
 **Default values:**
 
-- `opacity`: `1.0` (fully opaque)
 - `menu.opacity`: `1.0` (fully opaque)
 - `menu.backdrop`: `0.0` (disabled)
 
-## Examples
-
-Setting the opacity of the status bar components:
-
 ```toml
-[appearance]
-opacity = 0.8
-```
-
-Also setting the opacity of the status bar menus and adding a backdrop effect:
-
-```toml
-[appearance]
-opacity = 0.8
-
 [appearance.menu]
 opacity = 0.7
 backdrop = 0.3
