@@ -312,7 +312,7 @@ Available indicators are:
 indicators = ["Battery", "Bluetooth", "Network", "Audio", "Microphone"]
 
 # Default indicators (shown in this order):
-indicators = ["IdleInhibitor", "PowerProfile", "Audio", "Microphone", "Bluetooth", "Network", "Vpn", "Battery", "Brightness"]
+indicators = ["IdleInhibitor", "PowerProfile", "Audio", "Microphone", "Bluetooth", "Network", "Vpn", "Battery"]
 ```
 
 ## Custom Buttons
