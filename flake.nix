@@ -112,6 +112,7 @@
     {
       packages = forAllSystems (system: {
         default = perSystem.${system}.defaultPackage;
+        deps = perSystem.${system}.cargoArtifacts;
       });
       devShells = forAllSystems (system: {
         default = perSystem.${system}.devShell;
