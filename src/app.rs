@@ -167,7 +167,13 @@ impl App {
             .collect();
 
         self.custom = custom;
-        self.updates = config.updates.map(Updates::new);
+        let existing_updates = self.updates.take();
+        self.updates = config.updates.map(|updates_config| {
+            let mut updates =
+                existing_updates.unwrap_or_else(|| Updates::new(updates_config.clone()));
+            updates.update(modules::updates::Message::ConfigReloaded(updates_config));
+            updates
+        });
 
         let workspaces_task = self
             .workspaces

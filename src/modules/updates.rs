@@ -78,6 +78,7 @@ pub enum Message {
     ToggleUpdatesList,
     CheckNow,
     Update(SurfaceId),
+    ConfigReloaded(UpdatesModuleConfig),
 }
 
 pub enum Action {
@@ -146,6 +147,11 @@ impl Updates {
                     async move { check_update_now(&check_command).await },
                     Message::UpdatesCheckCompleted,
                 ))
+            }
+            Message::ConfigReloaded(config) => {
+                self.config = config;
+
+                Action::None
             }
             Message::Update(id) => {
                 let update_command = self.config.update_cmd.clone();
