@@ -221,6 +221,7 @@ impl GenericState {
                     windows: 1,
                     is_special: false,
                     has_urgent: ws.urgent,
+                    window_classes: Vec::new(),
                 }
             })
             .collect();

@@ -8,6 +8,7 @@ pub struct CompositorWorkspace {
     pub windows: u16,
     pub is_special: bool,
     pub has_urgent: bool,
+    pub window_classes: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

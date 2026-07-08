@@ -13,6 +13,7 @@ pub mod privacy;
 mod throttle;
 pub mod tray;
 pub mod upower;
+pub mod xdg_icons;
 
 #[derive(Debug, Clone)]
 pub enum ServiceEvent<S: ReadOnlyService> {

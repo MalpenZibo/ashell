@@ -55,3 +55,11 @@ This chapter documents known architectural limitations and design tradeoffs. Und
 **Workaround**: Set the `WGPU_BACKEND=gl` environment variable to use the OpenGL backend instead of Vulkan.
 
 **Related**: [GitHub Issue #471](https://github.com/MalpenZibo/ashell/issues/471)
+
+## Icon Index Staleness
+
+**Issue**: The XDG icon indexes in `services/xdg_icons.rs` (`SYSTEM_ICON_NAMES`, `DESKTOP_ICON_INDEX`) are built once via `LazyLock` and never rebuilt. Resolution results, including misses, are cached for the process lifetime.
+
+**Impact**: Newly installed applications and runtime icon-theme changes are not picked up until ashell is restarted. This affects both the tray and the workspace window icons.
+
+**Why not fixed**: Because the indexes are static within a session, invalidating the result cache alone changes nothing (re-resolution reads the same frozen data), and dropping negative cache entries would only re-run the expensive fuzzy scans on every event for the same result. A proper fix means making the indexes rebuildable (a periodic or event-driven refresh), which is disproportionate to the payoff for a status bar.

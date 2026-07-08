@@ -1,17 +1,22 @@
 use crate::{
+    components::icons::icon,
     config::{
-        AppearanceColor, InvertScrollDirection, WorkspaceVisibilityMode, WorkspacesModuleConfig,
+        AppearanceColor, InvertScrollDirection, WorkspaceIndicatorFormat, WorkspaceVisibilityMode,
+        WorkspacesModuleConfig,
     },
     outputs::Outputs,
     services::{
         ReadOnlyService, Service, ServiceEvent,
-        compositor::{CompositorCommand, CompositorService, CompositorState},
+        compositor::{
+            CompositorCommand, CompositorService, CompositorState, set_collect_window_classes,
+        },
+        xdg_icons::{self, XdgIcon},
     },
     theme::{AshellTheme, use_theme},
 };
 use iced::{
     Element, Length, Subscription, SurfaceId, alignment,
-    widget::{MouseArea, Row, button, container, text},
+    widget::{Image, MouseArea, Row, Svg, button, container, text},
 };
 use iced_anim::{AnimationBuilder, transition::Easing};
 use itertools::Itertools;
@@ -34,6 +39,7 @@ pub struct UiWorkspace {
     pub displayed: Displayed,
     pub windows: u16,
     pub has_urgent: bool,
+    pub icons: Option<Vec<XdgIcon>>,
 }
 
 #[derive(Debug, Clone)]
@@ -41,6 +47,18 @@ struct VirtualDesktop {
     pub active: bool,
     pub windows: u16,
     pub has_urgent: bool,
+    pub window_classes: Vec<String>,
+}
+
+fn resolve_workspace_icons(window_classes: &[String]) -> Vec<XdgIcon> {
+    window_classes
+        .iter()
+        .map(|class| class.to_lowercase())
+        .unique()
+        .map(|class_lower| {
+            xdg_icons::get_icon_from_name(&class_lower).unwrap_or_else(xdg_icons::fallback_icon)
+        })
+        .collect()
 }
 
 #[derive(Debug, Clone)]
@@ -51,6 +69,7 @@ pub enum Message {
     Scroll(i32, Option<String>),
     ConfigReloaded(WorkspacesModuleConfig),
     ScrollAccumulator(f32),
+    IconCacheWarmed,
 }
 
 pub struct Workspaces {
@@ -79,12 +98,13 @@ fn calculate_ui_workspaces(
         .unique_by(|w| w.id)
         .collect_vec();
 
+    let collect_icons = config.indicator_format == WorkspaceIndicatorFormat::NameAndIcons;
     let mut result: Vec<UiWorkspace> = Vec::with_capacity(workspaces.len());
     let (special, normal): (Vec<_>, Vec<_>) = workspaces.into_iter().partition(|w| w.id < 0);
 
     // map special workspaces
     if !config.disable_special_workspaces {
-        for w in special.iter() {
+        for w in special {
             // Special workspaces are active if they are assigned to any monitor.
             // Currently a special and normal workspace can be active at the same time on the same monitor.
             let active = monitors.iter().any(|m| m.special_workspace_id == w.id);
@@ -97,7 +117,7 @@ fn calculate_ui_workspaces(
                     .last()
                     .map_or_else(|| "".to_string(), |s| s.to_owned()),
                 monitor_id: w.monitor_id,
-                monitor: w.monitor.clone(),
+                monitor: w.monitor,
                 displayed: if active {
                     Displayed::Active
                 } else {
@@ -105,6 +125,7 @@ fn calculate_ui_workspaces(
                 },
                 windows: w.windows,
                 has_urgent: w.has_urgent,
+                icons: collect_icons.then(|| resolve_workspace_icons(&w.window_classes)),
             });
         }
     }
@@ -113,7 +134,7 @@ fn calculate_ui_workspaces(
         let monitor_count = monitors.len().max(1);
         let mut virtual_desktops: HashMap<i32, VirtualDesktop> = HashMap::new();
 
-        for w in normal.iter() {
+        for w in normal {
             let vdesk_id = ((w.id - 1) / monitor_count as i32) + 1;
             let is_active = active_ids.contains(&w.id);
 
@@ -121,6 +142,7 @@ fn calculate_ui_workspaces(
                 vdesk.windows += w.windows;
                 vdesk.active = vdesk.active || is_active;
                 vdesk.has_urgent = vdesk.has_urgent || w.has_urgent;
+                vdesk.window_classes.extend(w.window_classes);
             } else {
                 virtual_desktops.insert(
                     vdesk_id,
@@ -128,6 +150,7 @@ fn calculate_ui_workspaces(
                         active: is_active,
                         windows: w.windows,
                         has_urgent: w.has_urgent,
+                        window_classes: w.window_classes,
                     },
                 );
             }
@@ -154,20 +177,21 @@ fn calculate_ui_workspaces(
                 },
                 windows: vdesk.windows,
                 has_urgent: vdesk.has_urgent,
+                icons: collect_icons.then(|| resolve_workspace_icons(&vdesk.window_classes)),
             });
         });
     } else {
-        for w in normal.iter() {
+        for w in normal {
             let display_name = if w.id > 0 {
                 let idx = (w.id - 1) as usize;
                 config
                     .workspace_names
                     .get(idx)
                     .cloned()
-                    .or_else(|| Some(w.name.clone()))
+                    .or(Some(w.name))
                     .unwrap_or_else(|| w.id.to_string())
             } else {
-                w.name.clone()
+                w.name
             };
 
             let is_active = active_ids.contains(&w.id);
@@ -178,7 +202,7 @@ fn calculate_ui_workspaces(
                 index: w.index,
                 name: display_name,
                 monitor_id: w.monitor_id,
-                monitor: w.monitor.clone(),
+                monitor: w.monitor,
                 displayed: match (is_active, is_visible) {
                     (true, _) => Displayed::Active,
                     (false, true) => Displayed::Visible,
@@ -186,6 +210,7 @@ fn calculate_ui_workspaces(
                 },
                 windows: w.windows,
                 has_urgent: w.has_urgent,
+                icons: collect_icons.then(|| resolve_workspace_icons(&w.window_classes)),
             });
         }
     }
@@ -229,6 +254,7 @@ fn calculate_ui_workspaces(
                 displayed: Displayed::Hidden,
                 windows: 0,
                 has_urgent: false,
+                icons: None,
             });
         }
     }
@@ -254,6 +280,7 @@ fn calculate_ui_workspaces(
 fn workspace_button<'a>(
     theme: &AshellTheme,
     name: String,
+    icons: Vec<XdgIcon>,
     font_size: f32,
     empty: bool,
     urgent: bool,
@@ -264,8 +291,34 @@ fn workspace_button<'a>(
     height: f32,
     on_press: Message,
 ) -> Element<'a, Message> {
+    let inner: Element<'a, Message> = if icons.is_empty() {
+        text(name).size(font_size).into()
+    } else {
+        let icon_size = font_size + 4.0;
+        let children: Vec<Element<'a, Message>> =
+            std::iter::once(text(name).size(font_size).into())
+                .chain(icons.into_iter().map(|i| {
+                    match i {
+                        XdgIcon::Svg(handle) => Svg::new(handle)
+                            .height(Length::Fixed(icon_size))
+                            .width(Length::Shrink)
+                            .into(),
+                        XdgIcon::Image(handle) => Image::new(handle)
+                            .height(Length::Fixed(icon_size))
+                            .width(Length::Shrink)
+                            .into(),
+                        XdgIcon::NerdFont(si) => icon(si).size(icon_size).into(),
+                    }
+                }))
+                .collect();
+        Row::with_children(children)
+            .spacing(theme.space.xxs)
+            .align_y(alignment::Vertical::Center)
+            .into()
+    };
+
     button(
-        container(text(name).size(font_size))
+        container(inner)
             .align_x(alignment::Horizontal::Center)
             .align_y(alignment::Vertical::Center),
     )
@@ -279,6 +332,9 @@ fn workspace_button<'a>(
 
 impl Workspaces {
     pub fn new(config: WorkspacesModuleConfig) -> Self {
+        set_collect_window_classes(
+            config.indicator_format == WorkspaceIndicatorFormat::NameAndIcons,
+        );
         Self {
             config,
             service: None,
@@ -417,7 +473,21 @@ impl Workspaces {
                 iced::Task::none()
             }
             Message::ConfigReloaded(cfg) => {
+                let icons_enabled = cfg.indicator_format == WorkspaceIndicatorFormat::NameAndIcons;
+                set_collect_window_classes(icons_enabled);
                 self.config = cfg;
+                if icons_enabled {
+                    // Refresh only once the indexes are warm, so resolution
+                    // reads cached data instead of scanning on this thread.
+                    iced::Task::perform(xdg_icons::warm_cache_async(), |()| {
+                        Message::IconCacheWarmed
+                    })
+                } else {
+                    self.recalculate_ui_workspaces();
+                    iced::Task::none()
+                }
+            }
+            Message::IconCacheWarmed => {
                 self.recalculate_ui_workspaces();
                 iced::Task::none()
             }
@@ -477,20 +547,21 @@ impl Workspaces {
                             };
 
                             let color = color_index.map(|i| {
-                                if w.id > 0 {
-                                    theme.workspace_colors.get(i as usize).copied()
-                                } else {
+                                let colors = if w.id < 0 {
                                     theme
                                         .special_workspace_colors
                                         .as_ref()
                                         .unwrap_or(&theme.workspace_colors)
-                                        .get(i as usize)
-                                        .copied()
-                                }
+                                } else {
+                                    &theme.workspace_colors
+                                };
+                                colors.get(i as usize).copied()
                             });
 
                             {
                                 let name = w.name.clone();
+                                let icons = w.icons.clone().unwrap_or_default();
+                                let has_icons = !icons.is_empty();
                                 let on_press = if w.id > 0 {
                                     Message::ChangeWorkspace(w.id)
                                 } else {
@@ -499,7 +570,10 @@ impl Workspaces {
                                 let font_size = theme.font_size.xs;
                                 let height = theme.space.md;
 
+                                // Numbered workspaces animate to a fixed width; icon
+                                // and named workspaces size to their content instead.
                                 let numbered = w.id > 0
+                                    && !has_icons
                                     && !w.name.is_empty()
                                     && w.name.chars().all(|c| c.is_ascii_digit());
 
@@ -514,10 +588,14 @@ impl Workspaces {
 
                                     if theme.animations_enabled {
                                         AnimationBuilder::new(target_width, move |width| {
-                                            use_theme(|theme| {
+                                            let name = name.clone();
+                                            let icons = icons.clone();
+                                            let on_press = on_press.clone();
+                                            use_theme(move |theme| {
                                                 workspace_button(
                                                     theme,
                                                     name.clone(),
+                                                    icons.clone(),
                                                     font_size,
                                                     empty,
                                                     urgent,
@@ -537,6 +615,7 @@ impl Workspaces {
                                         workspace_button(
                                             theme,
                                             name,
+                                            icons,
                                             font_size,
                                             empty,
                                             urgent,
@@ -559,10 +638,14 @@ impl Workspaces {
 
                                     if theme.animations_enabled {
                                         AnimationBuilder::new(target_padding, move |padding| {
-                                            use_theme(|theme| {
+                                            let name = name.clone();
+                                            let icons = icons.clone();
+                                            let on_press = on_press.clone();
+                                            use_theme(move |theme| {
                                                 workspace_button(
                                                     theme,
                                                     name.clone(),
+                                                    icons.clone(),
                                                     font_size,
                                                     empty,
                                                     urgent,
@@ -582,6 +665,7 @@ impl Workspaces {
                                         workspace_button(
                                             theme,
                                             name,
+                                            icons,
                                             font_size,
                                             empty,
                                             urgent,

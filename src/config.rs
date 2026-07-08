@@ -122,10 +122,18 @@ pub enum WorkspaceVisibilityMode {
     MonitorSpecificExclusive,
 }
 
+#[derive(Deserialize, Copy, Clone, Default, PartialEq, Eq, Debug)]
+pub enum WorkspaceIndicatorFormat {
+    #[default]
+    Name,
+    NameAndIcons,
+}
+
 #[derive(Deserialize, Clone, Default, Debug)]
 #[serde(default)]
 pub struct WorkspacesModuleConfig {
     pub visibility_mode: WorkspaceVisibilityMode,
+    pub indicator_format: WorkspaceIndicatorFormat,
     pub group_by_monitor: bool,
     pub enable_workspace_filling: bool,
     pub disable_special_workspaces: bool,
@@ -1182,6 +1190,19 @@ pub struct Modules {
     pub center: Vec<ModuleDef>,
     #[serde(default)]
     pub right: Vec<ModuleDef>,
+}
+
+impl Modules {
+    pub fn contains(&self, target: &ModuleName) -> bool {
+        self.left
+            .iter()
+            .chain(&self.center)
+            .chain(&self.right)
+            .any(|def| match def {
+                ModuleDef::Single(m) => m == target,
+                ModuleDef::Group(ms) => ms.contains(target),
+            })
+    }
 }
 
 impl Default for Modules {

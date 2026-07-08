@@ -177,6 +177,7 @@ fn build_state(all: AllMonitors) -> CompositorState {
                 windows: tag.client_count,
                 is_special: false,
                 has_urgent: tag.is_urgent,
+                window_classes: Vec::new(),
             });
         }
 
