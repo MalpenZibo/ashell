@@ -681,7 +681,6 @@ impl Default for SettingsModuleConfig {
                 SettingsIndicator::Network,
                 SettingsIndicator::Vpn,
                 SettingsIndicator::Battery,
-                SettingsIndicator::Brightness,
             ],
             custom_buttons: Default::default(),
         }
