@@ -75,7 +75,7 @@ impl<'a, Msg: 'static + Clone> From<ModuleItem<'a, Msg>> for Element<'a, Msg> {
                     .height(Length::Fill)
                     .clip(true),
             )
-            .padding([2.0, space.xs])
+            .padding([0.0, space.xs])
             .height(Length::Fill)
             .style(module_button_style);
 
@@ -101,7 +101,7 @@ impl<'a, Msg: 'static + Clone> From<ModuleItem<'a, Msg>> for Element<'a, Msg> {
             button.into()
         } else {
             container(item.content)
-                .padding([2.0, space.xs])
+                .padding([0.0, space.xs])
                 .height(Length::Fill)
                 .align_y(Alignment::Center)
                 .clip(true)

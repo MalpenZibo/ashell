@@ -28,8 +28,12 @@ use iced::{
 };
 use std::any::TypeId;
 
-const VISUALIZER_BAR_COUNT: usize = 12;
+const VISUALIZER_BAR_COUNT: usize = 32;
 const VISUALIZER_FRAMERATE: u32 = 60;
+
+const VISUALIZER_BG_BAR_MIN_WIDTH: f32 = 2.0;
+const VISUALIZER_BG_BAR_MAX_WIDTH: f32 = 8.0;
+const VISUALIZER_BG_BAR_GAP: f32 = 2.0;
 
 struct VisualizerCanvas {
     bars: Vec<f32>,
@@ -40,6 +44,10 @@ struct VisualizerCanvas {
     // Corner radius of the surface behind the bars; the outermost bars round
     // their outer corners to match it (0 to keep square bars).
     radius: f32,
+    min_bar_width: f32,
+    max_bar_width: f32,
+    gap: f32,
+    inset: f32,
 }
 
 impl<M> canvas::Program<M> for VisualizerCanvas {
@@ -59,12 +67,15 @@ impl<M> canvas::Program<M> for VisualizerCanvas {
             return vec![frame.into_geometry()];
         }
 
-        let n = VISUALIZER_BAR_COUNT.min(self.bars.len());
-        // Fill the full width edge to edge: `n` bars plus `n - 1` gaps span the
-        // whole width, with each gap a third of a bar.
-        let bar_width = (bounds.width / (n as f32 + (n as f32 - 1.0) / 3.0)).max(1.0);
-        let gap = bar_width / 3.0;
-        let step = bar_width + gap;
+        let src = self.bars.len();
+        let avail = (bounds.width - 2.0 * self.inset).max(self.min_bar_width);
+        // Fewest source bars that keep the width within max, adding thinner bars
+        // as space grows (capped at the bars we have). With more space than 32
+        // bars can fill at max, bars grow past max; the gap stays fixed.
+        let n =
+            (((avail + self.gap) / (self.max_bar_width + self.gap)).ceil() as usize).clamp(1, src);
+        let bar_width = ((avail - (n - 1) as f32 * self.gap) / n as f32).max(self.min_bar_width);
+        let step = bar_width + self.gap;
 
         // The gradient is vertical, so its colour depends only on `y`: every bar
         // shares the same fill. Build it once instead of per bar.
@@ -92,8 +103,9 @@ impl<M> canvas::Program<M> for VisualizerCanvas {
         };
 
         for i in 0..n {
-            let height = self.bars[i] * bounds.height;
-            let x = i as f32 * step;
+            let value = self.bars[(i * src / n).min(src - 1)];
+            let height = value * bounds.height;
+            let x = self.inset + i as f32 * step;
             let y = bounds.height - height;
             let position = iced::Point::new(x, y);
             let size = iced::Size::new(bar_width, height);
@@ -212,7 +224,7 @@ impl MediaPlayer {
         }
     }
 
-    pub fn menu_view<'a>(&'a self) -> Element<'a, Message> {
+    pub fn menu_view<'a>(&'a self, is_closing: bool) -> Element<'a, Message> {
         let (space, font_size, opacity, radius, palette) = use_theme(|theme| {
             (
                 theme.space,
@@ -284,21 +296,30 @@ impl MediaPlayer {
                         .width(LEFT_COLUMN_WIDTH)
                         .into()
                     });
-                    let cover: Option<Element<'_, _>> = d
-                        .metadata
-                        .as_ref()
-                        .and_then(|m| m.art_url.as_ref())
-                        .map(|url| {
-                            let inner: Element<'_, _> = service
-                                .get_cover(url)
-                                .map(|handle| {
-                                    image(handle)
-                                        .filter_method(image::FilterMethod::Linear)
-                                        .into()
+                    // While the menu is closing, drop the cover: the album art
+                    // is an `image` primitive that the menu's clip-reveal close
+                    // animation cannot clip, so it would linger on top of the
+                    // rolling-up menu.
+                    let cover: Option<Element<'_, _>> = (!is_closing)
+                        .then(|| {
+                            d.metadata
+                                .as_ref()
+                                .and_then(|m| m.art_url.as_ref())
+                                .map(|url| {
+                                    let inner: Element<'_, _> = service
+                                        .get_cover(url)
+                                        .map(|handle| {
+                                            image(handle)
+                                                .filter_method(image::FilterMethod::Linear)
+                                                .into()
+                                        })
+                                        .unwrap_or_else(|| {
+                                            text(t!("media-player-loading-cover")).into()
+                                        });
+                                    container(inner).center_x(RIGHT_COLUMN_WIDTH).into()
                                 })
-                                .unwrap_or_else(|| text(t!("media-player-loading-cover")).into());
-                            container(inner).center_x(RIGHT_COLUMN_WIDTH).into()
-                        });
+                        })
+                        .flatten();
                     let metadata = |description, cover| -> Element<'_, _> {
                         row![description]
                             .push(cover)
@@ -345,6 +366,10 @@ impl MediaPlayer {
                                     high: palette.danger,
                                     opacity: 0.1,
                                     radius: radius.lg,
+                                    min_bar_width: VISUALIZER_BG_BAR_MIN_WIDTH,
+                                    max_bar_width: VISUALIZER_BG_BAR_MAX_WIDTH,
+                                    gap: VISUALIZER_BG_BAR_GAP,
+                                    inset: 0.0,
                                 })
                                 .width(Length::Fill)
                                 .height(Length::Fill),
@@ -445,36 +470,42 @@ impl MediaPlayer {
                 .clip(true)
             };
 
-            let visualizer = (self.config.show_visualizer
-                && player.state == PlaybackStatus::Playing
-                && !self.bars.is_empty())
-            .then(|| {
-                container(
-                    Canvas::new(VisualizerCanvas {
-                        bars: self.bars.clone(),
-                        low: palette.primary,
-                        mid: palette.warning,
-                        high: palette.danger,
-                        opacity: 1.,
-                        radius: 0.0,
-                    })
-                    .width(Length::Fixed((VISUALIZER_BAR_COUNT * 4) as f32))
-                    .height(Length::Fill),
-                )
-                .padding(space.xxs)
-            });
-
             let content = match self.config.indicator_format {
                 MediaPlayerFormat::Icon => row![icon(StaticIcon::MusicNote)],
                 MediaPlayerFormat::Text => row![title()],
                 MediaPlayerFormat::IconAndText => row![icon(StaticIcon::MusicNote), title()],
-            };
-
-            content
-                .push(visualizer)
+            }
                 .align_y(Vertical::Center)
                 .spacing(space.xs)
-                .into()
+                .height(Length::Fill);
+
+            let show_visualizer = self.config.show_visualizer
+                && player.state == PlaybackStatus::Playing
+                && !self.bars.is_empty();
+
+            if show_visualizer {
+                Stack::new()
+                    .push(content)
+                    .push_under(
+                        Canvas::new(VisualizerCanvas {
+                            bars: self.bars.clone(),
+                            low: palette.primary,
+                            mid: palette.warning,
+                            high: palette.danger,
+                            opacity: 0.1,
+                            radius: 0.0,
+                            min_bar_width: VISUALIZER_BG_BAR_MIN_WIDTH,
+                            max_bar_width: VISUALIZER_BG_BAR_MAX_WIDTH,
+                            gap: VISUALIZER_BG_BAR_GAP,
+                            inset: space.xxs,
+                        })
+                        .width(Length::Fill)
+                        .height(Length::Fill),
+                    )
+                    .into()
+            } else {
+                content.into()
+            }
         })
     }
 
