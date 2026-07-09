@@ -23,7 +23,7 @@ use iced::{
     widget::{
         Stack,
         canvas::{self, Canvas, Fill, Frame, Geometry, Path},
-        column, container, image, row, slider, space, text,
+        column, container, image, row, scrollable, slider, space, text,
     },
 };
 use std::any::TypeId;
@@ -239,163 +239,167 @@ impl MediaPlayer {
             Some(service) => column!(
                 text(t!("media-player-heading")).size(font_size.lg),
                 divider(),
-                column(service.players().iter().map(|d| {
-                    const LEFT_COLUMN_WIDTH: Length = Length::FillPortion(3);
-                    const RIGHT_COLUMN_WIDTH: Length = Length::FillPortion(2);
-                    let m = d.metadata.as_ref();
-                    let title = m
-                        .and_then(|m| m.title.clone())
-                        .unwrap_or_else(|| t!("media-player-no-title"));
-                    let artists = m
-                        .and_then(|m| m.artists.clone())
-                        .map(|a| a.join(", "))
-                        .unwrap_or_else(|| t!("media-player-unknown-artist"));
-                    let album = m
-                        .and_then(|m| m.album.clone())
-                        .unwrap_or_else(|| t!("media-player-unknown-album"));
-                    let title = text(truncate_text(&title, self.config.max_title_length))
-                        .wrapping(text::Wrapping::WordOrGlyph)
-                        .width(Length::Fill);
-                    let artists = text(truncate_text(&artists, self.config.max_title_length))
-                        .wrapping(text::Wrapping::WordOrGlyph)
-                        .size(font_size.sm)
-                        .width(Length::Fill);
-                    let album = text(truncate_text(&album, self.config.max_title_length))
-                        .wrapping(text::Wrapping::WordOrGlyph)
-                        .size(font_size.sm)
-                        .width(Length::Fill);
-                    let description = column![title, artists, album]
-                        .spacing(space.xxs)
-                        .width(LEFT_COLUMN_WIDTH);
+                container(scrollable(
+                    column(service.players().iter().map(|d| {
+                        const LEFT_COLUMN_WIDTH: Length = Length::FillPortion(3);
+                        const RIGHT_COLUMN_WIDTH: Length = Length::FillPortion(2);
+                        let m = d.metadata.as_ref();
+                        let title = m
+                            .and_then(|m| m.title.clone())
+                            .unwrap_or_else(|| t!("media-player-no-title"));
+                        let artists = m
+                            .and_then(|m| m.artists.clone())
+                            .map(|a| a.join(", "))
+                            .unwrap_or_else(|| t!("media-player-unknown-artist"));
+                        let album = m
+                            .and_then(|m| m.album.clone())
+                            .unwrap_or_else(|| t!("media-player-unknown-album"));
+                        let title = text(truncate_text(&title, self.config.max_title_length))
+                            .wrapping(text::Wrapping::WordOrGlyph)
+                            .width(Length::Fill);
+                        let artists = text(truncate_text(&artists, self.config.max_title_length))
+                            .wrapping(text::Wrapping::WordOrGlyph)
+                            .size(font_size.sm)
+                            .width(Length::Fill);
+                        let album = text(truncate_text(&album, self.config.max_title_length))
+                            .wrapping(text::Wrapping::WordOrGlyph)
+                            .size(font_size.sm)
+                            .width(Length::Fill);
+                        let description = column![title, artists, album]
+                            .spacing(space.xxs)
+                            .width(LEFT_COLUMN_WIDTH);
 
-                    let play_pause_icon = match d.state {
-                        PlaybackStatus::Playing => StaticIcon::Pause,
-                        PlaybackStatus::Paused | PlaybackStatus::Stopped => StaticIcon::Play,
-                    };
+                        let play_pause_icon = match d.state {
+                            PlaybackStatus::Playing => StaticIcon::Pause,
+                            PlaybackStatus::Paused | PlaybackStatus::Stopped => StaticIcon::Play,
+                        };
 
-                    let buttons = container(
-                        row![
-                            icon_button(StaticIcon::SkipPrevious)
-                                .on_press(Message::Prev(d.service.clone()))
-                                .size(ButtonSize::Large),
-                            icon_button(play_pause_icon)
-                                .on_press(Message::PlayPause(d.service.clone()))
-                                .size(ButtonSize::Large),
-                            icon_button(StaticIcon::SkipNext)
-                                .on_press(Message::Next(d.service.clone()))
-                                .size(ButtonSize::Large),
-                        ]
-                        .align_y(Vertical::Center)
-                        .spacing(space.xs),
-                    )
-                    .center_x(RIGHT_COLUMN_WIDTH);
-                    let volume_slider: Option<Element<'_, _>> = d.volume.map(|v| {
-                        slider(0.0..=100.0, v, move |v| {
-                            Message::SetVolume(d.service.clone(), v)
-                        })
-                        .width(LEFT_COLUMN_WIDTH)
-                        .into()
-                    });
-                    // While the menu is closing, drop the cover: the album art
-                    // is an `image` primitive that the menu's clip-reveal close
-                    // animation cannot clip, so it would linger on top of the
-                    // rolling-up menu.
-                    let cover: Option<Element<'_, _>> = (!is_closing)
-                        .then(|| {
-                            d.metadata
-                                .as_ref()
-                                .and_then(|m| m.art_url.as_ref())
-                                .map(|url| {
-                                    let inner: Element<'_, _> = service
-                                        .get_cover(url)
-                                        .map(|handle| {
-                                            image(handle)
-                                                .filter_method(image::FilterMethod::Linear)
-                                                .into()
-                                        })
-                                        .unwrap_or_else(|| {
-                                            text(t!("media-player-loading-cover")).into()
-                                        });
-                                    container(inner).center_x(RIGHT_COLUMN_WIDTH).into()
-                                })
-                        })
-                        .flatten();
-                    let metadata = |description, cover| -> Element<'_, _> {
-                        row![description]
-                            .push(cover)
-                            .spacing(space.md)
+                        let buttons = container(
+                            row![
+                                icon_button(StaticIcon::SkipPrevious)
+                                    .on_press(Message::Prev(d.service.clone()))
+                                    .size(ButtonSize::Large),
+                                icon_button(play_pause_icon)
+                                    .on_press(Message::PlayPause(d.service.clone()))
+                                    .size(ButtonSize::Large),
+                                icon_button(StaticIcon::SkipNext)
+                                    .on_press(Message::Next(d.service.clone()))
+                                    .size(ButtonSize::Large),
+                            ]
                             .align_y(Vertical::Center)
+                            .spacing(space.xs),
+                        )
+                        .center_x(RIGHT_COLUMN_WIDTH);
+                        let volume_slider: Option<Element<'_, _>> = d.volume.map(|v| {
+                            slider(0.0..=100.0, v, move |v| {
+                                Message::SetVolume(d.service.clone(), v)
+                            })
+                            .width(LEFT_COLUMN_WIDTH)
                             .into()
-                    };
-                    let content: Element<'_, _> = match (volume_slider, cover) {
-                        (None, None) => row![description, buttons]
-                            .spacing(space.md)
-                            .padding(space.md)
-                            .align_y(Vertical::Center)
-                            .into(),
-                        (Some(v), cover) => {
-                            let controls =
-                                row![v, buttons].spacing(space.md).align_y(Vertical::Center);
-                            column![metadata(description, cover), controls]
+                        });
+                        // While the menu is closing, drop the cover: the album art
+                        // is an `image` primitive that the menu's clip-reveal close
+                        // animation cannot clip, so it would linger on top of the
+                        // rolling-up menu.
+                        let cover: Option<Element<'_, _>> = (!is_closing)
+                            .then(|| {
+                                d.metadata
+                                    .as_ref()
+                                    .and_then(|m| m.art_url.as_ref())
+                                    .map(|url| {
+                                        let inner: Element<'_, _> = service
+                                            .get_cover(url)
+                                            .map(|handle| {
+                                                image(handle)
+                                                    .filter_method(image::FilterMethod::Linear)
+                                                    .into()
+                                            })
+                                            .unwrap_or_else(|| {
+                                                text(t!("media-player-loading-cover")).into()
+                                            });
+                                        container(inner).center_x(RIGHT_COLUMN_WIDTH).into()
+                                    })
+                            })
+                            .flatten();
+                        let metadata = |description, cover| -> Element<'_, _> {
+                            row![description]
+                                .push(cover)
+                                .spacing(space.md)
+                                .align_y(Vertical::Center)
+                                .into()
+                        };
+                        let content: Element<'_, _> = match (volume_slider, cover) {
+                            (None, None) => row![description, buttons]
                                 .spacing(space.md)
                                 .padding(space.md)
-                                .into()
-                        }
-                        (None, cover) => {
-                            let controls =
-                                row![space::horizontal().width(LEFT_COLUMN_WIDTH), buttons]
+                                .align_y(Vertical::Center)
+                                .into(),
+                            (Some(v), cover) => {
+                                let controls =
+                                    row![v, buttons].spacing(space.md).align_y(Vertical::Center);
+                                column![metadata(description, cover), controls]
                                     .spacing(space.md)
-                                    .align_y(Vertical::Center);
-                            column![metadata(description, cover), controls]
-                                .spacing(space.md)
-                                .padding(space.md)
+                                    .padding(space.md)
+                                    .into()
+                            }
+                            (None, cover) => {
+                                let controls =
+                                    row![space::horizontal().width(LEFT_COLUMN_WIDTH), buttons]
+                                        .spacing(space.md)
+                                        .align_y(Vertical::Center);
+                                column![metadata(description, cover), controls]
+                                    .spacing(space.md)
+                                    .padding(space.md)
+                                    .into()
+                            }
+                        };
+                        let card_playing = self.config.show_visualizer
+                            && d.state == PlaybackStatus::Playing
+                            && !self.bars.is_empty()
+                            && !is_closing;
+                        let body: Element<'_, _> = if card_playing {
+                            Stack::new()
+                                .push(content)
+                                .push_under(
+                                    Canvas::new(VisualizerCanvas {
+                                        bars: self.bars.clone(),
+                                        low: palette.primary,
+                                        mid: palette.warning,
+                                        high: palette.danger,
+                                        opacity: 0.1,
+                                        radius: radius.lg,
+                                        min_bar_width: VISUALIZER_BG_BAR_MIN_WIDTH,
+                                        max_bar_width: VISUALIZER_BG_BAR_MAX_WIDTH,
+                                        gap: VISUALIZER_BG_BAR_GAP,
+                                        inset: 0.0,
+                                    })
+                                    .width(Length::Fill)
+                                    .height(Length::Fill),
+                                )
                                 .into()
-                        }
-                    };
-                    let card_playing = self.config.show_visualizer
-                        && d.state == PlaybackStatus::Playing
-                        && !self.bars.is_empty();
-                    let body: Element<'_, _> = if card_playing {
-                        Stack::new()
-                            .push(content)
-                            .push_under(
-                                Canvas::new(VisualizerCanvas {
-                                    bars: self.bars.clone(),
-                                    low: palette.primary,
-                                    mid: palette.warning,
-                                    high: palette.danger,
-                                    opacity: 0.1,
-                                    radius: radius.lg,
-                                    min_bar_width: VISUALIZER_BG_BAR_MIN_WIDTH,
-                                    max_bar_width: VISUALIZER_BG_BAR_MAX_WIDTH,
-                                    gap: VISUALIZER_BG_BAR_GAP,
-                                    inset: 0.0,
-                                })
-                                .width(Length::Fill)
-                                .height(Length::Fill),
-                            )
+                        } else {
+                            content
+                        };
+                        container(body)
+                            .style(move |app_theme: &Theme| container::Style {
+                                background: Background::Color(
+                                    app_theme
+                                        .extended_palette()
+                                        .background
+                                        .weak
+                                        .color
+                                        .scale_alpha(opacity),
+                                )
+                                .into(),
+                                border: Border::default().rounded(radius.lg),
+                                ..container::Style::default()
+                            })
+                            .width(Length::Fill)
                             .into()
-                    } else {
-                        content
-                    };
-                    container(body)
-                        .style(move |app_theme: &Theme| container::Style {
-                            background: Background::Color(
-                                app_theme
-                                    .extended_palette()
-                                    .background
-                                    .weak
-                                    .color
-                                    .scale_alpha(opacity),
-                            )
-                            .into(),
-                            border: Border::default().rounded(radius.lg),
-                            ..container::Style::default()
-                        })
-                        .width(Length::Fill)
-                        .into()
-                }))
-                .spacing(space.md)
+                    }))
+                    .spacing(space.md)
+                ))
+                .max_height(600)
             )
             .spacing(space.xs)
             .into(),
