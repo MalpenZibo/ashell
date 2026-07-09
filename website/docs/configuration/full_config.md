@@ -86,9 +86,11 @@ alert_threshold = 85
 # mounts = ["/", "/home"] # (default: None = all non-removable disks)
 
 [media_player]
-# max_title_length = 100        # (default)
 # indicator_format = "IconAndText"  # (default), "Text", or "Icon"
 # indicator_fields = ["Artist", "Title"] # (default), also supports "Album"
+# max_text_length = 100         # (default)
+# indicator_visualizer = "Background" # (default: None = disabled), "Before", or "After"
+# menu_visualizer = false       # (default) bars behind the menu cards
 
 [tray]
 # blocklist = ["regex"]    # (default: []) hide tray items matching regex patterns

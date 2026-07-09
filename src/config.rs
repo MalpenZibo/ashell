@@ -735,22 +735,31 @@ pub enum MediaPlayerTextField {
     Album,
 }
 
+#[derive(Deserialize, Copy, Clone, PartialEq, Eq, Debug)]
+pub enum MediaPlayerVisualizer {
+    Background,
+    Before,
+    After,
+}
+
 #[derive(Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct MediaPlayerModuleConfig {
-    pub max_title_length: u32,
     pub indicator_format: MediaPlayerFormat,
-    pub show_visualizer: bool,
     pub indicator_fields: Vec<MediaPlayerTextField>,
+    pub max_text_length: u32,
+    pub indicator_visualizer: Option<MediaPlayerVisualizer>,
+    pub menu_visualizer: bool,
 }
 
 impl Default for MediaPlayerModuleConfig {
     fn default() -> Self {
         MediaPlayerModuleConfig {
-            max_title_length: 100,
             indicator_format: MediaPlayerFormat::default(),
-            show_visualizer: false,
             indicator_fields: vec![MediaPlayerTextField::Artist, MediaPlayerTextField::Title],
+            max_text_length: 100,
+            indicator_visualizer: None,
+            menu_visualizer: false,
         }
     }
 }
