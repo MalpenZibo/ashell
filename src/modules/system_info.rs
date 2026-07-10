@@ -188,6 +188,13 @@ fn get_temperature_sensor_label(
     sensor_label
 }
 
+/// Returns a sort priority for Linux network interface names we want to surface
+/// in the system info panel, or `None` for interfaces we should ignore.
+fn interface_priority(name: &str) -> Option<usize> {
+    const PREFIXES: &[&str] = &["en", "eth", "wl", "br", "bond"];
+    PREFIXES.iter().position(|p| name.starts_with(p))
+}
+
 #[allow(clippy::too_many_arguments)]
 fn get_system_info(
     system: &mut System,
@@ -329,35 +336,8 @@ fn get_system_info(
 
     let network = networks
         .iter()
-        .filter(|(name, _)| {
-            name.contains("en")
-                || name.contains("eth")
-                || name.contains("wl")
-                || name.contains("wlan")
-                || name.contains("br")
-        })
-        .sorted_by_key(|(name, _)| {
-            if name.contains("en") {
-                return 0;
-            }
-
-            if name.contains("eth") {
-                return 1;
-            }
-
-            if name.contains("wl") {
-                return 2;
-            }
-
-            if name.contains("wlan") {
-                return 3;
-            }
-            if name.contains("br") {
-                return 4;
-            }
-
-            99
-        })
+        .filter_map(|(name, data)| interface_priority(name).map(|p| (p, data)))
+        .sorted_by_key(|(p, _)| *p)
         .fold(
             (None, 0, 0),
             |(first_ip, total_received, total_transmitted), (_, data)| {
