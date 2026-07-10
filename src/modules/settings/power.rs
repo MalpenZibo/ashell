@@ -289,6 +289,9 @@ impl PowerSettings {
                     .spacing(space.xxs)
                     .align_y(Alignment::Center)
                     .into(),
+                    SettingsFormat::Name | SettingsFormat::IconAndName => {
+                        convert::Into::<Element<'a, Message>>::into(icon(p.get_icon_state()))
+                    }
                 })
                 .style(move |theme: &Theme| container::Style {
                     text_color: Some(match state {
