@@ -328,6 +328,12 @@ async fn current_icon_from_proxy(item_proxy: &StatusNotifierItemProxy<'_>) -> Op
     }
 }
 
+fn split_service_name(name: &str) -> (&str, &str) {
+    match name.find('/') {
+        Some(idx) => (&name[..idx], &name[idx..]),
+        None => (name, "/StatusNotifierItem"),
+    }
+}
 #[derive(Debug, Clone)]
 pub enum TrayEvent {
     Registered(StatusNotifierItem),
@@ -348,16 +354,11 @@ pub struct StatusNotifierItem {
 
 impl StatusNotifierItem {
     pub async fn new(conn: &zbus::Connection, name: String) -> anyhow::Result<Self> {
-        let (dest, path) = if let Some(idx) = name.find('/') {
-            (&name[..idx], &name[idx..])
-        } else {
-            (name.as_ref(), "/StatusNotifierItem")
-        };
+        let (dest, path) = split_service_name(&name);
 
         let item_proxy = StatusNotifierItemProxy::builder(conn)
             .destination(dest.to_owned())?
             .path(path.to_owned())?
-            .cache_properties(zbus::proxy::CacheProperties::No)
             .build()
             .await?;
 
@@ -521,18 +522,27 @@ impl TrayService {
 
             let new_icon = item.item_proxy.receive_new_icon().await;
             if let Ok(new_icon) = new_icon {
+                let (dest, path) = split_service_name(&name);
+                // NewIcon has no matching PropertiesChanged, so a cached read would be stale;
+                let uncached_proxy = StatusNotifierItemProxy::builder(conn)
+                    .destination(dest.to_owned())?
+                    .path(path.to_owned())?
+                    .cache_properties(zbus::proxy::CacheProperties::No)
+                    .build()
+                    .await?;
+
                 new_icon_change.push(
                     new_icon
                         .filter_map({
                             let name = name.clone();
-                            let item_proxy = item.item_proxy.clone();
+                            let uncached_proxy = uncached_proxy;
 
                             move |_| {
                                 let name = name.clone();
-                                let item_proxy = item_proxy.clone();
+                                let uncached_proxy = uncached_proxy.clone();
 
                                 async move {
-                                    current_icon_from_proxy(&item_proxy)
+                                    current_icon_from_proxy(&uncached_proxy)
                                         .await
                                         .map(|icon| TrayEvent::IconChanged(name.to_owned(), icon))
                                 }
