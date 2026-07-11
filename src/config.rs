@@ -1049,6 +1049,10 @@ pub struct Appearance {
     pub text_color: AppearanceColor,
     pub workspace_colors: Vec<AppearanceColor>,
     pub special_workspace_colors: Option<Vec<AppearanceColor>>,
+    /// Ask the compositor to blur the wallpaper behind ashell's translucent
+    /// surfaces (pills, menu, OSD) via `ext-background-effect-v1`. No-op where
+    /// the protocol is unsupported.
+    pub blur: bool,
 }
 
 static PRIMARY: HexColor = HexColor::rgb(122, 162, 247);
@@ -1125,6 +1129,7 @@ impl Default for Appearance {
                 AppearanceColor::Simple(HexColor::rgb(158, 206, 106)),
             ],
             special_workspace_colors: None,
+            blur: false,
         }
     }
 }

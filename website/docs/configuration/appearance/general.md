@@ -114,3 +114,23 @@ between `0.0` (disabled) and `1.0` (maximum blur).
 opacity = 0.7
 backdrop = 0.3
 ```
+
+## Blur
+
+The `blur` field asks the compositor to blur the wallpaper behind ashell's
+translucent surfaces (the island pills, menus, and OSD) using the
+`ext-background-effect-v1` Wayland protocol. It is a no-op on compositors that
+do not support that protocol.
+
+This is different from `menu.backdrop`, which is an ashell-drawn darkening
+applied only behind open menus. `blur` affects the wallpaper behind the surface
+itself and requires compositor support.
+
+**Default value:** `blur`: `false` (disabled)
+
+### Example
+
+```toml
+[appearance]
+blur = true
+```
