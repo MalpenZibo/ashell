@@ -57,7 +57,7 @@ fn dispatch_hyprlang(cmd: CompositorCommand) -> Result<()> {
         }
         CompositorCommand::NextLayout => {
             hyprland::ctl::switch_xkb_layout::call(
-                "all",
+                "main",
                 hyprland::ctl::switch_xkb_layout::SwitchXKBLayoutCmdTypes::Next,
             )?;
         }
@@ -90,7 +90,7 @@ async fn dispatch_lua(cmd: CompositorCommand) -> Result<()> {
         }
         CompositorCommand::NextLayout => {
             hyprland::ctl::switch_xkb_layout::call(
-                "all",
+                "main",
                 hyprland::ctl::switch_xkb_layout::SwitchXKBLayoutCmdTypes::Next,
             )?;
             return Ok(());
