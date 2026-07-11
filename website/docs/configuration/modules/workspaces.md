@@ -131,6 +131,34 @@ You can use the `invert_scroll_direction` field to choose whether to invert the 
 - `Mouse`: Scrolling up will go to the next workspace and down will go to the previous one
 - `Trackpad`: Swiping up will go to the previous workspace and down will go to the next one
 
+## Window Icons
+
+By default the workspace indicator shows only the workspace name or number
+(`indicator_format = "Name"`). Set `indicator_format = "NameAndIcons"` to also
+show an icon for each application open in the workspace, similar to waybar's
+window-rewrite feature.
+
+Icons are resolved from each window's application class through the standard
+XDG icon lookup (icon theme plus `.desktop` files). When a class cannot be
+resolved a fallback glyph is shown instead. Window class collection is only
+performed while this option is enabled, so the default configuration adds no
+extra cost.
+
+```toml
+[workspaces]
+indicator_format = "NameAndIcons"
+```
+
+:::note
+
+Window class collection is currently implemented for Hyprland and Niri. On other
+compositors the indicator falls back to showing the name only.
+
+The icon index is built once at startup. Newly installed applications or a
+changed icon theme are picked up the next time `ashell` is restarted.
+
+:::
+
 ## Default Configuration
 
 The default configuration is:
@@ -138,6 +166,7 @@ The default configuration is:
 ```toml
 [workspaces]
 visibility_mode = "All"
+indicator_format = "Name"
 group_by_monitor = false
 enable_workspace_filling = false
 disable_special_workspaces = false

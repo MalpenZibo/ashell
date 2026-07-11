@@ -122,10 +122,18 @@ pub enum WorkspaceVisibilityMode {
     MonitorSpecificExclusive,
 }
 
+#[derive(Deserialize, Copy, Clone, Default, PartialEq, Eq, Debug)]
+pub enum WorkspaceIndicatorFormat {
+    #[default]
+    Name,
+    NameAndIcons,
+}
+
 #[derive(Deserialize, Clone, Default, Debug)]
 #[serde(default)]
 pub struct WorkspacesModuleConfig {
     pub visibility_mode: WorkspaceVisibilityMode,
+    pub indicator_format: WorkspaceIndicatorFormat,
     pub group_by_monitor: bool,
     pub enable_workspace_filling: bool,
     pub disable_special_workspaces: bool,
@@ -585,6 +593,8 @@ pub enum SettingsFormat {
     IconAndPercentage,
     Time,
     IconAndTime,
+    Name,
+    IconAndName,
 }
 
 #[derive(Deserialize, Clone, Default, PartialEq, Eq, Debug)]
@@ -673,7 +683,6 @@ impl Default for SettingsModuleConfig {
                 SettingsIndicator::Network,
                 SettingsIndicator::Vpn,
                 SettingsIndicator::Battery,
-                SettingsIndicator::Brightness,
             ],
             custom_buttons: Default::default(),
         }
@@ -712,8 +721,18 @@ pub struct SettingsCustomButton {
 #[derive(Deserialize, Copy, Clone, Default, PartialEq, Eq, Debug)]
 pub enum MediaPlayerFormat {
     Icon,
+    #[serde(alias = "Title")]
+    Text,
+    #[serde(alias = "IconAndTitle")]
     #[default]
-    IconAndTitle,
+    IconAndText,
+}
+
+#[derive(Deserialize, Copy, Clone, PartialEq, Eq, Debug)]
+pub enum MediaPlayerTextField {
+    Artist,
+    Title,
+    Album,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -721,6 +740,8 @@ pub enum MediaPlayerFormat {
 pub struct MediaPlayerModuleConfig {
     pub max_title_length: u32,
     pub indicator_format: MediaPlayerFormat,
+    pub show_visualizer: bool,
+    pub indicator_fields: Vec<MediaPlayerTextField>,
 }
 
 impl Default for MediaPlayerModuleConfig {
@@ -728,6 +749,8 @@ impl Default for MediaPlayerModuleConfig {
         MediaPlayerModuleConfig {
             max_title_length: 100,
             indicator_format: MediaPlayerFormat::default(),
+            show_visualizer: false,
+            indicator_fields: vec![MediaPlayerTextField::Artist, MediaPlayerTextField::Title],
         }
     }
 }
@@ -862,11 +885,126 @@ pub enum BackgroundLevel {
 }
 
 #[derive(Deserialize, Default, Copy, Clone, Eq, PartialEq, Debug)]
-pub enum AppearanceStyle {
+#[serde(rename_all = "lowercase")]
+pub enum BarSurface {
     #[default]
-    Islands,
+    Transparent,
     Solid,
-    Gradient,
+}
+
+#[derive(Deserialize, Default, Copy, Clone, Eq, PartialEq, Debug)]
+#[serde(rename_all = "lowercase")]
+pub enum RadiusSize {
+    #[default]
+    None,
+    Sm,
+    Md,
+    Lg,
+    Xl,
+}
+
+#[derive(Deserialize, Default, Copy, Clone, Eq, PartialEq, Debug)]
+#[serde(rename_all = "lowercase")]
+pub enum SpaceSize {
+    #[default]
+    None,
+    Xxs,
+    Xs,
+    Sm,
+    Md,
+    Lg,
+    Xl,
+    Xxl,
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum CssShorthand<T> {
+    One(T),
+    Many(Vec<T>),
+}
+
+impl<T: Copy> CssShorthand<T> {
+    fn expand<E: serde::de::Error>(self) -> Result<[T; 4], E> {
+        let values = match self {
+            CssShorthand::One(v) => return Ok([v, v, v, v]),
+            CssShorthand::Many(v) => v,
+        };
+        match values.as_slice() {
+            [a] => Ok([*a, *a, *a, *a]),
+            [a, b] => Ok([*a, *b, *a, *b]),
+            [a, b, c, d] => Ok([*a, *b, *c, *d]),
+            _ => Err(E::custom("expected 1, 2 or 4 values (CSS shorthand)")),
+        }
+    }
+}
+
+/// Per-corner radius selection, deserialized with CSS `border-radius` shorthand:
+/// 1 value = all corners, 2 = `[top-left+bottom-right, top-right+bottom-left]`,
+/// 4 = `[top-left, top-right, bottom-right, bottom-left]`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct BarRadius {
+    pub top_left: RadiusSize,
+    pub top_right: RadiusSize,
+    pub bottom_right: RadiusSize,
+    pub bottom_left: RadiusSize,
+}
+
+impl<'de> Deserialize<'de> for BarRadius {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let [top_left, top_right, bottom_right, bottom_left] =
+            CssShorthand::<RadiusSize>::deserialize(deserializer)?.expand()?;
+        Ok(Self {
+            top_left,
+            top_right,
+            bottom_right,
+            bottom_left,
+        })
+    }
+}
+
+/// Per-edge margin selection, deserialized with CSS `margin` shorthand:
+/// 1 value = all edges, 2 = `[vertical, horizontal]`, 4 = `[top, right, bottom, left]`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct BarMargin {
+    pub top: SpaceSize,
+    pub right: SpaceSize,
+    pub bottom: SpaceSize,
+    pub left: SpaceSize,
+}
+
+impl<'de> Deserialize<'de> for BarMargin {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let [top, right, bottom, left] =
+            CssShorthand::<SpaceSize>::deserialize(deserializer)?.expand()?;
+        Ok(Self {
+            top,
+            right,
+            bottom,
+            left,
+        })
+    }
+}
+
+#[derive(Deserialize, Clone, Copy, Debug, PartialEq)]
+#[serde(default)]
+pub struct BarAppearance {
+    pub surface: BarSurface,
+    #[serde(deserialize_with = "opacity_deserializer")]
+    pub opacity: f32,
+    pub radius: BarRadius,
+    pub margin: BarMargin,
+}
+
+impl Default for BarAppearance {
+    fn default() -> Self {
+        Self {
+            surface: BarSurface::default(),
+            opacity: default_opacity(),
+            radius: BarRadius::default(),
+            margin: BarMargin::default(),
+        }
+    }
 }
 
 #[derive(Deserialize, Clone, Copy, Debug)]
@@ -892,9 +1030,7 @@ pub struct Appearance {
     pub font_name: Option<String>,
     #[serde(deserialize_with = "scale_factor_deserializer")]
     pub scale_factor: f64,
-    pub style: AppearanceStyle,
-    #[serde(deserialize_with = "opacity_deserializer")]
-    pub opacity: f32,
+    pub bar: BarAppearance,
     pub menu: MenuAppearance,
     pub background_color: BackgroundAppearanceColor,
     pub primary_color: AppearanceColor,
@@ -957,8 +1093,7 @@ impl Default for Appearance {
         Self {
             font_name: None,
             scale_factor: 1.0,
-            style: AppearanceStyle::default(),
-            opacity: default_opacity(),
+            bar: BarAppearance::default(),
             menu: MenuAppearance::default(),
             background_color: BackgroundAppearanceColor::Complete {
                 base: HexColor::rgb(26, 27, 38),
@@ -1068,6 +1203,19 @@ pub struct Modules {
     pub center: Vec<ModuleDef>,
     #[serde(default)]
     pub right: Vec<ModuleDef>,
+}
+
+impl Modules {
+    pub fn contains(&self, target: &ModuleName) -> bool {
+        self.left
+            .iter()
+            .chain(&self.center)
+            .chain(&self.right)
+            .any(|def| match def {
+                ModuleDef::Single(m) => m == target,
+                ModuleDef::Group(ms) => ms.contains(target),
+            })
+    }
 }
 
 impl Default for Modules {

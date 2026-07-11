@@ -3,7 +3,7 @@
     <img src="https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/logo_header_dark.svg" alt="ashell" height="140"/>
   </a>
 </h1>
-<p align="center">A ready to go Wayland status bar for Hyprland and Niri.</p>
+<p align="center">A ready to go status bar for Wayland compositors.</p>
 <p align="center">
     <a href="https://matrix.to/#/#ashell:matrix.org"><img alt="Matrix" src="https://img.shields.io/badge/matrix-%23ashell-blue?logo=matrix"></a>
     <a href="https://github.com/MalpenZibo/ashell/blob/main/LICENSE"><img alt="GitHub License" src="https://img.shields.io/github/license/MalpenZibo/ashell"></a>
@@ -11,22 +11,22 @@
 </p>
 
 <p align="center">
-    <a href="https://malpenzibo.github.io/ashell/docs/intro">Getting Started</a> | <a href="https://malpenzibo.github.io/ashell/docs/configuration">Configuration</a> | <a href="https://malpenzibo.github.io/ashell/dev-guide/">Developer&nbsp;Guide</a>
+    <a href="https://malpenzibo.github.io/ashell/docs/intro">Getting Started</a> | <a href="https://malpenzibo.github.io/ashell/docs/compositor-support">Compositor&nbsp;Support</a> | <a href="https://malpenzibo.github.io/ashell/docs/configuration">Configuration</a> | <a href="https://malpenzibo.github.io/ashell/dev-guide/">Developer&nbsp;Guide</a>
 </p>
 
 ## ✨ Features
 
-- Automatic Hyprland/Niri compositor detection
+- Automatic Wayland compositor detection ([compositor support](https://malpenzibo.github.io/ashell/docs/compositor-support))
 - Multi-monitor support (all monitors, active monitor, or specific targets)
 - Hot-reload configuration (changes apply automatically via file watch)
 - Bar positioning (top or bottom) with configurable layer (Bottom, Top, Overlay)
-- Theming: Islands, Solid, and Gradient styles with custom colors, opacity, scale, and fonts
+- Theming: transparent (islands) or solid bar surface with custom radius, margin, colors, opacity, scale, and fonts
 - OS Updates indicator with configurable check interval
-- Hyprland/Niri Active Window (title, class, or initial title/class)
-- Hyprland/Niri Workspaces with naming, color coding, and per-monitor visibility
+- Active Window (title, class, or initial title/class)
+- Workspaces with naming, color coding, and per-monitor visibility
 - System Information (CPU, RAM, Disk, IP address, Network speed, Temperature) with warn/alert thresholds
-- Hyprland/Niri Keyboard Layout with custom labels
-- Hyprland Keyboard Submap
+- Keyboard Layout with custom labels (Hyprland/Niri/MangoWC)
+- Keyboard Submap (Hyprland/MangoWC)
 - System Tray with context menus
 - Clock with calendar, weather, timezone cycling, and format cycling (Tempo)
 - Privacy indicators (microphone, camera, and screenshare usage)
@@ -93,17 +93,13 @@ For the full AI contribution guide, see the
 I will try my best to keep these screenshots as updated as possible but some details
 could be different
 
-#### default style
+#### transparent surface (default)
 
 <img src="https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/ashell.png"></img>
 
-#### solid style
+#### solid surface
 
 <img src="https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/ashell-solid.png"></img>
-
-#### gradient style
-
-<img src="https://raw.githubusercontent.com/MalpenZibo/ashell/main/website/static/img/gallery/ashell-gradient.png"></img>
 
 #### opacity settings
 

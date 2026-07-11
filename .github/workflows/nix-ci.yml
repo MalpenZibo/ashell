@@ -19,7 +19,7 @@ jobs:
       actions: write
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: dorny/paths-filter@v4
         id: filter
@@ -35,27 +35,26 @@ jobs:
               - 'flake.lock'
               - '.github/workflows/nix-ci.yml'
 
-      - uses: nixbuild/nix-quick-install-action@v34
+      - uses: nixbuild/nix-quick-install-action@v35
         if: steps.filter.outputs.code == 'true'
 
       - name: Restore and save Nix store
         if: steps.filter.outputs.code == 'true'
         uses: nix-community/cache-nix-action@v7
         with:
-          primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/flake.lock') }}
-          # do purge caches
-          purge: true
-          # purge all versions of the cache
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/flake.lock', '**/Cargo.lock') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-
+          # purge only on main so PR runs don't delete the shared cache
+          purge: ${{ github.ref == 'refs/heads/main' }}
           purge-prefixes: nix-${{ runner.os }}-
-          # created more than 0 seconds ago relative to the start of the `Post Restore` phase
           purge-created: 0
-          # except the version with the `primary-key`, if it exists
           purge-primary-key: never
-          # collect garbage until Nix store size (in bytes) is at most this number
-          # before trying to save a new cache
-          # 3 GB = 3221225472 B
-          gc-max-store-size-linux: 3221225472
+          # 5 GB, above the ~3.35 GB final+deps closure
+          gc-max-store-size-linux: 5368709120
 
       - name: Nix build
         if: steps.filter.outputs.code == 'true'
-        run: nix build
+        # build deps under a GC root so they survive pre-save GC and get cached
+        run: |
+          nix build .#deps --out-link deps-result
+          nix build

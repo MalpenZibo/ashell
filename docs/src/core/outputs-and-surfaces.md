@@ -23,7 +23,7 @@ pub struct ShellInfo {
     pub id: Id,                  // Main surface window ID
     pub position: Position,      // Top or Bottom
     pub layer: config::Layer,    // Wayland layer
-    pub style: AppearanceStyle,  // Bar style
+    pub layout: BarLayout,       // Surface mode + resolved outer margin
     pub menu: Menu,              // Menu surface state
     pub scale_factor: f64,
 }
@@ -35,7 +35,7 @@ Each output gets two layer surfaces created via `create_output_layers()`:
 
 ```rust
 pub fn create_output_layers(
-    style: AppearanceStyle,
+    layout: BarLayout,
     wl_output: Option<WlOutput>,
     position: Position,
     layer: config::Layer,

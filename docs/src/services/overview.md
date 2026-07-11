@@ -18,6 +18,21 @@ Services are the backend layer of ashell. They manage communication with system 
 | Idle Inhibitor | `services/idle_inhibitor.rs` | systemd-logind | D-Bus | systemd-logind |
 | Logind | `services/logind.rs` | systemd-logind | D-Bus | systemd-logind |
 | Throttle | `services/throttle.rs` | (utility) | Stream adapter | — |
+| XDG Icons | `services/xdg_icons.rs` | (utility) | XDG icon theme | — |
+
+## Shared Icon Resolution
+
+`services/xdg_icons.rs` is a shared helper (not an event-producing service) used
+by both the tray and the workspaces module to turn an identifier into a
+displayable icon. Given a name it resolves an `XdgIcon` (`Image`, `Svg`, or a
+`NerdFont` glyph fallback) via the XDG icon theme, a fuzzy/prefix match against
+the installed icon set, and a `.desktop` `StartupWMClass` index.
+
+Each consumer keeps its own concern on top of this core: the tray handles raw
+D-Bus pixmaps, while the workspaces module lowercases the window class before
+lookup. Results are memoized in a process-wide cache, and the underlying indexes
+are built lazily; `warm_cache_async` pre-builds them off the UI thread when a
+consumer is active.
 
 ## Services vs. Modules
 

@@ -3,11 +3,12 @@ use std::cell::RefCell;
 use crate::{
     components::button::{ButtonHierarchy, ButtonKind},
     config::{
-        Appearance, AppearanceColor, AppearanceStyle, BackgroundLevel, MenuAppearance, Position,
+        Appearance, AppearanceColor, BackgroundLevel, BarAppearance, BarMargin, BarRadius,
+        BarSurface, MenuAppearance, Position, RadiusSize, SpaceSize,
     },
 };
 use iced::{
-    Background, Border, Color, Theme,
+    Background, Border, Color, Theme, border,
     theme::{Palette, palette},
     widget::{
         button::{self, Status},
@@ -53,6 +54,21 @@ impl Default for Space {
     }
 }
 
+impl Space {
+    pub fn resolve(&self, size: SpaceSize) -> f32 {
+        match size {
+            SpaceSize::None => 0.0,
+            SpaceSize::Xxs => self.xxs,
+            SpaceSize::Xs => self.xs,
+            SpaceSize::Sm => self.sm,
+            SpaceSize::Md => self.md,
+            SpaceSize::Lg => self.lg,
+            SpaceSize::Xl => self.xl,
+            SpaceSize::Xxl => self.xxl,
+        }
+    }
+}
+
 #[allow(unused)]
 #[derive(Debug, Clone, Copy)]
 pub struct Radius {
@@ -69,6 +85,46 @@ impl Default for Radius {
             md: 8.0,
             lg: 16.0,
             xl: 32.0,
+        }
+    }
+}
+
+impl Radius {
+    pub fn resolve(&self, size: RadiusSize) -> f32 {
+        match size {
+            RadiusSize::None => 0.0,
+            RadiusSize::Sm => self.sm,
+            RadiusSize::Md => self.md,
+            RadiusSize::Lg => self.lg,
+            RadiusSize::Xl => self.xl,
+        }
+    }
+}
+
+/// Bar geometry the layer-surface layer needs: which surface mode drives the
+/// bar height, plus the resolved outer margin in logical (unscaled) pixels
+/// ordered `(top, right, bottom, left)`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BarLayout {
+    pub surface: BarSurface,
+    pub margin: (f32, f32, f32, f32),
+}
+
+impl BarLayout {
+    pub fn from_appearance(bar: &BarAppearance) -> Self {
+        Self::new(bar.surface, bar.margin)
+    }
+
+    fn new(surface: BarSurface, margin: BarMargin) -> Self {
+        let space = Space::default();
+        Self {
+            surface,
+            margin: (
+                space.resolve(margin.top),
+                space.resolve(margin.right),
+                space.resolve(margin.bottom),
+                space.resolve(margin.left),
+            ),
         }
     }
 }
@@ -106,7 +162,9 @@ pub struct AshellTheme {
     pub radius: Radius,
     pub font_size: FontSize,
     pub bar_position: Position,
-    pub bar_style: AppearanceStyle,
+    pub bar_surface: BarSurface,
+    pub bar_radius: BarRadius,
+    pub bar_margin: BarMargin,
     pub opacity: f32,
     pub menu: MenuAppearance,
     pub workspace_colors: Vec<AppearanceColor>,
@@ -240,8 +298,10 @@ fn base_theme_from_appearance(
         radius: Radius::default(),
         font_size: FontSize::default(),
         bar_position,
-        bar_style: appearance.style,
-        opacity: appearance.opacity,
+        bar_surface: appearance.bar.surface,
+        bar_radius: appearance.bar.radius,
+        bar_margin: appearance.bar.margin,
+        opacity: appearance.bar.opacity,
         menu: appearance.menu,
         workspace_colors: appearance.workspace_colors.clone(),
         special_workspace_colors: appearance.special_workspace_colors.clone(),
@@ -258,6 +318,19 @@ impl AshellTheme {
         animations: &crate::config::AnimationsConfig,
     ) -> Self {
         base_theme_from_appearance(appearance, position, animations.enabled)
+    }
+
+    pub fn bar_layout(&self) -> BarLayout {
+        BarLayout::new(self.bar_surface, self.bar_margin)
+    }
+
+    pub fn bar_border_radius(&self) -> border::Radius {
+        border::Radius {
+            top_left: self.radius.resolve(self.bar_radius.top_left),
+            top_right: self.radius.resolve(self.bar_radius.top_right),
+            bottom_right: self.radius.resolve(self.bar_radius.bottom_right),
+            bottom_left: self.radius.resolve(self.bar_radius.bottom_left),
+        }
     }
 
     pub fn button_style(
@@ -514,102 +587,104 @@ impl AshellTheme {
         &self,
         is_empty: bool,
         is_urgent: bool,
+        is_active: bool,
         colors: Option<Option<AppearanceColor>>,
     ) -> impl Fn(&Theme, Status) -> button::Style + use<> {
         let radius_lg = self.radius.lg;
         move |theme: &Theme, status: Status| {
-            let (bg_color, fg_color) = colors.map_or_else(
-                || {
-                    (
-                        theme.extended_palette().background.weak.color,
-                        theme.palette().text,
-                    )
-                },
-                |c| {
-                    c.map_or_else(
-                        || {
-                            (
-                                theme.extended_palette().primary.base.color,
-                                theme.extended_palette().primary.base.text,
-                            )
-                        },
-                        |c| {
-                            let color = palette::Primary::generate(
-                                c.get_base(),
-                                theme.palette().background,
-                                c.get_text().unwrap_or_else(|| theme.palette().text),
-                            );
-                            (color.base.color, color.base.text)
-                        },
-                    )
-                },
-            );
-            let urgent_color = theme.palette().danger;
+            let primary = colors.map(|c| {
+                c.map_or_else(
+                    || theme.extended_palette().primary,
+                    |c| {
+                        palette::Primary::generate(
+                            c.get_base(),
+                            theme.palette().background,
+                            c.get_text().unwrap_or_else(|| theme.palette().text),
+                        )
+                    },
+                )
+            });
+            let resolve = |bg: fn(&palette::Background) -> palette::Pair,
+                           pr: fn(&palette::Primary) -> palette::Pair| {
+                match primary {
+                    Some(p) => {
+                        let pair = pr(&p);
+                        (pair.color, pair.text)
+                    }
+                    None => {
+                        let pair = bg(&theme.extended_palette().background);
+                        (pair.color, theme.palette().text)
+                    }
+                }
+            };
+            let (bg_color, fg_color) = resolve(|b| b.weak, |p| p.base);
+            let (bg_strong, fg_strong) = resolve(|b| b.strong, |p| p.strong);
+            let (bg_weak, fg_weak) = resolve(|b| b.weak, |p| p.weak);
             let mut base = button::Style {
                 background: Some(Background::Color(if is_urgent && is_empty {
-                    urgent_color
+                    theme.extended_palette().danger.base.color
+                } else if is_empty && is_active {
+                    theme.extended_palette().background.strong.color
                 } else if is_empty {
                     theme.extended_palette().background.weak.color
-                } else {
+                } else if is_active {
                     bg_color
+                } else {
+                    bg_weak
                 })),
                 border: Border {
                     width: if is_urgent || is_empty { 1.0 } else { 0.0 },
-                    color: if is_urgent { urgent_color } else { bg_color },
+                    color: if is_urgent {
+                        theme.extended_palette().danger.base.color
+                    } else if is_active {
+                        bg_color
+                    } else {
+                        bg_weak
+                    },
                     radius: radius_lg.into(),
                 },
                 text_color: if is_urgent && is_empty {
                     theme.extended_palette().danger.base.text
+                } else if is_empty && is_active {
+                    theme.extended_palette().background.strong.text
                 } else if is_empty {
                     theme.extended_palette().background.weak.text
-                } else {
+                } else if is_active {
                     fg_color
+                } else {
+                    fg_weak
                 },
                 ..button::Style::default()
             };
             match status {
                 Status::Active => base,
                 Status::Hovered => {
-                    let (bg_color, fg_color) = colors.map_or_else(
-                        || {
-                            (
-                                theme.extended_palette().background.strong.color,
-                                theme.palette().text,
-                            )
-                        },
-                        |c| {
-                            c.map_or_else(
-                                || {
-                                    (
-                                        theme.extended_palette().primary.strong.color,
-                                        theme.extended_palette().primary.strong.text,
-                                    )
-                                },
-                                |c| {
-                                    let color = palette::Primary::generate(
-                                        c.get_base(),
-                                        theme.palette().background,
-                                        c.get_text().unwrap_or_else(|| theme.palette().text),
-                                    );
-                                    (color.strong.color, color.strong.text)
-                                },
-                            )
-                        },
-                    );
-
                     base.background = Some(Background::Color(if is_urgent && is_empty {
                         theme.extended_palette().danger.strong.color
                     } else if is_empty {
                         theme.extended_palette().background.strong.color
-                    } else {
+                    } else if is_active {
                         bg_color
+                    } else {
+                        bg_strong
                     }));
+                    base.border.color = if is_urgent && is_active {
+                        theme.extended_palette().danger.base.color
+                    } else if is_urgent {
+                        theme.extended_palette().danger.strong.color
+                    } else if is_active {
+                        bg_color
+                    } else {
+                        bg_strong
+                    };
                     base.text_color = if is_urgent && is_empty {
                         theme.extended_palette().danger.strong.text
                     } else if is_empty {
-                        theme.extended_palette().background.weak.text
-                    } else {
+                        theme.extended_palette().background.strong.text
+                    } else if is_active {
                         fg_color
+                    } else {
+                        fg_strong
                     };
                     base
                 }
@@ -651,7 +726,7 @@ impl AshellTheme {
     }
 
     /// Module button style: transparent base with hover highlight.
-    /// The Islands background is handled by `module_group`, not the button.
+    /// The module-group background is handled by `module_group`, not the button.
     pub fn module_button_style(&self) -> impl Fn(&Theme, Status) -> button::Style + use<> {
         let radius_lg = self.radius.lg;
         let opacity = self.opacity;

@@ -1,19 +1,19 @@
 use crate::{
     HEIGHT,
-    components::{ButtonUIRef, Centerbox, menu::MenuType},
-    config::{self, AppearanceStyle, Config, Modules, Position},
+    components::{Centerbox, menu::MenuType},
+    config::{self, BarSurface, Config, ModuleName, Modules, WorkspaceIndicatorFormat},
     get_log_spec,
     i18n::{Localizer, init_localizer},
     ipc::IpcCommand,
     modules::{
         self,
-        custom_module::{self, Custom},
+        custom_module::Custom,
         keyboard_layout::KeyboardLayout,
         keyboard_submap::KeyboardSubmap,
         media_player::MediaPlayer,
         notifications::Notifications,
         privacy::Privacy,
-        settings::{self, Settings, audio},
+        settings::{self, Settings},
         system_info::SystemInfo,
         tempo::Tempo,
         tray::TrayModule,
@@ -21,23 +21,21 @@ use crate::{
         window_title::WindowTitle,
         workspaces::Workspaces,
     },
-    osd::{self, Osd, OsdKind},
+    osd::{self, Osd},
     outputs::{HasOutput, Outputs},
-    services::ReadOnlyService,
-    theme::{AshellTheme, backdrop_color, darken_color, init_theme, use_theme},
+    services::{ReadOnlyService, xdg_icons},
+    theme::{AshellTheme, BarLayout, backdrop_color, darken_color, init_theme, use_theme},
 };
 use flexi_logger::LoggerHandle;
 use iced::futures::StreamExt;
 use iced::{
-    Alignment, Color, Element, Gradient, Length, OutputEvent, Radians, Subscription, SurfaceId,
-    Task, Theme,
+    Alignment, Element, Length, OutputEvent, Subscription, SurfaceId, Task, Theme,
     event::listen_with,
-    gradient::Linear,
     keyboard, set_exclusive_zone,
     widget::{Row, container, mouse_area},
 };
 use log::{debug, info, warn};
-use std::{collections::HashMap, f32::consts::PI, path::PathBuf};
+use std::{collections::HashMap, path::PathBuf};
 
 const OSD_WIDTH: u32 = 250;
 const OSD_HEIGHT: u32 = 64;
@@ -75,34 +73,10 @@ pub struct App {
     pub visible: bool,
 }
 
-#[derive(Debug, Clone)]
-pub enum Message {
-    ConfigChanged(Box<Config>),
-    ToggleMenu(MenuType, SurfaceId, ButtonUIRef),
-    CloseMenu(SurfaceId),
-    /// Fired after a menu's close animation ends, to destroy its surface.
-    FinishCloseMenu(SurfaceId),
-    Custom(String, custom_module::Message),
-    Updates(modules::updates::Message),
-    Workspaces(modules::workspaces::Message),
-    WindowTitle(modules::window_title::Message),
-    SystemInfo(modules::system_info::Message),
-    KeyboardLayout(modules::keyboard_layout::Message),
-    KeyboardSubmap(modules::keyboard_submap::Message),
-    Tray(modules::tray::Message),
-    Tempo(modules::tempo::Message),
-    Privacy(modules::privacy::Message),
-    Settings(modules::settings::Message),
-    MediaPlayer(modules::media_player::Message),
-    Notifications(modules::notifications::Message),
-    Osd(osd::Message),
-    IpcOsdCommand(IpcCommand),
-    OutputEvent(OutputEvent),
-    CloseAllMenus,
-    ResumeFromSleep,
-    None,
-    ToggleVisibility,
-}
+mod message;
+mod osd_info;
+
+pub use message::Message;
 
 impl App {
     pub fn new(
@@ -110,7 +84,7 @@ impl App {
     ) -> impl FnOnce() -> (Self, Task<Message>) {
         move || {
             let mut outputs = Outputs::new(
-                config.appearance.style,
+                BarLayout::from_appearance(&config.appearance.bar),
                 config.position,
                 config.layer,
                 config.appearance.scale_factor,
@@ -132,6 +106,14 @@ impl App {
             init_localizer(resolve_localizer(&config));
 
             let notifications = Notifications::new(config.notifications, config.animations.enabled);
+
+            let needs_icons = config.modules.contains(&ModuleName::Tray)
+                || config.workspaces.indicator_format == WorkspaceIndicatorFormat::NameAndIcons;
+            let warm_icons = if needs_icons {
+                Task::perform(xdg_icons::warm_cache_async(), |()| ()).discard()
+            } else {
+                Task::none()
+            };
 
             (
                 App {
@@ -160,12 +142,12 @@ impl App {
                     osd: Osd::new(config.osd),
                     visible: true,
                 },
-                Task::none(),
+                warm_icons,
             )
         }
     }
 
-    fn refresh_config(&mut self, config: Box<Config>) {
+    fn refresh_config(&mut self, config: Box<Config>) -> Task<Message> {
         init_theme(AshellTheme::new(
             config.position,
             &config.appearance,
@@ -185,10 +167,15 @@ impl App {
             .collect();
 
         self.custom = custom;
-        self.updates = config.updates.map(Updates::new);
+        let existing_updates = self.updates.take();
+        self.updates = config.updates.map(|updates_config| {
+            let mut updates =
+                existing_updates.unwrap_or_else(|| Updates::new(updates_config.clone()));
+            updates.update(modules::updates::Message::ConfigReloaded(updates_config));
+            updates
+        });
 
-        // ignore task, since config change should not generate any
-        let _ = self
+        let workspaces_task = self
             .workspaces
             .update(modules::workspaces::Message::ConfigReloaded(
                 config.workspaces,
@@ -228,6 +215,8 @@ impl App {
                 config.notifications,
             ));
         self.osd.update(osd::Message::ConfigReloaded(config.osd));
+
+        workspaces_task
     }
 
     pub fn theme(&self) -> Theme {
@@ -236,93 +225,6 @@ impl App {
 
     pub fn scale_factor(&self) -> f64 {
         use_theme(|t| t.scale_factor)
-    }
-
-    /// Build OSD display info (kind, normalised value, bar scale, muted) for the
-    /// given IPC command, reading current state from the Settings services.
-    fn osd_info_for(&self, cmd: &IpcCommand) -> Option<(OsdKind, f32, f32, bool)> {
-        fn normalise(cur: u32, max: u32) -> f32 {
-            if max > 0 {
-                cur as f32 / max as f32
-            } else {
-                0.0
-            }
-        }
-
-        match cmd {
-            IpcCommand::VolumeUp { .. } | IpcCommand::VolumeDown { .. } => {
-                // Use slider value — it has the optimistic RequestAndTimeout update,
-                // which was computed from real_sink_volume in volume_adjust().
-                let vol = self.settings.audio().current_sink_volume().unwrap_or(0);
-                let muted = self.settings.audio().is_sink_muted().unwrap_or(false);
-                let scale =
-                    normalise(self.settings.audio().vol_max(), audio::NORMAL_VOLUME).max(1.0);
-                Some((
-                    OsdKind::Volume,
-                    normalise(vol, audio::NORMAL_VOLUME),
-                    scale,
-                    muted,
-                ))
-            }
-            IpcCommand::VolumeToggleMute { .. } => {
-                let vol = self.settings.audio().real_sink_volume().unwrap_or(0);
-                // Invert: the toggle was just sent but PulseAudio hasn't
-                // round-tripped yet, so the current state is stale.
-                let muted = !self.settings.audio().is_sink_muted().unwrap_or(false);
-                let scale =
-                    normalise(self.settings.audio().vol_max(), audio::NORMAL_VOLUME).max(1.0);
-                Some((
-                    OsdKind::Volume,
-                    normalise(vol, audio::NORMAL_VOLUME),
-                    scale,
-                    muted,
-                ))
-            }
-            IpcCommand::MicrophoneUp { .. } | IpcCommand::MicrophoneDown { .. } => {
-                // Use slider value — it has the optimistic RequestAndTimeout update,
-                // which was computed from real_source_volume in microphone_adjust().
-                let vol = self.settings.audio().current_source_volume().unwrap_or(0);
-                let muted = self.settings.audio().is_source_muted().unwrap_or(false);
-                Some((
-                    OsdKind::Microphone,
-                    normalise(vol, audio::AudioSettings::mic_max()),
-                    1.0,
-                    muted,
-                ))
-            }
-            IpcCommand::MicrophoneToggleMute { .. } => {
-                let vol = self.settings.audio().real_source_volume().unwrap_or(0);
-                // Invert: the toggle was just sent but PulseAudio hasn't
-                // round-tripped yet, so the current state is stale.
-                let muted = !self.settings.audio().is_source_muted().unwrap_or(false);
-                Some((
-                    OsdKind::Microphone,
-                    normalise(vol, audio::AudioSettings::mic_max()),
-                    1.0,
-                    muted,
-                ))
-            }
-            IpcCommand::BrightnessUp { .. } | IpcCommand::BrightnessDown { .. } => self
-                .settings
-                .brightness()
-                .current_brightness()
-                .map(|(cur, max)| (OsdKind::Brightness, normalise(cur, max), 1.0, false)),
-            IpcCommand::ToggleAirplaneMode { .. } => {
-                // After toggle: the new state is the opposite of current.
-                // For toggles, `muted` carries the active/enabled state; `value` is unused.
-                let active = !self.settings.network().is_airplane_mode().unwrap_or(false);
-                Some((OsdKind::Airplane, 0.0, 1.0, active))
-            }
-            IpcCommand::ToggleIdleInhibitor { .. } => {
-                if let Some(idle_inhibitor) = self.settings.idle_inhibitor() {
-                    let active = idle_inhibitor.is_inhibited();
-                    Some((OsdKind::IdleInhibitor, 0.0, 1.0, active))
-                } else {
-                    None
-                }
-            }
-            IpcCommand::ToggleVisibility => None,
-        }
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
@@ -334,17 +236,18 @@ impl App {
                     "Current outputs: {:?}, new outputs: {:?}",
                     self.general_config.outputs, config.outputs
                 );
-                let (bar_position, bar_style, scale_factor) =
-                    use_theme(|t| (t.bar_position, t.bar_style, t.scale_factor));
+                let (bar_position, bar_layout, scale_factor) =
+                    use_theme(|t| (t.bar_position, t.bar_layout(), t.scale_factor));
+                let new_layout = BarLayout::from_appearance(&config.appearance.bar);
                 if self.general_config.outputs != config.outputs
                     || bar_position != config.position
-                    || bar_style != config.appearance.style
+                    || bar_layout != new_layout
                     || scale_factor != config.appearance.scale_factor
                     || self.general_config.layer != config.layer
                 {
                     warn!("Outputs changed, syncing");
                     tasks.push(self.outputs.sync(
-                        config.appearance.style,
+                        new_layout,
                         &config.outputs,
                         config.position,
                         config.layer,
@@ -353,7 +256,7 @@ impl App {
                 }
 
                 self.logger.set_new_spec(get_log_spec(&config.log_level));
-                self.refresh_config(config);
+                tasks.push(self.refresh_config(config));
 
                 Task::batch(tasks)
             }
@@ -491,16 +394,26 @@ impl App {
             Message::OutputEvent(event) => match event {
                 OutputEvent::Added(info) => {
                     info!("Output created: {info:?}");
-                    let name = &format!("{} {} {}", info.name, info.make, info.model);
+                    // Pass both the canonical name and the full EDID
+                    // description down to Outputs::add. The workspace
+                    // visibility filter compares against just the
+                    // canonical `info.name` (matches `w.monitor` from
+                    // the compositor); name_in_config / has_name keep
+                    // matching against the concatenated description
+                    // too so #312's fuzzy-EDID-alias config behaviour
+                    // is preserved.
+                    let name = info.name.as_str();
+                    let description = format!("{} {} {}", info.name, info.make, info.model);
 
-                    let (bar_style, bar_position, scale_factor) =
-                        use_theme(|t| (t.bar_style, t.bar_position, t.scale_factor));
+                    let (bar_layout, bar_position, scale_factor) =
+                        use_theme(|t| (t.bar_layout(), t.bar_position, t.scale_factor));
                     let task = self.outputs.add(
-                        bar_style,
+                        bar_layout,
                         &self.general_config.outputs,
                         bar_position,
                         self.general_config.layer,
                         name,
+                        &description,
                         info.id,
                         scale_factor,
                     );
@@ -514,10 +427,10 @@ impl App {
                 }
                 OutputEvent::Removed(output_id) => {
                     info!("Output destroyed");
-                    let (bar_style, bar_position, scale_factor) =
-                        use_theme(|t| (t.bar_style, t.bar_position, t.scale_factor));
+                    let (bar_layout, bar_position, scale_factor) =
+                        use_theme(|t| (t.bar_layout(), t.bar_position, t.scale_factor));
                     self.outputs.remove(
-                        bar_style,
+                        bar_layout,
                         bar_position,
                         self.general_config.layer,
                         output_id,
@@ -546,10 +459,10 @@ impl App {
                 }
             }
             Message::ResumeFromSleep => {
-                let (bar_style, bar_position, scale_factor) =
-                    use_theme(|t| (t.bar_style, t.bar_position, t.scale_factor));
+                let (bar_layout, bar_position, scale_factor) =
+                    use_theme(|t| (t.bar_layout(), t.bar_position, t.scale_factor));
                 self.outputs.sync(
-                    bar_style,
+                    bar_layout,
                     &self.general_config.outputs,
                     bar_position,
                     self.general_config.layer,
@@ -609,7 +522,7 @@ impl App {
 
                 // Show OSD overlay if enabled.
                 if self.osd.config().enabled && !cmd.no_osd() {
-                    let osd_info = self.osd_info_for(&cmd);
+                    let osd_info = osd_info::osd_info_for(self, &cmd);
 
                     if let Some((kind, value, scale, muted)) = osd_info
                         && let osd::Action::Show(timer) = self.osd.update(osd::Message::Show {
@@ -633,16 +546,12 @@ impl App {
             Message::None => Task::none(),
             Message::ToggleVisibility => {
                 self.visible = !self.visible;
-                let (bar_style, scale_factor) = use_theme(|t| (t.bar_style, t.scale_factor));
-                let height = if self.visible {
-                    (crate::HEIGHT
-                        - match bar_style {
-                            AppearanceStyle::Solid | AppearanceStyle::Gradient => 8.,
-                            AppearanceStyle::Islands => 0.,
-                        })
-                        * scale_factor
+                let (bar_layout, bar_position, scale_factor) =
+                    use_theme(|t| (t.bar_layout(), t.bar_position, t.scale_factor));
+                let zone = if self.visible {
+                    Outputs::exclusive_zone(bar_layout, bar_position, scale_factor)
                 } else {
-                    0.0
+                    0
                 };
 
                 Task::batch(
@@ -651,7 +560,7 @@ impl App {
                         .filter_map(|(_, shell_info, _)| {
                             shell_info
                                 .as_ref()
-                                .map(|info| set_exclusive_zone(info.id, height as i32))
+                                .map(|info| set_exclusive_zone(info.id, zone))
                         })
                         .collect::<Vec<_>>(),
                 )
@@ -668,15 +577,15 @@ impl App {
 
                 let [left, center, right] = self.modules_section(id);
 
-                let (space, bar_style, bar_position, opacity, menu, animations_enabled) =
+                let (space, bar_surface, opacity, menu, animations_enabled, bar_radius) =
                     use_theme(|t| {
                         (
                             t.space,
-                            t.bar_style,
-                            t.bar_position,
+                            t.bar_surface,
                             t.opacity,
                             t.menu,
                             t.animations_enabled,
+                            t.bar_border_radius(),
                         )
                     });
                 let centerbox = Centerbox::new([left, center, right])
@@ -684,12 +593,12 @@ impl App {
                     .spacing(space.xxs)
                     .width(Length::Fill)
                     .align_items(Alignment::Center)
-                    .height(if bar_style == AppearanceStyle::Islands {
+                    .height(if bar_surface == BarSurface::Transparent {
                         HEIGHT
                     } else {
                         HEIGHT - space.xs as f64
                     } as f32)
-                    .padding(if bar_style == AppearanceStyle::Islands {
+                    .padding(if bar_surface == BarSurface::Transparent {
                         [space.xxs, space.xxs]
                     } else {
                         [0.0, 0.0]
@@ -697,42 +606,8 @@ impl App {
 
                 let menu_is_open = self.outputs.menu_is_open();
                 let status_bar = container(centerbox).style(move |t: &Theme| container::Style {
-                    background: match bar_style {
-                        AppearanceStyle::Gradient => Some({
-                            let start_color = t.palette().background.scale_alpha(opacity);
-
-                            let start_color = if menu_is_open {
-                                darken_color(start_color, menu.backdrop)
-                            } else {
-                                start_color
-                            };
-
-                            let end_color = if menu_is_open {
-                                backdrop_color(menu.backdrop)
-                            } else {
-                                Color::TRANSPARENT
-                            };
-
-                            Gradient::Linear(
-                                Linear::new(Radians(PI))
-                                    .add_stop(
-                                        0.0,
-                                        match bar_position {
-                                            Position::Top => start_color,
-                                            Position::Bottom => end_color,
-                                        },
-                                    )
-                                    .add_stop(
-                                        1.0,
-                                        match bar_position {
-                                            Position::Top => end_color,
-                                            Position::Bottom => start_color,
-                                        },
-                                    ),
-                            )
-                            .into()
-                        }),
-                        AppearanceStyle::Solid => Some({
+                    background: match bar_surface {
+                        BarSurface::Solid => Some({
                             let bg = t.palette().background.scale_alpha(opacity);
                             if menu_is_open {
                                 darken_color(bg, menu.backdrop)
@@ -741,13 +616,17 @@ impl App {
                             }
                             .into()
                         }),
-                        AppearanceStyle::Islands => {
+                        BarSurface::Transparent => {
                             if menu_is_open {
                                 Some(backdrop_color(menu.backdrop).into())
                             } else {
                                 None
                             }
                         }
+                    },
+                    border: iced::Border {
+                        radius: bar_radius,
+                        ..Default::default()
                     },
                     ..Default::default()
                 });

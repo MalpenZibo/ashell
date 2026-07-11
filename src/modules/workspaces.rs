@@ -1,21 +1,26 @@
 use crate::{
+    components::icons::icon,
     config::{
-        AppearanceColor, InvertScrollDirection, WorkspaceVisibilityMode, WorkspacesModuleConfig,
+        AppearanceColor, InvertScrollDirection, WorkspaceIndicatorFormat, WorkspaceVisibilityMode,
+        WorkspacesModuleConfig,
     },
     outputs::Outputs,
     services::{
         ReadOnlyService, Service, ServiceEvent,
-        compositor::{CompositorCommand, CompositorService, CompositorState},
+        compositor::{
+            CompositorCommand, CompositorService, CompositorState, set_collect_window_classes,
+        },
+        xdg_icons::{self, XdgIcon},
     },
     theme::{AshellTheme, use_theme},
 };
 use iced::{
     Element, Length, Subscription, SurfaceId, alignment,
-    widget::{MouseArea, Row, button, container, text},
+    widget::{Image, MouseArea, Row, Svg, button, container, text},
 };
 use iced_anim::{AnimationBuilder, transition::Easing};
 use itertools::Itertools;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum Displayed {
@@ -34,6 +39,7 @@ pub struct UiWorkspace {
     pub displayed: Displayed,
     pub windows: u16,
     pub has_urgent: bool,
+    pub icons: Option<Vec<XdgIcon>>,
 }
 
 #[derive(Debug, Clone)]
@@ -41,16 +47,29 @@ struct VirtualDesktop {
     pub active: bool,
     pub windows: u16,
     pub has_urgent: bool,
+    pub window_classes: Vec<String>,
+}
+
+fn resolve_workspace_icons(window_classes: &[String]) -> Vec<XdgIcon> {
+    window_classes
+        .iter()
+        .map(|class| class.to_lowercase())
+        .unique()
+        .map(|class_lower| {
+            xdg_icons::get_icon_from_name(&class_lower).unwrap_or_else(xdg_icons::fallback_icon)
+        })
+        .collect()
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    ServiceEvent(ServiceEvent<CompositorService>),
+    ServiceEvent(Box<ServiceEvent<CompositorService>>),
     ChangeWorkspace(i32),
     ToggleSpecialWorkspace(i32),
-    Scroll(i32),
+    Scroll(i32, Option<String>),
     ConfigReloaded(WorkspacesModuleConfig),
     ScrollAccumulator(f32),
+    IconCacheWarmed,
 }
 
 pub struct Workspaces {
@@ -64,7 +83,7 @@ fn calculate_ui_workspaces(
     config: &WorkspacesModuleConfig,
     state: &CompositorState,
 ) -> Vec<UiWorkspace> {
-    let active_id = state.active_workspace_id;
+    let active_ids: HashSet<i32> = state.active_workspace_ids.iter().copied().collect();
     let monitors = &state.monitors;
     let monitor_order = monitors
         .iter()
@@ -79,12 +98,13 @@ fn calculate_ui_workspaces(
         .unique_by(|w| w.id)
         .collect_vec();
 
+    let collect_icons = config.indicator_format == WorkspaceIndicatorFormat::NameAndIcons;
     let mut result: Vec<UiWorkspace> = Vec::with_capacity(workspaces.len());
     let (special, normal): (Vec<_>, Vec<_>) = workspaces.into_iter().partition(|w| w.id < 0);
 
     // map special workspaces
     if !config.disable_special_workspaces {
-        for w in special.iter() {
+        for w in special {
             // Special workspaces are active if they are assigned to any monitor.
             // Currently a special and normal workspace can be active at the same time on the same monitor.
             let active = monitors.iter().any(|m| m.special_workspace_id == w.id);
@@ -97,7 +117,7 @@ fn calculate_ui_workspaces(
                     .last()
                     .map_or_else(|| "".to_string(), |s| s.to_owned()),
                 monitor_id: w.monitor_id,
-                monitor: w.monitor.clone(),
+                monitor: w.monitor,
                 displayed: if active {
                     Displayed::Active
                 } else {
@@ -105,6 +125,7 @@ fn calculate_ui_workspaces(
                 },
                 windows: w.windows,
                 has_urgent: w.has_urgent,
+                icons: collect_icons.then(|| resolve_workspace_icons(&w.window_classes)),
             });
         }
     }
@@ -113,14 +134,15 @@ fn calculate_ui_workspaces(
         let monitor_count = monitors.len().max(1);
         let mut virtual_desktops: HashMap<i32, VirtualDesktop> = HashMap::new();
 
-        for w in normal.iter() {
+        for w in normal {
             let vdesk_id = ((w.id - 1) / monitor_count as i32) + 1;
-            let is_active = Some(w.id) == active_id;
+            let is_active = active_ids.contains(&w.id);
 
             if let Some(vdesk) = virtual_desktops.get_mut(&vdesk_id) {
                 vdesk.windows += w.windows;
                 vdesk.active = vdesk.active || is_active;
                 vdesk.has_urgent = vdesk.has_urgent || w.has_urgent;
+                vdesk.window_classes.extend(w.window_classes);
             } else {
                 virtual_desktops.insert(
                     vdesk_id,
@@ -128,6 +150,7 @@ fn calculate_ui_workspaces(
                         active: is_active,
                         windows: w.windows,
                         has_urgent: w.has_urgent,
+                        window_classes: w.window_classes,
                     },
                 );
             }
@@ -154,23 +177,24 @@ fn calculate_ui_workspaces(
                 },
                 windows: vdesk.windows,
                 has_urgent: vdesk.has_urgent,
+                icons: collect_icons.then(|| resolve_workspace_icons(&vdesk.window_classes)),
             });
         });
     } else {
-        for w in normal.iter() {
+        for w in normal {
             let display_name = if w.id > 0 {
                 let idx = (w.id - 1) as usize;
                 config
                     .workspace_names
                     .get(idx)
                     .cloned()
-                    .or_else(|| Some(w.name.clone()))
+                    .or(Some(w.name))
                     .unwrap_or_else(|| w.id.to_string())
             } else {
-                w.name.clone()
+                w.name
             };
 
-            let is_active = active_id == Some(w.id);
+            let is_active = active_ids.contains(&w.id);
             let is_visible = monitors.iter().any(|m| m.active_workspace_id == w.id);
 
             result.push(UiWorkspace {
@@ -178,7 +202,7 @@ fn calculate_ui_workspaces(
                 index: w.index,
                 name: display_name,
                 monitor_id: w.monitor_id,
-                monitor: w.monitor.clone(),
+                monitor: w.monitor,
                 displayed: match (is_active, is_visible) {
                     (true, _) => Displayed::Active,
                     (false, true) => Displayed::Visible,
@@ -186,6 +210,7 @@ fn calculate_ui_workspaces(
                 },
                 windows: w.windows,
                 has_urgent: w.has_urgent,
+                icons: collect_icons.then(|| resolve_workspace_icons(&w.window_classes)),
             });
         }
     }
@@ -229,6 +254,7 @@ fn calculate_ui_workspaces(
                 displayed: Displayed::Hidden,
                 windows: 0,
                 has_urgent: false,
+                icons: None,
             });
         }
     }
@@ -254,21 +280,49 @@ fn calculate_ui_workspaces(
 fn workspace_button<'a>(
     theme: &AshellTheme,
     name: String,
+    icons: Vec<XdgIcon>,
     font_size: f32,
     empty: bool,
     urgent: bool,
+    active: bool,
     color: Option<Option<AppearanceColor>>,
     width: Length,
     padding: f32,
     height: f32,
     on_press: Message,
 ) -> Element<'a, Message> {
+    let inner: Element<'a, Message> = if icons.is_empty() {
+        text(name).size(font_size).into()
+    } else {
+        let icon_size = font_size + 4.0;
+        let children: Vec<Element<'a, Message>> =
+            std::iter::once(text(name).size(font_size).into())
+                .chain(icons.into_iter().map(|i| {
+                    match i {
+                        XdgIcon::Svg(handle) => Svg::new(handle)
+                            .height(Length::Fixed(icon_size))
+                            .width(Length::Shrink)
+                            .into(),
+                        XdgIcon::Image(handle) => Image::new(handle)
+                            .height(Length::Fixed(icon_size))
+                            .width(Length::Shrink)
+                            .into(),
+                        XdgIcon::NerdFont(si) => icon(si).size(icon_size).into(),
+                    }
+                }))
+                .collect();
+        Row::with_children(children)
+            .spacing(theme.space.xxs)
+            .align_y(alignment::Vertical::Center)
+            .into()
+    };
+
     button(
-        container(text(name).size(font_size))
+        container(inner)
             .align_x(alignment::Horizontal::Center)
             .align_y(alignment::Vertical::Center),
     )
-    .style(theme.workspace_button_style(empty, urgent, color))
+    .style(theme.workspace_button_style(empty, urgent, active, color))
     .padding([0.0, padding])
     .on_press(on_press)
     .width(width)
@@ -278,6 +332,9 @@ fn workspace_button<'a>(
 
 impl Workspaces {
     pub fn new(config: WorkspacesModuleConfig) -> Self {
+        set_collect_window_classes(
+            config.indicator_format == WorkspaceIndicatorFormat::NameAndIcons,
+        );
         Self {
             config,
             service: None,
@@ -289,7 +346,7 @@ impl Workspaces {
     pub fn update(&mut self, message: Message) -> iced::Task<Message> {
         match message {
             Message::ServiceEvent(event) => {
-                match event {
+                match *event {
                     ServiceEvent::Init(s) => {
                         self.service = Some(s);
                         self.recalculate_ui_workspaces();
@@ -318,11 +375,11 @@ impl Workspaces {
                                     "vdesk".to_string(),
                                     id.to_string(),
                                 ))
-                                .map(Message::ServiceEvent);
+                                .map(|event| Message::ServiceEvent(Box::new(event)));
                         } else {
                             return service
                                 .command(CompositorCommand::FocusWorkspace(id))
-                                .map(Message::ServiceEvent);
+                                .map(|event| Message::ServiceEvent(Box::new(event)));
                         }
                     }
                 }
@@ -340,25 +397,31 @@ impl Workspaces {
                                 .last()
                                 .map_or_else(|| special.name.clone(), |s| s.to_string()),
                         ))
-                        .map(Message::ServiceEvent);
+                        .map(|event| Message::ServiceEvent(Box::new(event)));
                 }
                 iced::Task::none()
             }
-            Message::Scroll(direction) => {
+            Message::Scroll(direction, monitor) => {
                 self.scroll_accumulator = 0.;
 
-                /* TODO: should we use the native service implementation instead?
-                if let Some(service) = &mut self.service {
-                    return service
-                        .command(CompositorCommand::ScrollWorkspace(direction))
-                        .map(Message::ServiceEvent);
-                }
-                return iced::Task::none();*/
-                let Some(pos) = self
-                    .ui_workspaces
-                    .iter()
-                    .position(|w| w.displayed == Displayed::Active)
-                else {
+                // Start from the scrolled bar's monitor (Active, else Visible), so
+                // each bar scrolls its own monitor; fall back to the global active.
+                let pos = monitor
+                    .as_deref()
+                    .and_then(|name| {
+                        self.ui_workspaces.iter().position(|w| {
+                            !w.monitor.is_empty()
+                                && name.contains(w.monitor.as_str())
+                                && matches!(w.displayed, Displayed::Active | Displayed::Visible)
+                        })
+                    })
+                    .or_else(|| {
+                        self.ui_workspaces
+                            .iter()
+                            .position(|w| w.displayed == Displayed::Active)
+                    });
+
+                let Some(pos) = pos else {
                     return iced::Task::none();
                 };
 
@@ -410,7 +473,21 @@ impl Workspaces {
                 iced::Task::none()
             }
             Message::ConfigReloaded(cfg) => {
+                let icons_enabled = cfg.indicator_format == WorkspaceIndicatorFormat::NameAndIcons;
+                set_collect_window_classes(icons_enabled);
                 self.config = cfg;
+                if icons_enabled {
+                    // Refresh only once the indexes are warm, so resolution
+                    // reads cached data instead of scanning on this thread.
+                    iced::Task::perform(xdg_icons::warm_cache_async(), |()| {
+                        Message::IconCacheWarmed
+                    })
+                } else {
+                    self.recalculate_ui_workspaces();
+                    iced::Task::none()
+                }
+            }
+            Message::IconCacheWarmed => {
                 self.recalculate_ui_workspaces();
                 iced::Task::none()
             }
@@ -440,22 +517,29 @@ impl Workspaces {
                 self.ui_workspaces
                     .iter()
                     .filter_map(|w| {
+                        // Compare canonical compositor names by equality, not
+                        // substring containment. Both `monitor_name` (the
+                        // bar's surface output) and `w.monitor` (the workspace's
+                        // home output) come from the compositor as canonical
+                        // names, so equality is the correct relation. Using
+                        // `.contains()` falsely matches any pair where one
+                        // name is a substring of the other — most commonly
+                        // `eDP-1` vs `DP-1`, causing the laptop bar to leak
+                        // the external monitor's workspaces in and stop
+                        // tracking its own focused workspace.
+                        let monitor_matches = monitor_name.is_none_or(|n| n == w.monitor.as_str());
                         let show = match self.config.visibility_mode {
                             WorkspaceVisibilityMode::All => true,
                             WorkspaceVisibilityMode::MonitorSpecific => {
-                                monitor_name
-                                    .unwrap_or_else(|| &w.monitor)
-                                    .contains(&w.monitor)
-                                    || !outputs.has_name(&w.monitor)
+                                monitor_matches || !outputs.has_name(&w.monitor)
                             }
-                            WorkspaceVisibilityMode::MonitorSpecificExclusive => monitor_name
-                                .unwrap_or_else(|| &w.monitor)
-                                .contains(&w.monitor),
+                            WorkspaceVisibilityMode::MonitorSpecificExclusive => monitor_matches,
                         };
 
                         if show {
                             let empty = w.windows == 0;
                             let urgent = w.has_urgent;
+                            let active = w.displayed == Displayed::Active;
                             let color_index = if self.config.enable_virtual_desktops {
                                 Some(w.id as i128)
                             } else {
@@ -463,20 +547,21 @@ impl Workspaces {
                             };
 
                             let color = color_index.map(|i| {
-                                if w.id > 0 {
-                                    theme.workspace_colors.get(i as usize).copied()
-                                } else {
+                                let colors = if w.id < 0 {
                                     theme
                                         .special_workspace_colors
                                         .as_ref()
                                         .unwrap_or(&theme.workspace_colors)
-                                        .get(i as usize)
-                                        .copied()
-                                }
+                                } else {
+                                    &theme.workspace_colors
+                                };
+                                colors.get(i as usize).copied()
                             });
 
                             {
                                 let name = w.name.clone();
+                                let icons = w.icons.clone().unwrap_or_default();
+                                let has_icons = !icons.is_empty();
                                 let on_press = if w.id > 0 {
                                     Message::ChangeWorkspace(w.id)
                                 } else {
@@ -485,7 +570,10 @@ impl Workspaces {
                                 let font_size = theme.font_size.xs;
                                 let height = theme.space.md;
 
+                                // Numbered workspaces animate to a fixed width; icon
+                                // and named workspaces size to their content instead.
                                 let numbered = w.id > 0
+                                    && !has_icons
                                     && !w.name.is_empty()
                                     && w.name.chars().all(|c| c.is_ascii_digit());
 
@@ -500,13 +588,18 @@ impl Workspaces {
 
                                     if theme.animations_enabled {
                                         AnimationBuilder::new(target_width, move |width| {
-                                            use_theme(|theme| {
+                                            let name = name.clone();
+                                            let icons = icons.clone();
+                                            let on_press = on_press.clone();
+                                            use_theme(move |theme| {
                                                 workspace_button(
                                                     theme,
                                                     name.clone(),
+                                                    icons.clone(),
                                                     font_size,
                                                     empty,
                                                     urgent,
+                                                    active,
                                                     color,
                                                     Length::Fixed(width),
                                                     0.0,
@@ -522,9 +615,11 @@ impl Workspaces {
                                         workspace_button(
                                             theme,
                                             name,
+                                            icons,
                                             font_size,
                                             empty,
                                             urgent,
+                                            active,
                                             color,
                                             Length::Fixed(target_width),
                                             0.0,
@@ -543,13 +638,18 @@ impl Workspaces {
 
                                     if theme.animations_enabled {
                                         AnimationBuilder::new(target_padding, move |padding| {
-                                            use_theme(|theme| {
+                                            let name = name.clone();
+                                            let icons = icons.clone();
+                                            let on_press = on_press.clone();
+                                            use_theme(move |theme| {
                                                 workspace_button(
                                                     theme,
                                                     name.clone(),
+                                                    icons.clone(),
                                                     font_size,
                                                     empty,
                                                     urgent,
+                                                    active,
                                                     color,
                                                     Length::Shrink,
                                                     padding,
@@ -565,9 +665,11 @@ impl Workspaces {
                                         workspace_button(
                                             theme,
                                             name,
+                                            icons,
                                             font_size,
                                             empty,
                                             urgent,
+                                            active,
                                             color,
                                             Length::Shrink,
                                             target_padding,
@@ -586,47 +688,52 @@ impl Workspaces {
             .spacing(theme.space.xxs)
         });
 
+        let scroll_monitor = monitor_name.map(str::to_owned);
+
         MouseArea::new(row)
-            .on_scroll(move |direction| match direction {
-                iced::mouse::ScrollDelta::Lines { y, .. } => {
-                    if y.is_sign_positive() {
-                        match self.config.invert_scroll_direction {
-                            Some(InvertScrollDirection::All | InvertScrollDirection::Mouse) => {
-                                Message::Scroll(-1)
+            .on_scroll(move |direction| {
+                let scroll = |dir: i32| Message::Scroll(dir, scroll_monitor.clone());
+                match direction {
+                    iced::mouse::ScrollDelta::Lines { y, .. } => {
+                        if y.is_sign_positive() {
+                            match self.config.invert_scroll_direction {
+                                Some(InvertScrollDirection::All | InvertScrollDirection::Mouse) => {
+                                    scroll(-1)
+                                }
+                                Some(InvertScrollDirection::Trackpad) => scroll(1),
+                                None => scroll(1),
                             }
-                            Some(InvertScrollDirection::Trackpad) => Message::Scroll(1),
-                            None => Message::Scroll(1),
-                        }
-                    } else {
-                        match self.config.invert_scroll_direction {
-                            Some(InvertScrollDirection::All | InvertScrollDirection::Mouse) => {
-                                Message::Scroll(1)
+                        } else {
+                            match self.config.invert_scroll_direction {
+                                Some(InvertScrollDirection::All | InvertScrollDirection::Mouse) => {
+                                    scroll(1)
+                                }
+                                Some(InvertScrollDirection::Trackpad) => scroll(-1),
+                                None => scroll(-1),
                             }
-                            Some(InvertScrollDirection::Trackpad) => Message::Scroll(-1),
-                            None => Message::Scroll(-1),
                         }
                     }
-                }
-                iced::mouse::ScrollDelta::Pixels { y, .. } => {
-                    let sensibility = 3.;
+                    iced::mouse::ScrollDelta::Pixels { y, .. } => {
+                        let sensibility = 3.;
 
-                    if self.scroll_accumulator.abs() < sensibility {
-                        Message::ScrollAccumulator(y)
-                    } else if self.scroll_accumulator.is_sign_positive() {
-                        match self.config.invert_scroll_direction {
-                            Some(InvertScrollDirection::All | InvertScrollDirection::Trackpad) => {
-                                Message::Scroll(-1)
+                        if self.scroll_accumulator.abs() < sensibility {
+                            Message::ScrollAccumulator(y)
+                        } else if self.scroll_accumulator.is_sign_positive() {
+                            match self.config.invert_scroll_direction {
+                                Some(
+                                    InvertScrollDirection::All | InvertScrollDirection::Trackpad,
+                                ) => scroll(-1),
+                                Some(InvertScrollDirection::Mouse) => scroll(1),
+                                None => scroll(1),
                             }
-                            Some(InvertScrollDirection::Mouse) => Message::Scroll(1),
-                            None => Message::Scroll(1),
-                        }
-                    } else {
-                        match self.config.invert_scroll_direction {
-                            Some(InvertScrollDirection::All | InvertScrollDirection::Trackpad) => {
-                                Message::Scroll(1)
+                        } else {
+                            match self.config.invert_scroll_direction {
+                                Some(
+                                    InvertScrollDirection::All | InvertScrollDirection::Trackpad,
+                                ) => scroll(1),
+                                Some(InvertScrollDirection::Mouse) => scroll(-1),
+                                None => scroll(-1),
                             }
-                            Some(InvertScrollDirection::Mouse) => Message::Scroll(-1),
-                            None => Message::Scroll(-1),
                         }
                     }
                 }
@@ -635,6 +742,6 @@ impl Workspaces {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        CompositorService::subscribe().map(Message::ServiceEvent)
+        CompositorService::subscribe().map(|event| Message::ServiceEvent(Box::new(event)))
     }
 }

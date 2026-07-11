@@ -1,6 +1,10 @@
 /target
 vendor
 
+# Nix build result symlinks
+/result
+/deps-result
+
 # Local Copr build artifacts
 /copr_build_*/
 

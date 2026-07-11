@@ -231,12 +231,16 @@ microphone_indicator_format = "IconAndPercentage"
 
 With the `network_indicator_format` option you can customize the network connection indicator format.
 For WiFi connections, this shows the signal strength as a percentage.
+You can also use `Name` or `IconAndName` to display the connected network name (the SSID for WiFi
+connections, the interface name for wired connections, or the VPN name for VPN connections).
 
 The default value is `Icon`.
 
 ```toml
 [settings]
 network_indicator_format = "IconAndPercentage"
+# or, to show the SSID next to the wifi icon:
+network_indicator_format = "IconAndName"
 ```
 
 ### Bluetooth Format
@@ -312,7 +316,7 @@ Available indicators are:
 indicators = ["Battery", "Bluetooth", "Network", "Audio", "Microphone"]
 
 # Default indicators (shown in this order):
-indicators = ["IdleInhibitor", "PowerProfile", "Audio", "Microphone", "Bluetooth", "Network", "Vpn", "Battery", "Brightness"]
+indicators = ["IdleInhibitor", "PowerProfile", "Audio", "Microphone", "Bluetooth", "Network", "Vpn", "Battery"]
 ```
 
 ## Custom Buttons

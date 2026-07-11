@@ -59,7 +59,7 @@ pub enum ModuleDef {
 }
 ```
 
-Groups are rendered together in a single container, which is especially visible with the `Islands` bar style.
+Groups are rendered together in a single container, which is especially visible with the `transparent` (islands) bar surface.
 
 ## Hot-Reload
 
@@ -103,10 +103,14 @@ interval = 3600
 
 ```toml
 [appearance]
-style = "Islands"          # Islands, Solid, or Gradient
-opacity = 0.9
 font_name = "JetBrains Mono"
 scale_factor = 1.0
+
+[appearance.bar]
+surface = "transparent"    # transparent or solid
+radius = "md"              # none|sm|md|lg|xl, CSS border-radius shorthand
+margin = "sm"              # none|xxs..xxl, CSS margin shorthand
+opacity = 0.9
 
 [appearance.background]
 base = "#1e1e2e"

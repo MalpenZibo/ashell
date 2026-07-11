@@ -33,6 +33,7 @@ interval = 3600             # seconds; minimum enforced to 1
 
 [workspaces]
 visibility_mode = "All"           # "All" (default), "MonitorSpecific", "MonitorSpecificExclusive"
+indicator_format = "Name"         # "Name" (default) or "NameAndIcons" to show app icons
 group_by_monitor = false          # (default)
 enable_workspace_filling = false  # (default)
 # disable_special_workspaces = false  # (default) set true to hide special workspaces
@@ -86,7 +87,8 @@ alert_threshold = 85
 
 [media_player]
 # max_title_length = 100        # (default)
-# indicator_format = "IconAndTitle"  # (default) or "Icon"
+# indicator_format = "IconAndText"  # (default), "Text", or "Icon"
+# indicator_fields = ["Artist", "Title"] # (default), also supports "Album"
 
 [tray]
 # blocklist = ["regex"]    # (default: []) hide tray items matching regex patterns
@@ -135,7 +137,7 @@ peripheral_battery_format = "Icon"  # (default), "IconAndPercentage", "Percentag
 # peripheral_expanded_by_default = false  # (default)
 audio_indicator_format = "Icon"        # (default), "IconAndPercentage", "Percentage", etc.
 microphone_indicator_format = "Icon"   # (default)
-network_indicator_format = "Icon"      # (default)
+network_indicator_format = "Icon"      # (default), "IconAndPercentage", "Percentage", "Name", "IconAndName" (Name/IconAndName show the SSID/interface/VPN name)
 bluetooth_indicator_format = "Icon"    # (default)
 brightness_indicator_format = "Icon"   # (default)
 volume_step = 5    # (default) step size for IPC volume up/down, range 1..=50
@@ -162,10 +164,8 @@ show_brightness_percentage = false  # (default) show numeric brightness value in
 enabled = false   # (default)
 
 [appearance]
-style = "Islands"  # (default), "Solid", or "Gradient"
 # font_name = "Sans"           # (default: None) custom font family
 # scale_factor = 1.0           # (default) range: 0.0 < x <= 2.0
-# opacity = 1.0                # (default) range: 0.0 to 1.0
 primary_color = "#7aa2f7"
 success_color = "#9ece6a"
 warning_color = "#e0af68"
@@ -173,6 +173,12 @@ danger_color = "#f7768e"
 text_color = "#a9b1d6"
 workspace_colors = [ "#7aa2f7", "#9ece6a" ]
 # special_workspace_colors = [ "#7aa2f7", "#9ece6a" ]  # (default: None, falls back to workspace_colors)
+
+[appearance.bar]
+surface = "transparent"  # (default) or "solid"
+# radius = "none"          # (default) none|sm|md|lg|xl, CSS border-radius shorthand (solid only)
+# margin = "none"          # (default) none|xxs|xs|sm|md|lg|xl|xxl, CSS margin shorthand
+# opacity = 1.0            # (default) range: 0.0 to 1.0
 
 [appearance.menu]
 # opacity = 1.0   # (default) menu background opacity

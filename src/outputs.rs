@@ -1,7 +1,7 @@
 use iced::{
     Anchor, InputRegionRect, KeyboardInteractivity, Layer, LayerShellSettings, OutputId, SurfaceId,
     Task, destroy_layer_surface, new_layer_surface, set_anchor, set_exclusive_zone,
-    set_input_region, set_keyboard_interactivity, set_size,
+    set_input_region, set_keyboard_interactivity, set_margin, set_size,
 };
 use log::debug;
 
@@ -9,7 +9,8 @@ use crate::{
     HEIGHT,
     components::ButtonUIRef,
     components::menu::{Menu, MenuType, OpenMenu},
-    config::{self, AppearanceStyle, Position},
+    config::{self, BarSurface, Position},
+    theme::BarLayout,
 };
 
 #[derive(Debug, Clone)]
@@ -17,7 +18,7 @@ pub struct ShellInfo {
     pub id: SurfaceId,
     pub position: Position,
     pub layer: config::Layer,
-    pub style: AppearanceStyle,
+    pub layout: BarLayout,
     pub menu: Menu,
     pub scale_factor: f64,
     /// Logical height of this output (for computing toast input regions).
@@ -64,9 +65,23 @@ impl OverlaySurface {
     }
 }
 
+/// Pair of strings identifying an output. `name` is the canonical
+/// short name reported by the compositor (e.g. `eDP-1`) — used for
+/// strict equality checks against workspace events (`has_name`) and
+/// as the layer-shell surface key. `description` includes the EDID
+/// (e.g. `eDP-1 Make Model Serial`) — used only for the fuzzy
+/// substring matching in `name_in_config`, so users can alias
+/// outputs by any string that appears in the EDID (the behaviour
+/// added by #312).
+#[derive(Debug, Clone)]
+pub struct OutputKey {
+    pub name: String,
+    pub description: String,
+}
+
 #[derive(Debug, Clone)]
 pub struct Outputs {
-    entries: Vec<(String, Option<ShellInfo>, Option<OutputId>)>,
+    entries: Vec<(OutputKey, Option<ShellInfo>, Option<OutputId>)>,
     toast: Option<OverlaySurface>,
     osd: Option<OverlaySurface>,
     /// Last toast input-region request, replayed once the toast's output is
@@ -84,12 +99,12 @@ pub enum HasOutput<'a> {
 }
 
 impl Outputs {
-    pub fn iter(&self) -> std::slice::Iter<'_, (String, Option<ShellInfo>, Option<OutputId>)> {
+    pub fn iter(&self) -> std::slice::Iter<'_, (OutputKey, Option<ShellInfo>, Option<OutputId>)> {
         self.entries.iter()
     }
 
     pub fn new(
-        style: AppearanceStyle,
+        layout: BarLayout,
         position: Position,
         layer: config::Layer,
         scale_factor: f64,
@@ -99,13 +114,16 @@ impl Outputs {
         // on demand when a menu is opened.
         Self {
             entries: vec![(
-                "Fallback".to_string(),
+                OutputKey {
+                    name: "Fallback".to_string(),
+                    description: String::new(),
+                },
                 Some(ShellInfo {
                     id: SurfaceId::MAIN,
                     menu: Menu::new(),
                     position,
                     layer,
-                    style,
+                    layout,
                     scale_factor,
                     output_logical_height: None,
                 }),
@@ -123,23 +141,43 @@ impl Outputs {
         Menu::with_animations(self.animations_enabled)
     }
 
-    pub fn get_height(style: AppearanceStyle, scale_factor: f64) -> f64 {
+    pub fn get_height(surface: BarSurface, scale_factor: f64) -> f64 {
         (HEIGHT
-            - match style {
-                AppearanceStyle::Solid | AppearanceStyle::Gradient => 8.,
-                AppearanceStyle::Islands => 0.,
+            - match surface {
+                BarSurface::Solid => 8.,
+                BarSurface::Transparent => 0.,
             })
             * scale_factor
     }
 
+    /// Layer-shell outer margin scaled to physical pixels, ordered
+    /// `(top, right, bottom, left)` to match `set_margin`/`LayerShellSettings`.
+    pub fn margin(layout: BarLayout, scale_factor: f64) -> (i32, i32, i32, i32) {
+        let (top, right, bottom, left) = layout.margin;
+        let scale = |v: f32| (f64::from(v) * scale_factor) as i32;
+        (scale(top), scale(right), scale(bottom), scale(left))
+    }
+
+    /// Space reserved on the anchored edge: the bar height plus the margin that
+    /// pushes the bar away from that edge.
+    pub fn exclusive_zone(layout: BarLayout, position: Position, scale_factor: f64) -> i32 {
+        let height = Self::get_height(layout.surface, scale_factor);
+        let (top, _, bottom, _) = Self::margin(layout, scale_factor);
+        height as i32
+            + match position {
+                Position::Top => top,
+                Position::Bottom => bottom,
+            }
+    }
+
     pub fn create_output_layers<Message: 'static>(
-        style: AppearanceStyle,
+        layout: BarLayout,
         output_id: Option<OutputId>,
         position: Position,
         layer: config::Layer,
         scale_factor: f64,
     ) -> (SurfaceId, Task<Message>) {
-        let height = Self::get_height(style, scale_factor);
+        let height = Self::get_height(layout.surface, scale_factor);
 
         let iced_layer = match layer {
             config::Layer::Top => Layer::Top,
@@ -152,26 +190,36 @@ impl Outputs {
             size: Some((0, height as u32)),
             layer: iced_layer,
             keyboard_interactivity: KeyboardInteractivity::None,
-            exclusive_zone: height as i32,
+            exclusive_zone: Self::exclusive_zone(layout, position, scale_factor),
+            margin: Self::margin(layout, scale_factor),
             output: output_id,
             anchor: match position {
                 Position::Top => Anchor::TOP,
                 Position::Bottom => Anchor::BOTTOM,
             } | Anchor::LEFT
                 | Anchor::RIGHT,
-            ..Default::default()
         });
 
         (id, main_task)
     }
 
-    fn name_in_config(name: &str, outputs: &config::Outputs) -> bool {
+    /// Match a user-supplied output spec against an output's name +
+    /// description pair. Returns true when:
+    ///   - the spec equals the canonical name (`info.name`), OR
+    ///   - the spec appears anywhere in the description (`info.name +
+    ///     info.make + info.model`), preserving #312's fuzzy alias
+    ///     matching by EDID substring.
+    fn matches_spec(name: &str, description: &str, spec: &str) -> bool {
+        name == spec || description.contains(spec)
+    }
+
+    fn name_in_config(name: &str, description: &str, outputs: &config::Outputs) -> bool {
         match outputs {
             config::Outputs::All => true,
             config::Outputs::Active => false,
-            config::Outputs::Targets(request_outputs) => {
-                request_outputs.iter().any(|output| name.contains(output))
-            }
+            config::Outputs::Targets(request_outputs) => request_outputs
+                .iter()
+                .any(|spec| Self::matches_spec(name, description, spec)),
         }
     }
 
@@ -195,11 +243,13 @@ impl Outputs {
         })
     }
 
+    /// Returns the canonical short name (e.g. `eDP-1`) — used by the
+    /// workspace visibility filter which compares against `w.monitor`.
     pub fn get_monitor_name(&self, id: SurfaceId) -> Option<&str> {
-        self.entries.iter().find_map(|(name, info, _)| {
+        self.entries.iter().find_map(|(key, info, _)| {
             info.as_ref().and_then(|info| {
                 if info.id == id {
-                    Some(name.as_str())
+                    Some(key.name.as_str())
                 } else {
                     None
                 }
@@ -207,35 +257,46 @@ impl Outputs {
         })
     }
 
+    /// Strict canonical-name equality. Called by the workspace
+    /// visibility filter with `w.monitor` (a compositor-canonical
+    /// output name), where the substring fuzz used by `name_in_config`
+    /// would re-introduce the very false-match bug this PR fixed
+    /// (e.g. an event for `DP-1` matching an output whose description
+    /// contains `"DP-1"` as a substring).
     pub fn has_name(&self, name: &str) -> bool {
         self.entries
             .iter()
-            .any(|(n, info, _)| info.is_some() && n.as_str().contains(name))
+            .any(|(key, info, _)| info.is_some() && key.name == name)
     }
 
     #[allow(clippy::too_many_arguments)]
     pub fn add<Message: 'static>(
         &mut self,
-        style: AppearanceStyle,
+        layout: BarLayout,
         request_outputs: &config::Outputs,
         position: Position,
         layer: config::Layer,
         name: &str,
+        description: &str,
         output_id: OutputId,
         scale_factor: f64,
     ) -> Task<Message> {
-        let target = Self::name_in_config(name, request_outputs);
+        let target = Self::name_in_config(name, description, request_outputs);
 
         if target {
             debug!("Found target output, creating a new layer surface");
 
             let (id, task) =
-                Self::create_output_layers(style, Some(output_id), position, layer, scale_factor);
+                Self::create_output_layers(layout, Some(output_id), position, layer, scale_factor);
 
+            // Replace an existing entry with the same canonical name
+            // (e.g. monitor was reconnected). Description-match is
+            // intentionally NOT used here — replacement is identity-
+            // based, not alias-based.
             let destroy_task = match self
                 .entries
                 .iter()
-                .position(|(key, _, _)| key.as_str() == name)
+                .position(|(key, _, _)| key.name.as_str() == name)
             {
                 Some(index) => {
                     let old_output = self.entries.swap_remove(index);
@@ -250,13 +311,16 @@ impl Outputs {
 
             let menu = self.make_menu();
             self.entries.push((
-                name.to_owned(),
+                OutputKey {
+                    name: name.to_owned(),
+                    description: description.to_owned(),
+                },
                 Some(ShellInfo {
                     id,
                     menu,
                     position,
                     layer,
-                    style,
+                    layout,
                     scale_factor,
                     output_logical_height: None,
                 }),
@@ -287,7 +351,14 @@ impl Outputs {
                 name, request_outputs
             );
 
-            self.entries.push((name.to_owned(), None, Some(output_id)));
+            self.entries.push((
+                OutputKey {
+                    name: name.to_owned(),
+                    description: description.to_owned(),
+                },
+                None,
+                Some(output_id),
+            ));
 
             Task::none()
         }
@@ -295,7 +366,7 @@ impl Outputs {
 
     pub fn remove<Message: 'static>(
         &mut self,
-        style: AppearanceStyle,
+        layout: BarLayout,
         position: Position,
         layer: config::Layer,
         output_id: OutputId,
@@ -333,17 +404,20 @@ impl Outputs {
                     debug!("No outputs left, creating a fallback layer surface");
 
                     let (id, task) =
-                        Self::create_output_layers(style, None, position, layer, scale_factor);
+                        Self::create_output_layers(layout, None, position, layer, scale_factor);
 
                     let menu = self.make_menu();
                     self.entries.push((
-                        "Fallback".to_string(),
+                        OutputKey {
+                            name: "Fallback".to_string(),
+                            description: String::new(),
+                        },
                         Some(ShellInfo {
                             id,
                             menu,
                             position,
                             layer,
-                            style,
+                            layout,
                             scale_factor,
                             output_logical_height: None,
                         }),
@@ -359,7 +433,7 @@ impl Outputs {
 
     pub fn sync<Message: 'static>(
         &mut self,
-        style: AppearanceStyle,
+        layout: BarLayout,
         request_outputs: &config::Outputs,
         position: Position,
         layer: config::Layer,
@@ -370,8 +444,10 @@ impl Outputs {
         let to_remove = self
             .entries
             .iter()
-            .filter_map(|(name, shell_info, output_id)| {
-                if !Self::name_in_config(name, request_outputs) && shell_info.is_some() {
+            .filter_map(|(key, shell_info, output_id)| {
+                if !Self::name_in_config(&key.name, &key.description, request_outputs)
+                    && shell_info.is_some()
+                {
                     *output_id
                 } else {
                     None
@@ -383,9 +459,11 @@ impl Outputs {
         let to_add = self
             .entries
             .iter()
-            .filter_map(|(name, shell_info, output_id)| {
-                if Self::name_in_config(name, request_outputs) && shell_info.is_none() {
-                    Some((name.clone(), *output_id))
+            .filter_map(|(key, shell_info, output_id)| {
+                if Self::name_in_config(&key.name, &key.description, request_outputs)
+                    && shell_info.is_none()
+                {
+                    Some((key.clone(), *output_id))
                 } else {
                     None
                 }
@@ -395,14 +473,15 @@ impl Outputs {
 
         let mut tasks = Vec::new();
 
-        for (name, output_id) in to_add {
+        for (key, output_id) in to_add {
             if let Some(output_id) = output_id {
                 tasks.push(self.add(
-                    style,
+                    layout,
                     request_outputs,
                     position,
                     layer,
-                    name.as_str(),
+                    key.name.as_str(),
+                    key.description.as_str(),
                     output_id,
                     scale_factor,
                 ));
@@ -410,7 +489,7 @@ impl Outputs {
         }
 
         for output_id in to_remove {
-            tasks.push(self.remove(style, position, layer, output_id, scale_factor));
+            tasks.push(self.remove(layout, position, layer, output_id, scale_factor));
         }
 
         for shell_info in self.entries.iter_mut().filter_map(|(_, shell_info, _)| {
@@ -447,11 +526,11 @@ impl Outputs {
                 let destroy_task = old.destroy_surfaces();
 
                 let (id, create_task) =
-                    Self::create_output_layers(style, *output_id, position, layer, scale_factor);
+                    Self::create_output_layers(layout, *output_id, position, layer, scale_factor);
 
                 shell_info.id = id;
                 shell_info.menu = Menu::with_animations(animations_enabled);
-                shell_info.style = style;
+                shell_info.layout = layout;
                 shell_info.scale_factor = scale_factor;
 
                 tasks.push(Task::batch(vec![destroy_task, create_task]));
@@ -460,7 +539,7 @@ impl Outputs {
 
         for shell_info in self.entries.iter_mut().filter_map(|(_, shell_info, _)| {
             if let Some(shell_info) = shell_info
-                && (shell_info.style != style || shell_info.scale_factor != scale_factor)
+                && (shell_info.layout != layout || shell_info.scale_factor != scale_factor)
             {
                 Some(shell_info)
             } else {
@@ -468,15 +547,19 @@ impl Outputs {
             }
         }) {
             debug!(
-                "Change style or scale_factor for output: {:?}, new style {:?}, new scale_factor {:?}",
-                shell_info.id, style, scale_factor
+                "Change layout or scale_factor for output: {:?}, new layout {:?}, new scale_factor {:?}",
+                shell_info.id, layout, scale_factor
             );
-            shell_info.style = style;
+            shell_info.layout = layout;
             shell_info.scale_factor = scale_factor;
-            let height = Self::get_height(style, scale_factor);
+            let height = Self::get_height(layout.surface, scale_factor);
             tasks.push(Task::batch(vec![
                 set_size(shell_info.id, (0, height as u32)),
-                set_exclusive_zone(shell_info.id, height as i32),
+                set_exclusive_zone(
+                    shell_info.id,
+                    Self::exclusive_zone(layout, position, scale_factor),
+                ),
+                set_margin(shell_info.id, Self::margin(layout, scale_factor)),
             ]));
         }
 
@@ -486,7 +569,7 @@ impl Outputs {
     fn find_by_surface_id(
         &self,
         id: SurfaceId,
-    ) -> Option<&(String, Option<ShellInfo>, Option<OutputId>)> {
+    ) -> Option<&(OutputKey, Option<ShellInfo>, Option<OutputId>)> {
         self.entries.iter().find(|(_, shell_info, _)| {
             shell_info
                 .as_ref()
@@ -497,7 +580,7 @@ impl Outputs {
     fn find_by_surface_id_mut(
         &mut self,
         id: SurfaceId,
-    ) -> Option<&mut (String, Option<ShellInfo>, Option<OutputId>)> {
+    ) -> Option<&mut (OutputKey, Option<ShellInfo>, Option<OutputId>)> {
         self.entries.iter_mut().find(|(_, shell_info, _)| {
             shell_info
                 .as_ref()
@@ -762,7 +845,7 @@ impl Outputs {
             if *oid == Some(target) {
                 info.as_ref().and_then(|i| {
                     i.output_logical_height.map(|h| {
-                        let bar = Self::get_height(i.style, i.scale_factor) as u32;
+                        let bar = Self::get_height(i.layout.surface, i.scale_factor) as u32;
                         h.saturating_sub(bar)
                     })
                 })

@@ -1,6 +1,6 @@
 use crate::app::{self, App};
 use crate::components::{self, ButtonUIRef};
-use crate::config::{AppearanceStyle, Position};
+use crate::config::{BarSurface, Position};
 use crate::theme::{backdrop_color, use_theme};
 use iced::alignment::Vertical;
 use iced::widget::container::Style;
@@ -298,13 +298,13 @@ impl App {
         content: Element<'a, app::Message>,
         button_ui_ref: ButtonUIRef,
     ) -> Element<'a, app::Message> {
-        let (space, menu_opacity, radius, bar_style, bar_position, menu_backdrop) =
+        let (space, menu_opacity, radius, bar_surface, bar_position, menu_backdrop) =
             use_theme(|t| {
                 (
                     t.space,
                     t.menu.opacity,
                     t.radius,
-                    t.bar_style,
+                    t.bar_surface,
                     t.bar_position,
                     t.menu.backdrop,
                 )
@@ -332,9 +332,9 @@ impl App {
                 .into(),
         )
         .padding({
-            let v_padding = match bar_style {
-                AppearanceStyle::Solid | AppearanceStyle::Gradient => 2,
-                AppearanceStyle::Islands => 0,
+            let v_padding = match bar_surface {
+                BarSurface::Solid => 2,
+                BarSurface::Transparent => 0,
             };
 
             Padding::new(0.)

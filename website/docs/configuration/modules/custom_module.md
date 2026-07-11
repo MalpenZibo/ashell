@@ -67,26 +67,22 @@ The `listen_cmd` should output JSON in
 the [Waybar format](https://github.com/Alexays/Waybar/wiki/Module:-Custom#script-output),
 using `text` and `alt` fields.
 
-:::warning JSON must be compact (single-line)
+:::tip JSON Output
 
-The `listen_cmd` output is read line-by-line and each line is parsed as JSON.
-**Pretty-printed JSON will not work** because each line would be parsed separately.
+Output compact single-line JSON:
 
-Always output compact JSON, or pipe through `jq -c --unbuffered .` to compact it:
+```json
+{"text": "3", "alt": "notification"}
+```
+
+If you have pretty-printed JSON and want to use it in a single line, pipe it through `jq` to compact it:
 
 ```bash
 your-command | jq -c --unbuffered .
 ```
 
-For example, this pretty-printed JSON:
-```json
-{
-  "text": "3",
-  "alt": "notification"
-}
-```
+For example:
 
-Can be converted to compact format with:
 ```bash
 echo '{
   "text": "3",
@@ -95,9 +91,28 @@ echo '{
 # Output: {"text":"3","alt":"notification"}
 ```
 
+Or you can output pretty-printed multiline JSON directly, which is buffered until valid JSON is formed:
+
+```json
+{
+  "text": "3",
+  "alt": "notification"
+}
+```
+
+:::warning Multiline JSON Buffer Limit
+
+When using pretty-printed (multiline) JSON, output is accumulated in an internal buffer until a complete, parseable JSON object is received. As a safeguard against malformed output, for example a script that opens a `{` and never closes it, the buffer is capped at **1 MiB**. If that limit is exceeded, the buffered bytes are dropped, a warning is logged, and the buffer is cleared.
+
+This limit only applies while buffering multiline JSON. Single-line (compact) JSON output is unaffected since each line is parsed independently.
+
 :::
 
-### Example Output (compact JSON)
+See the configuration examples below for multiline usage.
+
+:::
+
+### Example Output
 
 ```json
 {"text": "3", "alt": "notification"}
@@ -142,7 +157,17 @@ Text modules display only the text output from `listen_cmd` without any click ac
 [[CustomModule]]
 name = "MyClock"
 type = "Text"
-listen_cmd = "sh -c 'while true; do echo \"{\\\"text\\\": \\\"$(date +\"%H:%M\")\\\", \\\"alt\\\": \\\"\\\"}\"; sleep 1; done'"
+listen_cmd = '''
+while true; do
+  cat <<EOF
+{
+  "text": "$(date +'%H:%M')",
+  "alt": ""
+}
+EOF
+  sleep 1
+done
+'''
 ```
 
 ### Button Module with Icon (Interactive)
@@ -173,14 +198,19 @@ command = "walker"
 
 ### Button Module with Text Output
 
-Button modules can also display text output from `listen_cmd` with a click action:
+Button modules can display text from a multiline JSON output from `listen_cmd` with a click action:
 
 ```toml
 [[CustomModule]]
 name = "Clipboard"
 type = "Button"
+icon = "📋"
 command = "cliphist-rofi-img | wl-copy"
-listen_cmd = "echo '{\"text\": \"📋\", \"alt\": \"\"}'"
+listen_cmd = '''printf '%s\n' '{
+  "text": "Clipboard content",
+  "alt": ""
+}'
+'''
 ```
 
 ### Notifications (with wired)

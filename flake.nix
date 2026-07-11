@@ -1,5 +1,5 @@
 {
-  description = "A ready to go Wayland status bar for Hyprland and Niri";
+  description = "A ready to go status bar for Wayland compositors";
 
   inputs = {
     crane.url = "github:ipetkov/crane";
@@ -112,6 +112,7 @@
     {
       packages = forAllSystems (system: {
         default = perSystem.${system}.defaultPackage;
+        deps = perSystem.${system}.cargoArtifacts;
       });
       devShells = forAllSystems (system: {
         default = perSystem.${system}.devShell;
