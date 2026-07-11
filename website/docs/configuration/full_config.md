@@ -87,7 +87,8 @@ alert_threshold = 85
 
 [media_player]
 # max_title_length = 100        # (default)
-# indicator_format = "IconAndTitle"  # (default) or "Icon"
+# indicator_format = "IconAndText"  # (default), "Text", or "Icon"
+# indicator_fields = ["Artist", "Title"] # (default), also supports "Album"
 
 [tray]
 # blocklist = ["regex"]    # (default: []) hide tray items matching regex patterns

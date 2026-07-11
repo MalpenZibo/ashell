@@ -721,8 +721,18 @@ pub struct SettingsCustomButton {
 #[derive(Deserialize, Copy, Clone, Default, PartialEq, Eq, Debug)]
 pub enum MediaPlayerFormat {
     Icon,
+    #[serde(alias = "Title")]
+    Text,
+    #[serde(alias = "IconAndTitle")]
     #[default]
-    IconAndTitle,
+    IconAndText,
+}
+
+#[derive(Deserialize, Copy, Clone, PartialEq, Eq, Debug)]
+pub enum MediaPlayerTextField {
+    Artist,
+    Title,
+    Album,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -731,6 +741,7 @@ pub struct MediaPlayerModuleConfig {
     pub max_title_length: u32,
     pub indicator_format: MediaPlayerFormat,
     pub show_visualizer: bool,
+    pub indicator_fields: Vec<MediaPlayerTextField>,
 }
 
 impl Default for MediaPlayerModuleConfig {
@@ -739,6 +750,7 @@ impl Default for MediaPlayerModuleConfig {
             max_title_length: 100,
             indicator_format: MediaPlayerFormat::default(),
             show_visualizer: false,
+            indicator_fields: vec![MediaPlayerTextField::Artist, MediaPlayerTextField::Title],
         }
     }
 }

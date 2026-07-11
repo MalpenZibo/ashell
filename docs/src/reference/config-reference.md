@@ -190,7 +190,9 @@ on_click = "vpn-toggle"
 
 ```toml
 [media_player]
-format = "{artist} - {title}"
+max_title_length = 100
+indicator_format = "IconAndText" # "Text", "IconAndText", or "Icon"
+indicator_fields = ["Artist", "Title"]
 ```
 
 **Dependencies:** Any MPRIS-compatible media player (e.g., Spotify, Firefox, VLC, Strawberry). No extra system package is needed.
