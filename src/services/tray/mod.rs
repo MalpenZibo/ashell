@@ -71,6 +71,24 @@ fn pixmap_to_icon(icons: Vec<dbus::Icon>) -> Option<TrayIcon> {
         })
 }
 
+async fn current_icon_from_proxy(item_proxy: &StatusNotifierItemProxy<'_>) -> Option<TrayIcon> {
+    match item_proxy.icon_pixmap().await.ok().and_then(pixmap_to_icon) {
+        Some(icon) => Some(icon),
+        None => item_proxy
+            .icon_name()
+            .await
+            .ok()
+            .as_deref()
+            .and_then(xdg_icons::get_icon_from_name),
+    }
+}
+
+fn split_service_name(name: &str) -> (&str, &str) {
+    match name.find('/') {
+        Some(idx) => (&name[..idx], &name[idx..]),
+        None => (name, "/StatusNotifierItem"),
+    }
+}
 #[derive(Debug, Clone)]
 pub enum TrayEvent {
     Registered(StatusNotifierItem),
@@ -91,11 +109,7 @@ pub struct StatusNotifierItem {
 
 impl StatusNotifierItem {
     pub async fn new(conn: &zbus::Connection, name: String) -> anyhow::Result<Self> {
-        let (dest, path) = if let Some(idx) = name.find('/') {
-            (&name[..idx], &name[idx..])
-        } else {
-            (name.as_ref(), "/StatusNotifierItem")
-        };
+        let (dest, path) = split_service_name(&name);
 
         let item_proxy = StatusNotifierItemProxy::builder(conn)
             .destination(dest.to_owned())?
@@ -105,15 +119,7 @@ impl StatusNotifierItem {
 
         debug!("item_proxy {item_proxy:?}");
 
-        let icon = match item_proxy.icon_pixmap().await.ok().and_then(pixmap_to_icon) {
-            Some(icon) => Some(icon),
-            None => item_proxy
-                .icon_name()
-                .await
-                .ok()
-                .as_deref()
-                .and_then(xdg_icons::get_icon_from_name),
-        };
+        let icon = current_icon_from_proxy(&item_proxy).await;
 
         let menu_path = item_proxy.menu().await?;
         let menu_proxy = dbus::DBusMenuProxy::builder(conn)
@@ -223,6 +229,7 @@ impl TrayService {
         let items = watcher.registered_status_notifier_items().await?;
         let mut icon_pixel_change = Vec::with_capacity(items.len());
         let mut icon_name_change = Vec::with_capacity(items.len());
+        let mut new_icon_change = Vec::with_capacity(items.len());
         let mut menu_layout_change = Vec::with_capacity(items.len());
 
         for name in items {
@@ -268,6 +275,38 @@ impl TrayService {
                     .boxed(),
             );
 
+            let new_icon = item.item_proxy.receive_new_icon().await;
+            if let Ok(new_icon) = new_icon {
+                let (dest, path) = split_service_name(&name);
+                // NewIcon has no matching PropertiesChanged, so a cached read would be stale;
+                let uncached_proxy = StatusNotifierItemProxy::builder(conn)
+                    .destination(dest.to_owned())?
+                    .path(path.to_owned())?
+                    .cache_properties(zbus::proxy::CacheProperties::No)
+                    .build()
+                    .await?;
+
+                new_icon_change.push(
+                    new_icon
+                        .filter_map({
+                            let name = name.clone();
+                            let uncached_proxy = uncached_proxy;
+
+                            move |_| {
+                                let name = name.clone();
+                                let uncached_proxy = uncached_proxy.clone();
+
+                                async move {
+                                    current_icon_from_proxy(&uncached_proxy)
+                                        .await
+                                        .map(|icon| TrayEvent::IconChanged(name.to_owned(), icon))
+                                }
+                            }
+                        })
+                        .boxed(),
+                );
+            }
+
             let layout_updated = item.menu_proxy.receive_layout_updated().await;
             if let Ok(layout_updated) = layout_updated {
                 menu_layout_change.push(
@@ -299,6 +338,7 @@ impl TrayService {
             unregistered,
             select_all(icon_pixel_change),
             select_all(icon_name_change),
+            select_all(new_icon_change),
             select_all(menu_layout_change)
         )
         .boxed())
