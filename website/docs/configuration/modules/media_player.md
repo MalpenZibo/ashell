@@ -6,8 +6,8 @@ sidebar_position: 4
 
 This module displays the current media playback status in the status bar. It only appears when at least one media player is active.
 
-You can configure the max media title length after which the title will be truncated
-using the `max_title_length` field (default: `100`).
+You can configure the max text length after which the indicator and menu text
+will be truncated using the `max_text_length` field (default: `100`).
 
 ### Indicator Format
 
@@ -41,25 +41,34 @@ current song title. An empty list uses the default fields.
 ### Visualizer
 
 The module can render an optional audio visualizer powered by
-[CAVA](https://github.com/karlstav/cava). It shows animated bars next to the
-indicator, but only while a player is actively playing. Enable it with the
-`show_visualizer` field (default: `false`):
+[CAVA](https://github.com/karlstav/cava). It animates only while a player is
+actively playing. Two independent settings control it.
+
+`indicator_visualizer` places the visualizer in the status bar indicator. Omit
+the field to disable it.
+
+| Value        | Description                                                    |
+| ------------ | -------------------------------------------------------------- |
+| `Background` | Draws the bars as a background behind the indicator content.  |
+| `Before`     | Draws the bars before (to the left of) the content.           |
+| `After`      | Draws the bars after (to the right of) the content.           |
+
+`menu_visualizer` (bool, default `false`) draws the bars as the background of
+the currently playing card in the media menu.
 
 ```toml
 [media_player]
-show_visualizer = true
+indicator_visualizer = "Background"
+menu_visualizer = true
 ```
 
 The bars are coloured with a gradient built from the active theme palette
-(`primary` at the bottom, `warning` in the middle, `danger` at the peak). In the
-media menu, the visualizer also fills the background of the card that is
-currently playing.
+(`primary` at the bottom, `warning` in the middle, `danger` at the peak).
 
 CAVA visualizes the system audio output, not the individual stream of the
 active player (MPRIS carries only metadata and playback controls, not audio
-samples). The visualizer is therefore shown only while the active player is
-playing, and `cava` is started on demand and stopped again while playback is
-paused.
+samples). The visualizer is therefore shown only while a player is playing,
+and `cava` is started on demand and stopped again while playback is paused.
 
 > **Requires** `cava` to be installed and available on your `$PATH`. If `cava`
 > is missing the visualizer stays hidden.
@@ -75,8 +84,9 @@ The menu shows all active media players with playback controls:
 
 ```toml
 [media_player]
-max_title_length = 50
+max_text_length = 50
 indicator_format = "Text"
 indicator_fields = ["Title"]
-show_visualizer = true
+indicator_visualizer = "Background"
+menu_visualizer = true
 ```

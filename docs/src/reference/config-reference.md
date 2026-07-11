@@ -190,9 +190,11 @@ on_click = "vpn-toggle"
 
 ```toml
 [media_player]
-max_title_length = 100
-indicator_format = "IconAndText" # "Text", "IconAndText", or "Icon"
+indicator_format = "IconAndText"     # "Text", "IconAndText", or "Icon"
 indicator_fields = ["Artist", "Title"]
+max_text_length = 100
+indicator_visualizer = "Background"  # "Background", "Before", or "After"; omit to disable
+menu_visualizer = false              # bars behind the menu cards
 ```
 
 **Dependencies:** Any MPRIS-compatible media player (e.g., Spotify, Firefox, VLC, Strawberry). No extra system package is needed.

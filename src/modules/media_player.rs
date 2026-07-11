@@ -2,7 +2,9 @@ use crate::{
     components::divider,
     components::icons::{StaticIcon, icon, icon_button},
     components::{ButtonSize, MenuSize},
-    config::{MediaPlayerFormat, MediaPlayerModuleConfig, MediaPlayerTextField},
+    config::{
+        MediaPlayerFormat, MediaPlayerModuleConfig, MediaPlayerTextField, MediaPlayerVisualizer,
+    },
     services::{
         ReadOnlyService, Service, ServiceEvent,
         mpris::{
@@ -23,13 +25,20 @@ use iced::{
     widget::{
         Stack,
         canvas::{self, Canvas, Fill, Frame, Geometry, Path},
-        column, container, image, row, slider, space, text,
+        column, container, image, row, scrollable, slider, space, text,
     },
 };
 use std::any::TypeId;
 
-const VISUALIZER_BAR_COUNT: usize = 12;
+const VISUALIZER_BAR_COUNT: usize = 32;
 const VISUALIZER_FRAMERATE: u32 = 60;
+
+const VISUALIZER_BAR_MIN_WIDTH: f32 = 2.0;
+const VISUALIZER_BAR_GAP: f32 = 2.0;
+const VISUALIZER_BG_BAR_MAX_WIDTH: f32 = 8.0;
+const VISUALIZER_BESIDE_BAR_MAX_WIDTH: f32 = 4.0;
+const VISUALIZER_BESIDE_WIDTH: f32 = 64.0;
+const VISUALIZER_BG_MIN_WIDTH: f32 = 64.0;
 
 struct VisualizerCanvas {
     bars: Vec<f32>,
@@ -40,6 +49,10 @@ struct VisualizerCanvas {
     // Corner radius of the surface behind the bars; the outermost bars round
     // their outer corners to match it (0 to keep square bars).
     radius: f32,
+    min_bar_width: f32,
+    max_bar_width: f32,
+    gap: f32,
+    inset: f32,
 }
 
 impl<M> canvas::Program<M> for VisualizerCanvas {
@@ -59,12 +72,12 @@ impl<M> canvas::Program<M> for VisualizerCanvas {
             return vec![frame.into_geometry()];
         }
 
-        let n = VISUALIZER_BAR_COUNT.min(self.bars.len());
-        // Fill the full width edge to edge: `n` bars plus `n - 1` gaps span the
-        // whole width, with each gap a third of a bar.
-        let bar_width = (bounds.width / (n as f32 + (n as f32 - 1.0) / 3.0)).max(1.0);
-        let gap = bar_width / 3.0;
-        let step = bar_width + gap;
+        let src = self.bars.len();
+        let avail = (bounds.width - 2.0 * self.inset).max(self.min_bar_width);
+        let n =
+            (((avail + self.gap) / (self.max_bar_width + self.gap)).ceil() as usize).clamp(1, src);
+        let bar_width = ((avail - (n - 1) as f32 * self.gap) / n as f32).max(self.min_bar_width);
+        let step = bar_width + self.gap;
 
         // The gradient is vertical, so its colour depends only on `y`: every bar
         // shares the same fill. Build it once instead of per bar.
@@ -92,8 +105,9 @@ impl<M> canvas::Program<M> for VisualizerCanvas {
         };
 
         for i in 0..n {
-            let height = self.bars[i] * bounds.height;
-            let x = i as f32 * step;
+            let value = self.bars[(i * src / n).min(src - 1)];
+            let height = value * bounds.height;
+            let x = self.inset + i as f32 * step;
             let y = bounds.height - height;
             let position = iced::Point::new(x, y);
             let size = iced::Size::new(bar_width, height);
@@ -175,6 +189,10 @@ impl MediaPlayer {
         self.active_player().map(|p| p.state) == Some(PlaybackStatus::Playing)
     }
 
+    fn visualizer_enabled(&self) -> bool {
+        self.config.indicator_visualizer.is_some() || self.config.menu_visualizer
+    }
+
     pub fn update(&mut self, message: Message) -> Action {
         match message {
             Message::Prev(s) => Action::Command(self.handle_command(s, PlayerCommand::Prev)),
@@ -212,7 +230,7 @@ impl MediaPlayer {
         }
     }
 
-    pub fn menu_view<'a>(&'a self) -> Element<'a, Message> {
+    pub fn menu_view<'a>(&'a self, is_closing: bool) -> Element<'a, Message> {
         let (space, font_size, opacity, radius, palette) = use_theme(|theme| {
             (
                 theme.space,
@@ -227,150 +245,163 @@ impl MediaPlayer {
             Some(service) => column!(
                 text(t!("media-player-heading")).size(font_size.lg),
                 divider(),
-                column(service.players().iter().map(|d| {
-                    const LEFT_COLUMN_WIDTH: Length = Length::FillPortion(3);
-                    const RIGHT_COLUMN_WIDTH: Length = Length::FillPortion(2);
-                    let m = d.metadata.as_ref();
-                    let title = m
-                        .and_then(|m| m.title.clone())
-                        .unwrap_or_else(|| t!("media-player-no-title"));
-                    let artists = m
-                        .and_then(|m| m.artists.clone())
-                        .map(|a| a.join(", "))
-                        .unwrap_or_else(|| t!("media-player-unknown-artist"));
-                    let album = m
-                        .and_then(|m| m.album.clone())
-                        .unwrap_or_else(|| t!("media-player-unknown-album"));
-                    let title = text(truncate_text(&title, self.config.max_title_length))
-                        .wrapping(text::Wrapping::WordOrGlyph)
-                        .width(Length::Fill);
-                    let artists = text(truncate_text(&artists, self.config.max_title_length))
-                        .wrapping(text::Wrapping::WordOrGlyph)
-                        .size(font_size.sm)
-                        .width(Length::Fill);
-                    let album = text(truncate_text(&album, self.config.max_title_length))
-                        .wrapping(text::Wrapping::WordOrGlyph)
-                        .size(font_size.sm)
-                        .width(Length::Fill);
-                    let description = column![title, artists, album]
-                        .spacing(space.xxs)
-                        .width(LEFT_COLUMN_WIDTH);
+                container(scrollable(
+                    column(service.players().iter().map(|d| {
+                        const LEFT_COLUMN_WIDTH: Length = Length::FillPortion(3);
+                        const RIGHT_COLUMN_WIDTH: Length = Length::FillPortion(2);
+                        let m = d.metadata.as_ref();
+                        let title = m
+                            .and_then(|m| m.title.clone())
+                            .unwrap_or_else(|| t!("media-player-no-title"));
+                        let artists = m
+                            .and_then(|m| m.artists.clone())
+                            .map(|a| a.join(", "))
+                            .unwrap_or_else(|| t!("media-player-unknown-artist"));
+                        let album = m
+                            .and_then(|m| m.album.clone())
+                            .unwrap_or_else(|| t!("media-player-unknown-album"));
+                        let title = text(truncate_text(&title, self.config.max_text_length))
+                            .wrapping(text::Wrapping::WordOrGlyph)
+                            .width(Length::Fill);
+                        let artists = text(truncate_text(&artists, self.config.max_text_length))
+                            .wrapping(text::Wrapping::WordOrGlyph)
+                            .size(font_size.sm)
+                            .width(Length::Fill);
+                        let album = text(truncate_text(&album, self.config.max_text_length))
+                            .wrapping(text::Wrapping::WordOrGlyph)
+                            .size(font_size.sm)
+                            .width(Length::Fill);
+                        let description = column![title, artists, album]
+                            .spacing(space.xxs)
+                            .width(LEFT_COLUMN_WIDTH);
 
-                    let play_pause_icon = match d.state {
-                        PlaybackStatus::Playing => StaticIcon::Pause,
-                        PlaybackStatus::Paused | PlaybackStatus::Stopped => StaticIcon::Play,
-                    };
+                        let play_pause_icon = match d.state {
+                            PlaybackStatus::Playing => StaticIcon::Pause,
+                            PlaybackStatus::Paused | PlaybackStatus::Stopped => StaticIcon::Play,
+                        };
 
-                    let buttons = container(
-                        row![
-                            icon_button(StaticIcon::SkipPrevious)
-                                .on_press(Message::Prev(d.service.clone()))
-                                .size(ButtonSize::Large),
-                            icon_button(play_pause_icon)
-                                .on_press(Message::PlayPause(d.service.clone()))
-                                .size(ButtonSize::Large),
-                            icon_button(StaticIcon::SkipNext)
-                                .on_press(Message::Next(d.service.clone()))
-                                .size(ButtonSize::Large),
-                        ]
-                        .align_y(Vertical::Center)
-                        .spacing(space.xs),
-                    )
-                    .center_x(RIGHT_COLUMN_WIDTH);
-                    let volume_slider: Option<Element<'_, _>> = d.volume.map(|v| {
-                        slider(0.0..=100.0, v, move |v| {
-                            Message::SetVolume(d.service.clone(), v)
-                        })
-                        .width(LEFT_COLUMN_WIDTH)
-                        .into()
-                    });
-                    let cover: Option<Element<'_, _>> = d
-                        .metadata
-                        .as_ref()
-                        .and_then(|m| m.art_url.as_ref())
-                        .map(|url| {
-                            let inner: Element<'_, _> = service
-                                .get_cover(url)
-                                .map(|handle| {
-                                    image(handle)
-                                        .filter_method(image::FilterMethod::Linear)
-                                        .into()
-                                })
-                                .unwrap_or_else(|| text(t!("media-player-loading-cover")).into());
-                            container(inner).center_x(RIGHT_COLUMN_WIDTH).into()
+                        let buttons = container(
+                            row![
+                                icon_button(StaticIcon::SkipPrevious)
+                                    .on_press(Message::Prev(d.service.clone()))
+                                    .size(ButtonSize::Large),
+                                icon_button(play_pause_icon)
+                                    .on_press(Message::PlayPause(d.service.clone()))
+                                    .size(ButtonSize::Large),
+                                icon_button(StaticIcon::SkipNext)
+                                    .on_press(Message::Next(d.service.clone()))
+                                    .size(ButtonSize::Large),
+                            ]
+                            .align_y(Vertical::Center)
+                            .spacing(space.xs),
+                        )
+                        .center_x(RIGHT_COLUMN_WIDTH);
+                        let volume_slider: Option<Element<'_, _>> = d.volume.map(|v| {
+                            slider(0.0..=100.0, v, move |v| {
+                                Message::SetVolume(d.service.clone(), v)
+                            })
+                            .width(LEFT_COLUMN_WIDTH)
+                            .into()
                         });
-                    let metadata = |description, cover| -> Element<'_, _> {
-                        row![description]
-                            .push(cover)
-                            .spacing(space.md)
-                            .align_y(Vertical::Center)
-                            .into()
-                    };
-                    let content: Element<'_, _> = match (volume_slider, cover) {
-                        (None, None) => row![description, buttons]
-                            .spacing(space.md)
-                            .padding(space.md)
-                            .align_y(Vertical::Center)
-                            .into(),
-                        (Some(v), cover) => {
-                            let controls =
-                                row![v, buttons].spacing(space.md).align_y(Vertical::Center);
-                            column![metadata(description, cover), controls]
+                        let cover: Option<Element<'_, _>> = (!is_closing)
+                            .then(|| {
+                                d.metadata
+                                    .as_ref()
+                                    .and_then(|m| m.art_url.as_ref())
+                                    .map(|url| {
+                                        let inner: Element<'_, _> = service
+                                            .get_cover(url)
+                                            .map(|handle| {
+                                                image(handle)
+                                                    .filter_method(image::FilterMethod::Linear)
+                                                    .into()
+                                            })
+                                            .unwrap_or_else(|| {
+                                                text(t!("media-player-loading-cover")).into()
+                                            });
+                                        container(inner).center_x(RIGHT_COLUMN_WIDTH).into()
+                                    })
+                            })
+                            .flatten();
+                        let metadata = |description, cover| -> Element<'_, _> {
+                            row![description]
+                                .push(cover)
+                                .spacing(space.md)
+                                .align_y(Vertical::Center)
+                                .into()
+                        };
+                        let content: Element<'_, _> = match (volume_slider, cover) {
+                            (None, None) => row![description, buttons]
                                 .spacing(space.md)
                                 .padding(space.md)
-                                .into()
-                        }
-                        (None, cover) => {
-                            let controls =
-                                row![space::horizontal().width(LEFT_COLUMN_WIDTH), buttons]
+                                .align_y(Vertical::Center)
+                                .into(),
+                            (Some(v), cover) => {
+                                let controls =
+                                    row![v, buttons].spacing(space.md).align_y(Vertical::Center);
+                                column![metadata(description, cover), controls]
                                     .spacing(space.md)
-                                    .align_y(Vertical::Center);
-                            column![metadata(description, cover), controls]
-                                .spacing(space.md)
-                                .padding(space.md)
+                                    .padding(space.md)
+                                    .into()
+                            }
+                            (None, cover) => {
+                                let controls =
+                                    row![space::horizontal().width(LEFT_COLUMN_WIDTH), buttons]
+                                        .spacing(space.md)
+                                        .align_y(Vertical::Center);
+                                column![metadata(description, cover), controls]
+                                    .spacing(space.md)
+                                    .padding(space.md)
+                                    .into()
+                            }
+                        };
+                        let card_playing = self.config.menu_visualizer
+                            && d.state == PlaybackStatus::Playing
+                            && !self.bars.is_empty()
+                            && !is_closing;
+                        let body: Element<'_, _> = if card_playing {
+                            Stack::new()
+                                .push(content)
+                                .push_under(
+                                    Canvas::new(VisualizerCanvas {
+                                        bars: self.bars.clone(),
+                                        low: palette.primary,
+                                        mid: palette.warning,
+                                        high: palette.danger,
+                                        opacity: 0.1,
+                                        radius: radius.lg,
+                                        min_bar_width: VISUALIZER_BAR_MIN_WIDTH,
+                                        max_bar_width: VISUALIZER_BG_BAR_MAX_WIDTH,
+                                        gap: VISUALIZER_BAR_GAP,
+                                        inset: 0.0,
+                                    })
+                                    .width(Length::Fill)
+                                    .height(Length::Fill),
+                                )
                                 .into()
-                        }
-                    };
-                    let card_playing = self.config.show_visualizer
-                        && d.state == PlaybackStatus::Playing
-                        && !self.bars.is_empty();
-                    let body: Element<'_, _> = if card_playing {
-                        Stack::new()
-                            .push(content)
-                            .push_under(
-                                Canvas::new(VisualizerCanvas {
-                                    bars: self.bars.clone(),
-                                    low: palette.primary,
-                                    mid: palette.warning,
-                                    high: palette.danger,
-                                    opacity: 0.1,
-                                    radius: radius.lg,
-                                })
-                                .width(Length::Fill)
-                                .height(Length::Fill),
-                            )
+                        } else {
+                            content
+                        };
+                        container(body)
+                            .style(move |app_theme: &Theme| container::Style {
+                                background: Background::Color(
+                                    app_theme
+                                        .extended_palette()
+                                        .background
+                                        .weak
+                                        .color
+                                        .scale_alpha(opacity),
+                                )
+                                .into(),
+                                border: Border::default().rounded(radius.lg),
+                                ..container::Style::default()
+                            })
+                            .width(Length::Fill)
                             .into()
-                    } else {
-                        content
-                    };
-                    container(body)
-                        .style(move |app_theme: &Theme| container::Style {
-                            background: Background::Color(
-                                app_theme
-                                    .extended_palette()
-                                    .background
-                                    .weak
-                                    .color
-                                    .scale_alpha(opacity),
-                            )
-                            .into(),
-                            border: Border::default().rounded(radius.lg),
-                            ..container::Style::default()
-                        })
-                        .width(Length::Fill)
-                        .into()
-                }))
-                .spacing(space.md)
+                    }))
+                    .spacing(space.md)
+                ))
+                .max_height(600)
             )
             .spacing(space.xs)
             .into(),
@@ -422,13 +453,13 @@ impl MediaPlayer {
         })
     }
 
-    fn get_title(&self, d: &MprisPlayerData) -> String {
-        let title =
+    fn indicator_text(&self, d: &MprisPlayerData) -> String {
+        let value =
             Self::format_metadata_fields(d.metadata.as_ref(), &self.config.indicator_fields);
-        if title.is_empty() {
+        if value.is_empty() {
             t!("media-player-no-title")
         } else {
-            truncate_text(&title, self.config.max_title_length)
+            truncate_text(&value, self.config.max_text_length)
         }
     }
 
@@ -436,50 +467,95 @@ impl MediaPlayer {
         let (space, font_size, palette) =
             use_theme(|theme| (theme.space, theme.font_size, theme.iced_theme.palette()));
         self.active_player().map(|player| {
-            let title = || {
+            let has_text = self.config.indicator_format != MediaPlayerFormat::Icon;
+            let label = || {
                 container(
-                    text(self.get_title(player))
+                    text(self.indicator_text(player))
                         .wrapping(text::Wrapping::None)
                         .size(font_size.sm),
                 )
                 .clip(true)
             };
 
-            let visualizer = (self.config.show_visualizer
-                && player.state == PlaybackStatus::Playing
-                && !self.bars.is_empty())
-            .then(|| {
+            let content = match self.config.indicator_format {
+                MediaPlayerFormat::Icon => row![icon(StaticIcon::MusicNote)],
+                MediaPlayerFormat::Text => row![label()],
+                MediaPlayerFormat::IconAndText => row![icon(StaticIcon::MusicNote), label()],
+            }
+            .align_y(Vertical::Center)
+            .spacing(space.xs)
+            .height(Length::Fill);
+
+            let active = player.state == PlaybackStatus::Playing && !self.bars.is_empty();
+
+            let beside_visualizer = || {
                 container(
                     Canvas::new(VisualizerCanvas {
                         bars: self.bars.clone(),
                         low: palette.primary,
                         mid: palette.warning,
                         high: palette.danger,
-                        opacity: 1.,
+                        opacity: 1.0,
                         radius: 0.0,
+                        min_bar_width: VISUALIZER_BAR_MIN_WIDTH,
+                        max_bar_width: VISUALIZER_BESIDE_BAR_MAX_WIDTH,
+                        gap: VISUALIZER_BAR_GAP,
+                        inset: 0.0,
                     })
-                    .width(Length::Fixed((VISUALIZER_BAR_COUNT * 4) as f32))
+                    .width(Length::Fill)
                     .height(Length::Fill),
                 )
+                .width(Length::Fixed(VISUALIZER_BESIDE_WIDTH))
                 .padding(space.xxs)
-            });
-
-            let content = match self.config.indicator_format {
-                MediaPlayerFormat::Icon => row![icon(StaticIcon::MusicNote)],
-                MediaPlayerFormat::Text => row![title()],
-                MediaPlayerFormat::IconAndText => row![icon(StaticIcon::MusicNote), title()],
             };
 
-            content
-                .push(visualizer)
-                .align_y(Vertical::Center)
-                .spacing(space.xs)
-                .into()
+            match self.config.indicator_visualizer {
+                Some(MediaPlayerVisualizer::Background) if active => {
+                    let base: Element<'_, Message> = if has_text {
+                        content.into()
+                    } else {
+                        container(icon(StaticIcon::MusicNote))
+                            .center_x(Length::Fixed(VISUALIZER_BG_MIN_WIDTH))
+                            .center_y(Length::Fill)
+                            .into()
+                    };
+                    Stack::new()
+                        .push(base)
+                        .push_under(
+                            Canvas::new(VisualizerCanvas {
+                                bars: self.bars.clone(),
+                                low: palette.primary,
+                                mid: palette.warning,
+                                high: palette.danger,
+                                opacity: 0.1,
+                                radius: 0.0,
+                                min_bar_width: VISUALIZER_BAR_MIN_WIDTH,
+                                max_bar_width: VISUALIZER_BG_BAR_MAX_WIDTH,
+                                gap: VISUALIZER_BAR_GAP,
+                                inset: space.xxs,
+                            })
+                            .width(Length::Fill)
+                            .height(Length::Fill),
+                        )
+                        .into()
+                }
+                Some(MediaPlayerVisualizer::Before) if active => row![beside_visualizer(), content]
+                    .align_y(Vertical::Center)
+                    .spacing(space.xs)
+                    .height(Length::Fill)
+                    .into(),
+                Some(MediaPlayerVisualizer::After) if active => row![content, beside_visualizer()]
+                    .align_y(Vertical::Center)
+                    .spacing(space.xs)
+                    .height(Length::Fill)
+                    .into(),
+                _ => content.into(),
+            }
         })
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        let cava = (self.config.show_visualizer && self.is_playing())
+        let cava = (self.visualizer_enabled() && self.is_playing())
             .then(|| self.cava_subscription().map(Message::Bars));
         Subscription::batch(
             [

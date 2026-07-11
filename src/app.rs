@@ -670,7 +670,9 @@ impl App {
                     ),
                     MenuType::MediaPlayer => self.menu_wrapper(
                         id,
-                        self.media_player.menu_view().map(Message::MediaPlayer),
+                        self.media_player
+                            .menu_view(self.outputs.menu_is_closing(id))
+                            .map(Message::MediaPlayer),
                         ui_ref,
                     ),
                     MenuType::SystemInfo => self.menu_wrapper(
