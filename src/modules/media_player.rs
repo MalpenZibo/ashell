@@ -2,11 +2,12 @@ use crate::{
     components::divider,
     components::icons::{StaticIcon, icon, icon_button},
     components::{ButtonSize, MenuSize},
-    config::{MediaPlayerFormat, MediaPlayerModuleConfig},
+    config::{MediaPlayerFormat, MediaPlayerModuleConfig, MediaPlayerTextField},
     services::{
         ReadOnlyService, Service, ServiceEvent,
         mpris::{
-            MprisPlayerCommand, MprisPlayerData, MprisPlayerService, PlaybackStatus, PlayerCommand,
+            MprisPlayerCommand, MprisPlayerData, MprisPlayerMetadata, MprisPlayerService,
+            PlaybackStatus, PlayerCommand,
         },
     },
     t,
@@ -390,10 +391,44 @@ impl MediaPlayer {
         }
     }
 
+    fn field_value(metadata: &MprisPlayerMetadata, field: MediaPlayerTextField) -> Option<String> {
+        match field {
+            MediaPlayerTextField::Artist => {
+                metadata.artists.as_ref().map(|artists| artists.join(", "))
+            }
+            MediaPlayerTextField::Title => metadata.title.clone(),
+            MediaPlayerTextField::Album => metadata.album.clone(),
+        }
+    }
+
+    fn format_metadata_fields(
+        metadata: Option<&MprisPlayerMetadata>,
+        fields: &[MediaPlayerTextField],
+    ) -> String {
+        let default_fields = [MediaPlayerTextField::Artist, MediaPlayerTextField::Title];
+        let fields = if fields.is_empty() {
+            &default_fields
+        } else {
+            fields
+        };
+
+        metadata.map_or_else(String::new, |metadata| {
+            fields
+                .iter()
+                .filter_map(|field| Self::field_value(metadata, *field))
+                .filter(|value| !value.is_empty())
+                .collect::<Vec<_>>()
+                .join(" - ")
+        })
+    }
+
     fn get_title(&self, d: &MprisPlayerData) -> String {
-        match &d.metadata {
-            Some(m) => truncate_text(&m.to_string(), self.config.max_title_length),
-            None => t!("media-player-no-title"),
+        let title =
+            Self::format_metadata_fields(d.metadata.as_ref(), &self.config.indicator_fields);
+        if title.is_empty() {
+            t!("media-player-no-title")
+        } else {
+            truncate_text(&title, self.config.max_title_length)
         }
     }
 
@@ -401,15 +436,14 @@ impl MediaPlayer {
         let (space, font_size, palette) =
             use_theme(|theme| (theme.space, theme.font_size, theme.iced_theme.palette()));
         self.active_player().map(|player| {
-            let title =
-                (self.config.indicator_format == MediaPlayerFormat::IconAndTitle).then(|| {
-                    container(
-                        text(self.get_title(player))
-                            .wrapping(text::Wrapping::None)
-                            .size(font_size.sm),
-                    )
-                    .clip(true)
-                });
+            let title = || {
+                container(
+                    text(self.get_title(player))
+                        .wrapping(text::Wrapping::None)
+                        .size(font_size.sm),
+                )
+                .clip(true)
+            };
 
             let visualizer = (self.config.show_visualizer
                 && player.state == PlaybackStatus::Playing
@@ -430,8 +464,13 @@ impl MediaPlayer {
                 .padding(space.xxs)
             });
 
-            row![icon(StaticIcon::MusicNote)]
-                .push(title)
+            let content = match self.config.indicator_format {
+                MediaPlayerFormat::Icon => row![icon(StaticIcon::MusicNote)],
+                MediaPlayerFormat::Text => row![title()],
+                MediaPlayerFormat::IconAndText => row![icon(StaticIcon::MusicNote), title()],
+            };
+
+            content
                 .push(visualizer)
                 .align_y(Vertical::Center)
                 .spacing(space.xs)

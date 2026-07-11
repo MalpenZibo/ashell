@@ -11,15 +11,32 @@ using the `max_title_length` field (default: `100`).
 
 ### Indicator Format
 
-The tray indicator can show either the media icon alone or the icon together with
-the current title. Configure this with the `indicator_format` field:
+The tray indicator can show configured metadata text, the media icon together
+with that text, or only the media icon. Configure this with the
+`indicator_format` field:
 
 | Value          | Description                                                |
 | -------------- | ---------------------------------------------------------- |
+| `Text`         | Displays only the configured text in the status bar.       |
+| `IconAndText`  | Displays the icon followed by the text (default).          |
 | `Icon`         | Displays only the media icon in the status bar.            |
-| `IconAndTitle` | Displays the icon followed by the current title (default). |
 
 Use `Icon` if you want a compact indicator or have limited space.
+
+### Indicator Fields
+
+When `indicator_format` is `Text` or `IconAndText`, configure the metadata
+fields shown in the status bar with `indicator_fields`
+(default: `["Artist", "Title"]`).
+
+Available fields:
+
+- `Artist`
+- `Title`
+- `Album`
+
+Fields are joined with ` - `. For example, use `["Title"]` to show only the
+current song title. An empty list uses the default fields.
 
 ### Visualizer
 
@@ -59,6 +76,7 @@ The menu shows all active media players with playback controls:
 ```toml
 [media_player]
 max_title_length = 50
-indicator_format = "Icon"
+indicator_format = "Text"
+indicator_fields = ["Title"]
 show_visualizer = true
 ```
