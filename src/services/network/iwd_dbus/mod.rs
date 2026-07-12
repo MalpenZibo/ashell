@@ -84,6 +84,17 @@ fn map_iwd_rssi_to_percent(rssi_hundredths: i16) -> u8 {
     percent.round() as u8
 }
 
+/// Maps an IWD network's connection status to the `DeviceState` reported for
+/// its `AccessPoint`. A connected network is `Activated`; everything else is
+/// `Disconnected`.
+fn ap_state_from_connected(connected: bool) -> DeviceState {
+    if connected {
+        DeviceState::Activated
+    } else {
+        DeviceState::Disconnected
+    }
+}
+
 impl<'a> Deref for IwdDbus<'a> {
     type Target = ObjectManagerProxy<'a>;
     fn deref(&self) -> &Self::Target {
@@ -161,11 +172,7 @@ impl super::NetworkBackend for IwdDbus<'_> {
                 strength: map_iwd_rssi_to_percent(signal_strength),
                 max_bitrate: 0,
                 frequency: 0,
-                state: if connected {
-                    DeviceState::Activated
-                } else {
-                    DeviceState::Disconnected
-                },
+                state: ap_state_from_connected(connected),
                 public: n.type_().await? == "open",
                 working: connected,
             };
@@ -629,9 +636,9 @@ impl IwdDbus<'_> {
                     .boxed(),
             );
 
-            // Register signal level agent with thresholds aligned to common bar ranges
-            // Bar ranges: >80% (5 bars), >55% (4 bars), >30% (3 bars), >5% (2 bars), ≤5% (1 bar)
-            // Using linear mapping, this translates to RSSI thresholds:
+            // Register signal level agent with thresholds aligned to NM's bar ranges
+            // NM's bar ranges: >80% (5 bars), >55% (4 bars), >30% (3 bars), >5% (2 bars), ≤5% (1 bar)
+            // Using NM linear mapping, this translates to RSSI thresholds:
             // 80% → -52 dBm, 55% → -67 dBm, 30% → -82 dBm, 5% → -97 dBm
             let signal_thresholds = [-52, -67, -82, -97];
             station
@@ -811,11 +818,7 @@ impl IwdDbus<'_> {
                 let connected = net.connected().await?;
                 aps.push(AccessPoint {
                     ssid,
-                    state: if connected {
-                        DeviceState::Activated
-                    } else {
-                        DeviceState::Disconnected
-                    },
+                    state: ap_state_from_connected(connected),
                     // _s is between 0 and -10000
                     // should be between 0 and 100
                     strength: map_iwd_rssi_to_percent(signal_strength),
