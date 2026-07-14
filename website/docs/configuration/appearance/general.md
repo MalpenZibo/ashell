@@ -22,6 +22,30 @@ Changing the font requires killing and restarting ashell process. The font confi
 
 :::
 
+:::tip Finding the exact font name
+
+The `font_name` must match the font's family name exactly (e.g. `"Terminus (TTF)"`,
+not `"Terminus"`). To list available fonts and their exact names, run:
+
+```bash
+fc-list | cut -d: -f2 | sort -u
+```
+
+:::
+
+:::info Font weight
+
+ashell picks the face whose declared weight is closest to Normal (400). If the
+font has no face with weight 400 (for example, Terminus TTF's Regular face reports
+weight 500/Medium), ashell uses the closest available face. Text that requests a
+different weight (e.g. Bold) will then look the same as regular text.
+
+This is also why ashell **cannot use bitmap fonts** (`.bdf`/`.pcf`), which are
+the format of the `terminus-font` package on Arch Linux — only TrueType (`.ttf`)
+and OpenType (`.otf`/`.otc`) fonts are supported.
+
+:::
+
 ## Scaling Factor
 
 You can change the scaling factor of the status bar using the `scale_factor` field.
