@@ -90,6 +90,9 @@ settings-power-status-unknown = Inconnu
 ## Paramètres — inhibiteur de veille
 settings-idle-inhibitor = Inhibiteur de veille
 
+## Paramètres - rétroéclairage du clavier
+settings-kbd-backlight = Clavier
+
 ## Paramètres — infobulles
 settings-tooltip-empty = Rien à afficher
 settings-tooltip-empty-audio = Aucun périphérique audio actif

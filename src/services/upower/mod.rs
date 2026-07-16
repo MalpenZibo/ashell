@@ -1,6 +1,8 @@
 use super::{ReadOnlyService, Service, ServiceEvent};
 use crate::{
-    components::icons::StaticIcon, services::throttle::ThrottleExt, utils::IndicatorState,
+    components::icons::StaticIcon,
+    services::{throttle::ThrottleExt, upower::dbus::KbdBacklightProxy},
+    utils::{IndicatorState, remote_value::Remote},
 };
 use dbus::{DeviceProxy, PowerProfilesProxy, SystemBattery, UPowerDbus, UPowerProxy, UpDeviceKind};
 use iced::{
@@ -13,7 +15,7 @@ use iced::{
     },
     stream::channel,
 };
-use log::{error, warn};
+use log::{debug, error, warn};
 use serde::Deserialize;
 use std::{any::TypeId, fmt, time::Duration};
 use zbus::zvariant::ObjectPath;
@@ -234,6 +236,7 @@ pub enum UPowerEvent {
     UpdatePeripherals(Vec<Peripheral>),
     NoBattery,
     UpdatePowerProfile(PowerProfile),
+    UpdateKbdBrightness(i32),
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -282,12 +285,20 @@ impl From<PowerProfile> for StaticIcon {
     }
 }
 
+#[derive(Default, Debug, Clone)]
+pub struct KbdBacklight {
+    pub max: i32,
+    pub current: Remote<i32>,
+    pub retained: Option<i32>,
+}
+
 #[derive(Debug, Clone)]
 pub struct UPowerService {
     pub system_battery: Option<BatteryData>,
     pub charge_limit: Option<ChargeLimit>,
     pub peripherals: Vec<Peripheral>,
     pub power_profile: PowerProfile,
+    pub kbd_backlight: Option<KbdBacklight>,
     conn: zbus::Connection,
 }
 
@@ -323,6 +334,13 @@ impl ReadOnlyService for UPowerService {
             UPowerEvent::UpdatePowerProfile(profile) => {
                 self.power_profile = profile;
             }
+            UPowerEvent::UpdateKbdBrightness(kbd_brightness) => {
+                if let Some(kbd_backlight) = self.kbd_backlight.as_mut() {
+                    kbd_backlight.current.receive(kbd_brightness);
+                } else {
+                    error!("Keyboard backlight not initialised")
+                }
+            }
         }
     }
 
@@ -347,6 +365,7 @@ impl UPowerService {
         Option<ChargeLimit>,
         Vec<Peripheral>,
         PowerProfile,
+        Option<KbdBacklight>,
     )> {
         let system_battery = UPowerService::initialize_system_battery_data(conn).await?;
         let charge_limit = if let Some((_, battery)) = system_battery.as_ref() {
@@ -357,6 +376,7 @@ impl UPowerService {
         let peripherals = UPowerService::initialize_peripheral_data(conn).await?;
 
         let power_profile = UPowerService::initialize_power_profile_data(conn).await;
+        let kbd_backlight = UPowerService::initialize_kbd_backlight_data(conn).await;
 
         match (system_battery, power_profile) {
             (Some(battery), Ok(power_profile)) => Ok((
@@ -364,6 +384,7 @@ impl UPowerService {
                 charge_limit,
                 peripherals,
                 power_profile,
+                kbd_backlight,
             )),
             (Some(battery), Err(err)) => {
                 warn!("Failed to get power profile: {err}");
@@ -373,13 +394,26 @@ impl UPowerService {
                     charge_limit,
                     peripherals,
                     PowerProfile::Unknown,
+                    kbd_backlight,
                 ))
             }
-            (None, Ok(power_profile)) => Ok((None, charge_limit, peripherals, power_profile)),
+            (None, Ok(power_profile)) => Ok((
+                None,
+                charge_limit,
+                peripherals,
+                power_profile,
+                kbd_backlight,
+            )),
             (None, Err(err)) => {
                 warn!("Failed to get power profile: {err}");
 
-                Ok((None, charge_limit, peripherals, PowerProfile::Unknown))
+                Ok((
+                    None,
+                    charge_limit,
+                    peripherals,
+                    PowerProfile::Unknown,
+                    kbd_backlight,
+                ))
             }
         }
     }
@@ -395,6 +429,30 @@ impl UPowerService {
             .map(PowerProfile::from)?;
 
         Ok(profile)
+    }
+
+    async fn initialize_kbd_backlight_data(conn: &zbus::Connection) -> Option<KbdBacklight> {
+        let proxy = KbdBacklightProxy::new(conn).await.ok()?;
+        let max = proxy.get_max_brightness().await.ok()?;
+        let mut current = Remote::<i32>::default();
+        current.receive(proxy.get_brightness().await.ok()?);
+        Some(KbdBacklight {
+            max,
+            current,
+            retained: None,
+        })
+    }
+
+    pub fn set_kbd_backlight(&self, brightness: i32) {
+        let conn = self.conn.clone();
+        tokio::spawn(async move {
+            match KbdBacklightProxy::new(&conn).await {
+                Ok(proxy) => {
+                    let _ = proxy.set_brightness(brightness).await;
+                }
+                Err(err) => error!("Failed to set brightness {err}"),
+            }
+        });
     }
 
     async fn initialize_system_battery_data(
@@ -722,13 +780,39 @@ impl UPowerService {
                     )
                 });
 
+        let kbd_backlight_event = async {
+            let proxy = KbdBacklightProxy::new(conn).await?;
+            proxy.receive_brightness_changed().await
+        }
+        .await
+        .map(|stream| {
+            stream
+                .filter_map({
+                    |brightness_changed| async move {
+                        match brightness_changed.args() {
+                            Ok(args) => Some(UPowerEvent::UpdateKbdBrightness(*args.value())),
+                            Err(err) => {
+                                error!("Failed to fetch keyboard backlight: {err}");
+                                None
+                            }
+                        }
+                    }
+                })
+                .boxed()
+        })
+        .unwrap_or_else(|err| {
+            debug!("Keyboard backlight not found: {err}");
+            pending().boxed()
+        });
+
         Ok(stream_select!(
             system_battery_event,
             charge_limit_event,
             peripheral_event,
             device_added_event,
             device_removed_event,
-            power_profile_event
+            power_profile_event,
+            kbd_backlight_event
         ))
     }
 
@@ -736,7 +820,13 @@ impl UPowerService {
         match state {
             State::Init => match zbus::Connection::system().await {
                 Ok(conn) => match UPowerService::initialize_data(&conn).await {
-                    Ok((system_battery, charge_limit, peripherals, power_profile)) => {
+                    Ok((
+                        system_battery,
+                        charge_limit,
+                        peripherals,
+                        power_profile,
+                        kbd_brightness,
+                    )) => {
                         let peripheral_paths = peripherals
                             .iter()
                             .map(|p| p.device.inner().path().clone())
@@ -747,6 +837,7 @@ impl UPowerService {
                             charge_limit,
                             peripherals,
                             power_profile,
+                            kbd_backlight: kbd_brightness,
                             conn: conn.clone(),
                         };
                         let _ = output.send(ServiceEvent::Init(service)).await;
