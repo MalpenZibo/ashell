@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use iced::{
-    Alignment, Border, Element, Length, Task, Theme,
+    Alignment, Border, Element, Length, Task, Theme, alignment,
     widget::{container, progress_bar, row, text},
 };
 use tokio::time::sleep;
@@ -146,7 +146,7 @@ impl Osd {
         let detail: Element<'_, Message> = match state.kind {
             OsdKind::Volume | OsdKind::Microphone | OsdKind::Brightness => {
                 let mut bar = progress_bar(0.0..=state.scale, state.value)
-                    .length(160.0)
+                    .length(Length::Fill)
                     .girth(8.0);
                 if state.muted {
                     bar = bar.style(progress_bar::secondary);
@@ -157,9 +157,12 @@ impl Osd {
                     let pct = (state.value * 100.0).round() as u32;
                     row![
                         container(bar).center_x(Length::Fill),
-                        text(format!("{pct}%")).size(font_size.sm),
+                        text(format!("{pct}%"))
+                            .size(font_size.sm)
+                            .width(font_size.sm * 3.0) // 3.0 might not be perfect for every font(?)
+                            .align_x(alignment::Horizontal::Right)
+                            .align_y(alignment::Vertical::Center),
                     ]
-                    .spacing(space.sm)
                     .align_y(Alignment::Center)
                     .into()
                 } else {
@@ -179,10 +182,13 @@ impl Osd {
         };
 
         let content = row![
-            container(icon.to_text().size(font_size.xxl)).center_x(font_size.xxl),
+            icon.to_text()
+                .size(font_size.xxl)
+                .width(font_size.xxl)
+                .align_x(alignment::Horizontal::Left)
+                .align_y(alignment::Vertical::Center),
             detail,
         ]
-        .spacing(space.sm)
         .align_y(Alignment::Center);
 
         container(content)
