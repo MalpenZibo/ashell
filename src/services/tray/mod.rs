@@ -89,6 +89,20 @@ fn split_service_name(name: &str) -> (&str, &str) {
         None => (name, "/StatusNotifierItem"),
     }
 }
+
+fn normalize_layout(item: &mut Layout) {
+    let mut prev_sep = false;
+    item.2.retain(|child| {
+        let sep = child.1.type_.as_deref() == Some("separator");
+        let keep = !(sep && prev_sep);
+        prev_sep = sep;
+        keep
+    });
+    for child in item.2.iter_mut() {
+        normalize_layout(child);
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum TrayEvent {
     Registered(StatusNotifierItem),
@@ -128,7 +142,8 @@ impl StatusNotifierItem {
             .build()
             .await?;
 
-        let (_, menu) = menu_proxy.get_layout(0, -1, &[]).await?;
+        let (_, mut menu) = menu_proxy.get_layout(0, -1, &[]).await?;
+        normalize_layout(&mut menu);
 
         Ok(Self {
             name,
@@ -321,7 +336,8 @@ impl TrayService {
                                 let menu_proxy = menu_proxy.clone();
                                 async move {
                                     menu_proxy.get_layout(0, -1, &[]).await.ok().map(
-                                        |(_, layout)| {
+                                        |(_, mut layout)| {
+                                            normalize_layout(&mut layout);
                                             TrayEvent::MenuLayoutChanged(name.to_owned(), layout)
                                         },
                                     )
@@ -424,7 +440,8 @@ impl TrayService {
             )
             .await?;
 
-        let (_, layout) = menu_proxy.get_layout(0, -1, &[]).await?;
+        let (_, mut layout) = menu_proxy.get_layout(0, -1, &[]).await?;
+        normalize_layout(&mut layout);
 
         Ok(layout)
     }
