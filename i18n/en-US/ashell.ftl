@@ -94,6 +94,9 @@ settings-power-status-full = Full
 ## Settings — idle inhibitor
 settings-idle-inhibitor = Idle Inhibitor
 
+## Settings - keyboard backlight
+settings-kbd-backlight = Keyboard
+
 ## Settings — tooltips
 settings-tooltip-empty = Nothing to show
 settings-tooltip-empty-audio = No active audio device

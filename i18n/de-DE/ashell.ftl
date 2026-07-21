@@ -95,6 +95,9 @@ settings-power-status-full = Voll
 ## Einstellungen — Kein Ruhezustand
 settings-idle-inhibitor = Kein Ruhezustand
 
+## Einstellungen – Tastaturbeleuchtung
+settings-kbd-backlight = Tastatur
+
 ## Einstellungen — tooltips
 settings-tooltip-empty = Ziemlich leer hier
 settings-tooltip-empty-audio = Kein aktives Audio-Gerät
