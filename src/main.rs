@@ -8,7 +8,7 @@ use flexi_logger::{
 };
 use iced::{
     Anchor, Font, KeyboardInteractivity, Layer, LayerShellSettings,
-    font::{Style as FontStyle, Weight as FontWeight},
+    font::{Stretch as FontStretch, Style as FontStyle, Weight as FontWeight},
 };
 use log::{debug, error, warn};
 use std::backtrace::Backtrace;
@@ -96,6 +96,27 @@ fn fontdb_weight_to_iced(weight: fontdb::Weight) -> FontWeight {
     }
 }
 
+fn fontdb_stretch_to_iced(stretch: fontdb::Stretch) -> FontStretch {
+    match stretch {
+        fontdb::Stretch::UltraCondensed => FontStretch::UltraCondensed,
+        fontdb::Stretch::ExtraCondensed => FontStretch::ExtraCondensed,
+        fontdb::Stretch::Condensed => FontStretch::Condensed,
+        fontdb::Stretch::SemiCondensed => FontStretch::SemiCondensed,
+        fontdb::Stretch::Normal => FontStretch::Normal,
+        fontdb::Stretch::SemiExpanded => FontStretch::SemiExpanded,
+        fontdb::Stretch::Expanded => FontStretch::Expanded,
+        fontdb::Stretch::ExtraExpanded => FontStretch::ExtraExpanded,
+        fontdb::Stretch::UltraExpanded => FontStretch::UltraExpanded,
+    }
+}
+
+// NOTE: workaround for iced-rs/iced#2847 — iced 0.14 doesn't expose face
+// selection, so cosmic-text's matcher can silently jump to another family
+// when the requested weight/stretch/style has no exact face. We pre-resolve
+// the real face here and pass its actual attributes so the matcher stays put.
+// Remove once iced exposes face selection. Loads the system font DB a second
+// time (cosmic-text already loads it internally); acceptable as a one-shot
+// startup cost paid only when `font_name` is set.
 fn resolve_font(name: &str) -> Font {
     let mut db = fontdb::Database::new();
     db.load_system_fonts();
@@ -127,13 +148,12 @@ fn resolve_font(name: &str) -> Font {
             style_penalty + stretch_penalty + weight_penalty
         });
 
-    if best_face.is_none() {
+    let Some(face) = best_face else {
         warn!("Font '{}' was not found in the system font database.", name);
         warn!("  Use `fc-list` to list all available fonts and their exact family names.");
         return Font::with_name(Box::leak(name.to_string().into_boxed_str()));
-    }
+    };
 
-    let face = best_face.unwrap();
     let weight = face.weight;
     let iced_weight = fontdb_weight_to_iced(weight);
 
@@ -154,11 +174,10 @@ fn resolve_font(name: &str) -> Font {
     Font {
         family: iced::font::Family::Name(Box::leak(name.to_string().into_boxed_str())),
         weight: iced_weight,
-        stretch: iced::font::Stretch::Normal,
-        style: if face.style == fontdb::Style::Italic {
-            FontStyle::Italic
-        } else {
-            FontStyle::Normal
+        stretch: fontdb_stretch_to_iced(face.stretch),
+        style: match face.style {
+            fontdb::Style::Italic | fontdb::Style::Oblique => FontStyle::Italic,
+            fontdb::Style::Normal => FontStyle::Normal,
         },
     }
 }
