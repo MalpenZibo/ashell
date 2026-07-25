@@ -1033,6 +1033,20 @@ impl Default for MenuAppearance {
     }
 }
 
+#[derive(Deserialize, Clone, Copy, Debug)]
+#[serde(default)]
+pub struct SettingsAppearance {
+    pub spacing: SpaceSize,
+}
+
+impl Default for SettingsAppearance {
+    fn default() -> Self {
+        Self {
+            spacing: SpaceSize::Xs,
+        }
+    }
+}
+
 #[derive(Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct Appearance {
@@ -1049,6 +1063,8 @@ pub struct Appearance {
     pub text_color: AppearanceColor,
     pub workspace_colors: Vec<AppearanceColor>,
     pub special_workspace_colors: Option<Vec<AppearanceColor>>,
+
+    pub settings: SettingsAppearance,
 }
 
 static PRIMARY: HexColor = HexColor::rgb(122, 162, 247);
@@ -1104,6 +1120,7 @@ impl Default for Appearance {
             scale_factor: 1.0,
             bar: BarAppearance::default(),
             menu: MenuAppearance::default(),
+            settings: SettingsAppearance::default(),
             background_color: BackgroundAppearanceColor::Complete {
                 base: HexColor::rgb(26, 27, 38),
                 weakest: None,

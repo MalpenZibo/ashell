@@ -4,7 +4,7 @@ use crate::{
     components::button::{ButtonHierarchy, ButtonKind},
     config::{
         Appearance, AppearanceColor, BackgroundLevel, BarAppearance, BarMargin, BarRadius,
-        BarSurface, MenuAppearance, Position, RadiusSize, SpaceSize,
+        BarSurface, MenuAppearance, Position, RadiusSize, SettingsAppearance, SpaceSize,
     },
 };
 use iced::{
@@ -117,6 +117,7 @@ impl BarLayout {
 
     fn new(surface: BarSurface, margin: BarMargin) -> Self {
         let space = Space::default();
+
         Self {
             surface,
             margin: (
@@ -159,6 +160,9 @@ impl Default for FontSize {
 pub struct AshellTheme {
     pub iced_theme: Theme,
     pub space: Space,
+
+    pub settings: SettingsAppearance,
+
     pub radius: Radius,
     pub font_size: FontSize,
     pub bar_position: Position,
@@ -303,6 +307,9 @@ fn base_theme_from_appearance(
         bar_margin: appearance.bar.margin,
         opacity: appearance.bar.opacity,
         menu: appearance.menu,
+
+        settings: appearance.settings,
+
         workspace_colors: appearance.workspace_colors.clone(),
         special_workspace_colors: appearance.special_workspace_colors.clone(),
         scale_factor: appearance.scale_factor,

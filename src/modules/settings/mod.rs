@@ -754,7 +754,9 @@ impl Settings {
     }
 
     pub fn view<'a>(&'a self, id: SurfaceId) -> Element<'a, Message> {
-        let space = use_theme(|t| t.space);
+        let (theme_space, spacing_size) = use_theme(|t| (t.space, t.settings.spacing));
+        let space = theme_space.resolve(spacing_size);
+
         let mut row = Row::with_capacity(self.indicators.len());
 
         for indicator in &self.indicators {
@@ -868,7 +870,7 @@ impl Settings {
             }
         }
 
-        row.spacing(space.xs).into()
+        row.spacing(space).into()
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
