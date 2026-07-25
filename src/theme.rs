@@ -4,7 +4,7 @@ use crate::{
     components::button::{ButtonHierarchy, ButtonKind},
     config::{
         Appearance, AppearanceColor, BackgroundLevel, BarAppearance, BarMargin, BarRadius,
-        BarSurface, MenuAppearance, Position, RadiusSize, SettingsAppearance, SpaceSize,
+        BarSurface, MenuAppearance, ModuleAppearance, Position, RadiusSize, SpaceSize,
     },
 };
 use iced::{
@@ -161,7 +161,9 @@ pub struct AshellTheme {
     pub iced_theme: Theme,
     pub space: Space,
 
-    pub settings: SettingsAppearance,
+    pub settings: ModuleAppearance,
+    pub system_info: ModuleAppearance,
+    pub workspaces: ModuleAppearance,
 
     pub radius: Radius,
     pub font_size: FontSize,
@@ -309,6 +311,8 @@ fn base_theme_from_appearance(
         menu: appearance.menu,
 
         settings: appearance.settings,
+        system_info: appearance.system_info,
+        workspaces: appearance.workspaces,
 
         workspace_colors: appearance.workspace_colors.clone(),
         special_workspace_colors: appearance.special_workspace_colors.clone(),

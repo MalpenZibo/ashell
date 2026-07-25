@@ -637,7 +637,9 @@ impl SystemInfo {
     }
 
     pub fn view(&'_ self) -> Element<'_, Message> {
-        let space = use_theme(|t| t.space);
+        let (theme_space, space_sizing) = use_theme(|t| (t.space, t.system_info.spacing));
+        let space = theme_space.resolve(space_sizing);
+
         let indicators = self.config.indicators.iter().filter_map(|i| match i {
             SystemInfoIndicator::Cpu => Some(Self::indicator_info_element(
                 StaticIcon::Cpu,
@@ -775,7 +777,7 @@ impl SystemInfo {
 
         Row::with_children(indicators)
             .align_y(Alignment::Center)
-            .spacing(space.xxs)
+            .spacing(space)
             .into()
     }
 

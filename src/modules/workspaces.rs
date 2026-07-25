@@ -513,6 +513,9 @@ impl Workspaces {
         let monitor_name = outputs.get_monitor_name(id);
 
         let row = use_theme(|theme| {
+            let (theme_space, space_sizing) = (theme.space, theme.workspaces.spacing);
+            let space = theme_space.resolve(space_sizing);
+
             Row::with_children(
                 self.ui_workspaces
                     .iter()
@@ -685,7 +688,7 @@ impl Workspaces {
                     })
                     .collect::<Vec<_>>(),
             )
-            .spacing(theme.space.xxs)
+            .spacing(space)
         });
 
         let scroll_monitor = monitor_name.map(str::to_owned);

@@ -1035,11 +1035,11 @@ impl Default for MenuAppearance {
 
 #[derive(Deserialize, Clone, Copy, Debug)]
 #[serde(default)]
-pub struct SettingsAppearance {
+pub struct ModuleAppearance {
     pub spacing: SpaceSize,
 }
 
-impl Default for SettingsAppearance {
+impl Default for ModuleAppearance {
     fn default() -> Self {
         Self {
             spacing: SpaceSize::Xs,
@@ -1064,7 +1064,9 @@ pub struct Appearance {
     pub workspace_colors: Vec<AppearanceColor>,
     pub special_workspace_colors: Option<Vec<AppearanceColor>>,
 
-    pub settings: SettingsAppearance,
+    pub settings: ModuleAppearance,
+    pub system_info: ModuleAppearance,
+    pub workspaces: ModuleAppearance,
 }
 
 static PRIMARY: HexColor = HexColor::rgb(122, 162, 247);
@@ -1120,7 +1122,13 @@ impl Default for Appearance {
             scale_factor: 1.0,
             bar: BarAppearance::default(),
             menu: MenuAppearance::default(),
-            settings: SettingsAppearance::default(),
+            settings: ModuleAppearance::default(),
+            system_info: ModuleAppearance {
+                spacing: SpaceSize::Xxs,
+            },
+            workspaces: ModuleAppearance {
+                spacing: SpaceSize::Xxs,
+            },
             background_color: BackgroundAppearanceColor::Complete {
                 base: HexColor::rgb(26, 27, 38),
                 weakest: None,
