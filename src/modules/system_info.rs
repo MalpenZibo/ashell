@@ -5,8 +5,9 @@ use crate::{
         module_group,
     },
     config::{
-        CpuFormat, DiskFormat, MemoryFormat, ModuleGroup, ModuleName, SystemInfoIndicator,
-        SystemInfoModuleConfig, SystemInfoTemperature, TemperatureSensor, TemperatureSensorType,
+        CpuFormat, DiskFormat, MemoryFormat, ModuleAppearance, ModuleGroup, ModuleName,
+        SystemInfoIndicator, SystemInfoModuleConfig, SystemInfoTemperature, TemperatureSensor,
+        TemperatureSensorType,
     },
     i18n::{UnitSystem, unit_system},
     t,
@@ -639,14 +640,12 @@ impl SystemInfo {
     }
 
     pub fn view(&'_ self) -> Element<'_, Message> {
-        let (theme_space, space_sizing, grouping) = use_theme(|t| {
-            let module_appearance = t.modules.get(&ModuleName::SystemInfo).unwrap_or(&t.module);
-            (
-                t.space,
-                module_appearance.spacing,
-                module_appearance.grouping,
-            )
-        });
+        let (theme_space, module_appearances) = use_theme(|t| (t.space, t.modules.clone()));
+        let binding = &ModuleAppearance::default();
+        let module_appearance = module_appearances
+            .get(&ModuleName::SystemInfo)
+            .unwrap_or(binding);
+        let (space_sizing, grouping) = (module_appearance.spacing, module_appearance.grouping);
 
         let space = theme_space.resolve(space_sizing);
 
@@ -788,7 +787,7 @@ impl SystemInfo {
 
             element.map(|el| {
                 if grouping == ModuleGroup::Individual {
-                    module_group(el)
+                    module_group(el, Some(module_appearance))
                 } else {
                     el
                 }

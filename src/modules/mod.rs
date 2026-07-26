@@ -84,9 +84,14 @@ impl App {
     fn build_module_item<'a>(
         &'a self,
         id: SurfaceId,
+        module_name: &'a ModuleName,
         content: Element<'a, Message>,
         action: Option<OnModulePress>,
     ) -> Element<'a, Message> {
+        let no_hover = use_theme(|t| {
+            t.modules.get(module_name).unwrap_or(&t.module).grouping != ModuleGroup::Combined
+        });
+
         let content = if use_theme(|t| t.animations_enabled) {
             animated_size(content).into()
         } else {
@@ -94,7 +99,7 @@ impl App {
         };
         match action {
             Some(action) => {
-                let mut item = module_item(content);
+                let mut item = module_item(content).no_hover(no_hover);
                 match action {
                     OnModulePress::Action(msg) => {
                         item = item.on_press(*msg);
@@ -147,7 +152,7 @@ impl App {
                 }
                 item.into()
             }
-            None => module_item(content).into(),
+            None => module_item(content).no_hover(no_hover).into(),
         }
     }
 
@@ -157,18 +162,18 @@ impl App {
         module_name: &'a ModuleName,
     ) -> Option<Element<'a, Message>> {
         let module_appearances = use_theme(|t| t.modules.clone());
-        let grouping = module_appearances
-            .get(module_name)
+        let module_appearance = module_appearances.get(module_name);
+        let grouping = module_appearance
             .unwrap_or(&ModuleAppearance::default())
             .grouping;
 
         self.get_module_view(id, module_name)
             .map(|(content, action)| {
-                let item = self.build_module_item(id, content, action);
+                let item = self.build_module_item(id, module_name, content, action);
 
                 match grouping {
                     ModuleGroup::None | ModuleGroup::Individual => item,
-                    ModuleGroup::Combined => module_group(item),
+                    ModuleGroup::Combined => module_group(item, module_appearance),
                 }
             })
     }
@@ -192,15 +197,15 @@ impl App {
         let items = module_items
             .into_iter()
             .map(|(module_name, (content, action))| {
-                let item = self.build_module_item(id, content, action);
-                let grouping = module_appearances
-                    .get(module_name)
+                let item = self.build_module_item(id, module_name, content, action);
+                let module_appearance = module_appearances.get(module_name);
+                let grouping = module_appearance
                     .unwrap_or(&ModuleAppearance::default())
                     .grouping;
 
                 match grouping {
                     ModuleGroup::None | ModuleGroup::Individual => item,
-                    ModuleGroup::Combined => module_group(item),
+                    ModuleGroup::Combined => module_group(item, module_appearance),
                 }
             })
             .collect::<Vec<_>>();

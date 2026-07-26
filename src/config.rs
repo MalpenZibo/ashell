@@ -983,6 +983,14 @@ impl BarRadius {
             bottom_right: scale.resolve(self.bottom_right),
         }
     }
+    pub fn new(size: RadiusSize) -> Self {
+        Self {
+            top_left: size,
+            top_right: size,
+            bottom_left: size,
+            bottom_right: size,
+        }
+    }
 }
 
 /// Per-edge margin selection, deserialized with CSS `margin` shorthand:
@@ -1019,7 +1027,7 @@ pub struct BorderAppearance {
 impl Default for BorderAppearance {
     fn default() -> Self {
         Self {
-            radius: BarRadius::default(),
+            radius: BarRadius::new(RadiusSize::Lg),
             width: 0f32,
             color: AppearanceColor::Simple(HexColor::default()),
         }
@@ -1046,7 +1054,7 @@ impl Default for OpacityAppearance {
     }
 }
 
-#[derive(Default, Deserialize, Clone, Copy, Debug)]
+#[derive(Deserialize, Clone, Copy, Debug)]
 #[serde(default)]
 pub struct BarAppearance {
     pub surface: BarSurface,
@@ -1054,6 +1062,24 @@ pub struct BarAppearance {
     pub module_border: BorderAppearance,
     pub border: BorderAppearance,
     pub margin: BarMargin,
+}
+
+impl Default for BarAppearance {
+    fn default() -> Self {
+        Self {
+            border: BorderAppearance {
+                radius: BarRadius::new(RadiusSize::None),
+                ..Default::default()
+            },
+            surface: BarSurface::default(),
+            opacity: OpacityAppearance {
+                background: 0.5,
+                ..Default::default()
+            },
+            module_border: BorderAppearance::default(),
+            margin: BarMargin::default(),
+        }
+    }
 }
 
 #[derive(Deserialize, Clone, Copy, Debug)]
@@ -1087,12 +1113,14 @@ pub enum ModuleGroup {
 pub struct ModuleAppearance {
     pub spacing: SpaceSize,
     pub grouping: ModuleGroup,
+    pub padding: SpaceSize,
 }
 
 impl Default for ModuleAppearance {
     fn default() -> Self {
         Self {
             spacing: SpaceSize::Xs,
+            padding: SpaceSize::Xxs,
             grouping: ModuleGroup::default(),
         }
     }
