@@ -1,9 +1,7 @@
 use crate::{
     app::{App, Message},
-    components::animated_size,
-    components::menu::MenuType,
-    components::{module_group, module_item},
-    config::{ModuleDef, ModuleName},
+    components::{animated_size, menu::MenuType, module_group, module_item},
+    config::{ModuleAppearance, ModuleDef, ModuleGroup, ModuleName},
     theme::use_theme,
 };
 use iced::{Alignment, Element, Length, Subscription, SurfaceId, widget::Row};
@@ -158,8 +156,21 @@ impl App {
         id: SurfaceId,
         module_name: &'a ModuleName,
     ) -> Option<Element<'a, Message>> {
+        let module_appearances = use_theme(|t| t.modules.clone());
+        let grouping = module_appearances
+            .get(module_name)
+            .unwrap_or(&ModuleAppearance::default())
+            .grouping;
+
         self.get_module_view(id, module_name)
-            .map(|(content, action)| module_group(self.build_module_item(id, content, action)))
+            .map(|(content, action)| {
+                let item = self.build_module_item(id, content, action);
+
+                match grouping {
+                    ModuleGroup::None | ModuleGroup::Individual => item,
+                    ModuleGroup::Combined => module_group(item),
+                }
+            })
     }
 
     fn group_module_wrapper<'a>(
@@ -167,22 +178,36 @@ impl App {
         id: SurfaceId,
         group: &'a [ModuleName],
     ) -> Option<Element<'a, Message>> {
-        let modules: Vec<_> = group
+        let module_appearances = use_theme(|t| t.modules.clone());
+
+        let module_items: Vec<_> = group
             .iter()
-            .filter_map(|module| self.get_module_view(id, module))
+            .filter_map(|module| self.get_module_view(id, module).map(|view| (module, view)))
             .collect();
 
-        if modules.is_empty() {
-            None
-        } else {
-            let items = Row::with_children(
-                modules
-                    .into_iter()
-                    .map(|(content, action)| self.build_module_item(id, content, action))
-                    .collect::<Vec<_>>(),
-            );
-            Some(module_group(items.into()))
+        if module_items.is_empty() {
+            return None;
         }
+
+        let items = module_items
+            .into_iter()
+            .map(|(module_name, (content, action))| {
+                let item = self.build_module_item(id, content, action);
+                let grouping = module_appearances
+                    .get(module_name)
+                    .unwrap_or(&ModuleAppearance::default())
+                    .grouping;
+
+                match grouping {
+                    ModuleGroup::None | ModuleGroup::Individual => item,
+                    ModuleGroup::Combined => module_group(item),
+                }
+            })
+            .collect::<Vec<_>>();
+
+        let row = Row::with_children(items);
+
+        Some(row.into())
     }
 
     fn get_module_view<'a>(

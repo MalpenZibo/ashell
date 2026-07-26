@@ -7,14 +7,16 @@ use iced::{Border, Color, Element, widget::container};
 /// - `Transparent` → wrap in a container with background color + rounded border
 /// - `Panel` → wrap in a container with customisation from config
 pub fn module_group<'a, Msg: 'static>(content: Element<'a, Msg>) -> Element<'a, Msg> {
-    let (bar_surface, theme_radius, module_opacity, module_border) = use_theme(|theme| {
-        (
-            theme.bar.surface,
-            theme.radius,
-            theme.bar.opacity.module,
-            theme.bar.module_border,
-        )
-    });
+    let (bar_surface, theme_radius, module_opacity, module_border, module_padding) =
+        use_theme(|theme| {
+            (
+                theme.bar.surface,
+                theme.radius,
+                theme.bar.opacity.module,
+                theme.bar.module_border,
+                theme.space.xxs,
+            )
+        });
 
     let radius = module_border.radius.resolve(theme_radius);
 
@@ -38,6 +40,7 @@ pub fn module_group<'a, Msg: 'static>(content: Element<'a, Msg>) -> Element<'a, 
             })
             .into(),
         BarSurface::Panel => container(content)
+            .padding(module_padding)
             .style(move |iced_theme: &iced::Theme| container::Style {
                 background: Some(
                     iced_theme

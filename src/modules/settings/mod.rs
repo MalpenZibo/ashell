@@ -13,7 +13,7 @@ use crate::{
         menu::MenuType,
         password_dialog, position_button, quick_setting_button, sub_menu_wrapper,
     },
-    config::{Position, SettingsCustomButton, SettingsIndicator, SettingsModuleConfig},
+    config::{ModuleName, Position, SettingsCustomButton, SettingsIndicator, SettingsModuleConfig},
     modules::settings::{
         audio::{AudioSettings, AudioSettingsConfig},
         bluetooth::{BluetoothSettings, BluetoothSettingsConfig},
@@ -754,7 +754,10 @@ impl Settings {
     }
 
     pub fn view<'a>(&'a self, id: SurfaceId) -> Element<'a, Message> {
-        let (theme_space, spacing_size) = use_theme(|t| (t.space, t.settings.spacing));
+        let (theme_space, spacing_size) = use_theme(|t| {
+            let module_appearance = t.modules.get(&ModuleName::Settings).unwrap_or(&t.module);
+            (t.space, module_appearance.spacing)
+        });
         let space = theme_space.resolve(spacing_size);
 
         let mut row = Row::with_capacity(self.indicators.len());

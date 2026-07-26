@@ -1,10 +1,10 @@
-use std::cell::RefCell;
+use std::{cell::RefCell, collections::HashMap};
 
 use crate::{
     components::button::{ButtonHierarchy, ButtonKind},
     config::{
         Appearance, AppearanceColor, BackgroundLevel, BarAppearance, BarMargin, BarSurface,
-        MenuAppearance, ModuleAppearance, Position, RadiusSize, SpaceSize,
+        MenuAppearance, ModuleAppearance, ModuleName, Position, RadiusSize, SpaceSize,
     },
 };
 use iced::{
@@ -161,9 +161,8 @@ pub struct AshellTheme {
     pub iced_theme: Theme,
     pub space: Space,
 
-    pub settings: ModuleAppearance,
-    pub system_info: ModuleAppearance,
-    pub workspaces: ModuleAppearance,
+    pub modules: HashMap<ModuleName, ModuleAppearance>,
+    pub module: ModuleAppearance,
 
     pub bar: BarAppearance,
 
@@ -306,9 +305,8 @@ fn base_theme_from_appearance(
         bar: appearance.bar,
         menu: appearance.menu,
 
-        settings: appearance.settings,
-        system_info: appearance.system_info,
-        workspaces: appearance.workspaces,
+        modules: appearance.modules.clone(),
+        module: ModuleAppearance::default(),
 
         workspace_colors: appearance.workspace_colors.clone(),
         special_workspace_colors: appearance.special_workspace_colors.clone(),

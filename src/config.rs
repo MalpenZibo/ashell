@@ -1073,16 +1073,27 @@ impl Default for MenuAppearance {
     }
 }
 
-#[derive(Deserialize, Clone, Copy, Debug)]
+#[derive(Deserialize, Default, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ModuleGroup {
+    #[default]
+    Combined, // modules and members
+    Individual, // only members (have its own container)
+    None,       // no containers
+}
+
+#[derive(Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct ModuleAppearance {
     pub spacing: SpaceSize,
+    pub grouping: ModuleGroup,
 }
 
 impl Default for ModuleAppearance {
     fn default() -> Self {
         Self {
             spacing: SpaceSize::Xs,
+            grouping: ModuleGroup::default(),
         }
     }
 }
@@ -1104,9 +1115,7 @@ pub struct Appearance {
     pub workspace_colors: Vec<AppearanceColor>,
     pub special_workspace_colors: Option<Vec<AppearanceColor>>,
 
-    pub settings: ModuleAppearance,
-    pub system_info: ModuleAppearance,
-    pub workspaces: ModuleAppearance,
+    pub modules: HashMap<ModuleName, ModuleAppearance>,
 }
 
 static PRIMARY: HexColor = HexColor::rgb(122, 162, 247);
@@ -1162,13 +1171,23 @@ impl Default for Appearance {
             scale_factor: 1.0,
             bar: BarAppearance::default(),
             menu: MenuAppearance::default(),
-            settings: ModuleAppearance::default(),
-            system_info: ModuleAppearance {
-                spacing: SpaceSize::Xxs,
-            },
-            workspaces: ModuleAppearance {
-                spacing: SpaceSize::Xxs,
-            },
+            modules: HashMap::from([
+                (ModuleName::Settings, ModuleAppearance::default()),
+                (
+                    ModuleName::SystemInfo,
+                    ModuleAppearance {
+                        spacing: SpaceSize::Xxs,
+                        ..Default::default()
+                    },
+                ),
+                (
+                    ModuleName::Workspaces,
+                    ModuleAppearance {
+                        spacing: SpaceSize::Xxs,
+                        ..Default::default()
+                    },
+                ),
+            ]),
             background_color: BackgroundAppearanceColor::Complete {
                 base: HexColor::rgb(26, 27, 38),
                 weakest: None,
@@ -1209,7 +1228,7 @@ pub enum Layer {
     Overlay,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum ModuleName {
     Updates,
     Workspaces,
