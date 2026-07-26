@@ -231,11 +231,11 @@ impl MediaPlayer {
     }
 
     pub fn menu_view<'a>(&'a self, is_closing: bool) -> Element<'a, Message> {
-        let (space, font_size, opacity, radius, palette) = use_theme(|theme| {
+        let (space, font_size, bg_opacity, radius, palette) = use_theme(|theme| {
             (
                 theme.space,
                 theme.font_size,
-                theme.opacity,
+                theme.menu.opacity,
                 theme.radius,
                 theme.iced_theme.palette(),
             )
@@ -390,7 +390,7 @@ impl MediaPlayer {
                                         .background
                                         .weak
                                         .color
-                                        .scale_alpha(opacity),
+                                        .scale_alpha(bg_opacity),
                                 )
                                 .into(),
                                 border: Border::default().rounded(radius.lg),

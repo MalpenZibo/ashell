@@ -21,8 +21,8 @@ use super::{Message, Tempo};
 
 impl Tempo {
     pub(super) fn weather<'a>(&'a self) -> Option<Element<'a, Message>> {
-        let (space, font_size, opacity, radius) =
-            use_theme(|t| (t.space, t.font_size, t.opacity, t.radius));
+        let (space, font_size, bg_opacity, radius) =
+            use_theme(|t| (t.space, t.font_size, t.menu.opacity, t.radius));
         let locale = chrono_locale();
         let units = unit_system();
         let temp = units.temperature_symbol();
@@ -152,7 +152,7 @@ impl Tempo {
                                 .background
                                 .weak
                                 .color
-                                .scale_alpha(opacity),
+                                .scale_alpha(bg_opacity),
                         )
                         .into(),
                         border: Border::default().rounded(radius.lg),
@@ -215,7 +215,7 @@ impl Tempo {
                                 .background
                                 .weak
                                 .color
-                                .scale_alpha(opacity),
+                                .scale_alpha(bg_opacity),
                         )
                         .into(),
                         border: Border::default().rounded(radius.lg),
@@ -283,7 +283,7 @@ impl Tempo {
                                             .background
                                             .weak
                                             .color
-                                            .scale_alpha(opacity),
+                                            .scale_alpha(bg_opacity),
                                     )
                                     .into(),
                                     border: Border::default().rounded(iced::border::Radius {

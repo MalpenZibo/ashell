@@ -577,38 +577,31 @@ impl App {
 
                 let [left, center, right] = self.modules_section(id);
 
-                let (space, bar_surface, opacity, menu, animations_enabled, bar_radius) =
-                    use_theme(|t| {
-                        (
-                            t.space,
-                            t.bar_surface,
-                            t.opacity,
-                            t.menu,
-                            t.animations_enabled,
-                            t.bar_border_radius(),
-                        )
-                    });
+                let (space, bar, menu, animations_enabled, theme_radius) =
+                    use_theme(|t| (t.space, t.bar, t.menu, t.animations_enabled, t.radius));
+                let (bar_surface, bar_bg_opacity, bar_border) =
+                    (bar.surface, bar.opacity.background, bar.border);
+                let radius = bar_border.radius.resolve(theme_radius);
+
                 let centerbox = Centerbox::new([left, center, right])
                     .animated(animations_enabled)
                     .spacing(space.xxs)
                     .width(Length::Fill)
                     .align_items(Alignment::Center)
-                    .height(if bar_surface == BarSurface::Transparent {
-                        HEIGHT
-                    } else {
-                        HEIGHT - space.xs as f64
+                    .height(match bar_surface {
+                        BarSurface::Transparent | BarSurface::Panel => HEIGHT,
+                        _ => HEIGHT - space.xs as f64,
                     } as f32)
-                    .padding(if bar_surface == BarSurface::Transparent {
-                        [space.xxs, space.xxs]
-                    } else {
-                        [0.0, 0.0]
+                    .padding(match bar_surface {
+                        BarSurface::Transparent | BarSurface::Panel => [space.xxs, space.xxs],
+                        _ => [0.0, 0.0],
                     });
 
                 let menu_is_open = self.outputs.menu_is_open();
                 let status_bar = container(centerbox).style(move |t: &Theme| container::Style {
                     background: match bar_surface {
                         BarSurface::Solid => Some({
-                            let bg = t.palette().background.scale_alpha(opacity);
+                            let bg = t.palette().background.scale_alpha(bar_bg_opacity);
                             if menu_is_open {
                                 darken_color(bg, menu.backdrop)
                             } else {
@@ -623,10 +616,20 @@ impl App {
                                 None
                             }
                         }
+                        BarSurface::Panel => Some({
+                            let bg = t.palette().background.scale_alpha(bar_bg_opacity);
+                            if menu_is_open {
+                                darken_color(bg, menu.backdrop)
+                            } else {
+                                bg
+                            }
+                            .into()
+                        }),
                     },
                     border: iced::Border {
-                        radius: bar_radius,
-                        ..Default::default()
+                        radius,
+                        color: bar_border.color.get_base(),
+                        width: bar_border.width,
                     },
                     ..Default::default()
                 });

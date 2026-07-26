@@ -3,12 +3,12 @@ use std::cell::RefCell;
 use crate::{
     components::button::{ButtonHierarchy, ButtonKind},
     config::{
-        Appearance, AppearanceColor, BackgroundLevel, BarAppearance, BarMargin, BarRadius,
-        BarSurface, MenuAppearance, ModuleAppearance, Position, RadiusSize, SpaceSize,
+        Appearance, AppearanceColor, BackgroundLevel, BarAppearance, BarMargin, BarSurface,
+        MenuAppearance, ModuleAppearance, Position, RadiusSize, SpaceSize,
     },
 };
 use iced::{
-    Background, Border, Color, Theme, border,
+    Background, Border, Color, Theme,
     theme::{Palette, palette},
     widget::{
         button::{self, Status},
@@ -165,13 +165,11 @@ pub struct AshellTheme {
     pub system_info: ModuleAppearance,
     pub workspaces: ModuleAppearance,
 
+    pub bar: BarAppearance,
+
     pub radius: Radius,
     pub font_size: FontSize,
     pub bar_position: Position,
-    pub bar_surface: BarSurface,
-    pub bar_radius: BarRadius,
-    pub bar_margin: BarMargin,
-    pub opacity: f32,
     pub menu: MenuAppearance,
     pub workspace_colors: Vec<AppearanceColor>,
     pub special_workspace_colors: Option<Vec<AppearanceColor>>,
@@ -304,10 +302,8 @@ fn base_theme_from_appearance(
         radius: Radius::default(),
         font_size: FontSize::default(),
         bar_position,
-        bar_surface: appearance.bar.surface,
-        bar_radius: appearance.bar.radius,
-        bar_margin: appearance.bar.margin,
-        opacity: appearance.bar.opacity,
+
+        bar: appearance.bar,
         menu: appearance.menu,
 
         settings: appearance.settings,
@@ -332,16 +328,7 @@ impl AshellTheme {
     }
 
     pub fn bar_layout(&self) -> BarLayout {
-        BarLayout::new(self.bar_surface, self.bar_margin)
-    }
-
-    pub fn bar_border_radius(&self) -> border::Radius {
-        border::Radius {
-            top_left: self.radius.resolve(self.bar_radius.top_left),
-            top_right: self.radius.resolve(self.bar_radius.top_right),
-            bottom_right: self.radius.resolve(self.bar_radius.bottom_right),
-            bottom_left: self.radius.resolve(self.bar_radius.bottom_left),
-        }
+        BarLayout::new(self.bar.surface, self.bar.margin)
     }
 
     pub fn button_style(
@@ -353,7 +340,7 @@ impl AshellTheme {
             ButtonKind::Transparent => self.radius.sm,
             ButtonKind::Solid | ButtonKind::Outline => self.radius.xl,
         };
-        let opacity = self.opacity;
+        let btn_opacity = self.bar.opacity.button;
 
         move |theme: &Theme, status: Status| {
             let palette = theme.palette();
@@ -385,7 +372,7 @@ impl AshellTheme {
 
             match (kind, status) {
                 (ButtonKind::Solid, Status::Active) => button::Style {
-                    background: Some(base_bg.scale_alpha(opacity).into()),
+                    background: Some(base_bg.scale_alpha(btn_opacity).into()),
                     border: Border {
                         width: 0.0,
                         radius: radius.into(),
@@ -395,7 +382,7 @@ impl AshellTheme {
                     ..button::Style::default()
                 },
                 (ButtonKind::Solid, Status::Hovered) => button::Style {
-                    background: Some(hover_bg.scale_alpha(opacity).into()),
+                    background: Some(hover_bg.scale_alpha(btn_opacity).into()),
                     border: Border {
                         width: 0.0,
                         radius: radius.into(),
@@ -449,7 +436,7 @@ impl AshellTheme {
                     ..button::Style::default()
                 },
                 (ButtonKind::Outline, Status::Hovered) => button::Style {
-                    background: Some(base_bg.scale_alpha(opacity).into()),
+                    background: Some(base_bg.scale_alpha(btn_opacity).into()),
                     border: Border {
                         width: 2.0,
                         radius: radius.into(),
@@ -464,7 +451,7 @@ impl AshellTheme {
                     match kind {
                         ButtonKind::Solid => button::Style {
                             background: Some(
-                                base_bg.scale_alpha(opacity * disabled_opacity).into(),
+                                base_bg.scale_alpha(btn_opacity * disabled_opacity).into(),
                             ),
                             border: Border {
                                 width: 0.0,
@@ -516,7 +503,7 @@ impl AshellTheme {
         active: f32,
     ) -> impl Fn(&Theme, Status) -> button::Style + use<> {
         let radius_lg = self.radius.lg;
-        let opacity = self.opacity;
+        let bg_opacity = self.bar.opacity.background;
         move |theme: &Theme, status: Status| {
             let mut base = button::Style {
                 background: None,
@@ -541,7 +528,7 @@ impl AshellTheme {
                             .background
                             .weak
                             .color
-                            .scale_alpha(opacity)
+                            .scale_alpha(bg_opacity)
                             .into(),
                     );
                     base.text_color = theme.palette().text;
@@ -556,12 +543,12 @@ impl AshellTheme {
         &self,
         active: f32,
     ) -> impl Fn(&Theme, Status) -> button::Style + use<> {
-        let opacity = self.opacity;
+        let bg_opacity = self.bar.opacity.background;
         let radius = self.radius.xl;
         move |theme: &Theme, status: Status| {
             let inactive_bg = theme.extended_palette().background.weak.color;
             let active_bg = theme.palette().primary;
-            let bg = lerp_color(inactive_bg, active_bg, active).scale_alpha(opacity);
+            let bg = lerp_color(inactive_bg, active_bg, active).scale_alpha(bg_opacity);
 
             let mut base = button::Style {
                 background: Some(bg.into()),
@@ -584,7 +571,7 @@ impl AshellTheme {
                     let active_hover = theme.extended_palette().primary.weak.color;
                     base.background = Some(
                         lerp_color(inactive_hover, active_hover, active)
-                            .scale_alpha(opacity)
+                            .scale_alpha(bg_opacity)
                             .into(),
                     );
                     base
@@ -740,7 +727,7 @@ impl AshellTheme {
     /// The module-group background is handled by `module_group`, not the button.
     pub fn module_button_style(&self) -> impl Fn(&Theme, Status) -> button::Style + use<> {
         let radius_lg = self.radius.lg;
-        let opacity = self.opacity;
+        let btn_opacity = self.bar.opacity.button;
         move |theme, status| {
             let mut base = button::Style {
                 background: None,
@@ -761,7 +748,7 @@ impl AshellTheme {
                             .background
                             .weak
                             .color
-                            .scale_alpha(opacity)
+                            .scale_alpha(btn_opacity)
                             .into(),
                     );
                     base

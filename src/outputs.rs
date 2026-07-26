@@ -145,7 +145,7 @@ impl Outputs {
         (HEIGHT
             - match surface {
                 BarSurface::Solid => 8.,
-                BarSurface::Transparent => 0.,
+                BarSurface::Transparent | BarSurface::Panel => 0.,
             })
             * scale_factor
     }

@@ -304,7 +304,7 @@ impl App {
                     t.space,
                     t.menu.opacity,
                     t.radius,
-                    t.bar_surface,
+                    t.bar.surface,
                     t.bar_position,
                     t.menu.backdrop,
                 )
@@ -334,7 +334,7 @@ impl App {
         .padding({
             let v_padding = match bar_surface {
                 BarSurface::Solid => 2,
-                BarSurface::Transparent => 0,
+                BarSurface::Transparent | BarSurface::Panel => 0,
             };
 
             Padding::new(0.)

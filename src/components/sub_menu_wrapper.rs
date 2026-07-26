@@ -2,7 +2,8 @@ use crate::theme::use_theme;
 use iced::{Background, Border, Element, Length, Theme, widget::container};
 
 pub fn sub_menu_wrapper<'a, Msg: 'static>(content: Element<'a, Msg>) -> Element<'a, Msg> {
-    let (opacity, radius, space) = use_theme(|theme| (theme.opacity, theme.radius, theme.space));
+    let (bg_opacity, radius, space) =
+        use_theme(|theme| (theme.menu.opacity, theme.radius, theme.space));
 
     container(content)
         .style(move |theme: &Theme| container::Style {
@@ -12,7 +13,7 @@ pub fn sub_menu_wrapper<'a, Msg: 'static>(content: Element<'a, Msg>) -> Element<
                     .background
                     .weak
                     .color
-                    .scale_alpha(opacity),
+                    .scale_alpha(bg_opacity),
             )
             .into(),
             border: Border::default().rounded(radius.lg),

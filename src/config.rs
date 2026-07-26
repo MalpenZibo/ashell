@@ -1,6 +1,7 @@
 use crate::app::Message;
 use crate::i18n::{UnitSystem, unit_system};
 use crate::services::upower::PeripheralDeviceKind;
+use crate::theme::Radius;
 use crate::utils::celsius_to_fahrenheit;
 use hex_color::HexColor;
 use iced::futures::StreamExt;
@@ -899,6 +900,7 @@ pub enum BarSurface {
     #[default]
     Transparent,
     Solid,
+    Panel,
 }
 
 #[derive(Deserialize, Default, Copy, Clone, Eq, PartialEq, Debug)]
@@ -972,6 +974,17 @@ impl<'de> Deserialize<'de> for BarRadius {
     }
 }
 
+impl BarRadius {
+    pub fn resolve(&self, scale: Radius) -> iced::border::Radius {
+        iced::border::Radius {
+            top_left: scale.resolve(self.top_left),
+            top_right: scale.resolve(self.top_right),
+            bottom_left: scale.resolve(self.bottom_left),
+            bottom_right: scale.resolve(self.bottom_right),
+        }
+    }
+}
+
 /// Per-edge margin selection, deserialized with CSS `margin` shorthand:
 /// 1 value = all edges, 2 = `[vertical, horizontal]`, 4 = `[top, right, bottom, left]`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -995,25 +1008,52 @@ impl<'de> Deserialize<'de> for BarMargin {
     }
 }
 
-#[derive(Deserialize, Clone, Copy, Debug, PartialEq)]
+#[derive(Deserialize, Clone, Copy, Debug)]
+#[serde(default)]
+pub struct BorderAppearance {
+    pub radius: BarRadius,
+    pub width: f32,
+    pub color: AppearanceColor,
+}
+
+impl Default for BorderAppearance {
+    fn default() -> Self {
+        Self {
+            radius: BarRadius::default(),
+            width: 0f32,
+            color: AppearanceColor::Simple(HexColor::default()),
+        }
+    }
+}
+
+#[derive(Deserialize, Clone, Copy, Debug)]
+#[serde(default)]
+pub struct OpacityAppearance {
+    #[serde(deserialize_with = "opacity_deserializer")]
+    pub button: f32,
+    #[serde(deserialize_with = "opacity_deserializer")]
+    pub background: f32,
+    #[serde(deserialize_with = "opacity_deserializer")]
+    pub module: f32,
+}
+impl Default for OpacityAppearance {
+    fn default() -> Self {
+        Self {
+            button: default_opacity(),
+            background: default_opacity(),
+            module: default_opacity(),
+        }
+    }
+}
+
+#[derive(Default, Deserialize, Clone, Copy, Debug)]
 #[serde(default)]
 pub struct BarAppearance {
     pub surface: BarSurface,
-    #[serde(deserialize_with = "opacity_deserializer")]
-    pub opacity: f32,
-    pub radius: BarRadius,
+    pub opacity: OpacityAppearance,
+    pub module_border: BorderAppearance,
+    pub border: BorderAppearance,
     pub margin: BarMargin,
-}
-
-impl Default for BarAppearance {
-    fn default() -> Self {
-        Self {
-            surface: BarSurface::default(),
-            opacity: default_opacity(),
-            radius: BarRadius::default(),
-            margin: BarMargin::default(),
-        }
-    }
 }
 
 #[derive(Deserialize, Clone, Copy, Debug)]
