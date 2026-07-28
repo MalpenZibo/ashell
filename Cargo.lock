@@ -1752,7 +1752,7 @@ dependencies = [
 [[package]]
 name = "hyprland"
 version = "0.4.0-beta.3"
-source = "git+https://github.com/hyprland-community/hyprland-rs?branch=master#84f49dae2ee6d2e0a66f6781f85706d01ace322b"
+source = "git+https://github.com/hyprland-community/hyprland-rs?branch=master#c7037d4ce5c64e7f376a58802b806471792b0993"
 dependencies = [
  "async-stream",
  "chardetng",
@@ -1771,7 +1771,7 @@ dependencies = [
 [[package]]
 name = "hyprland-macros"
 version = "0.4.0-beta.3"
-source = "git+https://github.com/hyprland-community/hyprland-rs?branch=master#84f49dae2ee6d2e0a66f6781f85706d01ace322b"
+source = "git+https://github.com/hyprland-community/hyprland-rs?branch=master#c7037d4ce5c64e7f376a58802b806471792b0993"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5471,7 +5471,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
