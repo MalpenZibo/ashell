@@ -7,11 +7,8 @@ Summary: A ready to go Wayland status bar for Hyprland
 Version: @@VERSION@@
 Release: @@RELEASE@@%{?dist}
 License: GPL-3.0-or-later
-Group: Applications/System
 Source0: %{name}-%{version}.tar.gz
 URL: https://github.com/MalpenZibo/ashell
-
-BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 
 %description
 %{summary}
@@ -28,5 +25,4 @@ cp -a * %{buildroot}
 rm -rf %{buildroot}
 
 %files
-%defattr(-,root,root,-)
 %{_bindir}/*
