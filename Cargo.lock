@@ -144,6 +144,7 @@ dependencies = [
  "chrono-tz",
  "clap",
  "flexi_logger",
+ "fontdb",
  "freedesktop-icons",
  "hex_color",
  "hyprland",
