@@ -353,9 +353,9 @@ impl PowerSettings {
                         let battery_time = format_time_for_battery(&battery);
                         let battery_capacity = format!("{}%", battery.capacity);
                         if battery_time != "100%" || battery_time != battery_capacity {
-                            format!("{}% {}", battery_capacity, battery_time)
+                            battery_capacity + " " + &battery_time
                         } else {
-                            format!("{}%", battery_capacity,)
+                            battery_capacity
                         }
                     }
                     _ => format!("{}%", battery.capacity),
