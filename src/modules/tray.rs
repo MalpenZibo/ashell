@@ -269,7 +269,7 @@ impl TrayModule {
 
         self.service
             .as_ref()
-            .filter(|s| !s.data.is_empty())
+            .filter(|s| s.data.iter().any(|item| !self.is_blocklisted(&item.name)))
             .map(|service| {
                 Into::<Element<_>>::into(
                     Row::with_children(
