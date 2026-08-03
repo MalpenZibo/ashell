@@ -142,9 +142,10 @@ backdrop = 0.3
 ## Blur
 
 The `blur` field asks the compositor to blur the wallpaper behind ashell's
-translucent surfaces (the island pills, menus, and OSD) using the
-`ext-background-effect-v1` Wayland protocol. It is a no-op on compositors that
-do not support that protocol.
+translucent surfaces — the bar (the island pills when `bar.surface` is
+`transparent`, the whole bar when it is `solid`), menus, the OSD and toast
+notifications — using the `ext-background-effect-v1` Wayland protocol. It is a
+no-op on compositors that do not support that protocol.
 
 This is different from `menu.backdrop`, which is an ashell-drawn darkening
 applied only behind open menus. `blur` affects the wallpaper behind the surface
