@@ -90,6 +90,7 @@ impl Config {
         }
         self.system_info.validate();
         self.settings.validate();
+        self.media_player.validate();
     }
 }
 
@@ -750,6 +751,7 @@ pub struct MediaPlayerModuleConfig {
     pub max_text_length: u32,
     pub indicator_visualizer: Option<MediaPlayerVisualizer>,
     pub menu_visualizer: bool,
+    pub visualizer_framerate: u32,
 }
 
 impl Default for MediaPlayerModuleConfig {
@@ -760,6 +762,25 @@ impl Default for MediaPlayerModuleConfig {
             max_text_length: 100,
             indicator_visualizer: None,
             menu_visualizer: false,
+            visualizer_framerate: Self::DEFAULT_VISUALIZER_FRAMERATE,
+        }
+    }
+}
+
+impl MediaPlayerModuleConfig {
+    const DEFAULT_VISUALIZER_FRAMERATE: u32 = 30;
+    const MAX_VISUALIZER_FRAMERATE: u32 = 144;
+
+    fn validate(&mut self) {
+        let clamped = self
+            .visualizer_framerate
+            .clamp(1, Self::MAX_VISUALIZER_FRAMERATE);
+        if clamped != self.visualizer_framerate {
+            warn!(
+                "MediaPlayerModuleConfig.visualizer_framerate is {}, setting to {clamped}",
+                self.visualizer_framerate
+            );
+            self.visualizer_framerate = clamped;
         }
     }
 }

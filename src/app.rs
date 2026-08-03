@@ -282,6 +282,12 @@ impl App {
                             },
                         );
                     }
+                    MenuType::MediaPlayer
+                        if !self.outputs.menu_of_type_is_open(&MenuType::MediaPlayer) =>
+                    {
+                        self.media_player
+                            .update(modules::media_player::Message::MenuOpened);
+                    }
                     _ => {}
                 };
                 cmd.push(self.outputs.toggle_menu(
