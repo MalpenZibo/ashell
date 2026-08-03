@@ -10,7 +10,7 @@ use iced::{
     Anchor, Font, KeyboardInteractivity, Layer, LayerShellSettings,
     font::{Stretch as FontStretch, Style as FontStyle, Weight as FontWeight},
 };
-use log::{debug, error, warn};
+use log::{debug, error, info, warn};
 use std::backtrace::Backtrace;
 use std::env;
 use std::panic;
@@ -35,12 +35,10 @@ const NERD_FONT_MONO: &[u8] =
 const CUSTOM_FONT: &[u8] = include_bytes!("../assets/AshellCustomIcon-Regular.otf");
 const HEIGHT: f64 = 34.;
 const TMP_FILE_SIZE: u64 = 10 * 1024 * 1024;
+const VERSION: &str = concat!(env!("CARGO_PKG_VERSION"), " (", env!("GIT_HASH"), ")");
 
 #[derive(Parser, Debug)]
-#[command(
-    version = concat!(env!("CARGO_PKG_VERSION"), " (", env!("GIT_HASH"), ")"),
-    about = env!("CARGO_PKG_DESCRIPTION")
-)]
+#[command(version = VERSION, about = env!("CARGO_PKG_DESCRIPTION"))]
 struct Args {
     #[arg(short, long, value_parser = clap::value_parser!(PathBuf))]
     config_path: Option<PathBuf>,
@@ -227,6 +225,8 @@ fn main() -> iced::Result {
         let b = Backtrace::capture();
         error!("Panic: {info} \n {b}");
     }));
+
+    info!("ashell {VERSION}");
 
     let (config, config_path) = get_config(args.config_path).unwrap_or_else(|err| {
         error!("Failed to read config: {err}");
