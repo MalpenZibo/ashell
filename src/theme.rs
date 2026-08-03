@@ -532,8 +532,11 @@ impl AshellTheme {
                     text_color: palette.text,
                     ..button::Style::default()
                 },
+                // Nothing is painted at rest, so hover adds an overlay: a full
+                // background here would compose with the surface underneath and
+                // push it towards opaque.
                 (ButtonKind::Outline, Status::Hovered) => button::Style {
-                    background: Some(base_bg.into()),
+                    background: Some(palette.text.scale_alpha(HOVER_OVERLAY).into()),
                     border: Border {
                         width: 2.0,
                         radius: radius.into(),
@@ -615,8 +618,9 @@ impl AshellTheme {
             };
             match status {
                 Status::Active => base,
+                // Same as above: transparent at rest, so an overlay on hover.
                 Status::Hovered => {
-                    base.background = Some(theme.extended_palette().background.weak.color.into());
+                    base.background = Some(theme.palette().text.scale_alpha(HOVER_OVERLAY).into());
                     base.text_color = theme.palette().text;
                     base
                 }
