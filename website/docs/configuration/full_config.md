@@ -168,6 +168,7 @@ enabled = false   # (default)
 [appearance]
 # font_name = "Sans"           # (default: None) custom font family
 # scale_factor = 1.0           # (default) range: 0.0 < x <= 2.0
+# opacity = 1.0                # (default) range: 0.0 to 1.0, every surface ashell draws
 # blur = "auto"                # (default) auto|always|never, compositor blur
 primary_color = "#7aa2f7"
 success_color = "#9ece6a"
@@ -181,10 +182,8 @@ workspace_colors = [ "#7aa2f7", "#9ece6a" ]
 surface = "transparent"  # (default) or "solid"
 # radius = "none"          # (default) none|sm|md|lg|xl, CSS border-radius shorthand (solid only)
 # margin = "none"          # (default) none|xxs|xs|sm|md|lg|xl|xxl, CSS margin shorthand
-# opacity = 1.0            # (default) range: 0.0 to 1.0
 
 [appearance.menu]
-# opacity = 1.0   # (default) menu background opacity
 # backdrop = 0.0   # (default) darkening drawn behind an open menu
 
 [appearance.background_color]

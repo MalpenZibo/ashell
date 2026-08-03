@@ -34,13 +34,13 @@ Module names: `"Workspaces"`, `"WindowTitle"`, `"SystemInfo"`, `"KeyboardLayout"
 [appearance]
 font_name = "JetBrains Mono"   # Optional custom font
 scale_factor = 1.0              # DPI scale factor
+opacity = 1.0                   # 0.0-1.0, every surface ashell draws
 blur = "auto"                   # auto|always|never, compositor blur
 
 [appearance.bar]
 surface = "transparent"         # "transparent" or "solid"
 radius = "none"                 # none|sm|md|lg|xl, CSS border-radius shorthand (solid only)
 margin = "none"                 # none|xxs..xxl, CSS margin shorthand
-opacity = 0.9                   # 0.0-1.0
 ```
 
 ### Colors
@@ -64,7 +64,6 @@ Available color fields: `background`, `text`, `primary`, `secondary`, `success`,
 
 ```toml
 [appearance.menu]
-opacity = 0.95
 backdrop = 0.3                  # darkening drawn behind an open menu
 ```
 
