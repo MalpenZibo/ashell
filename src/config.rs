@@ -995,42 +995,18 @@ impl<'de> Deserialize<'de> for BarMargin {
     }
 }
 
-#[derive(Deserialize, Clone, Copy, Debug, PartialEq)]
+#[derive(Deserialize, Default, Clone, Copy, Debug, PartialEq)]
 #[serde(default)]
 pub struct BarAppearance {
     pub surface: BarSurface,
-    #[serde(deserialize_with = "opacity_deserializer")]
-    pub opacity: f32,
     pub radius: BarRadius,
     pub margin: BarMargin,
 }
 
-impl Default for BarAppearance {
-    fn default() -> Self {
-        Self {
-            surface: BarSurface::default(),
-            opacity: default_opacity(),
-            radius: BarRadius::default(),
-            margin: BarMargin::default(),
-        }
-    }
-}
-
-#[derive(Deserialize, Clone, Copy, Debug)]
+#[derive(Deserialize, Default, Clone, Copy, Debug)]
 #[serde(default)]
 pub struct MenuAppearance {
-    #[serde(deserialize_with = "opacity_deserializer")]
-    pub opacity: f32,
     pub backdrop: f32,
-}
-
-impl Default for MenuAppearance {
-    fn default() -> Self {
-        Self {
-            opacity: default_opacity(),
-            backdrop: f32::default(),
-        }
-    }
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -1039,6 +1015,10 @@ pub struct Appearance {
     pub font_name: Option<String>,
     #[serde(deserialize_with = "scale_factor_deserializer")]
     pub scale_factor: f64,
+    /// Opacity of every surface ashell draws. Applied once, to the palette, so
+    /// every background colour carries it and every text colour does not.
+    #[serde(deserialize_with = "opacity_deserializer")]
+    pub opacity: f32,
     pub bar: BarAppearance,
     pub menu: MenuAppearance,
     pub background_color: BackgroundAppearanceColor,
@@ -1128,6 +1108,7 @@ impl Default for Appearance {
         Self {
             font_name: None,
             scale_factor: 1.0,
+            opacity: default_opacity(),
             bar: BarAppearance::default(),
             menu: MenuAppearance::default(),
             background_color: BackgroundAppearanceColor::Complete {

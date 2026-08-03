@@ -21,8 +21,7 @@ use super::{Message, Tempo};
 
 impl Tempo {
     pub(super) fn weather<'a>(&'a self) -> Option<Element<'a, Message>> {
-        let (space, font_size, opacity, radius) =
-            use_theme(|t| (t.space, t.font_size, t.opacity, t.radius));
+        let (space, font_size, radius) = use_theme(|t| (t.space, t.font_size, t.radius));
         let locale = chrono_locale();
         let units = unit_system();
         let temp = units.temperature_symbol();
@@ -147,12 +146,7 @@ impl Tempo {
                     .padding(space.md)
                     .style(move |app_theme: &Theme| container::Style {
                         background: Background::Color(
-                            app_theme
-                                .extended_palette()
-                                .background
-                                .weak
-                                .color
-                                .scale_alpha(opacity),
+                            app_theme.extended_palette().background.weak.color,
                         )
                         .into(),
                         border: Border::default().rounded(radius.lg),
@@ -210,12 +204,7 @@ impl Tempo {
                     .padding(space.sm)
                     .style(move |app_theme: &Theme| container::Style {
                         background: Background::Color(
-                            app_theme
-                                .extended_palette()
-                                .background
-                                .weak
-                                .color
-                                .scale_alpha(opacity),
+                            app_theme.extended_palette().background.weak.color,
                         )
                         .into(),
                         border: Border::default().rounded(radius.lg),
@@ -278,12 +267,7 @@ impl Tempo {
                                 .padding(space.sm)
                                 .style(move |app_theme: &Theme| container::Style {
                                     background: Background::Color(
-                                        app_theme
-                                            .extended_palette()
-                                            .background
-                                            .weak
-                                            .color
-                                            .scale_alpha(opacity),
+                                        app_theme.extended_palette().background.weak.color,
                                     )
                                     .into(),
                                     border: Border::default().rounded(iced::border::Radius {
