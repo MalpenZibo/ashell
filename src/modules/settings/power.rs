@@ -299,11 +299,19 @@ impl PowerSettings {
                     .spacing(space.xxs)
                     .align_y(Alignment::Center)
                     .into(),
-                    SettingsFormat::IconAndPercentageAndTime => row!(
-                        icon(p.get_icon_state()),
-                        text(format!("{}%", p.data.capacity)),
-                        text(format_time_for_battery(&p.data))
-                    )
+                    SettingsFormat::IconAndPercentageAndTime => {
+                        let battery_capacity = format!("{}%", p.data.capacity);
+                        let battery_time = format_time_for_battery(&p.data);
+                        if battery_time == "100%" || battery_time == battery_capacity {
+                            row!(icon(p.get_icon_state()), text(battery_capacity))
+                        } else {
+                            row!(
+                                icon(p.get_icon_state()),
+                                text(battery_capacity),
+                                text(battery_time)
+                            )
+                        }
+                    }
                     .spacing(space.xxs)
                     .align_y(Alignment::Center)
                     .into(),
@@ -352,10 +360,10 @@ impl PowerSettings {
                     | SettingsFormat::IconAndPercentageAndTime => {
                         let battery_time = format_time_for_battery(&battery);
                         let battery_capacity = format!("{}%", battery.capacity);
-                        if battery_time != "100%" || battery_time != battery_capacity {
-                            battery_capacity + " " + &battery_time
-                        } else {
+                        if battery_time == "100%" || battery_time == battery_capacity {
                             battery_capacity
+                        } else {
+                            battery_capacity + " " + &battery_time
                         }
                     }
                     _ => format!("{}%", battery.capacity),
