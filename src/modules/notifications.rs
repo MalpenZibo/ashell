@@ -496,9 +496,6 @@ impl Notifications {
                 border,
                 ..iced::widget::button::Style::default()
             };
-            // The palette already carries the configured opacity, and hover
-            // composites an overlay into a single colour rather than painting a
-            // second background over the first.
             let bg = if style == NotificationStyle::Toast {
                 iced_theme.extended_palette().background.base.color
             } else {

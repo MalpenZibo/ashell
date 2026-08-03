@@ -182,15 +182,11 @@ impl Default for AshellTheme {
     }
 }
 
-/// Overlay alpha for an interaction state, composited on top of whatever the
-/// widget already sits on. Deliberately small and *not* scaled by the
-/// configured opacity: the colour underneath already carries it, and scaling
-/// here would paint that background a second time and push a translucent
-/// surface towards opaque.
+/// Not scaled by the configured opacity: the colour underneath already carries
+/// it, and scaling here would paint that background twice.
 const HOVER_OVERLAY: f32 = 0.04;
 
-/// Straight-alpha "a over b" — the composite a renderer would produce from two
-/// stacked layers. Resolving it here means only one layer is ever painted.
+/// Straight-alpha "a over b", so only one layer ends up painted.
 fn over(a: Color, b: Color) -> Color {
     let alpha = a.a + b.a * (1.0 - a.a);
     if alpha <= f32::EPSILON {
@@ -205,21 +201,17 @@ fn over(a: Color, b: Color) -> Color {
     }
 }
 
-/// `color` with the hover overlay composited in, so a widget sitting on a
-/// translucent background paints **one** layer instead of stacking a second one
-/// on top of it — which would compose the alphas and wash the translucency out.
+/// `color` with the hover overlay composited in, so hovering paints one layer
+/// rather than stacking a second one and washing out the translucency.
 pub fn hovered(theme: &Theme, color: Color) -> Color {
     over(theme.palette().text.scale_alpha(HOVER_OVERLAY), color)
 }
 
-/// Apply the configured opacity to every background colour in the palette,
-/// leaving every foreground colour opaque.
+/// Apply the opacity to every background colour, leaving foregrounds opaque.
 ///
-/// iced already draws that line for us: in a [`palette::Pair`], `color` is what
-/// gets painted *behind* content and `text` is what goes *on top* of it. So the
-/// rule is total and needs no list of special cases — and, crucially, no call
-/// site ever has to ask for a translucent colour. Whatever it reads from the
-/// palette is already correct.
+/// In a [`palette::Pair`], `color` is painted behind content and `text` on top
+/// of it, so the split needs no list of special cases and no call site has to
+/// ask for a translucent colour.
 fn with_opacity(extended: palette::Extended, opacity: f32) -> palette::Extended {
     let pair = |p: palette::Pair| palette::Pair {
         color: p.color.scale_alpha(opacity),
@@ -270,9 +262,7 @@ fn build_iced_theme(appearance: &Appearance, opacity: f32) -> Theme {
     Theme::custom_with_fn(
         "local".to_string(),
         Palette {
-            // `Palette` is the convenient, common-case accessor, so the one
-            // colour on it that is paint carries the opacity. The accents stay
-            // opaque: on the base palette they are read as ink -- text, icons.
+            // The one colour here that is paint; the accents are read as ink.
             background: appearance.background_color.get_base().scale_alpha(opacity),
             text: appearance.text_color.get_base(),
             primary: appearance.primary_color.get_base(),
@@ -283,9 +273,8 @@ fn build_iced_theme(appearance: &Appearance, opacity: f32) -> Theme {
         |palette| {
             let text = palette.text;
             let bg_text = appearance.background_color.get_text().unwrap_or(text);
-            // Derive from the opaque colour: `mix` interpolates alpha as well,
-            // so generating from the translucent one would spread assorted
-            // alphas across the variants instead of the configured value.
+            // `mix` interpolates alpha too, so deriving from the translucent
+            // colour would spread assorted alphas across the variants.
             let background = Color {
                 a: 1.0,
                 ..palette.background
@@ -532,9 +521,7 @@ impl AshellTheme {
                     text_color: palette.text,
                     ..button::Style::default()
                 },
-                // Nothing is painted at rest, so hover adds an overlay: a full
-                // background here would compose with the surface underneath and
-                // push it towards opaque.
+                // Transparent at rest, so hover adds an overlay, not a background.
                 (ButtonKind::Outline, Status::Hovered) => button::Style {
                     background: Some(palette.text.scale_alpha(HOVER_OVERLAY).into()),
                     border: Border {
@@ -618,7 +605,7 @@ impl AshellTheme {
             };
             match status {
                 Status::Active => base,
-                // Same as above: transparent at rest, so an overlay on hover.
+                // Transparent at rest, so hover adds an overlay, not a background.
                 Status::Hovered => {
                     base.background = Some(theme.palette().text.scale_alpha(HOVER_OVERLAY).into());
                     base.text_color = theme.palette().text;
@@ -825,9 +812,7 @@ impl AshellTheme {
             };
             match status {
                 Status::Active => base,
-                // The group pill behind this button already carries the
-                // opacity, so paint an overlay on it rather than a second
-                // background, which would compose the two towards opaque.
+                // The group pill already carries the opacity; overlay on it.
                 Status::Hovered => {
                     base.background = Some(theme.palette().text.scale_alpha(HOVER_OVERLAY).into());
                     base
