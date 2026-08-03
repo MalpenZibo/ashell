@@ -1049,9 +1049,8 @@ pub struct Appearance {
     pub text_color: AppearanceColor,
     pub workspace_colors: Vec<AppearanceColor>,
     pub special_workspace_colors: Option<Vec<AppearanceColor>>,
-    /// Ask the compositor to blur the wallpaper behind ashell's translucent
-    /// surfaces (pills, menu, OSD) via `ext-background-effect-v1`. No-op where
-    /// the protocol is unsupported.
+    /// Blur the wallpaper behind ashell's translucent surfaces via
+    /// `ext-background-effect-v1`. No-op where the protocol is unsupported.
     pub blur: bool,
 }
 
