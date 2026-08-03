@@ -752,6 +752,7 @@ pub struct MediaPlayerModuleConfig {
     pub indicator_visualizer: Option<MediaPlayerVisualizer>,
     pub menu_visualizer: bool,
     pub visualizer_framerate: u32,
+    pub indicator_controls: bool,
 }
 
 impl Default for MediaPlayerModuleConfig {
@@ -763,6 +764,7 @@ impl Default for MediaPlayerModuleConfig {
             indicator_visualizer: None,
             menu_visualizer: false,
             visualizer_framerate: Self::DEFAULT_VISUALIZER_FRAMERATE,
+            indicator_controls: false,
         }
     }
 }

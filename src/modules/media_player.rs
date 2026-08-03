@@ -149,6 +149,11 @@ pub enum Message {
     PlayPause(String),
     Next(String),
     SetVolume(String, f64),
+    ActivePrev,
+    ActivePlayPause,
+    ActiveNext,
+    ActiveVolumeUp,
+    ActiveVolumeDown,
     Event(ServiceEvent<MprisPlayerService>),
     ConfigReloaded(MediaPlayerModuleConfig),
     Bars(Vec<f32>),
@@ -161,9 +166,10 @@ pub enum Action {
 }
 
 pub struct MediaPlayer {
-    config: MediaPlayerModuleConfig,
+    pub config: MediaPlayerModuleConfig,
     service: Option<MprisPlayerService>,
     bars: Vec<f32>,
+    last_active: Option<String>,
 }
 
 impl MediaPlayer {
@@ -172,21 +178,38 @@ impl MediaPlayer {
             config,
             service: None,
             bars: Vec::new(),
+            last_active: None,
         }
     }
 
     /// The player to represent in the bar: the one currently playing, or the
-    /// first known player when nothing is playing.
+    /// last one that was playing, or the first known player when nothing is
+    /// playing.
     fn active_player(&self) -> Option<&MprisPlayerData> {
         let players = self.service.as_ref()?.players();
         players
             .iter()
             .find(|p| p.state == PlaybackStatus::Playing)
+            .or_else(|| {
+                players
+                    .iter()
+                    .find(|p| Some(p.service.as_str()) == self.last_active.as_deref())
+            })
             .or_else(|| players.first())
     }
 
     fn is_playing(&self) -> bool {
         self.active_player().map(|p| p.state) == Some(PlaybackStatus::Playing)
+    }
+
+    fn refresh_last_active(&mut self) {
+        if let Some(playing) = self.service.as_ref().and_then(|s| {
+            s.players()
+                .iter()
+                .find(|p| p.state == PlaybackStatus::Playing)
+        }) {
+            self.last_active = Some(playing.service.clone());
+        }
     }
 
     /// `menu_visualizer` only draws inside the menu, so it must not keep cava
@@ -205,15 +228,22 @@ impl MediaPlayer {
             Message::SetVolume(s, v) => {
                 Action::Command(self.handle_command(s, PlayerCommand::Volume(v)))
             }
+            Message::ActivePrev => self.active_command(PlayerCommand::Prev),
+            Message::ActivePlayPause => self.active_command(PlayerCommand::PlayPause),
+            Message::ActiveNext => self.active_command(PlayerCommand::Next),
+            Message::ActiveVolumeUp => self.active_volume_command(5.0),
+            Message::ActiveVolumeDown => self.active_volume_command(-5.0),
             Message::Event(event) => match event {
                 ServiceEvent::Init(s) => {
                     self.service = Some(s);
+                    self.refresh_last_active();
                     Action::None
                 }
                 ServiceEvent::Update(d) => {
                     if let Some(service) = self.service.as_mut() {
                         service.update(d);
                     }
+                    self.refresh_last_active();
                     if !self.is_playing() {
                         self.bars.clear();
                     }
@@ -424,6 +454,28 @@ impl MediaPlayer {
                 })
                 .map(Message::Event),
             _ => Task::none(),
+        }
+    }
+
+    fn active_command(&mut self, command: PlayerCommand) -> Action {
+        match self.active_player().map(|p| p.service.clone()) {
+            Some(service) => Action::Command(self.handle_command(service, command)),
+            None => Action::None,
+        }
+    }
+
+    fn active_volume_command(&mut self, delta: f64) -> Action {
+        match self.active_player() {
+            Some(p) => match p.volume {
+                Some(v) => {
+                    let new_volume = (v + delta).clamp(0.0, 100.0);
+                    Action::Command(
+                        self.handle_command(p.service.clone(), PlayerCommand::Volume(new_volume)),
+                    )
+                }
+                None => Action::None,
+            },
+            None => Action::None,
         }
     }
 

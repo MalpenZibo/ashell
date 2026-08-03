@@ -308,12 +308,30 @@ impl App {
                 .privacy
                 .view()
                 .map(|view| (view.map(Message::Privacy), None)),
-            ModuleName::MediaPlayer => self.media_player.view().map(|view| {
-                (
-                    view.map(Message::MediaPlayer),
-                    Some(OnModulePress::ToggleMenu(MenuType::MediaPlayer)),
-                )
-            }),
+            ModuleName::MediaPlayer => {
+                let on_press = if self.media_player.config.indicator_controls {
+                    OnModulePress::CustomAction {
+                        on_press: Box::new(Message::MediaPlayer(media_player::Message::ActivePrev)),
+                        on_right_press: Some(Box::new(Message::MediaPlayer(
+                            media_player::Message::ActiveNext,
+                        ))),
+                        on_middle_press: Some(Box::new(Message::MediaPlayer(
+                            media_player::Message::ActivePlayPause,
+                        ))),
+                        on_scroll_up: Some(Box::new(Message::MediaPlayer(
+                            media_player::Message::ActiveVolumeUp,
+                        ))),
+                        on_scroll_down: Some(Box::new(Message::MediaPlayer(
+                            media_player::Message::ActiveVolumeDown,
+                        ))),
+                    }
+                } else {
+                    OnModulePress::ToggleMenu(MenuType::MediaPlayer)
+                };
+                self.media_player
+                    .view()
+                    .map(|view| (view.map(Message::MediaPlayer), Some(on_press)))
+            }
             ModuleName::Settings => Some((
                 self.settings.view(id).map(Message::Settings),
                 Some(OnModulePress::ToggleMenu(MenuType::Settings)),

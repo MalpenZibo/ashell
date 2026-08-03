@@ -110,6 +110,7 @@ alert_threshold = 85
 # indicator_visualizer = "Background" # (default: None = disabled), "Before", or "After"
 # menu_visualizer = false       # (default) bars behind the menu cards; cava runs only while the menu is open
 # visualizer_framerate = 30     # (default) cava frames per second, clamped to 1-144
+# indicator_controls = false    # (default) direct playback controls on the bar indicator
 
 # ── Tray ──────────────────────────────────────────────────────────────────────
 
