@@ -65,7 +65,7 @@ Available color fields: `background`, `text`, `primary`, `secondary`, `success`,
 ```toml
 [appearance.menu]
 opacity = 0.95
-backdrop_blur = true
+backdrop = 0.3                  # darkening drawn behind an open menu
 ```
 
 ### Workspace Colors

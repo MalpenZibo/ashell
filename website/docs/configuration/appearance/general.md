@@ -124,9 +124,10 @@ opacity = 0.8
 It's also possible to define the opacity of status bar menus and whether they
 should include a backdrop effect.
 
-The `backdrop` effect adds a blur/transparent background to menus, making them
-appear semi-transparent over the content behind them. The value should be a float
-between `0.0` (disabled) and `1.0` (maximum blur).
+The `backdrop` effect darkens whatever is behind an open menu, so the menu stands
+out from the content around it. It is drawn by ashell and involves no blur — see
+[Blur](#blur) for that. The value should be a float between `0.0` (disabled) and
+`1.0` (fully dark).
 
 **Default values:**
 
@@ -173,8 +174,10 @@ opacity = 0.8
 
 ### Compositor setup
 
-Some compositors need blur enabled per surface before they will apply it. On
-niri, add a layer rule matching ashell's namespaces:
+Supporting the protocol is not enough on its own — most compositors also want
+blur turned on somewhere in their own config before they will draw it.
+
+On niri, add a layer rule matching ashell's namespaces:
 
 ```kdl
 layer-rule {
@@ -184,3 +187,23 @@ layer-rule {
     }
 }
 ```
+
+On Hyprland, enable blur globally:
+
+```conf
+decoration {
+    blur {
+        enabled = true
+    }
+}
+```
+
+No `layerrule = blur` is needed: once a surface uses the protocol Hyprland
+follows the region ashell publishes and ignores the layer rule. But with
+`decoration:blur:enabled = false` nothing is drawn even though the protocol is
+advertised, so `blur` will look like it does nothing.
+
+Note that `"never"` means "blur nothing", not "leave it to the compositor": on a
+compositor that supports the protocol ashell always publishes a region, and an
+empty one takes precedence over a rule like the ones above. If you configured
+blur in your compositor and want to keep it, use `"auto"` or `"always"`.

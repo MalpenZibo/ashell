@@ -185,7 +185,7 @@ surface = "transparent"  # (default) or "solid"
 
 [appearance.menu]
 # opacity = 1.0   # (default) menu background opacity
-# backdrop = 0.0   # (default) backdrop blur amount
+# backdrop = 0.0   # (default) darkening drawn behind an open menu
 
 [appearance.background_color]
 base = "#1a1b26"
