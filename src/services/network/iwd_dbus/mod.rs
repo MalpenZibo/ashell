@@ -807,6 +807,7 @@ impl IwdDbus<'_> {
             info.push(ActiveConnectionInfo::WiFi {
                 name: ssid,
                 strength: map_iwd_rssi_to_percent(signal_strength),
+                band: None,
             });
         }
         Ok(info)

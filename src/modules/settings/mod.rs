@@ -656,6 +656,7 @@ impl Settings {
                                 Message::ToggleInhibitIdle,
                                 None,
                                 None,
+                                None,
                             ),
                             None,
                         )
@@ -685,6 +686,7 @@ impl Settings {
                             button.tooltip.clone(),
                             is_active,
                             Message::CustomButton(button.name.clone()),
+                            None,
                             None,
                             None,
                         ),
@@ -937,9 +939,19 @@ impl Settings {
             }
             MenuType::WifiTooltip => {
                 if let Some(label) = self.network.connected_wifi_label() {
-                    row![StaticIcon::Wifi4.to_text(), iced::widget::text(label)]
-                        .spacing(space.xs)
-                        .into()
+                    let band = self.network.connected_wifi_band();
+                    let font_size = use_theme(|t| t.font_size);
+                    let primary = use_theme(|t| t.iced_theme.palette().primary);
+                    let mut r = row![StaticIcon::Wifi4.to_text(), iced::widget::text(label)]
+                        .spacing(space.xs);
+                    if let Some(b) = band {
+                        r = r.push(iced::widget::text(b).size(font_size.xs).style(
+                            move |_theme: &Theme| iced::widget::text::Style {
+                                color: Some(primary),
+                            },
+                        ));
+                    }
+                    r.into()
                 } else {
                     fallback(t!("settings-tooltip-empty-wifi"))
                 }
