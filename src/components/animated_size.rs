@@ -221,6 +221,10 @@ where
         if bounds.width < 0.5 || bounds.height < 0.5 {
             return;
         }
+        // The layer clip is invisible to children; `viewport` is what they read.
+        let Some(child_viewport) = bounds.intersection(viewport) else {
+            return;
+        };
         renderer.with_layer(bounds, |renderer| {
             self.content.as_widget().draw(
                 &tree.children[0],
@@ -229,7 +233,7 @@ where
                 style,
                 layout.children().next().unwrap(),
                 cursor,
-                viewport,
+                &child_viewport,
             );
         });
     }
