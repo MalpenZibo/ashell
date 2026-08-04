@@ -168,7 +168,7 @@ enabled = false   # (default)
 [appearance]
 # font_name = "Sans"           # (default: None) custom font family
 # scale_factor = 1.0           # (default) range: 0.0 < x <= 2.0
-# blur = false                 # (default) compositor blur behind translucent surfaces
+# blur = "auto"                # (default) auto|always|never, compositor blur
 primary_color = "#7aa2f7"
 success_color = "#9ece6a"
 warning_color = "#e0af68"

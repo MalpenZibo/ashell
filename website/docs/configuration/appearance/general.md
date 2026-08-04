@@ -147,15 +147,40 @@ translucent surfaces — the bar (the island pills when `bar.surface` is
 notifications — using the `ext-background-effect-v1` Wayland protocol. It is a
 no-op on compositors that do not support that protocol.
 
+| Value | Behaviour |
+| --- | --- |
+| `"auto"` (default) | Ask for blur when `bar.opacity` or `menu.opacity` is below `1.0` |
+| `"always"` | Ask for blur regardless of opacity |
+| `"never"` | Never ask |
+
+`"auto"` exists because blurring a fully opaque surface cannot be seen: it asks
+for the effect exactly when the effect can show. Use `"never"` if you want
+translucent surfaces without blur.
+
 This is different from `menu.backdrop`, which is an ashell-drawn darkening
 applied only behind open menus. `blur` affects the wallpaper behind the surface
 itself and requires compositor support.
-
-**Default value:** `blur`: `false` (disabled)
 
 ### Example
 
 ```toml
 [appearance]
-blur = true
+blur = "auto"
+
+[appearance.bar]
+opacity = 0.8
+```
+
+### Compositor setup
+
+Some compositors need blur enabled per surface before they will apply it. On
+niri, add a layer rule matching ashell's namespaces:
+
+```kdl
+layer-rule {
+    match namespace="^ashell-"
+    background-effect {
+        blur true
+    }
+}
 ```

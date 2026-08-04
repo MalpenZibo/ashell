@@ -308,7 +308,11 @@ fn base_theme_from_appearance(
         special_workspace_colors: appearance.special_workspace_colors.clone(),
         scale_factor: appearance.scale_factor,
         animations_enabled,
-        blur: appearance.blur,
+        // Auto against the most translucent surface; the two opacities collapse
+        // into one in the opacity refactor.
+        blur: appearance
+            .blur
+            .enabled(appearance.bar.opacity.min(appearance.menu.opacity)),
         iced_theme: build_iced_theme(appearance),
     }
 }
