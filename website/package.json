@@ -12,6 +12,7 @@
     "serve": "docusaurus serve",
     "write-translations": "docusaurus write-translations",
     "write-heading-ids": "docusaurus write-heading-ids",
+    "changelog": "node scripts/sync-changelog.mjs",
     "typecheck": "tsc"
   },
   "dependencies": {

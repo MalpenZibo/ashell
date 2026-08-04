@@ -57,6 +57,47 @@ html[data-theme="dark"] {
   margin-bottom: 16px;
 }
 
+.changelogRelease.alert {
+  --ifm-alert-background-color: var(--ifm-background-surface-color);
+  --ifm-alert-background-color-highlight: var(--ifm-color-emphasis-200);
+  --ifm-alert-foreground-color: var(--ifm-font-color-base);
+  --ifm-alert-border-color: var(--ifm-color-emphasis-300);
+  --ifm-alert-border-left-width: 1px;
+  --ifm-alert-padding-vertical: 0;
+  --ifm-alert-padding-horizontal: 1rem;
+  --ifm-link-color: var(--ifm-color-primary);
+  --ifm-link-hover-color: var(--ifm-color-primary-dark);
+}
+
+.changelogRelease > summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.875rem 0 0.875rem 1rem;
+  font-weight: 600;
+}
+
+.changelogRelease > summary::before {
+  top: 50%;
+  margin-top: calc(var(--docusaurus-details-summary-arrow-size) * -0.5);
+}
+
+.changelogRelease[open] {
+  padding-bottom: 0.5rem;
+}
+
+.changelogVersion {
+  font-size: 1.05em;
+}
+
+.changelogDate {
+  margin-left: auto;
+  font-weight: 400;
+  font-size: 0.9em;
+  color: var(--ifm-color-emphasis-600);
+}
+
 @media screen and (max-width: 996px) {
   .theme-doc-version-badge {
     margin-bottom: revert;
