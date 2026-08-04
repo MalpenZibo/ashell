@@ -32,7 +32,7 @@ use iced::{
     Alignment, Element, Length, OutputEvent, Subscription, SurfaceId, Task, Theme,
     event::listen_with,
     keyboard, set_exclusive_zone,
-    widget::{Row, container, mouse_area},
+    widget::{Row, blur_container, container, mouse_area},
 };
 use log::{debug, info, warn};
 use std::{collections::HashMap, path::PathBuf};
@@ -577,7 +577,7 @@ impl App {
 
                 let [left, center, right] = self.modules_section(id);
 
-                let (space, bar_surface, opacity, menu, animations_enabled, bar_radius) =
+                let (space, bar_surface, opacity, menu, animations_enabled, bar_radius, blur) =
                     use_theme(|t| {
                         (
                             t.space,
@@ -586,6 +586,7 @@ impl App {
                             t.menu,
                             t.animations_enabled,
                             t.bar_border_radius(),
+                            t.blur,
                         )
                     });
                 let centerbox = Centerbox::new([left, center, right])
@@ -605,7 +606,7 @@ impl App {
                     });
 
                 let menu_is_open = self.outputs.menu_is_open();
-                let status_bar = container(centerbox).style(move |t: &Theme| container::Style {
+                let bar_style = move |t: &Theme| container::Style {
                     background: match bar_surface {
                         BarSurface::Solid => Some({
                             let bg = t.palette().background.scale_alpha(opacity);
@@ -629,14 +630,20 @@ impl App {
                         ..Default::default()
                     },
                     ..Default::default()
-                });
+                };
+                // In Transparent the individual module groups carry the blur.
+                let status_bar: Element<'_, Message> = if blur && bar_surface == BarSurface::Solid {
+                    blur_container(centerbox).style(bar_style).into()
+                } else {
+                    container(centerbox).style(bar_style).into()
+                };
 
                 if self.outputs.menu_is_open() {
                     mouse_area(status_bar)
                         .on_release(Message::CloseMenu(id))
                         .into()
                 } else {
-                    status_bar.into()
+                    status_bar
                 }
             }
             Some(HasOutput::Menu(Some(open_menu))) => {

@@ -1049,6 +1049,32 @@ pub struct Appearance {
     pub text_color: AppearanceColor,
     pub workspace_colors: Vec<AppearanceColor>,
     pub special_workspace_colors: Option<Vec<AppearanceColor>>,
+    /// Blur the wallpaper behind ashell's translucent surfaces via
+    /// `ext-background-effect-v1`. No-op where the protocol is unsupported.
+    pub blur: BlurMode,
+}
+
+/// When to ask the compositor for background blur.
+#[derive(Deserialize, Default, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum BlurMode {
+    /// Blur when `opacity < 1`; blurring an opaque surface would not show.
+    #[default]
+    Auto,
+    /// Always ask, even at full opacity.
+    Always,
+    /// Never ask.
+    Never,
+}
+
+impl BlurMode {
+    pub fn enabled(self, opacity: f32) -> bool {
+        match self {
+            Self::Auto => opacity < 1.0,
+            Self::Always => true,
+            Self::Never => false,
+        }
+    }
 }
 
 static PRIMARY: HexColor = HexColor::rgb(122, 162, 247);
@@ -1125,6 +1151,7 @@ impl Default for Appearance {
                 AppearanceColor::Simple(HexColor::rgb(158, 206, 106)),
             ],
             special_workspace_colors: None,
+            blur: BlurMode::default(),
         }
     }
 }

@@ -17,7 +17,7 @@ use crate::{
 use chrono::{DateTime, Local};
 use iced::{
     Alignment, Border, Column, Element, Length, Padding, Row, Size, Subscription, Task, Theme,
-    widget::{Space, button, column, container, image, row, scrollable, sensor, svg, text},
+    widget::{Space, blur, button, column, container, image, row, scrollable, sensor, svg, text},
 };
 use itertools::Itertools;
 use log::error;
@@ -697,6 +697,8 @@ impl Notifications {
             ToastPosition::TopLeft | ToastPosition::BottomLeft => SlideDirection::Left,
         };
         let card_width = MenuSize::Medium.size();
+        // A toast is alone on its surface, so it publishes its own blur region.
+        let (blur_enabled, card_radius) = use_theme(|t| (t.blur, t.radius.lg));
 
         let mut toast_column = column!().spacing(space.sm);
 
@@ -708,16 +710,18 @@ impl Notifications {
                 toast_column = toast_column.push(
                     collapsible(
                         !is_collapsing,
-                        slide(
-                            !is_dismissing,
-                            slide_direction,
-                            card_width,
-                            self.notification_card(
+                        slide(!is_dismissing, slide_direction, card_width, {
+                            let card = self.notification_card(
                                 notification,
                                 Message::DismissToast(notification.id),
                                 true,
-                            ),
-                        )
+                            );
+                            if blur_enabled {
+                                blur(card_radius, card).into()
+                            } else {
+                                card
+                            }
+                        })
                         .animated(self.animations_enabled)
                         .key(toast_id as u64),
                     )

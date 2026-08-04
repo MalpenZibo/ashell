@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use iced::{
     Alignment, Border, Element, Length, Task, Theme,
-    widget::{container, progress_bar, row, text},
+    widget::{blur_container, container, progress_bar, row, text},
 };
 use tokio::time::sleep;
 
@@ -125,7 +125,8 @@ impl Osd {
             return row![].into();
         };
 
-        let (space, font_size, radius) = use_theme(|t| (t.space, t.font_size, t.radius));
+        let (space, font_size, radius, blur) =
+            use_theme(|t| (t.space, t.font_size, t.radius, t.blur));
 
         let overdrive = matches!(state.kind, OsdKind::Volume) && state.value > 1.0;
 
@@ -185,23 +186,32 @@ impl Osd {
         .spacing(space.sm)
         .align_y(Alignment::Center);
 
-        container(content)
-            .padding([space.sm, space.md])
-            .style(move |t: &Theme| container::Style {
-                background: Some(t.palette().background.into()),
-                border: Border::default()
-                    .width(1)
-                    .color(t.extended_palette().background.weakest.color)
-                    .rounded(radius.xl),
-                text_color: Some(match (state.kind, state.muted) {
-                    (OsdKind::IdleInhibitor, true) => t.palette().danger,
-                    (OsdKind::Airplane, true) => t.palette().danger,
-                    _ => t.palette().text,
-                }),
-                ..Default::default()
-            })
-            .center_x(Length::Fill)
-            .center_y(Length::Fill)
-            .into()
+        let osd_style = move |t: &Theme| container::Style {
+            background: Some(t.palette().background.into()),
+            border: Border::default()
+                .width(1)
+                .color(t.extended_palette().background.weakest.color)
+                .rounded(radius.xl),
+            text_color: Some(match (state.kind, state.muted) {
+                (OsdKind::IdleInhibitor, true) => t.palette().danger,
+                (OsdKind::Airplane, true) => t.palette().danger,
+                _ => t.palette().text,
+            }),
+            ..Default::default()
+        };
+        if blur {
+            blur_container(content)
+                .padding([space.sm, space.md])
+                .style(osd_style)
+                .center(Length::Fill)
+                .into()
+        } else {
+            container(content)
+                .padding([space.sm, space.md])
+                .style(osd_style)
+                .center_x(Length::Fill)
+                .center_y(Length::Fill)
+                .into()
+        }
     }
 }
