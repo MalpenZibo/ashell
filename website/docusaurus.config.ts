@@ -48,11 +48,40 @@ const config: Config = {
         docs: {
           sidebarPath: "./sidebars.ts",
         },
+        blog: false,
         theme: {
           customCss: "./src/css/custom.css",
         },
       } satisfies Preset.Options,
     ],
+  ],
+
+  headTags: [
+    {
+      tagName: "script",
+      attributes: { type: "application/ld+json" },
+      innerHTML: JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        name: "Ashell",
+        description:
+          "A ready to go status bar for Wayland compositors. Built-in workspaces, system tray, notifications, media player, system info, weather and quick settings. Written in Rust.",
+        applicationCategory: "DesktopEnhancementApplication",
+        operatingSystem: "Linux",
+        url: "https://malpenzibo.github.io/ashell/",
+        screenshot: "https://malpenzibo.github.io/ashell/img/main_bar.png",
+        license: "https://spdx.org/licenses/GPL-3.0-or-later.html",
+        sameAs: [
+          "https://github.com/MalpenZibo/ashell",
+          "https://repology.org/project/ashell/versions",
+        ],
+        offers: {
+          "@type": "Offer",
+          price: "0",
+          priceCurrency: "USD",
+        },
+      }),
+    },
   ],
 
   plugins: [

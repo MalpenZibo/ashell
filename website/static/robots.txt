@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://malpenzibo.github.io/ashell/sitemap.xml

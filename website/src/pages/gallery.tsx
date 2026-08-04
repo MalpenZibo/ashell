@@ -4,10 +4,41 @@ import clsx from "clsx";
 
 import classes from "./gallery.module.css";
 
-const importAll = (r) => r.keys().map(r);
-const images = importAll(
+const altTexts: Record<string, string> = {
+  "ashell.png":
+    "Ashell status bar on a Wayland desktop showing workspaces, clock and system tray",
+  "ashell-gradient.png": "Ashell status bar styled with a gradient background",
+  "ashell-solid.png": "Ashell status bar styled with a solid background",
+  "bluetooth-menu.png":
+    "Ashell Bluetooth menu listing paired and available devices",
+  "network-menu.png":
+    "Ashell Wi-Fi menu scanning available wireless networks",
+  "opacity.png": "Ashell bar and menu with custom opacity",
+  "power-menu.png":
+    "Ashell power menu with battery status, power profile and session actions",
+  "sinks-selection.png": "Ashell audio menu selecting the output device",
+  "system-menu.png":
+    "Ashell system information menu with CPU, memory, disk and network usage",
+  "tray-menu.png": "Ashell system tray menu opened from the bar",
+};
+
+type GalleryImage = {
+  src: string;
+  alt: string;
+};
+
+const importAll = (r) =>
+  r.keys().map((key) => {
+    const fileName = key.replace("./", "");
+    return {
+      src: r(key).default as string,
+      alt: altTexts[fileName] ?? fileName,
+    };
+  });
+
+const images: GalleryImage[] = importAll(
   require.context("../../static/img/gallery", false, /\.(png|jpe?g|svg)$/),
-).map((img) => img.default);
+);
 
 const maxThumbnail = 8;
 const scrollLimit = 3;
@@ -23,7 +54,7 @@ export default function Gallery(): ReactNode {
   );
 }
 
-function ImageGallery({ items }: { items: string[] }): ReactNode {
+function ImageGallery({ items }: { items: GalleryImage[] }): ReactNode {
   const [selected, setSelected] = useState(0);
   const [[start, end], setSlices] = useState([0, maxThumbnail]);
 
@@ -71,7 +102,10 @@ function ImageGallery({ items }: { items: string[] }): ReactNode {
           }}
         />
         <div className={classes.selectedImage}>
-          <img src={diplayedImages[selected]} alt="Selected" />
+          <img
+            src={diplayedImages[selected].src}
+            alt={diplayedImages[selected].alt}
+          />
         </div>
         <RightArrow
           onClick={() => {
@@ -85,7 +119,7 @@ function ImageGallery({ items }: { items: string[] }): ReactNode {
         />
       </div>
       <div className={classes.thumbnailContainer}>
-        {diplayedImages.map((src, index) => (
+        {diplayedImages.map((image, index) => (
           <div
             className={clsx(classes.imageThumbnail, {
               [classes.selected]: index === selected,
@@ -94,14 +128,14 @@ function ImageGallery({ items }: { items: string[] }): ReactNode {
               [classes.right]:
                 images.length > maxThumbnail &&
                 index === maxThumbnail - 1 &&
-                end < items.length,
+                end < images.length,
             })}
             key={index}
             onClick={() => {
               changeIndex(index);
             }}
           >
-            <img src={src} alt={`Gallery image ${index + 1}`} />
+            <img src={image.src} alt={image.alt} />
           </div>
         ))}
       </div>
