@@ -127,6 +127,16 @@ pub enum KnownConnection {
     Vpn(Vpn),
 }
 
+pub fn frequency_band(frequency_mhz: u32) -> Option<&'static str> {
+    match frequency_mhz {
+        2400..=2500 => Some("2.4 GHz"),
+        4900..=5924 => Some("5 GHz"),
+        5925..=7125 => Some("6 GHz"),
+        57000..=71000 => Some("60 GHz"),
+        _ => None,
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum ActiveConnectionInfo {
     Wired {
@@ -135,6 +145,7 @@ pub enum ActiveConnectionInfo {
     WiFi {
         name: String,
         strength: u8,
+        band: Option<&'static str>,
     },
     Vpn {
         name: String,
