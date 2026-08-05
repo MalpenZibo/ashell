@@ -19,7 +19,7 @@ use std::time::Duration;
 use std::{collections::HashMap, error::Error, ops::Deref, path::Path};
 use tokio::time::sleep;
 
-pub const DEFAULT_CONFIG_FILE_PATH: &str = "~/.config/ashell/config2.toml";
+pub const DEFAULT_CONFIG_FILE_PATH: &str = "~/.config/ashell/config.toml";
 
 #[derive(Deserialize, Clone, Debug)]
 #[serde(default)]
