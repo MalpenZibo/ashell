@@ -91,6 +91,11 @@ impl PrebuiltTheme {
             weak: Some(color_to_hex_color(primary.weak.color)),
             text: None,
         };
+        app.workspace_colors = vec![
+            AppearanceColor::Simple(color_to_hex_color(primary.base.color)),
+            AppearanceColor::Simple(color_to_hex_color(success.base.color)),
+            AppearanceColor::Simple(color_to_hex_color(warning.base.color)),
+        ];
     }
 }
 pub fn color_to_hex_color(color: Color) -> HexColor {
