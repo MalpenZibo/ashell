@@ -25,3 +25,16 @@ system. ashell-iced is the installed 0.9.0 (= upstream main 23a5d136).
 |---|---|---|---|
 | ashell-iced 0.9.0 | 182.2 MB | 5.90 | 0.13% |
 | ashell-guido      | 131.6 MB | 1.30 | 0.57% |
+
+## Nota (2026-08-07, sera)
+
+I numeri CPU sopra vanno rivisti: le misure erano inquinate da burst
+intermittenti del main thread (fino a ~30% per secondi) causati da un bug
+core di guido, non dal port: la coda job è globale ma il frame-pacing gate
+è per superficie — la superficie menu (idle, gate aperto) drena i job di
+animazione della bar senza pacing (~260k iterazioni/s durante le spring
+`animate_width` dei pill workspace). Confermato rimuovendo la superficie
+menu: 87 → 4 tick/3s. RSS e wakeup/s restano validi. CPU da rimisurare
+dopo il fix in guido (pacing per superficie dei job di animazione).
+Il cap tokio worker_threads=2 è stato rimosso: A/B interleaved non mostra
+alcun effetto (il delta era il rumore dei burst di cui sopra).
