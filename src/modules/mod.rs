@@ -6,13 +6,12 @@ pub mod window_title;
 pub mod workspaces;
 
 use std::collections::HashSet;
-use std::time::Duration;
 
 use guido::prelude::*;
 
 use crate::components::module_group::ModuleGroup;
 use crate::components::{module_group, module_item};
-use crate::config::{ModuleDef, ModuleName, Modules};
+use crate::config::{Config, ModuleDef, ModuleName, Modules, Position};
 use crate::services::compositor::{CompositorCommand, CompositorStateSignals};
 use crate::services::system_info::SystemInfoDataSignals;
 use crate::services::updates::{UpdatesCmd, UpdatesDataSignals};
@@ -40,27 +39,32 @@ pub struct ModuleData {
 }
 
 /// Menu infrastructure signals (all Copy).
+///
+/// Menus are xdg popups anchored to the bar: the compositor positions
+/// them, keeps them on screen, and dismisses them on outside click (grab).
+/// No persistent fullscreen overlay surface is involved.
 #[derive(Clone, Copy)]
 pub struct MenuCtx {
     pub active_menu: RwSignal<Option<MenuType>>,
-    pub displayed_menu: RwSignal<Option<MenuType>>,
-    pub menu_x: RwSignal<f32>,
-    pub menu_sid: RwSignal<Option<SurfaceId>>,
-    pub backdrop_ref: WidgetRef,
-    /// Written from a delayed tokio task to trigger surface hide after close animation.
-    pub surface_hide_writer: WriteSignal<bool>,
+    /// The bar surface popups anchor to (set once after add_surface).
+    pub bar_sid: RwSignal<Option<SurfaceId>>,
+}
+
+// The one open menu popup (only one menu can be open at a time).
+thread_local! {
+    static OPEN_POPUP: std::cell::RefCell<Option<PopupHandle>> =
+        const { std::cell::RefCell::new(None) };
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-pub fn toggle_menu_surface(id: SurfaceId, open: bool) {
-    let handle = surface_handle(id);
-    if open {
-        handle.set_layer(Layer::Overlay);
-        handle.set_keyboard_interactivity(KeyboardInteractivity::OnDemand);
-    } else {
-        handle.set_layer(Layer::Background);
-        handle.set_keyboard_interactivity(KeyboardInteractivity::None);
+/// Close the currently open menu popup, if any. Used as the `close`
+/// callback handed to menu views (power actions, etc.); the popup's
+/// dismissal effect resets `active_menu`.
+pub fn close_open_menu() {
+    let popup = OPEN_POPUP.with(|slot| slot.borrow_mut().take());
+    if let Some(popup) = popup {
+        popup.close();
     }
 }
 
@@ -71,18 +75,15 @@ pub fn menu_width_for(mt: MenuType) -> f32 {
     }
 }
 
-/// Duration to keep the surface visible while the close animation plays.
-const MENU_CLOSE_DELAY: Duration = Duration::from_millis(500);
-
-pub fn close_menu_fn(menu: MenuCtx) -> impl Fn() + Clone + 'static {
-    move || {
-        menu.active_menu.set(None);
-        let writer = menu.surface_hide_writer;
-        tokio::spawn(async move {
-            tokio::time::sleep(MENU_CLOSE_DELAY).await;
-            writer.set(true);
-        });
-    }
+/// Popup size per menu (xdg positioners need an explicit size).
+fn menu_size_for(mt: MenuType) -> (u32, u32) {
+    let width = menu_width_for(mt) as u32;
+    let height = match mt {
+        MenuType::Settings => 620,
+        MenuType::SystemInfo => 460,
+        MenuType::Updates => 280,
+    };
+    (width, height)
 }
 
 /// Collect all module names referenced by a config's module layout.
@@ -107,34 +108,78 @@ pub fn modules_in_config(modules: &Modules) -> HashSet<ModuleName> {
 
 // ── Menu toggle callback ─────────────────────────────────────────────────────
 
-fn menu_toggle(mt: MenuType, wr: WidgetRef, menu: MenuCtx) -> impl Fn() + 'static {
+/// Common popup chrome around a menu view.
+fn menu_shell(content: AnyWidget) -> Container {
+    let theme = expect_context::<crate::theme::ThemeColors>();
+    container()
+        .width(fill())
+        .height(fill())
+        .background(theme.background)
+        .corner_radius(12)
+        .padding(16)
+        .overflow(Overflow::Hidden)
+        .child(content)
+}
+
+fn menu_toggle(
+    mt: MenuType,
+    wr: WidgetRef,
+    menu: MenuCtx,
+    content: impl Fn() -> AnyWidget + Clone + 'static,
+) -> impl Fn() + 'static {
     move || {
-        let new = match menu.active_menu.get() {
-            Some(m) if m == mt => None,
-            _ => Some(mt),
-        };
-        if let Some(mt) = new {
-            // Opening
-            let r = wr.rect().get();
-            let screen_w = menu.backdrop_ref.rect().get().width;
-            let w = menu_width_for(mt);
-            let center = r.x + r.width / 2.0;
-            menu.menu_x
-                .set((center - w / 2.0).max(8.0).min(screen_w - w - 8.0));
-            menu.displayed_menu.set(Some(mt));
-            menu.active_menu.set(Some(mt));
-            if let Some(id) = menu.menu_sid.get() {
-                toggle_menu_surface(id, true);
-            }
-        } else {
-            // Closing — delay surface hide so animation plays
+        let was_open = menu.active_menu.get() == Some(mt);
+        // Whatever happens, the previous popup goes away
+        close_open_menu();
+        if was_open {
             menu.active_menu.set(None);
-            let writer = menu.surface_hide_writer;
-            tokio::spawn(async move {
-                tokio::time::sleep(MENU_CLOSE_DELAY).await;
-                writer.set(true);
-            });
+            return;
         }
+        let Some(bar) = menu.bar_sid.get() else {
+            return;
+        };
+
+        // Open downward from a top bar, upward from a bottom bar; the
+        // compositor's flip adjustment covers the rest.
+        let direction = match with_context::<Config, _>(|c| c.position).unwrap_or_default() {
+            Position::Top => PopupAnchor::Bottom,
+            Position::Bottom => PopupAnchor::Top,
+        };
+
+        let (width, height) = menu_size_for(mt);
+        let content = content.clone();
+        let popup = spawn_popup(
+            bar,
+            PopupConfig::new(width, height)
+                .anchor_rect(wr.rect().get())
+                .anchor(direction)
+                .gravity(direction)
+                .grab()
+                .background_color(Color::TRANSPARENT),
+            move || menu_shell(content()),
+        );
+        menu.active_menu.set(Some(mt));
+
+        // Reset state when the compositor dismisses the popup (outside
+        // click) or close_open_menu() runs — but only if this popup is
+        // still the current one (the user may have switched menus).
+        let popup_id = popup.id();
+        create_effect(move || {
+            if popup.dismissed() {
+                OPEN_POPUP.with(|slot| {
+                    let mut slot = slot.borrow_mut();
+                    if slot.as_ref().is_some_and(|p| p.id() == popup_id) {
+                        *slot = None;
+                    }
+                });
+                if menu.active_menu.get_untracked() == Some(mt) {
+                    menu.active_menu.set(None);
+                }
+            }
+        })
+        .detach();
+
+        OPEN_POPUP.with(|slot| *slot.borrow_mut() = Some(popup));
     }
 }
 
@@ -166,10 +211,11 @@ fn add_module(
         ModuleName::SystemInfo => {
             if let Some(info) = data.system_info {
                 let wr = create_widget_ref();
+                let content = move || system_info::menu_view(info).into_any();
                 group.child(
                     container().widget_ref(wr).child(
                         module_item()
-                            .on_click(menu_toggle(MenuType::SystemInfo, wr, menu))
+                            .on_click(menu_toggle(MenuType::SystemInfo, wr, menu, content))
                             .child(system_info::view(info)),
                     ),
                 )
@@ -178,13 +224,16 @@ fn add_module(
             }
         }
         ModuleName::Updates => {
-            if let Some((d, _)) = &data.updates {
+            if let Some((d, svc)) = &data.updates {
                 let wr = create_widget_ref();
+                let (d, svc) = (*d, svc.clone());
+                let content =
+                    move || updates::menu_view(d, svc.clone(), close_open_menu).into_any();
                 group.child(
                     container().widget_ref(wr).child(
                         module_item()
-                            .on_click(menu_toggle(MenuType::Updates, wr, menu))
-                            .child(updates::view(*d)),
+                            .on_click(menu_toggle(MenuType::Updates, wr, menu, content))
+                            .child(updates::view(d)),
                     ),
                 )
             } else {
@@ -194,10 +243,13 @@ fn add_module(
         ModuleName::Settings => {
             if let Some(s) = &data.settings {
                 let wr = create_widget_ref();
+                let s_menu = s.clone();
+                let content =
+                    move || settings::menu_view(s_menu.clone(), close_open_menu).into_any();
                 group.child(
                     container().widget_ref(wr).child(
                         module_item()
-                            .on_click(menu_toggle(MenuType::Settings, wr, menu))
+                            .on_click(menu_toggle(MenuType::Settings, wr, menu, content))
                             .child(settings::view(s.clone())),
                     ),
                 )
