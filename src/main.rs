@@ -79,9 +79,7 @@ const NERD_FONT_MONO: &[u8] =
     include_bytes!("../target/generated/SymbolsNerdFontMono-Regular-Subset.ttf");
 const CUSTOM_FONT: &[u8] = include_bytes!("../assets/AshellCustomIcon-Regular.otf");
 
-// A status bar needs a couple of async workers, not one per core: the
-// default (= nproc, 16 here) adds idle scheduler/timer overhead for nothing.
-#[tokio::main(worker_threads = 2)]
+#[tokio::main]
 async fn main() {
     env_logger::init();
 
@@ -176,10 +174,14 @@ async fn main() {
             .detach();
 
             // Bar surface
+            let position_anchor = match cfg.position {
+                config::Position::Top => Anchor::TOP,
+                config::Position::Bottom => Anchor::BOTTOM,
+            };
             app.add_surface(
                 SurfaceConfig::new()
                     .height(34)
-                    .anchor(Anchor::TOP | Anchor::LEFT | Anchor::RIGHT)
+                    .anchor(position_anchor | Anchor::LEFT | Anchor::RIGHT)
                     .layer(Layer::Bottom)
                     .exclusive_zone(Some(34))
                     .background_color(Color::TRANSPARENT)

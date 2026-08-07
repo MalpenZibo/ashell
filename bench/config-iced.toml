@@ -1,6 +1,7 @@
 # Benchmark config for upstream ashell (iced): module set kept semantically
 # identical to bench/config-guido.toml (Tempo here is the Clock equivalent).
 log_level = "warn"
+position = "Bottom"
 
 [modules]
 left = ["Workspaces"]
