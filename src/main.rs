@@ -83,7 +83,10 @@ const CUSTOM_FONT: &[u8] = include_bytes!("../assets/AshellCustomIcon-Regular.ot
 async fn main() {
     env_logger::init();
 
-    let config_path = config_watcher::resolve_config_path(None);
+    // ASHELL_CONFIG_PATH overrides the default ~/.config/ashell/config.toml
+    // (used by the benchmark harness and handy for testing)
+    let custom_config = std::env::var("ASHELL_CONFIG_PATH").ok();
+    let config_path = config_watcher::resolve_config_path(custom_config.as_deref());
     config_watcher::ensure_config_dir(&config_path);
 
     loop {
@@ -298,6 +301,10 @@ async fn main() {
                 log::info!("Restarting application...");
                 tokio::time::sleep(std::time::Duration::from_millis(100)).await;
                 continue;
+            }
+            ExitReason::Error(e) => {
+                log::error!("Platform error: {e}");
+                std::process::exit(1);
             }
         }
     }
