@@ -124,12 +124,17 @@ async fn main() {
                 .contains(&ModuleName::Settings)
                 .then(modules::settings::create);
 
+            let tray = needed
+                .contains(&ModuleName::Tray)
+                .then(modules::tray::create);
+
             let data = ModuleData {
                 compositor_state,
                 compositor_svc,
                 system_info,
                 updates: updates.clone(),
                 settings: settings.clone(),
+                tray,
             };
 
             // Menu state — menus are xdg popups anchored to the bar; the

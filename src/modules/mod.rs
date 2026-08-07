@@ -1,6 +1,7 @@
 pub mod clock;
 pub mod settings;
 pub mod system_info;
+pub mod tray;
 pub mod updates;
 pub mod window_title;
 pub mod workspaces;
@@ -22,11 +23,13 @@ pub use self::settings::SettingsSignals;
 
 pub const MENU_WIDTH: f32 = 300.0;
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub enum MenuType {
     SystemInfo,
     Updates,
     Settings,
+    /// Tray item menu, keyed by the item's service name
+    Tray(String),
 }
 
 /// All module data — mirrors what main.rs used to hold inline.
@@ -36,6 +39,7 @@ pub struct ModuleData {
     pub system_info: Option<SystemInfoDataSignals>,
     pub updates: Option<(UpdatesDataSignals, Service<UpdatesCmd>)>,
     pub settings: Option<SettingsSignals>,
+    pub tray: Option<tray::TrayHandle>,
 }
 
 /// Menu infrastructure signals (all Copy).
@@ -95,7 +99,7 @@ pub fn finish_menu_close() {
     }
 }
 
-pub fn menu_width_for(mt: MenuType) -> f32 {
+pub fn menu_width_for(mt: &MenuType) -> f32 {
     match mt {
         MenuType::Settings => 350.0,
         _ => MENU_WIDTH,
@@ -157,7 +161,7 @@ fn menu_toggle(
     content: impl Fn() -> AnyWidget + Clone + 'static,
 ) -> impl Fn() + 'static {
     move || {
-        let was_open = menu.active_menu.get() == Some(mt);
+        let was_open = menu.active_menu.get().as_ref() == Some(&mt);
         // Whatever happens, the previous popup goes away (animated)
         close_menu_fn(menu)();
         if was_open {
@@ -175,7 +179,7 @@ fn menu_toggle(
                 Position::Bottom => (PopupAnchor::Top, TransformOrigin::BOTTOM),
             };
 
-        let width = menu_width_for(mt) as u32;
+        let width = menu_width_for(&mt) as u32;
         // Starts collapsed; flipped just after mapping so the expand plays
         let open_sig = create_signal(false);
         let content = content.clone();
@@ -189,7 +193,7 @@ fn menu_toggle(
                 .background_color(Color::TRANSPARENT),
             move || menu_shell(content(), open_sig, origin),
         );
-        menu.active_menu.set(Some(mt));
+        menu.active_menu.set(Some(mt.clone()));
         let open_writer = open_sig.writer();
         tokio::spawn(async move {
             tokio::time::sleep(MENU_OPEN_DELAY).await;
@@ -200,6 +204,7 @@ fn menu_toggle(
         // click) or close_open_menu() runs — but only if this popup is
         // still the current one (the user may have switched menus).
         let popup_id = popup.id();
+        let mt_effect = mt.clone();
         create_effect(move || {
             if popup.dismissed() {
                 OPEN_POPUP.with(|slot| {
@@ -208,7 +213,7 @@ fn menu_toggle(
                         *slot = None;
                     }
                 });
-                if menu.active_menu.get_untracked() == Some(mt) {
+                if menu.active_menu.get_untracked().as_ref() == Some(&mt_effect) {
                     menu.active_menu.set(None);
                 }
             }
@@ -289,6 +294,17 @@ fn add_module(
                             .child(settings::view(s.clone())),
                     ),
                 )
+            } else {
+                group
+            }
+        }
+        ModuleName::Tray => {
+            if let Some((items, svc)) = &data.tray {
+                let (items, svc) = (*items, svc.clone());
+                // Hidden entirely while no tray item is registered
+                group.child(container().height(fill()).child(move || {
+                    (!items.with(|l| l.is_empty())).then(|| tray::view(items, svc.clone(), menu))
+                }))
             } else {
                 group
             }

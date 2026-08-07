@@ -17,7 +17,7 @@ fn custom_icon_font() -> FontFamily {
 // Icon data types
 // ---------------------------------------------------------------------------
 
-#[derive(Copy, Clone, Default)]
+#[derive(Copy, Clone, Debug, PartialEq, Default)]
 #[allow(dead_code)]
 pub enum StaticIcon {
     #[default]

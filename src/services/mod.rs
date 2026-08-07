@@ -5,5 +5,7 @@ pub mod compositor;
 pub mod idle_inhibitor;
 pub mod network;
 pub mod system_info;
+pub mod tray;
 pub mod updates;
 pub mod upower;
+pub mod xdg_icons;
