@@ -38,3 +38,19 @@ menu: 87 → 4 tick/3s. RSS e wakeup/s restano validi. CPU da rimisurare
 dopo il fix in guido (pacing per superficie dei job di animazione).
 Il cap tokio worker_threads=2 è stato rimosso: A/B interleaved non mostra
 alcun effetto (il delta era il rumore dei burst di cui sopra).
+
+## 2026-08-07 — dopo il fix guido #118 (pacing per-superficie)
+
+Bug confermato e corretto in guido (PR #118, mergiata): worst-case del
+repro workspaces+menu da 87 a 2 tick/3s. Nuovo A/B 60s:
+
+| bar | RSS | wakeups/s | CPU |
+|---|---|---|---|
+| ashell-iced 0.9.0 | 181.9 MB | 5.97 | 0.15% |
+| ashell-guido      | 132.4 MB | 0.60 | 0.58% |
+
+RSS −27%, wakeup −90% (stabili run dopo run). La CPU residua resta
+sopra iced e varia tra i campioni (~0.3–0.6%): è lato servizi/da
+caratterizzare meglio (cadenza sysinfo, costo animazioni legittime a
+60fps), non più il busy-spin. Prossimo focus CPU quando rientra nel
+lavoro sui moduli.
