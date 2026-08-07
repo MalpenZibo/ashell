@@ -273,7 +273,7 @@ pub trait StatusNotifierItem {
     fn activate(&self, x: i32, y: i32) -> zbus::Result<()>;
 }
 
-#[derive(Clone, Debug, PartialEq, Type)]
+#[derive(Clone, Debug, PartialEq, Hash, Type)]
 #[zvariant(signature = "(ia{sv}av)")]
 pub struct Layout(pub i32, pub LayoutProps, pub Vec<Layout>);
 
@@ -287,7 +287,7 @@ impl<'a> serde::Deserialize<'a> for Layout {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Type, zvariant::DeserializeDict)]
+#[derive(Clone, Debug, PartialEq, Hash, Type, zvariant::DeserializeDict)]
 #[zvariant(signature = "dict")]
 pub struct LayoutProps {
     #[zvariant(rename = "children-display")]

@@ -35,6 +35,9 @@ pub enum TrayCmd {
     Activate(String),
     /// Send a "clicked" event for a menu entry, then refresh the layout
     MenuClick(String, i32),
+    /// Announce a submenu is about to open; lazy apps populate its children
+    /// then (a returned/true refresh lands via LayoutUpdated or the refetch)
+    AboutToShow(String, i32),
 }
 
 enum TrayEvent {
@@ -370,6 +373,19 @@ pub fn start_tray_service(writer: WriteSignal<Vec<TrayItem>>) -> Service<TrayCmd
                                         }
                                     }
                                     Err(err) => debug!("Tray menu click failed: {err}"),
+                                }
+                            }
+                        }
+                        Some(TrayCmd::AboutToShow(name, id)) => {
+                            if let Some(px) = proxies.get(&name) {
+                                // true = the layout changed; refetch in case
+                                // the app doesn't also emit LayoutUpdated
+                                if let Ok(true) = px.menu.about_to_show(id).await
+                                    && let Ok((_, layout)) = px.menu.get_layout(0, -1, &[]).await
+                                    && let Some(item) = items.iter_mut().find(|i| i.name == name)
+                                {
+                                    item.menu = layout;
+                                    writer.set(items.clone());
                                 }
                             }
                         }

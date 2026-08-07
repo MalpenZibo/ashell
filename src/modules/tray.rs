@@ -35,7 +35,7 @@ pub fn view(items: RwSignal<Vec<TrayItem>>, svc: Service<TrayCmd>, menu: MenuCtx
                     .map(|item| {
                         let name = item.name.clone();
                         let svc = svc.clone();
-                        (name_key(&name), move || {
+                        (hash_key(&name), move || {
                             tray_button(name, items, svc, menu, theme)
                         })
                     })
@@ -44,11 +44,29 @@ pub fn view(items: RwSignal<Vec<TrayItem>>, svc: Service<TrayCmd>, menu: MenuCtx
         })
 }
 
-fn name_key(name: &str) -> u64 {
+/// Reconciliation key from anything hashable. Guido's dynamic children only
+/// rebuild when keys change, so content that must re-render on update has to
+/// fold that content into its key.
+fn hash_key(value: impl std::hash::Hash) -> u64 {
     use std::hash::{DefaultHasher, Hash, Hasher};
     let mut hasher = DefaultHasher::new();
-    name.hash(&mut hasher);
+    value.hash(&mut hasher);
     hasher.finish()
+}
+
+fn icon_key(icon: &Option<XdgIcon>) -> u64 {
+    match icon {
+        None => 0,
+        Some(XdgIcon::Image(ImageSource::Rgba {
+            width,
+            height,
+            pixels,
+        })) => hash_key((width, height, pixels)),
+        Some(XdgIcon::Image(ImageSource::Path(p)))
+        | Some(XdgIcon::Svg(ImageSource::SvgPath(p))) => hash_key(p),
+        // Bytes/SvgBytes never come out of xdg_icons
+        Some(_) => 1,
+    }
 }
 
 fn tray_button(
@@ -66,21 +84,20 @@ fn tray_button(
     };
     let toggle = menu_toggle(MenuType::Tray(name.clone()), wr, menu, content);
 
-    container()
-        .widget_ref(wr)
-        .height(fill())
-        .child(
-            module_item()
-                .on_click(toggle)
-                .child(container().child(move || {
-                    let item_icon = items.with(|l| {
-                        l.iter()
-                            .find(|i| i.name == name)
-                            .and_then(|i| i.icon.clone())
-                    });
-                    Some(icon_view(item_icon, theme))
-                })),
-        )
+    container().widget_ref(wr).height(fill()).child(
+        module_item()
+            .on_click(toggle)
+            // Keyed by icon content: same key reuses the widget, a new
+            // icon from the app swaps it in
+            .child(container().children(move || {
+                let item_icon = items.with(|l| {
+                    l.iter()
+                        .find(|i| i.name == name)
+                        .and_then(|i| i.icon.clone())
+                });
+                vec![(icon_key(&item_icon), move || icon_view(item_icon, theme))]
+            })),
+    )
 }
 
 fn icon_view(item_icon: Option<XdgIcon>, theme: ThemeColors) -> AnyWidget {
@@ -124,31 +141,43 @@ fn renderable_children(children: &[Layout]) -> impl Iterator<Item = &Layout> {
         .flatten()
 }
 
-/// DBusMenu rendered from the item's current layout. Rebuilds reactively on
-/// layout updates from the app and on submenu expand/collapse (the popup
-/// re-measures and repositions itself when the height changes).
+/// DBusMenu rendered from the item's current layout. The single child is
+/// keyed by hash(layout, open submenus): any layout update from the app or
+/// submenu expand/collapse produces a new key, which is what makes guido's
+/// reconciliation swap the rebuilt widget in (same key = cached widget kept).
+/// The popup re-measures and repositions itself when the height changes.
 fn menu_view(
     name: String,
     items: RwSignal<Vec<TrayItem>>,
     svc: Service<TrayCmd>,
     close: impl Fn() + Clone + 'static,
 ) -> impl Widget {
+    let theme = expect_context::<ThemeColors>();
     let open_submenus = create_signal(Vec::<i32>::new());
 
-    container().width(fill()).child(move || {
-        let theme = expect_context::<ThemeColors>();
+    container().width(fill()).children(move || {
         let menu_layout =
-            items.with(|list| list.iter().find(|i| i.name == name).map(|i| i.menu.clone()))?;
+            items.with(|list| list.iter().find(|i| i.name == name).map(|i| i.menu.clone()));
+        let Some(menu_layout) = menu_layout else {
+            return Vec::new();
+        };
+        let open = open_submenus.get();
 
-        let mut col = container()
-            .width(fill())
-            .height(at_most(600))
-            .scrollable(ScrollAxis::Vertical)
-            .layout(Flex::column().spacing(4));
-        for voice in renderable_children(&menu_layout.2) {
-            col = col.child(menu_voice(&name, voice, open_submenus, &svc, &close, theme));
-        }
-        Some(col)
+        let key = hash_key((&menu_layout, &open));
+        let name = name.clone();
+        let svc = svc.clone();
+        let close = close.clone();
+        vec![(key, move || {
+            let mut col = container()
+                .width(fill())
+                .height(at_most(600))
+                .scrollable(ScrollAxis::Vertical)
+                .layout(Flex::column().spacing(4));
+            for voice in renderable_children(&menu_layout.2) {
+                col = col.child(menu_voice(&name, voice, open_submenus, &svc, &close, theme));
+            }
+            col
+        })]
     })
 }
 
@@ -226,14 +255,24 @@ fn menu_voice(
                                 .font_size(12),
                         ),
                 )
-                .on_click(move || {
-                    open_submenus.update(|s| {
-                        if let Some(pos) = s.iter().position(|i| *i == id) {
-                            s.remove(pos);
-                        } else {
-                            s.push(id);
+                .on_click({
+                    let svc = svc.clone();
+                    let name = name.to_owned();
+                    move || {
+                        let mut opening = false;
+                        open_submenus.update(|s| {
+                            if let Some(pos) = s.iter().position(|i| *i == id) {
+                                s.remove(pos);
+                            } else {
+                                s.push(id);
+                                opening = true;
+                            }
+                        });
+                        if opening {
+                            // Lazy apps only populate submenu children now
+                            svc.send(TrayCmd::AboutToShow(name.clone(), id));
                         }
-                    })
+                    }
                 });
 
             let mut col = container()
