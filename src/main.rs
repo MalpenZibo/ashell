@@ -79,7 +79,9 @@ const NERD_FONT_MONO: &[u8] =
     include_bytes!("../target/generated/SymbolsNerdFontMono-Regular-Subset.ttf");
 const CUSTOM_FONT: &[u8] = include_bytes!("../assets/AshellCustomIcon-Regular.otf");
 
-#[tokio::main]
+// A status bar needs a couple of async workers, not one per core: the
+// default (= nproc, 16 here) adds idle scheduler/timer overhead for nothing.
+#[tokio::main(worker_threads = 2)]
 async fn main() {
     env_logger::init();
 
@@ -109,9 +111,15 @@ async fn main() {
             // Only create expensive services for modules actually in the config
             let needed = modules_in_config(&cfg.modules);
 
-            let system_info = needed
-                .contains(&ModuleName::SystemInfo)
-                .then(modules::system_info::create);
+            // While the system-info menu is open the sysinfo sampling widens
+            // to all domains (disks, network); closed, only the configured
+            // bar indicators are refreshed. Synced by an effect further down
+            // once the menu state exists.
+            let sysinfo_menu_open = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+
+            let system_info = needed.contains(&ModuleName::SystemInfo).then(|| {
+                modules::system_info::create(sysinfo_menu_open.clone())
+            });
 
             let updates = (needed.contains(&ModuleName::Updates) && cfg.updates.is_some())
                 .then(modules::updates::create);
@@ -139,6 +147,18 @@ async fn main() {
                 backdrop_ref,
                 surface_hide_writer: surface_hide_ready.writer(),
             };
+
+            // Sync the sysinfo wide-refresh flag with the displayed menu
+            create_effect({
+                let flag = sysinfo_menu_open.clone();
+                move || {
+                    flag.store(
+                        matches!(menu.displayed_menu.get(), Some(MenuType::SystemInfo)),
+                        std::sync::atomic::Ordering::Relaxed,
+                    );
+                }
+            })
+            .detach();
 
             // Effect: hide menu surface after close animation completes
             create_effect(move || {

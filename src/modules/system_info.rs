@@ -27,10 +27,14 @@ fn format_speed(kbps: u32) -> String {
 
 /// Create the system info signals and start the service.
 /// Returns the signals struct that can be shared between bar and menu views.
-pub fn create() -> SystemInfoDataSignals {
+///
+/// `menu_open` widens the sysinfo refresh to all domains while the menu is
+/// displayed; with the menu closed only the domains needed by the configured
+/// bar indicators are sampled.
+pub fn create(menu_open: std::sync::Arc<std::sync::atomic::AtomicBool>) -> SystemInfoDataSignals {
     let config = expect_context::<Config>().system_info;
     let info = SystemInfoDataSignals::new(SystemInfoData::default());
-    start_system_info_service(info.writers(), config);
+    start_system_info_service(info.writers(), config, menu_open);
     info
 }
 
