@@ -54,3 +54,17 @@ sopra iced e varia tra i campioni (~0.3–0.6%): è lato servizi/da
 caratterizzare meglio (cadenza sysinfo, costo animazioni legittime a
 60fps), non più il busy-spin. Prossimo focus CPU quando rientra nel
 lavoro sui moduli.
+
+## 2026-08-07 — menu come popup xdg (guido #120)
+
+Memoria GPU (amdgpu vram+gtt, campionamento a minimo per filtrare il
+rumore di altri processi, schermo 2880×1800, config bench):
+
+| build | GPU dell'app |
+|---|---|
+| overlay fullscreen (pre-popup) | +353 / +340 MiB |
+| menu popup | +81 / +135 MiB |
+
+≈250 MiB risparmiati per monitor. RSS/wakeup/CPU invariati (131.5 MB /
+0.58 wk/s / ~0.5%). Nota: la verifica interattiva dei menu (click,
+grab, posizionamento, contenuti) va fatta a mano.
