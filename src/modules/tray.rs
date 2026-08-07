@@ -89,13 +89,13 @@ fn tray_button(
             .on_click(toggle)
             // Keyed by icon content: same key reuses the widget, a new
             // icon from the app swaps it in
-            .child(container().children(move || {
+            .child(container().child(move || {
                 let item_icon = items.with(|l| {
                     l.iter()
                         .find(|i| i.name == name)
                         .and_then(|i| i.icon.clone())
                 });
-                vec![(icon_key(&item_icon), move || icon_view(item_icon, theme))]
+                Some((icon_key(&item_icon), icon_view(item_icon, theme)))
             })),
     )
 }
@@ -155,29 +155,20 @@ fn menu_view(
     let theme = expect_context::<ThemeColors>();
     let open_submenus = create_signal(Vec::<i32>::new());
 
-    container().width(fill()).children(move || {
+    container().width(fill()).child(move || {
         let menu_layout =
-            items.with(|list| list.iter().find(|i| i.name == name).map(|i| i.menu.clone()));
-        let Some(menu_layout) = menu_layout else {
-            return Vec::new();
-        };
+            items.with(|list| list.iter().find(|i| i.name == name).map(|i| i.menu.clone()))?;
         let open = open_submenus.get();
 
-        let key = hash_key((&menu_layout, &open));
-        let name = name.clone();
-        let svc = svc.clone();
-        let close = close.clone();
-        vec![(key, move || {
-            let mut col = container()
-                .width(fill())
-                .height(at_most(600))
-                .scrollable(ScrollAxis::Vertical)
-                .layout(Flex::column().spacing(4));
-            for voice in renderable_children(&menu_layout.2) {
-                col = col.child(menu_voice(&name, voice, open_submenus, &svc, &close, theme));
-            }
-            col
-        })]
+        let mut col = container()
+            .width(fill())
+            .height(at_most(600))
+            .scrollable(ScrollAxis::Vertical)
+            .layout(Flex::column().spacing(4));
+        for voice in renderable_children(&menu_layout.2) {
+            col = col.child(menu_voice(&name, voice, open_submenus, &svc, &close, theme));
+        }
+        Some((hash_key((&menu_layout, &open)), col))
     })
 }
 
