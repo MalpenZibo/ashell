@@ -134,10 +134,21 @@ async fn main() {
 
             // Menu state — menus are xdg popups anchored to the bar; the
             // compositor positions and dismisses them (no overlay surface)
+            let pending_close = create_signal(false);
             let menu = MenuCtx {
                 active_menu: create_signal(None::<MenuType>),
                 bar_sid: create_signal(None::<SurfaceId>),
+                pending_close_writer: pending_close.writer(),
             };
+
+            // Destroy the menu popup once its collapse animation played
+            create_effect(move || {
+                if pending_close.get() {
+                    modules::finish_menu_close();
+                    pending_close.set(false);
+                }
+            })
+            .detach();
 
             // Sync the sysinfo wide-refresh flag with the open menu
             create_effect({

@@ -48,22 +48,49 @@ pub struct MenuCtx {
     pub active_menu: RwSignal<Option<MenuType>>,
     /// The bar surface popups anchor to (set once after add_surface).
     pub bar_sid: RwSignal<Option<SurfaceId>>,
+    /// Written from a delayed tokio task so the popup closes only after
+    /// the collapse animation has played (see finish_menu_close).
+    pub pending_close_writer: WriteSignal<bool>,
 }
 
-// The one open menu popup (only one menu can be open at a time).
+// The one open menu popup + its open/collapse animation signal.
 thread_local! {
-    static OPEN_POPUP: std::cell::RefCell<Option<PopupHandle>> =
+    static OPEN_POPUP: std::cell::RefCell<Option<(PopupHandle, RwSignal<bool>)>> =
         const { std::cell::RefCell::new(None) };
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-/// Close the currently open menu popup, if any. Used as the `close`
-/// callback handed to menu views (power actions, etc.); the popup's
-/// dismissal effect resets `active_menu`.
-pub fn close_open_menu() {
+/// Time the collapse animation gets before the popup surface is closed.
+const MENU_CLOSE_ANIM: std::time::Duration = std::time::Duration::from_millis(220);
+/// Delay before flipping the open signal so the first frame renders
+/// collapsed and the expand animation actually plays.
+const MENU_OPEN_DELAY: std::time::Duration = std::time::Duration::from_millis(30);
+
+/// Begin closing the open menu: play the collapse animation, then let the
+/// deferred pending_close effect destroy the popup. Used as the `close`
+/// callback handed to menu views (power actions, etc.).
+pub fn close_menu_fn(menu: MenuCtx) -> impl Fn() + Clone + 'static {
+    move || {
+        let open_sig = OPEN_POPUP.with(|slot| slot.borrow().as_ref().map(|(_, open)| *open));
+        let Some(open_sig) = open_sig else {
+            return;
+        };
+        open_sig.set(false);
+        menu.active_menu.set(None);
+        let writer = menu.pending_close_writer;
+        tokio::spawn(async move {
+            tokio::time::sleep(MENU_CLOSE_ANIM).await;
+            writer.set(true);
+        });
+    }
+}
+
+/// Destroy the open menu popup (after the collapse animation). Called by
+/// the pending_close effect in main.rs.
+pub fn finish_menu_close() {
     let popup = OPEN_POPUP.with(|slot| slot.borrow_mut().take());
-    if let Some(popup) = popup {
+    if let Some((popup, _)) = popup {
         popup.close();
     }
 }
@@ -73,17 +100,6 @@ pub fn menu_width_for(mt: MenuType) -> f32 {
         MenuType::Settings => 350.0,
         _ => MENU_WIDTH,
     }
-}
-
-/// Popup size per menu (xdg positioners need an explicit size).
-fn menu_size_for(mt: MenuType) -> (u32, u32) {
-    let width = menu_width_for(mt) as u32;
-    let height = match mt {
-        MenuType::Settings => 620,
-        MenuType::SystemInfo => 460,
-        MenuType::Updates => 280,
-    };
-    (width, height)
 }
 
 /// Collect all module names referenced by a config's module layout.
@@ -108,16 +124,29 @@ pub fn modules_in_config(modules: &Modules) -> HashSet<ModuleName> {
 
 // ── Menu toggle callback ─────────────────────────────────────────────────────
 
-/// Common popup chrome around a menu view.
-fn menu_shell(content: AnyWidget) -> Container {
+/// Common popup chrome around a menu view: background, radius, padding and
+/// the expand/collapse animation (spring open, ease-out close) scaling from
+/// the bar edge. No fill-height — auto-height popups size to the content.
+fn menu_shell(content: AnyWidget, open: RwSignal<bool>, origin: TransformOrigin) -> Container {
     let theme = expect_context::<crate::theme::ThemeColors>();
     container()
         .width(fill())
-        .height(fill())
         .background(theme.background)
         .corner_radius(12)
         .padding(16)
         .overflow(Overflow::Hidden)
+        .transform(move || {
+            if open.get() {
+                Transform::IDENTITY
+            } else {
+                Transform::scale_xy(1.0, 0.0)
+            }
+        })
+        .transform_origin(origin)
+        .animate_transform(
+            Transition::spring(SpringConfig::DEFAULT)
+                .reverse(Transition::new(200, TimingFunction::EaseOut)),
+        )
         .child(content)
 }
 
@@ -129,10 +158,9 @@ fn menu_toggle(
 ) -> impl Fn() + 'static {
     move || {
         let was_open = menu.active_menu.get() == Some(mt);
-        // Whatever happens, the previous popup goes away
-        close_open_menu();
+        // Whatever happens, the previous popup goes away (animated)
+        close_menu_fn(menu)();
         if was_open {
-            menu.active_menu.set(None);
             return;
         }
         let Some(bar) = menu.bar_sid.get() else {
@@ -140,25 +168,33 @@ fn menu_toggle(
         };
 
         // Open downward from a top bar, upward from a bottom bar; the
-        // compositor's flip adjustment covers the rest.
-        let direction = match with_context::<Config, _>(|c| c.position).unwrap_or_default() {
-            Position::Top => PopupAnchor::Bottom,
-            Position::Bottom => PopupAnchor::Top,
-        };
+        // animation scales from the bar edge accordingly.
+        let (direction, origin) =
+            match with_context::<Config, _>(|c| c.position).unwrap_or_default() {
+                Position::Top => (PopupAnchor::Bottom, TransformOrigin::TOP),
+                Position::Bottom => (PopupAnchor::Top, TransformOrigin::BOTTOM),
+            };
 
-        let (width, height) = menu_size_for(mt);
+        let width = menu_width_for(mt) as u32;
+        // Starts collapsed; flipped just after mapping so the expand plays
+        let open_sig = create_signal(false);
         let content = content.clone();
         let popup = spawn_popup(
             bar,
-            PopupConfig::new(width, height)
+            PopupConfig::new(width)
                 .anchor_rect(wr.rect().get())
                 .anchor(direction)
                 .gravity(direction)
                 .grab()
                 .background_color(Color::TRANSPARENT),
-            move || menu_shell(content()),
+            move || menu_shell(content(), open_sig, origin),
         );
         menu.active_menu.set(Some(mt));
+        let open_writer = open_sig.writer();
+        tokio::spawn(async move {
+            tokio::time::sleep(MENU_OPEN_DELAY).await;
+            open_writer.set(true);
+        });
 
         // Reset state when the compositor dismisses the popup (outside
         // click) or close_open_menu() runs — but only if this popup is
@@ -168,7 +204,7 @@ fn menu_toggle(
             if popup.dismissed() {
                 OPEN_POPUP.with(|slot| {
                     let mut slot = slot.borrow_mut();
-                    if slot.as_ref().is_some_and(|p| p.id() == popup_id) {
+                    if slot.as_ref().is_some_and(|(p, _)| p.id() == popup_id) {
                         *slot = None;
                     }
                 });
@@ -179,7 +215,7 @@ fn menu_toggle(
         })
         .detach();
 
-        OPEN_POPUP.with(|slot| *slot.borrow_mut() = Some(popup));
+        OPEN_POPUP.with(|slot| *slot.borrow_mut() = Some((popup, open_sig)));
     }
 }
 
@@ -227,8 +263,8 @@ fn add_module(
             if let Some((d, svc)) = &data.updates {
                 let wr = create_widget_ref();
                 let (d, svc) = (*d, svc.clone());
-                let content =
-                    move || updates::menu_view(d, svc.clone(), close_open_menu).into_any();
+                let close = close_menu_fn(menu);
+                let content = move || updates::menu_view(d, svc.clone(), close.clone()).into_any();
                 group.child(
                     container().widget_ref(wr).child(
                         module_item()
@@ -244,8 +280,8 @@ fn add_module(
             if let Some(s) = &data.settings {
                 let wr = create_widget_ref();
                 let s_menu = s.clone();
-                let content =
-                    move || settings::menu_view(s_menu.clone(), close_open_menu).into_any();
+                let close = close_menu_fn(menu);
+                let content = move || settings::menu_view(s_menu.clone(), close.clone()).into_any();
                 group.child(
                     container().widget_ref(wr).child(
                         module_item()
