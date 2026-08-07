@@ -144,29 +144,21 @@ impl Outputs {
     pub fn get_height(surface: BarSurface, scale_factor: f64) -> f64 {
         (HEIGHT
             - match surface {
-                BarSurface::Solid => 8.,
-                BarSurface::Transparent => 0.,
+                BarSurface::Solid => 0.,
+                BarSurface::Transparent => 8.,
             })
             * scale_factor
-    }
-
-    /// Layer-shell outer margin scaled to physical pixels, ordered
-    /// `(top, right, bottom, left)` to match `set_margin`/`LayerShellSettings`.
-    pub fn margin(layout: BarLayout, scale_factor: f64) -> (i32, i32, i32, i32) {
-        let (top, right, bottom, left) = layout.margin;
-        let scale = |v: f32| (f64::from(v) * scale_factor) as i32;
-        (scale(top), scale(right), scale(bottom), scale(left))
     }
 
     /// Space reserved on the anchored edge: the bar height plus the margin that
     /// pushes the bar away from that edge.
     pub fn exclusive_zone(layout: BarLayout, position: Position, scale_factor: f64) -> i32 {
         let height = Self::get_height(layout.surface, scale_factor);
-        let (top, _, bottom, _) = Self::margin(layout, scale_factor);
+        let (top, _, bottom, _) = layout.margin.into();
         height as i32
             + match position {
-                Position::Top => top,
-                Position::Bottom => bottom,
+                Position::Top => bottom,
+                Position::Bottom => top,
             }
     }
 
@@ -191,7 +183,7 @@ impl Outputs {
             layer: iced_layer,
             keyboard_interactivity: KeyboardInteractivity::None,
             exclusive_zone: Self::exclusive_zone(layout, position, scale_factor),
-            margin: Self::margin(layout, scale_factor),
+            margin: layout.margin.into(),
             output: output_id,
             anchor: match position {
                 Position::Top => Anchor::TOP,
@@ -559,7 +551,7 @@ impl Outputs {
                     shell_info.id,
                     Self::exclusive_zone(layout, position, scale_factor),
                 ),
-                set_margin(shell_info.id, Self::margin(layout, scale_factor)),
+                set_margin(shell_info.id, layout.margin.into()),
             ]));
         }
 

@@ -1,6 +1,7 @@
 use crate::app::Message;
 use crate::i18n::{UnitSystem, unit_system};
 use crate::services::upower::PeripheralDeviceKind;
+use crate::theme::Space;
 use crate::utils::celsius_to_fahrenheit;
 use hex_color::HexColor;
 use iced::futures::StreamExt;
@@ -926,6 +927,28 @@ pub enum SpaceSize {
     Xxl,
 }
 
+#[derive(Deserialize, Copy, Clone, PartialEq, Debug)]
+#[serde(untagged)]
+pub enum MarginSize {
+    SpaceSize(SpaceSize),
+    Pixels(f32),
+}
+
+impl Default for MarginSize {
+    fn default() -> Self {
+        Self::SpaceSize(SpaceSize::default())
+    }
+}
+
+impl From<MarginSize> for i32 {
+    fn from(value: MarginSize) -> Self {
+        match value {
+            MarginSize::SpaceSize(space_size) => Space::default().resolve(space_size) as i32,
+            MarginSize::Pixels(pixels) => pixels as i32,
+        }
+    }
+}
+
 #[derive(Deserialize)]
 #[serde(untagged)]
 enum CssShorthand<T> {
@@ -974,24 +997,35 @@ impl<'de> Deserialize<'de> for BarRadius {
 
 /// Per-edge margin selection, deserialized with CSS `margin` shorthand:
 /// 1 value = all edges, 2 = `[vertical, horizontal]`, 4 = `[top, right, bottom, left]`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[derive(Clone, Copy, Debug, PartialEq, Default)]
 pub struct BarMargin {
-    pub top: SpaceSize,
-    pub right: SpaceSize,
-    pub bottom: SpaceSize,
-    pub left: SpaceSize,
+    pub top: MarginSize,
+    pub right: MarginSize,
+    pub bottom: MarginSize,
+    pub left: MarginSize,
 }
 
 impl<'de> Deserialize<'de> for BarMargin {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let [top, right, bottom, left] =
-            CssShorthand::<SpaceSize>::deserialize(deserializer)?.expand()?;
+            CssShorthand::<MarginSize>::deserialize(deserializer)?.expand()?;
         Ok(Self {
             top,
             right,
             bottom,
             left,
         })
+    }
+}
+
+impl From<BarMargin> for (i32, i32, i32, i32) {
+    fn from(value: BarMargin) -> Self {
+        (
+            value.top.into(),
+            value.right.into(),
+            value.bottom.into(),
+            value.left.into(),
+        )
     }
 }
 

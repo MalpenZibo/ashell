@@ -268,7 +268,7 @@ fn main() -> iced::Result {
             config.position,
             config.appearance.scale_factor,
         ),
-        margin: Outputs::margin(bar_layout, config.appearance.scale_factor),
+        margin: bar_layout.margin.into(),
         size: Some((0, height as u32)),
         keyboard_interactivity: KeyboardInteractivity::None,
         namespace: "ashell-main-layer".into(),

@@ -1,5 +1,4 @@
 use crate::{
-    HEIGHT,
     components::{Centerbox, menu::MenuType},
     config::{self, BarSurface, Config, ModuleName, Modules, WorkspaceIndicatorFormat},
     get_log_spec,
@@ -594,16 +593,7 @@ impl App {
                     .spacing(space.xxs)
                     .width(Length::Fill)
                     .align_items(Alignment::Center)
-                    .height(if bar_surface == BarSurface::Transparent {
-                        HEIGHT
-                    } else {
-                        HEIGHT - space.xs as f64
-                    } as f32)
-                    .padding(if bar_surface == BarSurface::Transparent {
-                        [space.xxs, space.xxs]
-                    } else {
-                        [0.0, 0.0]
-                    });
+                    .height(Outputs::get_height(bar_surface, 1.0) as f32);
 
                 let menu_is_open = self.outputs.menu_is_open();
                 let bar_style = move |t: &Theme| container::Style {

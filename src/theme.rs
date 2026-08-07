@@ -107,7 +107,7 @@ impl Radius {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BarLayout {
     pub surface: BarSurface,
-    pub margin: (f32, f32, f32, f32),
+    pub margin: BarMargin,
 }
 
 impl BarLayout {
@@ -116,16 +116,7 @@ impl BarLayout {
     }
 
     fn new(surface: BarSurface, margin: BarMargin) -> Self {
-        let space = Space::default();
-        Self {
-            surface,
-            margin: (
-                space.resolve(margin.top),
-                space.resolve(margin.right),
-                space.resolve(margin.bottom),
-                space.resolve(margin.left),
-            ),
-        }
+        Self { surface, margin }
     }
 }
 
