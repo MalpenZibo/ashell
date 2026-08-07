@@ -180,7 +180,7 @@ impl Osd {
         };
 
         let content = row![
-            container(icon.to_text().size(font_size.xxl)).center_x(font_size.xxl),
+            container(icon.to_text().size(font_size.xxl).center()).center_x(font_size.xxl),
             detail,
         ]
         .spacing(space.sm)
