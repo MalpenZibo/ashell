@@ -1,0 +1,8 @@
+# Benchmark config for ashell-guido: module set kept semantically identical
+# to bench/config-iced.toml (the iced dialect uses Tempo where this uses Clock).
+log_level = "warn"
+
+[modules]
+left = ["Workspaces"]
+center = ["WindowTitle"]
+right = [["SystemInfo", "Clock", "Settings"]]
