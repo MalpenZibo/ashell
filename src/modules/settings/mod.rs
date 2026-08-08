@@ -8,7 +8,7 @@ use tokio::time::timeout;
 
 use crate::{
     components::{
-        ButtonUIRef, MenuSize, collapsible,
+        ButtonUIRef, MenuSize, ModuleContent, ModuleRow, ModuleView, collapsible,
         icons::{DynamicIcon, Icon, StaticIcon, icon, icon_button},
         menu::MenuType,
         password_dialog, position_button, quick_setting_button, sub_menu_wrapper,
@@ -753,14 +753,14 @@ impl Settings {
         .into()
     }
 
-    pub fn view<'a>(&'a self, id: SurfaceId) -> Element<'a, Message> {
+    pub fn view<'a>(&'a self, id: SurfaceId) -> ModuleView<'a, Message> {
         let (theme_space, spacing_size) = use_theme(|t| {
             let module_appearance = t.modules.get(&ModuleName::Settings).unwrap_or(&t.module);
             (t.space, module_appearance.spacing)
         });
         let space = theme_space.resolve(spacing_size);
 
-        let mut row = Row::with_capacity(self.indicators.len());
+        let mut row: Vec<Element<'a, Message>> = Vec::with_capacity(self.indicators.len());
 
         for indicator in &self.indicators {
             let element: Option<Element<'a, Message>> = match indicator {
@@ -807,7 +807,7 @@ impl Settings {
                     for (index, element) in peripherals.into_iter().enumerate() {
                         let element = element.map(Message::Power);
                         if self.enable_tooltips {
-                            row = row.push(
+                            row.push(
                                 position_button(element)
                                     .width(Length::Shrink)
                                     .height(Length::Shrink)
@@ -819,10 +819,11 @@ impl Settings {
                                     .on_unhover(Message::TooltipUnhover(
                                         id,
                                         MenuType::PeripheralBatteryTooltip(index),
-                                    )),
+                                    ))
+                                    .into(),
                             );
                         } else {
-                            row = row.push(element);
+                            row.push(element);
                         }
                     }
                     None
@@ -858,22 +859,25 @@ impl Settings {
                 };
 
                 if let Some((hover_msg, menu_type)) = tooltip_config {
-                    row = row.push(
+                    row.push(
                         position_button(element)
                             .width(Length::Shrink)
                             .height(Length::Shrink)
                             .padding(0)
                             .style(transparent_button_style)
                             .on_hover_with_position(move |ui_ref| hover_msg(ui_ref, id))
-                            .on_unhover(Message::TooltipUnhover(id, menu_type)),
+                            .on_unhover(Message::TooltipUnhover(id, menu_type))
+                            .into(),
                     );
                 } else {
-                    row = row.push(element);
+                    row.push(element);
                 }
             }
         }
 
-        row.spacing(space).into()
+        ModuleView::new(ModuleContent::Row(
+            ModuleRow::with_children(row).spacing(space),
+        ))
     }
 
     pub fn subscription(&self) -> Subscription<Message> {

@@ -1,13 +1,11 @@
 use crate::{
     components::{
-        MenuSize, divider,
+        MenuSize, ModuleContent, ModuleRow, ModuleView, divider,
         icons::{StaticIcon, icon},
-        module_group,
     },
     config::{
-        CpuFormat, DiskFormat, MemoryFormat, ModuleAppearance, ModuleGroup, ModuleName,
-        SystemInfoIndicator, SystemInfoModuleConfig, SystemInfoTemperature, TemperatureSensor,
-        TemperatureSensorType,
+        CpuFormat, DiskFormat, MemoryFormat, ModuleAppearance, ModuleName, SystemInfoIndicator,
+        SystemInfoModuleConfig, SystemInfoTemperature, TemperatureSensor, TemperatureSensorType,
     },
     i18n::{UnitSystem, unit_system},
     t,
@@ -17,7 +15,7 @@ use crate::{
 use iced::{
     Alignment, Element, Length, Subscription, Theme,
     time::every,
-    widget::{Column, Row, column, container, row, text},
+    widget::{Column, column, container, row, text},
 };
 use iced_anim::{AnimationBuilder, transition::Easing};
 use itertools::Itertools;
@@ -639,165 +637,157 @@ impl SystemInfo {
         .into()
     }
 
-    pub fn view(&'_ self) -> Element<'_, Message> {
+    pub fn view<'a>(&'a self) -> ModuleView<'a, Message> {
         let (theme_space, module_appearances) = use_theme(|t| (t.space, t.modules.clone()));
         let binding = &ModuleAppearance::default();
         let module_appearance = module_appearances
             .get(&ModuleName::SystemInfo)
             .unwrap_or(binding);
-        let (space_sizing, grouping) = (module_appearance.spacing, module_appearance.grouping);
+        let space_sizing = module_appearance.spacing;
 
         let space = theme_space.resolve(space_sizing);
 
-        let indicators = self.config.indicators.iter().filter_map(|i| {
-            let element = match i {
-                SystemInfoIndicator::Cpu => Some(Self::indicator_info_element(
-                    StaticIcon::Cpu,
-                    match self.config.cpu.format {
-                        CpuFormat::Percentage => (self.data.cpu_usage.percentage.to_string(), "%"),
-                        CpuFormat::Frequency => (self.data.cpu_usage.frequency.to_string(), " GHz"),
-                    },
+        let indicators = self.config.indicators.iter().filter_map(|i| match i {
+            SystemInfoIndicator::Cpu => Some(Self::indicator_info_element(
+                StaticIcon::Cpu,
+                match self.config.cpu.format {
+                    CpuFormat::Percentage => (self.data.cpu_usage.percentage.to_string(), "%"),
+                    CpuFormat::Frequency => (self.data.cpu_usage.frequency.to_string(), " GHz"),
+                },
+                Some((
+                    self.data.cpu_usage.percentage,
+                    self.config.cpu.warn_threshold,
+                    self.config.cpu.alert_threshold,
+                )),
+                None,
+            )),
+
+            SystemInfoIndicator::Memory => Some(Self::indicator_info_element(
+                StaticIcon::Mem,
+                match self.config.memory.format {
+                    MemoryFormat::Percentage => {
+                        (self.data.memory_usage.percentage.to_string(), "%")
+                    }
+                    MemoryFormat::Fraction => (self.data.memory_usage.fraction.clone(), " GiB"),
+                },
+                Some((
+                    self.data.memory_usage.percentage,
+                    self.config.memory.warn_threshold,
+                    self.config.memory.alert_threshold,
+                )),
+                None,
+            )),
+
+            SystemInfoIndicator::MemorySwap => Some(Self::indicator_info_element(
+                StaticIcon::Mem,
+                match self.config.memory.format {
+                    MemoryFormat::Percentage => {
+                        (self.data.memory_swap_usage.percentage.to_string(), "%")
+                    }
+                    MemoryFormat::Fraction => {
+                        (self.data.memory_swap_usage.fraction.clone(), " GiB")
+                    }
+                },
+                Some((
+                    self.data.memory_swap_usage.percentage,
+                    self.config.memory.warn_threshold,
+                    self.config.memory.alert_threshold,
+                )),
+                Some(t!("system-info-swap-indicator-prefix")),
+            )),
+
+            SystemInfoIndicator::Temperature => self.data.temperature.celsius.map(|cel| {
+                let units = unit_system();
+                let temp_value = match units {
+                    UnitSystem::Metric => cel,
+                    UnitSystem::Imperial => utils::celsius_to_fahrenheit(cel),
+                };
+                Self::indicator_info_element(
+                    StaticIcon::Temp,
+                    (temp_value, units.temperature_symbol()),
                     Some((
-                        self.data.cpu_usage.percentage,
-                        self.config.cpu.warn_threshold,
-                        self.config.cpu.alert_threshold,
+                        temp_value,
+                        self.config.temperature.warn_threshold(),
+                        self.config.temperature.alert_threshold(),
                     )),
                     None,
-                )),
-
-                SystemInfoIndicator::Memory => Some(Self::indicator_info_element(
-                    StaticIcon::Mem,
-                    match self.config.memory.format {
-                        MemoryFormat::Percentage => {
-                            (self.data.memory_usage.percentage.to_string(), "%")
-                        }
-                        MemoryFormat::Fraction => (self.data.memory_usage.fraction.clone(), " GiB"),
-                    },
-                    Some((
-                        self.data.memory_usage.percentage,
-                        self.config.memory.warn_threshold,
-                        self.config.memory.alert_threshold,
-                    )),
+                )
+            }),
+            SystemInfoIndicator::Disk(config) => {
+                self.data.disks.iter().find_map(|(disk_mount, disk)| {
+                    if disk_mount == &config.path {
+                        Some(Self::indicator_info_element(
+                            StaticIcon::Drive,
+                            match self.config.disk.format {
+                                DiskFormat::Percentage => (disk.percentage.to_string(), "%"),
+                                DiskFormat::Fraction => (disk.fraction.clone(), " GB"),
+                            },
+                            Some((
+                                disk.percentage,
+                                self.config.disk.warn_threshold,
+                                self.config.disk.alert_threshold,
+                            )),
+                            Some(config.name.as_deref().unwrap_or(disk_mount).to_string()),
+                        ))
+                    } else {
+                        None
+                    }
+                })
+            }
+            SystemInfoIndicator::IpAddress => self.data.network.as_ref().map(|network| {
+                Self::indicator_info_element(
+                    StaticIcon::IpAddress,
+                    (network.ip.to_string(), ""),
+                    None::<(u32, u32, u32)>,
                     None,
-                )),
-
-                SystemInfoIndicator::MemorySwap => Some(Self::indicator_info_element(
-                    StaticIcon::Mem,
-                    match self.config.memory.format {
-                        MemoryFormat::Percentage => {
-                            (self.data.memory_swap_usage.percentage.to_string(), "%")
-                        }
-                        MemoryFormat::Fraction => {
-                            (self.data.memory_swap_usage.fraction.clone(), " GiB")
-                        }
-                    },
-                    Some((
-                        self.data.memory_swap_usage.percentage,
-                        self.config.memory.warn_threshold,
-                        self.config.memory.alert_threshold,
-                    )),
-                    Some(t!("system-info-swap-indicator-prefix")),
-                )),
-
-                SystemInfoIndicator::Temperature => self.data.temperature.celsius.map(|cel| {
-                    let units = unit_system();
-                    let temp_value = match units {
-                        UnitSystem::Metric => cel,
-                        UnitSystem::Imperial => utils::celsius_to_fahrenheit(cel),
-                    };
-                    Self::indicator_info_element(
-                        StaticIcon::Temp,
-                        (temp_value, units.temperature_symbol()),
-                        Some((
-                            temp_value,
-                            self.config.temperature.warn_threshold(),
-                            self.config.temperature.alert_threshold(),
-                        )),
-                        None,
-                    )
-                }),
-                SystemInfoIndicator::Disk(config) => {
-                    self.data.disks.iter().find_map(|(disk_mount, disk)| {
-                        if disk_mount == &config.path {
-                            Some(Self::indicator_info_element(
-                                StaticIcon::Drive,
-                                match self.config.disk.format {
-                                    DiskFormat::Percentage => (disk.percentage.to_string(), "%"),
-                                    DiskFormat::Fraction => (disk.fraction.clone(), " GB"),
-                                },
-                                Some((
-                                    disk.percentage,
-                                    self.config.disk.warn_threshold,
-                                    self.config.disk.alert_threshold,
-                                )),
-                                Some(config.name.as_deref().unwrap_or(disk_mount).to_string()),
-                            ))
+                )
+            }),
+            SystemInfoIndicator::DownloadSpeed => self.data.network.as_ref().map(|network| {
+                Self::indicator_info_element(
+                    StaticIcon::DownloadSpeed,
+                    (
+                        if network.download_speed > 1000 {
+                            network.download_speed / 1000
                         } else {
-                            None
-                        }
-                    })
-                }
-                SystemInfoIndicator::IpAddress => self.data.network.as_ref().map(|network| {
-                    Self::indicator_info_element(
-                        StaticIcon::IpAddress,
-                        (network.ip.to_string(), ""),
-                        None::<(u32, u32, u32)>,
-                        None,
-                    )
-                }),
-                SystemInfoIndicator::DownloadSpeed => self.data.network.as_ref().map(|network| {
-                    Self::indicator_info_element(
-                        StaticIcon::DownloadSpeed,
-                        (
-                            if network.download_speed > 1000 {
-                                network.download_speed / 1000
-                            } else {
-                                network.download_speed
-                            },
-                            if network.download_speed > 1000 {
-                                "MB/s"
-                            } else {
-                                "KB/s"
-                            },
-                        ),
-                        None::<(u32, u32, u32)>,
-                        None,
-                    )
-                }),
-                SystemInfoIndicator::UploadSpeed => self.data.network.as_ref().map(|network| {
-                    Self::indicator_info_element(
-                        StaticIcon::UploadSpeed,
-                        (
-                            if network.upload_speed > 1000 {
-                                network.upload_speed / 1000
-                            } else {
-                                network.upload_speed
-                            },
-                            if network.upload_speed > 1000 {
-                                "MB/s"
-                            } else {
-                                "KB/s"
-                            },
-                        ),
-                        None::<(u32, u32, u32)>,
-                        None,
-                    )
-                }),
-            };
-
-            element.map(|el| {
-                if grouping == ModuleGroup::Individual {
-                    module_group(el, Some(module_appearance))
-                } else {
-                    el
-                }
-            })
+                            network.download_speed
+                        },
+                        if network.download_speed > 1000 {
+                            "MB/s"
+                        } else {
+                            "KB/s"
+                        },
+                    ),
+                    None::<(u32, u32, u32)>,
+                    None,
+                )
+            }),
+            SystemInfoIndicator::UploadSpeed => self.data.network.as_ref().map(|network| {
+                Self::indicator_info_element(
+                    StaticIcon::UploadSpeed,
+                    (
+                        if network.upload_speed > 1000 {
+                            network.upload_speed / 1000
+                        } else {
+                            network.upload_speed
+                        },
+                        if network.upload_speed > 1000 {
+                            "MB/s"
+                        } else {
+                            "KB/s"
+                        },
+                    ),
+                    None::<(u32, u32, u32)>,
+                    None,
+                )
+            }),
         });
 
-        Row::with_children(indicators)
-            .align_y(Alignment::Center)
-            .spacing(space)
-            .into()
+        ModuleView::new(ModuleContent::Row(
+            ModuleRow::with_children(indicators)
+                .spacing(space)
+                .align_y(Alignment::Center)
+                .height(Length::Fill),
+        ))
     }
 
     pub fn subscription(&self) -> Subscription<Message> {

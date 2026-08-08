@@ -723,18 +723,25 @@ impl AshellTheme {
 
     /// Module button style: transparent base with hover highlight.
     /// The module-group background is handled by `module_group`, not the button.
-    pub fn module_button_style(
-        &self,
-        no_hover: bool,
-    ) -> impl Fn(&Theme, Status) -> button::Style + use<> {
-        let (theme_radius, border, _module_padding) =
-            (self.radius, self.bar.module_border, self.space.xxs);
+    pub fn module_button_style(&self) -> impl Fn(&Theme, Status) -> button::Style + use<> {
+        let (theme_radius, border, _module_padding, module_opacity) = (
+            self.radius,
+            self.bar.module_border,
+            self.space.xxs,
+            self.bar.opacity.module,
+        );
         let radius = border.radius.resolve(theme_radius);
 
         let btn_opacity = self.bar.opacity.button;
         move |theme, status| {
             let mut base = button::Style {
-                background: None,
+                background: Some(
+                    theme
+                        .palette()
+                        .background
+                        .scale_alpha(module_opacity)
+                        .into(),
+                ),
                 border: Border {
                     width: 0.0,
                     radius,
@@ -745,7 +752,7 @@ impl AshellTheme {
             };
             match status {
                 Status::Active => base,
-                Status::Hovered if !no_hover => {
+                Status::Hovered => {
                     base.background = Some(
                         theme
                             .extended_palette()

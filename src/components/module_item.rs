@@ -9,7 +9,6 @@ use super::ButtonUIRef;
 /// When no press handler is set, renders as a plain container.
 pub struct ModuleItem<'a, Msg> {
     content: Element<'a, Msg>,
-    no_hover: bool, // enum it maybe?
     on_press: Option<Msg>,
     on_press_with_position: Option<Box<dyn Fn(ButtonUIRef) -> Msg + 'a>>,
     on_right_press: Option<Msg>,
@@ -21,7 +20,6 @@ pub struct ModuleItem<'a, Msg> {
 pub fn module_item<'a, Msg: 'static + Clone>(content: Element<'a, Msg>) -> ModuleItem<'a, Msg> {
     ModuleItem {
         content,
-        no_hover: false,
         on_press: None,
         on_press_with_position: None,
         on_right_press: None,
@@ -32,11 +30,6 @@ pub fn module_item<'a, Msg: 'static + Clone>(content: Element<'a, Msg>) -> Modul
 }
 
 impl<'a, Msg: 'static + Clone> ModuleItem<'a, Msg> {
-    pub fn no_hover(mut self, value: bool) -> Self {
-        self.no_hover = value;
-        self
-    }
-
     pub fn on_press(mut self, msg: Msg) -> Self {
         self.on_press = Some(msg);
         self
@@ -70,9 +63,8 @@ impl<'a, Msg: 'static + Clone> ModuleItem<'a, Msg> {
 
 impl<'a, Msg: 'static + Clone> From<ModuleItem<'a, Msg>> for Element<'a, Msg> {
     fn from(item: ModuleItem<'a, Msg>) -> Self {
-        let no_hover = item.no_hover;
         let (space, module_button_style) =
-            use_theme(|theme| (theme.space, theme.module_button_style(no_hover)));
+            use_theme(|theme| (theme.space, theme.module_button_style()));
 
         let has_action = item.on_press.is_some() || item.on_press_with_position.is_some();
 

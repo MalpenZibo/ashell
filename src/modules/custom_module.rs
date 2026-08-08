@@ -1,5 +1,8 @@
 use crate::{
-    components::icons::{DynamicIcon, StaticIcon, icon},
+    components::{
+        ModuleContent, ModuleRow, ModuleView,
+        icons::{DynamicIcon, StaticIcon, icon},
+    },
     config::CustomModuleDef,
     theme::use_theme,
     utils::launcher::execute_command,
@@ -8,7 +11,7 @@ use iced::widget::canvas;
 use iced::{
     Element, Length, Subscription, Theme,
     stream::channel,
-    widget::{Space, Stack, row, text},
+    widget::{Space, Stack, text},
 };
 use iced::{
     mouse::Cursor,
@@ -119,7 +122,7 @@ impl Custom {
         }
     }
 
-    pub fn view(&'_ self) -> Element<'_, Message> {
+    pub fn view<'a>(&'a self) -> ModuleView<'a, Message> {
         let space = use_theme(|theme| theme.space);
         match self.config.r#type {
             crate::config::CustomModuleType::Text => self
@@ -128,12 +131,18 @@ impl Custom {
                 .as_ref()
                 .and_then(|text_content| {
                     if !text_content.is_empty() {
-                        Some(text(text_content.clone()).into())
+                        Some(ModuleView::new(ModuleContent::Element(
+                            text(text_content.clone()).into(),
+                        )))
                     } else {
                         None
                     }
                 })
-                .unwrap_or_else(|| Space::new().width(Length::Shrink).into()),
+                .unwrap_or_else(|| {
+                    ModuleView::new(ModuleContent::Element(
+                        Space::new().width(Length::Shrink).into(),
+                    ))
+                }),
             crate::config::CustomModuleType::Button => {
                 let mut icon_element = self.config.icon.as_ref().map_or_else(
                     || icon(StaticIcon::None),
@@ -160,7 +169,7 @@ impl Custom {
                     false
                 };
 
-                let icon_with_alert = if show_alert {
+                let icon_with_alert: Element<'a, Message> = if show_alert {
                     let alert_canvas = canvas(AlertIndicator)
                         .width(Length::Fixed(space.xs)) // Size of the dot
                         .height(Length::Fixed(space.xs));
@@ -180,18 +189,22 @@ impl Custom {
                     padded_icon_container.into() // No alert, just the padded icon
                 };
 
-                let maybe_text_element = self.data.text.as_ref().and_then(|text_content| {
-                    if !text_content.is_empty() {
-                        Some(text(text_content.clone()))
-                    } else {
-                        None
-                    }
-                });
+                let maybe_text_element: Option<Element<'a, Message>> =
+                    self.data.text.as_ref().and_then(|text_content| {
+                        if !text_content.is_empty() {
+                            Some(text(text_content.clone()).into())
+                        } else {
+                            None
+                        }
+                    });
 
                 if let Some(text_element) = maybe_text_element {
-                    row![icon_with_alert, text_element].spacing(space.xs).into()
+                    ModuleView::new(ModuleContent::Row(
+                        ModuleRow::with_children(vec![icon_with_alert, text_element])
+                            .spacing(space.xs),
+                    ))
                 } else {
-                    icon_with_alert
+                    ModuleView::new(ModuleContent::Element(icon_with_alert))
                 }
             }
         }

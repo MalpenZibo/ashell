@@ -2,7 +2,7 @@ use crate::{
     config::{BarSurface, ModuleAppearance},
     theme::use_theme,
 };
-use iced::{Border, Color, Element, widget::container};
+use iced::{Border, Element, widget::container};
 
 /// Wraps content with the appropriate bar surface container.
 ///
@@ -29,27 +29,27 @@ pub fn module_group<'a, Msg: 'static>(
 
     match bar_surface {
         BarSurface::Solid => content,
-        BarSurface::Transparent => container(content)
-            .padding(
-                module_apperance.map_or(0., |appearance| theme_space.resolve(appearance.padding)),
-            )
-            .style(move |iced_theme: &iced::Theme| container::Style {
-                background: Some(
-                    iced_theme
-                        .palette()
-                        .background
-                        .scale_alpha(module_opacity)
-                        .into(),
-                ),
-                border: Border {
-                    width: 0.0,
-                    radius,
-                    color: Color::TRANSPARENT,
-                },
-                ..container::Style::default()
-            })
-            .into(),
-        BarSurface::Panel => container(content)
+        // BarSurface::Transparent => container(content)
+        //     .padding(
+        //         module_apperance.map_or(0., |appearance| theme_space.resolve(appearance.padding)),
+        //     )
+        //     .style(move |iced_theme: &iced::Theme| container::Style {
+        //         background: Some(
+        //             iced_theme
+        //                 .palette()
+        //                 .background
+        //                 .scale_alpha(module_opacity)
+        //                 .into(),
+        //         ),
+        //         border: Border {
+        //             width: 0.0,
+        //             radius,
+        //             color: Color::TRANSPARENT,
+        //         },
+        //         ..container::Style::default()
+        //     })
+        //     .into(),
+        BarSurface::Panel | BarSurface::Transparent => container(content)
             .padding(
                 module_apperance.map_or(0., |appearance| theme_space.resolve(appearance.padding)),
             )

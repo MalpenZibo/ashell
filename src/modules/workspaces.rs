@@ -1,5 +1,5 @@
 use crate::{
-    components::icons::icon,
+    components::{ModuleContent, ModuleView, icons::icon},
     config::{
         AppearanceColor, InvertScrollDirection, ModuleName, WorkspaceIndicatorFormat,
         WorkspaceVisibilityMode, WorkspacesModuleConfig,
@@ -509,7 +509,7 @@ impl Workspaces {
         }
     }
 
-    pub fn view<'a>(&'a self, id: SurfaceId, outputs: &Outputs) -> Element<'a, Message> {
+    pub fn view<'a>(&'a self, id: SurfaceId, outputs: &Outputs) -> ModuleView<'a, Message> {
         let monitor_name = outputs.get_monitor_name(id);
 
         let row = use_theme(|theme| {
@@ -697,55 +697,55 @@ impl Workspaces {
 
         let scroll_monitor = monitor_name.map(str::to_owned);
 
-        MouseArea::new(row)
-            .on_scroll(move |direction| {
-                let scroll = |dir: i32| Message::Scroll(dir, scroll_monitor.clone());
-                match direction {
-                    iced::mouse::ScrollDelta::Lines { y, .. } => {
-                        if y.is_sign_positive() {
-                            match self.config.invert_scroll_direction {
-                                Some(InvertScrollDirection::All | InvertScrollDirection::Mouse) => {
-                                    scroll(-1)
-                                }
-                                Some(InvertScrollDirection::Trackpad) => scroll(1),
-                                None => scroll(1),
+        let element = MouseArea::new(row).on_scroll(move |direction| {
+            let scroll = |dir: i32| Message::Scroll(dir, scroll_monitor.clone());
+            match direction {
+                iced::mouse::ScrollDelta::Lines { y, .. } => {
+                    if y.is_sign_positive() {
+                        match self.config.invert_scroll_direction {
+                            Some(InvertScrollDirection::All | InvertScrollDirection::Mouse) => {
+                                scroll(-1)
                             }
-                        } else {
-                            match self.config.invert_scroll_direction {
-                                Some(InvertScrollDirection::All | InvertScrollDirection::Mouse) => {
-                                    scroll(1)
-                                }
-                                Some(InvertScrollDirection::Trackpad) => scroll(-1),
-                                None => scroll(-1),
-                            }
+                            Some(InvertScrollDirection::Trackpad) => scroll(1),
+                            None => scroll(1),
                         }
-                    }
-                    iced::mouse::ScrollDelta::Pixels { y, .. } => {
-                        let sensibility = 3.;
-
-                        if self.scroll_accumulator.abs() < sensibility {
-                            Message::ScrollAccumulator(y)
-                        } else if self.scroll_accumulator.is_sign_positive() {
-                            match self.config.invert_scroll_direction {
-                                Some(
-                                    InvertScrollDirection::All | InvertScrollDirection::Trackpad,
-                                ) => scroll(-1),
-                                Some(InvertScrollDirection::Mouse) => scroll(1),
-                                None => scroll(1),
+                    } else {
+                        match self.config.invert_scroll_direction {
+                            Some(InvertScrollDirection::All | InvertScrollDirection::Mouse) => {
+                                scroll(1)
                             }
-                        } else {
-                            match self.config.invert_scroll_direction {
-                                Some(
-                                    InvertScrollDirection::All | InvertScrollDirection::Trackpad,
-                                ) => scroll(1),
-                                Some(InvertScrollDirection::Mouse) => scroll(-1),
-                                None => scroll(-1),
-                            }
+                            Some(InvertScrollDirection::Trackpad) => scroll(-1),
+                            None => scroll(-1),
                         }
                     }
                 }
-            })
-            .into()
+                iced::mouse::ScrollDelta::Pixels { y, .. } => {
+                    let sensibility = 3.;
+
+                    if self.scroll_accumulator.abs() < sensibility {
+                        Message::ScrollAccumulator(y)
+                    } else if self.scroll_accumulator.is_sign_positive() {
+                        match self.config.invert_scroll_direction {
+                            Some(InvertScrollDirection::All | InvertScrollDirection::Trackpad) => {
+                                scroll(-1)
+                            }
+                            Some(InvertScrollDirection::Mouse) => scroll(1),
+                            None => scroll(1),
+                        }
+                    } else {
+                        match self.config.invert_scroll_direction {
+                            Some(InvertScrollDirection::All | InvertScrollDirection::Trackpad) => {
+                                scroll(1)
+                            }
+                            Some(InvertScrollDirection::Mouse) => scroll(-1),
+                            None => scroll(-1),
+                        }
+                    }
+                }
+            }
+        });
+
+        ModuleView::new(ModuleContent::Element(element.into()))
     }
 
     pub fn subscription(&self) -> Subscription<Message> {

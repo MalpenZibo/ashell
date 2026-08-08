@@ -1072,10 +1072,7 @@ impl Default for BarAppearance {
                 ..Default::default()
             },
             surface: BarSurface::default(),
-            opacity: OpacityAppearance {
-                background: 0.5,
-                ..Default::default()
-            },
+            opacity: OpacityAppearance::default(),
             module_border: BorderAppearance::default(),
             margin: BarMargin::default(),
         }

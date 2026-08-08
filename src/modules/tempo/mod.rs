@@ -15,7 +15,7 @@ use log::{debug, warn};
 
 use self::weather::{Location, WeatherData, fetch_location, fetch_weather_data};
 use crate::{
-    components::MenuSize,
+    components::{MenuSize, ModuleRow, ModuleView},
     config::{TempoModuleConfig, WeatherIndicator},
     i18n::{language_subtag, unit_system},
     theme::use_theme,
@@ -164,11 +164,11 @@ impl Tempo {
         }
     }
 
-    pub fn view(&'_ self) -> Element<'_, Message> {
+    pub fn view(&'_ self) -> ModuleView<'_, Message> {
         let space = use_theme(|t| t.space);
         let display_text = self.time_str(self.current_format(), self.current_timezone_index, None);
 
-        Row::with_capacity(2)
+        ModuleRow::with_capacity(2)
             .push(self.weather_indicator())
             .push(text(display_text))
             .align_y(Vertical::Center)
