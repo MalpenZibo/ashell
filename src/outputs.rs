@@ -9,7 +9,7 @@ use crate::{
     HEIGHT,
     components::ButtonUIRef,
     components::menu::{Menu, MenuType, OpenMenu},
-    config::{self, BarSurface, Position},
+    config::{self, Position},
     theme::BarLayout,
 };
 
@@ -141,13 +141,8 @@ impl Outputs {
         Menu::with_animations(self.animations_enabled)
     }
 
-    pub fn get_height(surface: BarSurface, scale_factor: f64) -> f64 {
-        (HEIGHT
-            - match surface {
-                BarSurface::Solid => 8.,
-                BarSurface::Transparent | BarSurface::Panel => 0.,
-            })
-            * scale_factor
+    pub fn get_height(inset: f32, scale_factor: f64) -> f64 {
+        (HEIGHT - inset as f64) * scale_factor
     }
 
     /// Layer-shell outer margin scaled to physical pixels, ordered
@@ -161,7 +156,7 @@ impl Outputs {
     /// Space reserved on the anchored edge: the bar height plus the margin that
     /// pushes the bar away from that edge.
     pub fn exclusive_zone(layout: BarLayout, position: Position, scale_factor: f64) -> i32 {
-        let height = Self::get_height(layout.surface, scale_factor);
+        let height = Self::get_height(layout.appearance.inset, scale_factor);
         let (top, _, bottom, _) = Self::margin(layout, scale_factor);
         height as i32
             + match position {
@@ -177,7 +172,7 @@ impl Outputs {
         layer: config::Layer,
         scale_factor: f64,
     ) -> (SurfaceId, Task<Message>) {
-        let height = Self::get_height(layout.surface, scale_factor);
+        let height = Self::get_height(layout.appearance.inset, scale_factor);
 
         let iced_layer = match layer {
             config::Layer::Top => Layer::Top,
@@ -552,7 +547,7 @@ impl Outputs {
             );
             shell_info.layout = layout;
             shell_info.scale_factor = scale_factor;
-            let height = Self::get_height(layout.surface, scale_factor);
+            let height = Self::get_height(layout.appearance.inset, scale_factor);
             tasks.push(Task::batch(vec![
                 set_size(shell_info.id, (0, height as u32)),
                 set_exclusive_zone(
@@ -845,7 +840,8 @@ impl Outputs {
             if *oid == Some(target) {
                 info.as_ref().and_then(|i| {
                     i.output_logical_height.map(|h| {
-                        let bar = Self::get_height(i.layout.surface, i.scale_factor) as u32;
+                        let bar =
+                            Self::get_height(i.layout.appearance.inset, i.scale_factor) as u32;
                         h.saturating_sub(bar)
                     })
                 })

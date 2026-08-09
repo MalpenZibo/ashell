@@ -3,8 +3,8 @@ use std::{cell::RefCell, collections::HashMap};
 use crate::{
     components::button::{ButtonHierarchy, ButtonKind},
     config::{
-        Appearance, AppearanceColor, BackgroundLevel, BarAppearance, BarMargin, BarSurface,
-        MenuAppearance, ModuleAppearance, ModuleName, Position, RadiusSize, SpaceSize,
+        Appearance, AppearanceColor, BackgroundLevel, BarAppearance, MenuAppearance,
+        ModuleAppearance, ModuleName, Position, RadiusSize, SpaceSize,
     },
 };
 use iced::{
@@ -106,20 +106,17 @@ impl Radius {
 /// ordered `(top, right, bottom, left)`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BarLayout {
-    pub surface: BarSurface,
     pub margin: (f32, f32, f32, f32),
+    pub appearance: BarAppearance,
 }
 
 impl BarLayout {
-    pub fn from_appearance(bar: &BarAppearance) -> Self {
-        Self::new(bar.surface, bar.margin)
-    }
-
-    fn new(surface: BarSurface, margin: BarMargin) -> Self {
+    pub fn new(appearance: BarAppearance) -> Self {
+        let margin = appearance.margin;
         let space = Space::default();
 
         Self {
-            surface,
+            appearance,
             margin: (
                 space.resolve(margin.top),
                 space.resolve(margin.right),
@@ -326,7 +323,7 @@ impl AshellTheme {
     }
 
     pub fn bar_layout(&self) -> BarLayout {
-        BarLayout::new(self.bar.surface, self.bar.margin)
+        BarLayout::new(self.bar)
     }
 
     pub fn button_style(

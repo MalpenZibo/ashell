@@ -92,6 +92,7 @@ pub struct ModuleRow<'a, Msg> {
 }
 
 impl<'a, Msg: 'a> ModuleRow<'a, Msg> {
+    #[allow(unused)]
     pub fn new() -> Self {
         Self {
             children: Vec::new(),

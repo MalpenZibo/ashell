@@ -3,7 +3,7 @@ use crate::{
     components::{
         ModuleItem, ModuleResult, animated_size, menu::MenuType, module_group, module_item,
     },
-    config::{ModuleAppearance, ModuleDef, ModuleGroup, ModuleName},
+    config::{ModuleDef, ModuleGroup, ModuleName},
     theme::use_theme,
 };
 use iced::{Alignment, Element, Length, Subscription, SurfaceId, widget::Row};
@@ -148,7 +148,7 @@ impl App {
     fn build_module_item<'a>(
         &'a self,
         id: SurfaceId,
-        module_name: &'a ModuleName,
+        _module_name: &'a ModuleName, // we can use to customise more in the future
         content: Element<'a, Message>,
         action: Option<OnModulePress>,
     ) -> Element<'a, Message> {
@@ -170,11 +170,12 @@ impl App {
         id: SurfaceId,
         module_name: &'a ModuleName,
     ) -> Option<Element<'a, Message>> {
-        let module_appearances = use_theme(|t| t.modules.clone());
-        let module_appearance = module_appearances.get(module_name);
-        let grouping = module_appearance
-            .unwrap_or(&ModuleAppearance::default())
-            .grouping;
+        let (module_appearances, module_appearance) =
+            use_theme(|t| (t.modules.clone(), t.module.clone()));
+        let module_appearance = module_appearances
+            .get(module_name)
+            .unwrap_or(&module_appearance);
+        let grouping = module_appearance.grouping;
 
         self.get_module_view(id, module_name).map(|module_result| {
             let ModuleResult {
@@ -205,7 +206,8 @@ impl App {
         id: SurfaceId,
         group: &'a [ModuleName],
     ) -> Option<Element<'a, Message>> {
-        let module_appearances = use_theme(|t| t.modules.clone());
+        let (module_appearances, module_appearance) =
+            use_theme(|t| (t.modules.clone(), t.module.clone()));
 
         let module_items: Vec<_> = group
             .iter()
@@ -223,10 +225,12 @@ impl App {
                     action,
                     view: content,
                 } = module_result;
-                let module_appearance = module_appearances.get(module_name);
-                let grouping = module_appearance
-                    .unwrap_or(&ModuleAppearance::default())
-                    .grouping;
+
+                let module_appearance = module_appearances
+                    .get(module_name)
+                    .unwrap_or(&module_appearance);
+
+                let grouping = module_appearance.grouping;
 
                 match grouping {
                     ModuleGroup::Individual => {
@@ -239,15 +243,18 @@ impl App {
                     ModuleGroup::Combined | ModuleGroup::None => {
                         let item =
                             self.build_module_item(id, module_name, content.into_element(), action);
-                        module_group(item, module_appearance)
+                        // module_group(item, module_appearance)
+                        // we should allow more customisation but for now leave it
+                        item
                     }
                 }
             })
             .collect::<Vec<_>>();
 
         let row = Row::with_children(items);
+        // println!("group for {:?}", group);
 
-        Some(row.into())
+        Some(module_group(row.into(), &module_appearance))
     }
 
     fn get_module_view<'a>(

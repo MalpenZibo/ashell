@@ -1,7 +1,7 @@
 use crate::{
     HEIGHT,
     components::{Centerbox, menu::MenuType},
-    config::{self, BarSurface, Config, ModuleName, Modules, WorkspaceIndicatorFormat},
+    config::{self, Config, ModuleName, Modules, WorkspaceIndicatorFormat},
     get_log_spec,
     i18n::{Localizer, init_localizer},
     ipc::IpcCommand,
@@ -24,7 +24,7 @@ use crate::{
     osd::{self, Osd},
     outputs::{HasOutput, Outputs},
     services::{ReadOnlyService, xdg_icons},
-    theme::{AshellTheme, BarLayout, backdrop_color, darken_color, init_theme, use_theme},
+    theme::{AshellTheme, BarLayout, darken_color, init_theme, use_theme},
 };
 use flexi_logger::LoggerHandle;
 use iced::futures::StreamExt;
@@ -84,7 +84,7 @@ impl App {
     ) -> impl FnOnce() -> (Self, Task<Message>) {
         move || {
             let mut outputs = Outputs::new(
-                BarLayout::from_appearance(&config.appearance.bar),
+                BarLayout::new(config.appearance.bar),
                 config.position,
                 config.layer,
                 config.appearance.scale_factor,
@@ -238,7 +238,7 @@ impl App {
                 );
                 let (bar_position, bar_layout, scale_factor) =
                     use_theme(|t| (t.bar_position, t.bar_layout(), t.scale_factor));
-                let new_layout = BarLayout::from_appearance(&config.appearance.bar);
+                let new_layout = BarLayout::new(config.appearance.bar);
                 if self.general_config.outputs != config.outputs
                     || bar_position != config.position
                     || bar_layout != new_layout
@@ -579,52 +579,40 @@ impl App {
 
                 let (space, bar, menu, animations_enabled, theme_radius) =
                     use_theme(|t| (t.space, t.bar, t.menu, t.animations_enabled, t.radius));
-                let (bar_surface, bar_bg_opacity, bar_border) =
-                    (bar.surface, bar.opacity.background, bar.border);
+                let (bar_bg_opacity, bar_border, bar_inset) =
+                    (bar.opacity.background, bar.border, bar.inset);
                 let radius = bar_border.radius.resolve(theme_radius);
+
+                let has_inset = bar_inset > 0.;
 
                 let centerbox = Centerbox::new([left, center, right])
                     .animated(animations_enabled)
                     .spacing(space.xxs)
                     .width(Length::Fill)
                     .align_items(Alignment::Center)
-                    .height(match bar_surface {
-                        BarSurface::Transparent | BarSurface::Panel => HEIGHT,
-                        _ => HEIGHT - space.xs as f64,
+                    .height(if has_inset {
+                        HEIGHT - space.xs as f64
+                    } else {
+                        HEIGHT
                     } as f32)
-                    .padding(match bar_surface {
-                        BarSurface::Transparent | BarSurface::Panel => [space.xxs, space.xxs],
-                        _ => [0.0, 0.0],
+                    .padding(if has_inset {
+                        [0.0, 0.0]
+                    } else {
+                        [space.xxs, space.xxs]
                     });
 
                 let menu_is_open = self.outputs.menu_is_open();
                 let status_bar = container(centerbox).style(move |t: &Theme| container::Style {
-                    background: match bar_surface {
-                        BarSurface::Solid => Some({
-                            let bg = t.palette().background.scale_alpha(bar_bg_opacity);
+                    background: {
+                        let bg = t.palette().background.scale_alpha(bar_bg_opacity);
+                        Some(
                             if menu_is_open {
                                 darken_color(bg, menu.backdrop)
                             } else {
                                 bg
                             }
-                            .into()
-                        }),
-                        BarSurface::Transparent => {
-                            if menu_is_open {
-                                Some(backdrop_color(menu.backdrop).into())
-                            } else {
-                                None
-                            }
-                        }
-                        BarSurface::Panel => Some({
-                            let bg = t.palette().background.scale_alpha(bar_bg_opacity);
-                            if menu_is_open {
-                                darken_color(bg, menu.backdrop)
-                            } else {
-                                bg
-                            }
-                            .into()
-                        }),
+                            .into(),
+                        )
                     },
                     border: iced::Border {
                         radius,

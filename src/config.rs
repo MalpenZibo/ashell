@@ -92,6 +92,31 @@ impl Config {
         self.system_info.validate();
         self.settings.validate();
     }
+
+    fn translate_deprecated(&mut self) {
+        if let Some(surface) = self.appearance.bar.surface {
+            let bar_appearance = &mut self.appearance.bar;
+
+            log::warn!(
+                "`appearance.bar.surface` is deprecated. \
+                configure `appearance.bar` directly instead — see the docs for equivalents."
+            );
+
+            match surface {
+                BarSurface::Solid => {
+                    bar_appearance.opacity.module = 0.;
+                    bar_appearance.module_border.width = 0.;
+                    bar_appearance.inset = 8.;
+                }
+                BarSurface::Transparent => {
+                    bar_appearance.opacity.background = 0.;
+                    bar_appearance.inset = 0.;
+                }
+            }
+        }
+
+        // other deprecated stuffs
+    }
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -776,7 +801,7 @@ fn hex_to_pair(hex: HexColor, text: Option<HexColor>, text_fallback: Color) -> p
     )
 }
 
-#[derive(Deserialize, Clone, Copy, Debug)]
+#[derive(Deserialize, Clone, Copy, Debug, PartialEq)]
 #[serde(untagged)]
 pub enum AppearanceColor {
     Simple(HexColor),
@@ -900,7 +925,6 @@ pub enum BarSurface {
     #[default]
     Transparent,
     Solid,
-    Panel,
 }
 
 #[derive(Deserialize, Default, Copy, Clone, Eq, PartialEq, Debug)]
@@ -1016,7 +1040,7 @@ impl<'de> Deserialize<'de> for BarMargin {
     }
 }
 
-#[derive(Deserialize, Clone, Copy, Debug)]
+#[derive(Deserialize, Clone, Copy, Debug, PartialEq)]
 #[serde(default)]
 pub struct BorderAppearance {
     pub radius: BarRadius,
@@ -1034,7 +1058,7 @@ impl Default for BorderAppearance {
     }
 }
 
-#[derive(Deserialize, Clone, Copy, Debug)]
+#[derive(Deserialize, Clone, Copy, Debug, PartialEq)]
 #[serde(default)]
 pub struct OpacityAppearance {
     #[serde(deserialize_with = "opacity_deserializer")]
@@ -1054,15 +1078,21 @@ impl Default for OpacityAppearance {
     }
 }
 
-#[derive(Deserialize, Clone, Copy, Debug)]
+#[derive(Deserialize, Clone, Copy, Debug, PartialEq)]
 #[serde(default)]
 pub struct BarAppearance {
-    pub surface: BarSurface,
     pub opacity: OpacityAppearance,
     pub module_border: BorderAppearance,
     pub border: BorderAppearance,
     pub margin: BarMargin,
+
+    pub inset: f32,
+
+    /// Deprecated - set bar appearance directly instead.
+    pub surface: Option<BarSurface>,
 }
+
+impl BarAppearance {}
 
 impl Default for BarAppearance {
     fn default() -> Self {
@@ -1071,10 +1101,11 @@ impl Default for BarAppearance {
                 radius: BarRadius::new(RadiusSize::None),
                 ..Default::default()
             },
-            surface: BarSurface::default(),
             opacity: OpacityAppearance::default(),
             module_border: BorderAppearance::default(),
             margin: BarMargin::default(),
+            inset: 0.0,
+            surface: None,
         }
     }
 }
@@ -1117,7 +1148,7 @@ impl Default for ModuleAppearance {
     fn default() -> Self {
         Self {
             spacing: SpaceSize::Xs,
-            padding: SpaceSize::Xxs,
+            padding: SpaceSize::None,
             grouping: ModuleGroup::default(),
         }
     }
@@ -1141,6 +1172,7 @@ pub struct Appearance {
     pub special_workspace_colors: Option<Vec<AppearanceColor>>,
 
     pub modules: HashMap<ModuleName, ModuleAppearance>,
+    pub module: ModuleAppearance,
 }
 
 static PRIMARY: HexColor = HexColor::rgb(122, 162, 247);
@@ -1196,6 +1228,7 @@ impl Default for Appearance {
             scale_factor: 1.0,
             bar: BarAppearance::default(),
             menu: MenuAppearance::default(),
+            module: ModuleAppearance::default(),
             modules: HashMap::from([
                 (ModuleName::Settings, ModuleAppearance::default()),
                 (
@@ -1525,6 +1558,9 @@ fn read_config(path: &Path) -> Result<Config, Box<dyn Error + Send>> {
             info!("Config file loaded successfully");
             let mut config: Config = config;
             config.validate();
+
+            config.translate_deprecated();
+
             Ok(config)
         }
         Err(e) => {
