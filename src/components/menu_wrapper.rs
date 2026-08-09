@@ -315,6 +315,10 @@ where
             }
         };
 
+        // The layer clip is invisible to children; `viewport` is what they read.
+        let Some(child_viewport) = clip_bounds.intersection(viewport) else {
+            return;
+        };
         renderer.with_layer(clip_bounds, |renderer| {
             self.content.as_widget().draw(
                 &tree.children[0],
@@ -323,7 +327,7 @@ where
                 renderer_style,
                 content_layout,
                 cursor,
-                viewport,
+                &child_viewport,
             );
         });
     }

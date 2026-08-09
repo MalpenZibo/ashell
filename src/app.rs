@@ -32,7 +32,7 @@ use iced::{
     Alignment, Element, Length, OutputEvent, Subscription, SurfaceId, Task, Theme,
     event::listen_with,
     keyboard, set_exclusive_zone,
-    widget::{Row, container, mouse_area},
+    widget::{Row, blur_container, container, mouse_area},
 };
 use log::{debug, info, warn};
 use std::{collections::HashMap, path::PathBuf};
@@ -577,8 +577,16 @@ impl App {
 
                 let [left, center, right] = self.modules_section(id);
 
-                let (space, bar, menu, animations_enabled, theme_radius) =
-                    use_theme(|t| (t.space, t.bar, t.menu, t.animations_enabled, t.radius));
+                let (space, bar, menu, animations_enabled, theme_radius, blur) = use_theme(|t| {
+                    (
+                        t.space,
+                        t.bar,
+                        t.menu,
+                        t.animations_enabled,
+                        t.radius,
+                        t.blur,
+                    )
+                });
                 let (bar_bg_opacity, bar_border, bar_inset) =
                     (bar.opacity.background, bar.border, bar.inset);
                 let radius = bar_border.radius.resolve(theme_radius);
@@ -602,32 +610,41 @@ impl App {
                     });
 
                 let menu_is_open = self.outputs.menu_is_open();
-                let status_bar = container(centerbox).style(move |t: &Theme| container::Style {
-                    background: {
-                        let bg = t.palette().background.scale_alpha(bar_bg_opacity);
-                        Some(
-                            if menu_is_open {
-                                darken_color(bg, menu.backdrop)
-                            } else {
-                                bg
-                            }
-                            .into(),
-                        )
-                    },
-                    border: iced::Border {
-                        radius,
-                        color: bar_border.color.get_base(),
-                        width: bar_border.width,
-                    },
-                    ..Default::default()
-                });
+                let bar_style = move |t: &Theme| {
+                    let bg = t.palette().background.scale_alpha(bar_bg_opacity);
+
+                    container::Style {
+                        background: {
+                            Some(
+                                if menu_is_open {
+                                    darken_color(bg, menu.backdrop)
+                                } else {
+                                    bg
+                                }
+                                .into(),
+                            )
+                        },
+                        border: iced::Border {
+                            radius,
+                            color: bar_border.color.get_base(),
+                            width: bar_border.width,
+                        },
+                        ..Default::default()
+                    }
+                };
+                // In Transparent the individual module groups carry the blur.
+                let status_bar: Element<'_, Message> = if blur && bar_bg_opacity > 0. {
+                    blur_container(centerbox).style(bar_style).into()
+                } else {
+                    container(centerbox).style(bar_style).into()
+                };
 
                 if self.outputs.menu_is_open() {
                     mouse_area(status_bar)
                         .on_release(Message::CloseMenu(id))
                         .into()
                 } else {
-                    status_bar.into()
+                    status_bar
                 }
             }
             Some(HasOutput::Menu(Some(open_menu))) => {

@@ -168,6 +168,7 @@ enabled = false   # (default)
 [appearance]
 # font_name = "Sans"           # (default: None) custom font family
 # scale_factor = 1.0           # (default) range: 0.0 < x <= 2.0
+# blur = "auto"                # (default) auto|always|never, compositor blur
 primary_color = "#7aa2f7"
 success_color = "#9ece6a"
 warning_color = "#e0af68"
@@ -184,7 +185,7 @@ surface = "transparent"  # (default) or "solid"
 
 [appearance.menu]
 # opacity = 1.0   # (default) menu background opacity
-# backdrop = 0.0   # (default) backdrop blur amount
+# backdrop = 0.0   # (default) darkening drawn behind an open menu
 
 [appearance.background_color]
 base = "#1a1b26"

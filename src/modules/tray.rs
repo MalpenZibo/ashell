@@ -23,6 +23,32 @@ use log::debug;
 
 const MENU_MAX_HEIGHT: f32 = 600.;
 
+fn is_separator(layout: &Layout) -> bool {
+    layout.1.type_.as_deref() == Some("separator")
+}
+
+fn is_visible(layout: &Layout) -> bool {
+    layout.1.visible != Some(false)
+}
+
+fn renderable_children(children: &[Layout]) -> impl Iterator<Item = &Layout> {
+    let end = children
+        .iter()
+        .rposition(|child| is_visible(child) && !is_separator(child))
+        .map_or(0, |last| last + 1);
+
+    children[..end]
+        .iter()
+        .filter(|child| is_visible(child))
+        .scan(true, |prev_sep, child| {
+            let sep = is_separator(child);
+            let keep = !(sep && *prev_sep);
+            *prev_sep = sep;
+            Some(keep.then_some(child))
+        })
+        .flatten()
+}
+
 #[derive(Debug, Clone)]
 pub enum Message {
     Event(Box<ServiceEvent<TrayService>>),
@@ -209,12 +235,8 @@ impl TrayModule {
                     .push(if is_open {
                         Some(
                             Column::with_children(
-                                layout
-                                    .2
-                                    .iter()
-                                    .filter(|menu| menu.1.visible != Some(false))
-                                    .map(|menu| self.menu_voice(name, menu))
-                                    .collect::<Vec<_>>(),
+                                renderable_children(&layout.2)
+                                    .map(|menu| self.menu_voice(name, menu)),
                             )
                             .padding(Padding::default().left(space.md))
                             .spacing(space.xxs),
@@ -247,7 +269,7 @@ impl TrayModule {
 
         self.service
             .as_ref()
-            .filter(|s| !s.data.is_empty())
+            .filter(|s| s.data.iter().any(|item| !self.is_blocklisted(&item.name)))
             .map(|service| {
                 let element = Into::<Element<_>>::into(
                     Row::with_children(
@@ -304,11 +326,7 @@ impl TrayModule {
             .and_then(|service| service.data.iter().find(|item| item.name == name))
         {
             Some(item) => Column::with_children(
-                item.menu
-                    .2
-                    .iter()
-                    .filter(|menu| menu.1.visible != Some(false))
-                    .map(|menu| self.menu_voice(name, menu)),
+                renderable_children(&item.menu.2).map(|menu| self.menu_voice(name, menu)),
             )
             .spacing(space.xs),
             _ => Column::new(),
