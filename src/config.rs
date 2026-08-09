@@ -1072,7 +1072,7 @@ impl Default for OpacityAppearance {
     fn default() -> Self {
         Self {
             button: default_opacity(),
-            background: default_opacity(),
+            background: 0.,
             module: default_opacity(),
         }
     }
