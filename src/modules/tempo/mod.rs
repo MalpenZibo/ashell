@@ -192,7 +192,7 @@ pub fn view(handle: TempoHandle) -> impl Widget {
     if show_weather {
         row = row.child(container().child(move || {
             let data = handle.weather.get()?;
-            let _ = handle.location.with(|l| l.is_some()).then_some(())?;
+            handle.location.with(|l| l.is_some()).then_some(())?;
             let mut inner = container()
                 .layout(
                     Flex::row()

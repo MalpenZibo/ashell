@@ -258,7 +258,7 @@ pub fn view(settings: SettingsSignals) -> impl Widget {
                 let format = cfg.settings.battery_format;
                 row = row.child(move || {
                     upower.with(|s| {
-                        s.as_ref().and_then(|x| x.system_battery.clone()).map(|b| {
+                        s.as_ref().and_then(|x| x.system_battery).map(|b| {
                             bar_indicator()
                                 .kind(b.get_icon())
                                 .label(power::battery_label(&b, format))

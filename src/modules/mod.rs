@@ -406,6 +406,36 @@ fn add_module(
         ModuleName::KeyboardSubmap => {
             group.child(module_item().child(keyboard_submap::view(data.compositor_state)))
         }
+        ModuleName::Tempo => {
+            if let Some(t) = data.tempo {
+                let wr = create_widget_ref();
+                let content = move || tempo::menu_view(t).into_any();
+                group.child(
+                    container().height(fill()).widget_ref(wr).child(
+                        module_item()
+                            .on_click(menu_toggle(MenuType::Tempo, wr, menu, content))
+                            .child(tempo::view(t)),
+                    ),
+                )
+            } else {
+                group
+            }
+        }
+        ModuleName::Notifications => {
+            if let Some(n) = data.notifications {
+                let wr = create_widget_ref();
+                let content = move || notifications::menu_view(n).into_any();
+                group.child(
+                    container().height(fill()).widget_ref(wr).child(
+                        module_item()
+                            .on_click(menu_toggle(MenuType::Notifications, wr, menu, content))
+                            .child(notifications::view(n)),
+                    ),
+                )
+            } else {
+                group
+            }
+        }
         ModuleName::Custom(name) => {
             if let Some(handle) = data.custom.get(name) {
                 group.child(module_item().child(custom_module::view(handle.clone())))
@@ -413,8 +443,6 @@ fn add_module(
                 group
             }
         }
-        // Unimplemented modules are silently skipped.
-        _ => group,
     }
 }
 

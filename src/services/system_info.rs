@@ -276,7 +276,7 @@ pub fn start_system_info_service(
             // Missing sensor (typo or hotplug): rescan the component list
             // occasionally (~once a minute), never per tick.
             if scope.temperature
-                && tick % 12 == 0
+                && tick.is_multiple_of(12)
                 && tick > 0
                 && !components.iter().any(|c| c.label() == sensor)
             {

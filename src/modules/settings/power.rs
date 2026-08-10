@@ -139,7 +139,6 @@ pub fn battery_header(
         data.with(|s| {
             let s = s.as_ref()?;
             s.system_battery
-                .clone()
                 .map(|b| {
                     let indicator = menu_indicator().battery(b);
                     let has_peripherals = !s.peripherals.is_empty();
@@ -163,7 +162,7 @@ pub fn battery_header(
                     let periphs = &s.peripherals;
                     periphs.first().map(|p| {
                         let indicator = menu_indicator()
-                            .battery(p.data.clone())
+                            .battery(p.data)
                             .peripheral_icon(Some(p.kind.get_icon().into()));
 
                         if periphs.len() > 1 {
