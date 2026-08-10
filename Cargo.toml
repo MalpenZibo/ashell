@@ -21,7 +21,7 @@ anyhow = "1.0.101"
 freedesktop-icons = "0.4"
 linicon-theme = "1.2.0"
 pin-project-lite = "0.2"
-tokio-stream = "0.1"
+tokio-stream = { version = "0.1", features = ["sync"] }
 inotify = { version = "0.11", default-features = false, features = ["stream"] }
 futures = "0.3"
 zbus = { version = "5", default-features = false, features = ["tokio"] }
@@ -31,6 +31,10 @@ wayland-client = "0.31"
 wayland-protocols = { version = "0.32", features = ["client", "unstable"] }
 wayland-protocols-wlr = { version = "0.3", features = ["client"] }
 libc = "0.2.182"
+pipewire = "0.9"
+url = "2.5"
+bytes = "1"
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
 
 [build-dependencies]
 allsorts = "0.15"

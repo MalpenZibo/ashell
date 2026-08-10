@@ -99,6 +99,42 @@ impl<T: Send + 'static> Task<T> {
     }
 }
 
+/// `iced::widget::image` mimic: a data-only handle (the UI layer converts
+/// it to a guido `ImageSource`).
+pub mod image {
+    use std::path::PathBuf;
+
+    #[derive(Debug, Clone, PartialEq)]
+    pub enum Handle {
+        Path(PathBuf),
+        Bytes(bytes::Bytes),
+    }
+
+    impl Handle {
+        pub fn from_path(path: impl Into<PathBuf>) -> Self {
+            Self::Path(path.into())
+        }
+
+        pub fn from_bytes(bytes: impl Into<bytes::Bytes>) -> Self {
+            Self::Bytes(bytes.into())
+        }
+    }
+}
+
+/// `iced::widget::svg` mimic, same idea as [`image`].
+pub mod svg {
+    use std::path::PathBuf;
+
+    #[derive(Debug, Clone, PartialEq)]
+    pub struct Handle(pub PathBuf);
+
+    impl Handle {
+        pub fn from_path(path: impl Into<PathBuf>) -> Self {
+            Self(path.into())
+        }
+    }
+}
+
 /// A service snapshot with a version counter, so it can live in a guido
 /// signal without the service type implementing `PartialEq` (services hold
 /// proxies and channel handles; equality is meaningless — the version says
@@ -136,6 +172,22 @@ pub type ServiceSignal<S> = RwSignal<Option<Versioned<S>>>;
 /// Bench-only gate: ASHELL_BENCH_ONLY=NameA,NameB runs only the services
 /// whose type name contains one of the given fragments.
 pub fn run_service<S>() -> (ServiceSignal<S>, guido::prelude::Service<S::Command>)
+where
+    S: Service + Clone + Send + 'static,
+    S::UpdateEvent: Send + 'static,
+    S::Command: Send + 'static,
+    S::Error: Send + std::fmt::Debug + 'static,
+{
+    run_service_hooked::<S>(|_| {})
+}
+
+/// [`run_service`] plus a raw event hook, for consumers that react to the
+/// events themselves rather than to folded snapshots (the notifications
+/// list, the OSD). The hook runs on the service task before the event is
+/// folded, mirroring how upstream's app.rs sees `ServiceEvent`s.
+pub fn run_service_hooked<S>(
+    mut hook: impl FnMut(&ServiceEvent<S>) + Send + 'static,
+) -> (ServiceSignal<S>, guido::prelude::Service<S::Command>)
 where
     S: Service + Clone + Send + 'static,
     S::UpdateEvent: Send + 'static,
@@ -196,6 +248,8 @@ where
                     None => break,
                 },
             };
+
+            hook(&event);
 
             match event {
                 ServiceEvent::Init(s) => {
