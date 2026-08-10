@@ -68,3 +68,39 @@ rumore di altri processi, schermo 2880×1800, config bench):
 ≈250 MiB risparmiati per monitor. RSS/wakeup/CPU invariati (131.5 MB /
 0.58 wk/s / ~0.5%). Nota: la verifica interattiva dei menu (click,
 grab, posizionamento, contenuti) va fatta a mano.
+
+## 2026-08-10 — servizi upstream via compat layer
+
+A/B 20s, sistema in uso ma stabile, dopo pulizia istanze:
+
+| bar | RSS | wakeups/s (main) | CPU |
+|---|---|---|---|
+| ashell-iced 0.9.0 | 183.5 MB | 5.95 | 0.25% |
+| ashell-guido (servizi upstream) | 134.9 MB | **0.85** | **0.20%** |
+
+**Il gap di CPU residua è chiuso**: con i servizi identici a upstream
+(compat layer, zero polling is_running nel runner) la CPU è a pari/sotto
+iced. RSS −26%, wakeup main −86%.
+
+Errori di misura corretti strada facendo (entrambi documentati perché
+costati un'ora): (1) una run A/B partita subito dopo una build — regola
+nota, 15.5 wk/s fasulli; (2) un'istanza orfana della bar (kill sul PID
+della subshell) ha contaminato la prima serie di bisect.
+
+**Metrica nuova — wakeup a livello PROCESSO** (mai misurata prima, tutte
+le cifre storiche sono main-thread-only per entrambe le bar):
+
+| bar | main | totale processo |
+|---|---|---|
+| iced | 7.4 | 24.0 |
+| guido full | 1.1 | 64.9 |
+| guido, sei servizi spenti (ASHELL_BENCH_ONLY=None) | ~0.6 | 37.5 |
+
+I worker tokio di guido si svegliano ~2.7× iced: ~37/s dalla nostra
+baseline mai swappata (sysinfo a fette da 500ms, stream compositor,
+ecc.) + ~27/s dai sei servizi upstream. CPU comunque a 0.20% — sono
+micro-wake. Prossimo focus batteria: caratterizzare e ridurre i wakeup
+worker-side (è qui che si vince ora, non più sul main).
+
+Strumentazione aggiunta: `ASHELL_BENCH_ONLY=Frag1,Frag2` limita i
+servizi compat avviati; `RUST_LOG=...compat=debug` conta i publish.

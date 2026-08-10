@@ -133,6 +133,8 @@ pub type ServiceSignal<S> = RwSignal<Option<Versioned<S>>>;
 /// value via `update()`, publishes every change as a versioned snapshot,
 /// and executes `command()` tasks (their resulting events feed back into
 /// the same loop, like iced's runtime does).
+/// Bench-only gate: ASHELL_BENCH_ONLY=NameA,NameB runs only the services
+/// whose type name contains one of the given fragments.
 pub fn run_service<S>() -> (ServiceSignal<S>, guido::prelude::Service<S::Command>)
 where
     S: Service + Clone + Send + 'static,
@@ -143,6 +145,16 @@ where
     let signal = create_signal(None::<Versioned<S>>);
     let writer = signal.writer();
 
+    if let Ok(only) = std::env::var("ASHELL_BENCH_ONLY") {
+        let name = std::any::type_name::<S>();
+        if !only.split(',').any(|frag| name.contains(frag)) {
+            return (
+                signal,
+                create_service::<S::Command, _, _>(|_rx, _ctx| async {}),
+            );
+        }
+    }
+
     let svc = create_service::<S::Command, _, _>(move |mut rx, _ctx| async move {
         let mut events = S::subscribe().0;
         // Results of command() tasks re-enter the event loop here
@@ -151,6 +163,7 @@ where
         let mut version = 0u64;
 
         let mut publish = move |s: S| {
+            log::debug!("publish {}", std::any::type_name::<S>());
             version += 1;
             writer.set(Some(Versioned {
                 version,
