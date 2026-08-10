@@ -549,6 +549,11 @@ async fn main() {
                             }
                         };
                         let mut bars = bars.borrow_mut();
+                        // Spawn before closing: dropping to zero surfaces
+                        // (fallback -> pinned handover) would exit the app
+                        for key in &desired {
+                            bars.entry(*key).or_insert_with(|| make_bar(*key));
+                        }
                         bars.retain(|key, handle| {
                             if desired.contains(key) {
                                 true
@@ -558,9 +563,6 @@ async fn main() {
                                 false
                             }
                         });
-                        for key in desired {
-                            bars.entry(key).or_insert_with(|| make_bar(key));
-                        }
                     })
                     .detach();
                 }
