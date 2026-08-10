@@ -192,26 +192,17 @@ fn collect_system_info(
 
     let (first_ip, total_received, total_transmitted) = networks
         .iter()
-        .filter(|(name, _)| {
-            name.contains("en")
-                || name.contains("eth")
-                || name.contains("wl")
-                || name.contains("wlan")
+        // Upstream prefix list: prefix position doubles as priority
+        .filter_map(|(name, data)| {
+            ["en", "eth", "wl", "br", "bond"]
+                .iter()
+                .position(|p| name.starts_with(p))
+                .map(|prio| (prio, data))
         })
-        .sorted_by_key(|(name, _)| {
-            if name.contains("en") {
-                0
-            } else if name.contains("eth") {
-                1
-            } else if name.contains("wl") {
-                2
-            } else {
-                3
-            }
-        })
+        .sorted_by_key(|(prio, _)| *prio)
         .fold(
             (None::<std::net::IpAddr>, 0u64, 0u64),
-            |(ip, rx, tx), (_, data)| {
+            |(ip, rx, tx), (_prio, data)| {
                 let found_ip = ip.or_else(|| {
                     data.ip_networks()
                         .iter()
@@ -306,8 +297,9 @@ pub fn start_system_info_service(
             last_check = Some(Instant::now());
 
             // Sleep in slices so an opening menu gets a full refresh right
-            // away instead of showing up to 5s of stale disk/network data.
-            for _ in 0..10 {
+            // away instead of showing stale disk/network data. Slice count
+            // follows the configured interval (default 5s).
+            for _ in 0..(config.interval.max(1) * 2) {
                 tokio::time::sleep(Duration::from_millis(500)).await;
                 if !ctx.is_running() {
                     return;

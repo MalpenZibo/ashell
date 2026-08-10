@@ -29,6 +29,7 @@ pub struct Config {
     pub media_player: MediaPlayerModuleConfig,
     pub keyboard_layout: KeyboardLayoutModuleConfig,
     pub notifications: NotificationsModuleConfig,
+    pub tray: TrayModuleConfig,
     #[serde(rename = "CustomModule")]
     pub custom_modules: Vec<CustomModuleDef>,
     pub osd: OsdConfig,
@@ -55,6 +56,7 @@ impl Default for Config {
             media_player: MediaPlayerModuleConfig::default(),
             keyboard_layout: KeyboardLayoutModuleConfig::default(),
             notifications: NotificationsModuleConfig::default(),
+            tray: TrayModuleConfig::default(),
             custom_modules: Vec::new(),
             osd: OsdConfig::default(),
             enable_esc_key: false,
@@ -355,6 +357,8 @@ pub enum SystemInfoIndicator {
 #[serde(default)]
 pub struct SystemInfoModuleConfig {
     pub indicators: Vec<SystemInfoIndicator>,
+    /// Refresh cadence in seconds (upstream default 5).
+    pub interval: u64,
     pub cpu: SystemInfoCpu,
     pub memory: SystemInfoMemory,
     pub temperature: SystemInfoTemperature,
@@ -369,6 +373,7 @@ impl Default for SystemInfoModuleConfig {
                 SystemInfoIndicator::Memory,
                 SystemInfoIndicator::Temperature,
             ],
+            interval: 5,
             cpu: SystemInfoCpu::default(),
             memory: SystemInfoMemory::default(),
             temperature: SystemInfoTemperature::default(),
@@ -763,6 +768,25 @@ impl Default for NotificationsModuleConfig {
             blocklist: Vec::new(),
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// Tray
+// ---------------------------------------------------------------------------
+
+#[derive(Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TrayClickAction {
+    Open,
+    Menu,
+}
+
+#[derive(Deserialize, Clone, Debug, Default)]
+#[serde(default)]
+pub struct TrayModuleConfig {
+    pub blocklist: Vec<RegexCfg>,
+    /// Left click always opens the menu until guido containers grow
+    /// right-click support; declared for config compatibility.
+    pub right_click: Option<TrayClickAction>,
 }
 
 // ---------------------------------------------------------------------------

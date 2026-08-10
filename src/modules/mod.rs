@@ -325,9 +325,15 @@ fn add_module(
         ModuleName::Tray => {
             if let Some((items, svc)) = &data.tray {
                 let (items, svc) = (*items, svc.clone());
-                // Hidden entirely while no tray item is registered
+                let blocklist =
+                    with_context::<Config, _>(|c| c.tray.blocklist.clone()).unwrap_or_default();
+                // Hidden entirely while no (non-blocklisted) item is registered
                 group.child(container().height(fill()).child(move || {
-                    (!items.with(|l| l.is_empty())).then(|| tray::view(items, svc.clone(), menu))
+                    let any_visible = items.with(|l| {
+                        l.iter()
+                            .any(|item| !blocklist.iter().any(|re| re.0.is_match(&item.name)))
+                    });
+                    any_visible.then(|| tray::view(items, svc.clone(), menu))
                 }))
             } else {
                 group

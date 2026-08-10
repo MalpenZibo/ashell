@@ -25,12 +25,21 @@ pub fn create() -> TrayHandle {
 /// memo inside the row.
 pub fn view(items: RwSignal<Vec<TrayItem>>, svc: Service<TrayCmd>, menu: MenuCtx) -> impl Widget {
     let theme = expect_context::<ThemeColors>();
+    let blocklist =
+        with_context::<crate::config::Config, _>(|c| c.tray.blocklist.clone()).unwrap_or_default();
 
     container()
         .height(fill())
         .layout(Flex::row().cross_alignment(CrossAlignment::Center))
         .children(keyed(
-            move || items.with(|list| list.iter().map(|i| i.name.clone()).collect::<Vec<_>>()),
+            move || {
+                items.with(|list| {
+                    list.iter()
+                        .map(|i| i.name.clone())
+                        .filter(|name| !blocklist.iter().any(|re| re.0.is_match(name)))
+                        .collect::<Vec<_>>()
+                })
+            },
             |name| hash_key(name),
             move |name| tray_button(name, items, svc.clone(), menu, theme),
         ))
